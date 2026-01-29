@@ -10,6 +10,7 @@ flux-config.workspace = true
 flux-errors.workspace = true
 flux-macros.workspace = true
 flux-middle.workspace = true
+flux-opt.workspace = true
 flux-rustc-bridge.workspace = true
 
 itertools.workspace = true

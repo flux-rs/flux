@@ -16,10 +16,9 @@ fn spec_to_color(spec: Option<&PanicSpec>) -> (&'static str, &'static str) {
         Some(PanicSpec::MightPanic(reason)) => {
             match reason {
                 PanicReason::ContainsPanic => ("red", "bold"),
-                PanicReason::Transitive(_) => ("yellow", "bold"),
-                PanicReason::CallsTraitMethod(_) => ("blue", "dashed"),
-                PanicReason::CallsMethodForNoMIR(_) => ("blue", "dashed"),
+                PanicReason::Transitive => ("yellow", "bold"),
                 PanicReason::CannotResolve(_) => ("orange", "dotted"),
+                PanicReason::NotInCallGraph => ("purple", "dotted"),
                 PanicReason::Unknown => panic!("This should never happen."),
             }
         }
@@ -40,11 +39,13 @@ pub fn emit_dot(
                 match r {
                     PanicReason::Unknown => "Unknown".to_string(),
                     PanicReason::ContainsPanic => "ContainsPanic".to_string(),
-                    PanicReason::Transitive(_) => "Transitive".to_string(),
-                    PanicReason::CallsTraitMethod(_) => "CallsTraitMethod".to_string(),
-                    PanicReason::CallsMethodForNoMIR(_) => "CallsMethodForNoMIR".to_string(),
+                    PanicReason::Transitive => "Transitive".to_string(),
+                    PanicReason::NotInCallGraph => unreachable!(),
                     PanicReason::CannotResolve(r) => {
                         match r {
+                            CannotResolveReason::NoMIRAvailable(_) => {
+                                "CannotResolve:NoMIRAvailable".to_string()
+                            }
                             CannotResolveReason::UnresolvedTraitMethod(_) => {
                                 "CannotResolve:UnresolvedTraitMethod".to_string()
                             }
@@ -60,10 +61,10 @@ pub fn emit_dot(
         *reason_to_count.entry(key).or_insert(0) += 1;
     }
 
-    println!("Callgraph panic analysis summary:");
-    for (reason, count) in reason_to_count.iter() {
-        println!("  {:<20} {}", reason, count);
-    }
+    // println!("Callgraph panic analysis summary:");
+    // for (reason, count) in reason_to_count.iter() {
+    //     println!("  {:<20} {}", reason, count);
+    // }
 
     let mut out = String::new();
 

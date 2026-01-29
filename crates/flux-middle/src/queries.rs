@@ -7,9 +7,11 @@ use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
 use flux_config as config;
 use flux_errors::{E0999, ErrorGuaranteed};
+use flux_middle::rty::GenericArgsExt;
+use flux_opt::{PanicReason, PanicSpec};
 use flux_rustc_bridge::{
-    self, def_id_to_string,
-    lowering::{self, Lower, UnsupportedErr},
+    self, ToRustc, def_id_to_string,
+    lowering::{self, Lower, UnsupportedErr, resolve_call_query},
     mir::{self},
     ty,
 };
@@ -22,15 +24,18 @@ use rustc_hir::{
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_index::IndexVec;
+use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{Decodable, Encodable};
+use rustc_middle::ty::TypingMode;
 use rustc_span::{Span, Symbol};
+use rustc_trait_selection::traits::SelectionContext;
 
 use crate::{
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
     rty::{
-        self,
+        self, GenericArg,
         refining::{self, Refine, Refiner},
     },
 };
@@ -273,7 +278,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
-    auto_inferred_no_panic: Cache<DefId, bool>,
+    auto_inferred_no_panic: Cache<DefId, PanicSpec>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -590,57 +595,29 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    fn is_trait_method(&self, genv: GlobalEnv, def_id: DefId) -> bool {
-        //     let reason = match tcx.def_kind(callee) {
-        // rustc_hir::def::DefKind::AssocFn => PanicReason::CallsTraitMethod(fn_name),
-        matches!(genv.tcx().def_kind(def_id), rustc_hir::def::DefKind::AssocFn)
-    }
-
     /// An internal function that runs `flux-opt`'s no_panic inference
     /// tool and saves the results in the query cache.
-    pub(crate) fn inferred_no_panic(&self, genv: GlobalEnv, def_id: DefId) -> bool {
+    pub(crate) fn inferred_no_panic(&self, genv: GlobalEnv, def_id: DefId) -> PanicSpec {
         run_with_cache(&self.auto_inferred_no_panic, def_id, || {
             def_id.dispatch_query(
                 genv,
                 |def_id| {
-                    // i believe this is fine.
-
-                    let id = def_id.local_id().to_def_id();
-                    // if self.is_trait_method(genv, id) {
-                    //     // for fun, let's assume trait methods will never panic.
-                    //     return true;
-                    // }
-
+                    let def_id = def_id.local_id();
                     let map = flux_opt::infer_no_panics(genv.tcx());
 
-                    let name = genv.tcx().def_path_str(def_id);
-
-                    map.get(&id).cloned().unwrap_or((|| {
-                        println!("I couldn't find the ID for {name} in the no_panic map");
-                        false
-                    })())
+                    map.get(&def_id.to_def_id())
+                        .cloned()
+                        .unwrap_or((|| PanicSpec::MightPanic(PanicReason::NotInCallGraph))())
                 },
                 |def_id| {
-                    // if self.is_trait_method(genv, def_id) {
-                    //     // for fun, let's assume trait methods will never panic.
-                    //     return Some(true);
-                    // }
                     let map = flux_opt::infer_no_panics(genv.tcx());
-                    let name = genv.tcx().def_path_str(def_id);
-                    Some(map.get(&def_id).cloned().unwrap_or((|| {
-                        println!("I couldn't find the ID for {name} in the no_panic map");
-                        false
-                    })()))
+                    Some(
+                        map.get(&def_id)
+                            .cloned()
+                            .unwrap_or((|| PanicSpec::MightPanic(PanicReason::NotInCallGraph))()),
+                    )
                 },
-                |id| {
-                    if self.is_trait_method(genv, def_id) {
-                        // for fun, let's assume trait methods will never panic.
-                        return true;
-                    }
-                    let name = genv.tcx().def_path_str(id);
-                    println!("I couldn't find the ID for {name} in the default case.");
-                    false
-                },
+                |_| PanicSpec::MightPanic(PanicReason::Unknown),
             )
         })
     }

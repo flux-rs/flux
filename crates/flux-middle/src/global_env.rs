@@ -4,6 +4,7 @@ use flux_arc_interner::List;
 use flux_common::{bug, result::ErrorEmitter};
 use flux_config as config;
 use flux_errors::FluxSession;
+use flux_opt::PanicSpec;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use rustc_data_structures::unord::UnordSet;
 use rustc_hash::FxHashMap;
@@ -26,7 +27,7 @@ use crate::{
     queries::{Providers, Queries, QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, QualifierKind,
+        self, GenericArg, QualifierKind,
         refining::{Refine as _, Refiner},
     },
 };
@@ -426,7 +427,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Whether we have inferred that the function cannot panic.
-    pub fn inferred_no_panic(self, def_id: impl IntoQueryParam<DefId>) -> bool {
+    pub fn inferred_no_panic(self, def_id: impl IntoQueryParam<DefId>) -> PanicSpec {
         self.inner
             .queries
             .inferred_no_panic(self, def_id.into_query_param())
