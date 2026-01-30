@@ -1,15 +1,19 @@
-use std::collections::{HashMap, HashSet};
-use std::fs::read_to_string;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    fs::read_to_string,
+    path::{Path, PathBuf},
+};
 
 use annotate_snippets::{Renderer, Snippet};
 use fluent_bundle::{FluentBundle, FluentError, FluentResource};
-use fluent_syntax::ast::{
-    Attribute, Entry, Expression, Identifier, InlineExpression, Message, Pattern, PatternElement,
+use fluent_syntax::{
+    ast::{
+        Attribute, Entry, Expression, Identifier, InlineExpression, Message, Pattern,
+        PatternElement,
+    },
+    parser::ParserError,
 };
-use fluent_syntax::parser::ParserError;
-use proc_macro::tracked_path::path;
-use proc_macro::{Diagnostic, Level, Span};
+use proc_macro::{Diagnostic, Level, Span, tracked::path};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, LitStr, parse_macro_input};
@@ -158,7 +162,9 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
     for entry in resource.entries() {
         if let Entry::Message(msg) = entry {
             let Message { id: Identifier { name }, attributes, value, .. } = msg;
-            let _ = previous_defns.entry((*name).to_string()).or_insert(resource_span);
+            let _ = previous_defns
+                .entry((*name).to_string())
+                .or_insert(resource_span);
             if name.contains('-') {
                 Diagnostic::spanned(
                     resource_span,

@@ -1649,7 +1649,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             | CastKind::PointerCoercion(mir::PointerCast::MutToConstPointer)
             | CastKind::PointerCoercion(mir::PointerCast::ClosureFnPointer)
             | CastKind::PointerWithExposedProvenance => self.refine_default(to)?,
-            CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer) => {
+            CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer(_)) => {
                 let to = self.refine_default(to)?;
                 if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()

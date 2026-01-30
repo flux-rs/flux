@@ -131,12 +131,12 @@ impl<'a> PointsToAnalysis<'a> {
 
     fn handle_operand(&self, operand: &mir::Operand) -> Option<PlaceIndex> {
         match operand {
-            mir::Operand::Constant(..) => None,
             mir::Operand::Copy(place) | mir::Operand::Move(place) => {
                 // On move, we would ideally flood the place with bottom. But with the current
                 // framework this is not possible (similar to `InterpCx::eval_operand`).
                 self.map.find(place.as_ref())
             }
+            mir::Operand::Constant(..) | mir::Operand::RuntimeChecks(_) => None,
         }
     }
 

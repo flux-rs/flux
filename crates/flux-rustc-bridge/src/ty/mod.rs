@@ -316,9 +316,9 @@ impl<'tcx> ToRustc<'tcx> for ValTree {
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         match self {
             ValTree::Leaf(scalar) => rustc_middle::ty::ValTree::from_scalar_int(tcx, *scalar),
-            ValTree::Branch(trees) => {
-                let trees = trees.iter().map(|tree| tree.to_rustc(tcx));
-                rustc_middle::ty::ValTree::from_branches(tcx, trees)
+            ValTree::Branch(consts) => {
+                let consts = consts.iter().map(|c| c.to_rustc(tcx));
+                rustc_middle::ty::ValTree::from_branches(tcx, consts)
             }
         }
     }
@@ -353,7 +353,7 @@ pub struct UnevaluatedConst {
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ValTree {
     Leaf(ScalarInt),
-    Branch(List<ValTree>),
+    Branch(List<Const>),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -989,7 +989,7 @@ impl_slice_internable!(
     GenericParamDef,
     BoundVariableKind,
     Clause,
-    ValTree,
+    Const,
     Binder<ExistentialPredicate>,
 );
 
