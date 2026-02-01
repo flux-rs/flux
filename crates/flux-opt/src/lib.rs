@@ -78,7 +78,7 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Result<Vec<DefId>, Can
 
             match ty.kind() {
                 rustc_middle::ty::TyKind::FnDef(def_id, args) => {
-                    let Some(trait_id) = tcx.trait_of_assoc(*def_id) else {
+                    let Some(_trait_id) = tcx.trait_of_assoc(*def_id) else {
                         // If it's a free function, there's no need to resolve.
                         callees.push(*def_id);
                         continue;
@@ -149,6 +149,8 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, PanicSpec> {
     // 1. Seed with all local MIR-owning functions
     for local in tcx.hir_body_owners() {
         let def_id = local.to_def_id();
+
+        println!("name: {}", tcx.def_path_str(def_id));
 
         if !tcx.def_kind(def_id).is_fn_like() {
             continue;
@@ -296,19 +298,19 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, PanicSpec> {
         *reason_to_count.entry(key).or_default() += 1;
     }
 
-    for no_mir_fn in fn_to_no_panic.iter().filter_map(|(&k, v)| {
-        if let PanicSpec::MightPanic(PanicReason::CannotResolve(
-            CannotResolveReason::NoMIRAvailable(_),
-        )) = v
-        {
-            Some(k)
-        } else {
-            None
-        }
-    }) {
-        let name = tcx.def_path_str(no_mir_fn);
-        println!("  No MIR function: {}", name);
-    }
+    // for no_mir_fn in fn_to_no_panic.iter().filter_map(|(&k, v)| {
+    //     if let PanicSpec::MightPanic(PanicReason::CannotResolve(
+    //         CannotResolveReason::NoMIRAvailable(_),
+    //     )) = v
+    //     {
+    //         Some(k)
+    //     } else {
+    //         None
+    //     }
+    // }) {
+    //     let name = tcx.def_path_str(no_mir_fn);
+    //     println!("  No MIR function: {}", name);
+    // }
 
     // println!("=== no-panic inference results ===");
     // for (reason, count) in reason_to_count {
