@@ -141,15 +141,14 @@ fn strength(spec: &PanicSpec) -> u8 {
     }
 }
 
-pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, PanicSpec> {
+pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> {
     let mut fn_to_no_panic: FxHashMap<DefId, PanicSpec> = FxHashMap::default();
     let mut call_graph: CallGraph = FxHashMap::default();
     let mut worklist: Vec<DefId> = vec![];
 
     // 1. Seed with all local MIR-owning functions
-    for local in tcx.hir_body_owners() {
-        let def_id = local.to_def_id();
-
+    for def_id in &[root] {
+        let def_id = *def_id;
         println!("name: {}", tcx.def_path_str(def_id));
 
         if !tcx.def_kind(def_id).is_fn_like() {
@@ -158,7 +157,14 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, PanicSpec> {
 
         if !tcx.is_mir_available(def_id) {
             // Should not happen for locals
-            bug!("missing MIR for local function");
+            eprintln!("Missing MIR for local function: {}", tcx.def_path_str(def_id));
+            fn_to_no_panic.insert(
+                def_id,
+                PanicSpec::MightPanic(PanicReason::CannotResolve(
+                    CannotResolveReason::NoMIRAvailable(def_id),
+                )),
+            );
+            return fn_to_no_panic;
         }
 
         match get_callees(&tcx, def_id) {
