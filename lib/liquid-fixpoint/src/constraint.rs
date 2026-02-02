@@ -160,50 +160,136 @@ impl<T: Types> FlatConstraint<T> {
         }
     }
 
-    /// Based on the property that
+    /// Each element of the output is a wkvar, the constraint it corresponds to,
+    /// and the other constraints which must also hold.
     ///
+    /// We essentially "decompose" each assumption which contains a wkvar in
+    /// order to transform the constraint into one in which that wkvar is
+    /// exposed.
+    ///
+    /// These decompositions are of two forms.
+    /// 1. Hoisting existentials to the top level.
+    /// 2. Splitting disjuncts using the below property. When we split a
+    ///    disjunct, we generate other constraints. A more sophisticated
+    ///    analysis might try and solve multiple constraints simultaneously; if
+    ///    we were to do this, we would probably want to change how this
+    ///    algorithm works to avoid redundancy, e.g. by instead of generating
+    ///    ((wkvar, constr, other_constrs) outputs generating (all_constrs)
+    ///    outputs and letting consumers choose which wkvars to solve in each
+    ///    constr.
+    /// 
     /// ```
     /// (p || q) => c
     /// ==
     /// (p => c) && (q => c)
     /// ```
-    ///
-    /// We transform one FlatConstraint into many, effectively eliminating all
-    /// disjuncts in the assumptions.
-    ///
-    /// We assume that there are not `Pred::And(_)` in the assumptions (i.e.
-    /// that each conjunct is a separate assumption).
-    ///
-    /// This also hoists any exists in the assumptions.
-    pub fn split_disjuncts<F>(mut self, fresh_var: &mut F) -> Vec<FlatConstraint<T>>
+    pub fn wkvars_and_constrs<F>(&self, fresh_var: &mut F) -> Vec<(WKVar<T>, FlatConstraint<T>, Vec<FlatConstraint<T>>)>
         where F: FnMut() -> T::Var
     {
-        let Some(i) = self.assumptions
-                    .iter()
-                    .position(|assumption|
-                              matches!(assumption,
-                                       Pred::Expr(Expr::Exists(_, _)
-                                                  | Expr::Or(_))))
-                else {
-                    return vec![self];
-        };
-        let assumption = self.assumptions.remove(i);
-        match assumption {
-            Pred::Expr(e@Expr::Exists(_, _)) => {
-                let (new_vars, hoisted_e) = e.hoist_exists(fresh_var);
-                self.binders.extend(new_vars);
-                self.add_assumption(Pred::Expr(hoisted_e));
-                self.split_disjuncts(fresh_var)
+        let mut wkvars_and_constraints = self.assumptions
+                                             .iter()
+                                             .flat_map(|assumption|
+                                                       assumption
+                                                       .wkvars_in_conj()
+                                                       .into_iter()
+                                                       .map(|wkvar| (wkvar, self.clone(), vec![]))
+                                             )
+                                             .collect_vec();
+        // Frontier elements:
+        //   (current assumption, current constraint, other constraints)
+        let mut frontier: Vec<(Expr<T>, FlatConstraint<T>, Vec<FlatConstraint<T>>)> = self.assumptions
+                           .iter()
+                           .enumerate()
+                           .filter_map(|(i, assumption)| {
+                               if let Pred::Expr(assumption_expr) = assumption && assumption_expr.has_wkvar_reachable_by_split() {
+                                   let mut flat_constraint = self.clone();
+                                   flat_constraint.assumptions.remove(i);
+                                   Some((assumption_expr.clone(), flat_constraint, vec![]))
+                               } else {
+                                   None
+                               }
+                           }).collect_vec();
+        while let Some((e, mut constr, other_constrs)) = frontier.pop() {
+            match e {
+                // Base case: we reached a wkvar.
+                //   Record it alongside the constraint it is associated with
+                //   and the other constraints.
+                //   
+                // NOTE: we don't need wkvars_in_conj because we explicitly
+                //       handle the And.
+                Expr::WKVar(wkvar) => {
+                    // NOTE: Technically this isn't necessary, so we don't add
+                    // the wkvar back to the assumptions. But for completeness
+                    // we might want to.
+                    // 
+                    // constr.add_assumption(Pred::Expr(e));
+                    wkvars_and_constraints.push((wkvar, constr, other_constrs));
+                }
+                // In the And case, we add to the frontier each expression that
+                // is a wkvar or can reach a wkvar; whenever we do so, we also
+                // take all of the other expressions in the And and put them
+                // into the current constr's assumptions.
+                //
+                // We do this kind of annoying filter rather than just adding
+                // everything because it prevents us from cloning a bunch.
+                Expr::And(conjs) => {
+                    for (i, new_assumption) in conjs.iter().enumerate() {
+                        if !(matches!(new_assumption, Expr::WKVar(..)) || new_assumption.has_wkvar_reachable_by_split()) {
+                            continue;
+                        }
+                        let mut new_constr = constr.clone();
+                        for (j, other_new_assumption) in conjs.iter().enumerate() {
+                            if i == j {
+                                continue;
+                            }
+                            new_constr.add_assumption(Pred::Expr(other_new_assumption.clone()));
+                        }
+                        frontier.push((new_assumption.clone(), new_constr, other_constrs.clone()));
+                    }
+                }
+                // Hoist the exists and add it to the frontier.
+                // 
+                // We assume that there is a wkvar reachable here, so we don't check.
+                Expr::Exists(_, _) => {
+                    let (new_vars, hoisted_e) = e.hoist_exists(fresh_var);
+                    constr.binders.extend(new_vars);
+                    frontier.push((hoisted_e, constr, other_constrs));
+                }
+                // This is where things get kind of complicated.
+                //
+                // Morally speaking what we are doing is translating the constraint
+                //     (disjunct1 || disjunct2 || ...) => constr
+                // into multiple constraints
+                //     disjunct1 => constr
+                //     disjunct2 => constr
+                //     ...
+                // but our frontier looks like
+                //     (current assumption, constr without that assumption, other constrs we're no longer looking at)
+                // So if there are N disjuncts, we'll push N items to the frontier:
+                //     (disjunct1, constr, (disjunct2 => constr) + (disjunct3 => constr) + ... + other_constrs)
+                // Except the same optimization applies where we won't consider a case where the disjunct
+                // has no wkvars in it.
+                Expr::Or(disjuncts) => {
+                    for (i, disjunct) in disjuncts.iter().enumerate() {
+                        if !(matches!(disjunct, Expr::WKVar(..)) || disjunct.has_wkvar_reachable_by_split()) {
+                            continue;
+                        }
+                        let mut new_other_constrs = other_constrs.clone();
+                        for (j, other_disjunct) in disjuncts.iter().enumerate() {
+                            if i == j {
+                                continue;
+                            }
+                            let mut new_other_constr = constr.clone();
+                            new_other_constr.add_assumption(Pred::Expr(other_disjunct.clone()));
+                            new_other_constrs.push(new_other_constr);
+                        }
+                        frontier.push((disjunct.clone(), constr.clone(), new_other_constrs));
+                    }
+                }
+                _ => {}
             }
-            Pred::Expr(Expr::Or(disjuncts)) => {
-                disjuncts.into_iter().flat_map(|disjunct| {
-                    let mut split_cstr = self.clone();
-                    split_cstr.add_assumption(Pred::Expr(disjunct));
-                    split_cstr.split_disjuncts(fresh_var)
-                }).collect_vec()
-            }
-            _ => unreachable!(),
         }
+        wkvars_and_constraints
     }
 }
 
@@ -800,22 +886,18 @@ impl<T: Types> Expr<T> {
     /// which if we removed either (or both),
     /// we would be able to access.
     ///
-    /// NOTE: Does not handle cases where the weak
-    /// kvar is behind an exists in a conjunction, e.g.
-    ///
-    ///     x == 1
-    ///     && y == 2
-    ///     && exists z. $wk0(x, y, z)
-    ///
     /// Maybe the correct solution is to hoist all exists
     /// that we can and _then_ check for reachable weak kvars.
     pub fn has_wkvar_reachable_by_split(&self) -> bool {
-        if !matches!(self, Expr::Exists(..) | Expr::Or(..)) {
+        if !matches!(self, Expr::Exists(..) | Expr::Or(..) | Expr::And(..)) {
             return false;
         }
         match self.skip_exists() {
             Expr::Or(exprs) => {
-                exprs.iter().any(|expr| !expr.skip_exists().wkvars_in_conj().is_empty())
+                exprs.iter().any(|expr| matches!(expr, Expr::WKVar(..)) || !expr.has_wkvar_reachable_by_split())
+            }
+            Expr::And(exprs) => {
+                exprs.iter().any(|expr| expr.has_wkvar_reachable_by_split())
             }
             _ => !self.wkvars_in_conj().is_empty(),
         }

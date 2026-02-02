@@ -665,16 +665,6 @@ where
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
         let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
 
-        // FIXME: this should be a better source of fresh names, but 100000
-        // should be safe.
-        let mut fresh_rty_name: usize = 100_000;
-        let mut fresh_var = || {
-            let local_var = self.ecx.local_var_env.fresh_name();
-            let rty_var = rty::Expr::fvar(rty::Name::from_usize(fresh_rty_name));
-            self.ecx.local_var_env.reverse_map.insert(local_var, rty_var);
-            fresh_rty_name += 1;
-            fixpoint::Var::Local(local_var)
-        };
         for constraint in flat_constraint_map.values_mut() {
             constraint.assumptions = constraint.assumptions.iter().flat_map(|pred| {
                 // Remove all trivially true assumptions
@@ -688,9 +678,6 @@ where
                         let subst_solution = solution.substitute_bvar(&arg_exprs, 0);
                         subst_solution.as_conjunction()
                         // We'll do hoisting later when we split disjuncts.
-                        // let (new_binders, hoisted_solution) = subst_solution.hoist_exists(&mut fresh_var);
-                        // constraint.binders.extend(new_binders);
-                        // hoisted_solution.as_conjunction()
                     } else {
                         println!("Missing kvar solution for kvid {:?}", kvid);
                         vec![]
@@ -722,6 +709,9 @@ where
                                 "Looking for weak kvars that might solve {}",
                                 flat_constraint.head,
                             );
+                            // FIXME: this should be a better source of fresh names, but 100000
+                            // should be safe.
+                            let mut fresh_rty_name: usize = 100_000;
                             let mut fresh_var = || {
                                 let local_var = self.ecx.local_var_env.fresh_name();
                                 let rty_var = rty::Expr::fvar(rty::Name::from_usize(fresh_rty_name));
@@ -729,160 +719,113 @@ where
                                 fresh_rty_name += 1;
                                 fixpoint::Var::Local(local_var)
                             };
-                            let mut split_constraints = flat_constraint.clone().split_disjuncts(&mut fresh_var);
-                            split_constraints.retain(|constraint| {
-                                let mut consts = constraint.binders.iter().map(|(var, sort)| {
-                                    fixpoint::ConstDecl {
-                                        name: *var,
-                                        sort: sort.clone(),
-                                        comment: None,
-                                    }
-                                }).collect_vec();
-                                consts.extend(constants_without_inequalities.iter().cloned());
-                                // println!("Checking validity of {} => {}", constraint.assumptions.iter().map(|a| format!("{}", a)).join(" && "), constraint.head);
-                                !check_validity(&constraint, &consts, data_decls.clone())
-                            });
-                            if split_constraints.len() > 1 {
-                                println!("WARN: There are {} nontrivial constraints, skipping solving...", split_constraints.len());
-                            } else {
-                                let flat_constraint = split_constraints.pop().unwrap();
-                                for i in 0..flat_constraint.assumptions.len() {
-                                    let assumption = &flat_constraint.assumptions[i];
-                                    // // println!("  Checking for weak kvars: assumption {:?}", assumption);
-                                    // let (wkvars, flat_constraint) = match assumption {
-                                    //     fixpoint::Pred::Expr(e) => {
-                                    //         match e {
-                                    //             fixpoint::Expr::Or(disjuncts) => {
-                                    //                 let mut fresh_var = || {
-                                    //                     let local_var = self.ecx.local_var_env.fresh_name();
-                                    //                     let rty_var = rty::Expr::fvar(rty::Name::from_usize(fresh_rty_name));
-                                    //                     self.ecx.local_var_env.reverse_map.insert(local_var, rty_var);
-                                    //                     fresh_rty_name += 1;
-                                    //                     fixpoint::Var::Local(local_var)
-                                    //                 };
-                                    //                 let mut flat_constraint_without_current_assumption = flat_constraint.clone();
-                                    //                 flat_constraint_without_current_assumption.assumptions.remove(i);
-                                    //                 let mut new_constraints = disjuncts.iter().filter_map(|disjunct| {
-                                    //                     // println!("trying disjunct: {}", disjunct);
-                                    //                     let mut new_constraint = flat_constraint_without_current_assumption.clone();
-                                    //                     let (new_vars, hoisted_disjunct) = disjunct.hoist_exists(&mut fresh_var);
-                                    //                     new_constraint.binders.extend(new_vars);
-                                    //                     let wkvars = hoisted_disjunct.wkvars_in_conj();
-                                    //                     new_constraint.add_assumption(fixpoint::Pred::Expr(hoisted_disjunct));
-                                    //                     let mut consts = new_constraint.binders.iter().map(|(var, sort)| {
-                                    //                         fixpoint::ConstDecl {
-                                    //                             name: *var,
-                                    //                             sort: sort.clone(),
-                                    //                             comment: None,
-                                    //                         }
-                                    //                     }).collect_vec();
-                                    //                     consts.extend(constants_without_inequalities.iter().cloned());
-                                    //                     if !check_validity(&new_constraint, &consts, data_decls.clone()) {
-                                    //                         // println!("It is nontrivial");
-                                    //                         Some((wkvars, new_constraint))
-                                    //                     } else {
-                                    //                         // println!("We can filter it out");
-                                    //                         None
-                                    //                     }
-                                    //                 }).collect_vec();
-                                    //                 if new_constraints.len() == 1 {
-                                    //                     new_constraints.pop().unwrap()
-                                    //                 } else {
-                                    //                     println!("!!! We have two separate disjuncts; not running a split analysis on them");
-                                    //                     // FIXME: We shouldn't have to clone here
-                                    //                     (assumption.wkvars_in_conj(), flat_constraint.clone())
-                                    //                 }
-                                    //             }
-                                    //             _ => (assumption.wkvars_in_conj(), flat_constraint.clone())
-                                    //         }
-                                    //     }
-                                    //     _ => unreachable!("assumptions must be exprs"),
-                                    // };
-                                    let wkvars = assumption.wkvars_in_conj();
-                                    for wkvar in wkvars {
-                                        let ConstKey::WKVar(wkvid, self_args) = self.ecx.const_env.wkvar_map_rev.get(&wkvar.wkvid).unwrap()
-                                        else {
-                                            panic!()
-                                        };
-                                        let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.0).to_filename_friendly_no_crate(), wkvid.1.as_u32());
-                                        println!("Trying {}({})", wkvid_string, wkvar.args.iter().map(|arg| format!("{}", arg)).join(", "));
-                                        let fvars: HashSet<fixpoint::Var> = wkvar
-                                            .args
-                                            .iter()
-                                            .flat_map(|arg| {
-                                                arg.free_vars().into_iter().filter(|fvar| {
-                                                    match fvar {
-                                                        fixpoint::Var::Local(_)
-                                                        | fixpoint::Var::Param(_) => true,
-                                                        _ => false,
-                                                    }
-                                                })
-                                            })
-                                            .collect();
-                                        let rty_args: Vec<rty::Expr> = wkvar
-                                            .args
-                                            .iter()
-                                            .map(|arg| self.fixpoint_to_expr(arg))
-                                            .try_collect().unwrap();
-                                        let (mut consts, mut new_flat_constraint) =
-                                            flat_constraint.remove_binders(fvars);
-                                        // Some cleanup: remove all of the underscores (those aren't real binders)
-                                        new_flat_constraint.binders.retain(|(var, _)| {
-                                            !matches!(var, fixpoint::Var::Underscore)
-                                        });
-                                        // Remove any wkvars and drop assumptions that are just wkvars or true
-                                        new_flat_constraint.assumptions.retain_mut(|assumption| {
-                                            *assumption = assumption.strip_wkvars();
-                                            !assumption.is_trivially_true()
-                                        });
-                                        consts.extend(constants_without_inequalities.iter().cloned());
-                                        if check_validity(&new_flat_constraint, &consts, data_decls.clone()) {
-                                            panic!("a constraint is valid when it shouldn't be");
+                            let wkvars_and_constraints = flat_constraint.wkvars_and_constrs(&mut fresh_var);
+                            println!("There are {} wkvars/constraint pairs to try", wkvars_and_constraints.len());
+                            for (wkvar, flat_constraint, other_constrs) in wkvars_and_constraints {
+                                if !other_constrs.iter().all(|other_constr| {
+                                    let mut consts = other_constr.binders.iter().map(|(var, sort)| {
+                                        fixpoint::ConstDecl {
+                                            name: *var,
+                                            sort: sort.clone(),
+                                            comment: None,
                                         }
-                                        match qe_and_simplify(&new_flat_constraint, &consts, data_decls.clone()) {
-                                            Ok(fe) => {
-                                                match self.fixpoint_to_expr(&fe) {
-                                                    Ok(e) => {
-                                                        if !e.is_trivially_false()
-                                                            && !e.is_trivially_true() {
-                                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &e) {
-                                                                println!("recording solution: {:?}", e);
-                                                                if fe.max_num_disjuncts() > 2 {
-                                                                    println!("WARN: skipping answer with too many disjuncts");
-                                                                    // Try the regular expression
-                                                                    if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
-                                                                        possible_solutions.entry(*wkvid)
-                                                                            .or_default()
-                                                                            .push(binder_e);
-                                                                    }
-                                                                } else {
-                                                                    possible_solutions.entry(*wkvid)
-                                                                        .or_default()
-                                                                        .push(binder_e);
-                                                                }
-                                                            } else {
-                                                                println!("got nontrivial solution but couldn't unify it: {:?} with args {:?}", fe, wkvar.args);
-                                                                if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
-                                                                    possible_solutions.entry(*wkvid)
-                                                                        .or_default()
-                                                                        .push(binder_e);
-                                                                }
+                                    }).collect_vec();
+                                    consts.extend(constants_without_inequalities.iter().cloned());
+                                    // println!("Checking validity of {} => {}", constraint.assumptions.iter().map(|a| format!("{}", a)).join(" && "), constraint.head);
+                                    check_validity(&other_constr, &consts, data_decls.clone())
+                                    
+                                }) {
+                                    println!("WARN: There is at least one non-valid constraint among {} other constraints, skipping solving...", other_constrs.len());
+                                    // for constraint in other_constrs {
+                                    //     for assumption in constraint.assumptions.iter() {
+                                    //         println!("  {}", assumption);
+                                    //     }
+                                    //     println!(" ==>");
+                                    //     println!("  {}", constraint.head);
+                                    // }
+                                    continue;
+                                }
+                                let ConstKey::WKVar(wkvid, self_args) = self.ecx.const_env.wkvar_map_rev.get(&wkvar.wkvid).unwrap()
+                                else {
+                                    panic!()
+                                };
+                                let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.0).to_filename_friendly_no_crate(), wkvid.1.as_u32());
+                                println!("Trying {}({})", wkvid_string, wkvar.args.iter().map(|arg| format!("{}", arg)).join(", "));
+                                let fvars: HashSet<fixpoint::Var> = wkvar
+                                    .args
+                                    .iter()
+                                    .flat_map(|arg| {
+                                        arg.free_vars().into_iter().filter(|fvar| {
+                                            match fvar {
+                                                fixpoint::Var::Local(_)
+                                                | fixpoint::Var::Param(_) => true,
+                                                _ => false,
+                                            }
+                                        })
+                                    })
+                                    .collect();
+                                let rty_args: Vec<rty::Expr> = wkvar
+                                    .args
+                                    .iter()
+                                    .map(|arg| self.fixpoint_to_expr(arg))
+                                    .try_collect().unwrap();
+                                let (mut consts, mut new_flat_constraint) =
+                                    flat_constraint.remove_binders(fvars);
+                                // Some cleanup: remove all of the underscores (those aren't real binders)
+                                new_flat_constraint.binders.retain(|(var, _)| {
+                                    !matches!(var, fixpoint::Var::Underscore)
+                                });
+                                // Remove any wkvars and drop assumptions that are just wkvars or true
+                                new_flat_constraint.assumptions.retain_mut(|assumption| {
+                                    *assumption = assumption.strip_wkvars();
+                                    !assumption.is_trivially_true()
+                                });
+                                consts.extend(constants_without_inequalities.iter().cloned());
+                                if check_validity(&new_flat_constraint, &consts, data_decls.clone()) {
+                                    panic!("a constraint is valid when it shouldn't be");
+                                }
+                                match qe_and_simplify(&new_flat_constraint, &consts, data_decls.clone()) {
+                                    Ok(fe) => {
+                                        match self.fixpoint_to_expr(&fe) {
+                                            Ok(e) => {
+                                                if !e.is_trivially_false()
+                                                    && !e.is_trivially_true() {
+                                                    if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &e) {
+                                                        println!("recording solution: {:?}", e);
+                                                        if fe.max_num_disjuncts() > 2 {
+                                                            println!("WARN: skipping answer with too many disjuncts");
+                                                            // Try the regular expression
+                                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
+                                                                possible_solutions.entry(*wkvid)
+                                                                    .or_default()
+                                                                    .push(binder_e);
                                                             }
                                                         } else {
-                                                            println!("skipped trivial solution");
+                                                            possible_solutions.entry(*wkvid)
+                                                                .or_default()
+                                                                .push(binder_e);
+                                                        }
+                                                    } else {
+                                                        println!("got nontrivial solution but couldn't unify it: {:?} with args {:?}", fe, wkvar.args);
+                                                        if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
+                                                            possible_solutions.entry(*wkvid)
+                                                                .or_default()
+                                                                .push(binder_e);
                                                         }
                                                     }
-                                                    Err(err) => println!("failed to decode fixpoint expr because of {:?}", err),
-                                            }
-                                            }
-                                            Err(err) => {
-                                                println!("failed to decode z3 expr because of {:?}", err);
-                                                if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
-                                                    possible_solutions.entry(*wkvid)
-                                                        .or_default()
-                                                        .push(binder_e);
+                                                } else {
+                                                    println!("skipped trivial solution");
                                                 }
                                             }
+                                            Err(err) => println!("failed to decode fixpoint expr because of {:?}", err),
+                                    }
+                                    }
+                                    Err(err) => {
+                                        println!("failed to decode z3 expr because of {:?}", err);
+                                        if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
+                                            possible_solutions.entry(*wkvid)
+                                                .or_default()
+                                                .push(binder_e);
                                         }
                                     }
                                 }
