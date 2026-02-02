@@ -205,9 +205,10 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
                 let generics = self.tcx().generics_of(impl_def_id);
 
-                // Normalize the obligation args first. This is needed when the args contain
-                // nested projections like `<MyChoice as Choice>::Session` that need to be
-                // resolved to their concrete types (e.g., `End<B>`) before matching.
+                // Normalize the obligation args first, as required in issue-1449.rs.
+                // This is needed when the args contain nested projections like
+                // `<MyChoice as Choice>::Session` that need to be resolved to
+                // their concrete types (e.g., `End<B>`) before matching.
                 let obligation_args: Vec<_> = obligation
                     .args
                     .iter()
