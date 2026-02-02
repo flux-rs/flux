@@ -892,14 +892,17 @@ impl<T: Types> Expr<T> {
         if !matches!(self, Expr::Exists(..) | Expr::Or(..) | Expr::And(..)) {
             return false;
         }
-        match self.skip_exists() {
+        match self {
             Expr::Or(exprs) => {
-                exprs.iter().any(|expr| matches!(expr, Expr::WKVar(..)) || !expr.has_wkvar_reachable_by_split())
+                exprs.iter().any(|expr| matches!(expr, Expr::WKVar(..)) || expr.has_wkvar_reachable_by_split())
+            }
+            Expr::Exists(_sorts, expr) => {
+                !expr.wkvars_in_conj().is_empty() || expr.has_wkvar_reachable_by_split()
             }
             Expr::And(exprs) => {
                 exprs.iter().any(|expr| expr.has_wkvar_reachable_by_split())
             }
-            _ => !self.wkvars_in_conj().is_empty(),
+            _ => false,
         }
     }
 
