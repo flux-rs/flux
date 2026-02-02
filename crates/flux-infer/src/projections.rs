@@ -205,8 +205,17 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
                 let generics = self.tcx().generics_of(impl_def_id);
 
+                // Normalize the obligation args first. This is needed when the args contain
+                // nested projections like `<MyChoice as Choice>::Session` that need to be
+                // resolved to their concrete types (e.g., `End<B>`) before matching.
+                let obligation_args: Vec<_> = obligation
+                    .args
+                    .iter()
+                    .map(|arg| arg.try_fold_with(self))
+                    .try_collect_vec()?;
+
                 let mut subst = TVarSubst::new(generics);
-                for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
+                for (a, b) in iter::zip(&impl_trait_ref.args, &obligation_args) {
                     subst.generic_args(a, b);
                 }
 
