@@ -42,6 +42,9 @@ refineck_overflow_error =
 refineck_underflow_error =
     arithmetic operation may underflow
 
+refineck_raw_deref_error =
+    raw pointer dereference may be unsafe
+
 refineck_unsupported_call =
     unsupported type in function call
     .function_definition = function defined here

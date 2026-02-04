@@ -21,4 +21,3 @@ fn write_ix<T>(ptr: *mut T, value: T) {
         *ptr = value; // ERROR refinement type
     }
 }
-// *mut {v:v > 0} T

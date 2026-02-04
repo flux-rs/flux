@@ -113,9 +113,10 @@ impl<'a> TypeEnv<'a> {
         &mut self,
         infcx: &mut InferCtxtAt,
         place: &Place,
-    ) -> InferResult<Ty> {
+    ) -> InferResult<(Ty, Vec<Expr>)> {
         let span = infcx.span;
-        Ok(self.bindings.lookup_unfolding(infcx, place, span)?.ty)
+        let result = self.bindings.lookup_unfolding(infcx, place, span)?;
+        Ok((result.ty, result.raw_indices))
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {
