@@ -4,7 +4,7 @@ use flux_common::{
     bug, dbg, dbg::SpanTrace, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug,
     tracked_span_dbg_assert_eq,
 };
-use flux_config::{self as config, InferOpts, RawPointerMode};
+use flux_config::{self as config, InferOpts};
 use flux_infer::{
     infer::{
         ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
@@ -889,8 +889,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        // println!("TRACE: check_call {callee_def_id:?} with {actuals:?}");
-
         let actuals =
             unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());
@@ -1757,12 +1755,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         place: &Place,
     ) -> InferResult<Ty> {
         let (ty, raw_indices) = env.lookup_place(&mut infcx.at(span), place)?;
-        if matches!(infcx.check_raw_pointer, RawPointerMode::Checked) {
-            for idx in &raw_indices {
-                let pred = Expr::gt(idx, Expr::zero());
-                infcx.at(span).check_pred(pred, ConstrReason::RawDeref);
-            }
-        }
+        infcx.check_raw_pointer_indices(&raw_indices, span);
         Ok(ty)
     }
 

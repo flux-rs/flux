@@ -254,11 +254,11 @@ impl<'a> TypeEnv<'a> {
         place: &Place,
         new_ty: Ty,
     ) -> InferResult {
-        // println!("TRACE: TODO:RAW-PTR TypeEnv::assign {place:?} := {new_ty:?}");
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
         let new_ty = ty_match_regions(&new_ty, &rustc_ty);
         let span = infcx.span;
         let result = self.bindings.lookup_unfolding(infcx, place, span)?;
+        infcx.check_raw_pointer_indices(&result.raw_indices, span);
         if result.is_strg {
             result.update(new_ty);
         } else if !place.behind_raw_ptr(infcx.genv, self.local_decls)? {

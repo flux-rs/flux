@@ -319,6 +319,15 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxtAt { infcx: self, span }
     }
 
+    pub fn check_raw_pointer_indices(&mut self, raw_indices: &[Expr], span: Span) {
+        if matches!(self.check_raw_pointer, RawPointerMode::Checked) {
+            for idx in raw_indices {
+                let pred = Expr::gt(idx, Expr::zero());
+                self.at(span).check_pred(pred, ConstrReason::RawDeref);
+            }
+        }
+    }
+
     pub fn instantiate_refine_args(
         &mut self,
         callee_def_id: DefId,
