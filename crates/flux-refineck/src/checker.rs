@@ -888,6 +888,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<ResolvedCall> {
         let genv = self.genv;
         let tcx = genv.tcx();
+        println!("TRACE: check_call callee_def_id={:?}", callee_def_id);
 
         let actuals =
             unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;

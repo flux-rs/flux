@@ -1,3 +1,11 @@
+pub fn test_ptr_add(ptr: *mut u32) {
+    unsafe {
+        *ptr.add(0) = 10;
+        *ptr.add(1) = 20;
+        *ptr.add(2) = 30; //~ ERROR: refinement type
+    }
+}
+
 pub fn test() {
     let mut buf: [u32; 2] = [0; 2];
 
@@ -8,5 +16,4 @@ pub fn test() {
         *ptr.add(1) = 20;
         *ptr.add(2) = 30; //~ ERROR: refinement type
     }
-
 }
