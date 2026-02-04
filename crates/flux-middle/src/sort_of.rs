@@ -85,7 +85,9 @@ impl GlobalEnv<'_, '_> {
 impl rty::BaseTy {
     pub fn sort(&self) -> rty::Sort {
         match self {
-            rty::BaseTy::Int(_) | rty::BaseTy::Uint(_) | rty::BaseTy::Slice(_) => rty::Sort::Int,
+            rty::BaseTy::Int(_) | rty::BaseTy::Uint(_) | rty::BaseTy::Slice(_)
+            | rty::BaseTy::RawPtr(..)
+            => rty::Sort::Int,
             rty::BaseTy::Bool => rty::Sort::Bool,
             rty::BaseTy::Char => rty::Sort::Char,
             rty::BaseTy::Adt(adt_def, args) => adt_def.sort(args),
@@ -101,7 +103,6 @@ impl rty::BaseTy {
                 rty::Sort::Alias(*kind, alias_ty)
             }
             rty::BaseTy::Float(_)
-            | rty::BaseTy::RawPtr(..)
             | rty::BaseTy::RawPtrMetadata(..) // TODO(RJ): This should be `int` for slice?
             | rty::BaseTy::Ref(..)
             | rty::BaseTy::FnPtr(..)

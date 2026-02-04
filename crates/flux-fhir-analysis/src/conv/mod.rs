@@ -1458,10 +1458,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
             }
             fhir::BaseTyKind::RawPtr(ty, mutability) => {
-                Ok(rty::TyOrCtor::Ty(rty::Ty::indexed(
-                    rty::BaseTy::RawPtr(self.conv_ty(env, ty, None)?, *mutability),
-                    rty::Expr::unit(),
-                )))
+                let name = name.map(|sym| Self::suffix_symbol(sym, "size"));
+                let bty = rty::BaseTy::RawPtr(self.conv_ty(env, ty, name)?, *mutability)
+                    .shift_in_escaping(1);
+                let sort = bty.sort();
+                let ty = rty::Ty::indexed(bty, rty::Expr::nu());
+                Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
             }
             fhir::BaseTyKind::Err(err) => Err(QueryErr::Emitted(*err)),
         }
