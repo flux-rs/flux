@@ -1,5 +1,7 @@
 use flux_rs::attrs::*;
 
+extern crate flux_core;
+
 #[flux::opts(check_raw_pointer = "checked")]
 #[flux::spec(fn (ptr: *const{v: v > 1} i32))]
 pub fn test_add_ex(ptr: *const i32) {
@@ -41,15 +43,14 @@ pub fn test_add_mut_ix(ptr: *mut i32) {
 }
 
 // -----------------------------------------------------------------------------------------
+// #[extern_spec(core::ptr)]
+// impl<T> *const T {
+//     #[spec(fn (me: *const[@size] T, count: usize) -> *const[size - count] T)]
+//     unsafe fn add(self, count: usize) -> Self;
+// }
 
-#[extern_spec(core::ptr)]
-impl<T> *const T {
-    #[spec(fn (me: *const[@size] T, count: usize) -> *const[size - count] T)]
-    unsafe fn add(self, count: usize) -> Self;
-}
-
-#[extern_spec(core::ptr)]
-impl<T> *mut T {
-    #[spec(fn (me: *mut [@size] T, count: usize) -> *mut[size - count] T)]
-    unsafe fn add(self, count: usize) -> Self;
-}
+// #[extern_spec(core::ptr)]
+// impl<T> *mut T {
+//     #[spec(fn (me: *mut [@size] T, count: usize) -> *mut[size - count] T)]
+//     unsafe fn add(self, count: usize) -> Self;
+// }
