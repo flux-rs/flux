@@ -1,6 +1,4 @@
-
 #[cfg(flux)]
-use core::const_ptr;
-
+mod const_ptr;
 #[cfg(flux)]
-use core::mut_ptr;
+mod mut_ptr;
