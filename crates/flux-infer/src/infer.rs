@@ -1054,7 +1054,8 @@ impl<'a, E: LocEnv> Sub<'a, E> {
 
                 Ok(())
             }
-            _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
+            (BaseTy::Foreign(did_a), BaseTy::Foreign(did_b)) if did_a == did_b => Ok(()),
+            _ => Err(query_bug!("incompatible base types: `{a:#?}` - `{b:#?}`"))?,
         }
     }
 
