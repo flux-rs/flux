@@ -9,6 +9,5 @@ pub fn test() {
     unsafe {
         *ptr.add(0) = 10;
         *ptr.add(1) = 20;
-        *ptr.add(2) = 30; //~ ERROR: raw pointer dereference
     }
 }

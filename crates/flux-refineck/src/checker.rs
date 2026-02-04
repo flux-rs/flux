@@ -889,6 +889,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
+        let mut buf: [u32; 2] = [0; 2];
+        let ptr: *mut u32 = buf.as_mut_ptr();
+
         let actuals =
             unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());
