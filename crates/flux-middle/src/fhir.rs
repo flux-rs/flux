@@ -556,7 +556,6 @@ pub enum TyKind<'fhir> {
     BareFn(&'fhir BareFnTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ConstArg),
-    RawPtr(&'fhir Ty<'fhir>, Mutability),
     OpaqueDef(&'fhir OpaqueTy<'fhir>),
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
@@ -649,6 +648,7 @@ impl<'fhir> BaseTy<'fhir> {
 pub enum BaseTyKind<'fhir> {
     Path(QPath<'fhir>),
     Slice(&'fhir Ty<'fhir>),
+    RawPtr(&'fhir Ty<'fhir>, Mutability),
     Err(ErrorGuaranteed),
 }
 
@@ -1401,8 +1401,6 @@ impl fmt::Debug for Ty<'_> {
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             TyKind::Never => write!(f, "!"),
             TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} | {pred:?}}}"),
-            TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
-            TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Infer => write!(f, "_"),
             TyKind::OpaqueDef(opaque_ty) => {
                 write!(f, "impl trait <def_id = {:?}>", opaque_ty.def_id.resolved_id(),)
@@ -1461,6 +1459,8 @@ impl fmt::Debug for BaseTy<'_> {
         match &self.kind {
             BaseTyKind::Path(qpath) => write!(f, "{qpath:?}"),
             BaseTyKind::Slice(ty) => write!(f, "[{ty:?}]"),
+            BaseTyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
+            BaseTyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             BaseTyKind::Err(_) => write!(f, "err"),
         }
     }
