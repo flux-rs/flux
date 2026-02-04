@@ -4,7 +4,7 @@ use flux_common::{
     bug, dbg, dbg::SpanTrace, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug,
     tracked_span_dbg_assert_eq,
 };
-use flux_config::{self as config, InferOpts};
+use flux_config::{self as config, InferOpts, RawPointerMode};
 use flux_infer::{
     infer::{
         ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
@@ -1757,9 +1757,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         place: &Place,
     ) -> InferResult<Ty> {
         let (ty, raw_indices) = env.lookup_place(&mut infcx.at(span), place)?;
-        for idx in &raw_indices {
-            let pred = Expr::gt(idx, Expr::zero());
-            infcx.at(span).check_pred(pred, ConstrReason::RawDeref);
+        if matches!(infcx.check_raw_pointer, RawPointerMode::Checked) {
+            for idx in &raw_indices {
+                let pred = Expr::gt(idx, Expr::zero());
+                infcx.at(span).check_pred(pred, ConstrReason::RawDeref);
+            }
         }
         Ok(ty)
     }
