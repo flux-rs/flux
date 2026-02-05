@@ -456,9 +456,6 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
         TyKind::Array(ty, _len) => {
             vis.visit_ty(ty);
         }
-        TyKind::RawPtr(ty, _mtblt) => {
-            vis.visit_ty(ty);
-        }
         TyKind::OpaqueDef(opaque_ty) => {
             vis.visit_opaque_ty(opaque_ty);
         }
@@ -474,6 +471,9 @@ pub fn walk_bty<'v, V: Visitor<'v>>(vis: &mut V, bty: &BaseTy<'v>) {
     match &bty.kind {
         BaseTyKind::Path(path) => vis.visit_qpath(path),
         BaseTyKind::Slice(ty) => vis.visit_ty(ty),
+        BaseTyKind::RawPtr(ty, _mtblt) => {
+            vis.visit_ty(ty);
+        }
         BaseTyKind::Err(_) => {}
     }
 }

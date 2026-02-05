@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt, iter};
 
 use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
-use flux_config::{self as config, InferOpts, OverflowMode};
+use flux_config::{self as config, InferOpts, OverflowMode, RawPointerMode};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
     FixpointQueryKind,
@@ -79,6 +79,7 @@ pub enum ConstrReason {
     Goto(BasicBlock),
     Overflow,
     Underflow,
+    RawDeref,
     Subtype(SubtypeReason),
     NoPanic(DefId),
     Other,
@@ -193,6 +194,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             cursor: self.refine_tree.cursor_at_root(),
             inner: &self.inner,
             check_overflow: self.opts.check_overflow,
+            check_raw_pointer: self.opts.check_raw_pointer,
         }
     }
 
@@ -296,6 +298,7 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     pub def_id: DefId,
     pub check_overflow: OverflowMode,
+    pub check_raw_pointer: RawPointerMode,
     cursor: Cursor<'infcx>,
     inner: &'infcx RefCell<InferCtxtInner>,
 }
@@ -314,6 +317,15 @@ impl InferCtxtInner {
 impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     pub fn at(&mut self, span: Span) -> InferCtxtAt<'_, 'infcx, 'genv, 'tcx> {
         InferCtxtAt { infcx: self, span }
+    }
+
+    pub fn check_raw_pointer_indices(&mut self, raw_indices: &[Expr], span: Span) {
+        if matches!(self.check_raw_pointer, RawPointerMode::Checked) {
+            for idx in raw_indices {
+                let pred = Expr::gt(idx, Expr::zero());
+                self.at(span).check_pred(pred, ConstrReason::RawDeref);
+            }
+        }
     }
 
     pub fn instantiate_refine_args(
@@ -933,6 +945,16 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) => self.tys(infcx, ty_a, ty_b),
+
+            (BaseTy::RawPtr(ty_a, mut_a), BaseTy::RawPtr(ty_b, mut_b)) => {
+                debug_assert_eq!(mut_a, mut_b);
+                self.tys(infcx, ty_a, ty_b)?;
+                if matches!(mut_a, Mutability::Mut) {
+                    self.tys(infcx, ty_b, ty_a)?;
+                }
+                Ok(())
+            }
+
             (BaseTy::Ref(_, ty_a, Mutability::Mut), BaseTy::Ref(_, ty_b, Mutability::Mut)) => {
                 if ty_a.is_slice()
                     && let TyKind::Indexed(_, idx_a) = ty_a.kind()
@@ -999,7 +1021,6 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
-            | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _))
             | (BaseTy::RawPtrMetadata(_), BaseTy::RawPtrMetadata(_)) => Ok(()),
             (BaseTy::Dynamic(preds_a, _), BaseTy::Dynamic(preds_b, _)) => {
                 tracked_span_assert_eq!(preds_a.erase_regions(), preds_b.erase_regions());
@@ -1033,7 +1054,8 @@ impl<'a, E: LocEnv> Sub<'a, E> {
 
                 Ok(())
             }
-            _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
+            (BaseTy::Foreign(did_a), BaseTy::Foreign(did_b)) if did_a == did_b => Ok(()),
+            _ => Err(query_bug!("incompatible base types: `{a:#?}` - `{b:#?}`"))?,
         }
     }
 

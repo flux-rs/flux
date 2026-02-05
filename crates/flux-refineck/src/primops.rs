@@ -49,6 +49,11 @@ pub(crate) struct Pre {
     pub pred: Expr,
 }
 
+fn is_cmp(op: &mir::BinOp) -> bool {
+    use mir::BinOp::*;
+    matches!(op, Eq | Ne | Lt | Le | Gt | Ge)
+}
+
 pub(crate) fn match_bin_op(
     op: mir::BinOp,
     bty1: &BaseTy,
@@ -63,7 +68,12 @@ pub(crate) fn match_bin_op(
         OverflowMode::None => &OVERFLOW_NONE_BIN_OPS,
         OverflowMode::StrictUnder => &OVERFLOW_STRICT_UNDER_BIN_OPS,
     };
-    table.match_inputs(&op, [(bty1.clone(), idx1.clone()), (bty2.clone(), idx2.clone())])
+    // TODO(HACK): for tests/tests/pos/surface/binop.rs:133:5
+    if (matches!(bty1, BaseTy::RawPtr(..)) || matches!(bty2, BaseTy::RawPtr(..))) && is_cmp(&op) {
+        MatchedRule { precondition: None, output_type: rty::Ty::bool() }
+    } else {
+        table.match_inputs(&op, [(bty1.clone(), idx1.clone()), (bty2.clone(), idx2.clone())])
+    }
 }
 
 pub(crate) fn match_un_op(

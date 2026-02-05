@@ -125,7 +125,7 @@ pub fn divide_f32(a: f32, b: f32) -> f32 {
 
 // unsigned shift right
 pub fn uint_shr(left: u32, right: usize) {
-    let blah = left >> right;
+    let _blah = left >> right;
 }
 
 // equality comparison

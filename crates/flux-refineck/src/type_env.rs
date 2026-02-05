@@ -113,9 +113,10 @@ impl<'a> TypeEnv<'a> {
         &mut self,
         infcx: &mut InferCtxtAt,
         place: &Place,
-    ) -> InferResult<Ty> {
+    ) -> InferResult<(Ty, Vec<Expr>)> {
         let span = infcx.span;
-        Ok(self.bindings.lookup_unfolding(infcx, place, span)?.ty)
+        let result = self.bindings.lookup_unfolding(infcx, place, span)?;
+        Ok((result.ty, result.raw_indices))
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {
@@ -257,6 +258,7 @@ impl<'a> TypeEnv<'a> {
         let new_ty = ty_match_regions(&new_ty, &rustc_ty);
         let span = infcx.span;
         let result = self.bindings.lookup_unfolding(infcx, place, span)?;
+        infcx.check_raw_pointer_indices(&result.raw_indices, span);
         if result.is_strg {
             result.update(new_ty);
         } else if !place.behind_raw_ptr(infcx.genv, self.local_decls)? {

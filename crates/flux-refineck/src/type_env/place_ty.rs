@@ -71,6 +71,7 @@ pub(super) struct LookupResult<'a> {
     pub is_strg: bool,
     cursor: Cursor,
     bindings: &'a mut PlacesTree,
+    pub raw_indices: Vec<Expr>,
 }
 
 pub(crate) trait LookupMode {
@@ -171,6 +172,7 @@ impl PlacesTree {
         let mut cursor = self.cursor_for(key);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
         let mut is_strg = true;
+        let mut raw_indices = vec![];
         while let Some(elem) = cursor.next() {
             ty = mode.unpack(&ty);
             match elem {
@@ -179,8 +181,9 @@ impl PlacesTree {
                         TyKind::Indexed(BaseTy::Adt(adt, args), _) if adt.is_box() => {
                             ty = args.box_args().0.clone();
                         }
-                        TyKind::Indexed(BaseTy::RawPtr(deref_ty, _), _) => {
+                        TyKind::Indexed(BaseTy::RawPtr(deref_ty, _), e) => {
                             is_strg = false;
+                            raw_indices.push(e.clone());
                             ty = deref_ty.clone();
                         }
                         TyKind::Ptr(_, path) => {
@@ -228,7 +231,7 @@ impl PlacesTree {
             }
         }
         cursor.reset();
-        Ok(LookupResult { ty, is_strg, cursor, bindings: self })
+        Ok(LookupResult { ty, is_strg, raw_indices, cursor, bindings: self })
     }
 
     pub(crate) fn lookup_unfolding(

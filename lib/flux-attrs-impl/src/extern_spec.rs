@@ -538,6 +538,14 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
             create_dummy_ident(dummy_prefix, ty_slice.elem.as_ref())
         }
         Path(ty_path) => create_dummy_ident_from_path(dummy_prefix, &ty_path.path),
+        Ptr(ty_ptr) => {
+            if ty_ptr.mutability.is_some() {
+                dummy_prefix.push_str("MutPtr");
+            } else {
+                dummy_prefix.push_str("ConstPtr");
+            };
+            create_dummy_ident(dummy_prefix, ty_ptr.elem.as_ref())
+        }
         _ => {
             Err(syn::Error::new(
                 ty.span(),

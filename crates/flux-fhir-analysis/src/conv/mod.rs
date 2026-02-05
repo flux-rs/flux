@@ -1281,12 +1281,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let pred = self.conv_expr(env, pred)?;
                 Ok(rty::Ty::constr(pred, self.conv_ty(env, ty, name)?))
             }
-            fhir::TyKind::RawPtr(ty, mutability) => {
-                Ok(rty::Ty::indexed(
-                    rty::BaseTy::RawPtr(self.conv_ty(env, ty, None)?, *mutability),
-                    rty::Expr::unit(),
-                ))
-            }
             fhir::TyKind::OpaqueDef(opaque_ty) => self.conv_opaque_def(env, opaque_ty, ty.span),
             fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
@@ -1459,6 +1453,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::BaseTyKind::Slice(ty) => {
                 let name = name.map(|sym| Self::suffix_symbol(sym, "elem"));
                 let bty = rty::BaseTy::Slice(self.conv_ty(env, ty, name)?).shift_in_escaping(1);
+                let sort = bty.sort();
+                let ty = rty::Ty::indexed(bty, rty::Expr::nu());
+                Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
+            }
+            fhir::BaseTyKind::RawPtr(ty, mutability) => {
+                let name = name.map(|sym| Self::suffix_symbol(sym, "size"));
+                let bty = rty::BaseTy::RawPtr(self.conv_ty(env, ty, name)?, *mutability)
+                    .shift_in_escaping(1);
                 let sort = bty.sort();
                 let ty = rty::Ty::indexed(bty, rty::Expr::nu());
                 Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))

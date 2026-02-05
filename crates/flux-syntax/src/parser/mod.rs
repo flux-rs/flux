@@ -910,6 +910,29 @@ fn parse_asyncness(cx: &mut ParseCtxt) -> Async {
     }
 }
 
+enum Reft {
+    Exi(Ident, Expr),
+    Idx(Indices),
+    None,
+}
+
+fn parse_reft(cx: &mut ParseCtxt) -> ParseResult<Reft> {
+    if cx.peek(token::OpenBrace) {
+        let (bind, pred) = delimited(cx, Brace, |cx| {
+            let bind = parse_ident(cx)?;
+            cx.expect(token::Colon)?;
+            let pred = parse_block_expr(cx)?;
+            Ok((bind, pred))
+        })?;
+        Ok(Reft::Exi(bind, pred))
+    } else if cx.peek(token::OpenBracket) {
+        let indices = parse_indices(cx)?;
+        Ok(Reft::Idx(indices))
+    } else {
+        Ok(Reft::None)
+    }
+}
+
 /// ```text
 /// ⟨ty⟩ := _
 ///       | { ⟨ident⟩ ⟨,⟨ident⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
@@ -917,6 +940,8 @@ fn parse_asyncness(cx: &mut ParseCtxt) -> Async {
 ///       | { ⟨ty⟩ | ⟨block_expr⟩ }
 ///       | { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
 ///       | & mut? ⟨ty⟩
+///       | * const ⟨ { ⟨ident⟩ : ⟨expr⟩ } ⟩? ⟨ty⟩
+///       | * mut ⟨ { ⟨ident⟩ : ⟨expr⟩ } ⟩? ⟨ty⟩
 ///       | [ ⟨ty⟩ ; ⟨const_arg⟩ ]
 ///       | impl ⟨path⟩
 ///       | ⟨bty⟩
@@ -957,6 +982,26 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
         //  & mut? ⟨ty⟩
         let mutbl = if cx.advance_if(kw::Mut) { Mutability::Mut } else { Mutability::Not };
         TyKind::Ref(mutbl, Box::new(parse_type(cx)?))
+    } else if lookahead.advance_if(token::Star) {
+        //  * const ⟨ { ⟨ident⟩ : ⟨expr⟩ } ⟩? ⟨ty⟩ | * mut ⟨ { ⟨ident⟩ : ⟨expr⟩ } ⟩? ⟨ty⟩
+        let mutbl = if cx.advance_if(kw::Mut) {
+            Mutability::Mut
+        } else {
+            cx.expect(kw::Const)?;
+            Mutability::Not
+        };
+        // Parse optional refinement on the pointer value: {v: pred}
+        let reft = parse_reft(cx)?;
+        let inner_ty = parse_type(cx)?;
+        let bty = BaseTy {
+            kind: BaseTyKind::Ptr(mutbl, Box::new(inner_ty)),
+            span: cx.mk_span(lo, cx.hi()),
+        };
+        match reft {
+            Reft::Exi(bind, pred) => TyKind::Exists { bind, bty, pred },
+            Reft::Idx(indices) => TyKind::Indexed { bty, indices },
+            Reft::None => TyKind::Base(bty),
+        }
     } else if lookahead.advance_if(token::OpenBracket) {
         let ty = parse_type(cx)?;
         if cx.advance_if(token::Semi) {

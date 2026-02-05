@@ -347,7 +347,12 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             }
             hir::TyKind::Ptr(mut_ty) => {
                 let ty = self.lift_ty(mut_ty.ty);
-                fhir::TyKind::RawPtr(self.genv.alloc(ty), mut_ty.mutbl)
+                let kind = fhir::BaseTyKind::RawPtr(self.genv.alloc(ty), mut_ty.mutbl);
+                fhir::TyKind::BaseTy(fhir::BaseTy {
+                    kind,
+                    fhir_id: self.next_fhir_id(),
+                    span: ty.span,
+                })
             }
             hir::TyKind::OpaqueDef(opaque_ty) => {
                 match self.lift_opaque_ty(opaque_ty) {
