@@ -97,7 +97,7 @@ pub mod fixpoint {
     #[derive(Hash, Copy, Clone, Debug, PartialEq, Eq)]
     pub enum Var {
         Underscore,
-        Global(GlobalVar, Option<FluxDefId>),
+        Global(GlobalVar, Option<Symbol>),
         WKVar(Symbol, u32),
         Local(LocalVar),
         DataCtor(AdtId, VariantIdx),
@@ -125,7 +125,7 @@ pub mod fixpoint {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Var::Global(v, None) => write!(f, "c{}", v.as_u32()),
-                Var::Global(v, Some(did)) => write!(f, "f${}${}", did.name(), v.as_u32()),
+                Var::Global(v, Some(name)) => write!(f, "f${}${}", name, v.as_u32()),
                 Var::WKVar(def, idx) => write!(f, "wk${}${}", def, idx),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
                 Var::DataCtor(adt_id, variant_idx) => {
@@ -2158,7 +2158,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     pub fn declare_fun(&mut self, def_id: FluxDefId) -> fixpoint::Var {
         *self.const_env.fun_def_map.entry(def_id).or_insert_with(|| {
             let id = self.const_env.global_var_gen.fresh();
-            fixpoint::Var::Global(id, Some(def_id))
+            fixpoint::Var::Global(id, Some(def_id.name()))
         })
     }
 
@@ -2235,7 +2235,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .get_or_insert(key, |global_name| {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
                 fixpoint::ConstDecl {
-                    name: fixpoint::Var::Global(global_name, Some(def_id)),
+                    name: fixpoint::Var::Global(global_name, Some(def_id.name())),
                     sort,
                     comment: Some(format!("uif: {def_id:?}")),
                 }
@@ -2535,7 +2535,7 @@ fn parse_global_var(name: &str) -> Option<fixpoint::Var> {
         && parts.len() == 2
         && let Ok(global_idx) = parts[1].parse::<u32>()
     {
-        return Some(fixpoint::Var::Global(fixpoint::GlobalVar::from(global_idx), None));
+        return Some(fixpoint::Var::Global(fixpoint::GlobalVar::from(global_idx), Some(Symbol::intern(parts[0]))));
     }
     None
 }

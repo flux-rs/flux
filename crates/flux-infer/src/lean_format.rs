@@ -150,18 +150,20 @@ impl<'a> fmt::Display for LeanThyFunc<'a> {
 impl<'a, 'genv, 'tcx> fmt::Display for LeanVar<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
-            Var::Global(_gvar, Some(def_id)) => {
-                let path = self
-                    .1
-                    .tcx()
-                    .def_path(def_id.parent())
-                    .to_filename_friendly_no_crate()
-                    .replace("-", "_");
-                if path.is_empty() {
-                    write!(f, "{}", def_id.name())
-                } else {
-                    write!(f, "{path}_{}", def_id.name())
-                }
+            Var::Global(_gvar, Some(name)) => {
+                // TODO: fix this
+                write!(f, "{}", name)
+                // let path = self
+                //     .1
+                //     .tcx()
+                //     .def_path(def_id.parent())
+                //     .to_filename_friendly_no_crate()
+                //     .replace("-", "_");
+                // if path.is_empty() {
+                //     write!(f, "{}", name)
+                // } else {
+                //     write!(f, "{path}_{}", name)
+                // }
             }
             Var::DataCtor(adt_id, _) | Var::DataProj { adt_id, field: _ } => {
                 write!(
