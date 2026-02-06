@@ -212,7 +212,8 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                     ]);
                     BaseTy::Adt(adt_def.clone(), args)
                 } else {
-                    BaseTy::Adt(adt_def.clone(), args.clone())
+                    panic!("expected `Box` to have two generic arguments")
+                    // BaseTy::Adt(adt_def.clone(), args.clone())
                 }
             }
             BaseTy::Ref(re, ty, mutability) if is_indexed_slice(ty) && self.slices => {

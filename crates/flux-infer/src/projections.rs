@@ -414,6 +414,9 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
                     .try_fold_with(self)
             }
             Sort::Alias(AliasKind::Projection, alias_ty) => {
+                if alias_ty.has_escaping_bvars() {
+                    return sort.try_super_fold_with(self);
+                }
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
                 let sort = ctor.sort();
                 if changed { sort.try_fold_with(self) } else { Ok(sort) }
@@ -438,6 +441,9 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
                     .replace_bound_reft(idx))
             }
             TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), idx) => {
+                if alias_ty.has_escaping_bvars() {
+                    return ty.try_super_fold_with(self);
+                }
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
                 let ty = ctor.replace_bound_reft(idx).to_ty();
                 if changed { ty.try_fold_with(self) } else { Ok(ty) }
@@ -456,6 +462,9 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
                 tracked_span_bug!()
             }
             BaseTy::Alias(AliasKind::Projection, alias_ty) => {
+                if alias_ty.has_escaping_bvars() {
+                    return sty.try_super_fold_with(self);
+                }
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
                 let ty = ctor.replace_bound_reft(&sty.idx).strengthen(&sty.pred);
                 if changed { ty.try_fold_with(self) } else { Ok(ty) }
@@ -575,6 +584,9 @@ impl FallibleTypeFolder for SortNormalizer<'_, '_, '_> {
                     .try_fold_with(self)
             }
             Sort::Alias(AliasKind::Projection, alias_ty) => {
+                if alias_ty.has_escaping_bvars() {
+                    return sort.try_super_fold_with(self);
+                }
                 let (changed, ctor) = normalize_projection_ty_with_rustc(
                     self.genv,
                     self.def_id,
@@ -736,6 +748,21 @@ fn normalize_projection_ty_with_rustc<'tcx>(
     let param_env = tcx.param_env(def_id);
 
     let pre_ty = projection_ty.to_ty(tcx);
+
+    // rustc's `deeply_normalize` asserts that the input has no escaping bound vars.
+    // This can happen when a projection appears inside a Binder and its args reference
+    // bound regions from an enclosing binder. In that case, skip normalization and
+    // return the type as-is.
+    if pre_ty.has_escaping_bound_vars() {
+        let rustc_ty = pre_ty.lower(tcx).map_err(|reason| query_bug!("{reason:?}"))?;
+        return Ok((
+            false,
+            Refiner::default_for_item(genv, def_id)?
+                .refine_ty_or_base(&rustc_ty)?
+                .expect_base(),
+        ));
+    }
+
     let at = infcx.at(&cause, param_env);
     let ty = deeply_normalize::<rustc_middle::ty::Ty<'tcx>, FulfillmentError>(at, pre_ty)
         .map_err(|err| query_bug!("{err:?}"))?;

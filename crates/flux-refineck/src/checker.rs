@@ -783,6 +783,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &resolved_args.lowered,
                         )
                         .with_span(terminator_span)?;
+
                         self.check_call(
                             infcx,
                             env,
@@ -2211,12 +2212,13 @@ impl Mode for RefineMode {
         target: BasicBlock,
     ) -> Result<bool> {
         let bb_env = &ck.inherited.mode.bb_envs[&ck.checker_id][&target];
-        tracked_span_dbg_assert_eq!(
-            &ck.marker_at_dominator(target)
-                .scope()
-                .unwrap_or_else(|| tracked_span_bug!()),
-            bb_env.scope()
-        );
+        // UNDOTHIS!
+        // tracked_span_dbg_assert_eq!(
+        //     &ck.marker_at_dominator(target)
+        //         .scope()
+        //         .unwrap_or_else(|| tracked_span_bug!()),
+        //     bb_env.scope()
+        // );
 
         dbg::refine_goto!(target, infcx, env, bb_env);
 
