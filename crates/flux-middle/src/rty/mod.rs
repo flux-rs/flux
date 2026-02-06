@@ -2443,7 +2443,7 @@ impl GenericArgs {
         if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
             (deref, alloc)
         } else {
-            bug!("invalid generic arguments for box");
+            bug!("invalid generic arguments for box {:?}", self);
         }
     }
 
