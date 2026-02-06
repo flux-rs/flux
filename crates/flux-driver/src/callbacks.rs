@@ -142,9 +142,9 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
     // all items which can trigger the error even if not included for analysis. To fix this properly
     // we should consider how to handle metadata encoding if only part of the crate is included for
     // analysis.
-    if genv.tcx().crate_name(LOCAL_CRATE) == flux_syntax::symbols::sym::core {
-        return;
-    }
+    // if genv.tcx().crate_name(LOCAL_CRATE) == flux_syntax::symbols::sym::core {
+    //     return;
+    // }
 
     // We only save metadata when `--emit=metadata` is passed as an argument. In this case, we save
     // the `.fluxmeta` file alongside the `.rmeta` file. This setup works for `cargo flux`, which

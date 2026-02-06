@@ -21,6 +21,7 @@ impl Pretty for ClauseKind {
             }
             ClauseKind::TypeOutlives(pred) => w!(cx, f, "Outlives ({:?}, {:?})", &pred.0, &pred.1),
             ClauseKind::ConstArgHasType(c, ty) => w!(cx, f, "ConstArgHasType ({:?}, {:?})", c, ty),
+            ClauseKind::UnstableFeature(_) => w!(cx, f, "UnstableFeature (..)"),
         }
     }
 }

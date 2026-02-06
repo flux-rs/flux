@@ -1059,6 +1059,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::ClauseKind<'tcx> {
             rustc_ty::ClauseKind::ConstArgHasType(const_, ty) => {
                 ClauseKind::ConstArgHasType(const_.lower(tcx)?, ty.lower(tcx)?)
             }
+            rustc_ty::ClauseKind::UnstableFeature(sym) => ClauseKind::UnstableFeature(sym),
             _ => {
                 return Err(UnsupportedReason::new(format!("unsupported clause kind `{self:?}`")));
             }
