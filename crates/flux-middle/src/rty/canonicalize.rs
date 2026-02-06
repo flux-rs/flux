@@ -39,8 +39,8 @@ use rustc_span::Symbol;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig,
-    SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
+    BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, PolyFnSig, SubsetTy, Ty, TyCtor,
+    TyKind, TyOrBase,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
 };
 use crate::rty::{BoundReftKind, ExprKind, HoleKind};

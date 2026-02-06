@@ -422,6 +422,7 @@ pub enum ClauseKind {
     RegionOutlives(RegionOutlivesPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
+    UnstableFeature(Symbol),
 }
 
 impl<'tcx> ToRustc<'tcx> for ClauseKind {
@@ -447,6 +448,7 @@ impl<'tcx> ToRustc<'tcx> for ClauseKind {
                     ty.to_rustc(tcx),
                 )
             }
+            ClauseKind::UnstableFeature(sym) => rustc_middle::ty::ClauseKind::UnstableFeature(*sym),
         }
     }
 }
