@@ -404,6 +404,7 @@ impl Refine for ty::ClauseKind {
             ty::ClauseKind::ConstArgHasType(const_, ty) => {
                 rty::ClauseKind::ConstArgHasType(const_.clone(), ty.refine(&refiner.as_default())?)
             }
+            ty::ClauseKind::UnstableFeature(sym) => rty::ClauseKind::UnstableFeature(*sym),
         };
         Ok(kind)
     }
