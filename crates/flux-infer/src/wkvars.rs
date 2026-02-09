@@ -690,7 +690,13 @@ impl WKVarSolutions {
         };
         writer.serialize(total_row)?;
         writer.flush()?;
-
+        println!("CRATE & {} & {} & {} & {:.0}\\% & {:.0}\\% & TIME & ITERS & LoC",
+                 total.num_assumed_exprs,
+                 total.num_removed_solved_exprs,
+                 total.num_assumed_exprs + total.num_removed_solved_exprs,
+                 100.0 * total.num_solved_exprs as f64 / ((total.num_assumed_exprs + total.num_solved_exprs) as f64),
+                 100.0 * ((total.num_solved_exprs + total.num_assumed_exprs) as f64) / total.num_actual_exprs as f64,
+        );
         Ok(())
     }
 
@@ -1101,6 +1107,7 @@ pub fn iterative_solve<F>(
         // }
         // i += 1;
     }
+    println!("Solution loop finished in {} iterations.", i);
     Ok((new_solutions, all_errors, user_interactions))
 }
 
