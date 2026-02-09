@@ -112,9 +112,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         match &item.kind {
             ItemKind::Fn { .. } => {
                 if attrs.has_attrs() {
-                    let fn_sig = attrs.fn_sig();
+                    let mut fn_sig = attrs.fn_sig();
                     self.check_fn_sig_name(owner_id, fn_sig.as_ref())?;
                     let node_id = self.next_node_id();
+                    let no_panic_spec = attrs.no_panic_spec();
+                    if let Some(fn_sig) = &mut fn_sig {
+                        fn_sig.no_panic = no_panic_spec;
+                    }
                     self.insert_item(
                         owner_id,
                         surface::Item {

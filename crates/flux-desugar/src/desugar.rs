@@ -116,10 +116,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn desugar_item(&mut self, item: &surface::Item) -> Result<fhir::Item<'genv>> {
         match &item.kind {
             surface::ItemKind::Fn(fn_sig) => {
-                let no_panic_spec = item.attrs.iter().find_map(|attr| {
-                    if let surface::Attr::NoPanicIf(expr) = attr { Some(expr) } else { None }
-                });
-                let (generics, fn_sig) = self.desugar_fn_sig(fn_sig.as_ref(), no_panic_spec)?;
+                let (generics, fn_sig) = self.desugar_fn_sig(fn_sig.as_ref())?;
                 Ok(fhir::Item { generics, kind: fhir::ItemKind::Fn(fn_sig), owner_id: self.owner })
             }
             surface::ItemKind::Struct(struct_def) => Ok(self.desugar_struct_def(struct_def)),
@@ -136,10 +133,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         item: &surface::TraitItemFn,
     ) -> Result<fhir::TraitItem<'genv>> {
-        let no_panic_spec = item.attrs.iter().find_map(|attr| {
-            if let surface::Attr::NoPanicIf(expr) = attr { Some(expr) } else { None }
-        });
-        let (generics, fn_sig) = self.desugar_fn_sig(item.sig.as_ref(), no_panic_spec)?;
+        let (generics, fn_sig) = self.desugar_fn_sig(item.sig.as_ref())?;
         Ok(fhir::TraitItem {
             generics,
             kind: fhir::TraitItemKind::Fn(fn_sig),
@@ -151,10 +145,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         item: &surface::ImplItemFn,
     ) -> Result<fhir::ImplItem<'genv>> {
-        let no_panic_spec = item.attrs.iter().find_map(|attr| {
-            if let surface::Attr::NoPanicIf(expr) = attr { Some(expr) } else { None }
-        });
-        let (generics, fn_sig) = self.desugar_fn_sig(item.sig.as_ref(), no_panic_spec)?;
+        let (generics, fn_sig) = self.desugar_fn_sig(item.sig.as_ref())?;
         Ok(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Fn(fn_sig), owner_id: self.owner })
     }
 
@@ -488,7 +479,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     fn desugar_fn_sig(
         &mut self,
         fn_sig: Option<&surface::FnSig>,
-        no_panic_spec: Option<&surface::Expr>,
     ) -> Result<(fhir::Generics<'genv>, fhir::FnSig<'genv>)> {
         let mut header = self.lift_fn_header();
         let (generics, decl, expr) = if let Some(fn_sig) = fn_sig {
@@ -525,18 +515,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             if let surface::Async::Yes { span, .. } = fn_sig.asyncness {
                 header.asyncness = hir::IsAsync::Async(span);
             }
-            println!("fn sig scope: {:?}", self.fn_sig_scope);
-
-            let expr = no_panic_spec.map(|e| self.desugar_expr(e));
+            let expr = fn_sig.no_panic.as_ref().map(|e| self.desugar_expr(e));
             (generics, decl, expr)
         } else {
-            panic!("blargh");
             (self.lift_generics(), self.lift_fn_decl(), None)
         };
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", decl).unwrap();
         }
-        println!("my no panic spec: {:?}", no_panic_spec);
         Ok((generics, fhir::FnSig { header, decl: self.genv.alloc(decl), no_panic_if: expr }))
     }
 
