@@ -562,21 +562,9 @@ impl WKVarSolutions {
         Ok(serde_json::to_writer_pretty(writer, &solutions_by_wkvar)?)
     }
 
-    pub fn write_stats_file(
-        &self,
-        genv: GlobalEnv,
-        path: &std::path::PathBuf,
-    ) -> std::io::Result<()> {
-        #[derive(serde::Serialize)]
-        struct CsvRow {
-            fn_name: String,
-            num_solved_exprs: usize,
-            num_assumed_exprs: usize,
-            num_removed_solved_exprs: usize,
-            num_actual_exprs: usize,
-        }
-        let mut stats_by_fn: HashMap<String, WKVarSolutionStats> = HashMap::default();
-        let mut solutions_by_fn: HashMap<_, HashMap<rty::WKVid, rty::Binder<rty::Expr>>> = HashMap::default();
+    fn stats_by_fn(&self, genv: GlobalEnv) -> (FxIndexMap<String, WKVarSolutionStats>, usize, usize) {
+        let mut stats_by_fn: FxIndexMap<String, WKVarSolutionStats> = Default::default();
+        let mut solutions_by_fn: FxIndexMap<_, HashMap<rty::WKVid, rty::Binder<rty::Expr>>> = Default::default();
         let mut num_nontrivial_real_wkvars = 0;
         let mut num_nontrivial_internal_wkvars = 0;
         self.solutions.iter().for_each(|(wkvid, solution)| {
@@ -613,6 +601,23 @@ impl WKVarSolutions {
             println!("  {}", fixed_fn_sig_snippet);
         }
 
+        (stats_by_fn, num_nontrivial_real_wkvars, num_nontrivial_internal_wkvars)
+    }
+
+    pub fn write_stats_file(
+        &self,
+        genv: GlobalEnv,
+        path: &std::path::PathBuf,
+    ) -> std::io::Result<()> {
+        #[derive(serde::Serialize)]
+        struct CsvRow {
+            fn_name: String,
+            num_solved_exprs: usize,
+            num_assumed_exprs: usize,
+            num_removed_solved_exprs: usize,
+            num_actual_exprs: usize,
+        }
+        let (stats_by_fn, num_nontrivial_real_wkvars, num_nontrivial_internal_wkvars) = self.stats_by_fn(genv);
         let mut writer = csv::Writer::from_path(path.as_path())?;
         let mut total = WKVarSolutionStats::default();
         let num_fns = stats_by_fn.len();
@@ -997,6 +1002,8 @@ pub fn iterative_solve<F>(
             }
             any_wkvar_change = any_wkvar_change || new_solutions.prompt_user(genv, &mut user_interactions, &mut file_read_user_interactions);
         }
+
+        let _ = new_solutions.stats_by_fn(genv);
 
         // Now put the new solutions into the current solutions,
         // we will use them for the next iterations.

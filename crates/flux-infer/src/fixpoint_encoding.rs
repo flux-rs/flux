@@ -750,7 +750,12 @@ where
                                     panic!()
                                 };
                                 let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.0).to_filename_friendly_no_crate(), wkvid.1.as_u32());
-                                println!("Trying {}({})", wkvid_string, wkvar.args.iter().map(|arg| format!("{}", arg)).join(", "));
+                                println!("Trying {}({}) to solve", wkvid_string, wkvar.args.iter().map(|arg| format!("{}", arg)).join(", "));
+                                // for assumption in flat_constraint.assumptions.iter() {
+                                //     println!("  {}", assumption);
+                                // }
+                                // println!(" ==>");
+                                // println!("  {}", flat_constraint.head);
                                 let fvars: HashSet<fixpoint::Var> = wkvar
                                     .args
                                     .iter()
@@ -784,6 +789,27 @@ where
                                 if check_validity(&new_flat_constraint, &consts, data_decls.clone()) {
                                     panic!("a constraint is valid when it shouldn't be");
                                 }
+                                for assumption in new_flat_constraint.assumptions.iter() {
+                                    println!("  {}", assumption);
+                                }
+                                println!(" ==>");
+                                println!("  {}", new_flat_constraint.head);
+                                let sols = (0..3).into_iter().flat_map(|_i| {
+                                    match qe_and_simplify(&new_flat_constraint, &consts, data_decls.clone()) {
+                                        Ok(fe) => {
+                                            match self.fixpoint_to_expr(&fe) {
+                                                Ok(e) => {
+                                                    Some(e)
+                                                }
+                                                _ => None
+                                            }
+                                        }
+                                        _ => None
+                                    }
+                                }).collect_vec();
+                                for (i, sol) in sols.iter().enumerate() {
+                                    println!("solution {}: {:?}", i, sol);
+                                }
                                 match qe_and_simplify(&new_flat_constraint, &consts, data_decls.clone()) {
                                     Ok(fe) => {
                                         match self.fixpoint_to_expr(&fe) {
@@ -806,7 +832,7 @@ where
                                                                 .push(binder_e);
                                                         }
                                                     } else {
-                                                        println!("got nontrivial solution but couldn't unify it: {:?} with args {:?}", fe, wkvar.args);
+                                                        println!("got nontrivial solution {} but couldn't unify it with args {:?}", fe, wkvar.args);
                                                         if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
                                                             possible_solutions.entry(*wkvid)
                                                                 .or_default()
