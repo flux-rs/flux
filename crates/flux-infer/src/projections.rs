@@ -442,9 +442,6 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
                     .replace_bound_reft(idx))
             }
             TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), idx) => {
-                // CUTCUT if alias_ty.has_escaping_bvars() {
-                //     return ty.try_super_fold_with(self);
-                // }
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
                 let ty = ctor.replace_bound_reft(idx).to_ty();
                 if changed { ty.try_fold_with(self) } else { Ok(ty) }
@@ -463,9 +460,6 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
                 tracked_span_bug!()
             }
             BaseTy::Alias(AliasKind::Projection, alias_ty) => {
-                // CUTCUTCUT if alias_ty.has_escaping_bvars() {
-                //     return sty.try_super_fold_with(self);
-                // }
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
                 let ty = ctor.replace_bound_reft(&sty.idx).strengthen(&sty.pred);
                 if changed { ty.try_fold_with(self) } else { Ok(ty) }

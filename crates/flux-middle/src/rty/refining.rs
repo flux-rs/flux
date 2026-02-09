@@ -155,11 +155,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         def_id: DefId,
         args: &ty::GenericArgs,
     ) -> QueryResult<rty::GenericArgs> {
-        let is_box = if let DefKind::Struct = self.genv.def_kind(self.def_id) {
-            self.genv.tcx().adt_def(self.def_id).is_box()
-        } else {
-            false
-        };
         let generics = self.generics_of(def_id)?;
 
         args.iter()
