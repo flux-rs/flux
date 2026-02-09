@@ -1107,7 +1107,7 @@ impl<T: Types> Expr<T> {
         match self {
             // Can pick 0 for the default value since there will always be at least one disjunct.
             Expr::Or(disjuncts) => std::cmp::max(disjuncts.iter().map(|disjunct| disjunct.max_num_disjuncts()).max().unwrap_or(0), disjuncts.len()),
-            Expr::And(conjuncts) => conjuncts.iter().map(|conjunct| conjunct.max_num_disjuncts()).sum::<usize>(),
+            Expr::And(conjuncts) => conjuncts.iter().map(|conjunct| conjunct.max_num_disjuncts()).max().unwrap_or(1),
             _ => 1,
         }
     }
