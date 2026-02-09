@@ -166,7 +166,7 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_, '_> {
         match self.0.get(ebr.index as usize) {
             Some(GenericArg::Lifetime(re)) => Ok(*re),
             Some(arg) => bug!("expected region for generic parameter, found `{arg:?}`"),
-            None => bug!("region parameter out of range"),
+            None => bug!("region parameter out of range: ebr={ebr:?}, args_len={}", self.0.len()),
         }
     }
 

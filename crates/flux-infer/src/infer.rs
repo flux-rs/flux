@@ -985,7 +985,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 BaseTy::Alias(AliasKind::Projection, alias_ty_a),
                 BaseTy::Alias(AliasKind::Projection, alias_ty_b),
             ) => {
-                // UNDOTHIS: tracked_span_dbg_assert_eq!(alias_ty_a, alias_ty_b);
+                tracked_span_dbg_assert_eq!(alias_ty_a, alias_ty_b);
                 Ok(())
             }
             (BaseTy::Array(ty_a, len_a), BaseTy::Array(ty_b, len_b)) => {

@@ -518,7 +518,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         promoted: &'ck IndexSlice<Promoted, Ty>,
     ) -> Result {
         let span = body.span();
-
         let fn_sig = poly_sig
             .replace_bound_vars(
                 |_| rty::ReErased,
@@ -2212,13 +2211,12 @@ impl Mode for RefineMode {
         target: BasicBlock,
     ) -> Result<bool> {
         let bb_env = &ck.inherited.mode.bb_envs[&ck.checker_id][&target];
-        // UNDOTHIS!
-        // tracked_span_dbg_assert_eq!(
-        //     &ck.marker_at_dominator(target)
-        //         .scope()
-        //         .unwrap_or_else(|| tracked_span_bug!()),
-        //     bb_env.scope()
-        // );
+        tracked_span_dbg_assert_eq!(
+            &ck.marker_at_dominator(target)
+                .scope()
+                .unwrap_or_else(|| tracked_span_bug!()),
+            bb_env.scope()
+        );
 
         dbg::refine_goto!(target, infcx, env, bb_env);
 

@@ -224,9 +224,8 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                     .ok_or_else(|| {
                         query_bug!("no associated type for {obligation:?} in impl {impl_def_id:?}")
                     })?;
-                Ok(self
-                    .genv()
-                    .type_of(assoc_type_id)?
+                let assoc_ty = self.genv().type_of(assoc_type_id)?;
+                Ok(assoc_ty
                     .instantiate(tcx, &args, &[])
                     .expect_subset_ty_ctor())
             }
@@ -414,6 +413,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
                     .try_fold_with(self)
             }
             Sort::Alias(AliasKind::Projection, alias_ty) => {
+                // TODO(ESCAPING-VAR-HACK)
                 if alias_ty.has_escaping_bvars() {
                     return sort.try_super_fold_with(self);
                 }
@@ -748,21 +748,6 @@ fn normalize_projection_ty_with_rustc<'tcx>(
     let param_env = tcx.param_env(def_id);
 
     let pre_ty = projection_ty.to_ty(tcx);
-
-    // rustc's `deeply_normalize` asserts that the input has no escaping bound vars.
-    // This can happen when a projection appears inside a Binder and its args reference
-    // bound regions from an enclosing binder. In that case, skip normalization and
-    // return the type as-is.
-    if pre_ty.has_escaping_bound_vars() {
-        let rustc_ty = pre_ty.lower(tcx).map_err(|reason| query_bug!("{reason:?}"))?;
-        return Ok((
-            false,
-            Refiner::default_for_item(genv, def_id)?
-                .refine_ty_or_base(&rustc_ty)?
-                .expect_base(),
-        ));
-    }
-
     let at = infcx.at(&cause, param_env);
     let ty = deeply_normalize::<rustc_middle::ty::Ty<'tcx>, FulfillmentError>(at, pre_ty)
         .map_err(|err| query_bug!("{err:?}"))?;

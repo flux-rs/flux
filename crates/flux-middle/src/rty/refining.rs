@@ -155,7 +155,13 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         def_id: DefId,
         args: &ty::GenericArgs,
     ) -> QueryResult<rty::GenericArgs> {
+        let is_box = if let DefKind::Struct = self.genv.def_kind(self.def_id) {
+            self.genv.tcx().adt_def(self.def_id).is_box()
+        } else {
+            false
+        };
         let generics = self.generics_of(def_id)?;
+
         args.iter()
             .enumerate()
             .map(|(idx, arg)| {
@@ -170,13 +176,24 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         param: &rty::GenericParamDef,
         arg: &ty::GenericArg,
     ) -> QueryResult<rty::GenericArg> {
+        let is_box = if let DefKind::Struct = self.genv.def_kind(self.def_id) {
+            self.genv.tcx().adt_def(self.def_id).is_box()
+        } else {
+            false
+        };
         match (&param.kind, arg) {
             (rty::GenericParamDefKind::Type { .. }, ty::GenericArg::Ty(ty)) => {
                 Ok(rty::GenericArg::Ty(ty.refine(self)?))
             }
+
+            (rty::GenericParamDefKind::Base { .. }, ty::GenericArg::Ty(ty)) if is_box => {
+                Ok(rty::GenericArg::Ty(ty.refine(self)?))
+            }
             (rty::GenericParamDefKind::Base { .. }, ty::GenericArg::Ty(ty)) => {
-                let rty::TyOrBase::Base(contr) = self.refine_ty_or_base(ty)? else {
-                    return Err(QueryErr::InvalidGenericArg { def_id: param.def_id });
+                let ty_or_base = self.refine_ty_or_base(ty)?;
+                let rty::TyOrBase::Base(contr) = ty_or_base else {
+                    panic!("TRACE: InvalidGenericArg!!! {ty_or_base:?} for {arg:?} and {param:?}");
+                    // return Err(QueryErr::InvalidGenericArg { def_id: param.def_id });
                 };
                 Ok(rty::GenericArg::Base(contr))
             }
