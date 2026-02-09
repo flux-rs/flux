@@ -156,7 +156,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         args: &ty::GenericArgs,
     ) -> QueryResult<rty::GenericArgs> {
         let generics = self.generics_of(def_id)?;
-
         args.iter()
             .enumerate()
             .map(|(idx, arg)| {
