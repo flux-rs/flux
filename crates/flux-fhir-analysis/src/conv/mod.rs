@@ -1848,24 +1848,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let len = into.len();
         for (idx, arg) in segment.args.iter().enumerate() {
             let param = generics.param_at(idx + len, self.genv())?;
-            match arg {
+            let arg = match arg {
                 fhir::GenericArg::Lifetime(lft) => {
-                    into.push(rty::GenericArg::Lifetime(self.conv_lifetime(
-                        env,
-                        *lft,
-                        segment.ident.span,
-                    )));
+                    rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft, segment.ident.span))
                 }
-                fhir::GenericArg::Type(ty) => {
-                    into.push(self.conv_ty_to_generic_arg(env, &param, ty)?);
-                }
-                fhir::GenericArg::Const(cst) => {
-                    into.push(rty::GenericArg::Const(self.conv_const_arg(*cst)));
-                }
+                fhir::GenericArg::Type(ty) => self.conv_ty_to_generic_arg(env, &param, ty)?,
+                fhir::GenericArg::Const(cst) => rty::GenericArg::Const(self.conv_const_arg(*cst)),
                 fhir::GenericArg::Infer => {
-                    into.push(self.conv_generic_arg_hole(env, param, segment.ident.span)?);
+                    self.conv_generic_arg_hole(env, param, segment.ident.span)?
                 }
-            }
+            };
+            into.push(arg);
         }
         self.fill_generic_args_defaults(def_id, into)
     }

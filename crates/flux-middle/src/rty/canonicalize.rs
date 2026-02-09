@@ -386,9 +386,12 @@ impl CanonicalTy {
                     // only check for syntactical equality. We should change those cases to handle
                     // refined types and/or ensure some canonical representation for unrefined types.
                     let pred = if idx.is_unit() {
-                        constr_ty.pred.clone()
+                        constr_ty.pred.shift_in_escaping(1)
                     } else {
-                        Expr::and(&constr_ty.pred, Expr::eq(Expr::nu(), idx.shift_in_escaping(1)))
+                        Expr::and(
+                            constr_ty.pred.shift_in_escaping(1),
+                            Expr::eq(Expr::nu(), idx.shift_in_escaping(1)),
+                        )
                     };
                     let sort = bty.sort();
                     let constr = SubsetTy::new(bty.shift_in_escaping(1), Expr::nu(), pred);
