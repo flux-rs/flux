@@ -200,8 +200,6 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 
     fn visit_fn_sig(&mut self, fn_sig: &surface::FnSig) {
-        println!("visit fn sig ident: {:?}", fn_sig.ident);
-        println!("visit fn sig no panic: {:?}", fn_sig.no_panic);
         self.with_scope(ScopeKind::FnInput, |this| {
             this.on_fn_sig(fn_sig);
             surface::visit::walk_fn_sig(this, fn_sig);
@@ -324,7 +322,6 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 
     fn visit_path_expr(&mut self, path: &surface::ExprPath) {
-        println!("path: {:?}", path);
         self.on_path(path);
     }
 

@@ -945,8 +945,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             && genv.def_kind(callee_def_id).is_fn_like()
         {
             let callee_no_panic = fn_sig.no_panic();
-            println!("child fn sig: {:?}", fn_sig);
-            println!("callee no panic: {:?}", callee_no_panic);
 
             at.check_pred(
                 Expr::implies(self.fn_sig.no_panic(), callee_no_panic),

@@ -403,8 +403,6 @@ pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
 }
 
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
-    println!("fn sig ident: {:?}", fn_sig.ident);
-    println!("fn sig no_panic: {:?}", fn_sig.no_panic);
     vis.visit_async(&fn_sig.asyncness);
     vis.visit_generics(&fn_sig.generics);
     walk_list!(vis, visit_refine_param, &fn_sig.params);
