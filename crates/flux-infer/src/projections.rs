@@ -224,8 +224,9 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                     .ok_or_else(|| {
                         query_bug!("no associated type for {obligation:?} in impl {impl_def_id:?}")
                     })?;
-                let assoc_ty = self.genv().type_of(assoc_type_id)?;
-                Ok(assoc_ty
+                Ok(self
+                    .genv()
+                    .type_of(assoc_type_id)?
                     .instantiate(tcx, &args, &[])
                     .expect_subset_ty_ctor())
             }
