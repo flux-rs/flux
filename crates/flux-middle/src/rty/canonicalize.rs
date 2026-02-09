@@ -44,7 +44,7 @@ use super::{
     TyOrBase,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
 };
-use crate::rty::{BoundReftKind, ExprKind, HoleKind};
+use crate::rty::{BoundReftKind, ExprKind, GenericArg, GenericArgsExt, HoleKind};
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
 /// It can be configured to stop hoisting at specific type constructors.
@@ -204,7 +204,12 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
     fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
         match bty {
             BaseTy::Adt(adt_def, args) if adt_def.is_box() && self.in_boxes => {
-                BaseTy::Adt(adt_def.clone(), args.clone())
+                let (boxed, alloc) = args.box_args();
+                let args = List::from_arr([
+                    GenericArg::Ty(boxed.fold_with(self)),
+                    GenericArg::Ty(alloc.clone()),
+                ]);
+                BaseTy::Adt(adt_def.clone(), args)
             }
             BaseTy::Ref(re, ty, mutability) if is_indexed_slice(ty) && self.slices => {
                 BaseTy::Ref(*re, ty.fold_with(self), *mutability)

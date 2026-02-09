@@ -579,9 +579,6 @@ impl FallibleTypeFolder for SortNormalizer<'_, '_, '_> {
                     .try_fold_with(self)
             }
             Sort::Alias(AliasKind::Projection, alias_ty) => {
-                // if alias_ty.has_escaping_bvars() {
-                //     return sort.try_super_fold_with(self);
-                // }
                 let (changed, ctor) = normalize_projection_ty_with_rustc(
                     self.genv,
                     self.def_id,
