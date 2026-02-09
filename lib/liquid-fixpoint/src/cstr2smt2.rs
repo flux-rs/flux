@@ -1,6 +1,7 @@
 use core::panic;
 use std::{ collections::{HashMap, HashSet}, iter, str::FromStr, vec};
 
+use indexmap::IndexMap;
 use itertools::Itertools;
 use z3::{
     AstKind, FuncDecl, Goal, SatResult, Solver, SortKind, Tactic, ast::{self, Ast}
@@ -31,16 +32,16 @@ impl From<ast::Dynamic> for Binding {
 }
 
 pub(crate) struct Env<T: Types> {
-    bindings: HashMap<T::Var, Vec<Binding>>,
-    data_types: HashMap<T::Sort, z3::Sort>,
-    rev_bindings: HashMap<String, T::Var>,
+    bindings: IndexMap<T::Var, Vec<Binding>>,
+    data_types: IndexMap<T::Sort, z3::Sort>,
+    rev_bindings: IndexMap<String, T::Var>,
     bound_vars: Vec<Vec<(String, Binding)>>,
     fresh_var_counter: usize,
 }
 
 impl<T: Types> Env<T> {
     pub(crate) fn new() -> Self {
-        Self { bindings: HashMap::new(), data_types: HashMap::new(), rev_bindings: HashMap::new(), bound_vars: vec![], fresh_var_counter: 0 }
+        Self { bindings: IndexMap::new(), data_types: IndexMap::new(), rev_bindings: IndexMap::new(), bound_vars: vec![], fresh_var_counter: 0 }
     }
 
     pub(crate) fn insert<B: Into<Binding>>(&mut self, name: T::Var, value: B) {
@@ -60,7 +61,7 @@ impl<T: Types> Env<T> {
         if let Some(stack) = self.bindings.get_mut(name) {
             stack.pop();
             if stack.is_empty() {
-                self.bindings.remove(name);
+                self.bindings.shift_remove(name);
             }
         }
     }
@@ -836,6 +837,7 @@ pub fn qe_and_simplify<T: Types>(
         let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
         // Assumptions that only pertain to non-quantified variables will
         // just be asserted.
+        // println!("assumption:\n{:?}", pred_ast);
         if pred.free_vars().is_subset(&free_vars) {
             // println!("assumption\n  {}", pred);
             goal.assert(&pred_ast);
@@ -852,7 +854,7 @@ pub fn qe_and_simplify<T: Types>(
                 true,
                 0,
                 format!("{}_binder", var.display()),
-                "",
+                format!("{}_skolem", var.display()),
                 &[z3_var],
                 &[],
                 &[],
@@ -863,6 +865,13 @@ pub fn qe_and_simplify<T: Types>(
         }
     }
     // println!("constraint:\n{}", &body);
+    // println!("vars:");
+    // for (var, binding) in &vars.bindings {
+    //     println!("{:?}: {:?}", var, binding);
+    // }
+    // for (sort, z3_sort) in &vars.data_types {
+    //     println!("{:?}: {:?}", sort, z3_sort);
+    // }
     goal.assert(&body);
     let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("ctx-simplify")).and_then(&Tactic::new("nnf"));
     match qe_and_simplify.try_for(std::time::Duration::from_secs(10)).apply(&goal, None) {
@@ -893,6 +902,7 @@ pub fn qe_and_simplify<T: Types>(
                     //         .unwrap();
                     // return z3_to_expr(&vars, &simplified_cstr);
                     let mut fixpoint_expr = z3_to_expr(&vars, &new_cstr)?;
+                    // println!("solved originally to: {}", fixpoint_expr);
                     // return Ok(prune_vacuous(fixpoint_expr, &mut vars, &solver));
                     return if prune_vacuous(&mut fixpoint_expr, &mut vars, &solver) {
                         Ok(Expr::FALSE)

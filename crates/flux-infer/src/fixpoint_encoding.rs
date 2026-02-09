@@ -536,14 +536,14 @@ pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
 pub struct FixpointCheckError<Tag> {
     pub tag: Tag,
     pub blame_ctx: BlameCtxt,
-    pub possible_solutions: HashMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>>,
+    pub possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>>,
 }
 
 impl<Tag> FixpointCheckError<Tag> {
     pub fn new(
         tag: Tag,
         blame_ctx: BlameCtxt,
-        possible_solutions: HashMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>>,
+        possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>>,
     ) -> Self {
         Self { tag, blame_ctx, possible_solutions }
     }
@@ -703,7 +703,7 @@ where
                     .map(|tag_idx| {
                         let tag = self.tags[tag_idx];
                         let blame_ctx = self.blame_ctx_map[&tag_idx].clone();
-                        let mut possible_solutions: HashMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = HashMap::new();
+                        let mut possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = FxIndexMap::default();
                         if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
                             println!(
                                 "Looking for weak kvars that might solve {}",
