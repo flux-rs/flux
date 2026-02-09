@@ -185,8 +185,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 Ok(rty::GenericArg::Ty(ty.refine(self)?))
             }
             (rty::GenericParamDefKind::Base { .. }, ty::GenericArg::Ty(ty)) => {
-                let ty_or_base = self.refine_ty_or_base(ty)?;
-                let rty::TyOrBase::Base(contr) = ty_or_base else {
+                let rty::TyOrBase::Base(contr) = self.refine_ty_or_base(ty)? else {
                     return Err(QueryErr::InvalidGenericArg { def_id: param.def_id });
                 };
                 Ok(rty::GenericArg::Base(contr))

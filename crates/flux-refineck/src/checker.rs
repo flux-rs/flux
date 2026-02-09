@@ -518,6 +518,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         promoted: &'ck IndexSlice<Promoted, Ty>,
     ) -> Result {
         let span = body.span();
+
         let fn_sig = poly_sig
             .replace_bound_vars(
                 |_| rty::ReErased,
@@ -782,7 +783,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &resolved_args.lowered,
                         )
                         .with_span(terminator_span)?;
-
                         self.check_call(
                             infcx,
                             env,
