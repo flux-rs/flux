@@ -932,7 +932,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
 /// Logic to *dispatch* a `def_id` to a provider (`local`, `external`, or `default`).
 /// This is a trait so it can be implemented for [`DefId`] and for [`FluxDefId`].
-trait DispatchKey: Sized {
+pub trait DispatchKey: Sized + Copy {
     type LocalId;
 
     fn dispatch_query<R>(
@@ -943,6 +943,8 @@ trait DispatchKey: Sized {
         external: impl FnOnce(Self) -> Option<R>,
         default: impl FnOnce(Self) -> R,
     ) -> R;
+
+    fn def_id(self) -> DefId;
 }
 
 impl DispatchKey for DefId {
@@ -978,6 +980,10 @@ impl DispatchKey for DefId {
             }
         }
     }
+
+    fn def_id(self) -> DefId {
+        self
+    }
 }
 
 impl DispatchKey for FluxDefId {
@@ -1002,6 +1008,10 @@ impl DispatchKey for FluxDefId {
             |container_id| external(FluxId::new(container_id, self.name())),
             |container_id| default(FluxId::new(container_id, self.name())),
         )
+    }
+
+    fn def_id(self) -> DefId {
+        self.parent()
     }
 }
 
