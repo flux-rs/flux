@@ -3,7 +3,7 @@ use std::{env, path::PathBuf, process, str::FromStr, sync::LazyLock};
 pub use toml::Value;
 use tracing::Level;
 
-use crate::{IncludePattern, LeanMode, OverflowMode, PointerWidth, RawPointerMode, SmtSolver};
+use crate::{IncludePattern, LeanMode, OverflowMode, PointerWidth, SmtSolver};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
@@ -44,9 +44,6 @@ pub struct Flags {
     /// If `lazy` checks for underflow and loses information if possible overflow,
     /// If `none` (default), it still checks for underflow on unsigned integer subtraction.
     pub check_overflow: OverflowMode,
-    /// If `checked`, validates refinements on raw pointer dereferences.
-    /// If `none` (default), raw pointer dereferences are unchecked.
-    pub check_raw_pointer: RawPointerMode,
     /// Dump constraints generated for each function (debugging)
     pub dump_constraint: bool,
     /// Saves the checker's trace (debugging)
@@ -88,7 +85,6 @@ impl Default for Flags {
             include: None,
             cache: None,
             check_overflow: OverflowMode::default(),
-            check_raw_pointer: RawPointerMode::default(),
             scrape_quals: false,
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
@@ -123,7 +119,6 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "catch-bugs" => parse_bool(&mut flags.catch_bugs, value),
             "pointer-width" => parse_pointer_width(&mut flags.pointer_width, value),
             "check-overflow" => parse_overflow(&mut flags.check_overflow, value),
-            "check-raw-pointer" => parse_raw_pointer(&mut flags.check_raw_pointer, value),
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
@@ -236,16 +231,6 @@ fn parse_overflow(slot: &mut OverflowMode, v: Option<&str>) -> Result<(), &'stat
             Ok(())
         }
         _ => Err(OverflowMode::ERROR),
-    }
-}
-
-fn parse_raw_pointer(slot: &mut RawPointerMode, v: Option<&str>) -> Result<(), &'static str> {
-    match v {
-        Some(s) => {
-            *slot = s.parse()?;
-            Ok(())
-        }
-        _ => Err(RawPointerMode::ERROR),
     }
 }
 

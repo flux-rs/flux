@@ -82,10 +82,6 @@ fn check_overflow() -> OverflowMode {
     FLAGS.check_overflow
 }
 
-fn check_raw_pointer() -> RawPointerMode {
-    FLAGS.check_raw_pointer
-}
-
 pub fn allow_uninterpreted_cast() -> bool {
     FLAGS.allow_uninterpreted_cast
 }
@@ -326,50 +322,6 @@ impl fmt::Display for OverflowMode {
 
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
 #[serde(try_from = "String")]
-pub enum RawPointerMode {
-    /// No checking of raw pointer dereferences (default)
-    #[default]
-    None,
-    /// Check refinements on raw pointer dereferences
-    Checked,
-}
-
-impl RawPointerMode {
-    const ERROR: &'static str = "expected one of `none` or `checked`";
-}
-
-impl FromStr for RawPointerMode {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.to_ascii_lowercase();
-        match s.as_str() {
-            "none" => Ok(RawPointerMode::None),
-            "checked" => Ok(RawPointerMode::Checked),
-            _ => Err(Self::ERROR),
-        }
-    }
-}
-
-impl TryFrom<String> for RawPointerMode {
-    type Error = &'static str;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        value.parse()
-    }
-}
-
-impl fmt::Display for RawPointerMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RawPointerMode::None => write!(f, "none"),
-            RawPointerMode::Checked => write!(f, "checked"),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Default)]
-#[serde(try_from = "String")]
 pub enum SmtSolver {
     #[default]
     Z3,
@@ -421,8 +373,6 @@ pub struct InferOpts {
     pub solver: SmtSolver,
     /// Whether to allow uninterpreted casts (e.g., from some random `S` to `int`).
     pub allow_uninterpreted_cast: bool,
-    /// Whether to check refinements on raw pointer dereferences.
-    pub check_raw_pointer: RawPointerMode,
 }
 
 impl From<PartialInferOpts> for InferOpts {
@@ -434,7 +384,6 @@ impl From<PartialInferOpts> for InferOpts {
             allow_uninterpreted_cast: opts
                 .allow_uninterpreted_cast
                 .unwrap_or_else(allow_uninterpreted_cast),
-            check_raw_pointer: opts.check_raw_pointer.unwrap_or_else(check_raw_pointer),
         }
     }
 }
@@ -445,7 +394,6 @@ pub struct PartialInferOpts {
     pub scrape_quals: Option<bool>,
     pub solver: Option<SmtSolver>,
     pub allow_uninterpreted_cast: Option<bool>,
-    pub check_raw_pointer: Option<RawPointerMode>,
 }
 
 impl PartialInferOpts {
@@ -456,7 +404,6 @@ impl PartialInferOpts {
             .or(other.allow_uninterpreted_cast);
         self.scrape_quals = self.scrape_quals.or(other.scrape_quals);
         self.solver = self.solver.or(other.solver);
-        self.check_raw_pointer = self.check_raw_pointer.or(other.check_raw_pointer);
     }
 }
 
