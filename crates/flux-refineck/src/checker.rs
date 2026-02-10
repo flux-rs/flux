@@ -1754,9 +1754,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
         place: &Place,
     ) -> InferResult<Ty> {
-        let (ty, raw_indices) = env.lookup_place(&mut infcx.at(span), place)?;
-        infcx.check_raw_pointer_indices(&raw_indices, span);
-        Ok(ty)
+        env.lookup_place(&mut infcx.at(span), place)
     }
 
     fn check_operand(
@@ -1767,7 +1765,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         operand: &Operand<'tcx>,
     ) -> InferResult<Ty> {
         let ty = match operand {
-            Operand::Copy(p) => self.check_lookup_place(infcx, env, span, p)?,
+            Operand::Copy(p) => env.lookup_place(&mut infcx.at(span), p)?,
             Operand::Move(p) => env.move_place(&mut infcx.at(span), p)?,
             Operand::Constant(c) => self.check_constant(infcx, c)?,
         };
