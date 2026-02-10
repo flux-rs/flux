@@ -52,10 +52,10 @@ fn main() -> ExitCode {
     let exit_code = catch_with_exit_code(move || {
         run_compiler(&args, &mut FluxCallbacks);
     });
-    if config::summary() && exit_code == ExitCode::SUCCESS {
-        if let Err(err) = metrics::print_summary(start.elapsed()) {
-            eprintln!("error: failed to print summary: {err}");
-        }
+    if config::summary() && exit_code == ExitCode::SUCCESS
+        && let Err(err) = metrics::print_summary(start.elapsed())
+    {
+        eprintln!("error: failed to print summary: {err}");
     };
     exit_code
 }
