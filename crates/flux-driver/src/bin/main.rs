@@ -2,7 +2,7 @@
 
 extern crate rustc_driver;
 
-use std::{env, io, process::exit};
+use std::{env, process::ExitCode};
 
 use flux_config::{
     self as config,
@@ -10,16 +10,19 @@ use flux_config::{
 };
 use flux_driver::callbacks::FluxCallbacks;
 use flux_middle::metrics;
-use rustc_driver::{EXIT_SUCCESS, catch_with_exit_code, run_compiler};
+use rustc_driver::{catch_with_exit_code, run_compiler};
 
 mod logger;
 
-fn main() -> io::Result<()> {
+fn main() -> ExitCode {
     if !config::verify() {
         rustc_driver::main();
     }
 
-    logger::install()?;
+    logger::install().unwrap_or_else(|err| {
+        eprintln!("error: failed to install logger: {err}");
+        std::process::exit(EXIT_FAILURE);
+    });
 
     // Remove all flux arguments
     let mut args: Vec<String> = env::args().filter(|arg| !flags::is_flux_arg(arg)).collect();
@@ -49,8 +52,10 @@ fn main() -> io::Result<()> {
     let exit_code = catch_with_exit_code(move || {
         run_compiler(&args, &mut FluxCallbacks);
     });
-    if config::summary() && exit_code == EXIT_SUCCESS {
-        metrics::print_summary(start.elapsed())?;
+    if config::summary() && exit_code == ExitCode::SUCCESS {
+        if let Err(err) = metrics::print_summary(start.elapsed()) {
+            eprintln!("error: failed to print summary: {err}");
+        }
     };
-    exit(exit_code)
+    exit_code
 }
