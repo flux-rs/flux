@@ -342,6 +342,11 @@ pub(crate) fn conv_generics(
         rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
     let rust_generics = genv.tcx().generics_of(def_id.resolved_id());
+    let is_box = if let DefKind::Struct = genv.def_kind(def_id.resolved_id()) {
+        genv.tcx().adt_def(def_id.resolved_id()).is_box()
+    } else {
+        false
+    };
     let params = {
         opt_self
             .into_iter()
@@ -352,7 +357,7 @@ pub(crate) fn conv_generics(
                     .iter()
                     .find(|param| param.def_id.resolved_id() == rust_param.def_id)?;
                 Some(rty::GenericParamDef {
-                    kind: conv_generic_param_kind(&param.kind),
+                    kind: conv_generic_param_kind(is_box, &param.kind),
                     def_id: param.def_id.resolved_id(),
                     index: rust_param.index,
                     name: rust_param.name,
@@ -384,10 +389,17 @@ pub(crate) fn conv_refinement_generics(
         .try_collect()
 }
 
-fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDefKind {
+fn conv_generic_param_kind(
+    is_box: bool,
+    kind: &fhir::GenericParamKind,
+) -> rty::GenericParamDefKind {
     match kind {
         fhir::GenericParamKind::Type { default } => {
-            rty::GenericParamDefKind::Base { has_default: default.is_some() }
+            if is_box {
+                rty::GenericParamDefKind::Type { has_default: default.is_some() }
+            } else {
+                rty::GenericParamDefKind::Base { has_default: default.is_some() }
+            }
         }
         fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
         fhir::GenericParamKind::Const { .. } => {
@@ -1370,8 +1382,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::ClauseKind::Projection(proj) => {
                     projection_bounds.push(rty::Binder::bind_with_vars(proj, vars));
                 }
-                rty::ClauseKind::RegionOutlives(_) => {}
-                rty::ClauseKind::TypeOutlives(_) => {}
+                rty::ClauseKind::RegionOutlives(_)
+                | rty::ClauseKind::TypeOutlives(_)
+                | rty::ClauseKind::UnstableFeature(_) => {}
                 rty::ClauseKind::ConstArgHasType(..) => {
                     bug!("did not expect {pred:?} clause in object bounds");
                 }
@@ -1848,7 +1861,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         into: &mut Vec<rty::GenericArg>,
     ) -> QueryResult {
         let generics = self.genv().generics_of(def_id)?;
-
         self.check_generic_arg_count(&generics, def_id, segment)?;
 
         let len = into.len();

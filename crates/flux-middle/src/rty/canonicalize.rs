@@ -40,11 +40,11 @@ use rustc_span::Symbol;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig,
-    SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
+    BaseTy, Binder, BoundVariableKind, Expr, FnSig, PolyFnSig, SubsetTy, Ty, TyCtor, TyKind,
+    TyOrBase,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
 };
-use crate::rty::{BoundReftKind, ExprKind, HoleKind};
+use crate::rty::{BoundReftKind, ExprKind, GenericArg, GenericArgsExt, HoleKind};
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
 /// It can be configured to stop hoisting at specific type constructors.
