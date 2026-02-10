@@ -23,7 +23,7 @@ use rustc_hir::{
     def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_interface::interface::Compiler;
-use rustc_middle::{query, ty::TyCtxt, util};
+use rustc_middle::{queries, ty::TyCtxt, util};
 use rustc_session::config::OutputType;
 use rustc_span::FileName;
 
@@ -355,7 +355,7 @@ fn force_conv(genv: GlobalEnv, def_id: DefId) -> QueryResult {
 fn mir_borrowck<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
-) -> query::queries::mir_borrowck::ProvidedValue<'tcx> {
+) -> queries::mir_borrowck::ProvidedValue<'tcx> {
     let bodies_with_facts = rustc_borrowck::consumers::get_bodies_with_borrowck_facts(
         tcx,
         def_id,
