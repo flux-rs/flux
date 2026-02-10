@@ -65,6 +65,10 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 }
 
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
+    pub fn queried(self, def_id: DefId) -> bool {
+        self.inner.queries.queried(def_id)
+    }
+
     pub fn tcx(self) -> TyCtxt<'tcx> {
         self.inner.tcx
     }
