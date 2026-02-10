@@ -85,6 +85,14 @@ use rustc_span::{Ident, Span, Symbol, SyntaxContext};
 
 ## Verification
 
+A patch file (`fix-unused-imports.patch`) has been created that can be applied to PR #1387.
+
+To apply the fix:
+```bash
+cd crates/flux-driver/src/collector
+patch -p0 < ../../../../fix-unused-imports.patch
+```
+
 After applying these changes, run:
 ```bash
 RUSTFLAGS="-Dwarnings" cargo check
