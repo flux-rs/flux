@@ -115,7 +115,8 @@ impl<'a> TypeEnv<'a> {
         place: &Place,
     ) -> InferResult<Ty> {
         let span = infcx.span;
-        Ok(self.bindings.lookup_unfolding(infcx, place, span)?.ty)
+        let result = self.bindings.lookup_unfolding(infcx, place, span)?;
+        Ok(result.ty)
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {

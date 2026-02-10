@@ -166,6 +166,7 @@ impl Pretty for Sort {
             }
             Sort::Param(param_ty) => w!(cx, f, "{}::sort", ^param_ty),
             Sort::Infer(svar) => w!(cx, f, "{:?}", ^svar),
+            Sort::RawPtr => w!(cx, f, "ptr"),
             Sort::Err => w!(cx, f, "err"),
         }
     }

@@ -132,6 +132,9 @@ where
                                         "Should be specially handled as the head of a function app."
                                     )
                                 }
+                                ConstKey::PtrSize => {
+                                    Ok(rty::Expr::global_func(SpecFuncKind::PtrSize))
+                                }
                             }
                         } else {
                             Err(FixpointParseError::NoGlobalVar(*global_var))
@@ -285,7 +288,9 @@ where
                                         .try_collect()?;
                                     Ok(rty::Expr::alias(alias_reft, args))
                                 }
-                                ConstKey::RustConst(..) | ConstKey::Lambda(..) => {
+                                ConstKey::RustConst(..)
+                                | ConstKey::Lambda(..)
+                                | ConstKey::PtrSize => {
                                     // These should be treated as a normal app.
                                     self.fixpoint_app_to_expr(fhead, fargs)
                                 }

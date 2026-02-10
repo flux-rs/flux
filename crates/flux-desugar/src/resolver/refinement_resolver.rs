@@ -310,7 +310,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
     fn visit_bty(&mut self, bty: &surface::BaseTy) {
         match &bty.kind {
-            surface::BaseTyKind::Slice(_) => {
+            surface::BaseTyKind::Slice(_) | surface::BaseTyKind::Ptr(..) => {
                 self.with_scope(ScopeKind::Misc, |this| {
                     surface::visit::walk_bty(this, bty);
                 });
@@ -635,6 +635,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Map))
         } else if segment.name == sym::str {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Str))
+        } else if segment.name == sym::ptr {
+            Some(fhir::SortRes::PrimSort(fhir::PrimSort::RawPtr))
         } else {
             None
         }

@@ -24,6 +24,9 @@ mod slice;
 mod num;
 
 #[cfg(flux)]
+mod ptr;
+
+#[cfg(flux)]
 mod convert;
 
 // -------------------------------------------------------------------

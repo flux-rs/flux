@@ -756,6 +756,8 @@ pub enum SpecFuncKind {
     Thy(liquid_fixpoint::ThyFunc),
     /// User-defined function. This can be either a function with a body or a UIF.
     Def(FluxDefId),
+    /// Built-in UIF for pointer size: `RawPtr -> Int`
+    PtrSize,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
@@ -1550,6 +1552,9 @@ pub(crate) mod pretty {
                     } else {
                         w!(cx, f, "<error>")
                     }
+                }
+                ExprKind::GlobalFunc(SpecFuncKind::PtrSize) => {
+                    w!(cx, f, "ptr_size")
                 }
                 ExprKind::InternalFunc(func) => {
                     w!(cx, f, "{:?}", func)

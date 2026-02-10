@@ -522,6 +522,8 @@ pub struct BaseTy {
 pub enum BaseTyKind {
     Path(Option<Box<Ty>>, Path),
     Slice(Box<Ty>),
+    /// Raw pointer (*const T or *mut T), optionally with refinement on pointer value
+    Ptr(Mutability, Box<Ty>),
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
