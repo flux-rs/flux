@@ -873,6 +873,7 @@ pub enum PrimSort {
     Set,
     Map,
     Str,
+    RawPtr,
 }
 
 impl PrimSort {
@@ -885,13 +886,15 @@ impl PrimSort {
             PrimSort::Real => "real",
             PrimSort::Set => "Set",
             PrimSort::Map => "Map",
+            PrimSort::RawPtr => "ptr",
         }
     }
 
     /// Number of generics expected by this primitive sort
     pub fn generics(self) -> usize {
         match self {
-            PrimSort::Int | PrimSort::Bool | PrimSort::Real | PrimSort::Char | PrimSort::Str => 0,
+            PrimSort::Int | PrimSort::Bool | PrimSort::Real | PrimSort::Char | PrimSort::Str
+            | PrimSort::RawPtr => 0,
             PrimSort::Set => 1,
             PrimSort::Map => 2,
         }
@@ -1657,6 +1660,7 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Str) => write!(f, "str"),
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
+            SortRes::PrimSort(PrimSort::RawPtr) => write!(f, "ptr"),
             SortRes::SortParam(n) => write!(f, "@{n}"),
             SortRes::TyParam(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {

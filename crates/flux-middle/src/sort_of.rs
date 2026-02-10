@@ -86,8 +86,8 @@ impl rty::BaseTy {
     pub fn sort(&self) -> rty::Sort {
         match self {
             rty::BaseTy::Int(_) | rty::BaseTy::Uint(_) | rty::BaseTy::Slice(_)
-            | rty::BaseTy::RawPtr(..)
             => rty::Sort::Int,
+            rty::BaseTy::RawPtr(..) => rty::Sort::RawPtr,
             rty::BaseTy::Bool => rty::Sort::Bool,
             rty::BaseTy::Char => rty::Sort::Char,
             rty::BaseTy::Adt(adt_def, args) => adt_def.sort(args),

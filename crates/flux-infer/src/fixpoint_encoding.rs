@@ -328,6 +328,7 @@ impl SortEncodingCtxt {
             // should ensure values of these sorts are used "opaquely", i.e., the only values of
             // these sorts are variables.
             rty::Sort::Param(_)
+            | rty::Sort::RawPtr
             | rty::Sort::Alias(rty::AliasKind::Opaque | rty::AliasKind::Projection, ..) => {
                 fixpoint::Sort::Int
             }

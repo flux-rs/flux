@@ -1042,6 +1042,7 @@ pub enum Sort {
     App(SortCtor, List<Sort>),
     Var(ParamSort),
     Infer(SortVid),
+    RawPtr,
     Err,
 }
 

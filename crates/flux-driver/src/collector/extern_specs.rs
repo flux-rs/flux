@@ -387,11 +387,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             && let Some(e) = b.expr
         {
             // Peel through an optional `unsafe { ... }` block
-            let call_expr = if let hir::ExprKind::Block(inner_b, _) = e.kind {
-                inner_b.expr
-            } else {
-                Some(e)
-            };
+            let call_expr =
+                if let hir::ExprKind::Block(inner_b, _) = e.kind { inner_b.expr } else { Some(e) };
             if let Some(e) = call_expr
                 && let hir::ExprKind::Call(callee, _) = e.kind
                 && let rustc_middle::ty::FnDef(callee_id, _) =
