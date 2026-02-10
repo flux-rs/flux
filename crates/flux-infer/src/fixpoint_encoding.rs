@@ -523,6 +523,7 @@ enum ConstKey<'tcx> {
     Lambda(Lambda),
     PrimOp(rty::BinOp),
     Cast(rty::Sort, rty::Sort),
+    PtrSize,
 }
 
 #[derive(Clone)]
@@ -1700,6 +1701,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 fixpoint::Expr::Var(self.declare_fun(*def_id))
             }
+            rty::ExprKind::GlobalFunc(SpecFuncKind::PtrSize) => {
+                fixpoint::Expr::Var(self.define_const_for_ptr_size(scx))
+            }
             rty::ExprKind::Exists(expr) => {
                 let expr = self.body_to_fixpoint(expr, scx)?;
                 fixpoint::Expr::Exists(expr.0, Box::new(expr.1))
@@ -2099,6 +2103,22 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name
     }
 
+    fn define_const_for_ptr_size(&mut self, scx: &mut SortEncodingCtxt) -> fixpoint::Var {
+        let key = ConstKey::PtrSize;
+        self.const_env
+            .get_or_insert(key, |global_name| {
+                let fsort = rty::FuncSort::new(vec![rty::Sort::RawPtr], rty::Sort::Int);
+                let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
+                let sort = scx.func_sort_to_fixpoint(&fsort).into_sort();
+                fixpoint::ConstDecl {
+                    name: fixpoint::Var::Const(global_name, None),
+                    sort,
+                    comment: Some("ptr_size uif: RawPtr -> Int".to_string()),
+                }
+            })
+            .name
+    }
+
     fn define_const_for_prim_op(
         &mut self,
         op: &rty::BinOp,
@@ -2236,7 +2256,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 ConstKey::Alias(..)
                 | ConstKey::Cast(..)
                 | ConstKey::Lambda(..)
-                | ConstKey::PrimOp(..) => {}
+                | ConstKey::PrimOp(..)
+                | ConstKey::PtrSize => {}
             }
         }
         Ok(constraint)

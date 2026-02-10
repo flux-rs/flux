@@ -2,11 +2,6 @@
 use flux_attrs::*;
 
 #[cfg(flux)]
-defs! {
-    fn ptr_size(x: ptr) -> int;
-}
-
-#[cfg(flux)]
 mod const_ptr;
 
 #[cfg(flux)]

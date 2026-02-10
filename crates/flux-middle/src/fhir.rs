@@ -893,7 +893,11 @@ impl PrimSort {
     /// Number of generics expected by this primitive sort
     pub fn generics(self) -> usize {
         match self {
-            PrimSort::Int | PrimSort::Bool | PrimSort::Real | PrimSort::Char | PrimSort::Str
+            PrimSort::Int
+            | PrimSort::Bool
+            | PrimSort::Real
+            | PrimSort::Char
+            | PrimSort::Str
             | PrimSort::RawPtr => 0,
             PrimSort::Set => 1,
             PrimSort::Map => 2,
@@ -1250,6 +1254,8 @@ pub enum SpecFuncKind {
     Def(FluxDefId),
     /// Casts between sorts: id for char, int; if-then-else for bool-int; uninterpreted otherwise.
     Cast,
+    /// Built-in function to get the size of a raw pointer's pointee type.
+    PtrSize,
 }
 
 impl SpecFuncKind {
