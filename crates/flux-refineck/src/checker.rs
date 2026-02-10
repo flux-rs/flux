@@ -312,6 +312,10 @@ fn check_fn_subtyping(
         for requires in super_sig.requires() {
             infcx.assume_pred(requires);
         }
+        infcx.check_pred(
+            Expr::implies(super_sig.no_panic(), sub_sig.no_panic()),
+            ConstrReason::Subtype(SubtypeReason::Input),
+        );
         for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
             let reason = ConstrReason::Subtype(SubtypeReason::Input);
             infcx.subtyping_with_env(&mut env, &actual, formal, reason)?;
