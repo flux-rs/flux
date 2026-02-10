@@ -1,18 +1,19 @@
-#[flux::opts(check_raw_pointer = "checked")]
-pub fn read(x: *const i32) -> i32 {
-    unsafe { *x } //~ ERROR raw pointer dereference may be unsafe
+use flux_rs::attrs::*;
+
+extern crate flux_core;
+
+pub fn test_read(x: *const i32) -> i32 {
+    unsafe { std::ptr::read(x) } //~ ERROR refinement type error
 }
 
-#[flux::opts(check_raw_pointer = "checked")]
-fn write<T>(ptr: *mut T, value: T) {
+fn test_write<T>(ptr: *mut T, value: T) {
     unsafe {
-        *ptr = value; //~ ERROR raw pointer dereference may be unsafe
+        std::ptr::write(ptr, value); //~ ERROR refinement type error
     }
 }
 
-#[flux::opts(check_raw_pointer = "checked")]
-fn write_i32(ptr: *mut i32, value: i32) {
+fn test_write_i32(ptr: *mut i32, value: i32) {
     unsafe {
-        *ptr = value; //~ ERROR raw pointer dereference may be unsafe
+        std::ptr::write(ptr, value); //~ ERROR refinement type error
     }
 }

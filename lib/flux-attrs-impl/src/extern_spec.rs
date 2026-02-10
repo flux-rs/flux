@@ -223,7 +223,7 @@ impl Parse for ExternItem {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
         let lookahead = input.lookahead1();
-        let mut item = if lookahead.peek(Token![fn]) {
+        let mut item = if lookahead.peek(Token![fn]) || lookahead.peek(Token![unsafe]) {
             ExternItem::Fn(input.parse()?)
         } else if lookahead.peek(Token![impl]) {
             ExternItem::Impl(input.parse()?)
@@ -411,7 +411,11 @@ impl ExternFn {
         };
         let generic_args = generic_params_to_args(&self.sig.generics.params);
         let fn_args = fn_params_to_args(&self.sig.inputs);
-        self.block = Some(quote!({ #fn_path :: <#generic_args> ( #fn_args ) }));
+        if self.sig.unsafety.is_some() {
+            self.block = Some(quote!({ unsafe { #fn_path :: <#generic_args> ( #fn_args ) } }));
+        } else {
+            self.block = Some(quote!({ #fn_path :: <#generic_args> ( #fn_args ) }));
+        }
     }
 }
 

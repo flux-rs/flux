@@ -1,13 +1,12 @@
 extern crate flux_core;
 
-#[flux::opts(check_raw_pointer = "checked")]
-pub fn test() {
-    let mut buf: [u32; 2] = [0; 2];
+pub fn test(buf: &mut [u32; 2]) {
+    // let mut buf: [u32; 2] = [67; 2]; // sigh, see https://github.com/flux-rs/flux/issues/1465
 
     let ptr: *mut u32 = buf.as_mut_ptr();
 
     unsafe {
-        *ptr.add(0) = 10;
-        *ptr.add(1) = 20;
+        std::ptr::write(ptr.add(0), 10);
+        std::ptr::write(ptr.add(1), 20);
     }
 }
