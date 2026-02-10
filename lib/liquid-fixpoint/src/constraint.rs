@@ -109,7 +109,7 @@ impl<T: Types> FlatConstraint<T> {
     ///
     /// NOTE: Assumes that all binders are unique and therefore there are no
     /// name clashes.
-    pub fn remove_binders(&self, vars: HashSet<T::Var>) -> (Vec<ConstDecl<T>>, FlatConstraint<T>) {
+    pub fn remove_binders(&self, vars: &HashSet<T::Var>) -> (Vec<ConstDecl<T>>, FlatConstraint<T>) {
         let mut new_binders = self.binders.clone();
         let removed_binders = new_binders.extract_if(.., |(var, _sort)| vars.contains(var)).map(|(var, sort)| {
             ConstDecl {
@@ -1109,6 +1109,15 @@ impl<T: Types> Expr<T> {
             Expr::Or(disjuncts) => std::cmp::max(disjuncts.iter().map(|disjunct| disjunct.max_num_disjuncts()).max().unwrap_or(0), disjuncts.len()),
             Expr::And(conjuncts) => conjuncts.iter().map(|conjunct| conjunct.max_num_disjuncts()).max().unwrap_or(1),
             _ => 1,
+        }
+    }
+
+    pub fn total_num_disjuncts(&self) -> usize {
+        match self {
+            // Can pick 0 for the default value since there will always be at least one disjunct.
+            Expr::Or(disjuncts) => disjuncts.len() + disjuncts.iter().map(|disjunct| disjunct.total_num_disjuncts()).sum::<usize>(),
+            Expr::And(conjuncts) => conjuncts.iter().map(|conjunct| conjunct.total_num_disjuncts()).sum::<usize>(),
+            _ => 0,
         }
     }
 }

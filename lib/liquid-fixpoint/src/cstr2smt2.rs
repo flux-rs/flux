@@ -782,7 +782,8 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
 /// disjunction we will want to prune branches that are already satisfied.
 pub fn check_validity<T: Types>(
     cstr: &FlatConstraint<T>,
-    consts: &Vec<ConstDecl<T>>,
+    binder_consts: &Vec<ConstDecl<T>>,
+    global_consts: &Vec<ConstDecl<T>>,
     datatype_decls: &Vec<DataDecl<T>>,
 ) -> bool {
     let solver = Solver::new();
@@ -791,7 +792,10 @@ pub fn check_validity<T: Types>(
         let datatype_sort = new_datatype(&data_decl.name, &data_decl, &mut vars);
         vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
     });
-    consts.iter().for_each(|const_decl| {
+    binder_consts.iter().for_each(|const_decl| {
+        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars))
+    });
+    global_consts.iter().for_each(|const_decl| {
         vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars))
     });
     for (var, sort) in &cstr.binders {
@@ -812,7 +816,8 @@ pub fn check_validity<T: Types>(
 
 pub fn qe_and_simplify<T: Types>(
     cstr: &FlatConstraint<T>,
-    consts: &Vec<ConstDecl<T>>,
+    binder_consts: &Vec<ConstDecl<T>>,
+    global_consts: &Vec<ConstDecl<T>>,
     datatype_decls: &Vec<DataDecl<T>>,
 ) -> Result<Expr<T>, Z3DecodeError>{
     let solver = Solver::new();
@@ -822,9 +827,15 @@ pub fn qe_and_simplify<T: Types>(
         let datatype_sort = new_datatype(&data_decl.name, &data_decl, &mut vars);
         vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
     });
-    consts.iter().for_each(|const_decl| {
+    binder_consts.iter().for_each(|const_decl| {
         // println!("(declare-const {} {})", const_decl.name.display(), const_decl.sort);
-        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars))
+        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars));
+    });
+    let mut const_vars: HashSet<T::Var> = HashSet::new();
+    global_consts.iter().for_each(|const_decl| {
+        // println!("(declare-const {} {})", const_decl.name.display(), const_decl.sort);
+        const_vars.insert(const_decl.name.clone());
+        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars));
     });
     let free_vars: HashSet<_> = vars.bindings.keys().cloned().collect();
     // These are going to be the bound vars, so we declare the free vars above them.
@@ -838,12 +849,20 @@ pub fn qe_and_simplify<T: Types>(
         // Assumptions that only pertain to non-quantified variables will
         // just be asserted.
         // println!("assumption:\n{:?}", pred_ast);
-        if pred.free_vars().is_subset(&free_vars) {
-            // println!("assumption\n  {}", pred);
+        let fvs = pred.free_vars();
+        if fvs.is_subset(&const_vars) {
+            println!("assumption\n  {}", pred);
             goal.assert(&pred_ast);
             None
         } else {
-            Some(pred_ast)
+            if fvs.is_subset(&free_vars) {
+                // println!("assumption\n  {}", pred);
+                // goal.assert(&pred_ast);
+                Some(pred_ast)
+                // None
+            } else {
+                Some(pred_ast)
+            }
         }
     }).collect_vec());
     let rhs = pred_to_z3(&cstr.head, &mut vars, AllowKVars::NoKVars);
@@ -873,7 +892,7 @@ pub fn qe_and_simplify<T: Types>(
     //     println!("{:?}: {:?}", sort, z3_sort);
     // }
     goal.assert(&body);
-    let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("ctx-simplify")).and_then(&Tactic::new("nnf"));
+    let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("nnf")).and_then(&Tactic::new("simplify"));
     match qe_and_simplify.try_for(std::time::Duration::from_secs(10)).apply(&goal, None) {
         Ok(apply_result) => {
             // println!("got result:");
@@ -902,13 +921,19 @@ pub fn qe_and_simplify<T: Types>(
                     //         .unwrap();
                     // return z3_to_expr(&vars, &simplified_cstr);
                     let mut fixpoint_expr = z3_to_expr(&vars, &new_cstr)?;
+                    solver.assert(new_cstr.as_bool().unwrap());
+                    return match solver.check() {
+                        SatResult::Unsat => Ok(Expr::FALSE),
+                        _ => Ok(fixpoint_expr),
+                    };
                     // println!("solved originally to: {}", fixpoint_expr);
                     // return Ok(prune_vacuous(fixpoint_expr, &mut vars, &solver));
-                    return if prune_vacuous(&mut fixpoint_expr, &mut vars, &solver) {
-                        Ok(Expr::FALSE)
-                    } else {
-                        Ok(fixpoint_expr)
-                    };
+                    
+                    // return if prune_vacuous(&mut fixpoint_expr, &mut vars, &solver) {
+                    //     Ok(Expr::FALSE)
+                    // } else {
+                    //     Ok(fixpoint_expr)
+                    // };
                 }
             }
             Err(Z3DecodeError::NoResults)

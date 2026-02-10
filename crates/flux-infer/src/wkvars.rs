@@ -133,8 +133,10 @@ impl WKVarInstantiator<'_> {
             // so the scope is the same.
             current_index: INNERMOST,
         };
+        println!("eta expanded args: {:?}", args_to_param);
         instantiator
             .try_fold_expr(&expr_eta_expanded_rel)
+            .map_err(|e| println!("Couldn't unify with {:?}", e))
             .ok()
             .and_then(|instantiated_e| {
                 if !instantiator.any_self_args_used && !instantiator.self_args.is_empty() {

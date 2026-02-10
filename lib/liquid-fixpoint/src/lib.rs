@@ -25,7 +25,7 @@ pub mod parser;
 pub mod sexp;
 
 use std::{
-    collections::{HashMap, hash_map::DefaultHasher},
+    collections::{HashMap, HashSet, hash_map::DefaultHasher},
     fmt::{self, Debug},
     hash::{Hash, Hasher},
     io,
@@ -150,16 +150,16 @@ macro_rules! declare_types {
     };
 }
 
-pub fn qe_and_simplify<T: Types>(constraint: &FlatConstraint<T>, free_vars: &Vec<ConstDecl<T>>, datatype_decls: Vec<DataDecl<T>>) -> Result<Expr<T>, Z3DecodeError> {
+pub fn qe_and_simplify<T: Types>(constraint: &FlatConstraint<T>, binder_consts: &Vec<ConstDecl<T>>, global_consts: &Vec<ConstDecl<T>>, datatype_decls: Vec<DataDecl<T>>) -> Result<Expr<T>, Z3DecodeError> {
     // let mut consts = self.constants.clone();
     // consts.extend(free_vars.clone());
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::qe_and_simplify(constraint, free_vars, &datatype_decls)
+    cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
 }
 
-pub fn check_validity<T: Types>(constraint: &FlatConstraint<T>, free_vars: &Vec<ConstDecl<T>>, datatype_decls: Vec<DataDecl<T>>) -> bool {
+pub fn check_validity<T: Types>(constraint: &FlatConstraint<T>, binder_consts: &Vec<ConstDecl<T>>, global_consts: &Vec<ConstDecl<T>>, datatype_decls: Vec<DataDecl<T>>) -> bool {
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::check_validity(constraint, free_vars, &datatype_decls)
+    cstr2smt2::check_validity(constraint, binder_consts, global_consts, &datatype_decls)
 }
 
 

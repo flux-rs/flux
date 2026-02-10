@@ -723,16 +723,15 @@ where
                             println!("There are {} wkvars/constraint pairs to try", wkvars_and_constraints.len());
                             for (wkvar, flat_constraint, other_constrs) in wkvars_and_constraints {
                                 if !other_constrs.iter().all(|other_constr| {
-                                    let mut consts = other_constr.binders.iter().map(|(var, sort)| {
+                                    let binder_consts = other_constr.binders.iter().map(|(var, sort)| {
                                         fixpoint::ConstDecl {
                                             name: *var,
                                             sort: sort.clone(),
                                             comment: None,
                                         }
                                     }).collect_vec();
-                                    consts.extend(constants_without_inequalities.iter().cloned());
                                     // println!("Checking validity of {} => {}", constraint.assumptions.iter().map(|a| format!("{}", a)).join(" && "), constraint.head);
-                                    check_validity(&other_constr, &consts, data_decls.clone())
+                                    check_validity(&other_constr, &binder_consts, &constants_without_inequalities, data_decls.clone())
                                     
                                 }) {
                                     println!("WARN: There is at least one non-valid constraint among {} other constraints, skipping solving...", other_constrs.len());
@@ -769,8 +768,8 @@ where
                                     .iter()
                                     .map(|arg| self.fixpoint_to_expr(arg))
                                     .try_collect().unwrap();
-                                let (mut consts, mut new_flat_constraint) =
-                                    flat_constraint.remove_binders(fvars);
+                                let (binder_consts, mut new_flat_constraint) =
+                                    flat_constraint.remove_binders(&fvars);
                                 // Some cleanup: remove all of the underscores (those aren't real binders)
                                 new_flat_constraint.binders.retain(|(var, _)| {
                                     !matches!(var, fixpoint::Var::Underscore)
@@ -780,8 +779,7 @@ where
                                     *assumption = assumption.strip_wkvars();
                                     !assumption.is_trivially_true()
                                 });
-                                consts.extend(constants_without_inequalities.iter().cloned());
-                                if check_validity(&new_flat_constraint, &consts, data_decls.clone()) {
+                                if check_validity(&new_flat_constraint, &binder_consts, &constants_without_inequalities, data_decls.clone()) {
                                     panic!("a constraint is valid when it shouldn't be");
                                 }
                                 // for assumption in new_flat_constraint.assumptions.iter() {
@@ -789,15 +787,15 @@ where
                                 // }
                                 // println!(" ==>");
                                 // println!("  {}", new_flat_constraint.head);
-                                match qe_and_simplify(&new_flat_constraint, &consts, data_decls.clone()) {
+                                match qe_and_simplify(&new_flat_constraint, &binder_consts, &constants_without_inequalities, data_decls.clone()) {
                                     Ok(fe) => {
                                         match self.fixpoint_to_expr(&fe) {
                                             Ok(e) => {
                                                 if !e.is_trivially_false()
                                                     && !e.is_trivially_true() {
                                                     if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &e) {
-                                                        println!("recording solution: {:?}", e);
-                                                        if fe.max_num_disjuncts() > 2 {
+                                                        println!("recording solution: {:?}", binder_e);
+                                                        if fe.total_num_disjuncts() > new_flat_constraint.assumptions.len() {
                                                             println!("WARN: skipping answer with too many disjuncts");
                                                             // Try the regular expression
                                                             if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
