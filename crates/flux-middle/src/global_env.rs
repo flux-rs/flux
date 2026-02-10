@@ -380,8 +380,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.sort_of_assoc_reft(self, assoc_id)
     }
 
-    pub fn item_bounds(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
-        self.inner.queries.item_bounds(self, def_id)
+    pub fn item_bounds(
+        self,
+        def_id: impl IntoQueryParam<DefId>,
+    ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
+        self.inner
+            .queries
+            .item_bounds(self, def_id.into_query_param())
     }
 
     pub fn type_of(

@@ -19,8 +19,8 @@ use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
-    def::DefKind,
-    def_id::{DefId, LOCAL_CRATE, LocalDefId},
+    def::{CtorKind, DefKind},
+    def_id::{LOCAL_CRATE, LocalDefId},
 };
 use rustc_interface::interface::Compiler;
 use rustc_middle::{query, ty::TyCtxt};
@@ -91,14 +91,10 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
         let mut ck = CrateChecker::new(genv);
 
-        let crate_items = genv.tcx().hir_crate_items(());
-
-        let dups = crate_items.definitions().duplicates().collect_vec();
-        if !dups.is_empty() {
-            bug!("TODO: {dups:#?}");
-        }
-        let result = crate_items
-            .definitions()
+        // Iterate over all def ids including dummy items for extern specs
+        let result = genv
+            .tcx()
+            .iter_local_def_id()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
         if config::lean().is_emit() {
@@ -107,7 +103,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         }
 
         let lean_result = if config::lean().is_check() {
-            crate_items.definitions().try_for_each_exhaust(|def_id| {
+            genv.iter_local_def_id().try_for_each_exhaust(|def_id| {
                 if genv.proven_externally(def_id).is_some() {
                     lean_encoding::check_proof(genv, def_id.to_def_id())
                 } else {
@@ -247,14 +243,15 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        let def_id = self.genv.maybe_extern_id(def_id);
+        let genv = self.genv;
+        let def_id = genv.maybe_extern_id(def_id);
 
         // Dummy items generated for extern specs are excluded from metrics
-        if self.genv.is_dummy(def_id.local_id()) {
+        if genv.is_dummy(def_id.local_id()) {
             return Ok(());
         }
 
-        let kind = self.genv.def_kind(def_id);
+        let kind = genv.def_kind(def_id);
 
         // For the purpose of metrics, we consider to be a *function* an item that
         // 1. It's local, i.e., it's not an extern spec.
@@ -266,13 +263,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             .as_local()
             .map(|local_id| {
                 matches!(kind, DefKind::Fn | DefKind::AssocFn)
-                    && self.genv.tcx().is_mir_available(local_id)
+                    && genv.tcx().is_mir_available(local_id)
             })
             .unwrap_or(false);
 
         metrics::incr_metric_if(is_fn_with_body, Metric::FnTotal);
 
-        if self.genv.ignored(def_id.local_id()) {
+        if genv.ignored(def_id.local_id()) {
             metrics::incr_metric_if(is_fn_with_body, Metric::FnIgnored);
             return Ok(());
         }
@@ -281,74 +278,101 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             return Ok(());
         }
 
+        trigger_queries(genv, def_id).emit(&genv)?;
+
         match kind {
             DefKind::Fn | DefKind::AssocFn => {
-                // Make sure we run conversion and report errors even if we skip the function
-                force_conv(self.genv, def_id.resolved_id()).emit(&self.genv)?;
                 let Some(local_id) = def_id.as_local() else { return Ok(()) };
                 if is_fn_with_body {
-                    refineck::check_fn(self.genv, &mut self.cache, local_id)?;
+                    refineck::check_fn(genv, &mut self.cache, local_id)?;
                 }
-                Ok(())
             }
             DefKind::Enum => {
-                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
-                self.genv.variants_of(def_id).emit(&self.genv)?;
-                let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
-                let enum_def = self
-                    .genv
+                let adt_def = genv.adt_def(def_id).emit(&genv)?;
+                let enum_def = genv
                     .fhir_expect_item(def_id.local_id())
-                    .emit(&self.genv)?
+                    .emit(&genv)?
                     .expect_enum();
                 refineck::invariants::check_invariants(
-                    self.genv,
+                    genv,
                     &mut self.cache,
                     def_id,
                     enum_def.invariants,
                     &adt_def,
-                )
+                )?;
             }
             DefKind::Struct => {
-                // We check invariants for `struct` in `check_constructor` (i.e. when the struct is built).
-                // However, we leave the below code in to force the queries that do the conversions that check
-                // for ill-formed annotations e.g. see tests/tests/neg/error_messages/annot_check/struct_error.rs
-                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
-                self.genv.adt_def(def_id).emit(&self.genv)?;
-                self.genv.variants_of(def_id).emit(&self.genv)?;
-                let _struct_def = self
-                    .genv
-                    .fhir_expect_item(def_id.local_id())
-                    .emit(&self.genv)?
-                    .expect_struct();
-                Ok(())
+                // We check invariants for `struct` in `check_constructor` (i.e. when the struct is built),
+                // so nothing to do here.
             }
             DefKind::Impl { of_trait } => {
-                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
                 if of_trait {
-                    refineck::compare_impl_item::check_impl_against_trait(self.genv, def_id)
-                        .emit(&self.genv)?;
+                    refineck::compare_impl_item::check_impl_against_trait(genv, def_id)
+                        .emit(&genv)?;
                 }
-                Ok(())
             }
-            DefKind::TyAlias => {
-                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
-                self.genv.type_of(def_id).emit(&self.genv)?;
-                Ok(())
-            }
-            DefKind::Trait => {
-                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
-                Ok(())
-            }
-            _ => Ok(()),
+            DefKind::TyAlias => {}
+            DefKind::Trait => {}
+            _ => (),
         }
+        Ok(())
     }
 }
 
-fn force_conv(genv: GlobalEnv, def_id: DefId) -> QueryResult {
-    genv.generics_of(def_id)?;
-    genv.refinement_generics_of(def_id)?;
-    genv.predicates_of(def_id)?;
-    genv.fn_sig(def_id)?;
+/// Triggers queries for the given `def_id` to mark it as "reached" for metadata encoding.
+///
+/// This function ensures that all relevant queries for a definition are triggered upfront,
+/// so the item and its associated data will be included in the encoded metadata. Without this,
+/// items might be missing from the metadata (extern specs in particular which are not otherwise "checked"),
+/// causing errors when dependent crates try to use them.
+fn trigger_queries(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult {
+    match genv.def_kind(def_id) {
+        DefKind::Trait => {
+            genv.generics_of(def_id)?;
+            genv.predicates_of(def_id)?;
+            genv.refinement_generics_of(def_id)?;
+        }
+        DefKind::Impl { .. } => {
+            genv.generics_of(def_id)?;
+            genv.predicates_of(def_id)?;
+            genv.refinement_generics_of(def_id)?;
+        }
+        DefKind::Fn | DefKind::AssocFn => {
+            genv.generics_of(def_id)?;
+            genv.refinement_generics_of(def_id)?;
+            genv.predicates_of(def_id)?;
+            genv.fn_sig(def_id)?;
+        }
+        DefKind::Ctor(_, CtorKind::Fn) => {
+            genv.generics_of(def_id)?;
+            genv.refinement_generics_of(def_id)?;
+            // We don't report the error because it can raise a `QueryErr::OpaqueStruct`,  which
+            // should be reported at the use site.
+            let _ = genv.fn_sig(def_id);
+        }
+        DefKind::Enum | DefKind::Struct => {
+            genv.generics_of(def_id)?;
+            genv.predicates_of(def_id)?;
+            genv.refinement_generics_of(def_id)?;
+            genv.adt_def(def_id)?;
+            genv.adt_sort_def_of(def_id)?;
+            genv.variants_of(def_id)?;
+            genv.type_of(def_id)?;
+        }
+        DefKind::TyAlias => {
+            genv.generics_of(def_id)?;
+            genv.predicates_of(def_id)?;
+            genv.refinement_generics_of(def_id)?;
+            genv.type_of(def_id)?;
+        }
+        DefKind::OpaqueTy => {
+            genv.generics_of(def_id)?;
+            genv.predicates_of(def_id)?;
+            genv.item_bounds(def_id)?;
+            genv.refinement_generics_of(def_id)?;
+        }
+        _ => {}
+    }
     Ok(())
 }
 

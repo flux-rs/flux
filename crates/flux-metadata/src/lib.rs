@@ -433,7 +433,7 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     tables.assoc_refinements_of.insert(key, assocs);
                 }
             }
-            DefKind::Fn | DefKind::AssocFn | DefKind::Ctor(_, CtorKind::Fn) => {
+            DefKind::Fn | DefKind::AssocFn => {
                 tables.generics_of.insert(key, genv.generics_of(def_id));
                 tables.predicates_of.insert(key, genv.predicates_of(def_id));
                 tables
@@ -441,6 +441,18 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     .insert(key, genv.refinement_generics_of(def_id));
                 tables.fn_sig.insert(key, genv.fn_sig(def_id));
                 tables.no_panic.insert(key, genv.no_panic(def_id));
+            }
+            DefKind::Ctor(_, CtorKind::Fn) => {
+                tables
+                    .generics_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+                tables.refinement_generics_of.insert(
+                    key,
+                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+                );
+                tables
+                    .fn_sig
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::fn_sig));
             }
             DefKind::Enum | DefKind::Struct => {
                 tables.generics_of.insert(key, genv.generics_of(def_id));
