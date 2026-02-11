@@ -210,6 +210,32 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::ExprKind::Constructor(None, exprs, spread) => {
                 self.check_constructor(expr, exprs, spread, expected)?;
             }
+            fhir::ExprKind::Tuple(exprs) => {
+                // Check tuple against expected tuple sort
+                if let rty::Sort::Tuple(expected_sorts) = expected {
+                    if exprs.len() == expected_sorts.len() {
+                        for (expr, expected_sort) in exprs.iter().zip(expected_sorts) {
+                            self.check_expr(expr, expected_sort)?;
+                        }
+                    } else {
+                        // Tuple arity mismatch - fall back to synthesis
+                        let found = self.synth_expr(expr)?;
+                        let found = self.resolve_vars_if_possible(&found);
+                        let expected = self.resolve_vars_if_possible(expected);
+                        if !self.is_coercible(&found, &expected, expr.fhir_id) {
+                            return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
+                        }
+                    }
+                } else {
+                    // Expected sort is not a tuple - synthesize and check
+                    let found = self.synth_expr(expr)?;
+                    let found = self.resolve_vars_if_possible(&found);
+                    let expected = self.resolve_vars_if_possible(expected);
+                    if !self.is_coercible(&found, &expected, expr.fhir_id) {
+                        return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
+                    }
+                }
+            }
             fhir::ExprKind::UnaryOp(..)
             | fhir::ExprKind::SetLiteral(..)
             | fhir::ExprKind::BinaryOp(..)
@@ -221,7 +247,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::BoundedQuant(..)
             | fhir::ExprKind::Block(..)
             | fhir::ExprKind::Constructor(..)
-            | fhir::ExprKind::Tuple(..)
             | fhir::ExprKind::PrimApp(..) => {
                 let found = self.synth_expr(expr)?;
                 let found = self.resolve_vars_if_possible(&found);
@@ -928,7 +953,19 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
 impl<'genv> fhir::visit::Visitor<'genv> for ImplicitParamInferer<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
-            let expected = self.infcx.sort_of_bty(bty);
+            let sort = self.infcx.sort_of_bty(bty);
+            // For ADT sorts with refined_by parameters, extract the refined_by sort
+            let expected = match &sort {
+                rty::Sort::App(rty::SortCtor::Adt(adt_def), _) => {
+                    if adt_def.is_struct() {
+                        let variant = adt_def.struct_variant();
+                        variant.field_sort(0).cloned().unwrap_or(sort)
+                    } else {
+                        sort
+                    }
+                }
+                _ => sort,
+            };
             self.infer_implicit_params(idx, &expected);
         }
         fhir::visit::walk_ty(self, ty);
