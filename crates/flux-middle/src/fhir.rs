@@ -943,6 +943,8 @@ pub enum Sort<'fhir> {
     /// The sort associated with a base type. This is normalized into a concrete sort during
     /// conversion
     SortOf(BaseTy<'fhir>),
+    /// A tuple sort, e.g., (int, bool)
+    Tuple(&'fhir [Sort<'fhir>]),
     /// A sort that needs to be inferred.
     Infer,
     Err(ErrorGuaranteed),
@@ -1038,6 +1040,7 @@ pub enum ExprKind<'fhir> {
     SetLiteral(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
     Block(&'fhir [LetDecl<'fhir>], &'fhir Expr<'fhir>),
+    Tuple(&'fhir [Expr<'fhir>]),
     Err(ErrorGuaranteed),
 }
 

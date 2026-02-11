@@ -295,6 +295,8 @@ pub enum BaseSort {
     BitVec(u32),
     SortOf(Box<Ty>, Path),
     Path(SortPath),
+    /// a tuple sort, e.g., (int, bool)
+    Tuple(Vec<BaseSort>),
 }
 
 /// A [`Path`] but for sorts.
@@ -717,6 +719,8 @@ pub enum ExprKind {
     Block(Vec<LetDecl>, Box<Expr>),
     /// Set expression `#{ e1, e2, ..., en }`
     SetLiteral(Vec<Expr>),
+    /// Tuple expression `(e1, e2, ..., en)`
+    Tuple(Vec<Expr>),
 }
 
 #[derive(Debug)]
