@@ -16,9 +16,10 @@ mod goober {
 
     static XS: [u32; 5] = [1, 2, 3, 4, 5];
 
-    static IDXS: [u8; 3] = [0, 1, 2];
+    #[flux::static_spec([u8{v: v < 10}; 3])]
+    static IDXS: [u8; 3] = [0, 1, 7];
 
     fn test() {
-        let result = super::lib(&XS, &IDXS);
+        let result = super::lib(&XS, &IDXS); //~ ERROR refinement type
     }
 }
