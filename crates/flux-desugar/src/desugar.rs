@@ -480,8 +480,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     fn desugar_static(&mut self, static_info: &surface::StaticInfo) -> fhir::Item<'genv> {
         let ty = self.desugar_ty(&static_info.ty);
         let owner_id = self.owner;
-        let generics = self.lift_generics();
-        let kind = fhir::ItemKind::Static(ty);
+        let generics = fhir::Generics::empty(self.genv);
+        let kind = fhir::ItemKind::Static(Some(ty));
         fhir::Item { owner_id, generics, kind }
     }
 

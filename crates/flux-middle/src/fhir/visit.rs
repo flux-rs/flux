@@ -324,7 +324,11 @@ pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
                 vis.visit_expr(expr);
             }
         }
-        ItemKind::Static(ty) => vis.visit_ty(ty),
+        ItemKind::Static(ty) => {
+            if let Some(ty) = ty {
+                vis.visit_ty(ty);
+            }
+        }
     }
 }
 

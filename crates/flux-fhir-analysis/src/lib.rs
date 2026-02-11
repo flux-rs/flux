@@ -245,11 +245,15 @@ fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Stati
     let node = genv.fhir_node(def_id.local_id())?;
     match node {
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Static(ty), .. }) => {
-            let wfckresults = genv.check_wf(def_id.local_id())?;
-            let rty_ty = AfterSortck::new(genv, &wfckresults)
-                .into_conv_ctxt()
-                .conv_static_ty(ty)?;
-            Ok(rty::StaticInfo::Known(rty_ty))
+            if let Some(ty) = ty {
+                let wfckresults = genv.check_wf(def_id.local_id())?;
+                let rty_ty = AfterSortck::new(genv, &wfckresults)
+                    .into_conv_ctxt()
+                    .conv_static_ty(ty)?;
+                Ok(rty::StaticInfo::Known(rty_ty))
+            } else {
+                Ok(rty::StaticInfo::Unknown)
+            }
         }
         _ => Ok(rty::StaticInfo::Unknown),
     }

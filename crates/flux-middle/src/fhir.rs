@@ -15,7 +15,7 @@
 
 pub mod visit;
 
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, fmt, iter};
 
 use flux_common::{bug, span_bug};
 use flux_config::PartialInferOpts;
@@ -42,6 +42,7 @@ use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
 use crate::{
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
+    global_env::GlobalEnv,
     rty::QualifierKind,
 };
 
@@ -251,7 +252,7 @@ pub enum ItemKind<'fhir> {
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),
     Const(Option<Expr<'fhir>>),
-    Static(Ty<'fhir>),
+    Static(Option<Ty<'fhir>>),
 }
 
 #[derive(Debug)]
@@ -1265,6 +1266,11 @@ impl<'fhir> Generics<'fhir> {
             .iter()
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
+    }
+
+    pub fn empty(genv: GlobalEnv<'fhir, '_>) -> Self {
+        let params = genv.alloc_slice_fill_iter(iter::empty());
+        Self { params, refinement_params: &[], predicates: None }
     }
 }
 

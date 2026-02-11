@@ -52,6 +52,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             hir::ItemKind::Impl(impl_) => {
                 (impl_.generics, fhir::ItemKind::Impl(fhir::Impl { assoc_refinements: &[] }))
             }
+            hir::ItemKind::Static(..) => (hir::Generics::empty(), fhir::ItemKind::Static(None)),
             _ => {
                 Err(query_bug!(self.owner.resolved_id(), "unsupported item")).emit(&self.genv())?
             }

@@ -277,7 +277,12 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_fn_sig(def_id, fn_sig)?;
                         cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
-                    fhir::ItemKind::Const(_) | fhir::ItemKind::Static(_) => {}
+                    fhir::ItemKind::Static(ty) => {
+                        if let Some(ty) = ty {
+                            cx.conv_static_ty(ty)?;
+                        }
+                    }
+                    fhir::ItemKind::Const(_) => {}
                 }
             }
             fhir::OwnerNode::TraitItem(trait_item) => {
