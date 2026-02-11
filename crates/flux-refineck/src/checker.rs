@@ -857,8 +857,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let obligations = infcx
             .at(span)
             .ensure_resolved_evars(|infcx| {
-                // let ret_place_ty = env.lookup_place(infcx, Place::RETURN)?;
-                let ret_place_ty = self.check_lookup_place(infcx, env, span, Place::RETURN)?;
+                let ret_place_ty = env.lookup_place(&mut infcx.at(span), Place::RETURN)?;
                 let output = self
                     .fn_sig
                     .output
@@ -1163,7 +1162,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
     ) -> Vec<(BasicBlock, Guard)> {
         let (adt_def, place) = discr_ty.expect_discr();
-        let idx = if let Ok(ty) = self.check_lookup_place(&mut infcx.at(span), env, span, place)
+        let idx = if let Ok(ty) = env.lookup_place(&mut infcx.at(span), place)
             && let TyKind::Indexed(_, idx) = ty.kind()
         {
             Some(idx.clone())
@@ -1395,15 +1394,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::RawPtr(mir::RawPtrKind::FakeForPtrMetadata, place) => {
                 // see tests/tests/neg/surface/slice02.rs for what happens without unfolding here.
                 env.unfold(infcx, place, stmt_span).with_span(stmt_span)?;
-                let ty = self
-                    .check_lookup_place(&mut infcx.at(stmt_span), env, stmt_span, place)
+                let ty = env
+                    .lookup_place(&mut infcx.at(stmt_span), place)
                     .with_span(stmt_span)?;
                 let ty = BaseTy::RawPtrMetadata(ty).to_ty();
                 Ok(ty)
             }
             Rvalue::RawPtr(kind, place) => {
                 // TODO:RAW-PTR
-                self.check_lookup_place(&mut infcx.at(stmt_span), env, stmt_span, place)
+                env.lookup_place(&mut infcx.at(stmt_span), place)
                     .with_span(stmt_span)?;
                 // ignore any refinements on the type stored at place
                 let ty = &env.lookup_rust_ty(genv, place).with_span(stmt_span)?;
@@ -1432,8 +1431,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)
             }
             Rvalue::Discriminant(place) => {
-                let ty = self
-                    .check_lookup_place(&mut infcx.at(stmt_span), env, stmt_span, place)
+                let ty = env
+                    .lookup_place(&mut infcx.at(stmt_span), place)
                     .with_span(stmt_span)?;
                 // HACK(nilehmann, mut-ref-unfolding) place should be unfolded here.
                 let (adt_def, ..) = ty
@@ -1508,8 +1507,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         stmt_span: Span,
         place: &Place,
     ) -> Result<Ty> {
-        let ty = self
-            .check_lookup_place(&mut infcx.at(stmt_span), env, stmt_span, place)
+        let ty = env
+            .lookup_place(&mut infcx.at(stmt_span), place)
             .with_span(stmt_span)?;
         let ty = match ty.kind() {
             TyKind::Indexed(BaseTy::RawPtrMetadata(ty), _)
@@ -1745,16 +1744,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .iter()
             .map(|op| self.check_operand(infcx, env, span, op))
             .try_collect()
-    }
-
-    fn check_lookup_place(
-        &mut self,
-        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        env: &mut TypeEnv,
-        span: Span,
-        place: &Place,
-    ) -> InferResult<Ty> {
-        env.lookup_place(&mut infcx.at(span), place)
     }
 
     fn check_operand(

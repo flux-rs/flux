@@ -10,7 +10,7 @@ use flux_middle::{
     fhir,
     global_env::GlobalEnv,
 };
-use flux_syntax::surface::{self, Ident, visit::Visitor as _};
+use flux_syntax::{surface::{self, Ident, visit::Visitor as _}, symbols::sym as flux_sym};
 use hir::{ItemId, ItemKind, OwnerId, def::DefKind};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
@@ -158,7 +158,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         self.func_decls
             .insert(Symbol::intern("cast"), fhir::SpecFuncKind::Cast);
         self.func_decls
-            .insert(Symbol::intern("ptr_size"), fhir::SpecFuncKind::PtrSize);
+            .insert(flux_sym::ptr_size, fhir::SpecFuncKind::PtrSize);
     }
 
     fn define_items(&mut self, item_ids: impl IntoIterator<Item = &'tcx ItemId>) {

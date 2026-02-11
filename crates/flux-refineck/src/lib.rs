@@ -195,7 +195,6 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
             }
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
             ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
-            ConstrReason::RawDeref => genv.sess().emit_err(errors::RawDerefError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
             ConstrReason::NoPanic(callee) => {
                 genv.sess().emit_err(errors::PanicError {
@@ -323,13 +322,6 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag(refineck_underflow_error, code = E0999)]
     pub struct UnderflowError {
-        #[primary_span]
-        pub span: Span,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(refineck_raw_deref_error, code = E0999)]
-    pub struct RawDerefError {
         #[primary_span]
         pub span: Span,
     }
