@@ -118,6 +118,11 @@ impl AdtSortVariant {
         Some((proj, sort))
     }
 
+    /// Get the sort of the field at the given index
+    pub fn field_sort(&self, idx: usize) -> Option<&Sort> {
+        self.sorts.get(idx)
+    }
+
     pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
         self.sorts.fold_with(&mut SortSubst::new(args))
     }
