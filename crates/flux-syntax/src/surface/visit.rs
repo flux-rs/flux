@@ -337,6 +337,9 @@ pub fn walk_base_sort<V: Visitor>(vis: &mut V, bsort: &BaseSort) {
             vis.visit_ty(qself);
             vis.visit_path(path);
         }
+        BaseSort::Tuple(sorts) => {
+            walk_list!(vis, visit_base_sort, sorts);
+        }
     }
 }
 
@@ -617,6 +620,9 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
             vis.visit_expr(body);
         }
         ExprKind::SetLiteral(exprs) => {
+            walk_list!(vis, visit_expr, exprs);
+        }
+        ExprKind::Tuple(exprs) => {
             walk_list!(vis, visit_expr, exprs);
         }
     }

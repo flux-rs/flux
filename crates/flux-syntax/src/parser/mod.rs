@@ -1332,10 +1332,12 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
             if let token::Literal(lit) = cx.at(0).kind
                 && let LitKind::Integer = lit.kind
             {
+                let field_lo = cx.lo();
                 let field_idx = lit.symbol;
                 cx.advance();
+                let field_hi = cx.hi();
                 // Convert integer to identifier for tuple field access
-                ExprKind::Dot(Box::new(e), Ident { name: field_idx, node_id: cx.next_node_id() })
+                ExprKind::Dot(Box::new(e), Ident { name: field_idx, span: cx.mk_span(field_lo, field_hi) })
             } else {
                 // ⟨trailer_expr⟩ . ⟨ident⟩
                 let field = parse_ident(cx)?;
@@ -1660,11 +1662,16 @@ fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
 /// ```
 fn parse_sort(cx: &mut ParseCtxt) -> ParseResult<Sort> {
     if cx.peek(token::OpenParen) {
-        // ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩
+        // Could be ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩ or just ( ⟨base_sort⟩,* )
         let inputs = parens(cx, Comma, parse_base_sort)?;
-        cx.expect(token::RArrow)?;
-        let output = parse_base_sort(cx)?;
-        Ok(Sort::Func { inputs, output })
+        if cx.advance_if(token::RArrow) {
+            // ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩
+            let output = parse_base_sort(cx)?;
+            Ok(Sort::Func { inputs, output })
+        } else {
+            // Just a tuple base sort ( ⟨base_sort⟩,* )
+            Ok(Sort::Base(BaseSort::Tuple(inputs)))
+        }
     } else {
         let bsort = parse_base_sort(cx)?;
         if cx.advance_if(token::RArrow) {

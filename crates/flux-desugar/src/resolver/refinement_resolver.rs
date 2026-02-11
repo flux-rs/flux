@@ -777,6 +777,11 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
             }
             surface::BaseSort::BitVec(_) => {}
             surface::BaseSort::SortOf(..) => {}
+            surface::BaseSort::Tuple(sorts) => {
+                for sort in sorts {
+                    self.on_base_sort(sort);
+                }
+            }
         }
     }
 }

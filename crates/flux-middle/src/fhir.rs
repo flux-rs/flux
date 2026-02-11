@@ -1604,6 +1604,9 @@ impl fmt::Debug for Expr<'_> {
                 }
                 write!(f, "{body:?}")
             }
+            ExprKind::Tuple(exprs) => {
+                write!(f, "({:?})", exprs.iter().format(", "))
+            }
         }
     }
 }
@@ -1634,6 +1637,7 @@ impl fmt::Debug for Sort<'_> {
             Sort::Loc => write!(f, "loc"),
             Sort::Func(fsort) => write!(f, "{fsort:?}"),
             Sort::SortOf(bty) => write!(f, "<{bty:?}>::sort"),
+            Sort::Tuple(sorts) => write!(f, "({:?})", sorts.iter().format(", ")),
             Sort::Infer => write!(f, "_"),
             Sort::Err(_) => write!(f, "err"),
         }

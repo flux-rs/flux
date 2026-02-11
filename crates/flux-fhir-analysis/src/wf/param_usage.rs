@@ -127,7 +127,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
             fhir::ExprKind::BoundedQuant(_, _, _, body) => {
                 self.check_func_params_uses(body, false);
             }
-            fhir::ExprKind::Record(exprs) | fhir::ExprKind::SetLiteral(exprs) => {
+            fhir::ExprKind::Record(exprs) | fhir::ExprKind::SetLiteral(exprs) | fhir::ExprKind::Tuple(exprs) => {
                 for field in exprs {
                     self.check_func_params_uses(field, false);
                 }
