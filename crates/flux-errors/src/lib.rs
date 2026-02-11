@@ -31,9 +31,8 @@ impl FluxSession {
     pub fn new(
         opts: &config::Options,
         source_map: Arc<SourceMap>,
-        fallback_bundle: LazyFallbackBundle,
     ) -> Self {
-        let emitter = emitter(opts, source_map.clone(), fallback_bundle);
+        let emitter = emitter(opts, source_map.clone());
         let dcx = rustc_errors::DiagCtxt::new(emitter);
         Self { parse_sess: ParseSess::with_dcx(dcx, source_map) }
     }
@@ -74,9 +73,8 @@ impl FluxSession {
 fn emitter(
     sopts: &config::Options,
     source_map: Arc<SourceMap>,
-    fallback_fluent_bundle: LazyFallbackBundle,
 ) -> Box<dyn Emitter + sync::DynSend> {
-    let translator = Translator { fluent_bundle: None, fallback_fluent_bundle };
+    let translator = Translator { fluent_bundle: None };
 
     // All the code below is copied from rustc_session::session::default_emitter
     let macro_backtrace = sopts.unstable_opts.macro_backtrace;
