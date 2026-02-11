@@ -221,6 +221,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::BoundedQuant(..)
             | fhir::ExprKind::Block(..)
             | fhir::ExprKind::Constructor(..)
+            | fhir::ExprKind::Tuple(..)
             | fhir::ExprKind::PrimApp(..) => {
                 let found = self.synth_expr(expr)?;
                 let found = self.resolve_vars_if_possible(&found);
@@ -333,6 +334,22 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                             .insert(expr.fhir_id, proj);
                         Ok(sort)
                     }
+                    rty::Sort::Tuple(sorts) => {
+                        // Parse field name as integer for tuple field access
+                        if let Ok(field_idx) = fld.name.as_str().parse::<usize>() {
+                            if field_idx < sorts.len() {
+                                let proj = rty::FieldProj::Tuple { arity: sorts.len(), field: field_idx as u32 };
+                                self.wfckresults
+                                    .field_projs_mut()
+                                    .insert(expr.fhir_id, proj);
+                                Ok(sorts[field_idx].clone())
+                            } else {
+                                Err(self.emit_field_not_found(&sort, fld))
+                            }
+                        } else {
+                            Err(self.emit_field_not_found(&sort, fld))
+                        }
+                    }
                     rty::Sort::Bool | rty::Sort::Int | rty::Sort::Real => {
                         Err(self.emit_err(errors::InvalidPrimitiveDotAccess::new(&sort, fld)))
                     }
@@ -379,6 +396,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     self.check_expr(elem, &elem_sort)?;
                 }
                 Ok(rty::Sort::App(rty::SortCtor::Set, List::singleton(elem_sort)))
+            }
+            fhir::ExprKind::Tuple(exprs) => {
+                let sorts = exprs
+                    .iter()
+                    .map(|expr| self.synth_expr(expr))
+                    .try_collect()?;
+                Ok(rty::Sort::Tuple(sorts))
             }
             _ => Err(self.emit_err(errors::CannotInferSort::new(expr.span))),
         }

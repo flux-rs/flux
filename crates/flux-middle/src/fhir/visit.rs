@@ -519,6 +519,9 @@ pub fn walk_sort<'v, V: Visitor<'v>>(vis: &mut V, sort: &Sort<'v>) {
         Sort::Path(path) => vis.visit_sort_path(path),
         Sort::Func(func) => vis.visit_poly_func_sort(func),
         Sort::SortOf(bty) => vis.visit_bty(bty),
+        Sort::Tuple(sorts) => {
+            walk_list!(vis, visit_sort, *sorts);
+        }
         Sort::Loc | Sort::BitVec(_) | Sort::Infer | Sort::Err(_) => {}
     }
 }
@@ -584,7 +587,7 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
             walk_list!(vis, visit_refine_param, refine_params);
             vis.visit_expr(body);
         }
-        ExprKind::Record(exprs) | ExprKind::SetLiteral(exprs) => {
+        ExprKind::Record(exprs) | ExprKind::SetLiteral(exprs) | ExprKind::Tuple(exprs) => {
             walk_list!(vis, visit_expr, exprs);
         }
         ExprKind::Constructor(path, exprs, spread) => {
