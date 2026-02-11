@@ -14,7 +14,6 @@ use flux_middle::{
     queries::{Providers, QueryResult},
 };
 use flux_refineck as refineck;
-use itertools::Itertools;
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
