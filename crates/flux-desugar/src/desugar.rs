@@ -1123,6 +1123,14 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             surface::BaseSort::SortOf(qself, path) => {
                 fhir::Sort::SortOf(self.desugar_path_to_bty(Some(qself), path))
             }
+            surface::BaseSort::Tuple(sorts) => {
+                let sorts = genv.alloc_slice_fill_iter(
+                    sorts
+                        .iter()
+                        .map(|s| self.desugar_base_sort(s, generic_id_to_var_idx)),
+                );
+                fhir::Sort::Tuple(sorts)
+            }
         }
     }
 
@@ -1522,6 +1530,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     .genv()
                     .alloc_slice_fill_iter(exprs.iter().map(|expr| self.desugar_expr(expr)));
                 fhir::ExprKind::SetLiteral(exprs)
+            }
+            surface::ExprKind::Tuple(exprs) => {
+                let exprs = self
+                    .genv()
+                    .alloc_slice_fill_iter(exprs.iter().map(|expr| self.desugar_expr(expr)));
+                fhir::ExprKind::Tuple(exprs)
             }
         };
 

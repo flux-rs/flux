@@ -1328,9 +1328,19 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
     let mut e = parse_atom(cx, allow_struct)?;
     loop {
         let kind = if cx.advance_if(token::Dot) {
-            // ⟨trailer_expr⟩ . ⟨ident⟩
-            let field = parse_ident(cx)?;
-            ExprKind::Dot(Box::new(e), field)
+            // Check if next token is a literal integer (tuple field access like .0, .1)
+            if let token::Literal(lit) = cx.at(0).kind
+                && let LitKind::Integer = lit.kind
+            {
+                let field_idx = lit.symbol;
+                cx.advance();
+                // Convert integer to identifier for tuple field access
+                ExprKind::Dot(Box::new(e), Ident { name: field_idx, node_id: cx.next_node_id() })
+            } else {
+                // ⟨trailer_expr⟩ . ⟨ident⟩
+                let field = parse_ident(cx)?;
+                ExprKind::Dot(Box::new(e), field)
+            }
         } else if cx.peek(token::OpenParen) {
             // ⟨trailer_expr⟩ ( ⟨expr⟩,* )
             let args = parens(cx, Comma, |cx| parse_expr(cx, true))?;
@@ -1344,10 +1354,58 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
     Ok(e)
 }
 
+/// Parse a parenthesized expression `(expr)` or tuple expression `(expr, expr, ...)`
+fn parse_paren_or_tuple(cx: &mut ParseCtxt) -> ParseResult<Expr> {
+    let lo = cx.lo();
+    cx.expect(token::OpenParen)?;
+    
+    // Handle empty tuple or single element
+    if cx.peek(token::CloseParen) {
+        // Empty tuple `()`
+        cx.advance();
+        let hi = cx.hi();
+        return Ok(Expr {
+            kind: ExprKind::Tuple(vec![]),
+            node_id: cx.next_node_id(),
+            span: cx.mk_span(lo, hi),
+        });
+    }
+    
+    // Parse first expression
+    let first = parse_expr(cx, true)?;
+    
+    // Check if this is a tuple or just a parenthesized expression
+    if cx.advance_if(Comma) {
+        // It's a tuple with multiple elements
+        let mut exprs = vec![first];
+        
+        // Parse remaining elements
+        while !cx.peek(token::CloseParen) {
+            exprs.push(parse_expr(cx, true)?);
+            if !cx.advance_if(Comma) {
+                break;
+            }
+        }
+        
+        cx.expect(token::CloseParen)?;
+        let hi = cx.hi();
+        Ok(Expr {
+            kind: ExprKind::Tuple(exprs),
+            node_id: cx.next_node_id(),
+            span: cx.mk_span(lo, hi),
+        })
+    } else {
+        // Just a parenthesized expression
+        cx.expect(token::CloseParen)?;
+        Ok(first)
+    }
+}
+
 /// ```text
 /// ⟨atom⟩ := ⟨if_expr⟩
 ///         | ⟨lit⟩
 ///         | ( ⟨expr⟩ )
+///         | ( ⟨expr⟩,+ )
 ///         | ⟨epath⟩
 ///         | ⟨bounded_quant⟩
 ///         |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩
@@ -1366,7 +1424,8 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
         // ⟨lit⟩
         parse_lit(cx)
     } else if lookahead.peek(token::OpenParen) {
-        delimited(cx, Parenthesis, |cx| parse_expr(cx, true))
+        // Parse parenthesized expression or tuple
+        parse_paren_or_tuple(cx)
     } else if lookahead.advance_if(token::Pound) {
         // #{ ⟨expr⟩,* }
         let lo = cx.lo();
@@ -1621,6 +1680,7 @@ fn parse_sort(cx: &mut ParseCtxt) -> ParseResult<Sort> {
 
 /// ```text
 /// ⟨base_sort⟩ := bitvec < ⟨u32⟩ >
+///              | ( ⟨base_sort⟩,* )
 ///              | ⟨sort_path⟩ < ⟨base_sort⟩,* >
 ///              | < ⟨ty⟩ as ⟨path⟩ > :: ⟨segment⟩
 /// ⟨sort_path⟩ := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩* < (⟨base_sort⟩,*) >
@@ -1632,6 +1692,10 @@ fn parse_base_sort(cx: &mut ParseCtxt) -> ParseResult<BaseSort> {
         let len = parse_int(cx)?;
         cx.expect(RAngle)?;
         Ok(BaseSort::BitVec(len))
+    } else if cx.peek(token::OpenParen) {
+        // ( ⟨base_sort⟩,* )
+        let sorts = parens(cx, Comma, parse_base_sort)?;
+        Ok(BaseSort::Tuple(sorts))
     } else if cx.advance_if(LAngle) {
         // < ⟨ty⟩ as ⟨path⟩ > :: ⟨segment⟩
         let qself = parse_type(cx)?;
