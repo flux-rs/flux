@@ -60,6 +60,7 @@ pub fn provide(providers: &mut Providers) {
     providers.check_wf = check_wf;
     providers.adt_def = adt_def;
     providers.constant_info = constant_info;
+    providers.static_info = static_info;
     providers.type_of = type_of;
     providers.variants_of = variants_of;
     providers.fn_sig = fn_sig;
@@ -237,6 +238,20 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
             Ok(rty::ConstantInfo::Uninterpreted)
         }
         _ => Err(query_bug!(def_id.local_id(), "expected const item"))?,
+    }
+}
+
+fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::StaticInfo> {
+    let node = genv.fhir_node(def_id.local_id())?;
+    match node {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Static(ty), .. }) => {
+            let wfckresults = genv.check_wf(def_id.local_id())?;
+            let rty_ty = AfterSortck::new(genv, &wfckresults)
+                .into_conv_ctxt()
+                .conv_static_ty(ty)?;
+            Ok(rty::StaticInfo::Known(rty_ty))
+        }
+        _ => Ok(rty::StaticInfo::Unknown),
     }
 }
 

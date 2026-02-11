@@ -529,6 +529,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         self.conv_expr(&mut env, expr)
     }
 
+    pub(crate) fn conv_static_ty(&mut self, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
+        let mut env = Env::empty();
+        self.conv_ty(&mut env, ty, None)
+    }
+
     pub(crate) fn conv_enum_variants(
         &mut self,
         enum_id: MaybeExternId,

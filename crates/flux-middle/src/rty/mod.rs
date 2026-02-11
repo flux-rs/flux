@@ -1266,6 +1266,13 @@ pub enum ConstantInfo {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+pub enum StaticInfo {
+    Unknown,
+    /// A static item whose type was specified by the user
+    Known(Ty),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]

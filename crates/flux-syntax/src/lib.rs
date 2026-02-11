@@ -104,9 +104,9 @@ impl ParseSess {
         &mut self,
         tokens: &TokenStream,
         span: Span,
-    ) -> ParseResult<surface::StaticSpec> {
+    ) -> ParseResult<surface::StaticInfo> {
         let ty = parser::parse_type(&mut self.cx(tokens, span))?;
-        Ok(surface::StaticSpec { ty })
+        Ok(surface::StaticInfo { ty })
     }
 
     pub fn parse_constant_info(

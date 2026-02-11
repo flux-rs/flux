@@ -690,7 +690,7 @@ enum FluxAttrKind {
     TypeAlias(Box<surface::TyAlias>),
     Field(surface::Ty),
     Constant(surface::ConstantInfo),
-    StaticSpec(surface::StaticSpec),
+    StaticSpec(surface::StaticInfo),
     Variant(surface::VariantDef),
     InferOpts(config::PartialInferOpts),
     Invariant(surface::Expr),
@@ -801,7 +801,7 @@ impl FluxAttrs {
         read_attr!(self, Field)
     }
 
-    fn static_spec(&mut self) -> Option<surface::StaticSpec> {
+    fn static_spec(&mut self) -> Option<surface::StaticInfo> {
         read_attr!(self, StaticSpec)
     }
 

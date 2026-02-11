@@ -1766,7 +1766,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         match constant.const_ {
             Const::Ty(ty, cst) => self.check_ty_const(constant, cst, ty)?,
             Const::Val(val, ty) => {
-                println!("TRACE: check_const_val (1) {val:?} => {ty:?}");
+                // println!("TRACE: check_const_val (1) {val:?} => {ty:?}");
                 self.check_const_val(val, ty)
             }
             Const::Unevaluated(uneval, ty) => {
@@ -1874,11 +1874,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Scalar::Ptr(ptr, _) => {
                 let alloc_id = ptr.provenance.alloc_id();
                 let GlobalAlloc::Static(def_id) = self.genv.tcx().global_alloc(alloc_id) else {
+                    // TODO: use the self.genv.static_info(def_id) to get a more precise type for the pointer constant.
                     return None;
                 };
-                println!(
-                    "TRACE: check_scalar: pointer scalar {scalar:?} with ty {ty:?} => {def_id:?}"
-                );
+                // println!(
+                //     "TRACE: check_scalar: pointer scalar {scalar:?} with ty {ty:?} => {def_id:?}"
+                // );
                 None
             }
         }

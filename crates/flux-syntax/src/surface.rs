@@ -133,7 +133,7 @@ pub enum ItemKind {
     Impl(Impl),
     Const(ConstantInfo),
     TyAlias(Box<TyAlias>),
-    Static(StaticSpec),
+    Static(StaticInfo),
     /// Modules can't be refined but we collect attributes for them, e.g., `#[trusted]`
     /// This kind is also used for the crate root, for which we also collect attributes.
     Mod,
@@ -228,7 +228,7 @@ pub struct ConstantInfo {
 }
 
 #[derive(Debug)]
-pub struct StaticSpec {
+pub struct StaticInfo {
     pub ty: Ty,
 }
 
