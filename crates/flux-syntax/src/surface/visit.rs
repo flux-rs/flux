@@ -278,6 +278,7 @@ pub fn walk_item<V: Visitor>(vis: &mut V, item: &Item) {
         ItemKind::Trait(trait_) => vis.visit_trait(trait_),
         ItemKind::Impl(impl_) => vis.visit_impl(impl_),
         ItemKind::Const(cst) => vis.visit_constant(cst),
+        ItemKind::Static(static_info) => vis.visit_ty(&static_info.ty),
         ItemKind::TyAlias(ty_alias) => vis.visit_ty_alias(ty_alias),
         ItemKind::Mod => {}
     }

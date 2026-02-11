@@ -251,6 +251,7 @@ pub enum ItemKind<'fhir> {
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),
     Const(Option<Expr<'fhir>>),
+    Static(Ty<'fhir>),
 }
 
 #[derive(Debug)]

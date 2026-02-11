@@ -156,6 +156,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
                 self.collect_constant(owner_id, attrs)?;
             }
+            ItemKind::Static(..) => {
+                self.collect_static(owner_id, attrs)?;
+            }
             _ => {}
         }
         hir::intravisit::walk_item(self, item);
@@ -327,6 +330,21 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         )
     }
 
+    fn parse_static_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
+        if let Some(static_info) = attrs.static_spec() {
+            let node_id = self.next_node_id();
+            self.insert_item(
+                owner_id,
+                surface::Item {
+                    attrs: attrs.into_attr_vec(),
+                    kind: surface::ItemKind::Static(static_info),
+                    node_id,
+                },
+            )?;
+        }
+        Ok(())
+    }
+
     fn parse_constant_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         if let Some(constant) = attrs.constant() {
             let node_id = self.next_node_id();
@@ -411,6 +429,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
     fn collect_constant(&mut self, owner_id: OwnerId, attrs: FluxAttrs) -> Result {
         self.parse_constant_spec(owner_id, attrs)
+    }
+
+    fn collect_static(&mut self, owner_id: OwnerId, attrs: FluxAttrs) -> Result {
+        self.parse_static_spec(owner_id, attrs)
     }
 
     fn check_fn_sig_name(&mut self, owner_id: OwnerId, fn_sig: Option<&surface::FnSig>) -> Result {
@@ -527,6 +549,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("constant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)?
             }
+            ("static_spec", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_static_info, FluxAttrKind::StaticSpec)?
+            }
             ("opts", hir::AttrArgs::Delimited(..)) => {
                 let opts = AttrMap::parse(attr_item)
                     .emit(&self.errors)?
@@ -564,6 +589,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("specs", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_detached_specs, FluxAttrKind::DetachedSpecs)?
             }
+
             _ => return Err(invalid_attr_err(self)),
         };
         if config::annots() {
@@ -664,6 +690,7 @@ enum FluxAttrKind {
     TypeAlias(Box<surface::TyAlias>),
     Field(surface::Ty),
     Constant(surface::ConstantInfo),
+    StaticSpec(surface::StaticSpec),
     Variant(surface::VariantDef),
     InferOpts(config::PartialInferOpts),
     Invariant(surface::Expr),
@@ -774,6 +801,10 @@ impl FluxAttrs {
         read_attr!(self, Field)
     }
 
+    fn static_spec(&mut self) -> Option<surface::StaticSpec> {
+        read_attr!(self, StaticSpec)
+    }
+
     fn constant(&mut self) -> Option<surface::ConstantInfo> {
         read_attr!(self, Constant)
     }
@@ -818,6 +849,7 @@ impl FluxAttrs {
                 | FluxAttrKind::TypeAlias(_)
                 | FluxAttrKind::Field(_)
                 | FluxAttrKind::Constant(_)
+                | FluxAttrKind::StaticSpec(_)
                 | FluxAttrKind::Variant(_)
                 | FluxAttrKind::Invariant(_)
                 | FluxAttrKind::ExternSpec
@@ -847,6 +879,7 @@ impl FluxAttrKind {
             FluxAttrKind::RevealNames(_) => attr_name!(RevealNames),
             FluxAttrKind::Field(_) => attr_name!(Field),
             FluxAttrKind::Constant(_) => attr_name!(Constant),
+            FluxAttrKind::StaticSpec(_) => attr_name!(StaticSpec),
             FluxAttrKind::Variant(_) => attr_name!(Variant),
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
             FluxAttrKind::InferOpts(_) => attr_name!(InferOpts),

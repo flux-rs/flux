@@ -124,6 +124,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             surface::ItemKind::Trait(trait_) => self.desugar_trait(trait_),
             surface::ItemKind::Impl(impl_) => Ok(self.desugar_impl(impl_)),
             surface::ItemKind::Const(constant_info) => Ok(self.desugar_const(constant_info)),
+            surface::ItemKind::Static(static_info) => Ok(self.desugar_static(static_info)),
             surface::ItemKind::TyAlias(ty_alias) => Ok(self.desugar_type_alias(ty_alias)),
             surface::ItemKind::Mod => Err(self.emit(query_bug!("modules can't be desugared"))),
         }
@@ -473,6 +474,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let owner_id = self.owner;
         let generics = self.lift_generics();
         let kind = fhir::ItemKind::Const(expr);
+        fhir::Item { owner_id, generics, kind }
+    }
+
+    fn desugar_static(&mut self, static_info: &surface::StaticSpec) -> fhir::Item<'genv> {
+        let ty = self.desugar_ty(&static_info.ty);
+        let owner_id = self.owner;
+        let generics = self.lift_generics();
+        let kind = fhir::ItemKind::Static(ty);
         fhir::Item { owner_id, generics, kind }
     }
 

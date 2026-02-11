@@ -1765,7 +1765,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         use rustc_middle::mir::Const;
         match constant.const_ {
             Const::Ty(ty, cst) => self.check_ty_const(constant, cst, ty)?,
-            Const::Val(val, ty) => self.check_const_val(val, ty),
+            Const::Val(val, ty) => {
+                println!("TRACE: check_const_val (1) {val:?} => {ty:?}");
+                self.check_const_val(val, ty)
+            }
             Const::Unevaluated(uneval, ty) => {
                 self.check_uneval_const(infcx, constant, uneval, ty)?
             }
@@ -1865,10 +1868,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         scalar: rustc_middle::mir::interpret::Scalar,
         ty: rustc_middle::ty::Ty<'tcx>,
     ) -> Option<Ty> {
-        use rustc_middle::mir::interpret::Scalar;
+        use rustc_middle::mir::interpret::{GlobalAlloc, Scalar};
         match scalar {
             Scalar::Int(scalar_int) => self.check_scalar_int(scalar_int, ty),
-            Scalar::Ptr(..) => None,
+            Scalar::Ptr(ptr, _) => {
+                let alloc_id = ptr.provenance.alloc_id();
+                let GlobalAlloc::Static(def_id) = self.genv.tcx().global_alloc(alloc_id) else {
+                    return None;
+                };
+                println!(
+                    "TRACE: check_scalar: pointer scalar {scalar:?} with ty {ty:?} => {def_id:?}"
+                );
+                None
+            }
         }
     }
 
