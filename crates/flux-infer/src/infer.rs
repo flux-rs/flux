@@ -79,7 +79,6 @@ pub enum ConstrReason {
     Goto(BasicBlock),
     Overflow,
     Underflow,
-    RawDeref,
     Subtype(SubtypeReason),
     NoPanic(DefId),
     Other,
