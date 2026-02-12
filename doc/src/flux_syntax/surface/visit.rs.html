@@ -553,86 +553,87 @@
 <a href=#553 id=553 data-nosnippet>553</a>            vis.visit_path(path);
 <a href=#554 id=554 data-nosnippet>554</a>        }
 <a href=#555 id=555 data-nosnippet>555</a>        BaseTyKind::Slice(ty) =&gt; vis.visit_ty(ty),
-<a href=#556 id=556 data-nosnippet>556</a>    }
-<a href=#557 id=557 data-nosnippet>557</a>}
-<a href=#558 id=558 data-nosnippet>558</a>
-<a href=#559 id=559 data-nosnippet>559</a><span class="kw">pub fn </span>walk_path&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, path: <span class="kw-2">&amp;</span>Path) {
-<a href=#560 id=560 data-nosnippet>560</a>    <span class="macro">walk_list!</span>(vis, visit_path_segment, <span class="kw-2">&amp;</span>path.segments);
-<a href=#561 id=561 data-nosnippet>561</a>    <span class="macro">walk_list!</span>(vis, visit_refine_arg, <span class="kw-2">&amp;</span>path.refine);
-<a href=#562 id=562 data-nosnippet>562</a>}
-<a href=#563 id=563 data-nosnippet>563</a>
-<a href=#564 id=564 data-nosnippet>564</a><span class="kw">pub fn </span>walk_path_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>PathSegment) {
-<a href=#565 id=565 data-nosnippet>565</a>    vis.visit_ident(segment.ident);
-<a href=#566 id=566 data-nosnippet>566</a>    <span class="macro">walk_list!</span>(vis, visit_generic_arg, <span class="kw-2">&amp;</span>segment.args);
-<a href=#567 id=567 data-nosnippet>567</a>}
-<a href=#568 id=568 data-nosnippet>568</a>
-<a href=#569 id=569 data-nosnippet>569</a><span class="kw">pub fn </span>walk_field_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>FieldExpr) {
-<a href=#570 id=570 data-nosnippet>570</a>    vis.visit_ident(expr.ident);
-<a href=#571 id=571 data-nosnippet>571</a>    vis.visit_expr(<span class="kw-2">&amp;</span>expr.expr);
-<a href=#572 id=572 data-nosnippet>572</a>}
-<a href=#573 id=573 data-nosnippet>573</a>
-<a href=#574 id=574 data-nosnippet>574</a><span class="kw">pub fn </span>walk_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>Expr) {
-<a href=#575 id=575 data-nosnippet>575</a>    <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
-<a href=#576 id=576 data-nosnippet>576</a>        ExprKind::Path(qpath) =&gt; vis.visit_path_expr(qpath),
-<a href=#577 id=577 data-nosnippet>577</a>        ExprKind::Dot(base, fld) =&gt; {
-<a href=#578 id=578 data-nosnippet>578</a>            vis.visit_expr(base);
-<a href=#579 id=579 data-nosnippet>579</a>            vis.visit_ident(<span class="kw-2">*</span>fld);
-<a href=#580 id=580 data-nosnippet>580</a>        }
-<a href=#581 id=581 data-nosnippet>581</a>        ExprKind::Literal(lit) =&gt; {
-<a href=#582 id=582 data-nosnippet>582</a>            vis.visit_literal(<span class="kw-2">*</span>lit);
-<a href=#583 id=583 data-nosnippet>583</a>        }
-<a href=#584 id=584 data-nosnippet>584</a>        ExprKind::BinaryOp(_bin_op, <span class="kw">box </span>exprs) =&gt; {
-<a href=#585 id=585 data-nosnippet>585</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
-<a href=#586 id=586 data-nosnippet>586</a>        }
-<a href=#587 id=587 data-nosnippet>587</a>        ExprKind::UnaryOp(_un_op, e) =&gt; {
-<a href=#588 id=588 data-nosnippet>588</a>            vis.visit_expr(e);
-<a href=#589 id=589 data-nosnippet>589</a>        }
-<a href=#590 id=590 data-nosnippet>590</a>        ExprKind::PrimUIF(<span class="kw">_</span>) =&gt; {}
-<a href=#591 id=591 data-nosnippet>591</a>        ExprKind::Call(callee, args) =&gt; {
-<a href=#592 id=592 data-nosnippet>592</a>            vis.visit_expr(callee);
-<a href=#593 id=593 data-nosnippet>593</a>            <span class="macro">walk_list!</span>(vis, visit_expr, args);
-<a href=#594 id=594 data-nosnippet>594</a>        }
-<a href=#595 id=595 data-nosnippet>595</a>        ExprKind::AssocReft(qself, path, name) =&gt; {
-<a href=#596 id=596 data-nosnippet>596</a>            vis.visit_ty(qself);
-<a href=#597 id=597 data-nosnippet>597</a>            vis.visit_path(path);
-<a href=#598 id=598 data-nosnippet>598</a>            vis.visit_ident(<span class="kw-2">*</span>name);
-<a href=#599 id=599 data-nosnippet>599</a>        }
-<a href=#600 id=600 data-nosnippet>600</a>        ExprKind::IfThenElse(<span class="kw">box </span>exprs) =&gt; {
-<a href=#601 id=601 data-nosnippet>601</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
-<a href=#602 id=602 data-nosnippet>602</a>        }
-<a href=#603 id=603 data-nosnippet>603</a>        ExprKind::Constructor(path, exprs) =&gt; {
-<a href=#604 id=604 data-nosnippet>604</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
-<a href=#605 id=605 data-nosnippet>605</a>                vis.visit_path_expr(path);
-<a href=#606 id=606 data-nosnippet>606</a>            }
-<a href=#607 id=607 data-nosnippet>607</a>            <span class="macro">walk_list!</span>(vis, visit_constructor_args, exprs);
-<a href=#608 id=608 data-nosnippet>608</a>        }
-<a href=#609 id=609 data-nosnippet>609</a>        ExprKind::BoundedQuant(<span class="kw">_</span>, i, <span class="kw">_</span>, e) =&gt; {
-<a href=#610 id=610 data-nosnippet>610</a>            vis.visit_refine_param(i);
-<a href=#611 id=611 data-nosnippet>611</a>            vis.visit_expr(e);
-<a href=#612 id=612 data-nosnippet>612</a>        }
-<a href=#613 id=613 data-nosnippet>613</a>        ExprKind::Block(decls, body) =&gt; {
-<a href=#614 id=614 data-nosnippet>614</a>            <span class="kw">for </span>decl <span class="kw">in </span>decls {
-<a href=#615 id=615 data-nosnippet>615</a>                <span class="comment">// the order here is important because the parameter is not in scope
-<a href=#616 id=616 data-nosnippet>616</a>                // in the initializer
-<a href=#617 id=617 data-nosnippet>617</a>                </span>vis.visit_expr(<span class="kw-2">&amp;</span>decl.init);
-<a href=#618 id=618 data-nosnippet>618</a>                vis.visit_refine_param(<span class="kw-2">&amp;</span>decl.param);
-<a href=#619 id=619 data-nosnippet>619</a>            }
-<a href=#620 id=620 data-nosnippet>620</a>            vis.visit_expr(body);
-<a href=#621 id=621 data-nosnippet>621</a>        }
-<a href=#622 id=622 data-nosnippet>622</a>        ExprKind::SetLiteral(exprs) =&gt; {
-<a href=#623 id=623 data-nosnippet>623</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
-<a href=#624 id=624 data-nosnippet>624</a>        }
-<a href=#625 id=625 data-nosnippet>625</a>        ExprKind::Tuple(exprs) =&gt; {
-<a href=#626 id=626 data-nosnippet>626</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
-<a href=#627 id=627 data-nosnippet>627</a>        }
-<a href=#628 id=628 data-nosnippet>628</a>    }
-<a href=#629 id=629 data-nosnippet>629</a>}
-<a href=#630 id=630 data-nosnippet>630</a>
-<a href=#631 id=631 data-nosnippet>631</a><span class="kw">pub fn </span>walk_path_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: <span class="kw-2">&amp;</span>ExprPath) {
-<a href=#632 id=632 data-nosnippet>632</a>    <span class="macro">walk_list!</span>(vis, visit_path_expr_segment, <span class="kw-2">&amp;</span>qpath.segments);
-<a href=#633 id=633 data-nosnippet>633</a>}
-<a href=#634 id=634 data-nosnippet>634</a>
-<a href=#635 id=635 data-nosnippet>635</a><span class="kw">pub fn </span>walk_path_expr_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>ExprPathSegment) {
-<a href=#636 id=636 data-nosnippet>636</a>    vis.visit_ident(segment.ident);
-<a href=#637 id=637 data-nosnippet>637</a>}
+<a href=#556 id=556 data-nosnippet>556</a>        BaseTyKind::Ptr(<span class="kw">_</span>, ty) =&gt; vis.visit_ty(ty),
+<a href=#557 id=557 data-nosnippet>557</a>    }
+<a href=#558 id=558 data-nosnippet>558</a>}
+<a href=#559 id=559 data-nosnippet>559</a>
+<a href=#560 id=560 data-nosnippet>560</a><span class="kw">pub fn </span>walk_path&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, path: <span class="kw-2">&amp;</span>Path) {
+<a href=#561 id=561 data-nosnippet>561</a>    <span class="macro">walk_list!</span>(vis, visit_path_segment, <span class="kw-2">&amp;</span>path.segments);
+<a href=#562 id=562 data-nosnippet>562</a>    <span class="macro">walk_list!</span>(vis, visit_refine_arg, <span class="kw-2">&amp;</span>path.refine);
+<a href=#563 id=563 data-nosnippet>563</a>}
+<a href=#564 id=564 data-nosnippet>564</a>
+<a href=#565 id=565 data-nosnippet>565</a><span class="kw">pub fn </span>walk_path_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>PathSegment) {
+<a href=#566 id=566 data-nosnippet>566</a>    vis.visit_ident(segment.ident);
+<a href=#567 id=567 data-nosnippet>567</a>    <span class="macro">walk_list!</span>(vis, visit_generic_arg, <span class="kw-2">&amp;</span>segment.args);
+<a href=#568 id=568 data-nosnippet>568</a>}
+<a href=#569 id=569 data-nosnippet>569</a>
+<a href=#570 id=570 data-nosnippet>570</a><span class="kw">pub fn </span>walk_field_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>FieldExpr) {
+<a href=#571 id=571 data-nosnippet>571</a>    vis.visit_ident(expr.ident);
+<a href=#572 id=572 data-nosnippet>572</a>    vis.visit_expr(<span class="kw-2">&amp;</span>expr.expr);
+<a href=#573 id=573 data-nosnippet>573</a>}
+<a href=#574 id=574 data-nosnippet>574</a>
+<a href=#575 id=575 data-nosnippet>575</a><span class="kw">pub fn </span>walk_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>Expr) {
+<a href=#576 id=576 data-nosnippet>576</a>    <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
+<a href=#577 id=577 data-nosnippet>577</a>        ExprKind::Path(qpath) =&gt; vis.visit_path_expr(qpath),
+<a href=#578 id=578 data-nosnippet>578</a>        ExprKind::Dot(base, fld) =&gt; {
+<a href=#579 id=579 data-nosnippet>579</a>            vis.visit_expr(base);
+<a href=#580 id=580 data-nosnippet>580</a>            vis.visit_ident(<span class="kw-2">*</span>fld);
+<a href=#581 id=581 data-nosnippet>581</a>        }
+<a href=#582 id=582 data-nosnippet>582</a>        ExprKind::Literal(lit) =&gt; {
+<a href=#583 id=583 data-nosnippet>583</a>            vis.visit_literal(<span class="kw-2">*</span>lit);
+<a href=#584 id=584 data-nosnippet>584</a>        }
+<a href=#585 id=585 data-nosnippet>585</a>        ExprKind::BinaryOp(_bin_op, <span class="kw">box </span>exprs) =&gt; {
+<a href=#586 id=586 data-nosnippet>586</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
+<a href=#587 id=587 data-nosnippet>587</a>        }
+<a href=#588 id=588 data-nosnippet>588</a>        ExprKind::UnaryOp(_un_op, e) =&gt; {
+<a href=#589 id=589 data-nosnippet>589</a>            vis.visit_expr(e);
+<a href=#590 id=590 data-nosnippet>590</a>        }
+<a href=#591 id=591 data-nosnippet>591</a>        ExprKind::PrimUIF(<span class="kw">_</span>) =&gt; {}
+<a href=#592 id=592 data-nosnippet>592</a>        ExprKind::Call(callee, args) =&gt; {
+<a href=#593 id=593 data-nosnippet>593</a>            vis.visit_expr(callee);
+<a href=#594 id=594 data-nosnippet>594</a>            <span class="macro">walk_list!</span>(vis, visit_expr, args);
+<a href=#595 id=595 data-nosnippet>595</a>        }
+<a href=#596 id=596 data-nosnippet>596</a>        ExprKind::AssocReft(qself, path, name) =&gt; {
+<a href=#597 id=597 data-nosnippet>597</a>            vis.visit_ty(qself);
+<a href=#598 id=598 data-nosnippet>598</a>            vis.visit_path(path);
+<a href=#599 id=599 data-nosnippet>599</a>            vis.visit_ident(<span class="kw-2">*</span>name);
+<a href=#600 id=600 data-nosnippet>600</a>        }
+<a href=#601 id=601 data-nosnippet>601</a>        ExprKind::IfThenElse(<span class="kw">box </span>exprs) =&gt; {
+<a href=#602 id=602 data-nosnippet>602</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
+<a href=#603 id=603 data-nosnippet>603</a>        }
+<a href=#604 id=604 data-nosnippet>604</a>        ExprKind::Constructor(path, exprs) =&gt; {
+<a href=#605 id=605 data-nosnippet>605</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
+<a href=#606 id=606 data-nosnippet>606</a>                vis.visit_path_expr(path);
+<a href=#607 id=607 data-nosnippet>607</a>            }
+<a href=#608 id=608 data-nosnippet>608</a>            <span class="macro">walk_list!</span>(vis, visit_constructor_args, exprs);
+<a href=#609 id=609 data-nosnippet>609</a>        }
+<a href=#610 id=610 data-nosnippet>610</a>        ExprKind::BoundedQuant(<span class="kw">_</span>, i, <span class="kw">_</span>, e) =&gt; {
+<a href=#611 id=611 data-nosnippet>611</a>            vis.visit_refine_param(i);
+<a href=#612 id=612 data-nosnippet>612</a>            vis.visit_expr(e);
+<a href=#613 id=613 data-nosnippet>613</a>        }
+<a href=#614 id=614 data-nosnippet>614</a>        ExprKind::Block(decls, body) =&gt; {
+<a href=#615 id=615 data-nosnippet>615</a>            <span class="kw">for </span>decl <span class="kw">in </span>decls {
+<a href=#616 id=616 data-nosnippet>616</a>                <span class="comment">// the order here is important because the parameter is not in scope
+<a href=#617 id=617 data-nosnippet>617</a>                // in the initializer
+<a href=#618 id=618 data-nosnippet>618</a>                </span>vis.visit_expr(<span class="kw-2">&amp;</span>decl.init);
+<a href=#619 id=619 data-nosnippet>619</a>                vis.visit_refine_param(<span class="kw-2">&amp;</span>decl.param);
+<a href=#620 id=620 data-nosnippet>620</a>            }
+<a href=#621 id=621 data-nosnippet>621</a>            vis.visit_expr(body);
+<a href=#622 id=622 data-nosnippet>622</a>        }
+<a href=#623 id=623 data-nosnippet>623</a>        ExprKind::SetLiteral(exprs) =&gt; {
+<a href=#624 id=624 data-nosnippet>624</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
+<a href=#625 id=625 data-nosnippet>625</a>        }
+<a href=#626 id=626 data-nosnippet>626</a>        ExprKind::Tuple(exprs) =&gt; {
+<a href=#627 id=627 data-nosnippet>627</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
+<a href=#628 id=628 data-nosnippet>628</a>        }
+<a href=#629 id=629 data-nosnippet>629</a>    }
+<a href=#630 id=630 data-nosnippet>630</a>}
+<a href=#631 id=631 data-nosnippet>631</a>
+<a href=#632 id=632 data-nosnippet>632</a><span class="kw">pub fn </span>walk_path_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: <span class="kw-2">&amp;</span>ExprPath) {
+<a href=#633 id=633 data-nosnippet>633</a>    <span class="macro">walk_list!</span>(vis, visit_path_expr_segment, <span class="kw-2">&amp;</span>qpath.segments);
+<a href=#634 id=634 data-nosnippet>634</a>}
+<a href=#635 id=635 data-nosnippet>635</a>
+<a href=#636 id=636 data-nosnippet>636</a><span class="kw">pub fn </span>walk_path_expr_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>ExprPathSegment) {
+<a href=#637 id=637 data-nosnippet>637</a>    vis.visit_ident(segment.ident);
+<a href=#638 id=638 data-nosnippet>638</a>}
 </code></pre></div></section></main></body></html>
