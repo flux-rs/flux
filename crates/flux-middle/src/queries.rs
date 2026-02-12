@@ -15,7 +15,7 @@ use flux_rustc_bridge::{
 };
 use flux_syntax::symbols::sym;
 use itertools::Itertools;
-use rustc_data_structures::unord::{ExtendUnord, UnordMap};
+use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_errors::Diagnostic;
 use rustc_hir::{
     LangItem,
@@ -242,6 +242,12 @@ impl Default for Providers {
 
 pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
+    /// The set of def ids that have been queried.
+    ///
+    /// After checking the crate, this set contains all items transitively reached from the set
+    /// of explicitly included items. We use this set to avoid triggering queries for items not
+    /// included when encoding metadata.
+    queried_def_ids: RefCell<UnordSet<DefId>>,
     mir: Cache<LocalDefId, QueryResult<Rc<mir::BodyRoot<'tcx>>>>,
     collect_specs: OnceCell<crate::Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
@@ -283,6 +289,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn new(providers: Providers) -> Self {
         Self {
             providers,
+            queried_def_ids: RefCell::new(UnordSet::new()),
             mir: Default::default(),
             collect_specs: Default::default(),
             resolve_crate: Default::default(),
@@ -318,6 +325,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
         }
+    }
+
+    pub(crate) fn queried(&self, def_id: DefId) -> bool {
+        self.queried_def_ids.borrow().contains(&def_id)
     }
 
     pub(crate) fn mir(
@@ -470,6 +481,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.func_sort, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| {
                     // refinement functions cannot be extern specs so we simply grab the local id
                     (self.providers.func_sort)(genv, def_id)
@@ -488,6 +500,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.func_span, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| {
                     // refinement functions cannot be extern specs so we simply grab the local id
                     (self.providers.func_span)(genv, def_id)
@@ -527,6 +540,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.adt_sort_def_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.adt_sort_def_of)(genv, def_id),
                 |def_id| genv.cstore().adt_sort_def(def_id),
                 |def_id| {
@@ -541,6 +555,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.sort_decl_param_count, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| {
                     (self.providers.sort_decl_param_count)(genv, def_id)
                 },
@@ -570,6 +585,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.constant_info, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.constant_info)(genv, def_id),
                 |def_id| genv.cstore().constant_info(def_id),
                 |def_id| {
@@ -612,6 +628,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.no_panic, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| {
                     let mut current_id = def_id.local_id();
 
@@ -652,6 +669,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.adt_def, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.adt_def)(genv, def_id),
                 |def_id| genv.cstore().adt_def(def_id),
                 |def_id| {
@@ -666,6 +684,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.generics_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.generics_of)(genv, def_id),
                 |def_id| genv.cstore().generics_of(def_id),
                 |def_id| {
@@ -683,6 +702,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.refinement_generics_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.refinement_generics_of)(genv, def_id),
                 |def_id| genv.cstore().refinement_generics_of(def_id),
                 |def_id| {
@@ -705,6 +725,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.item_bounds, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.item_bounds)(genv, def_id),
                 |def_id| genv.cstore().item_bounds(def_id),
                 |def_id| {
@@ -730,6 +751,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.predicates_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.predicates_of)(genv, def_id),
                 |def_id| genv.cstore().predicates_of(def_id),
                 |def_id| {
@@ -750,6 +772,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.assoc_refinements_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.assoc_refinements_of)(genv, def_id),
                 |def_id| genv.cstore().assoc_refinements_of(def_id),
                 |def_id| Ok(genv.builtin_assoc_refts(def_id).unwrap_or_default()),
@@ -765,6 +788,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.assoc_refinement_body, impl_assoc_id, || {
             impl_assoc_id.dispatch_query(
                 genv,
+                self,
                 |impl_assoc_id| (self.providers.assoc_refinement_body)(genv, impl_assoc_id),
                 |impl_assoc_id| genv.cstore().assoc_refinements_def(impl_assoc_id),
                 |impl_assoc_id| {
@@ -785,6 +809,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.default_assoc_refinement_body, trait_assoc_id, || {
             trait_assoc_id.dispatch_query(
                 genv,
+                self,
                 |trait_assoc_id| {
                     (self.providers.default_assoc_refinement_body)(genv, trait_assoc_id)
                 },
@@ -807,6 +832,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.sort_of_assoc_reft, assoc_id, || {
             assoc_id.dispatch_query(
                 genv,
+                self,
                 |assoc_id| (self.providers.sort_of_assoc_reft)(genv, assoc_id),
                 |assoc_id| genv.cstore().sort_of_assoc_reft(assoc_id),
                 |assoc_id| {
@@ -829,6 +855,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.type_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.type_of)(genv, def_id),
                 |def_id| genv.cstore().type_of(def_id),
                 |def_id| {
@@ -856,6 +883,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.variants_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.variants_of)(genv, def_id),
                 |def_id| genv.cstore().variants_of(def_id),
                 |def_id| {
@@ -883,6 +911,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.fn_sig, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.fn_sig)(genv, def_id),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
@@ -922,16 +951,19 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
 /// Logic to *dispatch* a `def_id` to a provider (`local`, `external`, or `default`).
 /// This is a trait so it can be implemented for [`DefId`] and for [`FluxDefId`].
-trait DispatchKey: Sized {
+pub trait DispatchKey: Sized + Copy {
     type LocalId;
 
     fn dispatch_query<R>(
         self,
         genv: GlobalEnv,
+        queries: &Queries,
         local: impl FnOnce(Self::LocalId) -> R,
         external: impl FnOnce(Self) -> Option<R>,
         default: impl FnOnce(Self) -> R,
     ) -> R;
+
+    fn def_id(self) -> DefId;
 }
 
 impl DispatchKey for DefId {
@@ -940,10 +972,12 @@ impl DispatchKey for DefId {
     fn dispatch_query<R>(
         self,
         genv: GlobalEnv,
+        queries: &Queries,
         local: impl FnOnce(MaybeExternId) -> R,
         external: impl FnOnce(Self) -> Option<R>,
         default: impl FnOnce(Self) -> R,
     ) -> R {
+        queries.queried_def_ids.borrow_mut().insert(self);
         match genv.resolve_id(self) {
             ResolvedDefId::Local(local_id) => {
                 // Case 1: `def_id` is a `LocalDefId` so forward it to the *local provider*
@@ -965,6 +999,10 @@ impl DispatchKey for DefId {
             }
         }
     }
+
+    fn def_id(self) -> DefId {
+        self
+    }
 }
 
 impl DispatchKey for FluxDefId {
@@ -973,6 +1011,7 @@ impl DispatchKey for FluxDefId {
     fn dispatch_query<R>(
         self,
         genv: GlobalEnv,
+        queries: &Queries,
         local: impl FnOnce(FluxId<MaybeExternId>) -> R,
         external: impl FnOnce(FluxId<DefId>) -> Option<R>,
         default: impl FnOnce(FluxId<DefId>) -> R,
@@ -983,10 +1022,15 @@ impl DispatchKey for FluxDefId {
         )]
         self.parent().dispatch_query(
             genv,
+            queries,
             |container_id| local(FluxId::new(container_id, self.name())),
             |container_id| external(FluxId::new(container_id, self.name())),
             |container_id| default(FluxId::new(container_id, self.name())),
         )
+    }
+
+    fn def_id(self) -> DefId {
+        self.parent()
     }
 }
 

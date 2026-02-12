@@ -395,87 +395,148 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
 
         match def_kind {
             DefKind::Trait => {
-                tables.generics_of.insert(key, genv.generics_of(def_id));
-                tables.predicates_of.insert(key, genv.predicates_of(def_id));
                 tables
-                    .refinement_generics_of
-                    .insert(key, genv.refinement_generics_of(def_id));
-                let assocs = genv.assoc_refinements_of(def_id);
+                    .generics_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+                tables
+                    .predicates_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+                tables.refinement_generics_of.insert(
+                    key,
+                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+                );
+                let assocs = genv.run_query_if_reached(def_id, GlobalEnv::assoc_refinements_of);
                 if let Ok(assocs) = &assocs {
                     for assoc_reft in &assocs.items {
                         let def_id = assoc_reft.def_id();
                         let key = assoc_id_to_key(def_id);
-                        tables
-                            .default_assoc_refinements_def
-                            .insert(key, genv.default_assoc_refinement_body(def_id));
-                        tables
-                            .sort_of_assoc_reft
-                            .insert(key, genv.sort_of_assoc_reft(def_id));
+                        tables.default_assoc_refinements_def.insert(
+                            key,
+                            genv.run_query_if_reached(
+                                def_id,
+                                GlobalEnv::default_assoc_refinement_body,
+                            ),
+                        );
+                        tables.sort_of_assoc_reft.insert(
+                            key,
+                            genv.run_query_if_reached(def_id, GlobalEnv::sort_of_assoc_reft),
+                        );
                     }
                 }
                 tables.assoc_refinements_of.insert(key, assocs);
             }
             DefKind::Impl { of_trait } => {
-                tables.generics_of.insert(key, genv.generics_of(def_id));
-                tables.predicates_of.insert(key, genv.predicates_of(def_id));
                 tables
-                    .refinement_generics_of
-                    .insert(key, genv.refinement_generics_of(def_id));
+                    .generics_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+                tables
+                    .predicates_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+                tables.refinement_generics_of.insert(
+                    key,
+                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+                );
 
                 if of_trait {
-                    let assocs = genv.assoc_refinements_of(def_id);
+                    let assocs = genv.run_query_if_reached(def_id, GlobalEnv::assoc_refinements_of);
                     if let Ok(assocs) = &assocs {
                         for assoc_reft in &assocs.items {
                             let def_id = assoc_reft.def_id();
                             let key = assoc_id_to_key(def_id);
-                            tables
-                                .assoc_refinements_def
-                                .insert(key, genv.assoc_refinement_body(def_id));
-                            tables
-                                .sort_of_assoc_reft
-                                .insert(key, genv.sort_of_assoc_reft(def_id));
+                            tables.assoc_refinements_def.insert(
+                                key,
+                                genv.run_query_if_reached(def_id, GlobalEnv::assoc_refinement_body),
+                            );
+                            tables.sort_of_assoc_reft.insert(
+                                key,
+                                genv.run_query_if_reached(def_id, GlobalEnv::sort_of_assoc_reft),
+                            );
                         }
                     }
                     tables.assoc_refinements_of.insert(key, assocs);
                 }
             }
-            DefKind::Fn | DefKind::AssocFn | DefKind::Ctor(_, CtorKind::Fn) => {
-                tables.generics_of.insert(key, genv.generics_of(def_id));
-                tables.predicates_of.insert(key, genv.predicates_of(def_id));
+            DefKind::Fn | DefKind::AssocFn => {
                 tables
-                    .refinement_generics_of
-                    .insert(key, genv.refinement_generics_of(def_id));
-                tables.fn_sig.insert(key, genv.fn_sig(def_id));
+                    .generics_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+                tables
+                    .predicates_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+                tables.refinement_generics_of.insert(
+                    key,
+                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+                );
+                tables
+                    .fn_sig
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::fn_sig));
                 tables.no_panic.insert(key, genv.no_panic(def_id));
             }
-            DefKind::Enum | DefKind::Struct => {
-                tables.generics_of.insert(key, genv.generics_of(def_id));
-                tables.predicates_of.insert(key, genv.predicates_of(def_id));
+            DefKind::Ctor(_, CtorKind::Fn) => {
                 tables
-                    .refinement_generics_of
-                    .insert(key, genv.refinement_generics_of(def_id));
-                tables.adt_def.insert(key, genv.adt_def(def_id));
+                    .generics_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+                tables.refinement_generics_of.insert(
+                    key,
+                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+                );
+                tables
+                    .fn_sig
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::fn_sig));
+            }
+            DefKind::Enum | DefKind::Struct => {
+                tables
+                    .generics_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+                tables
+                    .predicates_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+                tables.refinement_generics_of.insert(
+                    key,
+                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+                );
+                tables
+                    .adt_def
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::adt_def));
                 tables
                     .adt_sort_def
-                    .insert(key, genv.adt_sort_def_of(def_id));
-                tables.variants_of.insert(key, genv.variants_of(def_id));
-                tables.type_of.insert(key, genv.type_of(def_id));
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::adt_sort_def_of));
+                tables
+                    .variants_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::variants_of));
+                tables
+                    .type_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::type_of));
             }
             DefKind::TyAlias => {
-                tables.generics_of.insert(key, genv.generics_of(def_id));
-                tables.predicates_of.insert(key, genv.predicates_of(def_id));
                 tables
-                    .refinement_generics_of
-                    .insert(key, genv.refinement_generics_of(def_id));
-                tables.type_of.insert(key, genv.type_of(def_id));
+                    .generics_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+                tables
+                    .predicates_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+                tables.refinement_generics_of.insert(
+                    key,
+                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+                );
+                tables
+                    .type_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::type_of));
             }
             DefKind::OpaqueTy => {
-                tables.generics_of.insert(key, genv.generics_of(def_id));
-                tables.predicates_of.insert(key, genv.predicates_of(def_id));
-                tables.item_bounds.insert(key, genv.item_bounds(def_id));
                 tables
-                    .refinement_generics_of
-                    .insert(key, genv.refinement_generics_of(def_id));
+                    .generics_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+                tables
+                    .predicates_of
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+                tables
+                    .item_bounds
+                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::item_bounds));
+                tables.refinement_generics_of.insert(
+                    key,
+                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+                );
             }
             DefKind::Static { .. } => {
                 tables.static_info.insert(key, genv.static_info(def_id));
