@@ -789,17 +789,11 @@ impl FluxAttrs {
         read_attr!(self, Generics)
     }
 
-    fn has_no_panic(&self) -> (bool, Option<Span>) {
-        let has = read_flag!(self, NoPanic);
-        let span = if has {
-            self.map
-                .get(attr_name!(NoPanic))
-                .and_then(|attrs| attrs.first())
-                .map(|attr| attr.span)
-        } else {
-            None
-        };
-        (has, span)
+    fn has_no_panic(&self) -> Option<Span> {
+        self.map
+            .get(attr_name!(NoPanic))
+            .and_then(|attrs| attrs.first())
+            .map(|attr| attr.span)
     }
 
     fn has_no_panic_if(&self) -> bool {
