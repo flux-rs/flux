@@ -447,22 +447,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         match &ty.kind {
             fhir::TyKind::Indexed(bty, idx) => {
-                let sort = self.infcx.sort_of_bty(bty);
-                // For ADT sorts with refined_by parameters, extract the refined_by sort
-                // The sort of an ADT base type is Sort::App(SortCtor::Adt(def), args)
-                // For an indexed type like Goober[(10, 20)], we need the sort of the index,
-                // which is the sort of the first refined_by parameter from the ADT definition
-                let expected = match &sort {
-                    rty::Sort::App(rty::SortCtor::Adt(adt_def), _) => {
-                        if adt_def.is_struct() {
-                            let variant = adt_def.struct_variant();
-                            variant.field_sort(0).cloned().unwrap_or(sort)
-                        } else {
-                            sort
-                        }
-                    }
-                    _ => sort,
-                };
+                let expected = self.infcx.sort_of_bty(bty);
                 self.check_expr(idx, &expected);
                 self.visit_bty(bty);
             }
