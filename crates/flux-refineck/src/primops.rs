@@ -49,11 +49,6 @@ pub(crate) struct Pre {
     pub pred: Expr,
 }
 
-fn is_cmp(op: &mir::BinOp) -> bool {
-    use mir::BinOp::*;
-    matches!(op, Eq | Ne | Lt | Le | Gt | Ge)
-}
-
 pub(crate) fn match_bin_op(
     op: mir::BinOp,
     bty1: &BaseTy,
@@ -68,12 +63,7 @@ pub(crate) fn match_bin_op(
         OverflowMode::None => &OVERFLOW_NONE_BIN_OPS,
         OverflowMode::StrictUnder => &OVERFLOW_STRICT_UNDER_BIN_OPS,
     };
-    // TODO(HACK): for tests/tests/pos/surface/binop.rs:133:5
-    if (matches!(bty1, BaseTy::RawPtr(..)) || matches!(bty2, BaseTy::RawPtr(..))) && is_cmp(&op) {
-        MatchedRule { precondition: None, output_type: rty::Ty::bool() }
-    } else {
-        table.match_inputs(&op, [(bty1.clone(), idx1.clone()), (bty2.clone(), idx2.clone())])
-    }
+    table.match_inputs(&op, [(bty1.clone(), idx1.clone()), (bty2.clone(), idx2.clone())])
 }
 
 pub(crate) fn match_un_op(
@@ -460,26 +450,29 @@ fn mk_bit_xor_rules() -> RuleMatcher<2> {
     }
 }
 
+// the (a: T, b: S) case ensures the last case is "unreachable", hence the "allow"
+#[allow(unreachable_code)]
 /// `a == b`
 fn mk_eq_rules() -> RuleMatcher<2> {
     primop_rules! {
         fn(a: T, b: T) -> bool[E::eq(a, b)]
         if T.is_integral() || T.is_bool() || T.is_char() || T.is_str()
-
-        fn(a: T, b: T) -> bool
+        fn(a: T, b: S) -> bool
     }
 }
 
+#[allow(unreachable_code)]
 /// `a != b`
 fn mk_ne_rules() -> RuleMatcher<2> {
     primop_rules! {
         fn(a: T, b: T) -> bool[E::ne(a, b)]
         if T.is_integral() || T.is_bool()
 
-        fn(a: T, b: T) -> bool
+        fn(a: T, b: S) -> bool
     }
 }
 
+#[allow(unreachable_code)]
 /// `a <= b`
 fn mk_le_rules() -> RuleMatcher<2> {
     primop_rules! {
@@ -488,10 +481,11 @@ fn mk_le_rules() -> RuleMatcher<2> {
 
         fn(a: bool, b: bool) -> bool[E::implies(a, b)]
 
-        fn(a: T, b: T) -> bool
+        fn(a: T, b: S) -> bool
     }
 }
 
+#[allow(unreachable_code)]
 /// `a >= b`
 fn mk_ge_rules() -> RuleMatcher<2> {
     primop_rules! {
@@ -500,10 +494,11 @@ fn mk_ge_rules() -> RuleMatcher<2> {
 
         fn(a: bool, b: bool) -> bool[E::implies(b, a)]
 
-        fn(a: T, b: T) -> bool
+        fn(a: T, b: S) -> bool
     }
 }
 
+#[allow(unreachable_code)]
 /// `a < b`
 fn mk_lt_rules() -> RuleMatcher<2> {
     primop_rules! {
@@ -512,10 +507,11 @@ fn mk_lt_rules() -> RuleMatcher<2> {
 
         fn(a: bool, b: bool) -> bool[E::and(a.not(), b)]
 
-        fn(a: T, b: T) -> bool
+        fn(a: T, b: S) -> bool
     }
 }
 
+#[allow(unreachable_code)]
 /// `a > b`
 fn mk_gt_rules() -> RuleMatcher<2> {
     primop_rules! {
@@ -524,7 +520,7 @@ fn mk_gt_rules() -> RuleMatcher<2> {
 
         fn(a: bool, b: bool) -> bool[E::and(a, b.not())]
 
-        fn(a: T, b: T) -> bool
+        fn(a: T, b: S) -> bool
     }
 }
 

@@ -1401,9 +1401,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(ty)
             }
             Rvalue::RawPtr(kind, place) => {
-                // TODO:RAW-PTR
-                env.lookup_place(&mut infcx.at(stmt_span), place)
-                    .with_span(stmt_span)?;
                 // ignore any refinements on the type stored at place
                 let ty = &env.lookup_rust_ty(genv, place).with_span(stmt_span)?;
                 let ty = self.refine_default(ty).with_span(stmt_span)?;
