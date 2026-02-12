@@ -1320,6 +1320,7 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
 
 /// ```text
 /// ⟨trailer_expr⟩ :=  ⟨trailer_expr⟩ . ⟨ident⟩
+///                 |  ⟨trailer_expr⟩ . ⟨integer⟩
 ///                 |  ⟨trailer_expr⟩ ( ⟨expr⟩,* )
 ///                 |  ⟨atom⟩
 /// ```
@@ -1328,16 +1329,12 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
     let mut e = parse_atom(cx, allow_struct)?;
     loop {
         let kind = if cx.advance_if(token::Dot) {
-            // Check if next token is a literal integer (tuple field access like .0, .1)
-            if let token::Literal(lit) = cx.at(0).kind
+            if let Token { kind: token::Literal(lit), lo, hi } = cx.at(0)
                 && let LitKind::Integer = lit.kind
             {
-                let field_lo = cx.lo();
-                let field_idx = lit.symbol;
+                // ⟨trailer_expr⟩ . ⟨integer⟩
                 cx.advance();
-                let field_hi = cx.hi();
-                // Convert integer to identifier for tuple field access
-                ExprKind::Dot(Box::new(e), Ident { name: field_idx, span: cx.mk_span(field_lo, field_hi) })
+                ExprKind::Dot(Box::new(e), Ident { name: lit.symbol, span: cx.mk_span(lo, hi) })
             } else {
                 // ⟨trailer_expr⟩ . ⟨ident⟩
                 let field = parse_ident(cx)?;
@@ -1356,58 +1353,11 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
     Ok(e)
 }
 
-/// Parse a parenthesized expression `(expr)` or tuple expression `(expr, expr, ...)`
-fn parse_paren_or_tuple(cx: &mut ParseCtxt) -> ParseResult<Expr> {
-    let lo = cx.lo();
-    cx.expect(token::OpenParen)?;
-    
-    // Handle empty tuple or single element
-    if cx.peek(token::CloseParen) {
-        // Empty tuple `()`
-        cx.advance();
-        let hi = cx.hi();
-        return Ok(Expr {
-            kind: ExprKind::Tuple(vec![]),
-            node_id: cx.next_node_id(),
-            span: cx.mk_span(lo, hi),
-        });
-    }
-    
-    // Parse first expression
-    let first = parse_expr(cx, true)?;
-    
-    // Check if this is a tuple or just a parenthesized expression
-    if cx.advance_if(Comma) {
-        // It's a tuple with multiple elements
-        let mut exprs = vec![first];
-        
-        // Parse remaining elements
-        while !cx.peek(token::CloseParen) {
-            exprs.push(parse_expr(cx, true)?);
-            if !cx.advance_if(Comma) {
-                break;
-            }
-        }
-        
-        cx.expect(token::CloseParen)?;
-        let hi = cx.hi();
-        Ok(Expr {
-            kind: ExprKind::Tuple(exprs),
-            node_id: cx.next_node_id(),
-            span: cx.mk_span(lo, hi),
-        })
-    } else {
-        // Just a parenthesized expression
-        cx.expect(token::CloseParen)?;
-        Ok(first)
-    }
-}
-
 /// ```text
 /// ⟨atom⟩ := ⟨if_expr⟩
 ///         | ⟨lit⟩
 ///         | ( ⟨expr⟩ )
-///         | ( ⟨expr⟩,+ )
+///         | ( ⟨expr⟩,* )
 ///         | ⟨epath⟩
 ///         | ⟨bounded_quant⟩
 ///         |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩
@@ -1425,9 +1375,20 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     } else if lookahead.peek(AnyLit) {
         // ⟨lit⟩
         parse_lit(cx)
-    } else if lookahead.peek(token::OpenParen) {
-        // Parse parenthesized expression or tuple
-        parse_paren_or_tuple(cx)
+    } else if lookahead.advance_if(token::OpenParen) {
+        // ( ⟨expr⟩ ) | ( ⟨expr⟩,* )
+        let (mut exprs, trailing) =
+            punctuated_with_trailing(cx, Comma, token::CloseParen, |cx| parse_expr(cx, true))?;
+        cx.expect(token::CloseParen)?;
+        if exprs.len() == 1 && !trailing {
+            Ok(exprs.remove(0))
+        } else {
+            Ok(Expr {
+                kind: ExprKind::Tuple(exprs),
+                node_id: cx.next_node_id(),
+                span: cx.mk_span(lo, cx.hi()),
+            })
+        }
     } else if lookahead.advance_if(token::Pound) {
         // #{ ⟨expr⟩,* }
         let lo = cx.lo();
@@ -1662,14 +1623,14 @@ fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
 /// ```
 fn parse_sort(cx: &mut ParseCtxt) -> ParseResult<Sort> {
     if cx.peek(token::OpenParen) {
-        // Could be ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩ or just ( ⟨base_sort⟩,* )
+        // ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩ | ( ⟨base_sort⟩,* )
         let inputs = parens(cx, Comma, parse_base_sort)?;
         if cx.advance_if(token::RArrow) {
             // ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩
             let output = parse_base_sort(cx)?;
             Ok(Sort::Func { inputs, output })
         } else {
-            // Just a tuple base sort ( ⟨base_sort⟩,* )
+            // ( ⟨base_sort⟩,* )
             Ok(Sort::Base(BaseSort::Tuple(inputs)))
         }
     } else {
