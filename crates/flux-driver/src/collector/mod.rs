@@ -17,7 +17,6 @@ use flux_middle::Specs;
 use flux_syntax::{
     ParseResult, ParseSess,
     surface::{self, NodeId, Trusted},
-    symbols::sym::{self, no_panic},
 };
 use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
 use rustc_data_structures::fx::FxIndexMap;
@@ -28,8 +27,8 @@ use rustc_hir::{
     def::DefKind,
     def_id::{CRATE_DEF_ID, DefId, LocalDefId},
 };
-use rustc_middle::{query::queries::has_alloc_error_handler, ty::TyCtxt};
-use rustc_span::{DUMMY_SP, Ident, Span, Symbol, SyntaxContext};
+use rustc_middle::ty::TyCtxt;
+use rustc_span::{Ident, Span, Symbol, SyntaxContext};
 
 use crate::collector::detached_specs::DetachedSpecsCollector;
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
