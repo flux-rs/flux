@@ -3,6 +3,7 @@ mod utils;
 use std::{collections::HashSet, str::FromStr, vec};
 
 use lookahead::{AnyLit, LAngle, NonReserved, RAngle};
+use rustc_ast::token::Lit;
 use rustc_span::{Symbol, sym::Output};
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
@@ -1330,11 +1331,11 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
     loop {
         let kind = if cx.advance_if(token::Dot) {
             if let Token { kind: token::Literal(lit), lo, hi } = cx.at(0)
-                && let LitKind::Integer = lit.kind
+                && let Lit { kind: LitKind::Integer, symbol: name, suffix: None, .. } = lit
             {
                 // ⟨trailer_expr⟩ . ⟨integer⟩
                 cx.advance();
-                ExprKind::Dot(Box::new(e), Ident { name: lit.symbol, span: cx.mk_span(lo, hi) })
+                ExprKind::Dot(Box::new(e), Ident { name, span: cx.mk_span(lo, hi) })
             } else {
                 // ⟨trailer_expr⟩ . ⟨ident⟩
                 let field = parse_ident(cx)?;
@@ -1606,8 +1607,8 @@ fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
 
 fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
     if let token::Literal(lit) = cx.at(0).kind
-        && let LitKind::Integer = lit.kind
-        && let Ok(value) = lit.symbol.as_str().parse::<T>()
+        && let Lit { kind: LitKind::Integer, symbol, suffix: None, .. } = lit
+        && let Ok(value) = symbol.as_str().parse::<T>()
     {
         cx.advance();
         return Ok(value);
