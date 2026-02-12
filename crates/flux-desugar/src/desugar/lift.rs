@@ -544,12 +544,20 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         fhir::FnSig { header: fn_sig.header, decl: self.genv.alloc(decl) }
     }
 
+    pub(crate) fn lift_foreign_static(&mut self) -> fhir::Item<'genv> {
+        fhir::Item {
+            owner_id: self.owner,
+            generics: self.lift_generics_inner(hir::Generics::empty()),
+            kind: fhir::ItemKind::Static(None),
+        }
+    }
+
     pub(crate) fn lift_foreign_item(
         &mut self,
         foreign_item: hir::ForeignItem,
     ) -> Result<fhir::ForeignItem<'genv>> {
         let hir::ForeignItemKind::Fn(fnsig, _, _) = foreign_item.kind else {
-            return Err(self.emit_unsupported("Static and type in extern_item are not supported."));
+            return Err(self.emit_unsupported("unsupported foreign item kind"));
         };
 
         let lifted_fnsig = self.lift_fn_sig(fnsig);
