@@ -673,10 +673,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
 
         let no_panic = if let Some(e) = fn_sig.no_panic_if {
-            let expr = self.conv_expr(&mut env, &e)?;
-            expr
+            self.conv_expr(&mut env, &e)?
         } else {
-            if self.genv().no_panic(fn_id) { Expr::tt().clone() } else { Expr::ff().clone() }
+            if self.genv().no_panic(fn_id) { Expr::tt() } else { Expr::ff() }
         };
 
         let fn_sig =
