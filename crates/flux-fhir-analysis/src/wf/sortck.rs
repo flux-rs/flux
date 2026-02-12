@@ -700,9 +700,16 @@ impl<'genv> InferCtxt<'genv, '_> {
                 if ctor1 != ctor2 || args1.len() != args2.len() {
                     return None;
                 }
-                let mut args = vec![];
-                for (s1, s2) in args1.iter().zip(args2.iter()) {
-                    args.push(self.try_equate_inner(s1, s2)?);
+                for (s1, s2) in iter::zip(args1, args2) {
+                    self.try_equate_inner(s1, s2)?;
+                }
+            }
+            (rty::Sort::Tuple(sorts1), rty::Sort::Tuple(sorts2)) => {
+                if sorts1.len() != sorts2.len() {
+                    return None;
+                }
+                for (s1, s2) in iter::zip(sorts1, sorts2) {
+                    self.try_equate_inner(s1, s2)?;
                 }
             }
             (rty::Sort::BitVec(size1), rty::Sort::BitVec(size2)) => {
