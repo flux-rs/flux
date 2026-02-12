@@ -748,6 +748,8 @@ pub enum InternalFuncKind {
     Rel(BinOp),
     // Conversions betweeen Sorts
     Cast,
+    /// Built-in UIF for pointer size: `RawPtr -> Int`
+    PtrSize,
 }
 
 #[derive(Debug, Clone, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
@@ -756,8 +758,6 @@ pub enum SpecFuncKind {
     Thy(liquid_fixpoint::ThyFunc),
     /// User-defined function. This can be either a function with a body or a UIF.
     Def(FluxDefId),
-    /// Built-in UIF for pointer size: `RawPtr -> Int`
-    PtrSize,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
@@ -1419,6 +1419,7 @@ pub(crate) mod pretty {
                 InternalFuncKind::Val(op) => w!(cx, f, "[{:?}]", op),
                 InternalFuncKind::Rel(op) => w!(cx, f, "[{:?}]?", op),
                 InternalFuncKind::Cast => w!(cx, f, "cast"),
+                InternalFuncKind::PtrSize => w!(cx, f, "ptr_size"),
             }
         }
     }
@@ -1552,9 +1553,6 @@ pub(crate) mod pretty {
                     } else {
                         w!(cx, f, "<error>")
                     }
-                }
-                ExprKind::GlobalFunc(SpecFuncKind::PtrSize) => {
-                    w!(cx, f, "ptr_size")
                 }
                 ExprKind::InternalFunc(func) => {
                     w!(cx, f, "{:?}", func)

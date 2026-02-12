@@ -1614,6 +1614,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     }
                 }
             }
+            InternalFuncKind::PtrSize => {
+                let func = fixpoint::Expr::Var(self.define_const_for_ptr_size(scx));
+                let args = self.exprs_to_fixpoint(args, scx)?;
+                Ok(fixpoint::Expr::App(Box::new(func), None, args, None))
+            }
         }
     }
 
@@ -1700,9 +1705,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => fixpoint::Expr::ThyFunc(*itf),
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 fixpoint::Expr::Var(self.declare_fun(*def_id))
-            }
-            rty::ExprKind::GlobalFunc(SpecFuncKind::PtrSize) => {
-                fixpoint::Expr::Var(self.define_const_for_ptr_size(scx))
             }
             rty::ExprKind::Exists(expr) => {
                 let expr = self.body_to_fixpoint(expr, scx)?;

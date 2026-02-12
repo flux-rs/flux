@@ -133,7 +133,7 @@ where
                                     )
                                 }
                                 ConstKey::PtrSize => {
-                                    Ok(rty::Expr::global_func(SpecFuncKind::PtrSize))
+                                    Ok(rty::Expr::internal_func(InternalFuncKind::PtrSize))
                                 }
                             }
                         } else {

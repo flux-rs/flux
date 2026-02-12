@@ -2429,7 +2429,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     List::empty(),
                     rty::FuncSort::new(vec![rty::Sort::RawPtr], rty::Sort::Int),
                 );
-                (rty::Expr::global_func(rty::SpecFuncKind::PtrSize), rty::Sort::Func(fsort))
+                (rty::Expr::internal_func(rty::InternalFuncKind::PtrSize), rty::Sort::Func(fsort))
             }
             fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast) => {
                 let fsort = rty::PolyFuncSort::new(
