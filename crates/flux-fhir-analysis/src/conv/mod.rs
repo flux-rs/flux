@@ -818,10 +818,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 ty_ctor.sort()
             }
             fhir::Sort::Tuple(sorts) => {
-                let sorts = sorts
-                    .iter()
-                    .map(|s| self.conv_sort(s))
-                    .try_collect_vec()?;
+                let sorts = sorts.iter().map(|s| self.conv_sort(s)).try_collect_vec()?;
                 rty::Sort::Tuple(rty::List::from_vec(sorts))
             }
             fhir::Sort::Infer => rty::Sort::Infer(self.next_sort_vid()),
