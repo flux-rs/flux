@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use flux_common::bug;
 use flux_rustc_bridge::lowering::{resolve_call_query, resolve_trait_ref_impl_id};
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     mir::{Body, Operand, StatementKind, TerminatorKind},
@@ -43,7 +43,7 @@ pub enum PanicReason {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CannotResolveReason {
-    NoMIRAvailable(DefId),
+    NoMIRAvailable(DefId, DefKind),
     UnresolvedTraitMethod(DefId),
     NotFnDef(DefId),
 }
@@ -99,7 +99,10 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Result<Vec<DefId>, Can
                     };
 
                     if !tcx.is_mir_available(impl_id) {
-                        return Err(CannotResolveReason::NoMIRAvailable(impl_id));
+                        return Err(CannotResolveReason::NoMIRAvailable(
+                            impl_id,
+                            tcx.def_kind(impl_id),
+                        ));
                     }
 
                     callees.push(impl_id);
@@ -149,7 +152,6 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
     // 1. Seed with all local MIR-owning functions
     for def_id in &[root] {
         let def_id = *def_id;
-        println!("name: {}", tcx.def_path_str(def_id));
 
         if !tcx.def_kind(def_id).is_fn_like() {
             continue;
@@ -157,11 +159,10 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
 
         if !tcx.is_mir_available(def_id) {
             // Should not happen for locals
-            eprintln!("Missing MIR for local function: {}", tcx.def_path_str(def_id));
             fn_to_no_panic.insert(
                 def_id,
                 PanicSpec::MightPanic(PanicReason::CannotResolve(
-                    CannotResolveReason::NoMIRAvailable(def_id),
+                    CannotResolveReason::NoMIRAvailable(def_id, tcx.def_kind(def_id)),
                 )),
             );
             return fn_to_no_panic;
@@ -291,7 +292,7 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
                             CannotResolveReason::NotFnDef(_) => {
                                 "CannotResolve:NotFnDef".to_string()
                             }
-                            CannotResolveReason::NoMIRAvailable(_) => {
+                            CannotResolveReason::NoMIRAvailable(_, _) => {
                                 "CannotResolve:NoMIRAvailable".to_string()
                             }
                         }

@@ -43,7 +43,7 @@ pub fn emit_dot(
                     PanicReason::NotInCallGraph => unreachable!(),
                     PanicReason::CannotResolve(r) => {
                         match r {
-                            CannotResolveReason::NoMIRAvailable(_) => {
+                            CannotResolveReason::NoMIRAvailable(..) => {
                                 "CannotResolve:NoMIRAvailable".to_string()
                             }
                             CannotResolveReason::UnresolvedTraitMethod(_) => {
