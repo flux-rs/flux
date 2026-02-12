@@ -617,6 +617,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.static_info, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.static_info)(genv, def_id),
                 |def_id| genv.cstore().static_info(def_id),
                 |_def_id| Ok(rty::StaticInfo::Unknown),
