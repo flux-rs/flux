@@ -553,6 +553,7 @@ pub fn walk_bty<V: Visitor>(vis: &mut V, bty: &BaseTy) {
             vis.visit_path(path);
         }
         BaseTyKind::Slice(ty) => vis.visit_ty(ty),
+        BaseTyKind::Ptr(_, ty) => vis.visit_ty(ty),
     }
 }
 

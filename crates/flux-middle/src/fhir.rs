@@ -556,7 +556,6 @@ pub enum TyKind<'fhir> {
     BareFn(&'fhir BareFnTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ConstArg),
-    RawPtr(&'fhir Ty<'fhir>, Mutability),
     OpaqueDef(&'fhir OpaqueTy<'fhir>),
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
@@ -649,6 +648,7 @@ impl<'fhir> BaseTy<'fhir> {
 pub enum BaseTyKind<'fhir> {
     Path(QPath<'fhir>),
     Slice(&'fhir Ty<'fhir>),
+    RawPtr(&'fhir Ty<'fhir>, Mutability),
     Err(ErrorGuaranteed),
 }
 
@@ -873,6 +873,7 @@ pub enum PrimSort {
     Set,
     Map,
     Str,
+    RawPtr,
 }
 
 impl PrimSort {
@@ -885,13 +886,19 @@ impl PrimSort {
             PrimSort::Real => "real",
             PrimSort::Set => "Set",
             PrimSort::Map => "Map",
+            PrimSort::RawPtr => "ptr",
         }
     }
 
     /// Number of generics expected by this primitive sort
     pub fn generics(self) -> usize {
         match self {
-            PrimSort::Int | PrimSort::Bool | PrimSort::Real | PrimSort::Char | PrimSort::Str => 0,
+            PrimSort::Int
+            | PrimSort::Bool
+            | PrimSort::Real
+            | PrimSort::Char
+            | PrimSort::Str
+            | PrimSort::RawPtr => 0,
             PrimSort::Set => 1,
             PrimSort::Map => 2,
         }
@@ -1250,6 +1257,8 @@ pub enum SpecFuncKind {
     Def(FluxDefId),
     /// Casts between sorts: id for char, int; if-then-else for bool-int; uninterpreted otherwise.
     Cast,
+    /// Built-in function to get the size of a raw pointer's pointee type.
+    PtrSize,
 }
 
 impl SpecFuncKind {
@@ -1404,8 +1413,6 @@ impl fmt::Debug for Ty<'_> {
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             TyKind::Never => write!(f, "!"),
             TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} | {pred:?}}}"),
-            TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
-            TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Infer => write!(f, "_"),
             TyKind::OpaqueDef(opaque_ty) => {
                 write!(f, "impl trait <def_id = {:?}>", opaque_ty.def_id.resolved_id(),)
@@ -1464,6 +1471,8 @@ impl fmt::Debug for BaseTy<'_> {
         match &self.kind {
             BaseTyKind::Path(qpath) => write!(f, "{qpath:?}"),
             BaseTyKind::Slice(ty) => write!(f, "[{ty:?}]"),
+            BaseTyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
+            BaseTyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             BaseTyKind::Err(_) => write!(f, "err"),
         }
     }
@@ -1664,6 +1673,7 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Str) => write!(f, "str"),
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
+            SortRes::PrimSort(PrimSort::RawPtr) => write!(f, "ptr"),
             SortRes::SortParam(n) => write!(f, "@{n}"),
             SortRes::TyParam(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {

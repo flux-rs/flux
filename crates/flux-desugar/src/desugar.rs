@@ -1269,6 +1269,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 let mut_ty = fhir::MutTy { ty: self.genv().alloc(ty), mutbl: *mutbl };
                 fhir::TyKind::Ref(self.mk_lft_hole(), mut_ty)
             }
+
             surface::TyKind::Tuple(tys) => {
                 let tys = self
                     .genv()
@@ -1303,6 +1304,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             surface::BaseTyKind::Slice(ty) => {
                 let ty = self.desugar_ty(ty);
                 let kind = fhir::BaseTyKind::Slice(self.genv().alloc(ty));
+                fhir::BaseTy { kind, fhir_id: self.next_fhir_id(), span: bty.span }
+            }
+            surface::BaseTyKind::Ptr(mutbl, ty) => {
+                let ty = self.desugar_ty(ty);
+                let kind = fhir::BaseTyKind::RawPtr(self.genv().alloc(ty), *mutbl);
                 fhir::BaseTy { kind, fhir_id: self.next_fhir_id(), span: bty.span }
             }
         }

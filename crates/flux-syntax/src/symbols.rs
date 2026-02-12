@@ -25,6 +25,7 @@ symbols! {
         Set,
         int,
         no_panic,
+        ptr_size,
         real,
     }
 }

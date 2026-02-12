@@ -748,6 +748,8 @@ pub enum InternalFuncKind {
     Rel(BinOp),
     // Conversions betweeen Sorts
     Cast,
+    /// Built-in UIF for pointer size: `RawPtr -> Int`
+    PtrSize,
 }
 
 #[derive(Debug, Clone, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
@@ -1417,6 +1419,7 @@ pub(crate) mod pretty {
                 InternalFuncKind::Val(op) => w!(cx, f, "[{:?}]", op),
                 InternalFuncKind::Rel(op) => w!(cx, f, "[{:?}]?", op),
                 InternalFuncKind::Cast => w!(cx, f, "cast"),
+                InternalFuncKind::PtrSize => w!(cx, f, "ptr_size"),
             }
         }
     }

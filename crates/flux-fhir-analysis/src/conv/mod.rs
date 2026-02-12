@@ -863,6 +863,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Str)?;
                 return Ok(rty::Sort::Str);
             }
+            fhir::SortRes::PrimSort(fhir::PrimSort::RawPtr) => {
+                self.check_prim_sort_generics(path, fhir::PrimSort::RawPtr)?;
+                return Ok(rty::Sort::RawPtr);
+            }
             fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
             fhir::SortRes::TyParam(def_id) => {
                 if !path.args.is_empty() {
@@ -1285,12 +1289,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let pred = self.conv_expr(env, pred)?;
                 Ok(rty::Ty::constr(pred, self.conv_ty(env, ty, name)?))
             }
-            fhir::TyKind::RawPtr(ty, mutability) => {
-                Ok(rty::Ty::indexed(
-                    rty::BaseTy::RawPtr(self.conv_ty(env, ty, None)?, *mutability),
-                    rty::Expr::unit(),
-                ))
-            }
             fhir::TyKind::OpaqueDef(opaque_ty) => self.conv_opaque_def(env, opaque_ty, ty.span),
             fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
@@ -1463,6 +1461,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::BaseTyKind::Slice(ty) => {
                 let name = name.map(|sym| Self::suffix_symbol(sym, "elem"));
                 let bty = rty::BaseTy::Slice(self.conv_ty(env, ty, name)?).shift_in_escaping(1);
+                let sort = bty.sort();
+                let ty = rty::Ty::indexed(bty, rty::Expr::nu());
+                Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
+            }
+            fhir::BaseTyKind::RawPtr(ty, mutability) => {
+                let name = name.map(|sym| Self::suffix_symbol(sym, "size"));
+                let bty = rty::BaseTy::RawPtr(self.conv_ty(env, ty, name)?, *mutability)
+                    .shift_in_escaping(1);
                 let sort = bty.sort();
                 let ty = rty::Ty::indexed(bty, rty::Expr::nu());
                 Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
@@ -2421,6 +2427,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf)) => {
                 let sort = THEORY_FUNCS.get(&itf).unwrap().sort.clone();
                 (rty::Expr::global_func(rty::SpecFuncKind::Thy(itf)), rty::Sort::Func(sort))
+            }
+            fhir::Res::GlobalFunc(fhir::SpecFuncKind::PtrSize) => {
+                let fsort = rty::PolyFuncSort::new(
+                    List::empty(),
+                    rty::FuncSort::new(vec![rty::Sort::RawPtr], rty::Sort::Int),
+                );
+                (rty::Expr::internal_func(rty::InternalFuncKind::PtrSize), rty::Sort::Func(fsort))
             }
             fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast) => {
                 let fsort = rty::PolyFuncSort::new(
