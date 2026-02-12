@@ -353,19 +353,17 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     }
                     rty::Sort::Tuple(sorts) => {
                         // Parse field name as integer for tuple field access
-                        if let Ok(field_idx) = fld.name.as_str().parse::<usize>() {
-                            if field_idx < sorts.len() {
-                                let proj = rty::FieldProj::Tuple {
-                                    arity: sorts.len(),
-                                    field: field_idx as u32,
-                                };
-                                self.wfckresults
-                                    .field_projs_mut()
-                                    .insert(expr.fhir_id, proj);
-                                Ok(sorts[field_idx].clone())
-                            } else {
-                                Err(self.emit_field_not_found(&sort, fld))
-                            }
+                        if let Ok(field_idx) = fld.name.as_str().parse::<usize>()
+                            && field_idx < sorts.len()
+                        {
+                            let proj = rty::FieldProj::Tuple {
+                                arity: sorts.len(),
+                                field: field_idx as u32,
+                            };
+                            self.wfckresults
+                                .field_projs_mut()
+                                .insert(expr.fhir_id, proj);
+                            Ok(sorts[field_idx].clone())
                         } else {
                             Err(self.emit_field_not_found(&sort, fld))
                         }
