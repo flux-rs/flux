@@ -857,7 +857,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let obligations = infcx
             .at(span)
             .ensure_resolved_evars(|infcx| {
-                let ret_place_ty = env.lookup_place(&mut infcx.at(span), Place::RETURN)?;
+                let ret_place_ty = env.lookup_place(infcx, Place::RETURN)?;
                 let output = self
                     .fn_sig
                     .output
