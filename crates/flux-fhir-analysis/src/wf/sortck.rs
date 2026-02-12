@@ -114,7 +114,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         sort_def: &AdtSortDef,
         sort_args: &[rty::Sort],
         field_exprs: &[fhir::FieldExpr<'genv>],
-        spread: &Option<&fhir::Spread<'genv>>,
+        spread: Option<&fhir::Spread<'genv>>,
         expected: &rty::Sort,
     ) -> Result {
         let sort_by_field_name = sort_def.struct_variant().sort_by_field_name(sort_args);
@@ -148,7 +148,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         &mut self,
         expr: &fhir::Expr,
         field_exprs: &[fhir::FieldExpr<'genv>],
-        spread: &Option<&fhir::Spread<'genv>>,
+        spread: Option<&fhir::Spread<'genv>>,
         expected: &rty::Sort,
     ) -> Result {
         let expected = self.resolve_vars_if_possible(expected);
@@ -197,44 +197,39 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     pub(super) fn check_expr(&mut self, expr: &fhir::Expr<'genv>, expected: &rty::Sort) -> Result {
-        match &expr.kind {
+        match expr.kind {
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 self.check_expr(p, &rty::Sort::Bool)?;
                 self.check_expr(e1, expected)?;
                 self.check_expr(e2, expected)?;
+                return Ok(());
             }
             fhir::ExprKind::Abs(params, body) => {
                 self.check_abs(expr, params, body, expected)?;
+                return Ok(());
             }
-            fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
+            fhir::ExprKind::Record(fields) => {
+                self.check_record(expr, fields, expected)?;
+                return Ok(());
+            }
             fhir::ExprKind::Constructor(None, exprs, spread) => {
                 self.check_constructor(expr, exprs, spread, expected)?;
+                return Ok(());
             }
             fhir::ExprKind::Tuple(exprs) => {
                 // Check tuple against expected tuple sort
-                if let rty::Sort::Tuple(expected_sorts) = expected {
-                    if exprs.len() == expected_sorts.len() {
-                        for (expr, expected_sort) in exprs.iter().zip(expected_sorts) {
-                            self.check_expr(expr, expected_sort)?;
-                        }
-                    } else {
-                        // Tuple arity mismatch - fall back to synthesis
-                        let found = self.synth_expr(expr)?;
-                        let found = self.resolve_vars_if_possible(&found);
-                        let expected = self.resolve_vars_if_possible(expected);
-                        if !self.is_coercible(&found, &expected, expr.fhir_id) {
-                            return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
-                        }
+                if let rty::Sort::Tuple(expected_sorts) = expected
+                    && exprs.len() == expected_sorts.len()
+                {
+                    for (expr, expected_sort) in iter::zip(exprs, expected_sorts) {
+                        self.check_expr(expr, expected_sort)?;
                     }
-                } else {
-                    // Expected sort is not a tuple - synthesize and check
-                    let found = self.synth_expr(expr)?;
-                    let found = self.resolve_vars_if_possible(&found);
-                    let expected = self.resolve_vars_if_possible(expected);
-                    if !self.is_coercible(&found, &expected, expr.fhir_id) {
-                        return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
-                    }
+                    return Ok(());
                 }
+            }
+            fhir::ExprKind::Err(_) => {
+                // an error has already been reported so we can just skip
+                return Ok(());
             }
             fhir::ExprKind::UnaryOp(..)
             | fhir::ExprKind::SetLiteral(..)
@@ -247,17 +242,14 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::BoundedQuant(..)
             | fhir::ExprKind::Block(..)
             | fhir::ExprKind::Constructor(..)
-            | fhir::ExprKind::PrimApp(..) => {
-                let found = self.synth_expr(expr)?;
-                let found = self.resolve_vars_if_possible(&found);
-                let expected = self.resolve_vars_if_possible(expected);
-                if !self.is_coercible(&found, &expected, expr.fhir_id) {
-                    return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
-                }
-            }
-            fhir::ExprKind::Err(_) => {
-                // an error has already been reported so we can just skip
-            }
+            | fhir::ExprKind::PrimApp(..) => {}
+        }
+        // Fallback to synthesis and then check
+        let found = self.synth_expr(expr)?;
+        let found = self.resolve_vars_if_possible(&found);
+        let expected = self.resolve_vars_if_possible(expected);
+        if !self.is_coercible(&found, &expected, expr.fhir_id) {
+            return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
         }
         Ok(())
     }
@@ -407,7 +399,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     &sort_def,
                     &fresh_args,
                     field_exprs,
-                    &spread,
+                    spread,
                     &sort,
                 )?;
                 Ok(sort)
