@@ -605,12 +605,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut err = None;
 
         // look for a NoPanic and a NoPanicIf
-        let (has_no_panic, no_panic_attr_span) = attrs.has_no_panic();
         let has_no_panic_if = attrs.has_no_panic_if();
-        if has_no_panic && has_no_panic_if {
-            // TODO: Andrew -- fix.
+        if has_no_panic_if && let Some(no_panic_attr_span) = attrs.has_no_panic() {
             err.collect(self.errors.emit(errors::DuplicatedAttr {
-                span: no_panic_attr_span.unwrap(),
+                span: no_panic_attr_span,
                 name: "NoPanic and NoPanicIf",
             }));
         }
