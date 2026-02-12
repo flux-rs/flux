@@ -985,7 +985,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 BaseTy::Alias(AliasKind::Projection, alias_ty_a),
                 BaseTy::Alias(AliasKind::Projection, alias_ty_b),
             ) => {
-                tracked_span_dbg_assert_eq!(alias_ty_a, alias_ty_b);
+                tracked_span_dbg_assert_eq!(alias_ty_a.erase_regions(), alias_ty_b.erase_regions());
                 Ok(())
             }
             (BaseTy::Array(ty_a, len_a), BaseTy::Array(ty_b, len_b)) => {
@@ -1047,7 +1047,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let (ty_a, ty_b) = match (a, b) {
             (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => (ty_a.clone(), ty_b.clone()),
             (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => {
-                tracked_span_dbg_assert_eq!(ctor_a.sort(), ctor_b.sort());
+                tracked_span_dbg_assert_eq!(
+                    ctor_a.sort().erase_regions(),
+                    ctor_b.sort().erase_regions()
+                );
                 (ctor_a.to_ty(), ctor_b.to_ty())
             }
             (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => return Ok(()),
