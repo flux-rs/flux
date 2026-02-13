@@ -62,10 +62,11 @@ fn item_def_kind(kind: &surface::DetachedItemKind) -> Vec<DefKind> {
         }
         surface::DetachedItemKind::Trait(_) => vec![DefKind::Trait],
         surface::DetachedItemKind::Static(_) => {
-            vec![
-                DefKind::Static { mutability: rustc_ast::Mutability::Not, nested: false, safety: rustc_hir::Safety::Safe },
-                DefKind::Static { mutability: rustc_ast::Mutability::Mut, nested: false, safety: rustc_hir::Safety::Safe },
-            ]
+            vec![DefKind::Static {
+                mutability: rustc_ast::Mutability::Not,
+                nested: false,
+                safety: rustc_hir::Safety::Safe,
+            }]
         }
     }
 }
