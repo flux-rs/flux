@@ -1414,6 +1414,12 @@ impl fmt::Debug for Ty<'_> {
                 write!(f, "{bare_fn_ty:?}")
             }
             TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
+            TyKind::IndexedTuple(tys, idx) => {
+                write!(f, "({:?})[{idx:?}]", tys.iter().format(", "))
+            }
+            TyKind::ExistsTuple(tys, param, pred) => {
+                write!(f, "({:?}){{{}:{:?}. {pred:?}}}", tys.iter().format(", "), param.name, param.sort)
+            }
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             TyKind::Never => write!(f, "!"),
             TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} | {pred:?}}}"),

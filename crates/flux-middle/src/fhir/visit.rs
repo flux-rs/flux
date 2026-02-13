@@ -453,6 +453,15 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
         TyKind::Tuple(tys) => {
             walk_list!(vis, visit_ty, tys);
         }
+        TyKind::IndexedTuple(tys, idx) => {
+            walk_list!(vis, visit_ty, tys);
+            vis.visit_expr(&idx);
+        }
+        TyKind::ExistsTuple(tys, param, pred) => {
+            walk_list!(vis, visit_ty, tys);
+            vis.visit_refine_param(param);
+            vis.visit_expr(&pred);
+        }
         TyKind::Array(ty, _len) => {
             vis.visit_ty(ty);
         }

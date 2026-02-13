@@ -1593,7 +1593,53 @@ impl Ty {
     }
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
-        BaseTy::Tuple(tys.into()).to_ty()
+        let tys: List<Ty> = tys.into();
+        // Convert each Ty to SubsetTyCtor
+        // For now, we create a trivial SubsetTy for each element
+        let ctors: List<SubsetTyCtor> = tys
+            .iter()
+            .map(|ty| {
+                match ty.kind() {
+                    // If it's already indexed, extract the base type and index
+                    TyKind::Indexed(bty, idx) => {
+                        let sort = bty.sort();
+                        Binder::bind_with_sort(
+                            SubsetTy::trivial(bty.clone(), idx.clone()),
+                            sort,
+                        )
+                    }
+                    // If it has a constraint, extract base, index, and predicate
+                    TyKind::Constr(pred, inner_ty) => {
+                        if let TyKind::Indexed(bty, idx) = inner_ty.kind() {
+                            let sort = bty.sort();
+                            Binder::bind_with_sort(
+                                SubsetTy::new(bty.clone(), idx.clone(), pred.clone()),
+                                sort,
+                            )
+                        } else {
+                            // Constraint without index - this shouldn't happen for well-formed types
+                            // but handle it gracefully
+                            let sort = ty.sort();
+                            let bty = ty.as_bty_skipping_binders().expect("expected base type").clone();
+                            Binder::bind_with_sort(
+                                SubsetTy::new(bty, Expr::nu(), pred.clone()),
+                                sort,
+                            )
+                        }
+                    }
+                    // For other cases, create a trivial SubsetTy
+                    _ => {
+                        let sort = ty.sort();
+                        let bty = ty.as_bty_skipping_binders().expect("expected base type").clone();
+                        Binder::bind_with_sort(
+                            SubsetTy::trivial(bty, Expr::nu()),
+                            sort,
+                        )
+                    }
+                }
+            })
+            .collect();
+        BaseTy::Tuple(ctors).to_ty()
     }
 
     pub fn array(ty: Ty, c: Const) -> Ty {
@@ -1723,7 +1769,7 @@ impl Ty {
     }
 
     #[track_caller]
-    pub fn expect_tuple(&self) -> &[Ty] {
+    pub fn expect_tuple(&self) -> &[SubsetTyCtor] {
         if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
             tys
         } else {
@@ -1811,7 +1857,7 @@ pub enum BaseTy {
     Ref(Region, Ty, Mutability),
     FnPtr(PolyFnSig),
     FnDef(DefId, GenericArgs),
-    Tuple(List<Ty>),
+    Tuple(List<SubsetTyCtor>),
     Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
@@ -2092,7 +2138,10 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
             }
             BaseTy::FnPtr(poly_sig) => ty::Ty::new_fn_ptr(tcx, poly_sig.to_rustc(tcx)),
             BaseTy::Tuple(tys) => {
-                let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
+                let ts = tys
+                    .iter()
+                    .map(|ctor| ctor.skip_binder_ref().to_ty().to_rustc(tcx))
+                    .collect_vec();
                 ty::Ty::new_tup(tcx, &ts)
             }
             BaseTy::Alias(kind, alias_ty) => {
@@ -2954,6 +3003,7 @@ impl_slice_internable!(
     GenericParamDef,
     TraitRef,
     Binder<ExistentialPredicate>,
+    Binder<SubsetTy>,
     Clause,
     PolyVariant,
     Invariant,
