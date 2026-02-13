@@ -1207,47 +1207,83 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let span = ty.span;
         let kind = match &ty.kind {
             surface::TyKind::Base(bty) => {
-                let bty = self.desugar_bty(bty);
-                fhir::TyKind::BaseTy(bty)
+                // Special case: if the base type is a tuple, desugar it as TyKind::Tuple
+                // since FHIR doesn't have BaseTyKind::Tuple
+                if let surface::BaseTyKind::Tuple(tys) = &bty.kind {
+                    let tys = self
+                        .genv()
+                        .alloc_slice_fill_iter(tys.iter().map(|ty| self.desugar_ty(ty)));
+                    fhir::TyKind::Tuple(tys)
+                } else {
+                    let bty = self.desugar_bty(bty);
+                    fhir::TyKind::BaseTy(bty)
+                }
             }
             surface::TyKind::Indexed { bty, indices } => {
-                let bty = self.desugar_bty(bty);
-                let idx = self.desugar_indices(indices);
-                fhir::TyKind::Indexed(bty, idx)
+                // For indexed tuples, use the new IndexedTuple variant
+                if let surface::BaseTyKind::Tuple(tys) = &bty.kind {
+                    let tys = self
+                        .genv()
+                        .alloc_slice_fill_iter(tys.iter().map(|ty| self.desugar_ty(ty)));
+                    let idx = self.desugar_indices(indices);
+                    fhir::TyKind::IndexedTuple(tys, idx)
+                } else {
+                    let bty = self.desugar_bty(bty);
+                    let idx = self.desugar_indices(indices);
+                    fhir::TyKind::Indexed(bty, idx)
+                }
             }
             surface::TyKind::Exists { bind, bty, pred } => {
                 let ty_span = ty.span;
                 let bty_span = bty.span;
+                
+                // For exists on tuples, use the new ExistsTuple variant
+                if let surface::BaseTyKind::Tuple(tys) = &bty.kind {
+                    let tys = self
+                        .genv()
+                        .alloc_slice_fill_iter(tys.iter().map(|ty| self.desugar_ty(ty)));
+                    let pred = self.desugar_expr(pred);
+                    let (id, kind) = self.resolve_param(node_id);
+                    let param = fhir::RefineParam {
+                        id,
+                        name: bind.name,
+                        span: bind.span,
+                        sort: fhir::Sort::Infer,
+                        kind,
+                        fhir_id: self.next_fhir_id(),
+                    };
+                    fhir::TyKind::ExistsTuple(tys, self.genv().alloc(param), pred)
+                } else {
+                    let bty = self.desugar_bty(bty);
+                    let pred = self.desugar_expr(pred);
 
-                let bty = self.desugar_bty(bty);
-                let pred = self.desugar_expr(pred);
-
-                let (id, kind) = self.resolve_param(node_id);
-                let param = fhir::RefineParam {
-                    id,
-                    name: bind.name,
-                    span: bind.span,
-                    sort: fhir::Sort::Infer,
-                    kind,
-                    fhir_id: self.next_fhir_id(),
-                };
-                let path = fhir::PathExpr {
-                    segments: self.genv().alloc_slice(&[*bind]),
-                    res: Res::Param(kind, id),
-                    fhir_id: self.next_fhir_id(),
-                    span: bind.span,
-                };
-                let idx = fhir::Expr {
-                    kind: fhir::ExprKind::Var(QPathExpr::Resolved(path, None)),
-                    span: bind.span,
-                    fhir_id: self.next_fhir_id(),
-                };
-                let indexed = fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: bty_span };
-                let constr = fhir::Ty {
-                    kind: fhir::TyKind::Constr(pred, self.genv().alloc(indexed)),
-                    span: ty_span,
-                };
-                fhir::TyKind::Exists(self.genv().alloc_slice(&[param]), self.genv().alloc(constr))
+                    let (id, kind) = self.resolve_param(node_id);
+                    let param = fhir::RefineParam {
+                        id,
+                        name: bind.name,
+                        span: bind.span,
+                        sort: fhir::Sort::Infer,
+                        kind,
+                        fhir_id: self.next_fhir_id(),
+                    };
+                    let path = fhir::PathExpr {
+                        segments: self.genv().alloc_slice(&[*bind]),
+                        res: Res::Param(kind, id),
+                        fhir_id: self.next_fhir_id(),
+                        span: bind.span,
+                    };
+                    let idx = fhir::Expr {
+                        kind: fhir::ExprKind::Var(QPathExpr::Resolved(path, None)),
+                        span: bind.span,
+                        fhir_id: self.next_fhir_id(),
+                    };
+                    let indexed = fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: bty_span };
+                    let constr = fhir::Ty {
+                        kind: fhir::TyKind::Constr(pred, self.genv().alloc(indexed)),
+                        span: ty_span,
+                    };
+                    fhir::TyKind::Exists(self.genv().alloc_slice(&[param]), self.genv().alloc(constr))
+                }
             }
             surface::TyKind::GeneralExists { params, ty, pred } => {
                 let mut ty = self.desugar_ty(ty);

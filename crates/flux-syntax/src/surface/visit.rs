@@ -554,6 +554,9 @@ pub fn walk_bty<V: Visitor>(vis: &mut V, bty: &BaseTy) {
         }
         BaseTyKind::Slice(ty) => vis.visit_ty(ty),
         BaseTyKind::Ptr(_, ty) => vis.visit_ty(ty),
+        BaseTyKind::Tuple(tys) => {
+            walk_list!(vis, visit_ty, tys);
+        }
     }
 }
 

@@ -964,7 +964,13 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
         if tys.len() == 1 && !trailing {
             return Ok(tys.remove(0));
         } else {
-            TyKind::Tuple(tys)
+            // Tuple: wrap in BaseTyKind::Tuple
+            let bty_span = cx.mk_span(lo, cx.hi());
+            let bty = BaseTy {
+                kind: BaseTyKind::Tuple(tys),
+                span: bty_span,
+            };
+            TyKind::Base(bty)
         }
     } else if lookahead.peek(token::OpenBrace) {
         delimited(cx, Brace, |cx| {
@@ -1122,8 +1128,12 @@ fn parse_fn_bound_input(cx: &mut ParseCtxt) -> ParseResult<GenericArg> {
     let lo = cx.lo();
     let tys = parens(cx, Comma, parse_type)?;
     let hi = cx.hi();
-    let kind = TyKind::Tuple(tys);
     let span = cx.mk_span(lo, hi);
+    let bty = BaseTy {
+        kind: BaseTyKind::Tuple(tys),
+        span,
+    };
+    let kind = TyKind::Base(bty);
     let in_ty = Ty { kind, node_id: cx.next_node_id(), span };
     Ok(GenericArg { kind: GenericArgKind::Type(in_ty), node_id: cx.next_node_id() })
 }
@@ -1134,7 +1144,12 @@ fn parse_fn_bound_output(cx: &mut ParseCtxt) -> ParseResult<GenericArg> {
     let ty = if cx.advance_if(token::RArrow) {
         parse_type(cx)?
     } else {
-        Ty { kind: TyKind::Tuple(vec![]), node_id: cx.next_node_id(), span: cx.mk_span(lo, lo) }
+        let span = cx.mk_span(lo, lo);
+        let bty = BaseTy {
+            kind: BaseTyKind::Tuple(vec![]),
+            span,
+        };
+        Ty { kind: TyKind::Base(bty), node_id: cx.next_node_id(), span }
     };
     let hi = cx.hi();
     let ident = Ident { name: Output, span: cx.mk_span(lo, hi) };

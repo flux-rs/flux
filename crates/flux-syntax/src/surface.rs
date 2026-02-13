@@ -526,6 +526,7 @@ pub enum BaseTyKind {
     Slice(Box<Ty>),
     /// Raw pointer (*const T or *mut T), optionally with refinement on pointer value
     Ptr(Mutability, Box<Ty>),
+    Tuple(Vec<Ty>),
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]

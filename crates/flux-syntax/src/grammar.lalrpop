@@ -400,11 +400,16 @@ pub Ty: surface::Ty = {
     },
     <lo:@L> "(" <tys:Punctuated<Ty, ",">> ")" <hi:@R> => {
         if tys.len() == 1 && !tys.trailing_punct() {
+            // Single parenthesized type (not a tuple): just return the type
             tys.into_values().pop().unwrap()
         } else {
-            let kind = surface::TyKind::Tuple(tys.into_values());
+            // Tuple type: wrap in TyKind::Base(BaseTy::Tuple)
+            let bty = surface::BaseTy {
+                kind: surface::BaseTyKind::Tuple(tys.into_values()),
+                span: cx.map_span(lo, hi),
+            };
             surface::Ty {
-                kind,
+                kind: surface::TyKind::Base(bty),
                 node_id: cx.next_node_id(),
                 span: cx.map_span(lo, hi),
             }
@@ -473,7 +478,7 @@ BaseTyKind: surface::BaseTyKind = {
             span: cx.map_span(lo, hi),
         };
         surface::BaseTyKind::Path(Some(Box::new(qself)), path)
-    }
+    },
 }
 
 GenericArgs: Vec<surface::GenericArg> = AngleBrackets<Comma<GenericArg>>;

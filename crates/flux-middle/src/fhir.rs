@@ -555,6 +555,10 @@ pub enum TyKind<'fhir> {
     Ref(Lifetime, MutTy<'fhir>),
     BareFn(&'fhir BareFnTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
+    /// Indexed tuple: (T1, T2, ...)[e]
+    IndexedTuple(&'fhir [Ty<'fhir>], Expr<'fhir>),
+    /// Exists on tuple: (T1, T2, ...){v: p}
+    ExistsTuple(&'fhir [Ty<'fhir>], &'fhir RefineParam<'fhir>, Expr<'fhir>),
     Array(&'fhir Ty<'fhir>, ConstArg),
     OpaqueDef(&'fhir OpaqueTy<'fhir>),
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
