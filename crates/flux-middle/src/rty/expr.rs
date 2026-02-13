@@ -770,6 +770,57 @@ impl Expr {
         let mut expander = BinRelExpander {};
         self.fold_with(&mut expander)
     }
+
+    /// This is really dumb but we sometimes have the following:
+    ///     Vec { k.0 }
+    /// And we want to really have it rendered as
+    ///     k
+    /// So what we do is look for Tuple or Ctor exprs whose subfields are all
+    /// projections of the same expr, and reduce them if so. Note that we
+    /// **also** require that these are in the same order.
+    pub fn eta_reduce_projs(&self) -> Self {
+        struct EtaReducer;
+        impl TypeFolder for EtaReducer {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                match expr.kind() {
+                    ExprKind::Tuple(subexprs) => {
+                        let new_subexprs = subexprs.iter().map(|subexpr| subexpr.fold_with(self)).collect_vec();
+                        if let Some(ExprKind::FieldProj(e_inner, FieldProj::Tuple { arity: _, field: 0 })) = subexprs.first().map(|e| e.kind())
+                            && new_subexprs[1..].iter().zip(1..).all(|(other_e, i)| {
+                                if let ExprKind::FieldProj(other_e_inner, FieldProj::Tuple { arity: _, field }) = other_e.kind() {
+                                    field == &i && &e_inner.erase_metadata() == other_e_inner
+                                } else {
+                                    false
+                                }
+                            })
+                        {
+                            e_inner.clone()
+                        } else {
+                            expr.clone()
+                        }
+                    }
+                    ExprKind::Ctor(_ctor, subexprs) => {
+                        let new_subexprs = subexprs.iter().map(|subexpr| subexpr.fold_with(self)).collect_vec();
+                        if let Some(ExprKind::FieldProj(e_inner, FieldProj::Adt { def_id: _, field: 0 })) = subexprs.first().map(|e| e.kind())
+                            && new_subexprs[1..].iter().zip(1..).all(|(other_e, i)| {
+                                if let ExprKind::FieldProj(other_e_inner, FieldProj::Adt { def_id: _, field }) = other_e.kind() {
+                                    field == &i && &e_inner.erase_metadata() == other_e_inner
+                                } else {
+                                    false
+                                }
+                            })
+                        {
+                            e_inner.clone()
+                        } else {
+                            expr.clone()
+                        }
+                    }
+                    _ => expr.super_fold_with(self),
+                }
+            }
+        }
+        self.fold_with(&mut EtaReducer)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]

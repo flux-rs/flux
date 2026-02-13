@@ -100,6 +100,10 @@ impl WKVarInstantiator<'_> {
     /// It requires that the expression uses at least one of the first
     /// `self_args` number of `wkvar_args`.
     ///
+    /// There are a lot of patches we put in this algorithm to get around the fact
+    /// that it is purely syntactic. We currently try to eagerly eta reduce any
+    /// Ctor/Tuples + eta expand any args which aren't of that form 
+    ///
     /// FIXME: This does not properly deal with expressions that have bound variables:
     /// if the expression has a bound variable, we might fail the instantiation
     /// when it should succeed.
@@ -113,7 +117,8 @@ impl WKVarInstantiator<'_> {
         let expr_eta_expanded_rel = expr_without_metadata.expand_bin_rels();
         let mut args_to_param = HashMap::new();
         std::iter::zip(
-            wkvar_args.iter().map(|arg| arg.erase_metadata()),
+            // Eta reduce and erase metadata.
+            wkvar_args.iter().map(|arg| arg.eta_reduce_projs().erase_metadata()),
             // We'll make an instantiator that is generic because this instatiation
             // may (and probably will) be used in multiple places
             (0..wkvar_args.len()).into_iter().map(|var_num| {
@@ -712,13 +717,14 @@ impl WKVarSolutions {
             kind: InteractionKind,
         }
         // Step 1: Group wkvars into functions
-        let mut wkvars_by_fn: FxIndexMap<DefId, Vec<rty::KVid>> = FxIndexMap::default();
+        let mut wkvars_by_fn_name: FxIndexMap<(String, DefId), Vec<rty::KVid>> = FxIndexMap::default();
         for wkvid in self.solutions.keys() {
-            wkvars_by_fn.entry(wkvid.0)
+            let fn_name = genv.tcx().def_path_str(wkvid.0);
+            wkvars_by_fn_name.entry((fn_name, wkvid.0))
                 .and_modify(|kvids| kvids.push(wkvid.1))
                 .or_insert_with(|| vec![wkvid.1]);
         }
-        for kvids in wkvars_by_fn.values_mut() {
+        for kvids in wkvars_by_fn_name.values_mut() {
             kvids.sort_by_key(|kvid| kvid.as_u32());
         }
         // Step 2: Assign each user interaction an id
@@ -735,9 +741,8 @@ impl WKVarSolutions {
                 .collect()
         );
         let fn_pretty_cx = pretty::PrettyCx::default(genv).hide_regions(true);
-        for (fn_def_id, kvids) in wkvars_by_fn.iter() {
+        for ((fn_name, fn_def_id), kvids) in wkvars_by_fn_name.iter() {
             if file_read_user_interactions.is_none() {
-                let fn_name = genv.tcx().def_path_str(fn_def_id);
                 println!("fn {}", fn_name);
                 let fn_sig = genv.fn_sig(fn_def_id).unwrap();
                 let solved_fn_sig = rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
@@ -907,6 +912,7 @@ pub fn iterative_solve<F>(
     };
     while any_wkvar_change && i <= max_iters {
         println!("iteration {} of {}", i, max_iters);
+        let mut instantiations_message = String::new();
         any_wkvar_change = false;
         all_errors = Vec::new();
         for cstr in &cstrs {
@@ -959,8 +965,8 @@ pub fn iterative_solve<F>(
                         //         vec![]
                         //     }
                         // };
-                        println!("Adding an instantiation for wkvar {:?}:", wkvid);
-                        println!("  {:?}", instantiation);
+                        instantiations_message.push_str(&format!("Adding an instantiation for wkvar {:?}:\n", wkvid));
+                        instantiations_message.push_str(&format!("  {:?}\n", instantiation));
                         // Record the solution in the NEW solutions, so that
                         // subsequent constraints aren't checked against it.
                         let solution = &mut new_solutions
@@ -1004,12 +1010,17 @@ pub fn iterative_solve<F>(
         }
         i += 1;
 
-        if !any_wkvar_change {
-            for (local_id, err) in &all_errors {
-                report_errors(*local_id, err.clone());
-            }
-            any_wkvar_change = any_wkvar_change || new_solutions.prompt_user(genv, &mut user_interactions, &mut file_read_user_interactions);
+        for (local_id, err) in &all_errors {
+            report_errors(*local_id, err.clone());
         }
+        println!("{}", instantiations_message);
+        any_wkvar_change = new_solutions.prompt_user(genv, &mut user_interactions, &mut file_read_user_interactions) || any_wkvar_change;
+        // if !any_wkvar_change {
+        //     for (local_id, err) in &all_errors {
+        //         report_errors(*local_id, err.clone());
+        //     }
+        //     any_wkvar_change = any_wkvar_change || new_solutions.prompt_user(genv, &mut user_interactions, &mut file_read_user_interactions);
+        // }
 
         let _ = new_solutions.stats_by_fn(genv);
 

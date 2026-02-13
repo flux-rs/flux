@@ -851,10 +851,11 @@ pub fn qe_and_simplify<T: Types>(
         // println!("assumption:\n{:?}", pred_ast);
         let fvs = pred.free_vars();
         if fvs.is_subset(&const_vars) {
-            println!("assumption\n  {}", pred);
+            println!("assertion\n  {}", pred);
             goal.assert(&pred_ast);
             None
         } else {
+            // println!("precondition\n {}", pred);
             if fvs.is_subset(&free_vars) {
                 // println!("assumption\n  {}", pred);
                 // goal.assert(&pred_ast);
@@ -902,6 +903,7 @@ pub fn qe_and_simplify<T: Types>(
                 // }
                 if let Some(new_cstr) = new_goal.iter_formulas::<ast::Dynamic>().last() {
                     solver.pop(1);
+                    solver.push();
                     // let new_goal = Goal::new(true, true, false);
                     // solver.assert(&new_cstr.as_bool().unwrap());
                     for pred in &cstr.assumptions {
@@ -921,19 +923,48 @@ pub fn qe_and_simplify<T: Types>(
                     //         .unwrap();
                     // return z3_to_expr(&vars, &simplified_cstr);
                     let mut fixpoint_expr = z3_to_expr(&vars, &new_cstr)?;
+                    println!("checking {} for vacuity,", fixpoint_expr);
                     solver.assert(new_cstr.as_bool().unwrap());
-                    return match solver.check() {
-                        SatResult::Unsat => Ok(Expr::FALSE),
-                        _ => Ok(fixpoint_expr),
+                    match solver.check() {
+                        SatResult::Unsat => return Ok(Expr::FALSE),
+                        _ => {}
                     };
+                    solver.pop(1);
+                    solver.push();
+                    for pred in &cstr.assumptions {
+                        match pred {
+                            Pred::Expr(Expr::Atom(BinRel::Ge, args)) => {
+                                match args.as_ref() {
+                                    [head, Expr::Constant(Constant::Numeral(0))] => {
+                                        let head_is_var = match head {
+                                            Expr::Var(_) => true,
+                                            Expr::App(app_head, _, app_args) =>
+                                                matches!(app_head.as_ref(), Expr::Var(_))
+                                                && app_args.len() == 1
+                                                && matches!(app_args[0], Expr::Var(_)),
+                                            _ => false,
+                                        };
+                                        if head_is_var {
+                                            let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
+                                            println!("asserting invariant {}", pred);
+                                            solver.assert(&pred_ast);
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
                     // println!("solved originally to: {}", fixpoint_expr);
-                    // return Ok(prune_vacuous(fixpoint_expr, &mut vars, &solver));
-                    
-                    // return if prune_vacuous(&mut fixpoint_expr, &mut vars, &solver) {
-                    //     Ok(Expr::FALSE)
-                    // } else {
-                    //     Ok(fixpoint_expr)
-                    // };
+                    return if prune_vacuous(&mut fixpoint_expr, &mut vars, &solver) {
+                        Ok(Expr::FALSE)
+                    } else {
+                        println!("before simplifying: {}", fixpoint_expr);
+                        simplify(&mut fixpoint_expr, &mut vars, &solver);
+                        println!("after simplifying: {}", fixpoint_expr);
+                        Ok(fixpoint_expr)
+                    };
                 }
             }
             Err(Z3DecodeError::NoResults)
@@ -1031,6 +1062,84 @@ fn prune_vacuous<T: Types>(e: &mut Expr<T>, env: &mut Env<T>, solver: &Solver) -
             solver.pop(1);
             res
         }
+    }
+}
+
+fn simplify<T: Types>(e: &mut Expr<T>, env: &mut Env<T>, solver: &Solver) {
+    match e {
+        Expr::And(conjuncts) => {
+            let new_conjs = conjuncts.extract_if(.., |conjunct| {
+                simplify(conjunct, env, solver);
+                matches!(conjunct, Expr::And(_))
+            }).flat_map(|e| match e {
+                Expr::And(cs) => cs,
+                _ => unreachable!()
+            }).collect_vec();
+            conjuncts.extend(new_conjs);
+            let mut i = 0;
+            while i < conjuncts.len() && conjuncts.len() > 1 {
+                let other_cs = conjuncts.iter().enumerate().filter_map(|(j, other_c)| {
+                    if i == j {
+                        None
+                    } else {
+                        Some(other_c.clone())
+                    }
+                }).collect_vec();
+                let c = &conjuncts[i];
+                let expr = Expr::Imp(Box::new([Expr::And(other_cs), c.clone()]));
+                solver.push();
+                solver.assert(&expr_to_z3(&expr, env).as_bool().unwrap());
+                match solver.check() {
+                    SatResult::Sat => {
+                        conjuncts.remove(i);
+                    }
+                    _ => {
+                        i += 1;
+                    }
+                };
+                solver.pop(1);
+            }
+            if conjuncts.is_empty() {
+                *e = Expr::TRUE;
+            }
+        }
+        Expr::Or(disjuncts) => {
+            let new_disjs = disjuncts.extract_if(.., |disjunct| {
+                simplify(disjunct, env, solver);
+                matches!(disjunct, Expr::Or(_))
+            }).flat_map(|e| match e {
+                Expr::Or(cs) => cs,
+                _ => unreachable!()
+            }).collect_vec();
+            disjuncts.extend(new_disjs);
+            let mut i = 0;
+            while i < disjuncts.len() && disjuncts.len() > 1 {
+                let other_ds = disjuncts.iter().enumerate().filter_map(|(j, other_d)| {
+                    if i == j {
+                        None
+                    } else {
+                        Some(other_d.clone())
+                    }
+                }).collect_vec();
+                let d = &disjuncts[i];
+                let expr = Expr::Imp(Box::new([Expr::Or(other_ds), d.clone()]));
+                solver.push();
+                solver.assert(&expr_to_z3(&expr, env).as_bool().unwrap());
+                match solver.check() {
+                    SatResult::Sat => {
+                        disjuncts.remove(i);
+                    }
+                    _ => {
+                        i += 1;
+                    }
+                };
+                solver.pop(1);
+            }
+            if disjuncts.is_empty() {
+                *e = Expr::FALSE;
+            }
+        }
+        _ => {}
     }
 }
 

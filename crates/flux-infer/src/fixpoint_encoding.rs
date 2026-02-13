@@ -795,7 +795,7 @@ where
                                                     && !e.is_trivially_true() {
                                                     if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &e) {
                                                         println!("recording solution: {:?}", binder_e);
-                                                        if fe.total_num_disjuncts() > new_flat_constraint.assumptions.len() {
+                                                        if fe.total_num_disjuncts() > new_flat_constraint.assumptions.len() + 1 {
                                                             println!("WARN: skipping answer with too many disjuncts");
                                                             // Try the regular expression
                                                             if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
