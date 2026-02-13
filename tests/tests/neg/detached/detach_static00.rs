@@ -1,6 +1,6 @@
 mod bob {
 
-    static BOB: usize = 42;
+    static BOB: usize = 43;
 
     fn test1() -> usize {
         BOB //~ ERROR: refinement type

@@ -16,7 +16,7 @@ mod goober {
 
     static XS: [u32; 5] = [1, 2, 3, 4, 5];
 
-    #[flux::static_spec([u8{v: v < 10}; 3])]
+    #[flux::spec([u8{v: v < 10}; 3])]
     static IDXS: [u8; 3] = [0, 1, 7];
 
     fn test() {

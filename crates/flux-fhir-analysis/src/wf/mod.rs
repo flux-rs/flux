@@ -311,6 +311,9 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_fn_sig(def_id, &fn_sig)?;
                         cx.conv_generic_predicates(def_id, generics)?;
                     }
+                    fhir::ForeignItemKind::Static(_, _, _, _) => {
+                        // TODO: conv_ty if we want refinements on extern statics?
+                    }
                 }
             }
         }

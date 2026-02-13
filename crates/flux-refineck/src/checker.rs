@@ -1844,7 +1844,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let param_env = tcx.param_env(self.checker_id.root_id());
             let typing_env = infcx.region_infcx.typing_env(param_env);
             if let Ok(val) = tcx.const_eval_resolve(typing_env, uneval, constant.span) {
-                return Ok(self.check_const_val(val, ty)?);
+                return self.check_const_val(val, ty);
             } else {
                 return Ok(None);
             }

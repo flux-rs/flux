@@ -190,7 +190,9 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::ImplItem(impl_item) => &impl_item.generics,
             OwnerNode::ForeignItem(foreign_item) => {
                 match foreign_item.kind {
-                    ForeignItemKind::Fn(_, generics) => generics,
+                    ForeignItemKind::Fn(.., generics) | ForeignItemKind::Static(.., generics) => {
+                        generics
+                    }
                 }
             }
         }
@@ -313,6 +315,7 @@ pub struct ForeignItem<'fhir> {
 #[derive(Debug)]
 pub enum ForeignItemKind<'fhir> {
     Fn(FnSig<'fhir>, &'fhir Generics<'fhir>),
+    Static(Ty<'fhir>, Mutability, Safety, &'fhir Generics<'fhir>),
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -91,18 +91,9 @@ pub fn desugar<'genv>(
         rustc_hir::Node::AnonConst(..) => fhir::Node::AnonConst,
         rustc_hir::Node::Expr(..) => fhir::Node::Expr,
         rustc_hir::Node::ForeignItem(foreign) => {
-            match foreign.kind {
-                rustc_hir::ForeignItemKind::Static(..) => {
-                    let item =
-                        cx.with_rust_item_ctxt(owner_id, None, |cx| Ok(cx.lift_foreign_static()))?;
-                    fhir::Node::Item(genv.alloc(item))
-                }
-                _ => {
-                    let item = cx
-                        .with_rust_item_ctxt(owner_id, None, |cx| cx.lift_foreign_item(*foreign))?;
-                    fhir::Node::ForeignItem(genv.alloc(item))
-                }
-            }
+            let item =
+                cx.with_rust_item_ctxt(owner_id, None, |cx| cx.lift_foreign_item(*foreign))?;
+            fhir::Node::ForeignItem(genv.alloc(item))
         }
         rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, _)) => fhir::Node::Ctor,
         // HACK: we shouldn't desugar opaque types separately from their parent items, but happens
