@@ -14,7 +14,7 @@ use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     mir::{Body, Operand, StatementKind, TerminatorKind},
-    ty::{self as rustc_ty, TyCtxt, TypingMode},
+    ty::{self as rustc_ty, GenericArg, TyCtxt, TypingMode},
 };
 use rustc_trait_selection::traits::SelectionContext;
 
@@ -62,6 +62,32 @@ fn is_panic_or_abort_fn(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
     .any(|lid| lid == def_id)
 }
 
+fn try_resolve<'tcx>(
+    tcx: &TyCtxt<'tcx>,
+    def_id: DefId,
+    args: rustc_middle::ty::GenericArgsRef<'tcx>,
+) -> Result<DefId, CannotResolveReason> {
+    let param_env = tcx.param_env(def_id);
+    let infcx = tcx
+        .infer_ctxt()
+        .with_next_trait_solver(true)
+        .build(TypingMode::non_body_analysis());
+    let mut selcx = SelectionContext::new(&infcx);
+
+    let resolved = resolve_call_query(*tcx, &mut selcx, param_env, def_id, args);
+
+    let Some((impl_id, _)) = resolved else {
+        // Error case 1: we fail to resolve a trait method to an impl.
+        return Err(CannotResolveReason::UnresolvedTraitMethod(def_id));
+    };
+
+    if !tcx.is_mir_available(impl_id) {
+        return Err(CannotResolveReason::NoMIRAvailable(impl_id, tcx.def_kind(impl_id)));
+    }
+
+    Ok(impl_id)
+}
+
 // Grabs the callees of a function from its MIR.
 // Returns Some(...) if all callees (1) are free functions, or (2) can be resolved to impl methods.
 // If even one callee cannot be resolved, or is a closure, returns None.
@@ -84,18 +110,9 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Result<Vec<DefId>, Can
                         continue;
                     };
 
-                    let param_env = tcx.param_env(def_id);
-                    let infcx = tcx
-                        .infer_ctxt()
-                        .with_next_trait_solver(true)
-                        .build(TypingMode::non_body_analysis());
-                    let mut selcx = SelectionContext::new(&infcx);
-
-                    let resolved = resolve_call_query(*tcx, &mut selcx, param_env, *def_id, args);
-
-                    let Some((impl_id, _)) = resolved else {
-                        // Error case 1: we fail to resolve a trait method to an impl.
-                        return Err(CannotResolveReason::UnresolvedTraitMethod(*def_id));
+                    let impl_id = match try_resolve(tcx, *def_id, args) {
+                        Ok(impl_id) => impl_id,
+                        Err(reason) => return Err(reason),
                     };
 
                     if !tcx.is_mir_available(impl_id) {
@@ -149,7 +166,7 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
     let mut call_graph: CallGraph = FxHashMap::default();
     let mut worklist: Vec<DefId> = vec![];
 
-    // 1. Seed with all local MIR-owning functions
+    // 1. We just have the root here.
     for def_id in &[root] {
         let def_id = *def_id;
 
@@ -157,14 +174,25 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
             continue;
         }
 
+        // Start with some easy cases: generically called trait methods and functions without MIR bodies.
         if !tcx.is_mir_available(def_id) {
-            // Should not happen for locals
-            fn_to_no_panic.insert(
-                def_id,
-                PanicSpec::MightPanic(PanicReason::CannotResolve(
-                    CannotResolveReason::NoMIRAvailable(def_id, tcx.def_kind(def_id)),
-                )),
-            );
+            let def_kind = tcx.def_kind(def_id);
+            if matches!(def_kind, DefKind::AssocFn) {
+                fn_to_no_panic.insert(
+                    def_id,
+                    PanicSpec::MightPanic(PanicReason::CannotResolve(
+                        CannotResolveReason::UnresolvedTraitMethod(def_id),
+                    )),
+                );
+            } else {
+                fn_to_no_panic.insert(
+                    def_id,
+                    PanicSpec::MightPanic(PanicReason::CannotResolve(
+                        CannotResolveReason::NoMIRAvailable(def_id, tcx.def_kind(def_id)),
+                    )),
+                );
+            }
+
             return fn_to_no_panic;
         }
 
