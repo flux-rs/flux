@@ -7,7 +7,7 @@ use flux_common::{
     index::IndexGen,
     iter::IterExt,
     result::{ErrorCollector, ErrorEmitter},
-    span_bug,
+    span_bug, tracked_span_bug,
 };
 use flux_config as config;
 use flux_errors::{Errors, FluxSession};
