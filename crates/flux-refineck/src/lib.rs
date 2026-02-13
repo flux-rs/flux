@@ -115,11 +115,7 @@ pub fn check_static(
 
         // PHASE 3: invoke fixpoint on the constraint
         let answer = infcx_root
-            .execute_fixpoint_query(
-                cache,
-                MaybeExternId::Local(def_id),
-                FixpointQueryKind::Body,
-            )
+            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
             .emit(&genv)?;
 
         let errors = answer.errors;
