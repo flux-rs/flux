@@ -297,7 +297,7 @@ fn predicates_of(
                 .into_conv_ctxt()
                 .conv_generic_predicates(def_id, generics)
         }
-        DefKind::OpaqueTy | DefKind::Closure => {
+        DefKind::OpaqueTy | DefKind::Closure | DefKind::Static { .. } => {
             Ok(rty::EarlyBinder(rty::GenericPredicates {
                 parent: genv.tcx().predicates_of(def_id).parent,
                 predicates: rty::List::empty(),
@@ -454,7 +454,7 @@ fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Gener
                 .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
             conv::conv_generics(genv, generics, def_id, is_trait)
         }
-        DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias | DefKind::Ctor(..) => {
+        DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias | DefKind::Ctor(..) | DefKind::Static { .. } => {
             let rustc_generics = genv.lower_generics_of(def_id);
             refining::refine_generics(genv, def_id.resolved_id(), &rustc_generics)
         }
