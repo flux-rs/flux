@@ -411,6 +411,9 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
         vis.visit_expr(&requires.pred);
     }
     walk_list!(vis, visit_fn_input, &fn_sig.inputs);
+    if let Some(no_panic_expr) = &fn_sig.no_panic {
+        vis.visit_expr(no_panic_expr);
+    }
     vis.visit_fn_output(&fn_sig.output);
 }
 

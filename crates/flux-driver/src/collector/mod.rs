@@ -111,9 +111,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         match &item.kind {
             ItemKind::Fn { .. } => {
                 if attrs.has_attrs() {
-                    let fn_sig = attrs.fn_sig();
+                    let mut fn_sig = attrs.fn_sig();
                     self.check_fn_sig_name(owner_id, fn_sig.as_ref())?;
                     let node_id = self.next_node_id();
+                    let no_panic_spec = attrs.no_panic_spec();
+                    if let Some(fn_sig) = &mut fn_sig {
+                        fn_sig.no_panic = no_panic_spec;
+                    }
                     self.insert_item(
                         owner_id,
                         surface::Item {
@@ -169,7 +173,11 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind
             && attrs.has_attrs()
         {
-            let sig = attrs.fn_sig();
+            let mut sig = attrs.fn_sig();
+            let no_panic_spec = attrs.no_panic_spec();
+            if let Some(fn_sig) = &mut sig {
+                fn_sig.no_panic = no_panic_spec;
+            }
             self.check_fn_sig_name(owner_id, sig.as_ref())?;
             let node_id = self.next_node_id();
             self.insert_trait_item(
@@ -189,7 +197,11 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let ImplItemKind::Fn(..) = &impl_item.kind
             && attrs.has_attrs()
         {
-            let sig = attrs.fn_sig();
+            let mut sig = attrs.fn_sig();
+            if let Some(fn_sig) = &mut sig {
+                let no_panic_spec = attrs.no_panic_spec();
+                fn_sig.no_panic = no_panic_spec;
+            }
             self.check_fn_sig_name(owner_id, sig.as_ref())?;
             let node_id = self.next_node_id();
             self.insert_impl_item(
@@ -524,6 +536,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("invariant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::Invariant)?
             }
+            ("no_panic_if", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::NoPanicIf)?
+            }
             ("constant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)?
             }
@@ -587,6 +602,16 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
     fn report_dups(&mut self, attrs: &FluxAttrs) -> Result {
         let mut err = None;
+
+        // look for a NoPanic and a NoPanicIf
+        let has_no_panic_if = attrs.has_no_panic_if();
+        if has_no_panic_if && let Some(no_panic_attr_span) = attrs.has_no_panic() {
+            err.collect(self.errors.emit(errors::DuplicatedAttr {
+                span: no_panic_attr_span,
+                name: "NoPanic and NoPanicIf",
+            }));
+        }
+
         for (name, dups) in attrs.dups() {
             for attr in dups {
                 if attr.allow_dups() {
@@ -671,6 +696,7 @@ enum FluxAttrKind {
     ShouldFail,
     ExternSpec,
     NoPanic,
+    NoPanicIf(surface::Expr),
     /// See `detachXX.rs`
     DetachedSpecs(surface::DetachedSpecs),
 }
@@ -744,6 +770,10 @@ impl FluxAttrs {
         read_attr!(self, FnSig)
     }
 
+    fn no_panic_spec(&mut self) -> Option<surface::Expr> {
+        read_attr!(self, NoPanicIf)
+    }
+
     fn ty_alias(&mut self) -> Option<Box<surface::TyAlias>> {
         read_attr!(self, TypeAlias)
     }
@@ -754,6 +784,17 @@ impl FluxAttrs {
 
     fn generics(&mut self) -> Option<surface::Generics> {
         read_attr!(self, Generics)
+    }
+
+    fn has_no_panic(&self) -> Option<Span> {
+        self.map
+            .get(attr_name!(NoPanic))
+            .and_then(|attrs| attrs.first())
+            .map(|attr| attr.span)
+    }
+
+    fn has_no_panic_if(&self) -> bool {
+        read_flag!(self, NoPanicIf)
     }
 
     fn trait_assoc_refts(&mut self) -> Vec<surface::TraitAssocReft> {
@@ -807,6 +848,7 @@ impl FluxAttrs {
                 FluxAttrKind::Ignore(ignored) => surface::Attr::Ignore(ignored),
                 FluxAttrKind::ShouldFail => surface::Attr::ShouldFail,
                 FluxAttrKind::NoPanic => surface::Attr::NoPanic,
+                FluxAttrKind::NoPanicIf(expr) => surface::Attr::NoPanicIf(expr),
                 FluxAttrKind::Opaque
                 | FluxAttrKind::Reflect
                 | FluxAttrKind::FnSig(_)
@@ -856,6 +898,7 @@ impl FluxAttrKind {
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
             FluxAttrKind::DetachedSpecs(_) => attr_name!(DetachedSpecs),
             FluxAttrKind::NoPanic => attr_name!(NoPanic),
+            FluxAttrKind::NoPanicIf(_) => attr_name!(NoPanicIf),
         }
     }
 }

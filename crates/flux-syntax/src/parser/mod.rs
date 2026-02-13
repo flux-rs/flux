@@ -767,6 +767,7 @@ pub(crate) fn parse_fn_sig<T: PeekExpected>(cx: &mut ParseCtxt, end: T) -> Parse
         output: FnOutput { returns, ensures, node_id: cx.next_node_id() },
         node_id: cx.next_node_id(),
         span: cx.mk_span(lo, hi),
+        no_panic: None, // TODO (Andrew): complete mii!
     })
 }
 

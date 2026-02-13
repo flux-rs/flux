@@ -671,7 +671,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
         let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
-        let no_panic = self.genv().no_panic(fn_id);
+
+        let no_panic = if let Some(e) = fn_sig.no_panic_if {
+            self.conv_expr(&mut env, &e)?
+        } else {
+            if self.genv().no_panic(fn_id) { Expr::tt() } else { Expr::ff() }
+        };
 
         let fn_sig =
             self.conv_fn_decl(&mut env, header.safety(), header.abi, decl, body_id, no_panic)?;
@@ -978,7 +983,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         abi: rustc_abi::ExternAbi,
         decl: &fhir::FnDecl,
         body_id: Option<BodyId>,
-        no_panic: bool,
+        no_panic: Expr,
     ) -> QueryResult<rty::FnSig> {
         let mut requires = vec![];
         for req in decl.requires {
@@ -1007,7 +1012,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             requires.into(),
             inputs.into(),
             output,
-            if no_panic { Expr::tt() } else { Expr::ff() },
+            no_panic,
             decl.lifted,
         ))
     }
@@ -1252,7 +1257,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     bare_fn.abi,
                     bare_fn.decl,
                     None,
-                    false,
+                    Expr::ff(),
                 )?;
                 let vars = bare_fn
                     .generic_params

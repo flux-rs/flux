@@ -512,6 +512,7 @@ pub struct Requires<'fhir> {
 pub struct FnSig<'fhir> {
     pub header: FnHeader,
     pub decl: &'fhir FnDecl<'fhir>,
+    pub no_panic_if: Option<Expr<'fhir>>,
 }
 
 #[derive(Clone, Copy)]

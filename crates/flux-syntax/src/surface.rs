@@ -352,6 +352,7 @@ pub struct FnSig {
     /// source span
     pub span: Span,
     pub node_id: NodeId,
+    pub no_panic: Option<Expr>,
 }
 
 #[derive(Debug)]
@@ -628,6 +629,8 @@ pub enum Attr {
     InferOpts(PartialInferOpts),
     /// A `#[no_panic]` attribute
     NoPanic,
+    /// A `#[no_panic_if]` attribute
+    NoPanicIf(Expr),
 }
 
 #[derive(Debug)]
