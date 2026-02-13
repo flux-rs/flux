@@ -110,7 +110,7 @@ impl rustc_middle::query::IntoQueryParam<FluxDefId> for FluxLocalDefId {
 /// [_local id_]: MaybeExternId::local_id
 /// [_resolved id_]: MaybeExternId::resolved_id
 /// [`GlobalEnv::maybe_extern_id`]: crate::global_env::GlobalEnv::maybe_extern_id
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub enum MaybeExternId<Id = LocalDefId> {
     /// An id for a local spec.
     Local(Id),

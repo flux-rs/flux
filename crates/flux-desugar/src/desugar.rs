@@ -1698,10 +1698,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
 
 impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'_, 'genv, 'tcx> {
     fn next_fhir_id(&self) -> FhirId {
-        FhirId {
-            owner: FluxOwnerId::Rust(self.owner.local_id()),
-            local_id: self.local_id_gen.fresh(),
-        }
+        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
     fn genv(&self) -> GlobalEnv<'genv, 'tcx> {

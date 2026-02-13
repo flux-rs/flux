@@ -295,7 +295,7 @@ pub(crate) fn conv_adt_sort_def(
     def_id: MaybeExternId,
     kind: &fhir::RefinementKind,
 ) -> QueryResult<rty::AdtSortDef> {
-    let wfckresults = &WfckResults::new(OwnerId { def_id: def_id.local_id() });
+    let wfckresults = &WfckResults::new(def_id.map(|def_id| OwnerId { def_id }));
     let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
     match kind {
         fhir::RefinementKind::Refined(refined_by) => {
@@ -1598,8 +1598,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn refiner(&self) -> QueryResult<Refiner<'genv, 'tcx>> {
         match self.owner() {
             FluxOwnerId::Rust(owner_id) => {
-                let def_id = self.genv().maybe_extern_id(owner_id.def_id);
-                Refiner::default_for_item(self.genv(), def_id.resolved_id())
+                Refiner::default_for_item(self.genv(), owner_id.resolved_id())
             }
             FluxOwnerId::Flux(_) => Err(query_bug!("cannot refine types insicde flux item")),
         }

@@ -533,10 +533,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
     }
 
     fn next_fhir_id(&self) -> FhirId {
-        FhirId {
-            owner: FluxOwnerId::Rust(self.owner.local_id()),
-            local_id: self.local_id_gen.fresh(),
-        }
+        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
     fn local_id(&self) -> LocalDefId {
