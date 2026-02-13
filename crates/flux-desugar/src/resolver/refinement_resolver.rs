@@ -310,7 +310,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
     fn visit_bty(&mut self, bty: &surface::BaseTy) {
         match &bty.kind {
-            surface::BaseTyKind::Slice(_) | surface::BaseTyKind::Ptr(..) => {
+            surface::BaseTyKind::Slice(_) | surface::BaseTyKind::Ptr(..) | surface::BaseTyKind::Tuple(_) => {
                 self.with_scope(ScopeKind::Misc, |this| {
                     surface::visit::walk_bty(this, bty);
                 });

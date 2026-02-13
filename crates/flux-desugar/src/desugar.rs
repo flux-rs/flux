@@ -1347,6 +1347,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 let kind = fhir::BaseTyKind::RawPtr(self.genv().alloc(ty), *mutbl);
                 fhir::BaseTy { kind, fhir_id: self.next_fhir_id(), span: bty.span }
             }
+            surface::BaseTyKind::Tuple(_) => {
+                // Tuples as BaseTy are handled specially in desugar_ty
+                // This case should not be reached since we intercept tuples earlier
+                tracked_span_bug!(bty.span, "unexpected BaseTyKind::Tuple in desugar_bty")
+            }
         }
     }
 

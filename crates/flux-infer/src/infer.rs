@@ -965,7 +965,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             (BaseTy::Tuple(tys_a), BaseTy::Tuple(tys_b)) => {
                 debug_assert_eq!(tys_a.len(), tys_b.len());
                 for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
-                    self.tys(infcx, ty_a, ty_b)?;
+                    // Convert SubsetTyCtor to Ty
+                    let ty_a = ty_a.skip_binder_ref().to_ty();
+                    let ty_b = ty_b.skip_binder_ref().to_ty();
+                    self.tys(infcx, &ty_a, &ty_b)?;
                 }
                 Ok(())
             }

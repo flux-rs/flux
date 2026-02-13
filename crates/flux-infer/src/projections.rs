@@ -685,7 +685,10 @@ impl TVarSubst {
             (BaseTy::Tuple(a_tys), BaseTy::Tuple(b_tys)) => {
                 debug_assert_eq!(a_tys.len(), b_tys.len());
                 for (a_ty, b_ty) in iter::zip(a_tys, b_tys) {
-                    self.tys(a_ty, b_ty);
+                    // Convert SubsetTyCtor to Ty
+                    let a_ty = a_ty.skip_binder_ref().to_ty();
+                    let b_ty = b_ty.skip_binder_ref().to_ty();
+                    self.tys(&a_ty, &b_ty);
                 }
             }
             (BaseTy::Ref(a_re, a_ty, _), BaseTy::Ref(b_re, b_ty, _)) => {

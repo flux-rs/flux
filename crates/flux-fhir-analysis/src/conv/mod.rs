@@ -384,6 +384,48 @@ pub(crate) fn conv_refinement_generics(
         .try_collect()
 }
 
+/// Helper function to convert a Ty to SubsetTyCtor
+/// This is used when creating tuple types that need SubsetTyCtor elements
+fn ty_to_subset_ty_ctor(ty: &rty::Ty) -> rty::SubsetTyCtor {
+    match ty.kind() {
+        // If it's already indexed, extract the base type and index
+        rty::TyKind::Indexed(bty, idx) => {
+            let sort = bty.sort();
+            rty::Binder::bind_with_sort(
+                rty::SubsetTy::trivial(bty.clone(), idx.clone()),
+                sort,
+            )
+        }
+        // If it has a constraint, extract base, index, and predicate
+        rty::TyKind::Constr(pred, inner_ty) => {
+            if let rty::TyKind::Indexed(bty, idx) = inner_ty.kind() {
+                let sort = bty.sort();
+                rty::Binder::bind_with_sort(
+                    rty::SubsetTy::new(bty.clone(), idx.clone(), pred.clone()),
+                    sort,
+                )
+            } else {
+                // Constraint without index - create with nu
+                let sort = ty.sort();
+                let bty = ty.as_bty_skipping_binders().expect("expected base type").clone();
+                rty::Binder::bind_with_sort(
+                    rty::SubsetTy::new(bty, rty::Expr::nu(), pred.clone()),
+                    sort,
+                )
+            }
+        }
+        // For other cases, create a trivial SubsetTy
+        _ => {
+            let sort = ty.sort();
+            let bty = ty.as_bty_skipping_binders().expect("expected base type").clone();
+            rty::Binder::bind_with_sort(
+                rty::SubsetTy::trivial(bty, rty::Expr::nu()),
+                sort,
+            )
+        }
+    }
+}
+
 fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDefKind {
     match kind {
         fhir::GenericParamKind::Type { default } => {
@@ -1279,6 +1321,46 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     })
                     .try_collect()?;
                 Ok(rty::Ty::tuple(tys))
+            }
+            fhir::TyKind::IndexedTuple(tys, idx) => {
+                // Convert the tuple elements
+                let tys: List<rty::Ty> = tys
+                    .iter()
+                    .enumerate()
+                    .map(|(i, ty)| {
+                        self.conv_ty(env, ty, name.map(|sym| Self::suffix_symbol(sym, i)))
+                    })
+                    .try_collect()?;
+                // Convert the index expression
+                let idx = self.conv_expr(env, idx)?;
+                // Create an indexed tuple type
+                Ok(rty::Ty::indexed(rty::BaseTy::Tuple(
+                    tys.iter().map(|ty| ty_to_subset_ty_ctor(ty)).collect()
+                ), idx))
+            }
+            fhir::TyKind::ExistsTuple(tys, param, pred) => {
+                // Convert the tuple elements
+                let tys: List<rty::Ty> = tys
+                    .iter()
+                    .enumerate()
+                    .map(|(i, ty)| {
+                        self.conv_ty(env, ty, name.map(|sym| Self::suffix_symbol(sym, i)))
+                    })
+                    .try_collect()?;
+                // Create the tuple base type
+                let tuple_bty = rty::BaseTy::Tuple(
+                    tys.iter().map(|ty| ty_to_subset_ty_ctor(ty)).collect()
+                );
+                // Convert the predicate
+                let pred = self.conv_expr(env, pred)?;
+                // Convert the parameter
+                let sort = self.conv_sort(&param.sort)?;
+                let mode = self.conv_param_mode(param);
+                let param = rty::RefineParam { sort, name: param.name, mode };
+                // Create a variable expression for the index
+                let var = rty::Expr::nu(); // Use nu for the refinement binder
+                let constr_ty = rty::Ty::constr(pred, rty::Ty::indexed(tuple_bty, var));
+                Ok(rty::Ty::exists(rty::Binder::bind_with_vars(constr_ty, List::from_arr([param.into()]))))
             }
             fhir::TyKind::Array(ty, len) => {
                 let name = name.map(|sym| Self::suffix_symbol(sym, "elem"));
