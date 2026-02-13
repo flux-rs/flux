@@ -97,7 +97,7 @@ pub enum TimingKind {
     /// Total time taken to run the complete Flux analysis on the crate
     Total,
     /// Time taken to check the body of a function
-    CheckFn(LocalDefId),
+    CheckBody(LocalDefId),
     /// Time taken to run a single fixpoint query
     FixpointQuery(DefId, FixpointQueryKind),
 }
@@ -139,7 +139,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     let mut total = Duration::from_secs(0);
     for timing in timings {
         match timing.kind {
-            TimingKind::CheckFn(local_def_id) => {
+            TimingKind::CheckBody(local_def_id) => {
                 let def_path = tcx.def_path_str(local_def_id);
                 functions.push((def_path, timing.duration));
             }

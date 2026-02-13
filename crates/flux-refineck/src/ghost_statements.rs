@@ -101,13 +101,14 @@ impl GhostStatements {
             };
 
             // We have fn_sig for function items, but not for closures, generators, statics, or promoteds.
-            let fn_sig = if matches!(genv.def_kind(def_id), DefKind::Closure | DefKind::Static { .. })
-                || checker_id.is_promoted()
-            {
-                None
-            } else {
-                Some(genv.fn_sig(def_id)?)
-            };
+            let fn_sig =
+                if matches!(genv.def_kind(def_id), DefKind::Closure | DefKind::Static { .. })
+                    || checker_id.is_promoted()
+                {
+                    None
+                } else {
+                    Some(genv.fn_sig(def_id)?)
+                };
 
             fold_unfold::add_ghost_statements(&mut stmts, genv, body, fn_sig.as_ref())?;
             points_to::add_ghost_statements(&mut stmts, genv, &body.rustc_body, fn_sig.as_ref())?;

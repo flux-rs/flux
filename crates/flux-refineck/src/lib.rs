@@ -104,11 +104,7 @@ fn check_body(
             .emit(&genv)
     } else {
         let answer = infcx_root
-            .execute_fixpoint_query(
-                cache,
-                MaybeExternId::Local(def_id),
-                FixpointQueryKind::Body,
-            )
+            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
             .emit(&genv)?;
 
         let tcx = genv.tcx();
@@ -141,9 +137,7 @@ pub fn check_static(
     let poly_sig = rty::PolyFnSig::dummy(fn_sig);
 
     metrics::incr_metric(Metric::FnChecked, 1);
-    metrics::time_it(TimingKind::CheckFn(def_id), || {
-        check_body(genv, cache, def_id, &poly_sig)
-    })
+    metrics::time_it(TimingKind::CheckBody(def_id), || check_body(genv, cache, def_id, &poly_sig))
 }
 
 pub fn check_fn(
@@ -185,7 +179,7 @@ pub fn check_fn(
     }
 
     metrics::incr_metric(Metric::FnChecked, 1);
-    metrics::time_it(TimingKind::CheckFn(def_id), || -> Result<(), ErrorGuaranteed> {
+    metrics::time_it(TimingKind::CheckBody(def_id), || -> Result<(), ErrorGuaranteed> {
         let poly_sig = genv
             .fn_sig(def_id)
             .with_span(span)
