@@ -12,6 +12,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
+    rty::StaticInfo,
 };
 use flux_refineck as refineck;
 use rustc_borrowck::consumers::ConsumerOptions;
@@ -302,6 +303,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             }
             DefKind::TyAlias => {}
             DefKind::Trait => {}
+            DefKind::Static { .. } => {
+                if let StaticInfo::Known(ty) = genv.static_info(def_id).emit(&genv)?
+                    && let Some(local_id) = def_id.as_local()
+                {
+                    refineck::check_static(genv, &mut self.cache, local_id, ty)?;
+                }
+            }
             _ => (),
         }
         Ok(())

@@ -568,9 +568,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("constant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)?
             }
-            // ("static_spec", hir::AttrArgs::Delimited(dargs)) => {
-            //     self.parse(dargs, ParseSess::parse_static_info, FluxAttrKind::StaticSpec)?
-            // }
             ("opts", hir::AttrArgs::Delimited(..)) => {
                 let opts = AttrMap::parse(attr_item)
                     .emit(&self.errors)?

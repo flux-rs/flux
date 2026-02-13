@@ -66,6 +66,16 @@ fn report_fixpoint_errors(
     }
 }
 
+pub fn check_static(
+    genv: GlobalEnv,
+    cache: &mut FixQueryCache,
+    def_id: LocalDefId,
+    ty: rty::Ty,
+) -> Result<(), ErrorGuaranteed> {
+    println!("TRACE: check static def: {def_id:?} => {ty:?}");
+    Ok(())
+}
+
 pub fn check_fn(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
