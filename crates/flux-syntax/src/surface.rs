@@ -220,6 +220,7 @@ pub enum DetachedItemKind {
     InherentImpl(DetachedInherentImpl),
     TraitImpl(DetachedTraitImpl),
     Trait(DetachedTrait),
+    Static(StaticInfo),
 }
 
 #[derive(Debug)]

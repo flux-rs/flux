@@ -61,6 +61,12 @@ fn item_def_kind(kind: &surface::DetachedItemKind) -> Vec<DefKind> {
             vec![DefKind::Struct, DefKind::Enum]
         }
         surface::DetachedItemKind::Trait(_) => vec![DefKind::Trait],
+        surface::DetachedItemKind::Static(_) => {
+            vec![
+                DefKind::Static { mutability: rustc_ast::Mutability::Not, nested: false, safety: rustc_hir::Safety::Safe },
+                DefKind::Static { mutability: rustc_ast::Mutability::Mut, nested: false, safety: rustc_hir::Safety::Safe },
+            ]
+        }
     }
 }
 
@@ -282,6 +288,16 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             }
             surface::DetachedItemKind::TraitImpl(trait_impl) => {
                 self.collect_trait_impl(owner_id, item.node_id, item.attrs, trait_impl)?;
+            }
+            surface::DetachedItemKind::Static(static_info) => {
+                self.inner.insert_item(
+                    owner_id,
+                    surface::Item {
+                        attrs: item.attrs,
+                        kind: surface::ItemKind::Static(static_info),
+                        node_id: item.node_id,
+                    },
+                )?;
             }
         };
         Ok(())

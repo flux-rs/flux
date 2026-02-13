@@ -22,7 +22,7 @@ use crate::{
         GenericParam, Generics, Ident, ImplAssocReft, Indices, LetDecl, LitKind, Mutability,
         ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
         RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
-        TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
+        StaticInfo, TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
         WhereBoundPredicate,
     },
     symbols::{kw, sym},
@@ -202,6 +202,8 @@ pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<DetachedIte
         parse_detached_impl(cx, attrs)
     } else if lookahead.peek(kw::Trait) {
         parse_detached_trait(cx, attrs)
+    } else if lookahead.peek(kw::Static) {
+        parse_detached_static(cx, attrs)
     } else {
         Err(lookahead.into_error())
     }
@@ -286,6 +288,23 @@ fn parse_detached_fn_sig(
         .ok_or(ParseError { kind: crate::ParseErrorKind::InvalidDetachedSpec, span })?;
     let path = ident_path(cx, ident);
     Ok(DetachedItem { attrs: attrs.normal, path, kind: fn_sig, node_id: cx.next_node_id() })
+}
+
+///```text
+/// ⟨static-spec⟩ ::= static ⟨ident⟩ : ⟨type⟩ ;
+/// ```
+fn parse_detached_static(cx: &mut ParseCtxt, attrs: ParsedAttrs) -> ParseResult<DetachedItem> {
+    cx.expect(kw::Static)?;
+    let path = parse_expr_path(cx)?;
+    cx.expect(token::Colon)?;
+    let ty = parse_type(cx)?;
+    cx.expect(token::Semi)?;
+    Ok(DetachedItem {
+        attrs: attrs.normal,
+        path,
+        kind: DetachedItemKind::Static(StaticInfo { ty }),
+        node_id: cx.next_node_id(),
+    })
 }
 
 ///```text
