@@ -238,8 +238,11 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             ty::TyKind::Ref(r, ty, mutbl) => rty::BaseTy::Ref(*r, ty.refine(self)?, *mutbl),
             ty::TyKind::Float(float_ty) => rty::BaseTy::Float(*float_ty),
             ty::TyKind::Tuple(tys) => {
-                let tys = tys.iter().map(|ty| ty.refine(self)).try_collect()?;
-                rty::BaseTy::Tuple(tys)
+                let ctors = tys
+                    .iter()
+                    .map(|ty| ty.refine(self).map(|ty| ty_to_subset_ty_ctor(&ty)))
+                    .try_collect()?;
+                rty::BaseTy::Tuple(ctors)
             }
             ty::TyKind::Array(ty, len) => rty::BaseTy::Array(ty.refine(self)?, len.clone()),
             ty::TyKind::Param(param_ty) => {
@@ -485,6 +488,42 @@ fn refine_default(bty: rty::BaseTy) -> rty::SubsetTyCtor {
     let sort = bty.sort();
     let constr = rty::SubsetTy::trivial(bty.shift_in_escaping(1), rty::Expr::nu());
     rty::Binder::bind_with_sort(constr, sort)
+}
+
+fn ty_to_subset_ty_ctor(ty: &rty::Ty) -> rty::SubsetTyCtor {
+    match ty.kind() {
+        rty::TyKind::Indexed(bty, idx) => {
+            let sort = bty.sort();
+            rty::Binder::bind_with_sort(rty::SubsetTy::trivial(bty.clone(), idx.clone()), sort)
+        }
+        rty::TyKind::Constr(pred, inner_ty) => {
+            if let rty::TyKind::Indexed(bty, idx) = inner_ty.kind() {
+                let sort = bty.sort();
+                rty::Binder::bind_with_sort(
+                    rty::SubsetTy::new(bty.clone(), idx.clone(), pred.clone()),
+                    sort,
+                )
+            } else {
+                let bty = inner_ty
+                    .as_bty_skipping_existentials()
+                    .expect("expected base type")
+                    .clone();
+                let sort = bty.sort();
+                rty::Binder::bind_with_sort(
+                    rty::SubsetTy::new(bty, rty::Expr::nu(), pred.clone()),
+                    sort,
+                )
+            }
+        }
+        _ => {
+            let bty = ty
+                .as_bty_skipping_existentials()
+                .expect("expected base type")
+                .clone();
+            let sort = bty.sort();
+            rty::Binder::bind_with_sort(rty::SubsetTy::trivial(bty, rty::Expr::nu()), sort)
+        }
+    }
 }
 
 pub fn refine_bound_variables(vars: &[ty::BoundVariableKind]) -> List<rty::BoundVariableKind> {

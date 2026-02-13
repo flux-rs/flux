@@ -130,7 +130,8 @@ impl RegionSubst {
             (rty::BaseTy::Tuple(fields_a), ty::TyKind::Tuple(fields_b)) => {
                 debug_assert_eq!(fields_a.len(), fields_b.len());
                 for (ty_a, ty_b) in iter::zip(fields_a, fields_b) {
-                    self.ty_infer_from_ty(ty_a, ty_b);
+                    let ty_a = ty_a.skip_binder_ref().to_ty();
+                    self.ty_infer_from_ty(&ty_a, ty_b);
                 }
             }
             (rty::BaseTy::Slice(ty_a), ty::TyKind::Slice(ty_b)) => {
@@ -266,7 +267,9 @@ impl RegionSubst {
             }
             (rty::BaseTy::Tuple(tys_a), rty::BaseTy::Tuple(tys_b)) => {
                 for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
-                    self.rty_infer_from_ty(ty_a, ty_b);
+                    let ty_a = ty_a.skip_binder_ref().to_ty();
+                    let ty_b = ty_b.skip_binder_ref().to_ty();
+                    self.rty_infer_from_ty(&ty_a, &ty_b);
                 }
             }
             (rty::BaseTy::Alias(_, aty_a), rty::BaseTy::Alias(_, aty_b)) => {

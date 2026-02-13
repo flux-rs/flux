@@ -738,6 +738,21 @@ impl PrettyNested for SubsetTy {
     }
 }
 
+impl PrettyNested for SubsetTyCtor {
+    fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+        let inner = self.as_ref().skip_binder();
+        if self.vars().len() == 1 && inner.pred.is_trivially_true() && inner.idx.is_nu() {
+            inner.bty.fmt_nested(cx)
+        } else {
+            cx.nested_with_bound_vars("λ", self.vars(), None, |prefix| {
+                let ctor_d = self.skip_binder_ref().fmt_nested(cx)?;
+                let text = format!("{}{}", prefix, ctor_d.text);
+                Ok(NestedString { text, children: ctor_d.children, key: None })
+            })
+        }
+    }
+}
+
 impl PrettyNested for GenericArg {
     fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
         match self {

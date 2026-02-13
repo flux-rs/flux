@@ -690,7 +690,12 @@ impl Pretty for FnTraitPredicate {
 
 impl FnTraitPredicate {
     pub fn fndef_sig(&self) -> FnSig {
-        let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
+        let inputs = self
+            .tupled_args
+            .expect_tuple()
+            .iter()
+            .map(|ctor| ctor.skip_binder_ref().to_ty())
+            .collect();
         let ret = self.output.clone().shift_in_escaping(1);
         let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
         FnSig::new(
@@ -1619,8 +1624,11 @@ impl Ty {
                         } else {
                             // Constraint without index - this shouldn't happen for well-formed types
                             // but handle it gracefully
-                            let sort = ty.sort();
-                            let bty = ty.as_bty_skipping_binders().expect("expected base type").clone();
+                            let bty = inner_ty
+                                .as_bty_skipping_existentials()
+                                .expect("expected base type")
+                                .clone();
+                            let sort = bty.sort();
                             Binder::bind_with_sort(
                                 SubsetTy::new(bty, Expr::nu(), pred.clone()),
                                 sort,
@@ -1629,8 +1637,11 @@ impl Ty {
                     }
                     // For other cases, create a trivial SubsetTy
                     _ => {
-                        let sort = ty.sort();
-                        let bty = ty.as_bty_skipping_binders().expect("expected base type").clone();
+                        let bty = ty
+                            .as_bty_skipping_existentials()
+                            .expect("expected base type")
+                            .clone();
+                        let sort = bty.sort();
                         Binder::bind_with_sort(
                             SubsetTy::trivial(bty, Expr::nu()),
                             sort,
