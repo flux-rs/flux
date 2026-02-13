@@ -1502,7 +1502,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             fhir::Res::Def(DefKind::TyParam, param_id)
             | fhir::Res::SelfTyParam { trait_: param_id } => {
-                let predicates = type_param_predicates(tcx, param_id);
+                let item_def_id = self.owner().resolved_id().unwrap();
+                let predicates = type_param_predicates(tcx, item_def_id, param_id);
                 self.probe_single_bound_for_assoc_item(
                     || {
                         tag.transitive_bounds_that_define_assoc_item(
@@ -2842,19 +2843,14 @@ impl AssocItemTag for AssocReftTag {
 /// problem for us so we can use it instead of [`TyCtxt::type_param_predicates`].
 fn type_param_predicates<'tcx>(
     tcx: TyCtxt<'tcx>,
+    item_def_id: DefId,
     param_id: DefId,
 ) -> impl Iterator<Item = ty::PolyTraitPredicate<'tcx>> {
-    let parent = if tcx.def_kind(param_id) == DefKind::Trait {
-        // If the param_id is a trait then this is the `Self` parameter and the parent is the trait itself
-        param_id
-    } else {
-        tcx.parent(param_id)
-    };
     let param_index = tcx
-        .generics_of(parent)
+        .generics_of(item_def_id)
         .param_def_id_to_index(tcx, param_id)
         .unwrap();
-    let predicates = tcx.predicates_of(parent).instantiate_identity(tcx);
+    let predicates = tcx.predicates_of(item_def_id).instantiate_identity(tcx);
     predicates.into_iter().filter_map(move |(clause, _)| {
         clause
             .as_trait_clause()
