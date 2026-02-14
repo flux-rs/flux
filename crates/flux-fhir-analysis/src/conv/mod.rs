@@ -295,7 +295,7 @@ pub(crate) fn conv_adt_sort_def(
     def_id: MaybeExternId,
     kind: &fhir::RefinementKind,
 ) -> QueryResult<rty::AdtSortDef> {
-    let wfckresults = &WfckResults::new(OwnerId { def_id: def_id.local_id() });
+    let wfckresults = &WfckResults::new(def_id.map(|def_id| OwnerId { def_id }));
     let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
     match kind {
         fhir::RefinementKind::Refined(refined_by) => {
@@ -1502,7 +1502,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             fhir::Res::Def(DefKind::TyParam, param_id)
             | fhir::Res::SelfTyParam { trait_: param_id } => {
-                let predicates = type_param_predicates(tcx, param_id);
+                let item_def_id = self.owner().resolved_id().unwrap();
+                let predicates = type_param_predicates(tcx, item_def_id, param_id);
                 self.probe_single_bound_for_assoc_item(
                     || {
                         tag.transitive_bounds_that_define_assoc_item(
@@ -1598,8 +1599,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn refiner(&self) -> QueryResult<Refiner<'genv, 'tcx>> {
         match self.owner() {
             FluxOwnerId::Rust(owner_id) => {
-                let def_id = self.genv().maybe_extern_id(owner_id.def_id);
-                Refiner::default_for_item(self.genv(), def_id.resolved_id())
+                Refiner::default_for_item(self.genv(), owner_id.resolved_id())
             }
             FluxOwnerId::Flux(_) => Err(query_bug!("cannot refine types insicde flux item")),
         }
@@ -2843,19 +2843,14 @@ impl AssocItemTag for AssocReftTag {
 /// problem for us so we can use it instead of [`TyCtxt::type_param_predicates`].
 fn type_param_predicates<'tcx>(
     tcx: TyCtxt<'tcx>,
+    item_def_id: DefId,
     param_id: DefId,
 ) -> impl Iterator<Item = ty::PolyTraitPredicate<'tcx>> {
-    let parent = if tcx.def_kind(param_id) == DefKind::Trait {
-        // If the param_id is a trait then this is the `Self` parameter and the parent is the trait itself
-        param_id
-    } else {
-        tcx.parent(param_id)
-    };
     let param_index = tcx
-        .generics_of(parent)
+        .generics_of(item_def_id)
         .param_def_id_to_index(tcx, param_id)
         .unwrap();
-    let predicates = tcx.predicates_of(parent).instantiate_identity(tcx);
+    let predicates = tcx.predicates_of(item_def_id).instantiate_identity(tcx);
     predicates.into_iter().filter_map(move |(clause, _)| {
         clause
             .as_trait_clause()

@@ -591,15 +591,19 @@ pub enum Lifetime {
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub enum FluxOwnerId {
     Flux(FluxLocalDefId),
-    Rust(OwnerId),
+    Rust(MaybeExternId<OwnerId>),
 }
 
 impl FluxOwnerId {
-    pub fn def_id(self) -> Option<LocalDefId> {
+    pub fn as_rust(self) -> Option<MaybeExternId<OwnerId>> {
         match self {
             FluxOwnerId::Flux(_) => None,
-            FluxOwnerId::Rust(owner_id) => Some(owner_id.def_id),
+            FluxOwnerId::Rust(owner_id) => Some(owner_id),
         }
+    }
+
+    pub fn resolved_id(self) -> Option<DefId> {
+        self.as_rust().map(MaybeExternId::resolved_id)
     }
 }
 
@@ -1107,8 +1111,8 @@ impl PolyTraitRef<'_> {
     }
 }
 
-impl From<OwnerId> for FluxOwnerId {
-    fn from(owner_id: OwnerId) -> Self {
+impl From<MaybeExternId<OwnerId>> for FluxOwnerId {
+    fn from(owner_id: MaybeExternId<OwnerId>) -> Self {
         FluxOwnerId::Rust(owner_id)
     }
 }

@@ -581,8 +581,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .infer_ctxt()
             .with_next_trait_solver(true)
             .build(TypingMode::non_body_analysis());
-        if let Some(def_id) = owner.def_id() {
-            let def_id = genv.maybe_extern_id(def_id).resolved_id();
+        if let Some(def_id) = owner.resolved_id() {
             t.deeply_normalize_sorts(def_id, genv, &infcx)
         } else {
             Ok(t.clone())
@@ -801,12 +800,14 @@ impl<'genv> InferCtxt<'genv, '_> {
                 .insert(node.fhir_id, sort);
         }
 
-        let allow_uninterpreted_cast = self
-            .owner
-            .def_id()
-            .map_or_else(flux_config::allow_uninterpreted_cast, |def_id| {
-                self.genv.infer_opts(def_id).allow_uninterpreted_cast
-            });
+        let allow_uninterpreted_cast =
+            self.owner
+                .as_rust()
+                .map_or_else(flux_config::allow_uninterpreted_cast, |def_id| {
+                    self.genv
+                        .infer_opts(def_id.local_id().def_id)
+                        .allow_uninterpreted_cast
+                });
 
         // Make sure that function applications are fully resolved
         for (node, sort_args) in std::mem::take(&mut self.sort_args_of_app) {

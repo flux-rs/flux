@@ -202,7 +202,6 @@ fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
 
 fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::ConstantInfo> {
     let node = genv.fhir_node(def_id.local_id())?;
-    let owner = rustc_hir::OwnerId { def_id: def_id.local_id() };
     let Some(sort) = genv.sort_of_def_id(def_id.resolved_id()).emit(&genv)? else {
         return Ok(rty::ConstantInfo::Uninterpreted);
     };
@@ -210,6 +209,7 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
     match node {
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(Some(expr)), .. }) => {
             // If the constant has a `#[consant(expr)]` annotation we use that
+            let owner = def_id.map(|def_id| rustc_hir::OwnerId { def_id });
             let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
             let expr = AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
@@ -377,7 +377,7 @@ fn sort_of_assoc_reft(
     match &genv.fhir_expect_item(container_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
             let assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap();
-            let wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
+            let wfckresults = WfckResults::new(container_id.map(|def_id| OwnerId { def_id }));
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
                 .params
@@ -389,7 +389,7 @@ fn sort_of_assoc_reft(
         }
         fhir::ItemKind::Impl(impl_) => {
             let assoc_reft = impl_.find_assoc_reft(assoc_id.name()).unwrap();
-            let wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
+            let wfckresults = WfckResults::new(container_id.map(|def_id| OwnerId { def_id }));
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
                 .params
