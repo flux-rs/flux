@@ -196,11 +196,10 @@ impl PlacesTree {
                             break;
                         }
                         TyKind::Downcast(..) => {
-                            // If we encounter a Downcast type during deref in lookup_inner,
-                            // it means the place was already unfolded. We don't deref it again,
-                            // just keep the current type and let the next projection element
-                            // handle it (likely a field access).
-                            // Do nothing - ty stays as is
+                            // Downcast types represent already-unfolded structs with fields
+                            // expanded. When we encounter one during deref, we leave it as-is
+                            // since there's no actual pointer to dereference - the next
+                            // projection element will handle field access directly.
                         }
                         _ => tracked_span_bug!("invalid deref `{ty:?}`"),
                     }
@@ -498,8 +497,9 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                 Ty::mk_ref(*re, ty.try_fold_with(self)?, *mutbl)
             }
             TyKind::Downcast(..) => {
-                // If we encounter a Downcast type during deref, it means the place was already
-                // unfolded and downcast. We just return it as-is without trying to deref again.
+                // Downcast types represent already-unfolded structs with fields expanded.
+                // When encountered during deref, we leave it unchanged since there's no actual
+                // pointer to dereference. Similar handling exists in lookup_inner (line ~199).
                 ty.clone()
             }
             _ => tracked_span_bug!("invalid deref of `{ty:?}`"),
