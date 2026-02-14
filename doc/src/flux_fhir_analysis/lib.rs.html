@@ -202,15 +202,15 @@
 <a href=#202 id=202 data-nosnippet>202</a>
 <a href=#203 id=203 data-nosnippet>203</a><span class="kw">fn </span>constant_info(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::ConstantInfo&gt; {
 <a href=#204 id=204 data-nosnippet>204</a>    <span class="kw">let </span>node = genv.fhir_node(def_id.local_id())<span class="question-mark">?</span>;
-<a href=#205 id=205 data-nosnippet>205</a>    <span class="kw">let </span>owner = rustc_hir::OwnerId { def_id: def_id.local_id() };
-<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = genv.sort_of_def_id(def_id.resolved_id()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">? </span><span class="kw">else </span>{
-<a href=#207 id=207 data-nosnippet>207</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::ConstantInfo::Uninterpreted);
-<a href=#208 id=208 data-nosnippet>208</a>    };
-<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">let </span>tcx = genv.tcx();
-<a href=#210 id=210 data-nosnippet>210</a>    <span class="kw">match </span>node {
-<a href=#211 id=211 data-nosnippet>211</a>        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(<span class="prelude-val">Some</span>(expr)), .. }) =&gt; {
-<a href=#212 id=212 data-nosnippet>212</a>            <span class="comment">// If the constant has a `#[consant(expr)]` annotation we use that
-<a href=#213 id=213 data-nosnippet>213</a>            </span><span class="kw">let </span>wfckresults = wf::check_constant_expr(genv, owner, expr, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
+<a href=#205 id=205 data-nosnippet>205</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = genv.sort_of_def_id(def_id.resolved_id()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">? </span><span class="kw">else </span>{
+<a href=#206 id=206 data-nosnippet>206</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::ConstantInfo::Uninterpreted);
+<a href=#207 id=207 data-nosnippet>207</a>    };
+<a href=#208 id=208 data-nosnippet>208</a>    <span class="kw">let </span>tcx = genv.tcx();
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">match </span>node {
+<a href=#210 id=210 data-nosnippet>210</a>        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(<span class="prelude-val">Some</span>(expr)), .. }) =&gt; {
+<a href=#211 id=211 data-nosnippet>211</a>            <span class="comment">// If the constant has a `#[consant(expr)]` annotation we use that
+<a href=#212 id=212 data-nosnippet>212</a>            </span><span class="kw">let </span>owner = def_id.map(|def_id| rustc_hir::OwnerId { def_id });
+<a href=#213 id=213 data-nosnippet>213</a>            <span class="kw">let </span>wfckresults = wf::check_constant_expr(genv, owner, expr, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
 <a href=#214 id=214 data-nosnippet>214</a>            <span class="kw">let </span>expr = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
 <a href=#215 id=215 data-nosnippet>215</a>                .into_conv_ctxt()
 <a href=#216 id=216 data-nosnippet>216</a>                .conv_constant_expr(expr)<span class="question-mark">?</span>;
@@ -377,7 +377,7 @@
 <a href=#377 id=377 data-nosnippet>377</a>    <span class="kw">match </span><span class="kw-2">&amp;</span>genv.fhir_expect_item(container_id.local_id())<span class="question-mark">?</span>.kind {
 <a href=#378 id=378 data-nosnippet>378</a>        fhir::ItemKind::Trait(trait_) =&gt; {
 <a href=#379 id=379 data-nosnippet>379</a>            <span class="kw">let </span>assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap();
-<a href=#380 id=380 data-nosnippet>380</a>            <span class="kw">let </span>wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
+<a href=#380 id=380 data-nosnippet>380</a>            <span class="kw">let </span>wfckresults = WfckResults::new(container_id.map(|def_id| OwnerId { def_id }));
 <a href=#381 id=381 data-nosnippet>381</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
 <a href=#382 id=382 data-nosnippet>382</a>            <span class="kw">let </span>inputs = assoc_reft
 <a href=#383 id=383 data-nosnippet>383</a>                .params
@@ -389,7 +389,7 @@
 <a href=#389 id=389 data-nosnippet>389</a>        }
 <a href=#390 id=390 data-nosnippet>390</a>        fhir::ItemKind::Impl(impl_) =&gt; {
 <a href=#391 id=391 data-nosnippet>391</a>            <span class="kw">let </span>assoc_reft = impl_.find_assoc_reft(assoc_id.name()).unwrap();
-<a href=#392 id=392 data-nosnippet>392</a>            <span class="kw">let </span>wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
+<a href=#392 id=392 data-nosnippet>392</a>            <span class="kw">let </span>wfckresults = WfckResults::new(container_id.map(|def_id| OwnerId { def_id }));
 <a href=#393 id=393 data-nosnippet>393</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
 <a href=#394 id=394 data-nosnippet>394</a>            <span class="kw">let </span>inputs = assoc_reft
 <a href=#395 id=395 data-nosnippet>395</a>                .params

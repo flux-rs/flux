@@ -110,7 +110,7 @@
 <a href=#110 id=110 data-nosnippet>110</a>/// [_local id_]: MaybeExternId::local_id
 <a href=#111 id=111 data-nosnippet>111</a>/// [_resolved id_]: MaybeExternId::resolved_id
 <a href=#112 id=112 data-nosnippet>112</a>/// [`GlobalEnv::maybe_extern_id`]: crate::global_env::GlobalEnv::maybe_extern_id
-<a href=#113 id=113 data-nosnippet>113</a></span><span class="attr">#[derive(Clone, Copy, Debug)]
+<a href=#113 id=113 data-nosnippet>113</a></span><span class="attr">#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 <a href=#114 id=114 data-nosnippet>114</a></span><span class="kw">pub enum </span>MaybeExternId&lt;Id = LocalDefId&gt; {
 <a href=#115 id=115 data-nosnippet>115</a>    <span class="doccomment">/// An id for a local spec.
 <a href=#116 id=116 data-nosnippet>116</a>    </span>Local(Id),
