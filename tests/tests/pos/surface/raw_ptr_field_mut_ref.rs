@@ -1,4 +1,4 @@
-use std::mem;
+// Test that we can take a mutable reference to a field accessed through a dereferenced raw pointer
 
 struct Shared {
     vec: Vec<i32>,
@@ -10,5 +10,5 @@ pub struct BytesMut {
 
 fn test(bytes: BytesMut) {
     let shared = bytes.data as *mut Shared;
-    let vec = mem::replace(unsafe { &mut (*shared).vec }, Vec::new());
+    unsafe { let _ = &mut (*shared).vec; }
 }

@@ -195,6 +195,13 @@ impl PlacesTree {
                             ty = Ty::uninit();
                             break;
                         }
+                        TyKind::Downcast(..) => {
+                            // If we encounter a Downcast type during deref in lookup_inner,
+                            // it means the place was already unfolded. We don't deref it again,
+                            // just keep the current type and let the next projection element
+                            // handle it (likely a field access).
+                            // Do nothing - ty stays as is
+                        }
                         _ => tracked_span_bug!("invalid deref `{ty:?}`"),
                     }
                 }
@@ -481,9 +488,19 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                     Ty::ptr(PtrKind::Box, path)
                 }
             }
+            TyKind::Indexed(BaseTy::RawPtr(deref_ty, _), _) => {
+                // Raw pointers cannot be strongly updated, so we just fold the dereferenced type
+                // directly, regardless of whether we're in a reference or not
+                deref_ty.try_fold_with(self)?
+            }
             Ref!(re, ty, mutbl) => {
                 self.in_ref = self.in_ref.max(Some(*mutbl));
                 Ty::mk_ref(*re, ty.try_fold_with(self)?, *mutbl)
+            }
+            TyKind::Downcast(..) => {
+                // If we encounter a Downcast type during deref, it means the place was already
+                // unfolded and downcast. We just return it as-is without trying to deref again.
+                ty.clone()
             }
             _ => tracked_span_bug!("invalid deref of `{ty:?}`"),
         };
@@ -656,7 +673,7 @@ where
                 ]);
                 Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
             }
-            TyKind::Ptr(..) => {
+            TyKind::Indexed(BaseTy::RawPtr(..), _) | TyKind::Ptr(..) => {
                 tracked_span_bug!("cannot update through pointer");
             }
             Ref!(re, deref_ty, mutbl) => Ty::mk_ref(*re, self.fold_ty(deref_ty), *mutbl),
