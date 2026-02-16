@@ -542,7 +542,7 @@
 <a href=#542 id=542 data-nosnippet>542</a>
 <a href=#543 id=543 data-nosnippet>543</a>    <span class="kw">fn </span>lift_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fn_sig: hir::FnSig) -&gt; fhir::FnSig&lt;<span class="lifetime">'genv</span>&gt; {
 <a href=#544 id=544 data-nosnippet>544</a>        <span class="kw">let </span>decl = <span class="self">self</span>.lift_fn_decl_inner(fn_sig.span, fn_sig.decl);
-<a href=#545 id=545 data-nosnippet>545</a>        fhir::FnSig { header: fn_sig.header, decl: <span class="self">self</span>.genv.alloc(decl) }
+<a href=#545 id=545 data-nosnippet>545</a>        fhir::FnSig { header: fn_sig.header, decl: <span class="self">self</span>.genv.alloc(decl), no_panic_if: <span class="prelude-val">None </span>}
 <a href=#546 id=546 data-nosnippet>546</a>    }
 <a href=#547 id=547 data-nosnippet>547</a>
 <a href=#548 id=548 data-nosnippet>548</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lift_foreign_item(
