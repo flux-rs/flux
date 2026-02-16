@@ -111,13 +111,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         match &item.kind {
             ItemKind::Fn { .. } => {
                 if attrs.has_attrs() {
-                    let mut fn_sig = attrs.fn_sig();
+                    let fn_sig = attrs.fn_sig();
                     self.check_fn_sig_name(owner_id, fn_sig.as_ref())?;
                     let node_id = self.next_node_id();
-                    let no_panic_spec = attrs.no_panic_spec();
-                    if let Some(fn_sig) = &mut fn_sig {
-                        fn_sig.no_panic = no_panic_spec;
-                    }
                     self.insert_item(
                         owner_id,
                         surface::Item {
@@ -173,11 +169,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind
             && attrs.has_attrs()
         {
-            let mut sig = attrs.fn_sig();
-            let no_panic_spec = attrs.no_panic_spec();
-            if let Some(fn_sig) = &mut sig {
-                fn_sig.no_panic = no_panic_spec;
-            }
+            let sig = attrs.fn_sig();
             self.check_fn_sig_name(owner_id, sig.as_ref())?;
             let node_id = self.next_node_id();
             self.insert_trait_item(
@@ -197,11 +189,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let ImplItemKind::Fn(..) = &impl_item.kind
             && attrs.has_attrs()
         {
-            let mut sig = attrs.fn_sig();
-            if let Some(fn_sig) = &mut sig {
-                let no_panic_spec = attrs.no_panic_spec();
-                fn_sig.no_panic = no_panic_spec;
-            }
+            let sig = attrs.fn_sig();
             self.check_fn_sig_name(owner_id, sig.as_ref())?;
             let node_id = self.next_node_id();
             self.insert_impl_item(
@@ -767,11 +755,13 @@ impl FluxAttrs {
     }
 
     fn fn_sig(&mut self) -> Option<surface::FnSig> {
-        read_attr!(self, FnSig)
-    }
-
-    fn no_panic_spec(&mut self) -> Option<surface::Expr> {
-        read_attr!(self, NoPanicIf)
+        let mut fn_sig = read_attr!(self, FnSig);
+        // FIXME(nilehmann) the `no_panic_if` annotation should work even if there's no `flux::spec`
+        // annotation or we should at least show an error.
+        if let Some(fn_sig) = &mut fn_sig {
+            fn_sig.no_panic = read_attr!(self, NoPanicIf);
+        }
+        fn_sig
     }
 
     fn ty_alias(&mut self) -> Option<Box<surface::TyAlias>> {
