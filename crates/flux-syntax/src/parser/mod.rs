@@ -52,6 +52,8 @@ enum SyntaxAttr {
     Hide,
     /// a `#[opaque]` attribute
     Opaque,
+    /// A `#[no_panic_if(...)]` attribute
+    NoPanicIf(Expr),
 }
 
 #[derive(Default)]
@@ -89,6 +91,14 @@ impl ParsedAttrs {
         } else {
             None
         }
+    }
+
+    fn no_panic_if(&mut self) -> Option<Expr> {
+        let pos = self
+            .syntax
+            .iter()
+            .position(|x| matches!(x, SyntaxAttr::NoPanicIf(_)))?;
+        if let SyntaxAttr::NoPanicIf(expr) = self.syntax.remove(pos) { Some(expr) } else { None }
     }
 
     fn invariant(&mut self) -> Option<Expr> {
@@ -277,9 +287,10 @@ fn ident_path(cx: &mut ParseCtxt, ident: Ident) -> ExprPath {
 
 fn parse_detached_fn_sig(
     cx: &mut ParseCtxt,
-    attrs: ParsedAttrs,
+    mut attrs: ParsedAttrs,
 ) -> ParseResult<DetachedItem<FnSig>> {
-    let fn_sig = parse_fn_sig(cx, token::Semi)?;
+    let mut fn_sig = parse_fn_sig(cx, token::Semi)?;
+    fn_sig.no_panic = attrs.no_panic_if();
     let span = fn_sig.span;
     let ident = fn_sig
         .ident
@@ -410,6 +421,10 @@ fn parse_attr(cx: &mut ParseCtxt, attrs: &mut ParsedAttrs) -> ParseResult {
         attrs
             .syntax
             .push(SyntaxAttr::Invariant(delimited(cx, Parenthesis, |cx| parse_expr(cx, true))?));
+    } else if lookahead.advance_if(sym::no_panic_if) {
+        attrs
+            .syntax
+            .push(SyntaxAttr::NoPanicIf(parse_expr(cx, true)?));
     } else {
         return Err(lookahead.into_error());
     };
@@ -767,7 +782,7 @@ pub(crate) fn parse_fn_sig<T: PeekExpected>(cx: &mut ParseCtxt, end: T) -> Parse
         output: FnOutput { returns, ensures, node_id: cx.next_node_id() },
         node_id: cx.next_node_id(),
         span: cx.mk_span(lo, hi),
-        no_panic: None, // TODO (Andrew): complete mii!
+        no_panic: None, // We attach the `no_panic` expr later
     })
 }
 
