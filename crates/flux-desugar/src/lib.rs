@@ -206,9 +206,7 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
                         surface::Attr::ShouldFail => Some(fhir::Attr::ShouldFail),
                         surface::Attr::InferOpts(opts) => Some(fhir::Attr::InferOpts(opts)),
                         surface::Attr::NoPanic => Some(fhir::Attr::NoPanic),
-                        surface::Attr::NoPanicIf(_)
-                        | surface::Attr::Qualifiers(_)
-                        | surface::Attr::Reveal(_) => None,
+                        surface::Attr::Qualifiers(_) | surface::Attr::Reveal(_) => None,
                     }
                 })
                 .collect_vec(),
