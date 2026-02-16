@@ -524,6 +524,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("invariant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::Invariant)?
             }
+            ("no_panic_if", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::NoPanicIf)?
+            }
             ("constant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)?
             }
@@ -587,6 +590,16 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
     fn report_dups(&mut self, attrs: &FluxAttrs) -> Result {
         let mut err = None;
+
+        // look for a NoPanic and a NoPanicIf
+        let has_no_panic_if = attrs.has_no_panic_if();
+        if has_no_panic_if && let Some(no_panic_attr_span) = attrs.has_no_panic() {
+            err.collect(self.errors.emit(errors::DuplicatedAttr {
+                span: no_panic_attr_span,
+                name: "NoPanic and NoPanicIf",
+            }));
+        }
+
         for (name, dups) in attrs.dups() {
             for attr in dups {
                 if attr.allow_dups() {
@@ -671,6 +684,7 @@ enum FluxAttrKind {
     ShouldFail,
     ExternSpec,
     NoPanic,
+    NoPanicIf(surface::Expr),
     /// See `detachXX.rs`
     DetachedSpecs(surface::DetachedSpecs),
 }
@@ -741,7 +755,13 @@ impl FluxAttrs {
     }
 
     fn fn_sig(&mut self) -> Option<surface::FnSig> {
-        read_attr!(self, FnSig)
+        let mut fn_sig = read_attr!(self, FnSig);
+        // FIXME(nilehmann) the `no_panic_if` annotation should work even if there's no `flux::spec`
+        // annotation or we should at least show an error.
+        if let Some(fn_sig) = &mut fn_sig {
+            fn_sig.no_panic = read_attr!(self, NoPanicIf);
+        }
+        fn_sig
     }
 
     fn ty_alias(&mut self) -> Option<Box<surface::TyAlias>> {
@@ -754,6 +774,17 @@ impl FluxAttrs {
 
     fn generics(&mut self) -> Option<surface::Generics> {
         read_attr!(self, Generics)
+    }
+
+    fn has_no_panic(&self) -> Option<Span> {
+        self.map
+            .get(attr_name!(NoPanic))
+            .and_then(|attrs| attrs.first())
+            .map(|attr| attr.span)
+    }
+
+    fn has_no_panic_if(&self) -> bool {
+        read_flag!(self, NoPanicIf)
     }
 
     fn trait_assoc_refts(&mut self) -> Vec<surface::TraitAssocReft> {
@@ -821,7 +852,8 @@ impl FluxAttrs {
                 | FluxAttrKind::Variant(_)
                 | FluxAttrKind::Invariant(_)
                 | FluxAttrKind::ExternSpec
-                | FluxAttrKind::DetachedSpecs(_) => continue,
+                | FluxAttrKind::DetachedSpecs(_)
+                | FluxAttrKind::NoPanicIf(_) => continue,
             };
             attrs.push(attr);
         }
@@ -856,6 +888,7 @@ impl FluxAttrKind {
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
             FluxAttrKind::DetachedSpecs(_) => attr_name!(DetachedSpecs),
             FluxAttrKind::NoPanic => attr_name!(NoPanic),
+            FluxAttrKind::NoPanicIf(_) => attr_name!(NoPanicIf),
         }
     }
 }

@@ -354,6 +354,7 @@ pub struct FnSig {
     /// source span
     pub span: Span,
     pub node_id: NodeId,
+    pub no_panic: Option<Expr>,
 }
 
 #[derive(Debug)]
