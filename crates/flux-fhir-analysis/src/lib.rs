@@ -60,6 +60,7 @@ pub fn provide(providers: &mut Providers) {
     providers.check_wf = check_wf;
     providers.adt_def = adt_def;
     providers.constant_info = constant_info;
+    providers.static_info = static_info;
     providers.type_of = type_of;
     providers.variants_of = variants_of;
     providers.fn_sig = fn_sig;
@@ -240,6 +241,24 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
     }
 }
 
+fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::StaticInfo> {
+    let node = genv.fhir_node(def_id.local_id())?;
+    match node {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Static(ty), .. }) => {
+            if let Some(ty) = ty {
+                let wfckresults = genv.check_wf(def_id.local_id())?;
+                let rty_ty = AfterSortck::new(genv, &wfckresults)
+                    .into_conv_ctxt()
+                    .conv_static_ty(ty)?;
+                Ok(rty::StaticInfo::Known(rty_ty))
+            } else {
+                Ok(rty::StaticInfo::Unknown)
+            }
+        }
+        _ => Ok(rty::StaticInfo::Unknown),
+    }
+}
+
 fn invariants_of<'genv>(
     genv: GlobalEnv<'genv, '_>,
     item: &fhir::Item<'genv>,
@@ -278,7 +297,7 @@ fn predicates_of(
                 .into_conv_ctxt()
                 .conv_generic_predicates(def_id, generics)
         }
-        DefKind::OpaqueTy | DefKind::Closure => {
+        DefKind::OpaqueTy | DefKind::Closure | DefKind::Static { .. } => {
             Ok(rty::EarlyBinder(rty::GenericPredicates {
                 parent: genv.tcx().predicates_of(def_id).parent,
                 predicates: rty::List::empty(),
@@ -435,7 +454,11 @@ fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Gener
                 .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
             conv::conv_generics(genv, generics, def_id, is_trait)
         }
-        DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias | DefKind::Ctor(..) => {
+        DefKind::OpaqueTy
+        | DefKind::Closure
+        | DefKind::TraitAlias
+        | DefKind::Ctor(..)
+        | DefKind::Static { .. } => {
             let rustc_generics = genv.lower_generics_of(def_id);
             refining::refine_generics(genv, def_id.resolved_id(), &rustc_generics)
         }

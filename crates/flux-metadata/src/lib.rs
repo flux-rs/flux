@@ -169,6 +169,7 @@ pub struct Tables<K: Eq + Hash> {
     fn_sig: UnordMap<K, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
     constant_info: UnordMap<K, QueryResult<rty::ConstantInfo>>,
+    static_info: UnordMap<K, QueryResult<rty::StaticInfo>>,
     adt_sort_def: UnordMap<K, QueryResult<rty::AdtSortDef>>,
     variants_of: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
@@ -226,6 +227,7 @@ impl CStore {
         merge_extern_table!(self, tcx, variants_of, extern_tables);
         merge_extern_table!(self, tcx, type_of, extern_tables);
         merge_extern_table!(self, tcx, no_panic, extern_tables);
+        merge_extern_table!(self, tcx, static_info, extern_tables);
     }
 }
 
@@ -309,6 +311,10 @@ impl CrateStore for CStore {
 
     fn constant_info(&self, key: DefId) -> OptResult<rty::ConstantInfo> {
         get!(self, constant_info, key)
+    }
+
+    fn static_info(&self, key: DefId) -> OptResult<rty::StaticInfo> {
+        get!(self, static_info, key)
     }
 
     fn normalized_defns(&self, krate: CrateNum) -> std::rc::Rc<rty::NormalizedDefns> {
@@ -531,6 +537,9 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     key,
                     genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
                 );
+            }
+            DefKind::Static { .. } => {
+                tables.static_info.insert(key, genv.static_info(def_id));
             }
             _ => {}
         }

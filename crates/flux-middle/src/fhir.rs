@@ -15,7 +15,7 @@
 
 pub mod visit;
 
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, fmt, iter};
 
 use flux_common::{bug, span_bug};
 use flux_config::PartialInferOpts;
@@ -42,6 +42,7 @@ use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
 use crate::{
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
+    global_env::GlobalEnv,
     rty::QualifierKind,
 };
 
@@ -189,7 +190,9 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::ImplItem(impl_item) => &impl_item.generics,
             OwnerNode::ForeignItem(foreign_item) => {
                 match foreign_item.kind {
-                    ForeignItemKind::Fn(_, generics) => generics,
+                    ForeignItemKind::Fn(.., generics) | ForeignItemKind::Static(.., generics) => {
+                        generics
+                    }
                 }
             }
         }
@@ -251,6 +254,7 @@ pub enum ItemKind<'fhir> {
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),
     Const(Option<Expr<'fhir>>),
+    Static(Option<Ty<'fhir>>),
 }
 
 #[derive(Debug)]
@@ -311,6 +315,7 @@ pub struct ForeignItem<'fhir> {
 #[derive(Debug)]
 pub enum ForeignItemKind<'fhir> {
     Fn(FnSig<'fhir>, &'fhir Generics<'fhir>),
+    Static(Ty<'fhir>, Mutability, Safety, &'fhir Generics<'fhir>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1281,6 +1286,11 @@ impl<'fhir> Generics<'fhir> {
             .iter()
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
+    }
+
+    pub fn empty(genv: GlobalEnv<'fhir, '_>) -> Self {
+        let params = genv.alloc_slice_fill_iter(iter::empty());
+        Self { params, refinement_params: &[], predicates: None }
     }
 }
 

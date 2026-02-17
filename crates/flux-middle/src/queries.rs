@@ -175,6 +175,7 @@ pub struct Providers {
     pub check_wf: fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtDef>,
     pub constant_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::ConstantInfo>,
+    pub static_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::StaticInfo>,
     pub type_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>>,
     pub variants_of: fn(
         GlobalEnv,
@@ -233,6 +234,7 @@ impl Default for Providers {
             sort_of_assoc_reft: |_, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
             constant_info: |_, _| empty_query!(),
+            static_info: |_, _| empty_query!(),
             sort_decl_param_count: |_, _| empty_query!(),
         }
     }
@@ -265,6 +267,7 @@ pub struct Queries<'genv, 'tcx> {
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     constant_info: Cache<DefId, QueryResult<rty::ConstantInfo>>,
+    static_info: Cache<DefId, QueryResult<rty::StaticInfo>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
@@ -306,6 +309,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             check_wf: Default::default(),
             adt_def: Default::default(),
             constant_info: Default::default(),
+            static_info: Default::default(),
             generics_of: Default::default(),
             refinement_generics_of: Default::default(),
             predicates_of: Default::default(),
@@ -601,6 +605,22 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     }
                     Ok(rty::ConstantInfo::Uninterpreted)
                 },
+            )
+        })
+    }
+
+    pub(crate) fn static_info(
+        &self,
+        genv: GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<rty::StaticInfo> {
+        run_with_cache(&self.static_info, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                self,
+                |def_id| (self.providers.static_info)(genv, def_id),
+                |def_id| genv.cstore().static_info(def_id),
+                |_def_id| Ok(rty::StaticInfo::Unknown),
             )
         })
     }

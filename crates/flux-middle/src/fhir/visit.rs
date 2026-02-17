@@ -324,6 +324,11 @@ pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
                 vis.visit_expr(expr);
             }
         }
+        ItemKind::Static(ty) => {
+            if let Some(ty) = ty {
+                vis.visit_ty(ty);
+            }
+        }
     }
 }
 
@@ -350,6 +355,10 @@ pub fn walk_foreign_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ForeignIte
         ForeignItemKind::Fn(fn_sig, generics) => {
             vis.visit_generics(generics);
             vis.visit_fn_sig(fn_sig);
+        }
+        ForeignItemKind::Static(ty, _, _, generics) => {
+            vis.visit_generics(generics);
+            vis.visit_ty(ty);
         }
     }
 }
