@@ -273,27 +273,24 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         r
     }
 
-    pub fn with_bound_vars_removable<R1, R2>(
+    pub fn with_bound_vars_removable<T>(
         &self,
         vars: &[BoundVariableKind],
         vars_to_remove: FxHashSet<BoundVar>,
         fn_root_layer_type: Option<FnRootLayerType>,
-        fmt_body: impl FnOnce(&mut String) -> Result<R1, fmt::Error>,
-        fmt_vars_with_body: impl FnOnce(R1, BoundVarLayer, String) -> Result<R2, fmt::Error>,
-    ) -> Result<R2, fmt::Error> {
+        fmt: impl FnOnce() -> Result<T, fmt::Error>,
+    ) -> Result<T, fmt::Error> {
         self.bvar_env
             .push_layer(vars, vars_to_remove, fn_root_layer_type);
-        let mut body = String::new();
-        let r1 = fmt_body(&mut body)?;
         // We need to be careful when rendering the vars to _not_
         // refer to the `vars_to_remove` in the context since it'll
         // still be there. If we remove the layer, then the vars
         // won't render accurately.
         //
         // For now, this should be fine, though.
-        let r2 = fmt_vars_with_body(r1, self.bvar_env.peek_layer().unwrap(), body)?;
+        let r = fmt()?;
         self.bvar_env.pop_layer();
-        Ok(r2)
+        Ok(r)
     }
 
     pub fn fmt_bound_vars(
@@ -553,7 +550,7 @@ impl BoundVarEnv {
         self.layers.borrow_mut().push(layer);
     }
 
-    fn peek_layer(&self) -> Option<BoundVarLayer> {
+    pub fn peek_layer(&self) -> Option<BoundVarLayer> {
         self.layers.borrow().last().cloned()
     }
 

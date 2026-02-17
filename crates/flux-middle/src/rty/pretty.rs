@@ -66,47 +66,39 @@ fn format_fn_root_binder<T: Pretty + TypeVisitable>(
     let vars = binder.vars();
     let redundant_bvars = binder.skip_binder_ref().redundant_bvars();
 
-    cx.with_bound_vars_removable(
-        vars,
-        redundant_bvars,
-        Some(fn_root_layer_type),
-        |f_body| {
-            // First format the body, adding a dectorator (@ or #) to vars in indexes that we can.
-            w!(cx, f_body, "{:?}", binder.skip_binder_ref())
-        },
-        |(), bound_var_layer, body| {
-            // Then remove any vars that we added a decorator to.
-            //
-            // As well as any vars that we are removing because they are redundant.
+    cx.with_bound_vars_removable(vars, redundant_bvars, Some(fn_root_layer_type), || {
+        // First format the body, adding a dectorator (@ or #) to vars in indexes that we can.
+        let body = format_cx!(cx, "{:?}", binder.skip_binder_ref());
 
-            let BoundVarLayer {
-                successfully_removed_vars,
-                layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer),
-                ..
-            } = bound_var_layer
-            else {
-                unreachable!()
-            };
-            let filtered_vars = vars
-                .into_iter()
-                .enumerate()
-                .filter_map(|(idx, var)| {
-                    let not_removed =
-                        !successfully_removed_vars.contains(&BoundVar::from_usize(idx));
-                    let refine_var = matches!(var, BoundVariableKind::Refine(..));
-                    let not_seen = !fn_root_layer.seen_vars.contains(&BoundVar::from_usize(idx));
-                    if not_removed && refine_var && not_seen { Some(var.clone()) } else { None }
-                })
-                .collect_vec();
-            if filtered_vars.is_empty() {
-                write!(f, "{}", body)
-            } else {
-                let left = format!("{binder_name}<");
-                let right = format!("> {}", body);
-                cx.fmt_bound_vars(true, &left, &filtered_vars, &right, f)
-            }
-        },
-    )
+        // Then remove any vars that we added a decorator to.
+        //
+        // As well as any vars that we are removing because they are redundant.
+        let BoundVarLayer {
+            successfully_removed_vars,
+            layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer),
+            ..
+        } = cx.bvar_env.peek_layer().unwrap()
+        else {
+            unreachable!()
+        };
+        let filtered_vars = vars
+            .into_iter()
+            .enumerate()
+            .filter_map(|(idx, var)| {
+                let not_removed = !successfully_removed_vars.contains(&BoundVar::from_usize(idx));
+                let refine_var = matches!(var, BoundVariableKind::Refine(..));
+                let not_seen = !fn_root_layer.seen_vars.contains(&BoundVar::from_usize(idx));
+                if not_removed && refine_var && not_seen { Some(var.clone()) } else { None }
+            })
+            .collect_vec();
+        if filtered_vars.is_empty() {
+            write!(f, "{}", body)
+        } else {
+            let left = format!("{binder_name}<");
+            let right = format!("> {}", body);
+            cx.fmt_bound_vars(true, &left, &filtered_vars, &right, f)
+        }
+    })
 }
 
 impl<T: Pretty> Pretty for EarlyBinder<T> {
@@ -439,7 +431,7 @@ impl Pretty for Ty {
                 if cx.hide_refinements {
                     w!(cx, f, "{:?}", ty)
                 } else {
-                    w!(cx, f, "{{ {:?} | {:?} }}", ty, IdxFmt(pred.clone()))
+                    w!(cx, f, "{{ {:?} | {:?} }}", ty, pred.clone())
                 }
             }
             TyKind::Param(param_ty) => w!(cx, f, "{}", ^param_ty),

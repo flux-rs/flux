@@ -30,7 +30,6 @@
 //!
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
-use std::fmt::Write;
 
 use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
@@ -437,40 +436,45 @@ mod pretty {
                 CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
                     let redundant_bvars = poly_constr.skip_binder_ref().redundant_bvars();
-                    cx.with_bound_vars_removable(
-                        poly_constr.vars(),
-                        redundant_bvars,
-                        None,
-                        |f_body| {
-                            let constr = poly_constr.skip_binder_ref();
-                            if constr.pred().is_trivially_true() {
-                                w!(cx, f_body, "{:?}", &constr.ty)
+                    cx.with_bound_vars_removable(poly_constr.vars(), redundant_bvars, None, || {
+                        let constr = poly_constr.skip_binder_ref();
+                        let ty_fmt = format_cx!(cx, "{:?}", &constr.ty);
+                        let pred_fmt = if !constr.pred().is_trivially_true() {
+                            Some(format_cx!(cx, "{:?}", constr.pred()))
+                        } else {
+                            None
+                        };
+
+                        let bound_var_layer = cx.bvar_env.peek_layer().unwrap();
+                        let vars = poly_constr
+                            .vars()
+                            .into_iter()
+                            .enumerate()
+                            .filter_map(|(idx, var)| {
+                                let not_removed = !bound_var_layer
+                                    .successfully_removed_vars
+                                    .contains(&BoundVar::from_usize(idx));
+                                let refine_var = matches!(var, BoundVariableKind::Refine(..));
+                                if not_removed && refine_var { Some(var.clone()) } else { None }
+                            })
+                            .collect_vec();
+
+                        if vars.is_empty() {
+                            if let Some(pred_fmt) = pred_fmt {
+                                w!(cx, f, "{{ {} | {} }}", ^ty_fmt, ^pred_fmt)
                             } else {
-                                w!(cx, f_body, "{:?} | {:?}", &constr.ty, &constr.pred)
+                                w!(cx, f, "{}", ^ty_fmt)
                             }
-                        },
-                        |(), bound_var_layer, body| {
-                            let vars = poly_constr
-                                .vars()
-                                .into_iter()
-                                .enumerate()
-                                .filter_map(|(idx, var)| {
-                                    let not_removed = !bound_var_layer
-                                        .successfully_removed_vars
-                                        .contains(&BoundVar::from_usize(idx));
-                                    let refine_var = matches!(var, BoundVariableKind::Refine(..));
-                                    if not_removed && refine_var { Some(var.clone()) } else { None }
-                                })
-                                .collect_vec();
-                            if vars.is_empty() {
-                                write!(f, "{}", body)
+                        } else {
+                            let left = "{";
+                            let right = if let Some(pred_fmt) = pred_fmt {
+                                format_cx!(cx, ". {} | {} }}", ^ty_fmt, ^pred_fmt)
                             } else {
-                                let left = "{";
-                                let right = format!(". {} }}", body);
-                                cx.fmt_bound_vars(false, left, &vars, &right, f)
-                            }
-                        },
-                    )
+                                format_cx!(cx, ". {} }}", ^ty_fmt)
+                            };
+                            cx.fmt_bound_vars(false, left, &vars, &right, f)
+                        }
+                    })
                 }
             }
         }
