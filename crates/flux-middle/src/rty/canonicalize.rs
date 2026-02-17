@@ -458,7 +458,7 @@ mod pretty {
                                 write!(f, "{ty_fmt}")
                             }
                         } else {
-                            cx.fmt_bound_vars(false, "{{", &vars, ". ", f)?;
+                            cx.fmt_bound_vars(false, "{", &vars, ". ", f)?;
                             if let Some(pred_fmt) = pred_fmt {
                                 write!(f, "{ty_fmt} | {pred_fmt} }}")
                             } else {
