@@ -139,7 +139,8 @@ pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 use crate::{
     global_env::GlobalEnv,
     rty::{
-        AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam, Name, PrettyMap,
+        AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, BoundVariableKinds,
+        EarlyReftParam, Name, PrettyMap,
     },
 };
 
@@ -431,6 +432,31 @@ pub struct BoundVarLayer {
     pub successfully_removed_vars: FxHashSet<BoundVar>,
 }
 
+impl BoundVarLayer {
+    pub fn filter_vars(&self, vars: &BoundVariableKinds) -> Vec<BoundVariableKind> {
+        vars.into_iter()
+            .enumerate()
+            .filter_map(|(idx, var)| {
+                let bvar = BoundVar::from_usize(idx);
+
+                if !matches!(var, BoundVariableKind::Refine(..)) {
+                    return None;
+                }
+                if self.successfully_removed_vars.contains(&bvar) {
+                    return None;
+                }
+                if let BoundVarLayerMap::FnRootLayerMap(fn_root_layer) = &self.layer_map
+                    && fn_root_layer.seen_vars.contains(&bvar)
+                {
+                    return None;
+                }
+
+                Some(var.clone())
+            })
+            .collect()
+    }
+}
+
 #[derive(Clone)]
 pub enum BoundVarLayerMap {
     LayerMap(UnordMap<BoundVar, BoundVarName>),
@@ -453,11 +479,13 @@ pub enum BoundVarLayerMap {
 }
 
 impl BoundVarLayerMap {
-    fn name_map(&self) -> &UnordMap<BoundVar, BoundVarName> {
+    fn get(&self, bvar: BoundVar) -> Option<BoundVarName> {
         match self {
             Self::LayerMap(name_map) => name_map,
             Self::FnRootLayerMap(root_layer) => &root_layer.name_map,
         }
+        .get(&bvar)
+        .copied()
     }
 }
 
@@ -516,9 +544,7 @@ impl BoundVarEnv {
         layers
             .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
             .layer_map
-            .name_map()
-            .get(&var)
-            .copied()
+            .get(var)
     }
 
     fn push_layer(

@@ -73,24 +73,7 @@ fn format_fn_root_binder<T: Pretty + TypeVisitable>(
         // Then remove any vars that we added a decorator to.
         //
         // As well as any vars that we are removing because they are redundant.
-        let BoundVarLayer {
-            successfully_removed_vars,
-            layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer),
-            ..
-        } = cx.bvar_env.peek_layer().unwrap()
-        else {
-            unreachable!()
-        };
-        let filtered_vars = vars
-            .into_iter()
-            .enumerate()
-            .filter_map(|(idx, var)| {
-                let not_removed = !successfully_removed_vars.contains(&BoundVar::from_usize(idx));
-                let refine_var = matches!(var, BoundVariableKind::Refine(..));
-                let not_seen = !fn_root_layer.seen_vars.contains(&BoundVar::from_usize(idx));
-                if not_removed && refine_var && not_seen { Some(var.clone()) } else { None }
-            })
-            .collect_vec();
+        let filtered_vars = cx.bvar_env.peek_layer().unwrap().filter_vars(vars);
         if filtered_vars.is_empty() {
             write!(f, "{}", body)
         } else {
