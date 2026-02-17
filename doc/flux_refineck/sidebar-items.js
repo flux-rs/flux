@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["call_error","check_fn","report_errors","report_expected_neg","report_fixpoint_errors","ret_error"],"mod":["checker","compare_impl_item","errors","ghost_statements","invariants","primops","queue","type_env"],"static":["DEFAULT_LOCALE_RESOURCE"]};
+window.SIDEBAR_ITEMS = {"fn":["call_error","check_body","check_fn","check_static","report_errors","report_expected_neg","report_fixpoint_errors","ret_error"],"mod":["checker","compare_impl_item","errors","ghost_statements","invariants","primops","queue","type_env"],"static":["DEFAULT_LOCALE_RESOURCE"]};
