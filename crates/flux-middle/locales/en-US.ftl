@@ -16,6 +16,9 @@ middle_query_bug =
 middle_query_ignored_item =
     use of ignored item
 
+middle_query_not_included_item =
+    use of item that was not included
+
 # Query Errors reported at use site
 
 middle_query_unsupported_at =
@@ -25,6 +28,10 @@ middle_query_unsupported_at =
 middle_query_ignored_at =
     use of ignored {$kind} `{$name}`
     .label = help: try ignoring or trusting this code
+
+middle_query_not_included_at =
+    use of {$kind} `{$name}` that was not included
+    .label = help: try including the file or module where `{$name}` is defined
 
 middle_query_missing_assoc_reft_at =
     associated refinement `{$name}` is missing from implementation

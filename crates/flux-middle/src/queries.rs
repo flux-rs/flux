@@ -95,6 +95,10 @@ pub enum QueryErr {
         msg: String,
     },
     Emitted(ErrorGuaranteed),
+    /// A definition from another crate was used but not explicitly included
+    NotIncluded {
+        def_id: DefId,
+    },
 }
 
 #[macro_export]
@@ -1056,6 +1060,13 @@ impl<'a> Diagnostic<'a> for QueryErr {
                         diag.code(E0999);
                         diag
                     }
+                    QueryErr::NotIncluded { def_id } => {
+                        let def_span = tcx.def_span(def_id);
+                        let mut diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_not_included_item);
+                        diag.code(E0999);
+                        diag
+                    }
                     QueryErr::InvalidGenericArg { def_id } => {
                         let def_span = tcx.def_span(def_id);
                         let mut diag =
@@ -1126,6 +1137,14 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                     QueryErr::Ignored { def_id } => {
                         let mut diag =
                             dcx.struct_span_err(cx_span, fluent::middle_query_ignored_at);
+                        diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
+                        diag.arg("name", def_id_to_string(def_id));
+                        diag.span_label(cx_span, fluent::_subdiag::label);
+                        diag
+                    }
+                    QueryErr::NotIncluded { def_id } => {
+                        let mut diag =
+                            dcx.struct_span_err(cx_span, fluent::middle_query_not_included_at);
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
                         diag.span_label(cx_span, fluent::_subdiag::label);

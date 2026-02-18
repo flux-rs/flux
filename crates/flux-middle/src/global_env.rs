@@ -80,7 +80,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         query: impl FnOnce(Self, K) -> QueryResult<R>,
     ) -> QueryResult<R> {
         if !self.inner.queries.queried(key.def_id()) {
-            return Err(QueryErr::Ignored { def_id: key.def_id() });
+            return Err(QueryErr::NotIncluded { def_id: key.def_id() });
         }
 
         query(self, key)
