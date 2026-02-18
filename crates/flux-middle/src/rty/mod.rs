@@ -40,7 +40,7 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 pub use normalize::{FuncInfo, NormalizedDefns, local_deps};
-use refining::{Refine as _, Refiner};
+use refining::Refiner;
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
 use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};
@@ -1579,11 +1579,11 @@ impl Ty {
         BaseTy::Slice(ty).to_ty()
     }
 
-    pub fn mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: Ty) -> QueryResult<Ty> {
+    pub fn mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: GenericArg) -> QueryResult<Ty> {
         let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
         let adt_def = genv.adt_def(def_id)?;
 
-        let args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
+        let args = List::from_arr([GenericArg::Ty(deref_ty), alloc_ty]);
 
         let bty = BaseTy::adt(adt_def, args);
         Ok(Ty::indexed(bty, Expr::unit_struct(def_id)))
@@ -1595,8 +1595,11 @@ impl Ty {
         let generics = genv.generics_of(def_id)?;
         let alloc_ty = genv
             .lower_type_of(generics.own_params[1].def_id)?
-            .skip_binder()
-            .refine(&Refiner::default_for_item(genv, def_id)?)?;
+            .skip_binder();
+        let alloc_ty = Refiner::default_for_item(genv, def_id)?.refine_generic_arg(
+            &generics.own_params[1],
+            &flux_rustc_bridge::ty::GenericArg::Ty(alloc_ty),
+        )?;
 
         Ty::mk_box(genv, deref_ty, alloc_ty)
     }
@@ -2449,8 +2452,8 @@ pub type GenericArgs = List<GenericArg>;
 #[extension(pub trait GenericArgsExt)]
 impl GenericArgs {
     #[track_caller]
-    fn box_args(&self) -> (&Ty, &Ty) {
-        if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
+    fn box_args(&self) -> (&Ty, &GenericArg) {
+        if let [GenericArg::Ty(deref), alloc] = &self[..] {
             (deref, alloc)
         } else {
             bug!("invalid generic arguments for box");
