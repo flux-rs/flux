@@ -286,7 +286,7 @@ fn check_fn_subtyping(
         .map(|ty| infcx.unpack(ty))
         .collect_vec();
 
-    let mut env = TypeEnv::empty();
+    let mut env = TypeEnv::empty(&infcx.allow_raw_deref);
     let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals)?;
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 

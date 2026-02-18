@@ -1,6 +1,7 @@
 use std::{clone::Clone, fmt, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
+use flux_config::RawDerefMode;
 use flux_infer::{
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
     projections::NormalizeExt as _,
@@ -22,6 +23,7 @@ use rustc_span::Span;
 #[derive(Clone, Default)]
 pub(crate) struct PlacesTree {
     map: FxHashMap<Loc, Binding>,
+    allow_raw_deref: RawDerefMode,
 }
 
 #[derive(Clone, Debug)]
@@ -128,6 +130,14 @@ impl PlacesTree {
         Unfolder::new(infcx, cursor, span).run(self)
     }
 
+    pub fn new(allow_raw_deref: RawDerefMode) -> Self {
+        Self { map: Default::default(), allow_raw_deref }
+    }
+
+    pub fn allow_raw_deref(&self) -> bool {
+        matches!(self.allow_raw_deref, RawDerefMode::Ok)
+    }
+
     pub fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place) {
         let mut cursor = self.cursor_for(place);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
@@ -195,7 +205,7 @@ impl PlacesTree {
                             ty = Ty::uninit();
                             break;
                         }
-                        TyKind::Downcast(..) => {
+                        TyKind::Downcast(..) if self.allow_raw_deref() => {
                             // Downcast types represent already-unfolded structs with fields
                             // expanded. When we encounter one during deref, we leave it as-is
                             // since there's no actual pointer to dereference - the next
@@ -487,7 +497,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                     Ty::ptr(PtrKind::Box, path)
                 }
             }
-            TyKind::Indexed(BaseTy::RawPtr(deref_ty, _), _) => {
+            TyKind::Indexed(BaseTy::RawPtr(deref_ty, _), _) if self.infcx.allow_raw_deref() => {
                 // Raw pointers cannot be strongly updated, so we just fold the dereferenced type
                 // directly, regardless of whether we're in a reference or not
                 deref_ty.try_fold_with(self)?
@@ -496,7 +506,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                 self.in_ref = self.in_ref.max(Some(*mutbl));
                 Ty::mk_ref(*re, ty.try_fold_with(self)?, *mutbl)
             }
-            TyKind::Downcast(..) => {
+            TyKind::Downcast(..) if self.infcx.allow_raw_deref() => {
                 // Downcast types represent already-unfolded structs with fields expanded.
                 // When encountered during deref, we leave it unchanged since there's no actual
                 // pointer to dereference. Similar handling exists in lookup_inner (line ~199).

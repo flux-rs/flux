@@ -82,6 +82,10 @@ fn check_overflow() -> OverflowMode {
     FLAGS.check_overflow
 }
 
+fn allow_raw_deref() -> RawDerefMode {
+    FLAGS.allow_raw_deref
+}
+
 pub fn allow_uninterpreted_cast() -> bool {
     FLAGS.allow_uninterpreted_cast
 }
@@ -322,6 +326,50 @@ impl fmt::Display for OverflowMode {
 
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
 #[serde(try_from = "String")]
+pub enum RawDerefMode {
+    /// Don't allow raw pointer dereferences (default)
+    #[default]
+    None,
+    /// Allow raw pointer dereferences
+    Ok,
+}
+
+impl RawDerefMode {
+    const ERROR: &'static str = "expected one of `none` or `ok`";
+}
+
+impl FromStr for RawDerefMode {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_ascii_lowercase();
+        match s.as_str() {
+            "none" => Ok(RawDerefMode::None),
+            "ok" => Ok(RawDerefMode::Ok),
+            _ => Err(Self::ERROR),
+        }
+    }
+}
+
+impl TryFrom<String> for RawDerefMode {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl fmt::Display for RawDerefMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RawDerefMode::None => write!(f, "none"),
+            RawDerefMode::Ok => write!(f, "ok"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Default)]
+#[serde(try_from = "String")]
 pub enum SmtSolver {
     #[default]
     Z3,
@@ -373,6 +421,8 @@ pub struct InferOpts {
     pub solver: SmtSolver,
     /// Whether to allow uninterpreted casts (e.g., from some random `S` to `int`).
     pub allow_uninterpreted_cast: bool,
+    /// Whether to allow raw pointer dereferences.
+    pub allow_raw_deref: RawDerefMode,
 }
 
 impl From<PartialInferOpts> for InferOpts {
@@ -384,6 +434,7 @@ impl From<PartialInferOpts> for InferOpts {
             allow_uninterpreted_cast: opts
                 .allow_uninterpreted_cast
                 .unwrap_or_else(allow_uninterpreted_cast),
+            allow_raw_deref: opts.allow_raw_deref.unwrap_or_else(allow_raw_deref),
         }
     }
 }
@@ -394,6 +445,7 @@ pub struct PartialInferOpts {
     pub scrape_quals: Option<bool>,
     pub solver: Option<SmtSolver>,
     pub allow_uninterpreted_cast: Option<bool>,
+    pub allow_raw_deref: Option<RawDerefMode>,
 }
 
 impl PartialInferOpts {
@@ -404,6 +456,7 @@ impl PartialInferOpts {
             .or(other.allow_uninterpreted_cast);
         self.scrape_quals = self.scrape_quals.or(other.scrape_quals);
         self.solver = self.solver.or(other.solver);
+        self.allow_raw_deref = self.allow_raw_deref.or(other.allow_raw_deref);
     }
 }
 
