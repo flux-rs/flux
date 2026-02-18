@@ -682,15 +682,19 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     }
 
     pub(crate) fn generics_of(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::Generics> {
+        // Box is special: its first type parameter (the pointee `T`) is refined as a `Type` rather
+        // than a `Base`. This allows refinements to "see through" the Box, similar to how references
+        // work.
+        if genv.tcx().is_lang_item(def_id, LangItem::OwnedBox) {
+            return Ok(refining::refine_generics(&genv.lower_generics_of(def_id), true));
+        }
         run_with_cache(&self.generics_of, def_id, || {
             def_id.dispatch_query(
                 genv,
                 self,
                 |def_id| (self.providers.generics_of)(genv, def_id),
                 |def_id| genv.cstore().generics_of(def_id),
-                |def_id| {
-                    Ok(refining::refine_generics(genv, def_id, &genv.lower_generics_of(def_id)))
-                },
+                |def_id| Ok(refining::refine_generics(&genv.lower_generics_of(def_id), false)),
             )
         })
     }
