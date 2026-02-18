@@ -79,14 +79,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         key: K,
         query: impl FnOnce(Self, K) -> QueryResult<R>,
     ) -> QueryResult<R> {
-        match query(self, key) {
-            Err(QueryErr::Unsupported { def_id, err })
-                if !self.inner.queries.queried(key.def_id()) =>
-            {
-                Err(QueryErr::unsupported_always_at_use(def_id, err))
-            }
-            result => result,
+        if !self.inner.queries.queried(key.def_id()) {
+            return Err(QueryErr::Ignored { def_id: key.def_id() });
         }
+
+        query(self, key)
     }
 
     pub fn tcx(self) -> TyCtxt<'tcx> {

@@ -70,10 +70,6 @@ pub enum QueryErr {
         def_id: DefId,
         err: UnsupportedErr,
     },
-    UnsupportedAlwaysAtUse {
-        def_id: DefId,
-        err: UnsupportedErr,
-    },
     Ignored {
         def_id: DefId,
     },
@@ -114,10 +110,6 @@ macro_rules! query_bug {
 impl QueryErr {
     pub fn unsupported(def_id: DefId, err: UnsupportedErr) -> Self {
         QueryErr::Unsupported { def_id, err }
-    }
-
-    pub fn unsupported_always_at_use(def_id: DefId, err: UnsupportedErr) -> Self {
-        QueryErr::UnsupportedAlwaysAtUse { def_id, err }
     }
 
     #[track_caller]
@@ -1057,9 +1049,6 @@ impl<'a> Diagnostic<'a> for QueryErr {
                         diag.note(err.descr);
                         diag
                     }
-                    QueryErr::UnsupportedAlwaysAtUse { .. } => {
-                        QueryErrAt { cx: ErrCtxt::Misc(DUMMY_SP), err: self }.into_diag(dcx, _level)
-                    }
                     QueryErr::Ignored { def_id } => {
                         let def_span = tcx.def_span(def_id);
                         let mut diag =
@@ -1124,8 +1113,7 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                 let tcx = tcx.expect("no TyCtxt stored in tls");
                 let cx_span = self.cx.span();
                 let mut diag = match self.err {
-                    QueryErr::Unsupported { def_id, err, .. }
-                    | QueryErr::UnsupportedAlwaysAtUse { def_id, err } => {
+                    QueryErr::Unsupported { def_id, err, .. } => {
                         let mut diag =
                             dcx.struct_span_err(cx_span, fluent::middle_query_unsupported_at);
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
