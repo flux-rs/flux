@@ -30,7 +30,6 @@
 //!
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
-
 use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use itertools::Itertools;
@@ -43,7 +42,7 @@ use super::{
     TyKind, TyOrBase,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
 };
-use crate::rty::{BoundReftKind, ExprKind, HoleKind};
+use crate::rty::{BoundReftKind, ExprKind, GenericArgsExt, HoleKind};
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
 /// It can be configured to stop hoisting at specific type constructors.
