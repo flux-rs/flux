@@ -404,96 +404,97 @@
 <a href=#404 id=404 data-nosnippet>404</a>            ty::ClauseKind::ConstArgHasType(const_, ty) =&gt; {
 <a href=#405 id=405 data-nosnippet>405</a>                rty::ClauseKind::ConstArgHasType(const_.clone(), ty.refine(<span class="kw-2">&amp;</span>refiner.as_default())<span class="question-mark">?</span>)
 <a href=#406 id=406 data-nosnippet>406</a>            }
-<a href=#407 id=407 data-nosnippet>407</a>        };
-<a href=#408 id=408 data-nosnippet>408</a>        <span class="prelude-val">Ok</span>(kind)
-<a href=#409 id=409 data-nosnippet>409</a>    }
-<a href=#410 id=410 data-nosnippet>410</a>}
-<a href=#411 id=411 data-nosnippet>411</a>
-<a href=#412 id=412 data-nosnippet>412</a><span class="kw">impl </span>Refine <span class="kw">for </span>ty::ExistentialPredicate {
-<a href=#413 id=413 data-nosnippet>413</a>    <span class="kw">type </span>Output = rty::ExistentialPredicate;
-<a href=#414 id=414 data-nosnippet>414</a>
-<a href=#415 id=415 data-nosnippet>415</a>    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;<span class="self">Self</span>::Output&gt; {
-<a href=#416 id=416 data-nosnippet>416</a>        <span class="kw">let </span>pred = <span class="kw">match </span><span class="self">self </span>{
-<a href=#417 id=417 data-nosnippet>417</a>            ty::ExistentialPredicate::Trait(trait_ref) =&gt; {
-<a href=#418 id=418 data-nosnippet>418</a>                rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
-<a href=#419 id=419 data-nosnippet>419</a>                    def_id: trait_ref.def_id,
-<a href=#420 id=420 data-nosnippet>420</a>                    args: refiner.refine_existential_predicate_generic_args(
-<a href=#421 id=421 data-nosnippet>421</a>                        trait_ref.def_id,
-<a href=#422 id=422 data-nosnippet>422</a>                        <span class="kw-2">&amp;</span>trait_ref.args,
-<a href=#423 id=423 data-nosnippet>423</a>                    )<span class="question-mark">?</span>,
-<a href=#424 id=424 data-nosnippet>424</a>                })
-<a href=#425 id=425 data-nosnippet>425</a>            }
-<a href=#426 id=426 data-nosnippet>426</a>            ty::ExistentialPredicate::Projection(projection) =&gt; {
-<a href=#427 id=427 data-nosnippet>427</a>                <span class="kw">let </span>rty::TyOrBase::Base(term) = refiner.refine_ty_or_base(<span class="kw-2">&amp;</span>projection.term)<span class="question-mark">? </span><span class="kw">else </span>{
-<a href=#428 id=428 data-nosnippet>428</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
-<a href=#429 id=429 data-nosnippet>429</a>                        refiner.def_id,
-<a href=#430 id=430 data-nosnippet>430</a>                        <span class="string">"sorry, we can't handle non-base associated types"
-<a href=#431 id=431 data-nosnippet>431</a>                    </span>));
-<a href=#432 id=432 data-nosnippet>432</a>                };
-<a href=#433 id=433 data-nosnippet>433</a>                rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
-<a href=#434 id=434 data-nosnippet>434</a>                    def_id: projection.def_id,
-<a href=#435 id=435 data-nosnippet>435</a>                    args: refiner.refine_existential_predicate_generic_args(
-<a href=#436 id=436 data-nosnippet>436</a>                        projection.def_id,
-<a href=#437 id=437 data-nosnippet>437</a>                        <span class="kw-2">&amp;</span>projection.args,
-<a href=#438 id=438 data-nosnippet>438</a>                    )<span class="question-mark">?</span>,
-<a href=#439 id=439 data-nosnippet>439</a>                    term,
-<a href=#440 id=440 data-nosnippet>440</a>                })
-<a href=#441 id=441 data-nosnippet>441</a>            }
-<a href=#442 id=442 data-nosnippet>442</a>            ty::ExistentialPredicate::AutoTrait(def_id) =&gt; {
-<a href=#443 id=443 data-nosnippet>443</a>                rty::ExistentialPredicate::AutoTrait(<span class="kw-2">*</span>def_id)
-<a href=#444 id=444 data-nosnippet>444</a>            }
-<a href=#445 id=445 data-nosnippet>445</a>        };
-<a href=#446 id=446 data-nosnippet>446</a>        <span class="prelude-val">Ok</span>(pred)
-<a href=#447 id=447 data-nosnippet>447</a>    }
-<a href=#448 id=448 data-nosnippet>448</a>}
-<a href=#449 id=449 data-nosnippet>449</a>
-<a href=#450 id=450 data-nosnippet>450</a><span class="kw">impl </span>Refine <span class="kw">for </span>ty::GenericPredicates {
-<a href=#451 id=451 data-nosnippet>451</a>    <span class="kw">type </span>Output = rty::GenericPredicates;
-<a href=#452 id=452 data-nosnippet>452</a>
-<a href=#453 id=453 data-nosnippet>453</a>    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::GenericPredicates&gt; {
-<a href=#454 id=454 data-nosnippet>454</a>        <span class="prelude-val">Ok</span>(rty::GenericPredicates {
-<a href=#455 id=455 data-nosnippet>455</a>            parent: <span class="self">self</span>.parent,
-<a href=#456 id=456 data-nosnippet>456</a>            predicates: refiner.refine(<span class="kw-2">&amp;</span><span class="self">self</span>.predicates)<span class="question-mark">?</span>,
-<a href=#457 id=457 data-nosnippet>457</a>        })
-<a href=#458 id=458 data-nosnippet>458</a>    }
-<a href=#459 id=459 data-nosnippet>459</a>}
-<a href=#460 id=460 data-nosnippet>460</a>
-<a href=#461 id=461 data-nosnippet>461</a><span class="kw">impl</span>&lt;T&gt; Refine <span class="kw">for </span>List&lt;T&gt;
-<a href=#462 id=462 data-nosnippet>462</a><span class="kw">where
-<a href=#463 id=463 data-nosnippet>463</a>    </span>T: SliceInternable,
-<a href=#464 id=464 data-nosnippet>464</a>    T: Refine&lt;Output: SliceInternable&gt;,
-<a href=#465 id=465 data-nosnippet>465</a>{
-<a href=#466 id=466 data-nosnippet>466</a>    <span class="kw">type </span>Output = rty::List&lt;T::Output&gt;;
-<a href=#467 id=467 data-nosnippet>467</a>
-<a href=#468 id=468 data-nosnippet>468</a>    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::List&lt;T::Output&gt;&gt; {
-<a href=#469 id=469 data-nosnippet>469</a>        refiner.refine(<span class="kw-2">&amp;</span><span class="self">self</span>[..])
-<a href=#470 id=470 data-nosnippet>470</a>    }
-<a href=#471 id=471 data-nosnippet>471</a>}
-<a href=#472 id=472 data-nosnippet>472</a>
-<a href=#473 id=473 data-nosnippet>473</a><span class="kw">impl</span>&lt;T&gt; Refine <span class="kw">for </span>[T]
-<a href=#474 id=474 data-nosnippet>474</a><span class="kw">where
-<a href=#475 id=475 data-nosnippet>475</a>    </span>T: Refine&lt;Output: SliceInternable&gt;,
-<a href=#476 id=476 data-nosnippet>476</a>{
-<a href=#477 id=477 data-nosnippet>477</a>    <span class="kw">type </span>Output = rty::List&lt;T::Output&gt;;
-<a href=#478 id=478 data-nosnippet>478</a>
-<a href=#479 id=479 data-nosnippet>479</a>    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::List&lt;T::Output&gt;&gt; {
-<a href=#480 id=480 data-nosnippet>480</a>        <span class="self">self</span>.iter().map(|t| refiner.refine(t)).try_collect()
-<a href=#481 id=481 data-nosnippet>481</a>    }
-<a href=#482 id=482 data-nosnippet>482</a>}
-<a href=#483 id=483 data-nosnippet>483</a>
-<a href=#484 id=484 data-nosnippet>484</a><span class="kw">fn </span>refine_default(bty: rty::BaseTy) -&gt; rty::SubsetTyCtor {
-<a href=#485 id=485 data-nosnippet>485</a>    <span class="kw">let </span>sort = bty.sort();
-<a href=#486 id=486 data-nosnippet>486</a>    <span class="kw">let </span>constr = rty::SubsetTy::trivial(bty.shift_in_escaping(<span class="number">1</span>), rty::Expr::nu());
-<a href=#487 id=487 data-nosnippet>487</a>    rty::Binder::bind_with_sort(constr, sort)
-<a href=#488 id=488 data-nosnippet>488</a>}
-<a href=#489 id=489 data-nosnippet>489</a>
-<a href=#490 id=490 data-nosnippet>490</a><span class="kw">pub fn </span>refine_bound_variables(vars: <span class="kw-2">&amp;</span>[ty::BoundVariableKind]) -&gt; List&lt;rty::BoundVariableKind&gt; {
-<a href=#491 id=491 data-nosnippet>491</a>    vars.iter()
-<a href=#492 id=492 data-nosnippet>492</a>        .map(|kind| {
-<a href=#493 id=493 data-nosnippet>493</a>            <span class="kw">match </span>kind {
-<a href=#494 id=494 data-nosnippet>494</a>                ty::BoundVariableKind::Region(kind) =&gt; rty::BoundVariableKind::Region(<span class="kw-2">*</span>kind),
-<a href=#495 id=495 data-nosnippet>495</a>            }
-<a href=#496 id=496 data-nosnippet>496</a>        })
-<a href=#497 id=497 data-nosnippet>497</a>        .collect()
-<a href=#498 id=498 data-nosnippet>498</a>}
+<a href=#407 id=407 data-nosnippet>407</a>            ty::ClauseKind::UnstableFeature(sym) =&gt; rty::ClauseKind::UnstableFeature(<span class="kw-2">*</span>sym),
+<a href=#408 id=408 data-nosnippet>408</a>        };
+<a href=#409 id=409 data-nosnippet>409</a>        <span class="prelude-val">Ok</span>(kind)
+<a href=#410 id=410 data-nosnippet>410</a>    }
+<a href=#411 id=411 data-nosnippet>411</a>}
+<a href=#412 id=412 data-nosnippet>412</a>
+<a href=#413 id=413 data-nosnippet>413</a><span class="kw">impl </span>Refine <span class="kw">for </span>ty::ExistentialPredicate {
+<a href=#414 id=414 data-nosnippet>414</a>    <span class="kw">type </span>Output = rty::ExistentialPredicate;
+<a href=#415 id=415 data-nosnippet>415</a>
+<a href=#416 id=416 data-nosnippet>416</a>    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;<span class="self">Self</span>::Output&gt; {
+<a href=#417 id=417 data-nosnippet>417</a>        <span class="kw">let </span>pred = <span class="kw">match </span><span class="self">self </span>{
+<a href=#418 id=418 data-nosnippet>418</a>            ty::ExistentialPredicate::Trait(trait_ref) =&gt; {
+<a href=#419 id=419 data-nosnippet>419</a>                rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
+<a href=#420 id=420 data-nosnippet>420</a>                    def_id: trait_ref.def_id,
+<a href=#421 id=421 data-nosnippet>421</a>                    args: refiner.refine_existential_predicate_generic_args(
+<a href=#422 id=422 data-nosnippet>422</a>                        trait_ref.def_id,
+<a href=#423 id=423 data-nosnippet>423</a>                        <span class="kw-2">&amp;</span>trait_ref.args,
+<a href=#424 id=424 data-nosnippet>424</a>                    )<span class="question-mark">?</span>,
+<a href=#425 id=425 data-nosnippet>425</a>                })
+<a href=#426 id=426 data-nosnippet>426</a>            }
+<a href=#427 id=427 data-nosnippet>427</a>            ty::ExistentialPredicate::Projection(projection) =&gt; {
+<a href=#428 id=428 data-nosnippet>428</a>                <span class="kw">let </span>rty::TyOrBase::Base(term) = refiner.refine_ty_or_base(<span class="kw-2">&amp;</span>projection.term)<span class="question-mark">? </span><span class="kw">else </span>{
+<a href=#429 id=429 data-nosnippet>429</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
+<a href=#430 id=430 data-nosnippet>430</a>                        refiner.def_id,
+<a href=#431 id=431 data-nosnippet>431</a>                        <span class="string">"sorry, we can't handle non-base associated types"
+<a href=#432 id=432 data-nosnippet>432</a>                    </span>));
+<a href=#433 id=433 data-nosnippet>433</a>                };
+<a href=#434 id=434 data-nosnippet>434</a>                rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
+<a href=#435 id=435 data-nosnippet>435</a>                    def_id: projection.def_id,
+<a href=#436 id=436 data-nosnippet>436</a>                    args: refiner.refine_existential_predicate_generic_args(
+<a href=#437 id=437 data-nosnippet>437</a>                        projection.def_id,
+<a href=#438 id=438 data-nosnippet>438</a>                        <span class="kw-2">&amp;</span>projection.args,
+<a href=#439 id=439 data-nosnippet>439</a>                    )<span class="question-mark">?</span>,
+<a href=#440 id=440 data-nosnippet>440</a>                    term,
+<a href=#441 id=441 data-nosnippet>441</a>                })
+<a href=#442 id=442 data-nosnippet>442</a>            }
+<a href=#443 id=443 data-nosnippet>443</a>            ty::ExistentialPredicate::AutoTrait(def_id) =&gt; {
+<a href=#444 id=444 data-nosnippet>444</a>                rty::ExistentialPredicate::AutoTrait(<span class="kw-2">*</span>def_id)
+<a href=#445 id=445 data-nosnippet>445</a>            }
+<a href=#446 id=446 data-nosnippet>446</a>        };
+<a href=#447 id=447 data-nosnippet>447</a>        <span class="prelude-val">Ok</span>(pred)
+<a href=#448 id=448 data-nosnippet>448</a>    }
+<a href=#449 id=449 data-nosnippet>449</a>}
+<a href=#450 id=450 data-nosnippet>450</a>
+<a href=#451 id=451 data-nosnippet>451</a><span class="kw">impl </span>Refine <span class="kw">for </span>ty::GenericPredicates {
+<a href=#452 id=452 data-nosnippet>452</a>    <span class="kw">type </span>Output = rty::GenericPredicates;
+<a href=#453 id=453 data-nosnippet>453</a>
+<a href=#454 id=454 data-nosnippet>454</a>    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::GenericPredicates&gt; {
+<a href=#455 id=455 data-nosnippet>455</a>        <span class="prelude-val">Ok</span>(rty::GenericPredicates {
+<a href=#456 id=456 data-nosnippet>456</a>            parent: <span class="self">self</span>.parent,
+<a href=#457 id=457 data-nosnippet>457</a>            predicates: refiner.refine(<span class="kw-2">&amp;</span><span class="self">self</span>.predicates)<span class="question-mark">?</span>,
+<a href=#458 id=458 data-nosnippet>458</a>        })
+<a href=#459 id=459 data-nosnippet>459</a>    }
+<a href=#460 id=460 data-nosnippet>460</a>}
+<a href=#461 id=461 data-nosnippet>461</a>
+<a href=#462 id=462 data-nosnippet>462</a><span class="kw">impl</span>&lt;T&gt; Refine <span class="kw">for </span>List&lt;T&gt;
+<a href=#463 id=463 data-nosnippet>463</a><span class="kw">where
+<a href=#464 id=464 data-nosnippet>464</a>    </span>T: SliceInternable,
+<a href=#465 id=465 data-nosnippet>465</a>    T: Refine&lt;Output: SliceInternable&gt;,
+<a href=#466 id=466 data-nosnippet>466</a>{
+<a href=#467 id=467 data-nosnippet>467</a>    <span class="kw">type </span>Output = rty::List&lt;T::Output&gt;;
+<a href=#468 id=468 data-nosnippet>468</a>
+<a href=#469 id=469 data-nosnippet>469</a>    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::List&lt;T::Output&gt;&gt; {
+<a href=#470 id=470 data-nosnippet>470</a>        refiner.refine(<span class="kw-2">&amp;</span><span class="self">self</span>[..])
+<a href=#471 id=471 data-nosnippet>471</a>    }
+<a href=#472 id=472 data-nosnippet>472</a>}
+<a href=#473 id=473 data-nosnippet>473</a>
+<a href=#474 id=474 data-nosnippet>474</a><span class="kw">impl</span>&lt;T&gt; Refine <span class="kw">for </span>[T]
+<a href=#475 id=475 data-nosnippet>475</a><span class="kw">where
+<a href=#476 id=476 data-nosnippet>476</a>    </span>T: Refine&lt;Output: SliceInternable&gt;,
+<a href=#477 id=477 data-nosnippet>477</a>{
+<a href=#478 id=478 data-nosnippet>478</a>    <span class="kw">type </span>Output = rty::List&lt;T::Output&gt;;
+<a href=#479 id=479 data-nosnippet>479</a>
+<a href=#480 id=480 data-nosnippet>480</a>    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::List&lt;T::Output&gt;&gt; {
+<a href=#481 id=481 data-nosnippet>481</a>        <span class="self">self</span>.iter().map(|t| refiner.refine(t)).try_collect()
+<a href=#482 id=482 data-nosnippet>482</a>    }
+<a href=#483 id=483 data-nosnippet>483</a>}
+<a href=#484 id=484 data-nosnippet>484</a>
+<a href=#485 id=485 data-nosnippet>485</a><span class="kw">fn </span>refine_default(bty: rty::BaseTy) -&gt; rty::SubsetTyCtor {
+<a href=#486 id=486 data-nosnippet>486</a>    <span class="kw">let </span>sort = bty.sort();
+<a href=#487 id=487 data-nosnippet>487</a>    <span class="kw">let </span>constr = rty::SubsetTy::trivial(bty.shift_in_escaping(<span class="number">1</span>), rty::Expr::nu());
+<a href=#488 id=488 data-nosnippet>488</a>    rty::Binder::bind_with_sort(constr, sort)
+<a href=#489 id=489 data-nosnippet>489</a>}
+<a href=#490 id=490 data-nosnippet>490</a>
+<a href=#491 id=491 data-nosnippet>491</a><span class="kw">pub fn </span>refine_bound_variables(vars: <span class="kw-2">&amp;</span>[ty::BoundVariableKind]) -&gt; List&lt;rty::BoundVariableKind&gt; {
+<a href=#492 id=492 data-nosnippet>492</a>    vars.iter()
+<a href=#493 id=493 data-nosnippet>493</a>        .map(|kind| {
+<a href=#494 id=494 data-nosnippet>494</a>            <span class="kw">match </span>kind {
+<a href=#495 id=495 data-nosnippet>495</a>                ty::BoundVariableKind::Region(kind) =&gt; rty::BoundVariableKind::Region(<span class="kw-2">*</span>kind),
+<a href=#496 id=496 data-nosnippet>496</a>            }
+<a href=#497 id=497 data-nosnippet>497</a>        })
+<a href=#498 id=498 data-nosnippet>498</a>        .collect()
+<a href=#499 id=499 data-nosnippet>499</a>}
 </code></pre></div></section></main></body></html>
