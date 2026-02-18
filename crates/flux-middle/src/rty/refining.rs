@@ -170,8 +170,16 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         param: &rty::GenericParamDef,
         arg: &ty::GenericArg,
     ) -> QueryResult<rty::GenericArg> {
+        let is_box = if let DefKind::Struct = self.genv.def_kind(self.def_id) {
+            self.genv.tcx().adt_def(self.def_id).is_box()
+        } else {
+            false
+        };
         match (&param.kind, arg) {
             (rty::GenericParamDefKind::Type { .. }, ty::GenericArg::Ty(ty)) => {
+                Ok(rty::GenericArg::Ty(ty.refine(self)?))
+            }
+            (rty::GenericParamDefKind::Base { .. }, ty::GenericArg::Ty(ty)) if is_box => {
                 Ok(rty::GenericArg::Ty(ty.refine(self)?))
             }
             (rty::GenericParamDefKind::Base { .. }, ty::GenericArg::Ty(ty)) => {
