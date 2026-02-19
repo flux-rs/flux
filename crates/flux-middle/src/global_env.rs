@@ -1,8 +1,14 @@
-use std::{alloc, path::PathBuf, ptr, rc::Rc, slice};
+use std::{
+    alloc,
+    path::{Path, PathBuf},
+    ptr,
+    rc::Rc,
+    slice,
+};
 
 use flux_arc_interner::List;
 use flux_common::{bug, result::ErrorEmitter};
-use flux_config as config;
+use flux_config::{self as config, IncludePattern};
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
@@ -559,60 +565,102 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         opts.into()
     }
 
+    fn matches_file_path<F>(&self, def_id: MaybeExternId, matcher: F) -> bool
+    where
+        F: Fn(&Path) -> bool,
+    {
+        let def_id = def_id.local_id();
+        let tcx = self.tcx();
+        let span = tcx.def_span(def_id);
+        let sm = tcx.sess.source_map();
+        let FileName::Real(file_name) = sm.span_to_filename(span) else { return true };
+        let mut file_path = file_name.local_path_if_available();
+
+        // If the path is absolute try to normalize it to be relative to the working_dir
+        if file_path.is_absolute() {
+            let working_dir = tcx.sess.opts.working_dir.local_path_if_available();
+            let Ok(p) = file_path.strip_prefix(working_dir) else { return true };
+            file_path = p;
+        }
+
+        matcher(file_path)
+    }
+    fn matches_def(&self, def_id: MaybeExternId, def: &str) -> bool {
+        // Does this def_id's name contain `fn_name`?
+        let def_path = self.tcx().def_path_str(def_id.local_id());
+        def_path.contains(def)
+    }
+    fn matches_pos(&self, def_id: MaybeExternId, line: usize, col: usize) -> bool {
+        let def_id = def_id.local_id();
+        let tcx = self.tcx();
+        let hir_id = tcx.local_def_id_to_hir_id(def_id);
+        let body_span = tcx.hir_span_with_body(hir_id);
+        let source_map = tcx.sess.source_map();
+        let lo_pos = source_map.lookup_char_pos(body_span.lo());
+        let start_line = lo_pos.line;
+        let start_col = lo_pos.col_display;
+        let hi_pos = source_map.lookup_char_pos(body_span.hi());
+        let end_line = hi_pos.line;
+        let end_col = hi_pos.col_display;
+
+        // is the line in the range of the body?
+        if start_line < end_line {
+            // multiple lines: check if the line is in the range
+            start_line <= line && line <= end_line
+        } else {
+            // single line: check if the line is the same and the column is in range
+            start_line == line && start_col <= col && col <= end_col
+        }
+    }
+
+    /// Check whether the `def_id` (or the file where `def_id` is defined)
+    /// is in the `include` pattern, and conservatively return `true` if
+    /// anything unexpected happens.
+    fn matches_pattern(&self, def_id: MaybeExternId, pattern: &IncludePattern) -> bool {
+        if self.matches_file_path(def_id, |path| pattern.glob.is_match(path)) {
+            return true;
+        }
+        if pattern.defs.iter().any(|def| self.matches_def(def_id, def)) {
+            return true;
+        }
+        if pattern.spans.iter().any(|pos| {
+            self.matches_file_path(def_id, |path| path.ends_with(&pos.file))
+                && self.matches_pos(def_id, pos.line, pos.column)
+        }) {
+            return true;
+        }
+        false
+    }
+
+    /// Check whether the `def_id` (or the file where `def_id` is defined)
+    /// is in the `trusted` pattern, and conservatively return `false` if
+    /// anything unexpected happens.
+    fn matches_trusted_pattern(&self, def_id: MaybeExternId) -> bool {
+        let Some(pattern) = config::trusted_pattern() else { return false };
+        self.matches_pattern(def_id, pattern)
+    }
+
+    /// Check whether the `def_id` (or the file where `def_id` is defined)
+    /// is in the `include` pattern, and conservatively return `true` if
+    /// anything unexpected happens.
+    fn matches_included_pattern(&self, def_id: MaybeExternId) -> bool {
+        let Some(pattern) = config::include_pattern() else { return true };
+        self.matches_pattern(def_id, pattern)
+    }
+
+    pub fn included(&self, def_id: MaybeExternId) -> bool {
+        self.matches_included_pattern(def_id) || self.matches_trusted_pattern(def_id)
+    }
+
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
     /// explicit `#[flux::trusted(..)]` annotation and return whether that item is trusted or not.
     /// If no explicit annotation is found, return `false`.
     pub fn trusted(self, def_id: LocalDefId) -> bool {
-        let annotation = self.traverse_parents(def_id, |did| self.fhir_attr_map(did).trusted())
+        let annotation = self
+            .traverse_parents(def_id, |did| self.fhir_attr_map(did).trusted())
             .map(|trusted| trusted.to_bool())
             .unwrap_or_else(config::trusted_default);
-        annotation || self.matches_trusted_pattern(def_id)
-    }
-
-    /// Returns `true` if `def_id` matches the `-Ftrusted-pattern=...` flag.
-    fn matches_trusted_pattern(self, def_id: LocalDefId) -> bool {
-        let Some(pattern) = config::trusted_pattern() else { return false };
-        let tcx = self.tcx();
-        let span = tcx.def_span(def_id);
-        let sm = tcx.sess.source_map();
-
-        let FileName::Real(file_name) = sm.span_to_filename(span) else { return true };
-        let file_path = file_name.local_path_if_available();
-        let file_path = if file_path.is_absolute() {
-            let working_dir = tcx.sess.opts.working_dir.local_path_if_available();
-            file_path.strip_prefix(working_dir).unwrap_or(file_path)
-        } else {
-            file_path
-        };
-
-        if pattern.glob.is_match(file_path) {
-            return true;
-        }
-
-        let def_path = tcx.def_path_str(def_id);
-        if pattern.defs.iter().any(|def| def_path.contains(def.as_str())) {
-            return true;
-        }
-
-        for pos in &pattern.spans {
-            if !file_path.ends_with(&pos.file) {
-                continue;
-            }
-            let hir_id = tcx.local_def_id_to_hir_id(def_id);
-            let body_span = tcx.hir_span_with_body(hir_id);
-            let lo = sm.lookup_char_pos(body_span.lo());
-            let hi = sm.lookup_char_pos(body_span.hi());
-            let in_span = if lo.line < hi.line {
-                lo.line <= pos.line && pos.line <= hi.line
-            } else {
-                lo.line == pos.line && lo.col_display <= pos.column && pos.column <= hi.col_display
-            };
-            if in_span {
-                return true;
-            }
-        }
-
-        false
+        annotation || self.matches_trusted_pattern(MaybeExternId::Local(def_id))
     }
 
     pub fn trusted_impl(self, def_id: LocalDefId) -> bool {
