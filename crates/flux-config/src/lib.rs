@@ -78,7 +78,7 @@ pub fn include_pattern() -> Option<&'static IncludePattern> {
     FLAGS.include.as_ref()
 }
 pub fn trusted_pattern() -> Option<&'static IncludePattern> {
-    FLAGS.trusted.as_ref()
+    FLAGS.include_trusted.as_ref()
 }
 
 fn check_overflow() -> OverflowMode {

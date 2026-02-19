@@ -20,7 +20,7 @@ pub struct Flags {
     /// If present, only check files matching the [`IncludePattern`] a glob pattern.
     pub include: Option<IncludePattern>,
     /// If present, only trust items matching the [`IncludePattern`] a glob pattern.
-    pub trusted: Option<IncludePattern>,
+    pub include_trusted: Option<IncludePattern>,
     /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
     /// (default `64`).
     pub pointer_width: PointerWidth,
@@ -87,7 +87,7 @@ impl Default for Flags {
             catch_bugs: false,
             pointer_width: PointerWidth::default(),
             include: None,
-            trusted: None,
+            include_trusted: None,
             cache: None,
             check_overflow: OverflowMode::default(),
             allow_raw_deref: RawDerefMode::default(),
@@ -136,7 +136,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "summary" => parse_bool(&mut flags.summary, value),
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "include" => parse_opt_include(&mut includes, value),
-            "trusted-pattern" => parse_opt_include(&mut trusteds, value),
+            "include-trusted" => parse_opt_include(&mut trusteds, value),
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
@@ -165,7 +165,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             eprintln!("error: invalid trusted pattern: {err}");
             process::exit(1);
         });
-        flags.trusted = Some(trusted);
+        flags.include_trusted = Some(trusted);
     }
     flags
 });

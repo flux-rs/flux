@@ -664,9 +664,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn trusted_impl(self, def_id: LocalDefId) -> bool {
-        self.traverse_parents(def_id, |did| self.fhir_attr_map(did).trusted_impl())
+        let annotation = self
+            .traverse_parents(def_id, |did| self.fhir_attr_map(did).trusted_impl())
             .map(|trusted| trusted.to_bool())
-            .unwrap_or(false)
+            .unwrap_or(false);
+        annotation || self.matches_trusted_pattern(MaybeExternId::Local(def_id))
     }
 
     /// Whether the item is a dummy item created by the extern spec macro.

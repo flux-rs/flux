@@ -29,6 +29,9 @@ pub struct FluxMetadata {
     /// If present, only check files that match any of the glob patterns. Patterns are checked
     /// relative to the location of the manifest file.
     pub include: Option<Vec<String>>,
+    /// If present, only consider `DefId` in files that match any of the glob patterns as trusted.
+    /// Patterns are checked relative to the location of the manifest file.
+    pub include_trusted: Option<Vec<String>>,
     /// If present, every function in the module is implicitly labeled with a `no_panic` by default.
     /// This means that the only way a function can panic is if it calls an external function without this attribute.
     pub no_panic: Option<bool>,
@@ -80,6 +83,17 @@ impl FluxMetadata {
                     flags.push(format!("-Finclude={glob_prefix}/{pat}"));
                 } else {
                     flags.push(format!("-Finclude={pat}"));
+                }
+            }
+        }
+        if let Some(patterns) = self.include_trusted {
+            for pat in patterns {
+                if let Some(glob_prefix) = glob_prefix
+                    && !glob_prefix.as_str().is_empty()
+                {
+                    flags.push(format!("-Finclude-trusted={glob_prefix}/{pat}"));
+                } else {
+                    flags.push(format!("-Finclude-trusted={pat}"));
                 }
             }
         }
