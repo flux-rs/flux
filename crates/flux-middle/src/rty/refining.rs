@@ -8,7 +8,7 @@ use flux_common::bug;
 use flux_rustc_bridge::{ty, ty::GenericArgsExt as _};
 use itertools::Itertools;
 use rustc_abi::VariantIdx;
-use rustc_hir::{def::DefKind, def_id::DefId};
+use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
 
 use super::{RefineArgsExt, fold::TypeFoldable};
@@ -19,23 +19,11 @@ use crate::{
     rty::{self, Expr},
 };
 
-pub fn refine_generics(genv: GlobalEnv, def_id: DefId, generics: &ty::Generics) -> rty::Generics {
-    let is_box = if let DefKind::Struct = genv.def_kind(def_id) {
-        genv.tcx().adt_def(def_id).is_box()
-    } else {
-        false
-    };
+pub fn refine_generics(generics: &ty::Generics) -> rty::Generics {
     let params = generics
         .params
         .iter()
-        .map(|param| {
-            rty::GenericParamDef {
-                kind: refine_generic_param_def_kind(is_box, param.kind),
-                index: param.index,
-                name: param.name,
-                def_id: param.def_id,
-            }
-        })
+        .map(|param| refine_generic_param_def(false, param))
         .collect();
 
     rty::Generics {
@@ -46,14 +34,26 @@ pub fn refine_generics(genv: GlobalEnv, def_id: DefId, generics: &ty::Generics) 
     }
 }
 
-pub fn refine_generic_param_def_kind(
-    is_box: bool,
+pub(crate) fn refine_generic_param_def(
+    as_type: bool,
+    param: &ty::GenericParamDef,
+) -> rty::GenericParamDef {
+    rty::GenericParamDef {
+        kind: refine_generic_param_def_kind(as_type, param.kind),
+        index: param.index,
+        name: param.name,
+        def_id: param.def_id,
+    }
+}
+
+fn refine_generic_param_def_kind(
+    as_type: bool,
     kind: ty::GenericParamDefKind,
 ) -> rty::GenericParamDefKind {
     match kind {
         ty::GenericParamDefKind::Lifetime => rty::GenericParamDefKind::Lifetime,
         ty::GenericParamDefKind::Type { has_default } => {
-            if is_box {
+            if as_type {
                 rty::GenericParamDefKind::Type { has_default }
             } else {
                 rty::GenericParamDefKind::Base { has_default }
@@ -404,6 +404,7 @@ impl Refine for ty::ClauseKind {
             ty::ClauseKind::ConstArgHasType(const_, ty) => {
                 rty::ClauseKind::ConstArgHasType(const_.clone(), ty.refine(&refiner.as_default())?)
             }
+            ty::ClauseKind::UnstableFeature(sym) => rty::ClauseKind::UnstableFeature(*sym),
         };
         Ok(kind)
     }

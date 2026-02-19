@@ -98,6 +98,7 @@ pub enum ClauseKind {
     RegionOutlives(RegionOutlivesPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
+    UnstableFeature(Symbol),
 }
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, TyEncodable, TyDecodable)]

@@ -771,7 +771,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 if discr_ty.is_integral() || discr_ty.is_bool() || discr_ty.is_char() {
                     Ok(Self::check_if(&discr_ty, targets))
                 } else {
-                    Ok(Self::check_match(infcx, env, &discr_ty, targets, terminator_span))
+                    Ok(self.check_match(infcx, env, &discr_ty, targets, terminator_span))
                 }
             }
             TerminatorKind::Call { kind, args, destination, target, .. } => {
@@ -1167,6 +1167,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn check_match(
+        &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         discr_ty: &Ty,
@@ -1511,7 +1512,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn check_raw_ptr_metadata(
         &mut self,
-        infcx: &mut InferCtxt,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         stmt_span: Span,
         place: &Place,
@@ -1778,7 +1779,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         use rustc_middle::mir::Const;
         match constant.const_ {
             Const::Ty(ty, cst) => self.check_ty_const(constant, cst, ty)?,
-            Const::Val(val, ty) => self.check_const_val(val, ty),
+            Const::Val(val, ty) => self.check_const_val(val, ty)?,
             Const::Unevaluated(uneval, ty) => {
                 self.check_uneval_const(infcx, constant, uneval, ty)?
             }
@@ -1804,7 +1805,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             ConstKind::Value(val_tree) => {
                 let val = self.genv.tcx().valtree_to_const_val(val_tree);
-                Ok(self.check_const_val(val, ty))
+                Ok(self.check_const_val(val, ty)?)
             }
             _ => Ok(None),
         }
@@ -1814,11 +1815,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         val: rustc_middle::mir::ConstValue,
         ty: rustc_middle::ty::Ty<'tcx>,
-    ) -> Option<Ty> {
+    ) -> QueryResult<Option<Ty>> {
         use rustc_middle::{mir::ConstValue, ty};
         match val {
             ConstValue::Scalar(scalar) => self.check_scalar(scalar, ty),
-            ConstValue::ZeroSized if ty.is_unit() => Some(Ty::unit()),
+            ConstValue::ZeroSized if ty.is_unit() => Ok(Some(Ty::unit())),
             ConstValue::Slice { .. } => {
                 if let ty::Ref(_, ref_ty, Mutability::Not) = ty.kind()
                     && ref_ty.is_str()
@@ -1826,12 +1827,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 {
                     let str = String::from_utf8_lossy(data);
                     let idx = Expr::constant(Constant::Str(Symbol::intern(&str)));
-                    Some(Ty::mk_ref(ReErased, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
+                    Ok(Some(Ty::mk_ref(ReErased, Ty::indexed(BaseTy::Str, idx), Mutability::Not)))
                 } else {
-                    None
+                    Ok(None)
                 }
             }
-            _ => None,
+            _ => Ok(None),
         }
     }
 
@@ -1857,7 +1858,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let param_env = tcx.param_env(self.checker_id.root_id());
             let typing_env = infcx.region_infcx.typing_env(param_env);
             if let Ok(val) = tcx.const_eval_resolve(typing_env, uneval, constant.span) {
-                return Ok(self.check_const_val(val, ty));
+                return self.check_const_val(val, ty);
             } else {
                 return Ok(None);
             }
@@ -1877,11 +1878,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         scalar: rustc_middle::mir::interpret::Scalar,
         ty: rustc_middle::ty::Ty<'tcx>,
-    ) -> Option<Ty> {
-        use rustc_middle::mir::interpret::Scalar;
+    ) -> QueryResult<Option<Ty>> {
+        use rustc_middle::mir::interpret::{GlobalAlloc, Scalar};
         match scalar {
-            Scalar::Int(scalar_int) => self.check_scalar_int(scalar_int, ty),
-            Scalar::Ptr(..) => None,
+            Scalar::Int(scalar_int) => Ok(self.check_scalar_int(scalar_int, ty)),
+            Scalar::Ptr(ptr, _) => {
+                let alloc_id = ptr.provenance.alloc_id();
+                if let GlobalAlloc::Static(def_id) = self.genv.tcx().global_alloc(alloc_id)
+                    && let rty::StaticInfo::Known(ty) = self.genv.static_info(def_id)?
+                    && !self.genv.tcx().is_mutable_static(def_id)
+                // TODO: mutable statics!
+                {
+                    Ok(Some(Ty::mk_ref(ReErased, ty, Mutability::Not)))
+                } else {
+                    Ok(None)
+                }
+            }
         }
     }
 

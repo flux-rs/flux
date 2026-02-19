@@ -40,7 +40,7 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 pub use normalize::{FuncInfo, NormalizedDefns, local_deps};
-use refining::{Refine as _, Refiner};
+use refining::Refiner;
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
 use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};
@@ -422,6 +422,7 @@ pub enum ClauseKind {
     RegionOutlives(RegionOutlivesPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
+    UnstableFeature(Symbol),
 }
 
 impl<'tcx> ToRustc<'tcx> for ClauseKind {
@@ -447,6 +448,7 @@ impl<'tcx> ToRustc<'tcx> for ClauseKind {
                     ty.to_rustc(tcx),
                 )
             }
+            ClauseKind::UnstableFeature(sym) => rustc_middle::ty::ClauseKind::UnstableFeature(*sym),
         }
     }
 }
@@ -1042,6 +1044,7 @@ pub enum Sort {
     App(SortCtor, List<Sort>),
     Var(ParamSort),
     Infer(SortVid),
+    RawPtr,
     Err,
 }
 
@@ -1263,6 +1266,13 @@ pub enum ConstantInfo {
     Uninterpreted,
     /// A non-integral constant whose value is specified by the user
     Interpreted(Expr, Sort),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+pub enum StaticInfo {
+    Unknown,
+    /// A static item whose type was specified by the user
+    Known(Ty),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -1569,11 +1579,11 @@ impl Ty {
         BaseTy::Slice(ty).to_ty()
     }
 
-    pub fn mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: Ty) -> QueryResult<Ty> {
+    pub fn mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: GenericArg) -> QueryResult<Ty> {
         let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
         let adt_def = genv.adt_def(def_id)?;
 
-        let args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
+        let args = List::from_arr([GenericArg::Ty(deref_ty), alloc_ty]);
 
         let bty = BaseTy::adt(adt_def, args);
         Ok(Ty::indexed(bty, Expr::unit_struct(def_id)))
@@ -1585,8 +1595,11 @@ impl Ty {
         let generics = genv.generics_of(def_id)?;
         let alloc_ty = genv
             .lower_type_of(generics.own_params[1].def_id)?
-            .skip_binder()
-            .refine(&Refiner::default_for_item(genv, def_id)?)?;
+            .skip_binder();
+        let alloc_ty = Refiner::default_for_item(genv, def_id)?.refine_generic_arg(
+            &generics.own_params[1],
+            &flux_rustc_bridge::ty::GenericArg::Ty(alloc_ty),
+        )?;
 
         Ty::mk_box(genv, deref_ty, alloc_ty)
     }
@@ -1781,6 +1794,9 @@ pub enum TyKind {
     /// [`match`]: flux_rustc_bridge::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
+    /// These only arise when you "narrow" an ADT down to a particular variant;
+    /// either EXPLICITLY in a `match-of`, or IMPLICITLY when you access a field
+    /// of a struct to "UNPACK" the struct.
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
     /// A type that needs to be inferred by matching the signature against a rust signature.
@@ -2439,8 +2455,8 @@ pub type GenericArgs = List<GenericArg>;
 #[extension(pub trait GenericArgsExt)]
 impl GenericArgs {
     #[track_caller]
-    fn box_args(&self) -> (&Ty, &Ty) {
-        if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
+    fn box_args(&self) -> (&Ty, &GenericArg) {
+        if let [GenericArg::Ty(deref), alloc] = &self[..] {
             (deref, alloc)
         } else {
             bug!("invalid generic arguments for box");

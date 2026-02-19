@@ -278,6 +278,7 @@ pub fn walk_item<V: Visitor>(vis: &mut V, item: &Item) {
         ItemKind::Trait(trait_) => vis.visit_trait(trait_),
         ItemKind::Impl(impl_) => vis.visit_impl(impl_),
         ItemKind::Const(cst) => vis.visit_constant(cst),
+        ItemKind::Static(static_info) => vis.visit_ty(&static_info.ty),
         ItemKind::TyAlias(ty_alias) => vis.visit_ty_alias(ty_alias),
         ItemKind::Mod => {}
     }
@@ -336,6 +337,9 @@ pub fn walk_base_sort<V: Visitor>(vis: &mut V, bsort: &BaseSort) {
         BaseSort::SortOf(qself, path) => {
             vis.visit_ty(qself);
             vis.visit_path(path);
+        }
+        BaseSort::Tuple(sorts) => {
+            walk_list!(vis, visit_base_sort, sorts);
         }
     }
 }
@@ -553,6 +557,7 @@ pub fn walk_bty<V: Visitor>(vis: &mut V, bty: &BaseTy) {
             vis.visit_path(path);
         }
         BaseTyKind::Slice(ty) => vis.visit_ty(ty),
+        BaseTyKind::Ptr(_, ty) => vis.visit_ty(ty),
     }
 }
 
@@ -620,6 +625,9 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
             vis.visit_expr(body);
         }
         ExprKind::SetLiteral(exprs) => {
+            walk_list!(vis, visit_expr, exprs);
+        }
+        ExprKind::Tuple(exprs) => {
             walk_list!(vis, visit_expr, exprs);
         }
     }

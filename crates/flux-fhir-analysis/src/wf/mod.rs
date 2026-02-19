@@ -48,7 +48,7 @@ pub(crate) fn check_flux_item<'genv>(
 
 pub(crate) fn check_constant_expr<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    owner: OwnerId,
+    owner: MaybeExternId<OwnerId>,
     expr: &fhir::Expr<'genv>,
     sort: &rty::Sort,
 ) -> Result<WfckResults> {
@@ -70,7 +70,7 @@ pub(crate) fn check_invariants<'genv>(
     params: &[fhir::RefineParam<'genv>],
     invariants: &[fhir::Expr<'genv>],
 ) -> Result<WfckResults> {
-    let owner = FluxOwnerId::Rust(adt_def_id.local_id());
+    let owner = FluxOwnerId::Rust(adt_def_id);
     let mut infcx = InferCtxt::new(genv, owner);
     Wf::with(&mut infcx, |wf| {
         wf.declare_params_for_invariants(params, invariants)?;
@@ -94,7 +94,7 @@ pub(crate) fn check_node<'genv>(
     genv: GlobalEnv<'genv, '_>,
     node: &fhir::OwnerNode<'genv>,
 ) -> Result<WfckResults> {
-    let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
+    let mut infcx = InferCtxt::new(genv, node.owner_id().into());
     Wf::with(&mut infcx, |wf| {
         wf.init_infcx_for_node(node)
             .map_err(|err| err.at(genv.tcx().def_span(node.owner_id().local_id())))
@@ -277,6 +277,11 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_fn_sig(def_id, fn_sig)?;
                         cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
+                    fhir::ItemKind::Static(ty) => {
+                        if let Some(ty) = ty {
+                            cx.conv_static_ty(ty)?;
+                        }
+                    }
                     fhir::ItemKind::Const(_) => {}
                 }
             }
@@ -305,6 +310,9 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                     fhir::ForeignItemKind::Fn(fn_sig, generics) => {
                         cx.conv_fn_sig(def_id, &fn_sig)?;
                         cx.conv_generic_predicates(def_id, generics)?;
+                    }
+                    fhir::ForeignItemKind::Static(_, _, _, _) => {
+                        // TODO: conv_ty if we want refinements on extern statics?
                     }
                 }
             }

@@ -87,6 +87,11 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         &mut self,
         obligation: &AliasTy,
     ) -> QueryResult<(bool, SubsetTyCtor)> {
+        // First we must recursively (i.e., deeply) normalize projection types before proceeding.
+        // For example, in `issue-1449.rs` when normalizing `<<MyChoice as Choice>::Session as FromState>::Role`
+        // we first recursively normalize to get `<End<B> as FromState>::Role`
+        let obligation = &obligation.try_fold_with(self)?;
+
         let mut candidates = vec![];
         self.assemble_candidates_from_param_env(obligation, &mut candidates);
         self.assemble_candidates_from_trait_def(obligation, &mut candidates)

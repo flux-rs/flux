@@ -15,7 +15,7 @@
 
 pub mod visit;
 
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, fmt, iter};
 
 use flux_common::{bug, span_bug};
 use flux_config::PartialInferOpts;
@@ -42,6 +42,7 @@ use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
 use crate::{
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
+    global_env::GlobalEnv,
     rty::QualifierKind,
 };
 
@@ -189,7 +190,9 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::ImplItem(impl_item) => &impl_item.generics,
             OwnerNode::ForeignItem(foreign_item) => {
                 match foreign_item.kind {
-                    ForeignItemKind::Fn(_, generics) => generics,
+                    ForeignItemKind::Fn(.., generics) | ForeignItemKind::Static(.., generics) => {
+                        generics
+                    }
                 }
             }
         }
@@ -251,6 +254,7 @@ pub enum ItemKind<'fhir> {
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),
     Const(Option<Expr<'fhir>>),
+    Static(Option<Ty<'fhir>>),
 }
 
 #[derive(Debug)]
@@ -311,6 +315,7 @@ pub struct ForeignItem<'fhir> {
 #[derive(Debug)]
 pub enum ForeignItemKind<'fhir> {
     Fn(FnSig<'fhir>, &'fhir Generics<'fhir>),
+    Static(Ty<'fhir>, Mutability, Safety, &'fhir Generics<'fhir>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -557,7 +562,6 @@ pub enum TyKind<'fhir> {
     BareFn(&'fhir BareFnTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ConstArg),
-    RawPtr(&'fhir Ty<'fhir>, Mutability),
     OpaqueDef(&'fhir OpaqueTy<'fhir>),
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
@@ -593,15 +597,19 @@ pub enum Lifetime {
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub enum FluxOwnerId {
     Flux(FluxLocalDefId),
-    Rust(OwnerId),
+    Rust(MaybeExternId<OwnerId>),
 }
 
 impl FluxOwnerId {
-    pub fn def_id(self) -> Option<LocalDefId> {
+    pub fn as_rust(self) -> Option<MaybeExternId<OwnerId>> {
         match self {
             FluxOwnerId::Flux(_) => None,
-            FluxOwnerId::Rust(owner_id) => Some(owner_id.def_id),
+            FluxOwnerId::Rust(owner_id) => Some(owner_id),
         }
+    }
+
+    pub fn resolved_id(self) -> Option<DefId> {
+        self.as_rust().map(MaybeExternId::resolved_id)
     }
 }
 
@@ -650,6 +658,7 @@ impl<'fhir> BaseTy<'fhir> {
 pub enum BaseTyKind<'fhir> {
     Path(QPath<'fhir>),
     Slice(&'fhir Ty<'fhir>),
+    RawPtr(&'fhir Ty<'fhir>, Mutability),
     Err(ErrorGuaranteed),
 }
 
@@ -874,6 +883,7 @@ pub enum PrimSort {
     Set,
     Map,
     Str,
+    RawPtr,
 }
 
 impl PrimSort {
@@ -886,13 +896,19 @@ impl PrimSort {
             PrimSort::Real => "real",
             PrimSort::Set => "Set",
             PrimSort::Map => "Map",
+            PrimSort::RawPtr => "ptr",
         }
     }
 
     /// Number of generics expected by this primitive sort
     pub fn generics(self) -> usize {
         match self {
-            PrimSort::Int | PrimSort::Bool | PrimSort::Real | PrimSort::Char | PrimSort::Str => 0,
+            PrimSort::Int
+            | PrimSort::Bool
+            | PrimSort::Real
+            | PrimSort::Char
+            | PrimSort::Str
+            | PrimSort::RawPtr => 0,
             PrimSort::Set => 1,
             PrimSort::Map => 2,
         }
@@ -944,6 +960,8 @@ pub enum Sort<'fhir> {
     /// The sort associated with a base type. This is normalized into a concrete sort during
     /// conversion
     SortOf(BaseTy<'fhir>),
+    /// A tuple sort, e.g., (int, bool)
+    Tuple(&'fhir [Sort<'fhir>]),
     /// A sort that needs to be inferred.
     Infer,
     Err(ErrorGuaranteed),
@@ -1039,6 +1057,7 @@ pub enum ExprKind<'fhir> {
     SetLiteral(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
     Block(&'fhir [LetDecl<'fhir>], &'fhir Expr<'fhir>),
+    Tuple(&'fhir [Expr<'fhir>]),
     Err(ErrorGuaranteed),
 }
 
@@ -1098,8 +1117,8 @@ impl PolyTraitRef<'_> {
     }
 }
 
-impl From<OwnerId> for FluxOwnerId {
-    fn from(owner_id: OwnerId) -> Self {
+impl From<MaybeExternId<OwnerId>> for FluxOwnerId {
+    fn from(owner_id: MaybeExternId<OwnerId>) -> Self {
         FluxOwnerId::Rust(owner_id)
     }
 }
@@ -1248,6 +1267,8 @@ pub enum SpecFuncKind {
     Def(FluxDefId),
     /// Casts between sorts: id for char, int; if-then-else for bool-int; uninterpreted otherwise.
     Cast,
+    /// Built-in function to get the size of a raw pointer's pointee type.
+    PtrSize,
 }
 
 impl SpecFuncKind {
@@ -1265,6 +1286,11 @@ impl<'fhir> Generics<'fhir> {
             .iter()
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
+    }
+
+    pub fn empty(genv: GlobalEnv<'fhir, '_>) -> Self {
+        let params = genv.alloc_slice_fill_iter(iter::empty());
+        Self { params, refinement_params: &[], predicates: None }
     }
 }
 
@@ -1402,8 +1428,6 @@ impl fmt::Debug for Ty<'_> {
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             TyKind::Never => write!(f, "!"),
             TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} | {pred:?}}}"),
-            TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
-            TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Infer => write!(f, "_"),
             TyKind::OpaqueDef(opaque_ty) => {
                 write!(f, "impl trait <def_id = {:?}>", opaque_ty.def_id.resolved_id(),)
@@ -1462,6 +1486,8 @@ impl fmt::Debug for BaseTy<'_> {
         match &self.kind {
             BaseTyKind::Path(qpath) => write!(f, "{qpath:?}"),
             BaseTyKind::Slice(ty) => write!(f, "[{ty:?}]"),
+            BaseTyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
+            BaseTyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             BaseTyKind::Err(_) => write!(f, "err"),
         }
     }
@@ -1602,6 +1628,9 @@ impl fmt::Debug for Expr<'_> {
                 }
                 write!(f, "{body:?}")
             }
+            ExprKind::Tuple(exprs) => {
+                write!(f, "({:?})", exprs.iter().format(", "))
+            }
         }
     }
 }
@@ -1632,6 +1661,7 @@ impl fmt::Debug for Sort<'_> {
             Sort::Loc => write!(f, "loc"),
             Sort::Func(fsort) => write!(f, "{fsort:?}"),
             Sort::SortOf(bty) => write!(f, "<{bty:?}>::sort"),
+            Sort::Tuple(sorts) => write!(f, "({:?})", sorts.iter().format(", ")),
             Sort::Infer => write!(f, "_"),
             Sort::Err(_) => write!(f, "err"),
         }
@@ -1658,6 +1688,7 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Str) => write!(f, "str"),
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
+            SortRes::PrimSort(PrimSort::RawPtr) => write!(f, "ptr"),
             SortRes::SortParam(n) => write!(f, "@{n}"),
             SortRes::TyParam(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {

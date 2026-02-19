@@ -324,6 +324,11 @@ pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
                 vis.visit_expr(expr);
             }
         }
+        ItemKind::Static(ty) => {
+            if let Some(ty) = ty {
+                vis.visit_ty(ty);
+            }
+        }
     }
 }
 
@@ -350,6 +355,10 @@ pub fn walk_foreign_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ForeignIte
         ForeignItemKind::Fn(fn_sig, generics) => {
             vis.visit_generics(generics);
             vis.visit_fn_sig(fn_sig);
+        }
+        ForeignItemKind::Static(ty, _, _, generics) => {
+            vis.visit_generics(generics);
+            vis.visit_ty(ty);
         }
     }
 }
@@ -456,9 +465,6 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
         TyKind::Array(ty, _len) => {
             vis.visit_ty(ty);
         }
-        TyKind::RawPtr(ty, _mtblt) => {
-            vis.visit_ty(ty);
-        }
         TyKind::OpaqueDef(opaque_ty) => {
             vis.visit_opaque_ty(opaque_ty);
         }
@@ -474,6 +480,9 @@ pub fn walk_bty<'v, V: Visitor<'v>>(vis: &mut V, bty: &BaseTy<'v>) {
     match &bty.kind {
         BaseTyKind::Path(path) => vis.visit_qpath(path),
         BaseTyKind::Slice(ty) => vis.visit_ty(ty),
+        BaseTyKind::RawPtr(ty, _mtblt) => {
+            vis.visit_ty(ty);
+        }
         BaseTyKind::Err(_) => {}
     }
 }
@@ -519,6 +528,9 @@ pub fn walk_sort<'v, V: Visitor<'v>>(vis: &mut V, sort: &Sort<'v>) {
         Sort::Path(path) => vis.visit_sort_path(path),
         Sort::Func(func) => vis.visit_poly_func_sort(func),
         Sort::SortOf(bty) => vis.visit_bty(bty),
+        Sort::Tuple(sorts) => {
+            walk_list!(vis, visit_sort, *sorts);
+        }
         Sort::Loc | Sort::BitVec(_) | Sort::Infer | Sort::Err(_) => {}
     }
 }
@@ -584,7 +596,7 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
             walk_list!(vis, visit_refine_param, refine_params);
             vis.visit_expr(body);
         }
-        ExprKind::Record(exprs) | ExprKind::SetLiteral(exprs) => {
+        ExprKind::Record(exprs) | ExprKind::SetLiteral(exprs) | ExprKind::Tuple(exprs) => {
             walk_list!(vis, visit_expr, exprs);
         }
         ExprKind::Constructor(path, exprs, spread) => {

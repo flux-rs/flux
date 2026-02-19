@@ -11,7 +11,7 @@ use flux_common::{
     result::{ErrorCollector, ResultExt},
     tracked_span_assert_eq,
 };
-use flux_config::{self as config, OverflowMode, PartialInferOpts, SmtSolver};
+use flux_config::{self as config, OverflowMode, PartialInferOpts, RawDerefMode, SmtSolver};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::Specs;
 use flux_syntax::{
@@ -22,8 +22,8 @@ use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
-    self as hir, Attribute, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, OwnerId,
-    VariantData,
+    self as hir, Attribute, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, Mutability,
+    OwnerId, VariantData,
     def::DefKind,
     def_id::{CRATE_DEF_ID, DefId, LocalDefId},
 };
@@ -159,6 +159,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 }
 
                 self.collect_constant(owner_id, attrs)?;
+            }
+            ItemKind::Static(mutbl, ..) => {
+                self.collect_static(owner_id, mutbl, attrs)?;
             }
             _ => {}
         }
@@ -339,6 +342,31 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         )
     }
 
+    fn parse_static_spec(
+        &mut self,
+        owner_id: OwnerId,
+        mutbl: &Mutability,
+        mut attrs: FluxAttrs,
+    ) -> Result {
+        if let Some(static_info) = attrs.static_spec() {
+            if matches!(mutbl, Mutability::Mut) {
+                return Err(self
+                    .errors
+                    .emit(errors::MutableStaticSpec::new(static_info.ty.span)));
+            };
+            let node_id = self.next_node_id();
+            self.insert_item(
+                owner_id,
+                surface::Item {
+                    attrs: attrs.into_attr_vec(),
+                    kind: surface::ItemKind::Static(static_info),
+                    node_id,
+                },
+            )?;
+        }
+        Ok(())
+    }
+
     fn parse_constant_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         if let Some(constant) = attrs.constant() {
             let node_id = self.next_node_id();
@@ -425,6 +453,15 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         self.parse_constant_spec(owner_id, attrs)
     }
 
+    fn collect_static(
+        &mut self,
+        owner_id: OwnerId,
+        mutbl: &Mutability,
+        attrs: FluxAttrs,
+    ) -> Result {
+        self.parse_static_spec(owner_id, mutbl, attrs)
+    }
+
     fn check_fn_sig_name(&mut self, owner_id: OwnerId, fn_sig: Option<&surface::FnSig>) -> Result {
         if let Some(fn_sig) = fn_sig
             && let Some(ident) = fn_sig.ident
@@ -494,7 +531,11 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 })?
             }
             ("sig" | "spec", hir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
+                if matches!(def_kind, DefKind::Static { .. }) {
+                    self.parse(dargs, ParseSess::parse_static_info, FluxAttrKind::StaticSpec)?
+                } else {
+                    self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
+                }
             }
             ("assoc" | "reft", hir::AttrArgs::Delimited(dargs)) => {
                 match def_kind {
@@ -579,6 +620,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("specs", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_detached_specs, FluxAttrKind::DetachedSpecs)?
             }
+
             _ => return Err(invalid_attr_err(self)),
         };
         if config::annots() {
@@ -689,6 +731,7 @@ enum FluxAttrKind {
     TypeAlias(Box<surface::TyAlias>),
     Field(surface::Ty),
     Constant(surface::ConstantInfo),
+    StaticSpec(surface::StaticInfo),
     Variant(surface::VariantDef),
     InferOpts(config::PartialInferOpts),
     Invariant(surface::Expr),
@@ -767,7 +810,13 @@ impl FluxAttrs {
     }
 
     fn fn_sig(&mut self) -> Option<surface::FnSig> {
-        read_attr!(self, FnSig)
+        let mut fn_sig = read_attr!(self, FnSig);
+        // FIXME(nilehmann) the `no_panic_if` annotation should work even if there's no `flux::spec`
+        // annotation or we should at least show an error.
+        if let Some(fn_sig) = &mut fn_sig {
+            fn_sig.no_panic = read_attr!(self, NoPanicIf);
+        }
+        fn_sig
     }
 
     fn no_panic_spec(&mut self) -> Option<surface::Expr> {
@@ -815,6 +864,10 @@ impl FluxAttrs {
         read_attr!(self, Field)
     }
 
+    fn static_spec(&mut self) -> Option<surface::StaticInfo> {
+        read_attr!(self, StaticSpec)
+    }
+
     fn constant(&mut self) -> Option<surface::ConstantInfo> {
         read_attr!(self, Constant)
     }
@@ -860,10 +913,12 @@ impl FluxAttrs {
                 | FluxAttrKind::TypeAlias(_)
                 | FluxAttrKind::Field(_)
                 | FluxAttrKind::Constant(_)
+                | FluxAttrKind::StaticSpec(_)
                 | FluxAttrKind::Variant(_)
                 | FluxAttrKind::Invariant(_)
                 | FluxAttrKind::ExternSpec
-                | FluxAttrKind::DetachedSpecs(_) => continue,
+                | FluxAttrKind::DetachedSpecs(_)
+                | FluxAttrKind::NoPanicIf(_) => continue,
             };
             attrs.push(attr);
         }
@@ -889,6 +944,7 @@ impl FluxAttrKind {
             FluxAttrKind::RevealNames(_) => attr_name!(RevealNames),
             FluxAttrKind::Field(_) => attr_name!(Field),
             FluxAttrKind::Constant(_) => attr_name!(Constant),
+            FluxAttrKind::StaticSpec(_) => attr_name!(StaticSpec),
             FluxAttrKind::Variant(_) => attr_name!(Variant),
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
             FluxAttrKind::InferOpts(_) => attr_name!(InferOpts),
@@ -994,6 +1050,7 @@ impl AttrMap {
         let mut infer_opts = PartialInferOpts::default();
         try_read_setting!(self, allow_uninterpreted_cast, bool, infer_opts);
         try_read_setting!(self, check_overflow, OverflowMode, infer_opts);
+        try_read_setting!(self, allow_raw_deref, RawDerefMode, infer_opts);
         try_read_setting!(self, scrape_quals, bool, infer_opts);
         try_read_setting!(self, solver, SmtSolver, infer_opts);
 
@@ -1132,6 +1189,19 @@ mod errors {
                 },
             );
             diag
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_mutable_static_spec, code = E0999)]
+    pub(super) struct MutableStaticSpec {
+        #[primary_span]
+        span: Span,
+    }
+
+    impl MutableStaticSpec {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 

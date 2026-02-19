@@ -67,6 +67,80 @@ fn report_fixpoint_errors(
     }
 }
 
+fn check_body(
+    genv: GlobalEnv,
+    cache: &mut FixQueryCache,
+    def_id: LocalDefId,
+    poly_sig: &rty::PolyFnSig,
+) -> Result<(), ErrorGuaranteed> {
+    let span = genv.tcx().def_span(def_id);
+    let opts = genv.infer_opts(def_id);
+
+    let ghost_stmts = compute_ghost_statements(genv, def_id)
+        .with_span(span)
+        .map_err(|err| err.emit(genv, def_id))?;
+    let mut closures = UnordMap::default();
+
+    // PHASE 1: infer shape of `TypeEnv` at the entry of join points
+    let shape_result =
+        Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, &mut closures, opts, poly_sig)
+            .map_err(|err| err.emit(genv, def_id))?;
+
+    // PHASE 2: generate refinement tree constraint
+    let infcx_root = Checker::run_in_refine_mode(
+        genv,
+        def_id,
+        &ghost_stmts,
+        &mut closures,
+        shape_result,
+        opts,
+        poly_sig,
+    )
+    .map_err(|err| err.emit(genv, def_id))?;
+
+    // PHASE 3: invoke fixpoint on the constraint
+    if genv.proven_externally(def_id).is_some() || flux_config::lean().is_emit() {
+        infcx_root
+            .execute_lean_query(cache, MaybeExternId::Local(def_id))
+            .emit(&genv)
+    } else {
+        let answer = infcx_root
+            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
+            .emit(&genv)?;
+
+        let tcx = genv.tcx();
+        let hir_id = tcx.local_def_id_to_hir_id(def_id);
+        let body_span = tcx.hir_span_with_body(hir_id);
+        dbg::solution!(genv, &answer, body_span);
+
+        let errors = answer.errors;
+        report_fixpoint_errors(genv, def_id, errors)
+    }
+}
+
+pub fn check_static(
+    genv: GlobalEnv,
+    cache: &mut FixQueryCache,
+    def_id: LocalDefId,
+    ty: rty::Ty,
+) -> Result<(), ErrorGuaranteed> {
+    // Build a PolyFnSig with no inputs and `ty` as the output
+    let output = rty::Binder::dummy(rty::FnOutput::new(ty, vec![]));
+    let fn_sig = rty::FnSig::new(
+        rustc_hir::Safety::Safe,
+        rustc_abi::ExternAbi::Rust,
+        rty::List::empty(),
+        rty::List::empty(),
+        output,
+        rty::Expr::ff(),
+        false,
+    );
+    let poly_sig = rty::PolyFnSig::dummy(fn_sig);
+
+    metrics::incr_metric(Metric::FnChecked, 1);
+    metrics::time_it(TimingKind::CheckBody(def_id), || check_body(genv, cache, def_id, &poly_sig))
+}
+
 pub fn check_fn(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
@@ -106,12 +180,7 @@ pub fn check_fn(
     }
 
     metrics::incr_metric(Metric::FnChecked, 1);
-    metrics::time_it(TimingKind::CheckFn(def_id), || -> Result<(), ErrorGuaranteed> {
-        let ghost_stmts = compute_ghost_statements(genv, def_id)
-            .with_span(span)
-            .map_err(|err| err.emit(genv, def_id))?;
-        let mut closures = UnordMap::default();
-
+    metrics::time_it(TimingKind::CheckBody(def_id), || -> Result<(), ErrorGuaranteed> {
         let poly_sig = genv
             .fn_sig(def_id)
             .with_span(span)
@@ -119,46 +188,7 @@ pub fn check_fn(
             .instantiate_identity();
         let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
 
-        // PHASE 1: infer shape of `TypeEnv` at the entry of join points
-        let shape_result =
-            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, &mut closures, opts, &poly_sig)
-                .map_err(|err| err.emit(genv, def_id))?;
-
-        // PHASE 2: generate refinement tree constraint
-        let infcx_root = Checker::run_in_refine_mode(
-            genv,
-            def_id,
-            &ghost_stmts,
-            &mut closures,
-            shape_result,
-            opts,
-            &poly_sig,
-        )
-        .map_err(|err| err.emit(genv, def_id))?;
-
-        if genv.proven_externally(def_id).is_some() || flux_config::lean().is_emit() {
-            infcx_root
-                .execute_lean_query(cache, MaybeExternId::Local(def_id))
-                .emit(&genv)
-        } else {
-            // PHASE 3: invoke fixpoint on the constraint
-            let answer = infcx_root
-                .execute_fixpoint_query(
-                    cache,
-                    MaybeExternId::Local(def_id),
-                    FixpointQueryKind::Body,
-                )
-                .emit(&genv)?;
-
-            // DUMP SOLUTION
-            let tcx = genv.tcx();
-            let hir_id = tcx.local_def_id_to_hir_id(def_id);
-            let body_span = tcx.hir_span_with_body(hir_id);
-            dbg::solution!(genv, &answer, body_span);
-
-            let errors = answer.errors;
-            report_fixpoint_errors(genv, def_id, errors)
-        }
+        check_body(genv, cache, def_id, &poly_sig)
     })?;
 
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| Ok(()))

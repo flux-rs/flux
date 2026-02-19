@@ -30,8 +30,6 @@
 //!
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
-use std::fmt::Write;
-
 use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use itertools::Itertools;
@@ -40,11 +38,11 @@ use rustc_span::Symbol;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig,
-    SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
+    BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, PolyFnSig, SubsetTy, Ty, TyCtor,
+    TyKind, TyOrBase,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
 };
-use crate::rty::{BoundReftKind, ExprKind, HoleKind};
+use crate::rty::{BoundReftKind, ExprKind, GenericArgsExt, HoleKind};
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
 /// It can be configured to stop hoisting at specific type constructors.
@@ -205,10 +203,7 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
         match bty {
             BaseTy::Adt(adt_def, args) if adt_def.is_box() && self.in_boxes => {
                 let (boxed, alloc) = args.box_args();
-                let args = List::from_arr([
-                    GenericArg::Ty(boxed.fold_with(self)),
-                    GenericArg::Ty(alloc.clone()),
-                ]);
+                let args = List::from_arr([GenericArg::Ty(boxed.fold_with(self)), alloc.clone()]);
                 BaseTy::Adt(adt_def.clone(), args)
             }
             BaseTy::Ref(re, ty, mutability) if is_indexed_slice(ty) && self.slices => {
@@ -386,9 +381,12 @@ impl CanonicalTy {
                     // only check for syntactical equality. We should change those cases to handle
                     // refined types and/or ensure some canonical representation for unrefined types.
                     let pred = if idx.is_unit() {
-                        constr_ty.pred.clone()
+                        constr_ty.pred.shift_in_escaping(1)
                     } else {
-                        Expr::and(&constr_ty.pred, Expr::eq(Expr::nu(), idx.shift_in_escaping(1)))
+                        Expr::and(
+                            constr_ty.pred.shift_in_escaping(1),
+                            Expr::eq(Expr::nu(), idx.shift_in_escaping(1)),
+                        )
                     };
                     let sort = bty.sort();
                     let constr = SubsetTy::new(bty.shift_in_escaping(1), Expr::nu(), pred);
@@ -434,40 +432,36 @@ mod pretty {
                 CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
                     let redundant_bvars = poly_constr.skip_binder_ref().redundant_bvars();
-                    cx.with_bound_vars_removable(
-                        poly_constr.vars(),
-                        redundant_bvars,
-                        None,
-                        |f_body| {
-                            let constr = poly_constr.skip_binder_ref();
-                            if constr.pred().is_trivially_true() {
-                                w!(cx, f_body, "{:?}", &constr.ty)
+                    cx.with_bound_vars_removable(poly_constr.vars(), redundant_bvars, None, || {
+                        let constr = poly_constr.skip_binder_ref();
+                        let ty_fmt = format_cx!(cx, "{:?}", &constr.ty);
+                        let pred_fmt = if !constr.pred().is_trivially_true() {
+                            Some(format_cx!(cx, "{:?}", constr.pred()))
+                        } else {
+                            None
+                        };
+
+                        let vars = cx
+                            .bvar_env
+                            .peek_layer()
+                            .unwrap()
+                            .filter_vars(poly_constr.vars());
+
+                        if vars.is_empty() {
+                            if let Some(pred_fmt) = pred_fmt {
+                                write!(f, "{{ {ty_fmt} | {pred_fmt} }}")
                             } else {
-                                w!(cx, f_body, "{:?} | {:?}", &constr.ty, &constr.pred)
+                                write!(f, "{ty_fmt}")
                             }
-                        },
-                        |(), bound_var_layer, body| {
-                            let vars = poly_constr
-                                .vars()
-                                .into_iter()
-                                .enumerate()
-                                .filter_map(|(idx, var)| {
-                                    let not_removed = !bound_var_layer
-                                        .successfully_removed_vars
-                                        .contains(&BoundVar::from_usize(idx));
-                                    let refine_var = matches!(var, BoundVariableKind::Refine(..));
-                                    if not_removed && refine_var { Some(var.clone()) } else { None }
-                                })
-                                .collect_vec();
-                            if vars.is_empty() {
-                                write!(f, "{}", body)
+                        } else {
+                            cx.fmt_bound_vars(false, "{", &vars, ". ", f)?;
+                            if let Some(pred_fmt) = pred_fmt {
+                                write!(f, "{ty_fmt} | {pred_fmt} }}")
                             } else {
-                                let left = "{";
-                                let right = format!(". {} }}", body);
-                                cx.fmt_bound_vars(false, left, &vars, &right, f)
+                                write!(f, "{ty_fmt} }}")
                             }
-                        },
-                    )
+                        }
+                    })
                 }
             }
         }

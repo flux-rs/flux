@@ -26,7 +26,7 @@ use crate::{
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},
-    queries::{Providers, Queries, QueryErr, QueryResult},
+    queries::{DispatchKey, Providers, Queries, QueryErr, QueryResult},
     query_bug,
     rty::{
         self, GenericArg, QualifierKind,
@@ -67,6 +67,27 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 }
 
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
+    pub fn queried(self, def_id: DefId) -> bool {
+        self.inner.queries.queried(def_id)
+    }
+
+    /// Runs a query only if the given key's `DefId` was previously queried during checking.
+    ///
+    /// During checking, we track all items transitively reached from explicitly included items.
+    /// This method is used during metadata encoding to avoid triggering queries for items that
+    /// were not reached. If the item was not previously queried, returns [`QueryErr::Ignored`].
+    pub fn run_query_if_reached<K: DispatchKey, R>(
+        self,
+        key: K,
+        query: impl FnOnce(Self, K) -> QueryResult<R>,
+    ) -> QueryResult<R> {
+        if !self.inner.queries.queried(key.def_id()) {
+            return Err(QueryErr::NotIncluded { def_id: key.def_id() });
+        }
+
+        query(self, key)
+    }
+
     pub fn tcx(self) -> TyCtxt<'tcx> {
         self.inner.tcx
     }
@@ -260,6 +281,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .constant_info(self, def_id.into_query_param())
     }
 
+    pub fn static_info(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::StaticInfo> {
+        self.inner
+            .queries
+            .static_info(self, def_id.into_query_param())
+    }
+
     pub fn adt_sort_def_of(
         self,
         def_id: impl IntoQueryParam<DefId>,
@@ -382,8 +409,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.sort_of_assoc_reft(self, assoc_id)
     }
 
-    pub fn item_bounds(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
-        self.inner.queries.item_bounds(self, def_id)
+    pub fn item_bounds(
+        self,
+        def_id: impl IntoQueryParam<DefId>,
+    ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
+        self.inner
+            .queries
+            .item_bounds(self, def_id.into_query_param())
     }
 
     pub fn type_of(

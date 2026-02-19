@@ -52,6 +52,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             hir::ItemKind::Impl(impl_) => {
                 (impl_.generics, fhir::ItemKind::Impl(fhir::Impl { assoc_refinements: &[] }))
             }
+            hir::ItemKind::Static(..) => (hir::Generics::empty(), fhir::ItemKind::Static(None)),
             _ => {
                 Err(query_bug!(self.owner.resolved_id(), "unsupported item")).emit(&self.genv())?
             }
@@ -347,7 +348,12 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             }
             hir::TyKind::Ptr(mut_ty) => {
                 let ty = self.lift_ty(mut_ty.ty);
-                fhir::TyKind::RawPtr(self.genv.alloc(ty), mut_ty.mutbl)
+                let kind = fhir::BaseTyKind::RawPtr(self.genv.alloc(ty), mut_ty.mutbl);
+                fhir::TyKind::BaseTy(fhir::BaseTy {
+                    kind,
+                    fhir_id: self.next_fhir_id(),
+                    span: ty.span,
+                })
             }
             hir::TyKind::OpaqueDef(opaque_ty) => {
                 match self.lift_opaque_ty(opaque_ty) {
@@ -528,10 +534,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
     }
 
     fn next_fhir_id(&self) -> FhirId {
-        FhirId {
-            owner: FluxOwnerId::Rust(self.owner.local_id()),
-            local_id: self.local_id_gen.fresh(),
-        }
+        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
     fn local_id(&self) -> LocalDefId {
@@ -547,16 +550,25 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         &mut self,
         foreign_item: hir::ForeignItem,
     ) -> Result<fhir::ForeignItem<'genv>> {
-        let hir::ForeignItemKind::Fn(fnsig, _, _) = foreign_item.kind else {
-            return Err(self.emit_unsupported("Static and type in extern_item are not supported."));
+        let kind = match foreign_item.kind {
+            hir::ForeignItemKind::Fn(fnsig, _, _) => {
+                let lifted_fnsig = self.lift_fn_sig(fnsig);
+                let fnsig = self.genv.alloc(lifted_fnsig);
+                let lifted_generics = self.lift_generics();
+                let generics = self.genv.alloc(lifted_generics);
+                fhir::ForeignItemKind::Fn(*fnsig, generics)
+            }
+            rustc_hir::ForeignItemKind::Static(ty, mutbl, safety) => {
+                let lifted_ty = self.lift_ty(ty);
+                let ty = self.genv.alloc(lifted_ty);
+                let lifted_generics = fhir::Generics::empty(self.genv);
+                let generics = self.genv.alloc(lifted_generics);
+                fhir::ForeignItemKind::Static(*ty, mutbl, safety, generics)
+            }
+            _ => {
+                return Err(self.emit_unsupported("unsupported foreign item kind"));
+            }
         };
-
-        let lifted_fnsig = self.lift_fn_sig(fnsig);
-        let fnsig = self.genv.alloc(lifted_fnsig);
-        let lifted_generics = self.lift_generics();
-        let generics = self.genv.alloc(lifted_generics);
-        let kind = fhir::ForeignItemKind::Fn(*fnsig, generics);
-
         Ok(fhir::ForeignItem {
             ident: foreign_item.ident,
             kind,

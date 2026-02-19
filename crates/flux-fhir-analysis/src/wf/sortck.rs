@@ -114,7 +114,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         sort_def: &AdtSortDef,
         sort_args: &[rty::Sort],
         field_exprs: &[fhir::FieldExpr<'genv>],
-        spread: &Option<&fhir::Spread<'genv>>,
+        spread: Option<&fhir::Spread<'genv>>,
         expected: &rty::Sort,
     ) -> Result {
         let sort_by_field_name = sort_def.struct_variant().sort_by_field_name(sort_args);
@@ -148,7 +148,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         &mut self,
         expr: &fhir::Expr,
         field_exprs: &[fhir::FieldExpr<'genv>],
-        spread: &Option<&fhir::Spread<'genv>>,
+        spread: Option<&fhir::Spread<'genv>>,
         expected: &rty::Sort,
     ) -> Result {
         let expected = self.resolve_vars_if_possible(expected);
@@ -197,18 +197,39 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     pub(super) fn check_expr(&mut self, expr: &fhir::Expr<'genv>, expected: &rty::Sort) -> Result {
-        match &expr.kind {
+        match expr.kind {
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 self.check_expr(p, &rty::Sort::Bool)?;
                 self.check_expr(e1, expected)?;
                 self.check_expr(e2, expected)?;
+                return Ok(());
             }
             fhir::ExprKind::Abs(params, body) => {
                 self.check_abs(expr, params, body, expected)?;
+                return Ok(());
             }
-            fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
+            fhir::ExprKind::Record(fields) => {
+                self.check_record(expr, fields, expected)?;
+                return Ok(());
+            }
             fhir::ExprKind::Constructor(None, exprs, spread) => {
                 self.check_constructor(expr, exprs, spread, expected)?;
+                return Ok(());
+            }
+            fhir::ExprKind::Tuple(exprs) => {
+                // Check tuple against expected tuple sort
+                if let rty::Sort::Tuple(expected_sorts) = expected
+                    && exprs.len() == expected_sorts.len()
+                {
+                    for (expr, expected_sort) in iter::zip(exprs, expected_sorts) {
+                        self.check_expr(expr, expected_sort)?;
+                    }
+                    return Ok(());
+                }
+            }
+            fhir::ExprKind::Err(_) => {
+                // an error has already been reported so we can just skip
+                return Ok(());
             }
             fhir::ExprKind::UnaryOp(..)
             | fhir::ExprKind::SetLiteral(..)
@@ -221,17 +242,14 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::BoundedQuant(..)
             | fhir::ExprKind::Block(..)
             | fhir::ExprKind::Constructor(..)
-            | fhir::ExprKind::PrimApp(..) => {
-                let found = self.synth_expr(expr)?;
-                let found = self.resolve_vars_if_possible(&found);
-                let expected = self.resolve_vars_if_possible(expected);
-                if !self.is_coercible(&found, &expected, expr.fhir_id) {
-                    return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
-                }
-            }
-            fhir::ExprKind::Err(_) => {
-                // an error has already been reported so we can just skip
-            }
+            | fhir::ExprKind::PrimApp(..) => {}
+        }
+        // Fallback to synthesis and then check
+        let found = self.synth_expr(expr)?;
+        let found = self.resolve_vars_if_possible(&found);
+        let expected = self.resolve_vars_if_possible(expected);
+        if !self.is_coercible(&found, &expected, expr.fhir_id) {
+            return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
         }
         Ok(())
     }
@@ -333,6 +351,23 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                             .insert(expr.fhir_id, proj);
                         Ok(sort)
                     }
+                    rty::Sort::Tuple(sorts) => {
+                        // Parse field name as integer for tuple field access
+                        if let Ok(field_idx) = fld.name.as_str().parse::<usize>()
+                            && field_idx < sorts.len()
+                        {
+                            let proj = rty::FieldProj::Tuple {
+                                arity: sorts.len(),
+                                field: field_idx as u32,
+                            };
+                            self.wfckresults
+                                .field_projs_mut()
+                                .insert(expr.fhir_id, proj);
+                            Ok(sorts[field_idx].clone())
+                        } else {
+                            Err(self.emit_field_not_found(&sort, fld))
+                        }
+                    }
                     rty::Sort::Bool | rty::Sort::Int | rty::Sort::Real => {
                         Err(self.emit_err(errors::InvalidPrimitiveDotAccess::new(&sort, fld)))
                     }
@@ -362,7 +397,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     &sort_def,
                     &fresh_args,
                     field_exprs,
-                    &spread,
+                    spread,
                     &sort,
                 )?;
                 Ok(sort)
@@ -379,6 +414,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     self.check_expr(elem, &elem_sort)?;
                 }
                 Ok(rty::Sort::App(rty::SortCtor::Set, List::singleton(elem_sort)))
+            }
+            fhir::ExprKind::Tuple(exprs) => {
+                let sorts = exprs
+                    .iter()
+                    .map(|expr| self.synth_expr(expr))
+                    .try_collect()?;
+                Ok(rty::Sort::Tuple(sorts))
             }
             _ => Err(self.emit_err(errors::CannotInferSort::new(expr.span))),
         }
@@ -539,8 +581,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .infer_ctxt()
             .with_next_trait_solver(true)
             .build(TypingMode::non_body_analysis());
-        if let Some(def_id) = owner.def_id() {
-            let def_id = genv.maybe_extern_id(def_id).resolved_id();
+        if let Some(def_id) = owner.resolved_id() {
             t.deeply_normalize_sorts(def_id, genv, &infcx)
         } else {
             Ok(t.clone())
@@ -648,9 +689,16 @@ impl<'genv> InferCtxt<'genv, '_> {
                 if ctor1 != ctor2 || args1.len() != args2.len() {
                     return None;
                 }
-                let mut args = vec![];
-                for (s1, s2) in args1.iter().zip(args2.iter()) {
-                    args.push(self.try_equate_inner(s1, s2)?);
+                for (s1, s2) in iter::zip(args1, args2) {
+                    self.try_equate_inner(s1, s2)?;
+                }
+            }
+            (rty::Sort::Tuple(sorts1), rty::Sort::Tuple(sorts2)) => {
+                if sorts1.len() != sorts2.len() {
+                    return None;
+                }
+                for (s1, s2) in iter::zip(sorts1, sorts2) {
+                    self.try_equate_inner(s1, s2)?;
                 }
             }
             (rty::Sort::BitVec(size1), rty::Sort::BitVec(size2)) => {
@@ -752,12 +800,14 @@ impl<'genv> InferCtxt<'genv, '_> {
                 .insert(node.fhir_id, sort);
         }
 
-        let allow_uninterpreted_cast = self
-            .owner
-            .def_id()
-            .map_or_else(flux_config::allow_uninterpreted_cast, |def_id| {
-                self.genv.infer_opts(def_id).allow_uninterpreted_cast
-            });
+        let allow_uninterpreted_cast =
+            self.owner
+                .as_rust()
+                .map_or_else(flux_config::allow_uninterpreted_cast, |def_id| {
+                    self.genv
+                        .infer_opts(def_id.local_id().def_id)
+                        .allow_uninterpreted_cast
+                });
 
         // Make sure that function applications are fully resolved
         for (node, sort_args) in std::mem::take(&mut self.sort_args_of_app) {

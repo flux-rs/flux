@@ -17,7 +17,7 @@ use flux_rustc_bridge::{
 };
 use flux_syntax::symbols::sym;
 use itertools::Itertools;
-use rustc_data_structures::unord::{ExtendUnord, UnordMap};
+use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashMap;
 use rustc_hir::{
@@ -38,7 +38,7 @@ use crate::{
     global_env::GlobalEnv,
     rty::{
         self, AliasReft, Expr, GenericArg,
-        refining::{self, Refine, Refiner},
+        refining::{self, Refine, Refiner, refine_generic_param_def},
     },
 };
 
@@ -101,6 +101,10 @@ pub enum QueryErr {
         msg: String,
     },
     Emitted(ErrorGuaranteed),
+    /// A definition from another crate was used but not explicitly included
+    NotIncluded {
+        def_id: DefId,
+    },
 }
 
 #[macro_export]
@@ -181,6 +185,7 @@ pub struct Providers {
     pub check_wf: fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtDef>,
     pub constant_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::ConstantInfo>,
+    pub static_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::StaticInfo>,
     pub type_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>>,
     pub variants_of: fn(
         GlobalEnv,
@@ -239,6 +244,7 @@ impl Default for Providers {
             sort_of_assoc_reft: |_, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
             constant_info: |_, _| empty_query!(),
+            static_info: |_, _| empty_query!(),
             sort_decl_param_count: |_, _| empty_query!(),
         }
     }
@@ -246,6 +252,12 @@ impl Default for Providers {
 
 pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
+    /// The set of def ids that have been queried.
+    ///
+    /// After checking the crate, this set contains all items transitively reached from the set
+    /// of explicitly included items. We use this set to avoid triggering queries for items not
+    /// included when encoding metadata.
+    queried_def_ids: RefCell<UnordSet<DefId>>,
     mir: Cache<LocalDefId, QueryResult<Rc<mir::BodyRoot<'tcx>>>>,
     collect_specs: OnceCell<crate::Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
@@ -265,6 +277,7 @@ pub struct Queries<'genv, 'tcx> {
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     constant_info: Cache<DefId, QueryResult<rty::ConstantInfo>>,
+    static_info: Cache<DefId, QueryResult<rty::StaticInfo>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
@@ -287,6 +300,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn new(providers: Providers) -> Self {
         Self {
             providers,
+            queried_def_ids: RefCell::new(UnordSet::new()),
             mir: Default::default(),
             collect_specs: Default::default(),
             resolve_crate: Default::default(),
@@ -306,6 +320,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             check_wf: Default::default(),
             adt_def: Default::default(),
             constant_info: Default::default(),
+            static_info: Default::default(),
             generics_of: Default::default(),
             refinement_generics_of: Default::default(),
             predicates_of: Default::default(),
@@ -322,6 +337,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             no_panic: Default::default(),
             auto_inferred_no_panic: Default::default(),
         }
+    }
+
+    pub(crate) fn queried(&self, def_id: DefId) -> bool {
+        self.queried_def_ids.borrow().contains(&def_id)
     }
 
     pub(crate) fn mir(
@@ -474,6 +493,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.func_sort, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| {
                     // refinement functions cannot be extern specs so we simply grab the local id
                     (self.providers.func_sort)(genv, def_id)
@@ -492,6 +512,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.func_span, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| {
                     // refinement functions cannot be extern specs so we simply grab the local id
                     (self.providers.func_span)(genv, def_id)
@@ -531,6 +552,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.adt_sort_def_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.adt_sort_def_of)(genv, def_id),
                 |def_id| genv.cstore().adt_sort_def(def_id),
                 |def_id| {
@@ -545,6 +567,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.sort_decl_param_count, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| {
                     (self.providers.sort_decl_param_count)(genv, def_id)
                 },
@@ -574,6 +597,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.constant_info, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.constant_info)(genv, def_id),
                 |def_id| genv.cstore().constant_info(def_id),
                 |def_id| {
@@ -624,10 +648,27 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
+    pub(crate) fn static_info(
+        &self,
+        genv: GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<rty::StaticInfo> {
+        run_with_cache(&self.static_info, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                self,
+                |def_id| (self.providers.static_info)(genv, def_id),
+                |def_id| genv.cstore().static_info(def_id),
+                |_def_id| Ok(rty::StaticInfo::Unknown),
+            )
+        })
+    }
+
     pub(crate) fn no_panic(&self, genv: GlobalEnv, def_id: DefId) -> bool {
         run_with_cache(&self.no_panic, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| {
                     let mut current_id = def_id.local_id();
 
@@ -668,6 +709,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.adt_def, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.adt_def)(genv, def_id),
                 |def_id| genv.cstore().adt_def(def_id),
                 |def_id| {
@@ -679,14 +721,49 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     }
 
     pub(crate) fn generics_of(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::Generics> {
+        // Box is special: its first type parameter (the pointee `T`) is refined as a `Type` rather
+        // than a `Base`. This allows refinements to "see through" the Box, similar to how references
+        // work.
+        if genv.tcx().is_lang_item(def_id, LangItem::OwnedBox) {
+            let generics = genv.lower_generics_of(def_id);
+            debug_assert_eq!(generics.params.len(), 2);
+            let deref_ty = &generics.params[0];
+            let alloc = &generics.params[1];
+            return Ok(rty::Generics {
+                own_params: List::from_arr([
+                    refine_generic_param_def(true, deref_ty),
+                    refine_generic_param_def(false, alloc),
+                ]),
+                parent: generics.parent(),
+                parent_count: generics.parent_count(),
+                has_self: generics.orig.has_self,
+            });
+        }
+        // `MetaSized` is a marker trait with a single `Self` type parameter. We refine it as `Type`
+        // (rather than `Base`) so that a type parameter `T` of kind `Type` can flow through bounds
+        // like `T: MetaSized`. This is required because `Box` is defined as `Box<T: ?Sized, ...>`
+        // which desugars to the bound `T: MetaSized`. This should be mostly fine because parameters
+        // of both kinds should be able to satisfy `MetaSized` bounds, but it will cause problems
+        // if we ever try to add associated refinements to `MetaSized` like we did for `Sized`.
+        if genv.tcx().is_lang_item(def_id, LangItem::MetaSized) {
+            let generics = genv.lower_generics_of(def_id);
+            debug_assert_eq!(generics.params.len(), 1);
+            let self_ty = &generics.params[0];
+            return Ok(rty::Generics {
+                own_params: List::from_arr([refine_generic_param_def(true, self_ty)]),
+                parent: generics.parent(),
+                parent_count: generics.parent_count(),
+                has_self: generics.orig.has_self,
+            });
+        }
+
         run_with_cache(&self.generics_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.generics_of)(genv, def_id),
                 |def_id| genv.cstore().generics_of(def_id),
-                |def_id| {
-                    Ok(refining::refine_generics(genv, def_id, &genv.lower_generics_of(def_id)))
-                },
+                |def_id| Ok(refining::refine_generics(&genv.lower_generics_of(def_id))),
             )
         })
     }
@@ -699,6 +776,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.refinement_generics_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.refinement_generics_of)(genv, def_id),
                 |def_id| genv.cstore().refinement_generics_of(def_id),
                 |def_id| {
@@ -721,6 +799,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.item_bounds, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.item_bounds)(genv, def_id),
                 |def_id| genv.cstore().item_bounds(def_id),
                 |def_id| {
@@ -746,6 +825,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.predicates_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.predicates_of)(genv, def_id),
                 |def_id| genv.cstore().predicates_of(def_id),
                 |def_id| {
@@ -766,6 +846,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.assoc_refinements_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.assoc_refinements_of)(genv, def_id),
                 |def_id| genv.cstore().assoc_refinements_of(def_id),
                 |def_id| Ok(genv.builtin_assoc_refts(def_id).unwrap_or_default()),
@@ -781,6 +862,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.assoc_refinement_body, impl_assoc_id, || {
             impl_assoc_id.dispatch_query(
                 genv,
+                self,
                 |impl_assoc_id| (self.providers.assoc_refinement_body)(genv, impl_assoc_id),
                 |impl_assoc_id| genv.cstore().assoc_refinements_def(impl_assoc_id),
                 |impl_assoc_id| {
@@ -801,6 +883,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.default_assoc_refinement_body, trait_assoc_id, || {
             trait_assoc_id.dispatch_query(
                 genv,
+                self,
                 |trait_assoc_id| {
                     (self.providers.default_assoc_refinement_body)(genv, trait_assoc_id)
                 },
@@ -823,6 +906,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.sort_of_assoc_reft, assoc_id, || {
             assoc_id.dispatch_query(
                 genv,
+                self,
                 |assoc_id| (self.providers.sort_of_assoc_reft)(genv, assoc_id),
                 |assoc_id| genv.cstore().sort_of_assoc_reft(assoc_id),
                 |assoc_id| {
@@ -845,6 +929,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.type_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.type_of)(genv, def_id),
                 |def_id| genv.cstore().type_of(def_id),
                 |def_id| {
@@ -872,6 +957,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.variants_of, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.variants_of)(genv, def_id),
                 |def_id| genv.cstore().variants_of(def_id),
                 |def_id| {
@@ -899,6 +985,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.fn_sig, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| (self.providers.fn_sig)(genv, def_id),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
@@ -938,16 +1025,19 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
 /// Logic to *dispatch* a `def_id` to a provider (`local`, `external`, or `default`).
 /// This is a trait so it can be implemented for [`DefId`] and for [`FluxDefId`].
-trait DispatchKey: Sized {
+pub trait DispatchKey: Sized + Copy {
     type LocalId;
 
     fn dispatch_query<R>(
         self,
         genv: GlobalEnv,
+        queries: &Queries,
         local: impl FnOnce(Self::LocalId) -> R,
         external: impl FnOnce(Self) -> Option<R>,
         default: impl FnOnce(Self) -> R,
     ) -> R;
+
+    fn def_id(self) -> DefId;
 }
 
 impl DispatchKey for DefId {
@@ -956,10 +1046,12 @@ impl DispatchKey for DefId {
     fn dispatch_query<R>(
         self,
         genv: GlobalEnv,
+        queries: &Queries,
         local: impl FnOnce(MaybeExternId) -> R,
         external: impl FnOnce(Self) -> Option<R>,
         default: impl FnOnce(Self) -> R,
     ) -> R {
+        queries.queried_def_ids.borrow_mut().insert(self);
         match genv.resolve_id(self) {
             ResolvedDefId::Local(local_id) => {
                 // Case 1: `def_id` is a `LocalDefId` so forward it to the *local provider*
@@ -981,6 +1073,10 @@ impl DispatchKey for DefId {
             }
         }
     }
+
+    fn def_id(self) -> DefId {
+        self
+    }
 }
 
 impl DispatchKey for FluxDefId {
@@ -989,6 +1085,7 @@ impl DispatchKey for FluxDefId {
     fn dispatch_query<R>(
         self,
         genv: GlobalEnv,
+        queries: &Queries,
         local: impl FnOnce(FluxId<MaybeExternId>) -> R,
         external: impl FnOnce(FluxId<DefId>) -> Option<R>,
         default: impl FnOnce(FluxId<DefId>) -> R,
@@ -999,10 +1096,15 @@ impl DispatchKey for FluxDefId {
         )]
         self.parent().dispatch_query(
             genv,
+            queries,
             |container_id| local(FluxId::new(container_id, self.name())),
             |container_id| external(FluxId::new(container_id, self.name())),
             |container_id| default(FluxId::new(container_id, self.name())),
         )
+    }
+
+    fn def_id(self) -> DefId {
+        self.parent()
     }
 }
 
@@ -1044,6 +1146,13 @@ impl<'a> Diagnostic<'a> for QueryErr {
                         let def_span = tcx.def_span(def_id);
                         let mut diag =
                             dcx.struct_span_err(def_span, fluent::middle_query_ignored_item);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::NotIncluded { def_id } => {
+                        let def_span = tcx.def_span(def_id);
+                        let mut diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_not_included_item);
                         diag.code(E0999);
                         diag
                     }
@@ -1120,6 +1229,16 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
                         diag.span_label(cx_span, fluent::_subdiag::label);
+                        diag
+                    }
+                    QueryErr::NotIncluded { def_id } => {
+                        let mut diag =
+                            dcx.struct_span_err(cx_span, fluent::middle_query_not_included_at);
+                        diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
+                        diag.arg("name", def_id_to_string(def_id));
+                        if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
+                            diag.span_help(def_ident_span, fluent::_subdiag::help);
+                        }
                         diag
                     }
                     QueryErr::MissingAssocReft { name, .. } => {
