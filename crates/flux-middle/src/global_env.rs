@@ -649,7 +649,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn included(&self, def_id: MaybeExternId) -> bool {
-        self.matches_included_pattern(def_id) || self.matches_trusted_pattern(def_id)
+        let res = self.matches_included_pattern(def_id) || self.matches_trusted_pattern(def_id);
+        println!("TRACE: included {def_id:?} => {res}");
+        res
     }
 
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
