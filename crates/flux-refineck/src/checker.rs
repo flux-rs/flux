@@ -676,8 +676,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
     ) -> InferResult {
         let ty = infcx.hoister(true).hoist(&ty);
-        let res = env.assign(&mut infcx.at(span), place, ty);
-        res
+        env.assign(&mut infcx.at(span), place, ty)
     }
 
     fn check_statement(
