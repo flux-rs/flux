@@ -458,10 +458,7 @@ fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Gener
         | DefKind::Closure
         | DefKind::TraitAlias
         | DefKind::Ctor(..)
-        | DefKind::Static { .. } => {
-            let rustc_generics = genv.lower_generics_of(def_id);
-            refining::refine_generics(genv, def_id.resolved_id(), &rustc_generics)
-        }
+        | DefKind::Static { .. } => refining::refine_generics(&genv.lower_generics_of(def_id)),
         kind => {
             Err(query_bug!(
                 def_id.local_id(),

@@ -32,7 +32,7 @@ use crate::{
     global_env::GlobalEnv,
     rty::{
         self, AliasReft, Expr, GenericArg,
-        refining::{self, Refine, Refiner},
+        refining::{self, Refine, Refiner, refine_generic_param_def},
     },
 };
 
@@ -686,15 +686,49 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     }
 
     pub(crate) fn generics_of(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::Generics> {
+        // Box is special: its first type parameter (the pointee `T`) is refined as a `Type` rather
+        // than a `Base`. This allows refinements to "see through" the Box, similar to how references
+        // work.
+        if genv.tcx().is_lang_item(def_id, LangItem::OwnedBox) {
+            let generics = genv.lower_generics_of(def_id);
+            debug_assert_eq!(generics.params.len(), 2);
+            let deref_ty = &generics.params[0];
+            let alloc = &generics.params[1];
+            return Ok(rty::Generics {
+                own_params: List::from_arr([
+                    refine_generic_param_def(true, deref_ty),
+                    refine_generic_param_def(false, alloc),
+                ]),
+                parent: generics.parent(),
+                parent_count: generics.parent_count(),
+                has_self: generics.orig.has_self,
+            });
+        }
+        // `MetaSized` is a marker trait with a single `Self` type parameter. We refine it as `Type`
+        // (rather than `Base`) so that a type parameter `T` of kind `Type` can flow through bounds
+        // like `T: MetaSized`. This is required because `Box` is defined as `Box<T: ?Sized, ...>`
+        // which desugars to the bound `T: MetaSized`. This should be mostly fine because parameters
+        // of both kinds should be able to satisfy `MetaSized` bounds, but it will cause problems
+        // if we ever try to add associated refinements to `MetaSized` like we did for `Sized`.
+        if genv.tcx().is_lang_item(def_id, LangItem::MetaSized) {
+            let generics = genv.lower_generics_of(def_id);
+            debug_assert_eq!(generics.params.len(), 1);
+            let self_ty = &generics.params[0];
+            return Ok(rty::Generics {
+                own_params: List::from_arr([refine_generic_param_def(true, self_ty)]),
+                parent: generics.parent(),
+                parent_count: generics.parent_count(),
+                has_self: generics.orig.has_self,
+            });
+        }
+
         run_with_cache(&self.generics_of, def_id, || {
             def_id.dispatch_query(
                 genv,
                 self,
                 |def_id| (self.providers.generics_of)(genv, def_id),
                 |def_id| genv.cstore().generics_of(def_id),
-                |def_id| {
-                    Ok(refining::refine_generics(genv, def_id, &genv.lower_generics_of(def_id)))
-                },
+                |def_id| Ok(refining::refine_generics(&genv.lower_generics_of(def_id))),
             )
         })
     }

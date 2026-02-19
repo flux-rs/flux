@@ -203,10 +203,7 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
         match bty {
             BaseTy::Adt(adt_def, args) if adt_def.is_box() && self.in_boxes => {
                 let (boxed, alloc) = args.box_args();
-                let args = List::from_arr([
-                    GenericArg::Ty(boxed.fold_with(self)),
-                    GenericArg::Ty(alloc.clone()),
-                ]);
+                let args = List::from_arr([GenericArg::Ty(boxed.fold_with(self)), alloc.clone()]);
                 BaseTy::Adt(adt_def.clone(), args)
             }
             BaseTy::Ref(re, ty, mutability) if is_indexed_slice(ty) && self.slices => {

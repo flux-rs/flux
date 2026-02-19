@@ -33,7 +33,7 @@ pub(crate) struct Binding {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub(crate) enum LocKind {
     Local,
-    Box(Ty),
+    Box(GenericArg),
     // An &mut T unfolded "locally" at a call-site; with the super-type T
     LocalPtr(Ty),
     Universal,
@@ -471,7 +471,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                 if self.in_ref.is_some() {
                     let args = List::from_arr([
                         GenericArg::Ty(deref_ty.try_fold_with(self)?),
-                        GenericArg::Ty(alloc.clone()),
+                        alloc.clone(),
                     ]);
                     Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
                 } else {
@@ -506,7 +506,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         self.insertions.push((loc, Binding { kind, ty }));
     }
 
-    fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
+    fn unfold_box(&mut self, deref_ty: &Ty, alloc: &GenericArg) -> Loc {
         let name = self.infcx.define_unknown_var(&Sort::Loc);
         let loc = Loc::from(name);
         self.insertions
@@ -656,10 +656,8 @@ where
         match ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) if adt.is_box() => {
                 let (deref_ty, alloc_ty) = args.box_args();
-                let args = List::from_arr([
-                    GenericArg::Ty(self.fold_ty(deref_ty)),
-                    GenericArg::Ty(alloc_ty.clone()),
-                ]);
+                let args =
+                    List::from_arr([GenericArg::Ty(self.fold_ty(deref_ty)), alloc_ty.clone()]);
                 Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
             }
             TyKind::Indexed(BaseTy::RawPtr(..), _) | TyKind::Ptr(..) => {
