@@ -32,6 +32,7 @@ middle_query_ignored_at =
 middle_query_not_included_at =
     use of {$kind} `{$name}` that was not included
     .label = help: try including the file or module where `{$name}` is defined
+    .note = this is the item that was not included
 
 middle_query_missing_assoc_reft_at =
     associated refinement `{$name}` is missing from implementation

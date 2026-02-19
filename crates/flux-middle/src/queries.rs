@@ -1148,6 +1148,9 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
                         diag.span_label(cx_span, fluent::_subdiag::label);
+                        if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
+                            diag.span_note(def_ident_span, fluent::_subdiag::note);
+                        }
                         diag
                     }
                     QueryErr::MissingAssocReft { name, .. } => {
