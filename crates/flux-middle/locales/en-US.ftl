@@ -17,7 +17,7 @@ middle_query_ignored_item =
     use of ignored item
 
 middle_query_not_included_item =
-    use of item that was not included
+    use of item that was not included when checking external crate
 
 # Query Errors reported at use site
 
@@ -32,7 +32,7 @@ middle_query_ignored_at =
 middle_query_not_included_at =
     use of {$kind} `{$name}` that was not included
     .label = help: try including the file or module where `{$name}` is defined
-    .note = this is where the excluded item was used
+    .help = when checking external crate, include the file or module where the excluded item is defined
 
 middle_query_missing_assoc_reft_at =
     associated refinement `{$name}` is missing from implementation

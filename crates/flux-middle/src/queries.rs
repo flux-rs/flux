@@ -1143,36 +1143,14 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                         diag
                     }
                     QueryErr::NotIncluded { def_id } => {
-                        /* TODO: leaving this in, in case we prefer the use-on-top-def-below version
                         let mut diag =
                             dcx.struct_span_err(cx_span, fluent::middle_query_not_included_at);
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
-                        diag.span_label(cx_span, fluent::_subdiag::label);
                         if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
-                            diag.span_note(def_ident_span, fluent::_subdiag::note);
-                            -- .note = this is the definition of the item that was not included
+                            diag.span_help(def_ident_span, fluent::_subdiag::help);
                         }
                         diag
-                        */
-                        if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
-                            let mut diag = dcx.struct_span_err(
-                                def_ident_span,
-                                fluent::middle_query_not_included_at,
-                            );
-                            diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
-                            diag.arg("name", def_id_to_string(def_id));
-                            diag.span_label(def_ident_span, fluent::_subdiag::label);
-                            diag.span_note(cx_span, fluent::_subdiag::note);
-                            diag
-                        } else {
-                            let mut diag =
-                                dcx.struct_span_err(cx_span, fluent::middle_query_not_included_at);
-                            diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
-                            diag.arg("name", def_id_to_string(def_id));
-                            diag.span_label(cx_span, fluent::_subdiag::label);
-                            diag
-                        }
                     }
                     QueryErr::MissingAssocReft { name, .. } => {
                         let mut diag = dcx
