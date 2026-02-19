@@ -19,6 +19,8 @@ pub struct Flags {
     pub lean_project: String,
     /// If present, only check files matching the [`IncludePattern`] a glob pattern.
     pub include: Option<IncludePattern>,
+    /// If present, only trust items matching the [`IncludePattern`] a glob pattern.
+    pub trusted: Option<IncludePattern>,
     /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
     /// (default `64`).
     pub pointer_width: PointerWidth,
@@ -85,6 +87,7 @@ impl Default for Flags {
             catch_bugs: false,
             pointer_width: PointerWidth::default(),
             include: None,
+            trusted: None,
             cache: None,
             check_overflow: OverflowMode::default(),
             allow_raw_deref: RawDerefMode::default(),
@@ -108,6 +111,7 @@ impl Default for Flags {
 pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
     let mut flags = Flags::default();
     let mut includes: Vec<String> = Vec::new();
+    let mut trusted_patterns: Vec<String> = Vec::new();
     for arg in env::args() {
         let Some((key, value)) = parse_flux_arg(&arg) else { continue };
 
@@ -132,6 +136,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "summary" => parse_bool(&mut flags.summary, value),
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "include" => parse_opt_include(&mut includes, value),
+            "trusted-pattern" => parse_opt_include(&mut trusted_patterns, value),
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
@@ -154,6 +159,13 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             process::exit(1);
         });
         flags.include = Some(include);
+    }
+    if !trusted_patterns.is_empty() {
+        let trusted = IncludePattern::new(trusted_patterns).unwrap_or_else(|err| {
+            eprintln!("error: invalid trusted pattern: {err}");
+            process::exit(1);
+        });
+        flags.trusted = Some(trusted);
     }
     flags
 });
