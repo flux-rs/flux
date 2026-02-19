@@ -80,7 +80,7 @@
 <a href=#80 id=80 data-nosnippet>80</a>        query: <span class="kw">impl </span>FnOnce(<span class="self">Self</span>, K) -&gt; QueryResult&lt;R&gt;,
 <a href=#81 id=81 data-nosnippet>81</a>    ) -&gt; QueryResult&lt;R&gt; {
 <a href=#82 id=82 data-nosnippet>82</a>        <span class="kw">if </span>!<span class="self">self</span>.inner.queries.queried(key.def_id()) {
-<a href=#83 id=83 data-nosnippet>83</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(QueryErr::Ignored { def_id: key.def_id() });
+<a href=#83 id=83 data-nosnippet>83</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(QueryErr::NotIncluded { def_id: key.def_id() });
 <a href=#84 id=84 data-nosnippet>84</a>        }
 <a href=#85 id=85 data-nosnippet>85</a>
 <a href=#86 id=86 data-nosnippet>86</a>        query(<span class="self">self</span>, key)
