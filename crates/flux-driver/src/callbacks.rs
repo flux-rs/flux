@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
-use flux_config::{self as config};
+use flux_config::{self as config, IncludePattern};
 use flux_errors::FluxSession;
 use flux_infer::{fixpoint_encoding::FixQueryCache, lean_encoding};
 use flux_metadata::CStore;
@@ -209,8 +209,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     /// Check whether the `def_id` (or the file where `def_id` is defined)
     /// is in the `include` pattern, and conservatively return `true` if
     /// anything unexpected happens.
-    fn is_included(&self, def_id: MaybeExternId) -> bool {
-        let Some(pattern) = config::include_pattern() else { return true };
+    fn matches_pattern(&self, def_id: MaybeExternId, pattern: &IncludePattern) -> bool {
         if self.matches_file_path(def_id, |path| pattern.glob.is_match(path)) {
             return true;
         }
@@ -224,6 +223,26 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             return true;
         }
         false
+    }
+
+    /// Check whether the `def_id` (or the file where `def_id` is defined)
+    /// is in the `trusted` pattern, and conservatively return `false` if
+    /// anything unexpected happens.
+    fn matches_trusted_pattern(&self, def_id: MaybeExternId) -> bool {
+        let Some(pattern) = config::trusted_pattern() else { return false };
+        self.matches_pattern(def_id, pattern)
+    }
+
+    /// Check whether the `def_id` (or the file where `def_id` is defined)
+    /// is in the `include` pattern, and conservatively return `true` if
+    /// anything unexpected happens.
+    fn matches_included_pattern(&self, def_id: MaybeExternId) -> bool {
+        let Some(pattern) = config::include_pattern() else { return true };
+        self.matches_pattern(def_id, pattern)
+    }
+
+    fn is_included(&self, def_id: MaybeExternId) -> bool {
+        self.matches_included_pattern(def_id) || self.matches_trusted_pattern(def_id)
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
