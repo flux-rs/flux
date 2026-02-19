@@ -633,8 +633,7 @@ where
     fn update(bindings: &mut PlacesTree, cursor: Cursor, new_ty: F) {
         let binding = bindings.get_loc_mut(&cursor.loc);
         let updater = Updater::new(cursor, new_ty);
-        let ty = updater.fold_ty(&binding.ty);
-        binding.ty = ty
+        binding.ty = updater.fold_ty(&binding.ty);
     }
 
     fn fold_ty(mut self, ty: &Ty) -> Ty {

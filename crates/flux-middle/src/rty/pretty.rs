@@ -447,9 +447,7 @@ impl Pretty for Ty {
                 // base-name
                 w!(cx, f, "{:?}", adt.did())?;
                 // variant-name: if it is not a struct
-                if
-                /* !adt.is_struct() */
-                true {
+                if !adt.is_struct() {
                     w!(cx, f, "::{}", ^adt.variant(*variant_idx).name)?;
                 }
                 // fields: use curly-braces + names for structs, otherwise use parens
