@@ -250,7 +250,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
 /// items might be missing from the metadata (extern specs in particular which are not otherwise "checked"),
 /// causing errors when dependent crates try to use them.
 fn trigger_queries(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult {
-    println!("TRACE: trigger_queries {def_id:?}");
+    // println!("TRACE: trigger_queries {def_id:?}");
     match genv.def_kind(def_id) {
         DefKind::Trait => {
             genv.generics_of(def_id)?;
