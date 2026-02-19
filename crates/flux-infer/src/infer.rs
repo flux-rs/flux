@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt, iter};
 
 use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
-use flux_config::{self as config, InferOpts, OverflowMode};
+use flux_config::{self as config, InferOpts, OverflowMode, RawDerefMode};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
     FixpointQueryKind,
@@ -193,6 +193,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             cursor: self.refine_tree.cursor_at_root(),
             inner: &self.inner,
             check_overflow: self.opts.check_overflow,
+            allow_raw_deref: self.opts.allow_raw_deref,
         }
     }
 
@@ -296,6 +297,7 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     pub def_id: DefId,
     pub check_overflow: OverflowMode,
+    pub allow_raw_deref: flux_config::RawDerefMode,
     cursor: Cursor<'infcx>,
     inner: &'infcx RefCell<InferCtxtInner>,
 }
@@ -450,6 +452,10 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 
     pub fn cursor(&self) -> &Cursor<'infcx> {
         &self.cursor
+    }
+
+    pub fn allow_raw_deref(&self) -> bool {
+        matches!(self.allow_raw_deref, RawDerefMode::Ok)
     }
 }
 

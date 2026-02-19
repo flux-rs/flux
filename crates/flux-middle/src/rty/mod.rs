@@ -1791,6 +1791,9 @@ pub enum TyKind {
     /// [`match`]: flux_rustc_bridge::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
+    /// These only arise when you "narrow" an ADT down to a particular variant;
+    /// either EXPLICITLY in a `match-of`, or IMPLICITLY when you access a field
+    /// of a struct to "UNPACK" the struct.
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
     /// A type that needs to be inferred by matching the signature against a rust signature.

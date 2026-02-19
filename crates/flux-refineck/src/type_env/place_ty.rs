@@ -481,6 +481,12 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                     Ty::ptr(PtrKind::Box, path)
                 }
             }
+            TyKind::Indexed(BaseTy::RawPtr(deref_ty, mutbl), idx)
+                if self.infcx.allow_raw_deref() =>
+            {
+                let deref_ty = deref_ty.try_fold_with(self)?;
+                Ty::indexed(BaseTy::RawPtr(deref_ty, *mutbl), idx)
+            }
             Ref!(re, ty, mutbl) => {
                 self.in_ref = self.in_ref.max(Some(*mutbl));
                 Ty::mk_ref(*re, ty.try_fold_with(self)?, *mutbl)
@@ -656,7 +662,7 @@ where
                 ]);
                 Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
             }
-            TyKind::Ptr(..) => {
+            TyKind::Indexed(BaseTy::RawPtr(..), _) | TyKind::Ptr(..) => {
                 tracked_span_bug!("cannot update through pointer");
             }
             Ref!(re, deref_ty, mutbl) => Ty::mk_ref(*re, self.fold_ty(deref_ty), *mutbl),
