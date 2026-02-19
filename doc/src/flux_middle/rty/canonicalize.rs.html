@@ -203,273 +203,270 @@
 <a href=#203 id=203 data-nosnippet>203</a>        <span class="kw">match </span>bty {
 <a href=#204 id=204 data-nosnippet>204</a>            BaseTy::Adt(adt_def, args) <span class="kw">if </span>adt_def.is_box() &amp;&amp; <span class="self">self</span>.in_boxes =&gt; {
 <a href=#205 id=205 data-nosnippet>205</a>                <span class="kw">let </span>(boxed, alloc) = args.box_args();
-<a href=#206 id=206 data-nosnippet>206</a>                <span class="kw">let </span>args = List::from_arr([
-<a href=#207 id=207 data-nosnippet>207</a>                    GenericArg::Ty(boxed.fold_with(<span class="self">self</span>)),
-<a href=#208 id=208 data-nosnippet>208</a>                    GenericArg::Ty(alloc.clone()),
-<a href=#209 id=209 data-nosnippet>209</a>                ]);
-<a href=#210 id=210 data-nosnippet>210</a>                BaseTy::Adt(adt_def.clone(), args)
+<a href=#206 id=206 data-nosnippet>206</a>                <span class="kw">let </span>args = List::from_arr([GenericArg::Ty(boxed.fold_with(<span class="self">self</span>)), alloc.clone()]);
+<a href=#207 id=207 data-nosnippet>207</a>                BaseTy::Adt(adt_def.clone(), args)
+<a href=#208 id=208 data-nosnippet>208</a>            }
+<a href=#209 id=209 data-nosnippet>209</a>            BaseTy::Ref(re, ty, mutability) <span class="kw">if </span>is_indexed_slice(ty) &amp;&amp; <span class="self">self</span>.slices =&gt; {
+<a href=#210 id=210 data-nosnippet>210</a>                BaseTy::Ref(<span class="kw-2">*</span>re, ty.fold_with(<span class="self">self</span>), <span class="kw-2">*</span>mutability)
 <a href=#211 id=211 data-nosnippet>211</a>            }
-<a href=#212 id=212 data-nosnippet>212</a>            BaseTy::Ref(re, ty, mutability) <span class="kw">if </span>is_indexed_slice(ty) &amp;&amp; <span class="self">self</span>.slices =&gt; {
-<a href=#213 id=213 data-nosnippet>213</a>                BaseTy::Ref(<span class="kw-2">*</span>re, ty.fold_with(<span class="self">self</span>), <span class="kw-2">*</span>mutability)
+<a href=#212 id=212 data-nosnippet>212</a>            BaseTy::Ref(re, ty, Mutability::Not) <span class="kw">if </span><span class="self">self</span>.in_shr_refs =&gt; {
+<a href=#213 id=213 data-nosnippet>213</a>                BaseTy::Ref(<span class="kw-2">*</span>re, ty.fold_with(<span class="self">self</span>), Mutability::Not)
 <a href=#214 id=214 data-nosnippet>214</a>            }
-<a href=#215 id=215 data-nosnippet>215</a>            BaseTy::Ref(re, ty, Mutability::Not) <span class="kw">if </span><span class="self">self</span>.in_shr_refs =&gt; {
-<a href=#216 id=216 data-nosnippet>216</a>                BaseTy::Ref(<span class="kw-2">*</span>re, ty.fold_with(<span class="self">self</span>), Mutability::Not)
+<a href=#215 id=215 data-nosnippet>215</a>            BaseTy::Ref(re, ty, Mutability::Mut) <span class="kw">if </span><span class="self">self</span>.in_mut_refs =&gt; {
+<a href=#216 id=216 data-nosnippet>216</a>                BaseTy::Ref(<span class="kw-2">*</span>re, ty.fold_with(<span class="self">self</span>), Mutability::Mut)
 <a href=#217 id=217 data-nosnippet>217</a>            }
-<a href=#218 id=218 data-nosnippet>218</a>            BaseTy::Ref(re, ty, Mutability::Mut) <span class="kw">if </span><span class="self">self</span>.in_mut_refs =&gt; {
-<a href=#219 id=219 data-nosnippet>219</a>                BaseTy::Ref(<span class="kw-2">*</span>re, ty.fold_with(<span class="self">self</span>), Mutability::Mut)
-<a href=#220 id=220 data-nosnippet>220</a>            }
-<a href=#221 id=221 data-nosnippet>221</a>            BaseTy::Tuple(tys) <span class="kw">if </span><span class="self">self</span>.in_tuples =&gt; BaseTy::Tuple(tys.fold_with(<span class="self">self</span>)),
-<a href=#222 id=222 data-nosnippet>222</a>            <span class="kw">_ </span>=&gt; bty.clone(),
-<a href=#223 id=223 data-nosnippet>223</a>        }
-<a href=#224 id=224 data-nosnippet>224</a>    }
-<a href=#225 id=225 data-nosnippet>225</a>}
-<a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a><span class="attr">#[derive(Default)]
-<a href=#228 id=228 data-nosnippet>228</a></span><span class="kw">pub struct </span>LocalHoister {
-<a href=#229 id=229 data-nosnippet>229</a>    vars: Vec&lt;BoundVariableKind&gt;,
-<a href=#230 id=230 data-nosnippet>230</a>    preds: Vec&lt;Expr&gt;,
-<a href=#231 id=231 data-nosnippet>231</a>    <span class="kw">pub </span>name: <span class="prelude-ty">Option</span>&lt;Symbol&gt;,
-<a href=#232 id=232 data-nosnippet>232</a>}
-<a href=#233 id=233 data-nosnippet>233</a>
-<a href=#234 id=234 data-nosnippet>234</a><span class="kw">impl </span>LocalHoister {
-<a href=#235 id=235 data-nosnippet>235</a>    <span class="kw">pub fn </span>new(vars: Vec&lt;BoundVariableKind&gt;) -&gt; <span class="self">Self </span>{
-<a href=#236 id=236 data-nosnippet>236</a>        LocalHoister { vars, preds: <span class="macro">vec!</span>[], name: <span class="prelude-val">None </span>}
-<a href=#237 id=237 data-nosnippet>237</a>    }
-<a href=#238 id=238 data-nosnippet>238</a>
-<a href=#239 id=239 data-nosnippet>239</a>    <span class="kw">pub fn </span>bind&lt;T&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(List&lt;BoundVariableKind&gt;, Vec&lt;Expr&gt;) -&gt; T) -&gt; Binder&lt;T&gt; {
-<a href=#240 id=240 data-nosnippet>240</a>        <span class="kw">let </span>vars = List::from_vec(<span class="self">self</span>.vars);
-<a href=#241 id=241 data-nosnippet>241</a>        Binder::bind_with_vars(f(vars.clone(), <span class="self">self</span>.preds), vars)
-<a href=#242 id=242 data-nosnippet>242</a>    }
-<a href=#243 id=243 data-nosnippet>243</a>}
-<a href=#244 id=244 data-nosnippet>244</a>
-<a href=#245 id=245 data-nosnippet>245</a><span class="kw">impl </span>HoisterDelegate <span class="kw">for </span><span class="kw-2">&amp;mut </span>LocalHoister {
-<a href=#246 id=246 data-nosnippet>246</a>    <span class="kw">fn </span>hoist_exists(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty_ctor: <span class="kw-2">&amp;</span>TyCtor) -&gt; Ty {
-<a href=#247 id=247 data-nosnippet>247</a>        ty_ctor.replace_bound_refts_with(|sort, mode, kind| {
-<a href=#248 id=248 data-nosnippet>248</a>            <span class="kw">let </span>idx = <span class="self">self</span>.vars.len();
-<a href=#249 id=249 data-nosnippet>249</a>            <span class="kw">let </span>kind = <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.name { BoundReftKind::Named(name) } <span class="kw">else </span>{ kind };
-<a href=#250 id=250 data-nosnippet>250</a>            <span class="self">self</span>.vars
-<a href=#251 id=251 data-nosnippet>251</a>                .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
-<a href=#252 id=252 data-nosnippet>252</a>            Expr::bvar(INNERMOST, BoundVar::from_usize(idx), kind)
-<a href=#253 id=253 data-nosnippet>253</a>        })
-<a href=#254 id=254 data-nosnippet>254</a>    }
-<a href=#255 id=255 data-nosnippet>255</a>
-<a href=#256 id=256 data-nosnippet>256</a>    <span class="kw">fn </span>hoist_constr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: Expr) {
-<a href=#257 id=257 data-nosnippet>257</a>        <span class="self">self</span>.preds.push(pred);
-<a href=#258 id=258 data-nosnippet>258</a>    }
-<a href=#259 id=259 data-nosnippet>259</a>}
-<a href=#260 id=260 data-nosnippet>260</a>
-<a href=#261 id=261 data-nosnippet>261</a><span class="kw">impl </span>PolyFnSig {
-<a href=#262 id=262 data-nosnippet>262</a>    <span class="doccomment">/// Convert a function signature with existentials to one where they are all
-<a href=#263 id=263 data-nosnippet>263</a>    /// bound at the top level. Performs a transparent (i.e. not shallow)
-<a href=#264 id=264 data-nosnippet>264</a>    /// canonicalization.
-<a href=#265 id=265 data-nosnippet>265</a>    /// The uses the `LocalHoister` machinery to convert a function template _without_
-<a href=#266 id=266 data-nosnippet>266</a>    /// binders, e.g. `fn ({v.i32 | *}) -&gt; {v.i32|*})`
-<a href=#267 id=267 data-nosnippet>267</a>    /// into one _with_ input binders, e.g. `forall &lt;a:int&gt;. fn ({i32[a]|*}) -&gt; {v.i32|*}`
-<a href=#268 id=268 data-nosnippet>268</a>    /// after which the hole-filling machinery can be used to fill in the holes.
-<a href=#269 id=269 data-nosnippet>269</a>    /// This lets us get "dependent signatures" for closures, where the output
-<a href=#270 id=270 data-nosnippet>270</a>    /// can refer to the input. e.g. see `tests/pos/surface/closure09.rs`
-<a href=#271 id=271 data-nosnippet>271</a>    </span><span class="kw">pub fn </span>hoist_input_binders(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-<a href=#272 id=272 data-nosnippet>272</a>        <span class="kw">let </span>original_vars = <span class="self">self</span>.vars().to_vec();
-<a href=#273 id=273 data-nosnippet>273</a>        <span class="kw">let </span>fn_sig = <span class="self">self</span>.skip_binder_ref();
-<a href=#274 id=274 data-nosnippet>274</a>
-<a href=#275 id=275 data-nosnippet>275</a>        <span class="kw">let </span><span class="kw-2">mut </span>delegate =
-<a href=#276 id=276 data-nosnippet>276</a>            LocalHoister { vars: original_vars, preds: fn_sig.requires().to_vec(), name: <span class="prelude-val">None </span>};
-<a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">let </span><span class="kw-2">mut </span>hoister = Hoister::with_delegate(<span class="kw-2">&amp;mut </span>delegate).transparent();
-<a href=#278 id=278 data-nosnippet>278</a>
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="kw">let </span>inputs = fn_sig
-<a href=#280 id=280 data-nosnippet>280</a>            .inputs()
-<a href=#281 id=281 data-nosnippet>281</a>            .iter()
-<a href=#282 id=282 data-nosnippet>282</a>            .map(|ty| hoister.hoist(ty))
-<a href=#283 id=283 data-nosnippet>283</a>            .collect_vec();
-<a href=#284 id=284 data-nosnippet>284</a>
-<a href=#285 id=285 data-nosnippet>285</a>        delegate.bind(|_vars, <span class="kw-2">mut </span>preds| {
-<a href=#286 id=286 data-nosnippet>286</a>            <span class="kw">let </span><span class="kw-2">mut </span>keep_hole = <span class="bool-val">true</span>;
-<a href=#287 id=287 data-nosnippet>287</a>            preds.retain(|pred| {
-<a href=#288 id=288 data-nosnippet>288</a>                <span class="kw">if let </span>ExprKind::Hole(HoleKind::Pred) = pred.kind() {
-<a href=#289 id=289 data-nosnippet>289</a>                    std::mem::replace(<span class="kw-2">&amp;mut </span>keep_hole, <span class="bool-val">false</span>)
-<a href=#290 id=290 data-nosnippet>290</a>                } <span class="kw">else </span>{
-<a href=#291 id=291 data-nosnippet>291</a>                    <span class="bool-val">true
-<a href=#292 id=292 data-nosnippet>292</a>                </span>}
-<a href=#293 id=293 data-nosnippet>293</a>            });
-<a href=#294 id=294 data-nosnippet>294</a>
-<a href=#295 id=295 data-nosnippet>295</a>            FnSig::new(
-<a href=#296 id=296 data-nosnippet>296</a>                fn_sig.safety,
-<a href=#297 id=297 data-nosnippet>297</a>                fn_sig.abi,
-<a href=#298 id=298 data-nosnippet>298</a>                preds.into(),
-<a href=#299 id=299 data-nosnippet>299</a>                inputs.into(),
-<a href=#300 id=300 data-nosnippet>300</a>                fn_sig.output().clone(),
-<a href=#301 id=301 data-nosnippet>301</a>                fn_sig.no_panic.clone(),
-<a href=#302 id=302 data-nosnippet>302</a>                fn_sig.lifted,
-<a href=#303 id=303 data-nosnippet>303</a>            )
-<a href=#304 id=304 data-nosnippet>304</a>        })
-<a href=#305 id=305 data-nosnippet>305</a>    }
-<a href=#306 id=306 data-nosnippet>306</a>}
-<a href=#307 id=307 data-nosnippet>307</a>
-<a href=#308 id=308 data-nosnippet>308</a><span class="kw">impl </span>Ty {
-<a href=#309 id=309 data-nosnippet>309</a>    <span class="doccomment">/// Hoist existentials and predicates inside the type stopping when encountering the first
-<a href=#310 id=310 data-nosnippet>310</a>    /// type constructor.
-<a href=#311 id=311 data-nosnippet>311</a>    </span><span class="kw">pub fn </span>shallow_canonicalize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CanonicalTy {
-<a href=#312 id=312 data-nosnippet>312</a>        <span class="kw">let </span><span class="kw-2">mut </span>delegate = LocalHoister::default();
-<a href=#313 id=313 data-nosnippet>313</a>        <span class="kw">let </span>ty = <span class="self">self</span>.shift_in_escaping(<span class="number">1</span>);
-<a href=#314 id=314 data-nosnippet>314</a>        <span class="kw">let </span>ty = Hoister::with_delegate(<span class="kw-2">&amp;mut </span>delegate).hoist(<span class="kw-2">&amp;</span>ty);
-<a href=#315 id=315 data-nosnippet>315</a>        <span class="kw">let </span>constr_ty = delegate.bind(|<span class="kw">_</span>, preds| {
-<a href=#316 id=316 data-nosnippet>316</a>            <span class="kw">let </span>pred = Expr::and_from_iter(preds);
-<a href=#317 id=317 data-nosnippet>317</a>            CanonicalConstrTy { ty, pred }
-<a href=#318 id=318 data-nosnippet>318</a>        });
-<a href=#319 id=319 data-nosnippet>319</a>        <span class="kw">if </span>constr_ty.vars().is_empty() {
-<a href=#320 id=320 data-nosnippet>320</a>            CanonicalTy::Constr(constr_ty.skip_binder().shift_out_escaping(<span class="number">1</span>))
-<a href=#321 id=321 data-nosnippet>321</a>        } <span class="kw">else </span>{
-<a href=#322 id=322 data-nosnippet>322</a>            CanonicalTy::Exists(constr_ty)
-<a href=#323 id=323 data-nosnippet>323</a>        }
-<a href=#324 id=324 data-nosnippet>324</a>    }
-<a href=#325 id=325 data-nosnippet>325</a>}
-<a href=#326 id=326 data-nosnippet>326</a>
-<a href=#327 id=327 data-nosnippet>327</a><span class="attr">#[derive(TypeVisitable, TypeFoldable)]
-<a href=#328 id=328 data-nosnippet>328</a></span><span class="kw">pub struct </span>CanonicalConstrTy {
-<a href=#329 id=329 data-nosnippet>329</a>    <span class="doccomment">/// Guaranteed to not have any (shallow) [existential] or [constraint] types
-<a href=#330 id=330 data-nosnippet>330</a>    ///
-<a href=#331 id=331 data-nosnippet>331</a>    /// [existential]: TyKind::Exists
-<a href=#332 id=332 data-nosnippet>332</a>    /// [constraint]: TyKind::Constr
-<a href=#333 id=333 data-nosnippet>333</a>    </span>ty: Ty,
-<a href=#334 id=334 data-nosnippet>334</a>    pred: Expr,
-<a href=#335 id=335 data-nosnippet>335</a>}
-<a href=#336 id=336 data-nosnippet>336</a>
-<a href=#337 id=337 data-nosnippet>337</a><span class="kw">impl </span>CanonicalConstrTy {
-<a href=#338 id=338 data-nosnippet>338</a>    <span class="kw">pub fn </span>ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
-<a href=#339 id=339 data-nosnippet>339</a>        <span class="self">self</span>.ty.clone()
-<a href=#340 id=340 data-nosnippet>340</a>    }
-<a href=#341 id=341 data-nosnippet>341</a>
-<a href=#342 id=342 data-nosnippet>342</a>    <span class="kw">pub fn </span>pred(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Expr {
-<a href=#343 id=343 data-nosnippet>343</a>        <span class="self">self</span>.pred.clone()
-<a href=#344 id=344 data-nosnippet>344</a>    }
-<a href=#345 id=345 data-nosnippet>345</a>
-<a href=#346 id=346 data-nosnippet>346</a>    <span class="kw">pub fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
-<a href=#347 id=347 data-nosnippet>347</a>        Ty::constr(<span class="self">self</span>.pred(), <span class="self">self</span>.ty())
-<a href=#348 id=348 data-nosnippet>348</a>    }
-<a href=#349 id=349 data-nosnippet>349</a>}
-<a href=#350 id=350 data-nosnippet>350</a>
-<a href=#351 id=351 data-nosnippet>351</a><span class="doccomment">/// A (shallowly) canonicalized type. This can be either of the form `{T | p}` or `∃v0,…,vn. {T | p}`,
-<a href=#352 id=352 data-nosnippet>352</a>/// where `T` doesnt have any (shallow) [existential] or [constraint] types.
-<a href=#353 id=353 data-nosnippet>353</a>///
-<a href=#354 id=354 data-nosnippet>354</a>/// When canonicalizing a type without a [constraint] type, `p` will be [`Expr::tt()`].
-<a href=#355 id=355 data-nosnippet>355</a>///
-<a href=#356 id=356 data-nosnippet>356</a>/// [existential]: TyKind::Exists
-<a href=#357 id=357 data-nosnippet>357</a>/// [constraint]: TyKind::Constr
-<a href=#358 id=358 data-nosnippet>358</a></span><span class="attr">#[derive(TypeVisitable)]
-<a href=#359 id=359 data-nosnippet>359</a></span><span class="kw">pub enum </span>CanonicalTy {
-<a href=#360 id=360 data-nosnippet>360</a>    <span class="doccomment">/// A type of the form `{T | p}`
-<a href=#361 id=361 data-nosnippet>361</a>    </span>Constr(CanonicalConstrTy),
-<a href=#362 id=362 data-nosnippet>362</a>    <span class="doccomment">/// A type of the form `∃v0,…,vn. {T | p}`
-<a href=#363 id=363 data-nosnippet>363</a>    </span>Exists(Binder&lt;CanonicalConstrTy&gt;),
-<a href=#364 id=364 data-nosnippet>364</a>}
-<a href=#365 id=365 data-nosnippet>365</a>
-<a href=#366 id=366 data-nosnippet>366</a><span class="kw">impl </span>CanonicalTy {
-<a href=#367 id=367 data-nosnippet>367</a>    <span class="kw">pub fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
-<a href=#368 id=368 data-nosnippet>368</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#369 id=369 data-nosnippet>369</a>            CanonicalTy::Constr(constr_ty) =&gt; constr_ty.to_ty(),
-<a href=#370 id=370 data-nosnippet>370</a>            CanonicalTy::Exists(poly_constr_ty) =&gt; {
-<a href=#371 id=371 data-nosnippet>371</a>                Ty::exists(poly_constr_ty.as_ref().map(CanonicalConstrTy::to_ty))
-<a href=#372 id=372 data-nosnippet>372</a>            }
-<a href=#373 id=373 data-nosnippet>373</a>        }
-<a href=#374 id=374 data-nosnippet>374</a>    }
-<a href=#375 id=375 data-nosnippet>375</a>
-<a href=#376 id=376 data-nosnippet>376</a>    <span class="kw">pub fn </span>as_ty_or_base(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TyOrBase {
-<a href=#377 id=377 data-nosnippet>377</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#378 id=378 data-nosnippet>378</a>            CanonicalTy::Constr(constr_ty) =&gt; {
-<a href=#379 id=379 data-nosnippet>379</a>                <span class="kw">if let </span>TyKind::Indexed(bty, idx) = constr_ty.ty.kind() {
-<a href=#380 id=380 data-nosnippet>380</a>                    <span class="comment">// given {b[e] | p} return λv. {b[v] | p ∧ v == e}
-<a href=#381 id=381 data-nosnippet>381</a>
-<a href=#382 id=382 data-nosnippet>382</a>                    // HACK(nilehmann) avoid adding trivial `v == ()` equalities, if we don't do it,
-<a href=#383 id=383 data-nosnippet>383</a>                    // some debug assertions fail. The assertions expect types to be unrefined so they
-<a href=#384 id=384 data-nosnippet>384</a>                    // only check for syntactical equality. We should change those cases to handle
-<a href=#385 id=385 data-nosnippet>385</a>                    // refined types and/or ensure some canonical representation for unrefined types.
-<a href=#386 id=386 data-nosnippet>386</a>                    </span><span class="kw">let </span>pred = <span class="kw">if </span>idx.is_unit() {
-<a href=#387 id=387 data-nosnippet>387</a>                        constr_ty.pred.shift_in_escaping(<span class="number">1</span>)
-<a href=#388 id=388 data-nosnippet>388</a>                    } <span class="kw">else </span>{
-<a href=#389 id=389 data-nosnippet>389</a>                        Expr::and(
-<a href=#390 id=390 data-nosnippet>390</a>                            constr_ty.pred.shift_in_escaping(<span class="number">1</span>),
-<a href=#391 id=391 data-nosnippet>391</a>                            Expr::eq(Expr::nu(), idx.shift_in_escaping(<span class="number">1</span>)),
-<a href=#392 id=392 data-nosnippet>392</a>                        )
-<a href=#393 id=393 data-nosnippet>393</a>                    };
-<a href=#394 id=394 data-nosnippet>394</a>                    <span class="kw">let </span>sort = bty.sort();
-<a href=#395 id=395 data-nosnippet>395</a>                    <span class="kw">let </span>constr = SubsetTy::new(bty.shift_in_escaping(<span class="number">1</span>), Expr::nu(), pred);
-<a href=#396 id=396 data-nosnippet>396</a>                    TyOrBase::Base(Binder::bind_with_sort(constr, sort))
-<a href=#397 id=397 data-nosnippet>397</a>                } <span class="kw">else </span>{
-<a href=#398 id=398 data-nosnippet>398</a>                    TyOrBase::Ty(<span class="self">self</span>.to_ty())
-<a href=#399 id=399 data-nosnippet>399</a>                }
-<a href=#400 id=400 data-nosnippet>400</a>            }
-<a href=#401 id=401 data-nosnippet>401</a>            CanonicalTy::Exists(poly_constr_ty) =&gt; {
-<a href=#402 id=402 data-nosnippet>402</a>                <span class="kw">let </span>constr = poly_constr_ty.as_ref().skip_binder();
-<a href=#403 id=403 data-nosnippet>403</a>                <span class="kw">if let </span>TyKind::Indexed(bty, idx) = constr.ty.kind()
-<a href=#404 id=404 data-nosnippet>404</a>                    &amp;&amp; idx.is_nu()
-<a href=#405 id=405 data-nosnippet>405</a>                {
-<a href=#406 id=406 data-nosnippet>406</a>                    <span class="kw">let </span>ctor = poly_constr_ty
-<a href=#407 id=407 data-nosnippet>407</a>                        .as_ref()
-<a href=#408 id=408 data-nosnippet>408</a>                        .map(|constr| SubsetTy::new(bty.clone(), idx, <span class="kw-2">&amp;</span>constr.pred));
-<a href=#409 id=409 data-nosnippet>409</a>                    TyOrBase::Base(ctor)
-<a href=#410 id=410 data-nosnippet>410</a>                } <span class="kw">else </span>{
-<a href=#411 id=411 data-nosnippet>411</a>                    TyOrBase::Ty(<span class="self">self</span>.to_ty())
-<a href=#412 id=412 data-nosnippet>412</a>                }
-<a href=#413 id=413 data-nosnippet>413</a>            }
-<a href=#414 id=414 data-nosnippet>414</a>        }
-<a href=#415 id=415 data-nosnippet>415</a>    }
-<a href=#416 id=416 data-nosnippet>416</a>}
-<a href=#417 id=417 data-nosnippet>417</a>
-<a href=#418 id=418 data-nosnippet>418</a><span class="kw">mod </span>pretty {
-<a href=#419 id=419 data-nosnippet>419</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#420 id=420 data-nosnippet>420</a>    <span class="kw">use </span><span class="kw">crate</span>::pretty::<span class="kw-2">*</span>;
-<a href=#421 id=421 data-nosnippet>421</a>
-<a href=#422 id=422 data-nosnippet>422</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>CanonicalConstrTy {
-<a href=#423 id=423 data-nosnippet>423</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
-<a href=#424 id=424 data-nosnippet>424</a>            <span class="kw">if </span><span class="self">self</span>.pred().is_trivially_true() {
-<a href=#425 id=425 data-nosnippet>425</a>                <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.ty)
-<a href=#426 id=426 data-nosnippet>426</a>            } <span class="kw">else </span>{
-<a href=#427 id=427 data-nosnippet>427</a>                <span class="macro">w!</span>(cx, f, <span class="string">"{{ {:?} | {:?} }}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.ty, <span class="kw-2">&amp;</span><span class="self">self</span>.pred)
-<a href=#428 id=428 data-nosnippet>428</a>            }
-<a href=#429 id=429 data-nosnippet>429</a>        }
-<a href=#430 id=430 data-nosnippet>430</a>    }
-<a href=#431 id=431 data-nosnippet>431</a>
-<a href=#432 id=432 data-nosnippet>432</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>CanonicalTy {
-<a href=#433 id=433 data-nosnippet>433</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
-<a href=#434 id=434 data-nosnippet>434</a>            <span class="kw">match </span><span class="self">self </span>{
-<a href=#435 id=435 data-nosnippet>435</a>                CanonicalTy::Constr(constr) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, constr),
-<a href=#436 id=436 data-nosnippet>436</a>                CanonicalTy::Exists(poly_constr) =&gt; {
-<a href=#437 id=437 data-nosnippet>437</a>                    <span class="kw">let </span>redundant_bvars = poly_constr.skip_binder_ref().redundant_bvars();
-<a href=#438 id=438 data-nosnippet>438</a>                    cx.with_bound_vars_removable(poly_constr.vars(), redundant_bvars, <span class="prelude-val">None</span>, || {
-<a href=#439 id=439 data-nosnippet>439</a>                        <span class="kw">let </span>constr = poly_constr.skip_binder_ref();
-<a href=#440 id=440 data-nosnippet>440</a>                        <span class="kw">let </span>ty_fmt = <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span>constr.ty);
-<a href=#441 id=441 data-nosnippet>441</a>                        <span class="kw">let </span>pred_fmt = <span class="kw">if </span>!constr.pred().is_trivially_true() {
-<a href=#442 id=442 data-nosnippet>442</a>                            <span class="prelude-val">Some</span>(<span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, constr.pred()))
-<a href=#443 id=443 data-nosnippet>443</a>                        } <span class="kw">else </span>{
-<a href=#444 id=444 data-nosnippet>444</a>                            <span class="prelude-val">None
-<a href=#445 id=445 data-nosnippet>445</a>                        </span>};
-<a href=#446 id=446 data-nosnippet>446</a>
-<a href=#447 id=447 data-nosnippet>447</a>                        <span class="kw">let </span>vars = cx
-<a href=#448 id=448 data-nosnippet>448</a>                            .bvar_env
-<a href=#449 id=449 data-nosnippet>449</a>                            .peek_layer()
-<a href=#450 id=450 data-nosnippet>450</a>                            .unwrap()
-<a href=#451 id=451 data-nosnippet>451</a>                            .filter_vars(poly_constr.vars());
-<a href=#452 id=452 data-nosnippet>452</a>
-<a href=#453 id=453 data-nosnippet>453</a>                        <span class="kw">if </span>vars.is_empty() {
-<a href=#454 id=454 data-nosnippet>454</a>                            <span class="kw">if let </span><span class="prelude-val">Some</span>(pred_fmt) = pred_fmt {
-<a href=#455 id=455 data-nosnippet>455</a>                                <span class="macro">write!</span>(f, <span class="string">"{{ {ty_fmt} | {pred_fmt} }}"</span>)
-<a href=#456 id=456 data-nosnippet>456</a>                            } <span class="kw">else </span>{
-<a href=#457 id=457 data-nosnippet>457</a>                                <span class="macro">write!</span>(f, <span class="string">"{ty_fmt}"</span>)
-<a href=#458 id=458 data-nosnippet>458</a>                            }
-<a href=#459 id=459 data-nosnippet>459</a>                        } <span class="kw">else </span>{
-<a href=#460 id=460 data-nosnippet>460</a>                            cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"{"</span>, <span class="kw-2">&amp;</span>vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
-<a href=#461 id=461 data-nosnippet>461</a>                            <span class="kw">if let </span><span class="prelude-val">Some</span>(pred_fmt) = pred_fmt {
-<a href=#462 id=462 data-nosnippet>462</a>                                <span class="macro">write!</span>(f, <span class="string">"{ty_fmt} | {pred_fmt} }}"</span>)
-<a href=#463 id=463 data-nosnippet>463</a>                            } <span class="kw">else </span>{
-<a href=#464 id=464 data-nosnippet>464</a>                                <span class="macro">write!</span>(f, <span class="string">"{ty_fmt} }}"</span>)
-<a href=#465 id=465 data-nosnippet>465</a>                            }
-<a href=#466 id=466 data-nosnippet>466</a>                        }
-<a href=#467 id=467 data-nosnippet>467</a>                    })
-<a href=#468 id=468 data-nosnippet>468</a>                }
-<a href=#469 id=469 data-nosnippet>469</a>            }
-<a href=#470 id=470 data-nosnippet>470</a>        }
-<a href=#471 id=471 data-nosnippet>471</a>    }
-<a href=#472 id=472 data-nosnippet>472</a>
-<a href=#473 id=473 data-nosnippet>473</a>    <span class="macro">impl_debug_with_default_cx!</span>(CanonicalTy, CanonicalConstrTy);
-<a href=#474 id=474 data-nosnippet>474</a>}
+<a href=#218 id=218 data-nosnippet>218</a>            BaseTy::Tuple(tys) <span class="kw">if </span><span class="self">self</span>.in_tuples =&gt; BaseTy::Tuple(tys.fold_with(<span class="self">self</span>)),
+<a href=#219 id=219 data-nosnippet>219</a>            <span class="kw">_ </span>=&gt; bty.clone(),
+<a href=#220 id=220 data-nosnippet>220</a>        }
+<a href=#221 id=221 data-nosnippet>221</a>    }
+<a href=#222 id=222 data-nosnippet>222</a>}
+<a href=#223 id=223 data-nosnippet>223</a>
+<a href=#224 id=224 data-nosnippet>224</a><span class="attr">#[derive(Default)]
+<a href=#225 id=225 data-nosnippet>225</a></span><span class="kw">pub struct </span>LocalHoister {
+<a href=#226 id=226 data-nosnippet>226</a>    vars: Vec&lt;BoundVariableKind&gt;,
+<a href=#227 id=227 data-nosnippet>227</a>    preds: Vec&lt;Expr&gt;,
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">pub </span>name: <span class="prelude-ty">Option</span>&lt;Symbol&gt;,
+<a href=#229 id=229 data-nosnippet>229</a>}
+<a href=#230 id=230 data-nosnippet>230</a>
+<a href=#231 id=231 data-nosnippet>231</a><span class="kw">impl </span>LocalHoister {
+<a href=#232 id=232 data-nosnippet>232</a>    <span class="kw">pub fn </span>new(vars: Vec&lt;BoundVariableKind&gt;) -&gt; <span class="self">Self </span>{
+<a href=#233 id=233 data-nosnippet>233</a>        LocalHoister { vars, preds: <span class="macro">vec!</span>[], name: <span class="prelude-val">None </span>}
+<a href=#234 id=234 data-nosnippet>234</a>    }
+<a href=#235 id=235 data-nosnippet>235</a>
+<a href=#236 id=236 data-nosnippet>236</a>    <span class="kw">pub fn </span>bind&lt;T&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(List&lt;BoundVariableKind&gt;, Vec&lt;Expr&gt;) -&gt; T) -&gt; Binder&lt;T&gt; {
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="kw">let </span>vars = List::from_vec(<span class="self">self</span>.vars);
+<a href=#238 id=238 data-nosnippet>238</a>        Binder::bind_with_vars(f(vars.clone(), <span class="self">self</span>.preds), vars)
+<a href=#239 id=239 data-nosnippet>239</a>    }
+<a href=#240 id=240 data-nosnippet>240</a>}
+<a href=#241 id=241 data-nosnippet>241</a>
+<a href=#242 id=242 data-nosnippet>242</a><span class="kw">impl </span>HoisterDelegate <span class="kw">for </span><span class="kw-2">&amp;mut </span>LocalHoister {
+<a href=#243 id=243 data-nosnippet>243</a>    <span class="kw">fn </span>hoist_exists(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty_ctor: <span class="kw-2">&amp;</span>TyCtor) -&gt; Ty {
+<a href=#244 id=244 data-nosnippet>244</a>        ty_ctor.replace_bound_refts_with(|sort, mode, kind| {
+<a href=#245 id=245 data-nosnippet>245</a>            <span class="kw">let </span>idx = <span class="self">self</span>.vars.len();
+<a href=#246 id=246 data-nosnippet>246</a>            <span class="kw">let </span>kind = <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.name { BoundReftKind::Named(name) } <span class="kw">else </span>{ kind };
+<a href=#247 id=247 data-nosnippet>247</a>            <span class="self">self</span>.vars
+<a href=#248 id=248 data-nosnippet>248</a>                .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
+<a href=#249 id=249 data-nosnippet>249</a>            Expr::bvar(INNERMOST, BoundVar::from_usize(idx), kind)
+<a href=#250 id=250 data-nosnippet>250</a>        })
+<a href=#251 id=251 data-nosnippet>251</a>    }
+<a href=#252 id=252 data-nosnippet>252</a>
+<a href=#253 id=253 data-nosnippet>253</a>    <span class="kw">fn </span>hoist_constr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: Expr) {
+<a href=#254 id=254 data-nosnippet>254</a>        <span class="self">self</span>.preds.push(pred);
+<a href=#255 id=255 data-nosnippet>255</a>    }
+<a href=#256 id=256 data-nosnippet>256</a>}
+<a href=#257 id=257 data-nosnippet>257</a>
+<a href=#258 id=258 data-nosnippet>258</a><span class="kw">impl </span>PolyFnSig {
+<a href=#259 id=259 data-nosnippet>259</a>    <span class="doccomment">/// Convert a function signature with existentials to one where they are all
+<a href=#260 id=260 data-nosnippet>260</a>    /// bound at the top level. Performs a transparent (i.e. not shallow)
+<a href=#261 id=261 data-nosnippet>261</a>    /// canonicalization.
+<a href=#262 id=262 data-nosnippet>262</a>    /// The uses the `LocalHoister` machinery to convert a function template _without_
+<a href=#263 id=263 data-nosnippet>263</a>    /// binders, e.g. `fn ({v.i32 | *}) -&gt; {v.i32|*})`
+<a href=#264 id=264 data-nosnippet>264</a>    /// into one _with_ input binders, e.g. `forall &lt;a:int&gt;. fn ({i32[a]|*}) -&gt; {v.i32|*}`
+<a href=#265 id=265 data-nosnippet>265</a>    /// after which the hole-filling machinery can be used to fill in the holes.
+<a href=#266 id=266 data-nosnippet>266</a>    /// This lets us get "dependent signatures" for closures, where the output
+<a href=#267 id=267 data-nosnippet>267</a>    /// can refer to the input. e.g. see `tests/pos/surface/closure09.rs`
+<a href=#268 id=268 data-nosnippet>268</a>    </span><span class="kw">pub fn </span>hoist_input_binders(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+<a href=#269 id=269 data-nosnippet>269</a>        <span class="kw">let </span>original_vars = <span class="self">self</span>.vars().to_vec();
+<a href=#270 id=270 data-nosnippet>270</a>        <span class="kw">let </span>fn_sig = <span class="self">self</span>.skip_binder_ref();
+<a href=#271 id=271 data-nosnippet>271</a>
+<a href=#272 id=272 data-nosnippet>272</a>        <span class="kw">let </span><span class="kw-2">mut </span>delegate =
+<a href=#273 id=273 data-nosnippet>273</a>            LocalHoister { vars: original_vars, preds: fn_sig.requires().to_vec(), name: <span class="prelude-val">None </span>};
+<a href=#274 id=274 data-nosnippet>274</a>        <span class="kw">let </span><span class="kw-2">mut </span>hoister = Hoister::with_delegate(<span class="kw-2">&amp;mut </span>delegate).transparent();
+<a href=#275 id=275 data-nosnippet>275</a>
+<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">let </span>inputs = fn_sig
+<a href=#277 id=277 data-nosnippet>277</a>            .inputs()
+<a href=#278 id=278 data-nosnippet>278</a>            .iter()
+<a href=#279 id=279 data-nosnippet>279</a>            .map(|ty| hoister.hoist(ty))
+<a href=#280 id=280 data-nosnippet>280</a>            .collect_vec();
+<a href=#281 id=281 data-nosnippet>281</a>
+<a href=#282 id=282 data-nosnippet>282</a>        delegate.bind(|_vars, <span class="kw-2">mut </span>preds| {
+<a href=#283 id=283 data-nosnippet>283</a>            <span class="kw">let </span><span class="kw-2">mut </span>keep_hole = <span class="bool-val">true</span>;
+<a href=#284 id=284 data-nosnippet>284</a>            preds.retain(|pred| {
+<a href=#285 id=285 data-nosnippet>285</a>                <span class="kw">if let </span>ExprKind::Hole(HoleKind::Pred) = pred.kind() {
+<a href=#286 id=286 data-nosnippet>286</a>                    std::mem::replace(<span class="kw-2">&amp;mut </span>keep_hole, <span class="bool-val">false</span>)
+<a href=#287 id=287 data-nosnippet>287</a>                } <span class="kw">else </span>{
+<a href=#288 id=288 data-nosnippet>288</a>                    <span class="bool-val">true
+<a href=#289 id=289 data-nosnippet>289</a>                </span>}
+<a href=#290 id=290 data-nosnippet>290</a>            });
+<a href=#291 id=291 data-nosnippet>291</a>
+<a href=#292 id=292 data-nosnippet>292</a>            FnSig::new(
+<a href=#293 id=293 data-nosnippet>293</a>                fn_sig.safety,
+<a href=#294 id=294 data-nosnippet>294</a>                fn_sig.abi,
+<a href=#295 id=295 data-nosnippet>295</a>                preds.into(),
+<a href=#296 id=296 data-nosnippet>296</a>                inputs.into(),
+<a href=#297 id=297 data-nosnippet>297</a>                fn_sig.output().clone(),
+<a href=#298 id=298 data-nosnippet>298</a>                fn_sig.no_panic.clone(),
+<a href=#299 id=299 data-nosnippet>299</a>                fn_sig.lifted,
+<a href=#300 id=300 data-nosnippet>300</a>            )
+<a href=#301 id=301 data-nosnippet>301</a>        })
+<a href=#302 id=302 data-nosnippet>302</a>    }
+<a href=#303 id=303 data-nosnippet>303</a>}
+<a href=#304 id=304 data-nosnippet>304</a>
+<a href=#305 id=305 data-nosnippet>305</a><span class="kw">impl </span>Ty {
+<a href=#306 id=306 data-nosnippet>306</a>    <span class="doccomment">/// Hoist existentials and predicates inside the type stopping when encountering the first
+<a href=#307 id=307 data-nosnippet>307</a>    /// type constructor.
+<a href=#308 id=308 data-nosnippet>308</a>    </span><span class="kw">pub fn </span>shallow_canonicalize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CanonicalTy {
+<a href=#309 id=309 data-nosnippet>309</a>        <span class="kw">let </span><span class="kw-2">mut </span>delegate = LocalHoister::default();
+<a href=#310 id=310 data-nosnippet>310</a>        <span class="kw">let </span>ty = <span class="self">self</span>.shift_in_escaping(<span class="number">1</span>);
+<a href=#311 id=311 data-nosnippet>311</a>        <span class="kw">let </span>ty = Hoister::with_delegate(<span class="kw-2">&amp;mut </span>delegate).hoist(<span class="kw-2">&amp;</span>ty);
+<a href=#312 id=312 data-nosnippet>312</a>        <span class="kw">let </span>constr_ty = delegate.bind(|<span class="kw">_</span>, preds| {
+<a href=#313 id=313 data-nosnippet>313</a>            <span class="kw">let </span>pred = Expr::and_from_iter(preds);
+<a href=#314 id=314 data-nosnippet>314</a>            CanonicalConstrTy { ty, pred }
+<a href=#315 id=315 data-nosnippet>315</a>        });
+<a href=#316 id=316 data-nosnippet>316</a>        <span class="kw">if </span>constr_ty.vars().is_empty() {
+<a href=#317 id=317 data-nosnippet>317</a>            CanonicalTy::Constr(constr_ty.skip_binder().shift_out_escaping(<span class="number">1</span>))
+<a href=#318 id=318 data-nosnippet>318</a>        } <span class="kw">else </span>{
+<a href=#319 id=319 data-nosnippet>319</a>            CanonicalTy::Exists(constr_ty)
+<a href=#320 id=320 data-nosnippet>320</a>        }
+<a href=#321 id=321 data-nosnippet>321</a>    }
+<a href=#322 id=322 data-nosnippet>322</a>}
+<a href=#323 id=323 data-nosnippet>323</a>
+<a href=#324 id=324 data-nosnippet>324</a><span class="attr">#[derive(TypeVisitable, TypeFoldable)]
+<a href=#325 id=325 data-nosnippet>325</a></span><span class="kw">pub struct </span>CanonicalConstrTy {
+<a href=#326 id=326 data-nosnippet>326</a>    <span class="doccomment">/// Guaranteed to not have any (shallow) [existential] or [constraint] types
+<a href=#327 id=327 data-nosnippet>327</a>    ///
+<a href=#328 id=328 data-nosnippet>328</a>    /// [existential]: TyKind::Exists
+<a href=#329 id=329 data-nosnippet>329</a>    /// [constraint]: TyKind::Constr
+<a href=#330 id=330 data-nosnippet>330</a>    </span>ty: Ty,
+<a href=#331 id=331 data-nosnippet>331</a>    pred: Expr,
+<a href=#332 id=332 data-nosnippet>332</a>}
+<a href=#333 id=333 data-nosnippet>333</a>
+<a href=#334 id=334 data-nosnippet>334</a><span class="kw">impl </span>CanonicalConstrTy {
+<a href=#335 id=335 data-nosnippet>335</a>    <span class="kw">pub fn </span>ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
+<a href=#336 id=336 data-nosnippet>336</a>        <span class="self">self</span>.ty.clone()
+<a href=#337 id=337 data-nosnippet>337</a>    }
+<a href=#338 id=338 data-nosnippet>338</a>
+<a href=#339 id=339 data-nosnippet>339</a>    <span class="kw">pub fn </span>pred(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Expr {
+<a href=#340 id=340 data-nosnippet>340</a>        <span class="self">self</span>.pred.clone()
+<a href=#341 id=341 data-nosnippet>341</a>    }
+<a href=#342 id=342 data-nosnippet>342</a>
+<a href=#343 id=343 data-nosnippet>343</a>    <span class="kw">pub fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
+<a href=#344 id=344 data-nosnippet>344</a>        Ty::constr(<span class="self">self</span>.pred(), <span class="self">self</span>.ty())
+<a href=#345 id=345 data-nosnippet>345</a>    }
+<a href=#346 id=346 data-nosnippet>346</a>}
+<a href=#347 id=347 data-nosnippet>347</a>
+<a href=#348 id=348 data-nosnippet>348</a><span class="doccomment">/// A (shallowly) canonicalized type. This can be either of the form `{T | p}` or `∃v0,…,vn. {T | p}`,
+<a href=#349 id=349 data-nosnippet>349</a>/// where `T` doesnt have any (shallow) [existential] or [constraint] types.
+<a href=#350 id=350 data-nosnippet>350</a>///
+<a href=#351 id=351 data-nosnippet>351</a>/// When canonicalizing a type without a [constraint] type, `p` will be [`Expr::tt()`].
+<a href=#352 id=352 data-nosnippet>352</a>///
+<a href=#353 id=353 data-nosnippet>353</a>/// [existential]: TyKind::Exists
+<a href=#354 id=354 data-nosnippet>354</a>/// [constraint]: TyKind::Constr
+<a href=#355 id=355 data-nosnippet>355</a></span><span class="attr">#[derive(TypeVisitable)]
+<a href=#356 id=356 data-nosnippet>356</a></span><span class="kw">pub enum </span>CanonicalTy {
+<a href=#357 id=357 data-nosnippet>357</a>    <span class="doccomment">/// A type of the form `{T | p}`
+<a href=#358 id=358 data-nosnippet>358</a>    </span>Constr(CanonicalConstrTy),
+<a href=#359 id=359 data-nosnippet>359</a>    <span class="doccomment">/// A type of the form `∃v0,…,vn. {T | p}`
+<a href=#360 id=360 data-nosnippet>360</a>    </span>Exists(Binder&lt;CanonicalConstrTy&gt;),
+<a href=#361 id=361 data-nosnippet>361</a>}
+<a href=#362 id=362 data-nosnippet>362</a>
+<a href=#363 id=363 data-nosnippet>363</a><span class="kw">impl </span>CanonicalTy {
+<a href=#364 id=364 data-nosnippet>364</a>    <span class="kw">pub fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
+<a href=#365 id=365 data-nosnippet>365</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#366 id=366 data-nosnippet>366</a>            CanonicalTy::Constr(constr_ty) =&gt; constr_ty.to_ty(),
+<a href=#367 id=367 data-nosnippet>367</a>            CanonicalTy::Exists(poly_constr_ty) =&gt; {
+<a href=#368 id=368 data-nosnippet>368</a>                Ty::exists(poly_constr_ty.as_ref().map(CanonicalConstrTy::to_ty))
+<a href=#369 id=369 data-nosnippet>369</a>            }
+<a href=#370 id=370 data-nosnippet>370</a>        }
+<a href=#371 id=371 data-nosnippet>371</a>    }
+<a href=#372 id=372 data-nosnippet>372</a>
+<a href=#373 id=373 data-nosnippet>373</a>    <span class="kw">pub fn </span>as_ty_or_base(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TyOrBase {
+<a href=#374 id=374 data-nosnippet>374</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#375 id=375 data-nosnippet>375</a>            CanonicalTy::Constr(constr_ty) =&gt; {
+<a href=#376 id=376 data-nosnippet>376</a>                <span class="kw">if let </span>TyKind::Indexed(bty, idx) = constr_ty.ty.kind() {
+<a href=#377 id=377 data-nosnippet>377</a>                    <span class="comment">// given {b[e] | p} return λv. {b[v] | p ∧ v == e}
+<a href=#378 id=378 data-nosnippet>378</a>
+<a href=#379 id=379 data-nosnippet>379</a>                    // HACK(nilehmann) avoid adding trivial `v == ()` equalities, if we don't do it,
+<a href=#380 id=380 data-nosnippet>380</a>                    // some debug assertions fail. The assertions expect types to be unrefined so they
+<a href=#381 id=381 data-nosnippet>381</a>                    // only check for syntactical equality. We should change those cases to handle
+<a href=#382 id=382 data-nosnippet>382</a>                    // refined types and/or ensure some canonical representation for unrefined types.
+<a href=#383 id=383 data-nosnippet>383</a>                    </span><span class="kw">let </span>pred = <span class="kw">if </span>idx.is_unit() {
+<a href=#384 id=384 data-nosnippet>384</a>                        constr_ty.pred.shift_in_escaping(<span class="number">1</span>)
+<a href=#385 id=385 data-nosnippet>385</a>                    } <span class="kw">else </span>{
+<a href=#386 id=386 data-nosnippet>386</a>                        Expr::and(
+<a href=#387 id=387 data-nosnippet>387</a>                            constr_ty.pred.shift_in_escaping(<span class="number">1</span>),
+<a href=#388 id=388 data-nosnippet>388</a>                            Expr::eq(Expr::nu(), idx.shift_in_escaping(<span class="number">1</span>)),
+<a href=#389 id=389 data-nosnippet>389</a>                        )
+<a href=#390 id=390 data-nosnippet>390</a>                    };
+<a href=#391 id=391 data-nosnippet>391</a>                    <span class="kw">let </span>sort = bty.sort();
+<a href=#392 id=392 data-nosnippet>392</a>                    <span class="kw">let </span>constr = SubsetTy::new(bty.shift_in_escaping(<span class="number">1</span>), Expr::nu(), pred);
+<a href=#393 id=393 data-nosnippet>393</a>                    TyOrBase::Base(Binder::bind_with_sort(constr, sort))
+<a href=#394 id=394 data-nosnippet>394</a>                } <span class="kw">else </span>{
+<a href=#395 id=395 data-nosnippet>395</a>                    TyOrBase::Ty(<span class="self">self</span>.to_ty())
+<a href=#396 id=396 data-nosnippet>396</a>                }
+<a href=#397 id=397 data-nosnippet>397</a>            }
+<a href=#398 id=398 data-nosnippet>398</a>            CanonicalTy::Exists(poly_constr_ty) =&gt; {
+<a href=#399 id=399 data-nosnippet>399</a>                <span class="kw">let </span>constr = poly_constr_ty.as_ref().skip_binder();
+<a href=#400 id=400 data-nosnippet>400</a>                <span class="kw">if let </span>TyKind::Indexed(bty, idx) = constr.ty.kind()
+<a href=#401 id=401 data-nosnippet>401</a>                    &amp;&amp; idx.is_nu()
+<a href=#402 id=402 data-nosnippet>402</a>                {
+<a href=#403 id=403 data-nosnippet>403</a>                    <span class="kw">let </span>ctor = poly_constr_ty
+<a href=#404 id=404 data-nosnippet>404</a>                        .as_ref()
+<a href=#405 id=405 data-nosnippet>405</a>                        .map(|constr| SubsetTy::new(bty.clone(), idx, <span class="kw-2">&amp;</span>constr.pred));
+<a href=#406 id=406 data-nosnippet>406</a>                    TyOrBase::Base(ctor)
+<a href=#407 id=407 data-nosnippet>407</a>                } <span class="kw">else </span>{
+<a href=#408 id=408 data-nosnippet>408</a>                    TyOrBase::Ty(<span class="self">self</span>.to_ty())
+<a href=#409 id=409 data-nosnippet>409</a>                }
+<a href=#410 id=410 data-nosnippet>410</a>            }
+<a href=#411 id=411 data-nosnippet>411</a>        }
+<a href=#412 id=412 data-nosnippet>412</a>    }
+<a href=#413 id=413 data-nosnippet>413</a>}
+<a href=#414 id=414 data-nosnippet>414</a>
+<a href=#415 id=415 data-nosnippet>415</a><span class="kw">mod </span>pretty {
+<a href=#416 id=416 data-nosnippet>416</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#417 id=417 data-nosnippet>417</a>    <span class="kw">use </span><span class="kw">crate</span>::pretty::<span class="kw-2">*</span>;
+<a href=#418 id=418 data-nosnippet>418</a>
+<a href=#419 id=419 data-nosnippet>419</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>CanonicalConstrTy {
+<a href=#420 id=420 data-nosnippet>420</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
+<a href=#421 id=421 data-nosnippet>421</a>            <span class="kw">if </span><span class="self">self</span>.pred().is_trivially_true() {
+<a href=#422 id=422 data-nosnippet>422</a>                <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.ty)
+<a href=#423 id=423 data-nosnippet>423</a>            } <span class="kw">else </span>{
+<a href=#424 id=424 data-nosnippet>424</a>                <span class="macro">w!</span>(cx, f, <span class="string">"{{ {:?} | {:?} }}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.ty, <span class="kw-2">&amp;</span><span class="self">self</span>.pred)
+<a href=#425 id=425 data-nosnippet>425</a>            }
+<a href=#426 id=426 data-nosnippet>426</a>        }
+<a href=#427 id=427 data-nosnippet>427</a>    }
+<a href=#428 id=428 data-nosnippet>428</a>
+<a href=#429 id=429 data-nosnippet>429</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>CanonicalTy {
+<a href=#430 id=430 data-nosnippet>430</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
+<a href=#431 id=431 data-nosnippet>431</a>            <span class="kw">match </span><span class="self">self </span>{
+<a href=#432 id=432 data-nosnippet>432</a>                CanonicalTy::Constr(constr) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, constr),
+<a href=#433 id=433 data-nosnippet>433</a>                CanonicalTy::Exists(poly_constr) =&gt; {
+<a href=#434 id=434 data-nosnippet>434</a>                    <span class="kw">let </span>redundant_bvars = poly_constr.skip_binder_ref().redundant_bvars();
+<a href=#435 id=435 data-nosnippet>435</a>                    cx.with_bound_vars_removable(poly_constr.vars(), redundant_bvars, <span class="prelude-val">None</span>, || {
+<a href=#436 id=436 data-nosnippet>436</a>                        <span class="kw">let </span>constr = poly_constr.skip_binder_ref();
+<a href=#437 id=437 data-nosnippet>437</a>                        <span class="kw">let </span>ty_fmt = <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span>constr.ty);
+<a href=#438 id=438 data-nosnippet>438</a>                        <span class="kw">let </span>pred_fmt = <span class="kw">if </span>!constr.pred().is_trivially_true() {
+<a href=#439 id=439 data-nosnippet>439</a>                            <span class="prelude-val">Some</span>(<span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, constr.pred()))
+<a href=#440 id=440 data-nosnippet>440</a>                        } <span class="kw">else </span>{
+<a href=#441 id=441 data-nosnippet>441</a>                            <span class="prelude-val">None
+<a href=#442 id=442 data-nosnippet>442</a>                        </span>};
+<a href=#443 id=443 data-nosnippet>443</a>
+<a href=#444 id=444 data-nosnippet>444</a>                        <span class="kw">let </span>vars = cx
+<a href=#445 id=445 data-nosnippet>445</a>                            .bvar_env
+<a href=#446 id=446 data-nosnippet>446</a>                            .peek_layer()
+<a href=#447 id=447 data-nosnippet>447</a>                            .unwrap()
+<a href=#448 id=448 data-nosnippet>448</a>                            .filter_vars(poly_constr.vars());
+<a href=#449 id=449 data-nosnippet>449</a>
+<a href=#450 id=450 data-nosnippet>450</a>                        <span class="kw">if </span>vars.is_empty() {
+<a href=#451 id=451 data-nosnippet>451</a>                            <span class="kw">if let </span><span class="prelude-val">Some</span>(pred_fmt) = pred_fmt {
+<a href=#452 id=452 data-nosnippet>452</a>                                <span class="macro">write!</span>(f, <span class="string">"{{ {ty_fmt} | {pred_fmt} }}"</span>)
+<a href=#453 id=453 data-nosnippet>453</a>                            } <span class="kw">else </span>{
+<a href=#454 id=454 data-nosnippet>454</a>                                <span class="macro">write!</span>(f, <span class="string">"{ty_fmt}"</span>)
+<a href=#455 id=455 data-nosnippet>455</a>                            }
+<a href=#456 id=456 data-nosnippet>456</a>                        } <span class="kw">else </span>{
+<a href=#457 id=457 data-nosnippet>457</a>                            cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"{"</span>, <span class="kw-2">&amp;</span>vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
+<a href=#458 id=458 data-nosnippet>458</a>                            <span class="kw">if let </span><span class="prelude-val">Some</span>(pred_fmt) = pred_fmt {
+<a href=#459 id=459 data-nosnippet>459</a>                                <span class="macro">write!</span>(f, <span class="string">"{ty_fmt} | {pred_fmt} }}"</span>)
+<a href=#460 id=460 data-nosnippet>460</a>                            } <span class="kw">else </span>{
+<a href=#461 id=461 data-nosnippet>461</a>                                <span class="macro">write!</span>(f, <span class="string">"{ty_fmt} }}"</span>)
+<a href=#462 id=462 data-nosnippet>462</a>                            }
+<a href=#463 id=463 data-nosnippet>463</a>                        }
+<a href=#464 id=464 data-nosnippet>464</a>                    })
+<a href=#465 id=465 data-nosnippet>465</a>                }
+<a href=#466 id=466 data-nosnippet>466</a>            }
+<a href=#467 id=467 data-nosnippet>467</a>        }
+<a href=#468 id=468 data-nosnippet>468</a>    }
+<a href=#469 id=469 data-nosnippet>469</a>
+<a href=#470 id=470 data-nosnippet>470</a>    <span class="macro">impl_debug_with_default_cx!</span>(CanonicalTy, CanonicalConstrTy);
+<a href=#471 id=471 data-nosnippet>471</a>}
 </code></pre></div></section></main></body></html>
