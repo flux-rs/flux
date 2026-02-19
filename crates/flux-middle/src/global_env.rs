@@ -16,7 +16,7 @@ use rustc_middle::{
     query::IntoQueryParam,
     ty::{TyCtxt, Variance},
 };
-use rustc_span::Span;
+use rustc_span::{FileName, Span};
 pub use rustc_span::{Symbol, symbol::Ident};
 use tempfile::TempDir;
 
@@ -563,9 +563,56 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// explicit `#[flux::trusted(..)]` annotation and return whether that item is trusted or not.
     /// If no explicit annotation is found, return `false`.
     pub fn trusted(self, def_id: LocalDefId) -> bool {
-        self.traverse_parents(def_id, |did| self.fhir_attr_map(did).trusted())
+        let annotation = self.traverse_parents(def_id, |did| self.fhir_attr_map(did).trusted())
             .map(|trusted| trusted.to_bool())
-            .unwrap_or_else(config::trusted_default)
+            .unwrap_or_else(config::trusted_default);
+        annotation || self.matches_trusted_pattern(def_id)
+    }
+
+    /// Returns `true` if `def_id` matches the `-Ftrusted-pattern=...` flag.
+    fn matches_trusted_pattern(self, def_id: LocalDefId) -> bool {
+        let Some(pattern) = config::trusted_pattern() else { return false };
+        let tcx = self.tcx();
+        let span = tcx.def_span(def_id);
+        let sm = tcx.sess.source_map();
+
+        let FileName::Real(file_name) = sm.span_to_filename(span) else { return true };
+        let file_path = file_name.local_path_if_available();
+        let file_path = if file_path.is_absolute() {
+            let working_dir = tcx.sess.opts.working_dir.local_path_if_available();
+            file_path.strip_prefix(working_dir).unwrap_or(file_path)
+        } else {
+            file_path
+        };
+
+        if pattern.glob.is_match(file_path) {
+            return true;
+        }
+
+        let def_path = tcx.def_path_str(def_id);
+        if pattern.defs.iter().any(|def| def_path.contains(def.as_str())) {
+            return true;
+        }
+
+        for pos in &pattern.spans {
+            if !file_path.ends_with(&pos.file) {
+                continue;
+            }
+            let hir_id = tcx.local_def_id_to_hir_id(def_id);
+            let body_span = tcx.hir_span_with_body(hir_id);
+            let lo = sm.lookup_char_pos(body_span.lo());
+            let hi = sm.lookup_char_pos(body_span.hi());
+            let in_span = if lo.line < hi.line {
+                lo.line <= pos.line && pos.line <= hi.line
+            } else {
+                lo.line == pos.line && lo.col_display <= pos.column && pos.column <= hi.col_display
+            };
+            if in_span {
+                return true;
+            }
+        }
+
+        false
     }
 
     pub fn trusted_impl(self, def_id: LocalDefId) -> bool {

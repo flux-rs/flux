@@ -228,7 +228,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     /// Check whether the `def_id` (or the file where `def_id` is defined)
     /// is in the `trusted` pattern, and conservatively return `false` if
     /// anything unexpected happens.
-    fn matches_trusted_pattern(&self, def_id: MaybeExternId) -> bool {
+    fn is_trusted(&self, def_id: MaybeExternId) -> bool {
         let Some(pattern) = config::trusted_pattern() else { return false };
         self.matches_pattern(def_id, pattern)
     }
@@ -242,7 +242,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     fn is_included(&self, def_id: MaybeExternId) -> bool {
-        self.matches_included_pattern(def_id) || self.matches_trusted_pattern(def_id)
+        self.matches_included_pattern(def_id) || self.is_trusted(def_id)
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
