@@ -627,20 +627,22 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.auto_inferred_no_panic, def_id, || {
             def_id.dispatch_query(
                 genv,
+                self,
                 |def_id| {
                     let def_id = def_id.local_id();
+                    println!("local: {}", genv.tcx().def_path_str(def_id));
                     let map = flux_opt::infer_no_panics(genv.tcx(), def_id.to_def_id());
-
                     map.get(&def_id.to_def_id())
                         .cloned()
-                        .unwrap_or((|| PanicSpec::MightPanic(PanicReason::NotInCallGraph))())
+                        .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
                 },
                 |def_id| {
+                    println!("extern: {}", genv.tcx().def_path_str(def_id));
                     let map = flux_opt::infer_no_panics(genv.tcx(), def_id);
                     Some(
                         map.get(&def_id)
                             .cloned()
-                            .unwrap_or((|| PanicSpec::MightPanic(PanicReason::NotInCallGraph))()),
+                            .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph)),
                     )
                 },
                 |_| PanicSpec::MightPanic(PanicReason::Unknown),
