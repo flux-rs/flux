@@ -286,7 +286,7 @@ fn check_fn_subtyping(
         .map(|ty| infcx.unpack(ty))
         .collect_vec();
 
-    let mut env = TypeEnv::empty(&infcx.allow_raw_deref);
+    let mut env = TypeEnv::empty();
     let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals)?;
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
@@ -676,7 +676,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
     ) -> InferResult {
         let ty = infcx.hoister(true).hoist(&ty);
-        env.assign(&mut infcx.at(span), place, ty)
+        let res = env.assign(&mut infcx.at(span), place, ty);
+        res
     }
 
     fn check_statement(

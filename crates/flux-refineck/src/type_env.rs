@@ -7,7 +7,6 @@ use flux_common::{
     dbg::{SpanTrace, debug_assert_eq3},
     tracked_span_bug, tracked_span_dbg_assert_eq,
 };
-use flux_config::RawDerefMode;
 use flux_infer::{
     fixpoint_encoding::KVarEncoding,
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, InferResult},
@@ -68,10 +67,7 @@ struct BasicBlockEnvData {
 
 impl<'a> TypeEnv<'a> {
     pub fn new(infcx: &mut InferCtxt, body: &'a Body, fn_sig: &FnSig) -> TypeEnv<'a> {
-        let mut env = TypeEnv {
-            bindings: PlacesTree::new(infcx.allow_raw_deref),
-            local_decls: &body.local_decls,
-        };
+        let mut env = TypeEnv { bindings: PlacesTree::default(), local_decls: &body.local_decls };
 
         for requires in fn_sig.requires() {
             infcx.assume_pred(requires);
@@ -91,8 +87,8 @@ impl<'a> TypeEnv<'a> {
         env
     }
 
-    pub fn empty(allow_raw_deref: &RawDerefMode) -> TypeEnv<'a> {
-        TypeEnv { bindings: PlacesTree::new(*allow_raw_deref), local_decls: IndexSlice::empty() }
+    pub fn empty() -> TypeEnv<'a> {
+        TypeEnv { bindings: PlacesTree::default(), local_decls: IndexSlice::empty() }
     }
 
     fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
