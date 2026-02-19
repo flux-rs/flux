@@ -124,6 +124,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             surface::ItemKind::Trait(trait_) => self.desugar_trait(trait_),
             surface::ItemKind::Impl(impl_) => Ok(self.desugar_impl(impl_)),
             surface::ItemKind::Const(constant_info) => Ok(self.desugar_const(constant_info)),
+            surface::ItemKind::Static(static_info) => Ok(self.desugar_static(static_info)),
             surface::ItemKind::TyAlias(ty_alias) => Ok(self.desugar_type_alias(ty_alias)),
             surface::ItemKind::Mod => Err(self.emit(query_bug!("modules can't be desugared"))),
         }
@@ -476,12 +477,20 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         fhir::Item { owner_id, generics, kind }
     }
 
+    fn desugar_static(&mut self, static_info: &surface::StaticInfo) -> fhir::Item<'genv> {
+        let ty = self.desugar_ty(&static_info.ty);
+        let owner_id = self.owner;
+        let generics = fhir::Generics::empty(self.genv);
+        let kind = fhir::ItemKind::Static(Some(ty));
+        fhir::Item { owner_id, generics, kind }
+    }
+
     fn desugar_fn_sig(
         &mut self,
         fn_sig: Option<&surface::FnSig>,
     ) -> Result<(fhir::Generics<'genv>, fhir::FnSig<'genv>)> {
         let mut header = self.lift_fn_header();
-        let (generics, decl) = if let Some(fn_sig) = fn_sig {
+        let (generics, decl, expr) = if let Some(fn_sig) = fn_sig {
             self.fn_sig_scope = Some(fn_sig.node_id);
 
             let mut requires = vec![];
@@ -510,18 +519,20 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 span: fn_sig.span,
                 lifted: false,
             };
+
             // Fix up the span in asyncness
             if let surface::Async::Yes { span, .. } = fn_sig.asyncness {
                 header.asyncness = hir::IsAsync::Async(span);
             }
-            (generics, decl)
+            let expr = fn_sig.no_panic.as_ref().map(|e| self.desugar_expr(e));
+            (generics, decl, expr)
         } else {
-            (self.lift_generics(), self.lift_fn_decl())
+            (self.lift_generics(), self.lift_fn_decl(), None)
         };
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", decl).unwrap();
         }
-        Ok((generics, fhir::FnSig { header, decl: self.genv.alloc(decl) }))
+        Ok((generics, fhir::FnSig { header, decl: self.genv.alloc(decl), no_panic_if: expr }))
     }
 
     fn desugar_fn_sig_refine_params(
@@ -1123,6 +1134,14 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             surface::BaseSort::SortOf(qself, path) => {
                 fhir::Sort::SortOf(self.desugar_path_to_bty(Some(qself), path))
             }
+            surface::BaseSort::Tuple(sorts) => {
+                let sorts = genv.alloc_slice_fill_iter(
+                    sorts
+                        .iter()
+                        .map(|s| self.desugar_base_sort(s, generic_id_to_var_idx)),
+                );
+                fhir::Sort::Tuple(sorts)
+            }
         }
     }
 
@@ -1261,6 +1280,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 let mut_ty = fhir::MutTy { ty: self.genv().alloc(ty), mutbl: *mutbl };
                 fhir::TyKind::Ref(self.mk_lft_hole(), mut_ty)
             }
+
             surface::TyKind::Tuple(tys) => {
                 let tys = self
                     .genv()
@@ -1295,6 +1315,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             surface::BaseTyKind::Slice(ty) => {
                 let ty = self.desugar_ty(ty);
                 let kind = fhir::BaseTyKind::Slice(self.genv().alloc(ty));
+                fhir::BaseTy { kind, fhir_id: self.next_fhir_id(), span: bty.span }
+            }
+            surface::BaseTyKind::Ptr(mutbl, ty) => {
+                let ty = self.desugar_ty(ty);
+                let kind = fhir::BaseTyKind::RawPtr(self.genv().alloc(ty), *mutbl);
                 fhir::BaseTy { kind, fhir_id: self.next_fhir_id(), span: bty.span }
             }
         }
@@ -1523,6 +1548,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     .alloc_slice_fill_iter(exprs.iter().map(|expr| self.desugar_expr(expr)));
                 fhir::ExprKind::SetLiteral(exprs)
             }
+            surface::ExprKind::Tuple(exprs) => {
+                let exprs = self
+                    .genv()
+                    .alloc_slice_fill_iter(exprs.iter().map(|expr| self.desugar_expr(expr)));
+                fhir::ExprKind::Tuple(exprs)
+            }
         };
 
         fhir::Expr { kind, span: expr.span, fhir_id: self.next_fhir_id() }
@@ -1678,10 +1709,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
 
 impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'_, 'genv, 'tcx> {
     fn next_fhir_id(&self) -> FhirId {
-        FhirId {
-            owner: FluxOwnerId::Rust(self.owner.local_id()),
-            local_id: self.local_id_gen.fresh(),
-        }
+        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
     fn genv(&self) -> GlobalEnv<'genv, 'tcx> {

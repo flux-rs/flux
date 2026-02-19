@@ -122,7 +122,7 @@ pub trait GenericsSubstDelegate {
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, Self::Error>;
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Result<Ty, Self::Error>;
     fn ctor_for_param(&mut self, param_ty: ParamTy) -> Result<SubsetTyCtor, Self::Error>;
-    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
+    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Result<Region, Self::Error>;
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr;
     fn const_for_param(&mut self, param: &Const) -> Const;
 }
@@ -162,9 +162,9 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_, '_> {
         }
     }
 
-    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
+    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Result<Region, !> {
         match self.0.get(ebr.index as usize) {
-            Some(GenericArg::Lifetime(re)) => *re,
+            Some(GenericArg::Lifetime(re)) => Ok(*re),
             Some(arg) => bug!("expected region for generic parameter, found `{arg:?}`"),
             None => bug!("region parameter out of range"),
         }
@@ -227,7 +227,7 @@ where
         bug!("unexpected base type param {param_ty:?}");
     }
 
-    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
+    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Result<Region, E> {
         bug!("unexpected region param {ebr:?}");
     }
 
@@ -295,7 +295,7 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
     }
 
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, D::Error> {
-        if let ReEarlyParam(ebr) = *re { Ok(self.delegate.region_for_param(ebr)) } else { Ok(*re) }
+        if let ReEarlyParam(ebr) = *re { self.delegate.region_for_param(ebr) } else { Ok(*re) }
     }
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, D::Error> {

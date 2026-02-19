@@ -60,6 +60,7 @@ pub fn provide(providers: &mut Providers) {
     providers.check_wf = check_wf;
     providers.adt_def = adt_def;
     providers.constant_info = constant_info;
+    providers.static_info = static_info;
     providers.type_of = type_of;
     providers.variants_of = variants_of;
     providers.fn_sig = fn_sig;
@@ -119,13 +120,8 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
             continue;
         };
         let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
-        let Ok(defn) = cx.conv_defn(func).emit(&errors) else {
-            continue;
-        };
-
-        if let Some(defn) = defn {
-            defns.push((func.def_id, defn, func.hide));
-        }
+        let Ok(defn) = cx.conv_defn(func).emit(&errors) else { continue };
+        defns.push((func.def_id, defn, func.hide));
     }
     errors.to_result()?;
 
@@ -207,7 +203,6 @@ fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
 
 fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::ConstantInfo> {
     let node = genv.fhir_node(def_id.local_id())?;
-    let owner = rustc_hir::OwnerId { def_id: def_id.local_id() };
     let Some(sort) = genv.sort_of_def_id(def_id.resolved_id()).emit(&genv)? else {
         return Ok(rty::ConstantInfo::Uninterpreted);
     };
@@ -215,6 +210,7 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
     match node {
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(Some(expr)), .. }) => {
             // If the constant has a `#[consant(expr)]` annotation we use that
+            let owner = def_id.map(|def_id| rustc_hir::OwnerId { def_id });
             let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
             let expr = AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
@@ -242,6 +238,24 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
             Ok(rty::ConstantInfo::Uninterpreted)
         }
         _ => Err(query_bug!(def_id.local_id(), "expected const item"))?,
+    }
+}
+
+fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::StaticInfo> {
+    let node = genv.fhir_node(def_id.local_id())?;
+    match node {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Static(ty), .. }) => {
+            if let Some(ty) = ty {
+                let wfckresults = genv.check_wf(def_id.local_id())?;
+                let rty_ty = AfterSortck::new(genv, &wfckresults)
+                    .into_conv_ctxt()
+                    .conv_static_ty(ty)?;
+                Ok(rty::StaticInfo::Known(rty_ty))
+            } else {
+                Ok(rty::StaticInfo::Unknown)
+            }
+        }
+        _ => Ok(rty::StaticInfo::Unknown),
     }
 }
 
@@ -283,7 +297,7 @@ fn predicates_of(
                 .into_conv_ctxt()
                 .conv_generic_predicates(def_id, generics)
         }
-        DefKind::OpaqueTy | DefKind::Closure => {
+        DefKind::OpaqueTy | DefKind::Closure | DefKind::Static { .. } => {
             Ok(rty::EarlyBinder(rty::GenericPredicates {
                 parent: genv.tcx().predicates_of(def_id).parent,
                 predicates: rty::List::empty(),
@@ -382,7 +396,7 @@ fn sort_of_assoc_reft(
     match &genv.fhir_expect_item(container_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
             let assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap();
-            let wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
+            let wfckresults = WfckResults::new(container_id.map(|def_id| OwnerId { def_id }));
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
                 .params
@@ -394,7 +408,7 @@ fn sort_of_assoc_reft(
         }
         fhir::ItemKind::Impl(impl_) => {
             let assoc_reft = impl_.find_assoc_reft(assoc_id.name()).unwrap();
-            let wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
+            let wfckresults = WfckResults::new(container_id.map(|def_id| OwnerId { def_id }));
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
                 .params
@@ -440,10 +454,11 @@ fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Gener
                 .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
             conv::conv_generics(genv, generics, def_id, is_trait)
         }
-        DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias | DefKind::Ctor(..) => {
-            let rustc_generics = genv.lower_generics_of(def_id);
-            refining::refine_generics(genv, def_id.resolved_id(), &rustc_generics)
-        }
+        DefKind::OpaqueTy
+        | DefKind::Closure
+        | DefKind::TraitAlias
+        | DefKind::Ctor(..)
+        | DefKind::Static { .. } => refining::refine_generics(&genv.lower_generics_of(def_id)),
         kind => {
             Err(query_bug!(
                 def_id.local_id(),

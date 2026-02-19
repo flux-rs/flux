@@ -24,6 +24,9 @@ symbols! {
         Map,
         Set,
         int,
+        no_panic,
+        no_panic_if,
+        ptr_size,
         real,
     }
 }

@@ -33,7 +33,7 @@ pub(crate) struct Binding {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub(crate) enum LocKind {
     Local,
-    Box(Ty),
+    Box(GenericArg),
     // An &mut T unfolded "locally" at a call-site; with the super-type T
     LocalPtr(Ty),
     Universal,
@@ -144,8 +144,8 @@ impl PlacesTree {
                 PlaceElem::Field(f) => {
                     match ty.kind() {
                         TyKind::Indexed(BaseTy::Tuple(fields), _)
-                        | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
-                        | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _)
+                        | TyKind::Indexed(BaseTy::Closure(_, fields, _, _), _)
+                        | TyKind::Indexed(BaseTy::Coroutine(_, _, fields, _), _)
                         | TyKind::Downcast(.., fields) => {
                             ty = fields[f.as_usize()].clone();
                         }
@@ -201,8 +201,8 @@ impl PlacesTree {
                 PlaceElem::Field(f) => {
                     match ty.kind() {
                         TyKind::Indexed(BaseTy::Tuple(fields), _)
-                        | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
-                        | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _)
+                        | TyKind::Indexed(BaseTy::Closure(_, fields, _, _), _)
+                        | TyKind::Indexed(BaseTy::Coroutine(_, _, fields, _), _)
                         | TyKind::Downcast(.., fields) => {
                             ty = fields[f.as_usize()].clone();
                         }
@@ -256,8 +256,8 @@ impl PlacesTree {
             match ty.kind() {
                 TyKind::Downcast(.., fields)
                 | TyKind::Indexed(BaseTy::Tuple(fields), _)
-                | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
-                | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _) => {
+                | TyKind::Indexed(BaseTy::Closure(_, fields, _, _), _)
+                | TyKind::Indexed(BaseTy::Coroutine(_, _, fields, _), _) => {
                     ty = &fields[f.as_usize()];
                 }
                 TyKind::Uninit => return Ty::uninit(),
@@ -324,8 +324,8 @@ impl PlacesTree {
             match ty.kind() {
                 TyKind::Downcast(.., fields)
                 | TyKind::Indexed(BaseTy::Tuple(fields), _)
-                | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
-                | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _) => {
+                | TyKind::Indexed(BaseTy::Closure(_, fields, _, _), _)
+                | TyKind::Indexed(BaseTy::Coroutine(_, _, fields, _), _) => {
                     for (idx, ty) in fields.iter().enumerate() {
                         proj.push(idx.into());
                         go(loc, kind, ty, proj, f);
@@ -471,7 +471,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                 if self.in_ref.is_some() {
                     let args = List::from_arr([
                         GenericArg::Ty(deref_ty.try_fold_with(self)?),
-                        GenericArg::Ty(alloc.clone()),
+                        alloc.clone(),
                     ]);
                     Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
                 } else {
@@ -480,6 +480,12 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                     self.change_root(&path);
                     Ty::ptr(PtrKind::Box, path)
                 }
+            }
+            TyKind::Indexed(BaseTy::RawPtr(deref_ty, mutbl), idx)
+                if self.infcx.allow_raw_deref() =>
+            {
+                let deref_ty = deref_ty.try_fold_with(self)?;
+                Ty::indexed(BaseTy::RawPtr(deref_ty, *mutbl), idx)
             }
             Ref!(re, ty, mutbl) => {
                 self.in_ref = self.in_ref.max(Some(*mutbl));
@@ -500,7 +506,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         self.insertions.push((loc, Binding { kind, ty }));
     }
 
-    fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
+    fn unfold_box(&mut self, deref_ty: &Ty, alloc: &GenericArg) -> Loc {
         let name = self.infcx.define_unknown_var(&Sort::Loc);
         let loc = Loc::from(name);
         self.insertions
@@ -515,16 +521,19 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
                 Ty::indexed(BaseTy::Tuple(fields.into()), idx.clone())
             }
-            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args), idx) => {
-                let mut upvar_tys = upvar_tys.to_vec();
-                upvar_tys[f.as_usize()] = upvar_tys[f.as_usize()].try_fold_with(self)?;
-                Ty::indexed(BaseTy::Closure(*def_id, upvar_tys.into(), args.clone()), idx.clone())
-            }
-            TyKind::Indexed(BaseTy::Coroutine(def_id, resume_ty, upvar_tys), idx) => {
+            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args, no_panic), idx) => {
                 let mut upvar_tys = upvar_tys.to_vec();
                 upvar_tys[f.as_usize()] = upvar_tys[f.as_usize()].try_fold_with(self)?;
                 Ty::indexed(
-                    BaseTy::Coroutine(*def_id, resume_ty.clone(), upvar_tys.into()),
+                    BaseTy::Closure(*def_id, upvar_tys.into(), args.clone(), *no_panic),
+                    idx.clone(),
+                )
+            }
+            TyKind::Indexed(BaseTy::Coroutine(def_id, resume_ty, upvar_tys, args), idx) => {
+                let mut upvar_tys = upvar_tys.to_vec();
+                upvar_tys[f.as_usize()] = upvar_tys[f.as_usize()].try_fold_with(self)?;
+                Ty::indexed(
+                    BaseTy::Coroutine(*def_id, resume_ty.clone(), upvar_tys.into(), args.clone()),
                     idx.clone(),
                 )
             }
@@ -647,13 +656,11 @@ where
         match ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) if adt.is_box() => {
                 let (deref_ty, alloc_ty) = args.box_args();
-                let args = List::from_arr([
-                    GenericArg::Ty(self.fold_ty(deref_ty)),
-                    GenericArg::Ty(alloc_ty.clone()),
-                ]);
+                let args =
+                    List::from_arr([GenericArg::Ty(self.fold_ty(deref_ty)), alloc_ty.clone()]);
                 Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
             }
-            TyKind::Ptr(..) => {
+            TyKind::Indexed(BaseTy::RawPtr(..), _) | TyKind::Ptr(..) => {
                 tracked_span_bug!("cannot update through pointer");
             }
             Ref!(re, deref_ty, mutbl) => Ty::mk_ref(*re, self.fold_ty(deref_ty), *mutbl),
@@ -667,13 +674,19 @@ where
                 let fields = self.fold_field_at(fields, f);
                 Ty::indexed(BaseTy::Tuple(fields), idx.clone())
             }
-            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args), idx) => {
+            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args, no_panic), idx) => {
                 let upvar_tys = self.fold_field_at(upvar_tys, f);
-                Ty::indexed(BaseTy::Closure(*def_id, upvar_tys, args.clone()), idx.clone())
+                Ty::indexed(
+                    BaseTy::Closure(*def_id, upvar_tys, args.clone(), *no_panic),
+                    idx.clone(),
+                )
             }
-            TyKind::Indexed(BaseTy::Coroutine(def_id, resume_ty, upvar_tys), idx) => {
+            TyKind::Indexed(BaseTy::Coroutine(def_id, resume_ty, upvar_tys, args), idx) => {
                 let upvar_tys = self.fold_field_at(upvar_tys, f);
-                Ty::indexed(BaseTy::Coroutine(*def_id, resume_ty.clone(), upvar_tys), idx.clone())
+                Ty::indexed(
+                    BaseTy::Coroutine(*def_id, resume_ty.clone(), upvar_tys, args.clone()),
+                    idx.clone(),
+                )
             }
             TyKind::Downcast(adt, args, ty, variant, fields) => {
                 let fields = self.fold_field_at(fields, f);

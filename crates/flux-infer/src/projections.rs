@@ -87,6 +87,11 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         &mut self,
         obligation: &AliasTy,
     ) -> QueryResult<(bool, SubsetTyCtor)> {
+        // First we must recursively (i.e., deeply) normalize projection types before proceeding.
+        // For example, in `issue-1449.rs` when normalizing `<<MyChoice as Choice>::Session as FromState>::Role`
+        // we first recursively normalize to get `<End<B> as FromState>::Role`
+        let obligation = &obligation.try_fold_with(self)?;
+
         let mut candidates = vec![];
         self.assemble_candidates_from_param_env(obligation, &mut candidates);
         self.assemble_candidates_from_trait_def(obligation, &mut candidates)
@@ -201,11 +206,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 //        IntoIter<{v. i32[v] | v > 0}, Global> MATCH IntoIter<T, A>
                 //            => {T -> {v. i32[v] | v > 0}, A -> Global}
 
-                let impl_trait_ref = self
-                    .genv()
-                    .impl_trait_ref(impl_def_id)?
-                    .unwrap()
-                    .skip_binder();
+                let impl_trait_ref = self.genv().impl_trait_ref(impl_def_id)?.skip_binder();
 
                 let generics = self.tcx().generics_of(impl_def_id);
 
@@ -533,8 +534,15 @@ impl GenericsSubstDelegate for &TVarSubst {
         }
     }
 
-    fn region_for_param(&mut self, _ebr: rustc_middle::ty::EarlyParamRegion) -> Region {
-        tracked_span_bug!()
+    fn region_for_param(
+        &mut self,
+        ebr: rustc_middle::ty::EarlyParamRegion,
+    ) -> Result<Region, Self::Error> {
+        match self.args.get(ebr.index as usize) {
+            Some(Some(GenericArg::Lifetime(region))) => Ok(*region),
+            Some(None) => Err(()),
+            arg => tracked_span_bug!("expected region for generic parameter, found `{arg:?}`"),
+        }
     }
 
     fn expr_for_param_const(&self, _param_const: rustc_middle::ty::ParamConst) -> Expr {

@@ -24,7 +24,7 @@ use rustc_trait_selection::traits::SelectionContext;
 use super::{
     mir::{
         AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs, CastKind, LocalDecl,
-        NonDivergingIntrinsic, NullOp, Operand, Place, PlaceElem, PointerCast, Rvalue, Statement,
+        NonDivergingIntrinsic, Operand, Place, PlaceElem, PointerCast, Rvalue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
@@ -103,6 +103,7 @@ fn trait_ref_impl_id<'tcx>(
     Some((impl_data.impl_def_id, impl_data.args))
 }
 
+// Andrew: look at this function
 pub fn resolve_trait_ref_impl_id<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: DefId,
@@ -116,7 +117,8 @@ pub fn resolve_trait_ref_impl_id<'tcx>(
     trait_ref_impl_id(tcx, &mut SelectionContext::new(&infcx), param_env, trait_ref)
 }
 
-fn resolve_call_query<'tcx>(
+// Andrew: look at this function too
+pub fn resolve_call_query<'tcx>(
     tcx: TyCtxt<'tcx>,
     selcx: &mut SelectionContext<'_, 'tcx>,
     param_env: ParamEnv<'tcx>,
@@ -299,7 +301,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             }
 
             rustc_mir::StatementKind::Retag(_, _)
-            | rustc_mir::StatementKind::Deinit(_)
             | rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(_)
             | rustc_mir::StatementKind::ConstEvalCounter
@@ -498,9 +499,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                     self.lower_operand(op2)?,
                 ))
             }
-            rustc_mir::Rvalue::NullaryOp(null_op, ty) => {
-                Ok(Rvalue::NullaryOp(self.lower_null_op(*null_op)?, ty.lower(self.tcx)?))
-            }
             rustc_mir::Rvalue::UnaryOp(un_op, op) => {
                 Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?))
             }
@@ -516,6 +514,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 Ok(Rvalue::ShallowInitBox(self.lower_operand(op)?, ty.lower(self.tcx)?))
             }
             rustc_mir::Rvalue::ThreadLocalRef(_)
+            | rustc_mir::Rvalue::NullaryOp(..)
             | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::WrapUnsafeBinder(..) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
@@ -627,18 +626,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             | rustc_mir::BinOp::Cmp
             | rustc_mir::BinOp::Offset => {
                 Err(UnsupportedReason::new(format!("unsupported binary op `{bin_op:?}`")))
-            }
-        }
-    }
-
-    fn lower_null_op(&self, null_op: rustc_mir::NullOp) -> Result<NullOp, UnsupportedReason> {
-        match null_op {
-            rustc_mir::NullOp::SizeOf => Ok(NullOp::SizeOf),
-            rustc_mir::NullOp::AlignOf => Ok(NullOp::AlignOf),
-            rustc_mir::NullOp::OffsetOf(_)
-            | rustc_mir::NullOp::UbChecks
-            | rustc_mir::NullOp::ContractChecks => {
-                Err(UnsupportedReason::new(format!("unsupported nullary op `{null_op:?}`")))
             }
         }
     }
@@ -853,6 +840,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 Ok(Ty::mk_dynamic(exi_preds, region))
             }
             rustc_ty::Foreign(def_id) => Ok(Ty::mk_foreign(*def_id)),
+            rustc_ty::Pat(..) => Ok(Ty::mk_pat()),
             _ => Err(UnsupportedReason::new(format!("unsupported type `{self:?}`"))),
         }
     }
@@ -1073,6 +1061,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::ClauseKind<'tcx> {
             rustc_ty::ClauseKind::ConstArgHasType(const_, ty) => {
                 ClauseKind::ConstArgHasType(const_.lower(tcx)?, ty.lower(tcx)?)
             }
+            rustc_ty::ClauseKind::UnstableFeature(sym) => ClauseKind::UnstableFeature(sym),
             _ => {
                 return Err(UnsupportedReason::new(format!("unsupported clause kind `{self:?}`")));
             }

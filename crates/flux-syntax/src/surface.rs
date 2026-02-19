@@ -133,6 +133,7 @@ pub enum ItemKind {
     Impl(Impl),
     Const(ConstantInfo),
     TyAlias(Box<TyAlias>),
+    Static(StaticInfo),
     /// Modules can't be refined but we collect attributes for them, e.g., `#[trusted]`
     /// This kind is also used for the crate root, for which we also collect attributes.
     Mod,
@@ -219,11 +220,17 @@ pub enum DetachedItemKind {
     InherentImpl(DetachedInherentImpl),
     TraitImpl(DetachedTraitImpl),
     Trait(DetachedTrait),
+    Static(StaticInfo),
 }
 
 #[derive(Debug)]
 pub struct ConstantInfo {
     pub expr: Option<Expr>,
+}
+
+#[derive(Debug)]
+pub struct StaticInfo {
+    pub ty: Ty,
 }
 
 #[derive(Debug)]
@@ -295,6 +302,8 @@ pub enum BaseSort {
     BitVec(u32),
     SortOf(Box<Ty>, Path),
     Path(SortPath),
+    /// a tuple sort, e.g., (int, bool)
+    Tuple(Vec<BaseSort>),
 }
 
 /// A [`Path`] but for sorts.
@@ -352,6 +361,7 @@ pub struct FnSig {
     /// source span
     pub span: Span,
     pub node_id: NodeId,
+    pub no_panic: Option<Expr>,
 }
 
 #[derive(Debug)]
@@ -522,6 +532,8 @@ pub struct BaseTy {
 pub enum BaseTyKind {
     Path(Option<Box<Ty>>, Path),
     Slice(Box<Ty>),
+    /// Raw pointer (*const T or *mut T), optionally with refinement on pointer value
+    Ptr(Mutability, Box<Ty>),
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
@@ -628,6 +640,8 @@ pub enum Attr {
     InferOpts(PartialInferOpts),
     /// A `#[no_panic]` attribute
     NoPanic,
+    /// A `#[no_panic_if]` attribute
+    NoPanicIf(Expr),
 }
 
 #[derive(Debug)]
@@ -717,6 +731,8 @@ pub enum ExprKind {
     Block(Vec<LetDecl>, Box<Expr>),
     /// Set expression `#{ e1, e2, ..., en }`
     SetLiteral(Vec<Expr>),
+    /// Tuple expression `(e1, e2, ..., en)`
+    Tuple(Vec<Expr>),
 }
 
 #[derive(Debug)]

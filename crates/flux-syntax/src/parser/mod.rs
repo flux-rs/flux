@@ -3,6 +3,7 @@ mod utils;
 use std::{collections::HashSet, str::FromStr, vec};
 
 use lookahead::{AnyLit, LAngle, NonReserved, RAngle};
+use rustc_ast::token::Lit;
 use rustc_span::{Symbol, sym::Output};
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
@@ -21,9 +22,9 @@ use crate::{
         FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds,
         GenericParam, Generics, Ident, ImplAssocReft, Indices, LetDecl, LitKind, Mutability,
         ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
-        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
-        TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
-        WhereBoundPredicate,
+        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
+        StaticInfo, StructDef, TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp,
+        VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
@@ -52,6 +53,8 @@ enum SyntaxAttr {
     Hide,
     /// a `#[opaque]` attribute
     Opaque,
+    /// A `#[no_panic_if(...)]` attribute
+    NoPanicIf(Expr),
 }
 
 #[derive(Default)]
@@ -89,6 +92,14 @@ impl ParsedAttrs {
         } else {
             None
         }
+    }
+
+    fn no_panic_if(&mut self) -> Option<Expr> {
+        let pos = self
+            .syntax
+            .iter()
+            .position(|x| matches!(x, SyntaxAttr::NoPanicIf(_)))?;
+        if let SyntaxAttr::NoPanicIf(expr) = self.syntax.remove(pos) { Some(expr) } else { None }
     }
 
     fn invariant(&mut self) -> Option<Expr> {
@@ -202,6 +213,8 @@ pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<DetachedIte
         parse_detached_impl(cx, attrs)
     } else if lookahead.peek(kw::Trait) {
         parse_detached_trait(cx, attrs)
+    } else if lookahead.peek(kw::Static) {
+        parse_detached_static(cx, attrs)
     } else {
         Err(lookahead.into_error())
     }
@@ -277,15 +290,33 @@ fn ident_path(cx: &mut ParseCtxt, ident: Ident) -> ExprPath {
 
 fn parse_detached_fn_sig(
     cx: &mut ParseCtxt,
-    attrs: ParsedAttrs,
+    mut attrs: ParsedAttrs,
 ) -> ParseResult<DetachedItem<FnSig>> {
-    let fn_sig = parse_fn_sig(cx, token::Semi)?;
+    let mut fn_sig = parse_fn_sig(cx, token::Semi)?;
+    fn_sig.no_panic = attrs.no_panic_if();
     let span = fn_sig.span;
     let ident = fn_sig
         .ident
         .ok_or(ParseError { kind: crate::ParseErrorKind::InvalidDetachedSpec, span })?;
     let path = ident_path(cx, ident);
     Ok(DetachedItem { attrs: attrs.normal, path, kind: fn_sig, node_id: cx.next_node_id() })
+}
+
+///```text
+/// ⟨static-spec⟩ ::= static ⟨ident⟩ : ⟨type⟩ ;
+/// ```
+fn parse_detached_static(cx: &mut ParseCtxt, attrs: ParsedAttrs) -> ParseResult<DetachedItem> {
+    cx.expect(kw::Static)?;
+    let path = parse_expr_path(cx)?;
+    cx.expect(token::Colon)?;
+    let ty = parse_type(cx)?;
+    cx.expect(token::Semi)?;
+    Ok(DetachedItem {
+        attrs: attrs.normal,
+        path,
+        kind: DetachedItemKind::Static(StaticInfo { ty }),
+        node_id: cx.next_node_id(),
+    })
 }
 
 ///```text
@@ -410,6 +441,10 @@ fn parse_attr(cx: &mut ParseCtxt, attrs: &mut ParsedAttrs) -> ParseResult {
         attrs
             .syntax
             .push(SyntaxAttr::Invariant(delimited(cx, Parenthesis, |cx| parse_expr(cx, true))?));
+    } else if lookahead.advance_if(sym::no_panic_if) {
+        attrs
+            .syntax
+            .push(SyntaxAttr::NoPanicIf(parse_expr(cx, true)?));
     } else {
         return Err(lookahead.into_error());
     };
@@ -767,6 +802,7 @@ pub(crate) fn parse_fn_sig<T: PeekExpected>(cx: &mut ParseCtxt, end: T) -> Parse
         output: FnOutput { returns, ensures, node_id: cx.next_node_id() },
         node_id: cx.next_node_id(),
         span: cx.mk_span(lo, hi),
+        no_panic: None, // We attach the `no_panic` expr later
     })
 }
 
@@ -910,6 +946,29 @@ fn parse_asyncness(cx: &mut ParseCtxt) -> Async {
     }
 }
 
+enum Reft {
+    Exi(Ident, Expr),
+    Idx(Indices),
+    None,
+}
+
+fn parse_reft(cx: &mut ParseCtxt) -> ParseResult<Reft> {
+    if cx.peek(token::OpenBrace) {
+        let (bind, pred) = delimited(cx, Brace, |cx| {
+            let bind = parse_ident(cx)?;
+            cx.expect(token::Colon)?;
+            let pred = parse_block_expr(cx)?;
+            Ok((bind, pred))
+        })?;
+        Ok(Reft::Exi(bind, pred))
+    } else if cx.peek(token::OpenBracket) {
+        let indices = parse_indices(cx)?;
+        Ok(Reft::Idx(indices))
+    } else {
+        Ok(Reft::None)
+    }
+}
+
 /// ```text
 /// ⟨ty⟩ := _
 ///       | { ⟨ident⟩ ⟨,⟨ident⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
@@ -917,6 +976,8 @@ fn parse_asyncness(cx: &mut ParseCtxt) -> Async {
 ///       | { ⟨ty⟩ | ⟨block_expr⟩ }
 ///       | { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
 ///       | & mut? ⟨ty⟩
+///       | * const ⟨ { ⟨ident⟩ : ⟨expr⟩ } ⟩? ⟨ty⟩
+///       | * mut ⟨ { ⟨ident⟩ : ⟨expr⟩ } ⟩? ⟨ty⟩
 ///       | [ ⟨ty⟩ ; ⟨const_arg⟩ ]
 ///       | impl ⟨path⟩
 ///       | ⟨bty⟩
@@ -957,6 +1018,26 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
         //  & mut? ⟨ty⟩
         let mutbl = if cx.advance_if(kw::Mut) { Mutability::Mut } else { Mutability::Not };
         TyKind::Ref(mutbl, Box::new(parse_type(cx)?))
+    } else if lookahead.advance_if(token::Star) {
+        //  * const ⟨ { ⟨ident⟩ : ⟨expr⟩ } ⟩? ⟨ty⟩ | * mut ⟨ { ⟨ident⟩ : ⟨expr⟩ } ⟩? ⟨ty⟩
+        let mutbl = if cx.advance_if(kw::Mut) {
+            Mutability::Mut
+        } else {
+            cx.expect(kw::Const)?;
+            Mutability::Not
+        };
+        // Parse optional refinement on the pointer value: {v: pred}
+        let reft = parse_reft(cx)?;
+        let inner_ty = parse_type(cx)?;
+        let bty = BaseTy {
+            kind: BaseTyKind::Ptr(mutbl, Box::new(inner_ty)),
+            span: cx.mk_span(lo, cx.hi()),
+        };
+        match reft {
+            Reft::Exi(bind, pred) => TyKind::Exists { bind, bty, pred },
+            Reft::Idx(indices) => TyKind::Indexed { bty, indices },
+            Reft::None => TyKind::Base(bty),
+        }
     } else if lookahead.advance_if(token::OpenBracket) {
         let ty = parse_type(cx)?;
         if cx.advance_if(token::Semi) {
@@ -1320,6 +1401,7 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
 
 /// ```text
 /// ⟨trailer_expr⟩ :=  ⟨trailer_expr⟩ . ⟨ident⟩
+///                 |  ⟨trailer_expr⟩ . ⟨integer⟩
 ///                 |  ⟨trailer_expr⟩ ( ⟨expr⟩,* )
 ///                 |  ⟨atom⟩
 /// ```
@@ -1328,9 +1410,17 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
     let mut e = parse_atom(cx, allow_struct)?;
     loop {
         let kind = if cx.advance_if(token::Dot) {
-            // ⟨trailer_expr⟩ . ⟨ident⟩
-            let field = parse_ident(cx)?;
-            ExprKind::Dot(Box::new(e), field)
+            if let Token { kind: token::Literal(lit), lo, hi } = cx.at(0)
+                && let Lit { kind: LitKind::Integer, symbol: name, suffix: None, .. } = lit
+            {
+                // ⟨trailer_expr⟩ . ⟨integer⟩
+                cx.advance();
+                ExprKind::Dot(Box::new(e), Ident { name, span: cx.mk_span(lo, hi) })
+            } else {
+                // ⟨trailer_expr⟩ . ⟨ident⟩
+                let field = parse_ident(cx)?;
+                ExprKind::Dot(Box::new(e), field)
+            }
         } else if cx.peek(token::OpenParen) {
             // ⟨trailer_expr⟩ ( ⟨expr⟩,* )
             let args = parens(cx, Comma, |cx| parse_expr(cx, true))?;
@@ -1348,6 +1438,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
 /// ⟨atom⟩ := ⟨if_expr⟩
 ///         | ⟨lit⟩
 ///         | ( ⟨expr⟩ )
+///         | ( ⟨expr⟩,* )
 ///         | ⟨epath⟩
 ///         | ⟨bounded_quant⟩
 ///         |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩
@@ -1365,8 +1456,20 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     } else if lookahead.peek(AnyLit) {
         // ⟨lit⟩
         parse_lit(cx)
-    } else if lookahead.peek(token::OpenParen) {
-        delimited(cx, Parenthesis, |cx| parse_expr(cx, true))
+    } else if lookahead.advance_if(token::OpenParen) {
+        // ( ⟨expr⟩ ) | ( ⟨expr⟩,* )
+        let (mut exprs, trailing) =
+            punctuated_with_trailing(cx, Comma, token::CloseParen, |cx| parse_expr(cx, true))?;
+        cx.expect(token::CloseParen)?;
+        if exprs.len() == 1 && !trailing {
+            Ok(exprs.remove(0))
+        } else {
+            Ok(Expr {
+                kind: ExprKind::Tuple(exprs),
+                node_id: cx.next_node_id(),
+                span: cx.mk_span(lo, cx.hi()),
+            })
+        }
     } else if lookahead.advance_if(token::Pound) {
         // #{ ⟨expr⟩,* }
         let lo = cx.lo();
@@ -1584,8 +1687,8 @@ fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
 
 fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
     if let token::Literal(lit) = cx.at(0).kind
-        && let LitKind::Integer = lit.kind
-        && let Ok(value) = lit.symbol.as_str().parse::<T>()
+        && let Lit { kind: LitKind::Integer, symbol, suffix: None, .. } = lit
+        && let Ok(value) = symbol.as_str().parse::<T>()
     {
         cx.advance();
         return Ok(value);
@@ -1601,11 +1704,16 @@ fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
 /// ```
 fn parse_sort(cx: &mut ParseCtxt) -> ParseResult<Sort> {
     if cx.peek(token::OpenParen) {
-        // ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩
+        // ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩ | ( ⟨base_sort⟩,* )
         let inputs = parens(cx, Comma, parse_base_sort)?;
-        cx.expect(token::RArrow)?;
-        let output = parse_base_sort(cx)?;
-        Ok(Sort::Func { inputs, output })
+        if cx.advance_if(token::RArrow) {
+            // ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩
+            let output = parse_base_sort(cx)?;
+            Ok(Sort::Func { inputs, output })
+        } else {
+            // ( ⟨base_sort⟩,* )
+            Ok(Sort::Base(BaseSort::Tuple(inputs)))
+        }
     } else {
         let bsort = parse_base_sort(cx)?;
         if cx.advance_if(token::RArrow) {
@@ -1621,6 +1729,7 @@ fn parse_sort(cx: &mut ParseCtxt) -> ParseResult<Sort> {
 
 /// ```text
 /// ⟨base_sort⟩ := bitvec < ⟨u32⟩ >
+///              | ( ⟨base_sort⟩,* )
 ///              | ⟨sort_path⟩ < ⟨base_sort⟩,* >
 ///              | < ⟨ty⟩ as ⟨path⟩ > :: ⟨segment⟩
 /// ⟨sort_path⟩ := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩* < (⟨base_sort⟩,*) >
@@ -1632,6 +1741,10 @@ fn parse_base_sort(cx: &mut ParseCtxt) -> ParseResult<BaseSort> {
         let len = parse_int(cx)?;
         cx.expect(RAngle)?;
         Ok(BaseSort::BitVec(len))
+    } else if cx.peek(token::OpenParen) {
+        // ( ⟨base_sort⟩,* )
+        let sorts = parens(cx, Comma, parse_base_sort)?;
+        Ok(BaseSort::Tuple(sorts))
     } else if cx.advance_if(LAngle) {
         // < ⟨ty⟩ as ⟨path⟩ > :: ⟨segment⟩
         let qself = parse_type(cx)?;

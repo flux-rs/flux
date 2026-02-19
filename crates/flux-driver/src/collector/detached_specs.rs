@@ -61,6 +61,13 @@ fn item_def_kind(kind: &surface::DetachedItemKind) -> Vec<DefKind> {
             vec![DefKind::Struct, DefKind::Enum]
         }
         surface::DetachedItemKind::Trait(_) => vec![DefKind::Trait],
+        surface::DetachedItemKind::Static(_) => {
+            vec![DefKind::Static {
+                mutability: rustc_ast::Mutability::Not,
+                nested: false,
+                safety: rustc_hir::Safety::Safe,
+            }]
+        }
     }
 }
 
@@ -114,12 +121,11 @@ impl TraitImplResolver {
         for (trait_id, impl_ids) in tcx.all_local_trait_impls(()) {
             let trait_ = LookupRes::DefId(*trait_id);
             for impl_id in impl_ids {
-                if let Some(poly_trait_ref) = tcx.impl_trait_ref(*impl_id) {
-                    let self_ty = poly_trait_ref.instantiate_identity().self_ty();
-                    let self_ty = LookupRes::new(&self_ty);
-                    let key = TraitImplKey { trait_, self_ty };
-                    items.insert(key, *impl_id);
-                }
+                let poly_trait_ref = tcx.impl_trait_ref(*impl_id);
+                let self_ty = poly_trait_ref.instantiate_identity().self_ty();
+                let self_ty = LookupRes::new(&self_ty);
+                let key = TraitImplKey { trait_, self_ty };
+                items.insert(key, *impl_id);
             }
         }
         Self { items }
@@ -283,6 +289,16 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             }
             surface::DetachedItemKind::TraitImpl(trait_impl) => {
                 self.collect_trait_impl(owner_id, item.node_id, item.attrs, trait_impl)?;
+            }
+            surface::DetachedItemKind::Static(static_info) => {
+                self.inner.insert_item(
+                    owner_id,
+                    surface::Item {
+                        attrs: item.attrs,
+                        kind: surface::ItemKind::Static(static_info),
+                        node_id: item.node_id,
+                    },
+                )?;
             }
         };
         Ok(())

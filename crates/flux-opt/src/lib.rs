@@ -1,39 +1,42 @@
 #![feature(rustc_private)]
 
 extern crate rustc_hir;
+extern crate rustc_infer;
 extern crate rustc_middle;
+extern crate rustc_trait_selection;
 
-use std::collections::HashSet;
-
-use flux_common::bug;
+use flux_rustc_bridge::lowering::resolve_call_query;
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def::DefKind, def_id::DefId};
+use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
-    mir::{Body, Operand, StatementKind, TerminatorKind},
-    ty::{self, TyCtxt},
+    mir::TerminatorKind,
+    ty::{TyCtxt, TypingMode},
 };
+use rustc_trait_selection::traits::SelectionContext;
 
 pub type CallGraph = FxHashMap<DefId, Vec<DefId>>;
 
-mod visualize;
-
-// NOTE by Andrew @ninehusky:
-// I kind of want to push this through to the top-level flux attributes.
-// The true/falseness of "no panic" gives me this double negation
-// that I always mess up.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum PanicSpec {
     WillNotPanic,
     MightPanic(PanicReason),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PanicReason {
     Unknown,
     ContainsPanic,
-    Transitive(Vec<DefId>),
-    CallsTraitMethod(String),
-    CallsMethodForNoMIR(String),
+    Transitive,
+    CannotResolve(CannotResolveReason),
+    NotInCallGraph,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CannotResolveReason {
+    NoMIRAvailable(DefId, DefKind),
+    UnresolvedTraitMethod(DefId),
+    NotFnDef(DefId),
 }
 
 fn is_panic_or_abort_fn(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
@@ -50,43 +53,123 @@ fn is_panic_or_abort_fn(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
     .any(|lid| lid == def_id)
 }
 
-pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Vec<DefId> {
+fn try_resolve<'tcx>(
+    tcx: &TyCtxt<'tcx>,
+    def_id: DefId,
+    args: rustc_middle::ty::GenericArgsRef<'tcx>,
+) -> Result<DefId, CannotResolveReason> {
+    let param_env = tcx.param_env(def_id);
+    let infcx = tcx
+        .infer_ctxt()
+        .with_next_trait_solver(true)
+        .build(TypingMode::non_body_analysis());
+    let mut selcx = SelectionContext::new(&infcx);
+
+    let resolved = resolve_call_query(*tcx, &mut selcx, param_env, def_id, args);
+
+    let Some((impl_id, _)) = resolved else {
+        // Error case 1: we fail to resolve a trait method to an impl.
+        return Err(CannotResolveReason::UnresolvedTraitMethod(def_id));
+    };
+
+    if !tcx.is_mir_available(impl_id) {
+        return Err(CannotResolveReason::NoMIRAvailable(impl_id, tcx.def_kind(impl_id)));
+    }
+
+    Ok(impl_id)
+}
+
+// Grabs the callees of a function from its MIR.
+// Returns Some(...) if all callees (1) are free functions, or (2) can be resolved to impl methods.
+// If even one callee cannot be resolved, or is a closure, returns None.
+pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Result<Vec<DefId>, CannotResolveReason> {
     let body = tcx.optimized_mir(def_id);
 
     let mut callees = Vec::new();
     for bb in body.basic_blocks.iter() {
         if let TerminatorKind::Call { func, .. } = &bb.terminator().kind {
             let ty = func.ty(&body.local_decls, *tcx);
-            if let ty::FnDef(def_id, _) = ty.kind() {
-                callees.push(*def_id);
-            }
+            // 1. Here, try to resolve the callee to either a method in an impl or a free function.
+            // Otherwise, assume the caller can panic.
+            // We can resolve the callee DefId by constructing a inferctxt from the tyctxt
+
+            match ty.kind() {
+                rustc_middle::ty::TyKind::FnDef(def_id, args) => {
+                    let Some(_trait_id) = tcx.trait_of_assoc(*def_id) else {
+                        // If it's a free function, there's no need to resolve.
+                        callees.push(*def_id);
+                        continue;
+                    };
+
+                    let impl_id = match try_resolve(tcx, *def_id, args) {
+                        Ok(impl_id) => impl_id,
+                        Err(reason) => return Err(reason),
+                    };
+
+                    if !tcx.is_mir_available(impl_id) {
+                        return Err(CannotResolveReason::NoMIRAvailable(
+                            impl_id,
+                            tcx.def_kind(impl_id),
+                        ));
+                    }
+
+                    callees.push(impl_id);
+                }
+                _ => {
+                    // Error case 2: We're trying to reason about something that's not an FnDef.
+                    return Err(CannotResolveReason::NotFnDef(def_id));
+                }
+            };
         }
     }
-    callees
+    Ok(callees)
 }
 
-pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
+/// The entry point for no-panic inference. Given a root function, explores its call graph and returns
+/// an over-approximation of if it might panic, and why.
+pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> {
     let mut fn_to_no_panic: FxHashMap<DefId, PanicSpec> = FxHashMap::default();
     let mut call_graph: CallGraph = FxHashMap::default();
     let mut worklist: Vec<DefId> = vec![];
 
-    // 1. Seed with all local MIR-owning functions
-    for local in tcx.hir_body_owners() {
-        let def_id = local.to_def_id();
-
-        if !tcx.def_kind(def_id).is_fn_like() {
-            continue;
-        }
-
-        if !tcx.is_mir_available(def_id) {
-            // Should not happen for locals
-            bug!("missing MIR for local function");
-        }
-
-        fn_to_no_panic.insert(def_id, PanicSpec::MightPanic(PanicReason::Unknown));
-        call_graph.insert(def_id, get_callees(&tcx, def_id));
-        worklist.push(def_id);
+    if !tcx.def_kind(root).is_fn_like() {
+        flux_common::bug!(
+            "flux-opt::infer_no_panics: root DefId {} is not a function",
+            tcx.def_path_str(root)
+        );
     }
+
+    if !tcx.is_mir_available(root) {
+        let def_kind = tcx.def_kind(root);
+        if matches!(def_kind, DefKind::AssocFn) {
+            fn_to_no_panic.insert(
+                root,
+                PanicSpec::MightPanic(PanicReason::CannotResolve(
+                    CannotResolveReason::UnresolvedTraitMethod(root),
+                )),
+            );
+        } else {
+            fn_to_no_panic.insert(
+                root,
+                PanicSpec::MightPanic(PanicReason::CannotResolve(
+                    CannotResolveReason::NoMIRAvailable(root, tcx.def_kind(root)),
+                )),
+            );
+        }
+        return fn_to_no_panic;
+    }
+
+    match get_callees(&tcx, root) {
+        Ok(callees) => {
+            fn_to_no_panic.insert(root, PanicSpec::MightPanic(PanicReason::Unknown));
+            call_graph.insert(root, callees);
+        }
+        Err(reason) => {
+            fn_to_no_panic.insert(root, PanicSpec::MightPanic(PanicReason::CannotResolve(reason)));
+            return fn_to_no_panic;
+        }
+    }
+    worklist.push(root);
 
     // 2. Explore reachable callees (build closed call graph)
     while let Some(f) = worklist.pop() {
@@ -101,20 +184,28 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
 
             if tcx.is_mir_available(callee) {
                 if !fn_to_no_panic.contains_key(&callee) {
-                    fn_to_no_panic.insert(callee, PanicSpec::MightPanic(PanicReason::Unknown));
-                    call_graph.insert(callee, get_callees(&tcx, callee));
-                    worklist.push(callee);
+                    match get_callees(&tcx, callee) {
+                        Ok(callees) => {
+                            fn_to_no_panic
+                                .insert(callee, PanicSpec::MightPanic(PanicReason::Unknown));
+                            call_graph.insert(callee, callees);
+                            worklist.push(callee);
+                        }
+                        Err(reason) => {
+                            fn_to_no_panic.insert(
+                                callee,
+                                PanicSpec::MightPanic(PanicReason::CannotResolve(reason)),
+                            );
+                        }
+                    }
                 }
             } else {
-                // Missing MIR: record *why* f cannot be proven no-panic
-                let fn_name = tcx.def_path_str(callee);
-
-                let reason = match tcx.def_kind(callee) {
-                    rustc_hir::def::DefKind::AssocFn => PanicReason::CallsTraitMethod(fn_name),
-                    _ => PanicReason::CallsMethodForNoMIR(fn_name),
-                };
-
-                fn_to_no_panic.insert(f, PanicSpec::MightPanic(reason));
+                fn_to_no_panic.insert(
+                    callee,
+                    PanicSpec::MightPanic(PanicReason::CannotResolve(
+                        CannotResolveReason::NoMIRAvailable(callee, tcx.def_kind(callee)),
+                    )),
+                );
             }
         }
     }
@@ -135,11 +226,7 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
             let callees = match call_graph.get(&f) {
                 Some(callees) => callees,
                 None => {
-                    assert!(
-                        is_panic_or_abort_fn(tcx, f) || !tcx.is_mir_available(f),
-                        "function {:?} has no call_graph entry but is neither a panic fn nor no-MIR",
-                        tcx.def_path_str(f)
-                    );
+                    // This means that we hit a case where we couldn't resolve a callee.
                     continue;
                 }
             };
@@ -159,23 +246,23 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
             } else {
                 let entry = fn_to_no_panic.get_mut(&f).unwrap();
 
+                // TODO: make this a helper method
                 match entry {
                     PanicSpec::MightPanic(PanicReason::ContainsPanic) => {
-                        // KEEP strongest reason — do not overwrite
+                        // This is first: we saw a direct panic in this function's body.
                     }
                     PanicSpec::MightPanic(PanicReason::Unknown) => {
-                        *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
+                        *entry = PanicSpec::MightPanic(PanicReason::Transitive);
                     }
-                    PanicSpec::MightPanic(PanicReason::Transitive(_)) => {
-                        // OK to refine transitive → more precise transitive
-                        *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
+                    PanicSpec::MightPanic(PanicReason::Transitive) => {
+                        // do we need this?
+                        *entry = PanicSpec::MightPanic(PanicReason::Transitive);
                     }
-                    PanicSpec::MightPanic(
-                        PanicReason::CallsTraitMethod(_) | PanicReason::CallsMethodForNoMIR(_),
-                    ) => {
+                    PanicSpec::MightPanic(PanicReason::CannotResolve(_)) => {
                         // KEEP stronger reason — do not overwrite
                     }
-                    PanicSpec::WillNotPanic => unreachable!(),
+                    PanicSpec::WillNotPanic
+                    | PanicSpec::MightPanic(PanicReason::NotInCallGraph) => unreachable!(),
                 }
             }
         }
@@ -189,9 +276,21 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
                 match r {
                     PanicReason::Unknown => "Unknown".to_string(),
                     PanicReason::ContainsPanic => "ContainsPanic".to_string(),
-                    PanicReason::Transitive(_) => "Transitive".to_string(),
-                    PanicReason::CallsTraitMethod(_) => "CallsTraitMethod".to_string(),
-                    PanicReason::CallsMethodForNoMIR(_) => "CallsMethodForNoMIR".to_string(),
+                    PanicReason::Transitive => "Transitive".to_string(),
+                    PanicReason::CannotResolve(reason) => {
+                        match reason {
+                            CannotResolveReason::UnresolvedTraitMethod(_) => {
+                                "CannotResolve:UnresolvedTraitMethod".to_string()
+                            }
+                            CannotResolveReason::NotFnDef(_) => {
+                                "CannotResolve:NotFnDef".to_string()
+                            }
+                            CannotResolveReason::NoMIRAvailable(_, _) => {
+                                "CannotResolve:NoMIRAvailable".to_string()
+                            }
+                        }
+                    }
+                    PanicReason::NotInCallGraph => unreachable!(),
                 }
             }
         };
@@ -199,15 +298,5 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
         *reason_to_count.entry(key).or_default() += 1;
     }
 
-    println!("=== no-panic inference results ===");
-    for (reason, count) in reason_to_count {
-        println!("{:4}  {}", count, reason);
-    }
-
-    visualize::visualize(&tcx, call_graph, "button.rs", &fn_to_no_panic);
-
     fn_to_no_panic
-        .iter()
-        .map(|(&k, v)| (k, matches!(v, PanicSpec::WillNotPanic)))
-        .collect::<FxHashMap<DefId, bool>>()
 }

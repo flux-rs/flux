@@ -139,7 +139,8 @@ pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 use crate::{
     global_env::GlobalEnv,
     rty::{
-        AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam, Name, PrettyMap,
+        AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, BoundVariableKinds,
+        EarlyReftParam, Name, PrettyMap,
     },
 };
 
@@ -273,27 +274,24 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         r
     }
 
-    pub fn with_bound_vars_removable<R1, R2>(
+    pub fn with_bound_vars_removable<T>(
         &self,
         vars: &[BoundVariableKind],
         vars_to_remove: FxHashSet<BoundVar>,
         fn_root_layer_type: Option<FnRootLayerType>,
-        fmt_body: impl FnOnce(&mut String) -> Result<R1, fmt::Error>,
-        fmt_vars_with_body: impl FnOnce(R1, BoundVarLayer, String) -> Result<R2, fmt::Error>,
-    ) -> Result<R2, fmt::Error> {
+        fmt: impl FnOnce() -> Result<T, fmt::Error>,
+    ) -> Result<T, fmt::Error> {
         self.bvar_env
             .push_layer(vars, vars_to_remove, fn_root_layer_type);
-        let mut body = String::new();
-        let r1 = fmt_body(&mut body)?;
         // We need to be careful when rendering the vars to _not_
         // refer to the `vars_to_remove` in the context since it'll
         // still be there. If we remove the layer, then the vars
         // won't render accurately.
         //
         // For now, this should be fine, though.
-        let r2 = fmt_vars_with_body(r1, self.bvar_env.peek_layer().unwrap(), body)?;
+        let r = fmt()?;
         self.bvar_env.pop_layer();
-        Ok(r2)
+        Ok(r)
     }
 
     pub fn fmt_bound_vars(
@@ -434,6 +432,31 @@ pub struct BoundVarLayer {
     pub successfully_removed_vars: FxHashSet<BoundVar>,
 }
 
+impl BoundVarLayer {
+    pub fn filter_vars(&self, vars: &BoundVariableKinds) -> Vec<BoundVariableKind> {
+        vars.into_iter()
+            .enumerate()
+            .filter_map(|(idx, var)| {
+                let bvar = BoundVar::from_usize(idx);
+
+                if !matches!(var, BoundVariableKind::Refine(..)) {
+                    return None;
+                }
+                if self.successfully_removed_vars.contains(&bvar) {
+                    return None;
+                }
+                if let BoundVarLayerMap::FnRootLayerMap(fn_root_layer) = &self.layer_map
+                    && fn_root_layer.seen_vars.contains(&bvar)
+                {
+                    return None;
+                }
+
+                Some(var.clone())
+            })
+            .collect()
+    }
+}
+
 #[derive(Clone)]
 pub enum BoundVarLayerMap {
     LayerMap(UnordMap<BoundVar, BoundVarName>),
@@ -456,11 +479,13 @@ pub enum BoundVarLayerMap {
 }
 
 impl BoundVarLayerMap {
-    fn name_map(&self) -> &UnordMap<BoundVar, BoundVarName> {
+    fn get(&self, bvar: BoundVar) -> Option<BoundVarName> {
         match self {
             Self::LayerMap(name_map) => name_map,
             Self::FnRootLayerMap(root_layer) => &root_layer.name_map,
         }
+        .get(&bvar)
+        .copied()
     }
 }
 
@@ -519,9 +544,7 @@ impl BoundVarEnv {
         layers
             .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
             .layer_map
-            .name_map()
-            .get(&var)
-            .copied()
+            .get(var)
     }
 
     fn push_layer(
@@ -553,7 +576,7 @@ impl BoundVarEnv {
         self.layers.borrow_mut().push(layer);
     }
 
-    fn peek_layer(&self) -> Option<BoundVarLayer> {
+    pub fn peek_layer(&self) -> Option<BoundVarLayer> {
         self.layers.borrow().last().cloned()
     }
 

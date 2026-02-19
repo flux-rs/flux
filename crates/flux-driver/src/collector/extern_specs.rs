@@ -68,7 +68,11 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 
     fn collect_extern_fn(&mut self, item: &hir::Item, mut attrs: FluxAttrs) -> Result {
         if attrs.has_attrs() {
-            let sig = attrs.fn_sig();
+            let mut sig = attrs.fn_sig();
+            let no_panic_spec = attrs.no_panic_spec();
+            if let Some(fn_sig) = &mut sig {
+                fn_sig.no_panic = no_panic_spec;
+            }
             self.inner.check_fn_sig_name(item.owner_id, sig.as_ref())?;
             let node_id = self.inner.next_node_id();
             self.inner.insert_item(
@@ -210,7 +214,11 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         mut attrs: FluxAttrs,
     ) -> Result<ExternImplItem> {
         if attrs.has_attrs() {
-            let sig = attrs.fn_sig();
+            let mut sig = attrs.fn_sig();
+            let no_panic_spec = attrs.no_panic_spec();
+            if let Some(fn_sig) = &mut sig {
+                fn_sig.no_panic = no_panic_spec;
+            }
             self.inner.check_fn_sig_name(item.owner_id, sig.as_ref())?;
             let node_id = self.inner.next_node_id();
             self.inner.insert_impl_item(
@@ -262,7 +270,11 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     ) -> Result {
         let item_id = item.owner_id;
         if attrs.has_attrs() {
-            let sig = attrs.fn_sig();
+            let mut sig = attrs.fn_sig();
+            let no_panic_spec = attrs.no_panic_spec();
+            if let Some(fn_sig) = &mut sig {
+                fn_sig.no_panic = no_panic_spec;
+            }
             self.inner.check_fn_sig_name(item.owner_id, sig.as_ref())?;
             let node_id = self.inner.next_node_id();
             self.inner.insert_trait_item(
@@ -315,7 +327,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             } else {
                 let opt_extern_impl_id = self.tcx().impl_of_assoc(callee_id);
                 if let Some(extern_impl_id) = opt_extern_impl_id {
-                    debug_assert!(self.tcx().trait_id_of_impl(extern_impl_id).is_none());
+                    debug_assert!(!self.tcx().impl_is_of_trait(extern_impl_id));
                     Ok(ExternImplItem { impl_id: extern_impl_id, item_id: callee_id })
                 } else {
                     Err(self.invalid_item_in_inherent_impl(item.owner_id, callee_id))
@@ -385,13 +397,19 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         let typeck = self.tcx().typeck(owner);
         if let hir::ExprKind::Block(b, _) = self.tcx().hir_body(body_id).value.kind
             && let Some(e) = b.expr
-            && let hir::ExprKind::Call(callee, _) = e.kind
-            && let rustc_middle::ty::FnDef(callee_id, _) = typeck.node_type(callee.hir_id).kind()
         {
-            Ok(*callee_id)
-        } else {
-            Err(self.malformed())
+            // Peel through an optional `unsafe { ... }` block
+            let call_expr =
+                if let hir::ExprKind::Block(inner_b, _) = e.kind { inner_b.expr } else { Some(e) };
+            if let Some(e) = call_expr
+                && let hir::ExprKind::Call(callee, _) = e.kind
+                && let rustc_middle::ty::FnDef(callee_id, _) =
+                    typeck.node_type(callee.hir_id).kind()
+            {
+                return Ok(*callee_id);
+            }
         }
+        Err(self.malformed())
     }
 
     /// Returns the item inside the const block at position `i` starting from the end.

@@ -223,7 +223,7 @@ impl Parse for ExternItem {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
         let lookahead = input.lookahead1();
-        let mut item = if lookahead.peek(Token![fn]) {
+        let mut item = if lookahead.peek(Token![fn]) || lookahead.peek(Token![unsafe]) {
             ExternItem::Fn(input.parse()?)
         } else if lookahead.peek(Token![impl]) {
             ExternItem::Impl(input.parse()?)
@@ -411,7 +411,11 @@ impl ExternFn {
         };
         let generic_args = generic_params_to_args(&self.sig.generics.params);
         let fn_args = fn_params_to_args(&self.sig.inputs);
-        self.block = Some(quote!({ #fn_path :: <#generic_args> ( #fn_args ) }));
+        if self.sig.unsafety.is_some() {
+            self.block = Some(quote!({ unsafe { #fn_path :: <#generic_args> ( #fn_args ) } }));
+        } else {
+            self.block = Some(quote!({ #fn_path :: <#generic_args> ( #fn_args ) }));
+        }
     }
 }
 
@@ -538,6 +542,14 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
             create_dummy_ident(dummy_prefix, ty_slice.elem.as_ref())
         }
         Path(ty_path) => create_dummy_ident_from_path(dummy_prefix, &ty_path.path),
+        Ptr(ty_ptr) => {
+            if ty_ptr.mutability.is_some() {
+                dummy_prefix.push_str("MutPtr");
+            } else {
+                dummy_prefix.push_str("ConstPtr");
+            };
+            create_dummy_ident(dummy_prefix, ty_ptr.elem.as_ref())
+        }
         _ => {
             Err(syn::Error::new(
                 ty.span(),

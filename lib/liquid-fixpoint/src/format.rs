@@ -1,10 +1,14 @@
-use std::fmt::{self, Write};
+use std::{
+    fmt::{self, Write},
+    iter,
+};
 
 use itertools::Itertools;
 
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
-    FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
+    FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task,
+    Types,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -279,7 +283,7 @@ impl<T: Types> fmt::Display for Expr<T> {
         match self {
             Expr::Constant(c) => write!(f, "{c}"),
             Expr::Var(x) => write!(f, "{}", x.display()),
-            Expr::App(func, _sort_args, args) => {
+            Expr::App(func, _sort_args, args, _out_sort) => {
                 write!(f, "({func} {})", args.iter().format(" "))
             }
             Expr::Neg(e) => {
@@ -370,20 +374,30 @@ impl<T: Types> fmt::Display for Qualifier<T> {
 
 impl<T: Types> fmt::Display for FunDef<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "(define_fun {} ({}) {} ({}))",
-            self.name.display(),
-            self.args.iter().format_with(" ", |(name, sort), f| {
-                f(&format_args!("({} {sort})", name.display()))
-            }),
-            self.out,
-            self.body
-        )?;
+        if let Some(body) = &self.body {
+            write!(
+                f,
+                "(define_fun {} ({}) {} ({}))",
+                self.name.display(),
+                iter::zip(&body.args, &self.sort.inputs).format_with(" ", |(name, sort), f| {
+                    f(&format_args!("({} {sort})", name.display()))
+                }),
+                self.sort.output,
+                body.expr
+            )?;
+        } else {
+            write!(f, "(constant {} {})", self.name.display(), self.sort)?;
+        }
         if let Some(comment) = &self.comment {
             write!(f, "  ;; {comment}")?;
         }
         Ok(())
+    }
+}
+
+impl<T: Types> fmt::Display for FunSort<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(func {} ({}) {})", self.params, self.inputs.iter().format(" "), self.output)
     }
 }
 

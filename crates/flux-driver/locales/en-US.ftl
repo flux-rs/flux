@@ -19,6 +19,9 @@ driver_syntax_err =
 driver_invalid_alias_application =
     invalid alias application
 
+driver_mutable_static_spec =
+    specifications on mutable statics are not yet supported
+
 driver_attr_on_opaque =
     opaque struct can't have refined fields
     .label = this field has a refinement type annotation

@@ -16,7 +16,8 @@ refineck_refine_error =
     .label = a {$cond} cannot be proved
 
 refineck_panic_error =
-    call to {$callee} may panic
+    call to {$callee} may panic: {$reason}
+    note: {$note}
 
 refineck_div_error =
     possible division by zero
@@ -48,9 +49,6 @@ refineck_unsupported_call =
 
 refineck_expected_neg =
     {$def_descr} marked with `#[should_fail]` didn't produce a refinement type error
-
-refineck_missing_lean =
-    externally proven items require `flux` be run with `-Flean=check` or `-Flean=emit`
 
 # Invariant checking
 

@@ -335,7 +335,6 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
                     Rvalue::Repeat(op, _) => {
                         self.operand(op, env)?;
                     }
-                    Rvalue::NullaryOp(_, _) => {}
                 }
                 M::projection(self, env, place)?;
             }

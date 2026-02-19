@@ -39,8 +39,8 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _, VariantDef},
 };
 use itertools::Itertools;
-pub use normalize::{NormalizeInfo, NormalizedDefns, local_deps};
-use refining::{Refine as _, Refiner};
+pub use normalize::{FuncInfo, NormalizedDefns, local_deps};
+use refining::Refiner;
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
 use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};
@@ -422,6 +422,7 @@ pub enum ClauseKind {
     RegionOutlives(RegionOutlivesPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
+    UnstableFeature(Symbol),
 }
 
 impl<'tcx> ToRustc<'tcx> for ClauseKind {
@@ -447,6 +448,7 @@ impl<'tcx> ToRustc<'tcx> for ClauseKind {
                     ty.to_rustc(tcx),
                 )
             }
+            ClauseKind::UnstableFeature(sym) => rustc_middle::ty::ClauseKind::UnstableFeature(*sym),
         }
     }
 }
@@ -699,7 +701,7 @@ impl FnTraitPredicate {
             List::empty(),
             inputs,
             output,
-            false,
+            Expr::ff(),
             false,
         )
     }
@@ -721,7 +723,7 @@ pub fn to_closure_sig(
 
     let mut vars = poly_sig.vars().clone().to_vec();
     let fn_sig = poly_sig.clone().skip_binder();
-    let closure_ty = Ty::closure(closure_id.into(), tys, args);
+    let closure_ty = Ty::closure(closure_id.into(), tys, args, no_panic);
     let env_ty = match kind {
         ClosureKind::Fn => {
             vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
@@ -753,21 +755,20 @@ pub fn to_closure_sig(
         fn_sig.requires.clone(),
         inputs.into(),
         output,
-        no_panic,
+        if no_panic { crate::rty::Expr::tt() } else { crate::rty::Expr::ff() },
         false,
     );
 
     PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
 }
 
-#[derive(
-    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
-)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct CoroutineObligPredicate {
     pub def_id: DefId,
     pub resume_ty: Ty,
     pub upvar_tys: List<Ty>,
     pub output: Ty,
+    pub args: flux_rustc_bridge::ty::GenericArgs,
 }
 
 #[derive(Copy, Clone, Encodable, Decodable, Hash, PartialEq, Eq)]
@@ -1043,6 +1044,7 @@ pub enum Sort {
     App(SortCtor, List<Sort>),
     Var(ParamSort),
     Infer(SortVid),
+    RawPtr,
     Err,
 }
 
@@ -1267,6 +1269,13 @@ pub enum ConstantInfo {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+pub enum StaticInfo {
+    Unknown,
+    /// A static item whose type was specified by the user
+    Known(Ty),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -1391,7 +1400,7 @@ pub struct FnSig {
     pub requires: List<Expr>,
     pub inputs: List<Ty>,
     pub output: Binder<FnOutput>,
-    pub no_panic: bool,
+    pub no_panic: Expr,
     /// was this auto-lifted (or from a spec)
     pub lifted: bool,
 }
@@ -1570,11 +1579,11 @@ impl Ty {
         BaseTy::Slice(ty).to_ty()
     }
 
-    pub fn mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: Ty) -> QueryResult<Ty> {
+    pub fn mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: GenericArg) -> QueryResult<Ty> {
         let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
         let adt_def = genv.adt_def(def_id)?;
 
-        let args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
+        let args = List::from_arr([GenericArg::Ty(deref_ty), alloc_ty]);
 
         let bty = BaseTy::adt(adt_def, args);
         Ok(Ty::indexed(bty, Expr::unit_struct(def_id)))
@@ -1586,8 +1595,11 @@ impl Ty {
         let generics = genv.generics_of(def_id)?;
         let alloc_ty = genv
             .lower_type_of(generics.own_params[1].def_id)?
-            .skip_binder()
-            .refine(&Refiner::default_for_item(genv, def_id)?)?;
+            .skip_binder();
+        let alloc_ty = Refiner::default_for_item(genv, def_id)?.refine_generic_arg(
+            &generics.own_params[1],
+            &flux_rustc_bridge::ty::GenericArg::Ty(alloc_ty),
+        )?;
 
         Ty::mk_box(genv, deref_ty, alloc_ty)
     }
@@ -1604,12 +1616,18 @@ impl Ty {
         did: DefId,
         tys: impl Into<List<Ty>>,
         args: &flux_rustc_bridge::ty::GenericArgs,
+        no_panic: bool,
     ) -> Ty {
-        BaseTy::Closure(did, tys.into(), args.clone()).to_ty()
+        BaseTy::Closure(did, tys.into(), args.clone(), no_panic).to_ty()
     }
 
-    pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
-        BaseTy::Coroutine(did, resume_ty, upvar_tys).to_ty()
+    pub fn coroutine(
+        did: DefId,
+        resume_ty: Ty,
+        upvar_tys: List<Ty>,
+        args: flux_rustc_bridge::ty::GenericArgs,
+    ) -> Ty {
+        BaseTy::Coroutine(did, resume_ty, upvar_tys, args.clone()).to_ty()
     }
 
     pub fn never() -> Ty {
@@ -1776,6 +1794,9 @@ pub enum TyKind {
     /// [`match`]: flux_rustc_bridge::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
+    /// These only arise when you "narrow" an ADT down to a particular variant;
+    /// either EXPLICITLY in a `match-of`, or IMPLICITLY when you access a field
+    /// of a struct to "UNPACK" the struct.
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
     /// A type that needs to be inferred by matching the signature against a rust signature.
@@ -1809,12 +1830,18 @@ pub enum BaseTy {
     Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
-    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
-    Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
+    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs, bool),
+    Coroutine(
+        DefId,
+        /*resume_ty: */ Ty,
+        /* upvar_tys: */ List<Ty>,
+        flux_rustc_bridge::ty::GenericArgs,
+    ),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
     Infer(TyVid),
     Foreign(DefId),
+    Pat,
 }
 
 impl BaseTy {
@@ -2045,6 +2072,7 @@ impl BaseTy {
             | BaseTy::Param(_)
             | BaseTy::Dynamic(..)
             | BaseTy::Infer(_) => None,
+            BaseTy::Pat => todo!(),
         }
     }
 }
@@ -2091,7 +2119,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(did, _, args) => ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
+            BaseTy::Closure(did, _, args, _) => ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
             BaseTy::Dynamic(exi_preds, re) => {
                 let preds: Vec<_> = exi_preds
                     .iter()
@@ -2100,11 +2128,8 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 let preds = tcx.mk_poly_existential_predicates(&preds);
                 ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx))
             }
-            BaseTy::Coroutine(def_id, resume_ty, upvars) => {
-                bug!("TODO: Generator {def_id:?} {resume_ty:?} {upvars:?}")
-                // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-                // let args = tcx.mk_args_from_iter(args);
-                // ty::Ty::new_generator(*tcx, *def_id, args, mov)
+            BaseTy::Coroutine(did, _, _, args) => {
+                ty::Ty::new_coroutine(tcx, *did, args.to_rustc(tcx))
             }
             BaseTy::Infer(ty_vid) => ty::Ty::new_var(tcx, *ty_vid),
             BaseTy::Foreign(def_id) => ty::Ty::new_foreign(tcx, *def_id),
@@ -2115,6 +2140,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                     RawPtrKind::FakeForPtrMetadata.to_mutbl_lossy(),
                 )
             }
+            BaseTy::Pat => todo!(),
         }
     }
 }
@@ -2429,8 +2455,8 @@ pub type GenericArgs = List<GenericArg>;
 #[extension(pub trait GenericArgsExt)]
 impl GenericArgs {
     #[track_caller]
-    fn box_args(&self) -> (&Ty, &Ty) {
-        if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
+    fn box_args(&self) -> (&Ty, &GenericArg) {
+        if let [GenericArg::Ty(deref), alloc] = &self[..] {
             (deref, alloc)
         } else {
             bug!("invalid generic arguments for box");
@@ -2537,7 +2563,12 @@ impl CoroutineObligPredicate {
         let vars = vec![];
 
         let resume_ty = &self.resume_ty;
-        let env_ty = Ty::coroutine(self.def_id, resume_ty.clone(), self.upvar_tys.clone());
+        let env_ty = Ty::coroutine(
+            self.def_id,
+            resume_ty.clone(),
+            self.upvar_tys.clone(),
+            self.args.clone(),
+        );
 
         let inputs = List::from_arr([env_ty, resume_ty.clone()]);
         let output =
@@ -2550,7 +2581,7 @@ impl CoroutineObligPredicate {
                 List::empty(),
                 inputs,
                 output,
-                false,
+                Expr::ff(),
                 false,
             ),
             List::from(vars),
@@ -2674,7 +2705,7 @@ impl FnSig {
         requires: List<Expr>,
         inputs: List<Ty>,
         output: Binder<FnOutput>,
-        no_panic: bool,
+        no_panic: Expr,
         lifted: bool,
     ) -> Self {
         FnSig { safety, abi, requires, inputs, output, no_panic, lifted }
@@ -2688,8 +2719,8 @@ impl FnSig {
         &self.inputs
     }
 
-    pub fn no_panic(&self) -> bool {
-        self.no_panic
+    pub fn no_panic(&self) -> Expr {
+        self.no_panic.clone()
     }
 
     pub fn output(&self) -> Binder<FnOutput> {
@@ -2802,7 +2833,7 @@ impl EarlyBinder<PolyVariant> {
                     variant.requires.clone(),
                     inputs,
                     output,
-                    true,
+                    Expr::tt(),
                     false,
                 )
             })
