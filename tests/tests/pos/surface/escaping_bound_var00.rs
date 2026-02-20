@@ -2,10 +2,10 @@
 //
 // Crashes on parent commit adc1d0f524 and on branch `trusted-pattern`.
 // Does NOT crash on branch `escaping-var-hack` (commit b496e272b5) which fixes both:
-//   (a) fold.rs:   `Region::visit_with` and `GenericArg::Lifetime::visit_with` now
+//   (FIX a) fold.rs:   `Region::visit_with` and `GenericArg::Lifetime::visit_with` now
 //                  call `visitor.visit_region` / visit the region, so `has_escaping_bvars()`
 //                  correctly detects bound regions.
-//   (b) projections.rs: guard in `Normalizer::fold_sort` skips normalization when
+//   (FIX b) projections.rs: guard in `Normalizer::fold_sort` skips normalization when
 //                        `alias_ty.has_escaping_bvars()` is true.
 //       Without (a), (b) is dead code: `has_escaping_bvars()` always returns false.
 //
@@ -25,7 +25,7 @@
 //   so `Normalizer::fold_sort` sees `Sort::Alias(Projection, alias_ty_with_ReBound_0)`
 //   while the bound region is still "escaping".
 //
-//   `has_escaping_bvars()` should return true here (fix a), triggering the guard (fix b).
+//   `has_escaping_bvars()` should return true here (FIX a), triggering the guard (FIX b).
 //   Without both fixes: `normalize_projection_ty_with_rustc` is called, rustc's
 //   `erase_and_anonymize_regions` leaves `ReBound(...)` intact, and rustc's own
 //   `deeply_normalize` panics with `assertion failed: !value.has_escaping_bound_vars()`.
