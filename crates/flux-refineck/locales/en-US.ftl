@@ -17,7 +17,6 @@ refineck_refine_error =
 
 refineck_panic_error =
     call to {$callee} may panic: {$reason}
-    note: {$note}
 
 refineck_div_error =
     possible division by zero
