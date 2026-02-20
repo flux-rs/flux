@@ -97,7 +97,7 @@
 <a href=#97 id=97 data-nosnippet>97</a>            .iter_local_def_id()
 <a href=#98 id=98 data-nosnippet>98</a>            .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 <a href=#99 id=99 data-nosnippet>99</a>
-<a href=#100 id=100 data-nosnippet>100</a>        <span class="kw">if </span>config::lean().is_emit() {
+<a href=#100 id=100 data-nosnippet>100</a>        <span class="kw">if </span>config::lean().is_check() || config::lean().is_emit() {
 <a href=#101 id=101 data-nosnippet>101</a>            lean_encoding::finalize(genv)
 <a href=#102 id=102 data-nosnippet>102</a>                .unwrap_or_else(|err| <span class="macro">bug!</span>(<span class="string">"error running lean-check {err:?}"</span>));
 <a href=#103 id=103 data-nosnippet>103</a>        }
