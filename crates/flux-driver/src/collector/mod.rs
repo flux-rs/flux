@@ -807,10 +807,6 @@ impl FluxAttrs {
         fn_sig
     }
 
-    fn no_panic_spec(&mut self) -> Option<surface::Expr> {
-        read_attr!(self, NoPanicIf)
-    }
-
     fn ty_alias(&mut self) -> Option<Box<surface::TyAlias>> {
         read_attr!(self, TypeAlias)
     }

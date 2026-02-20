@@ -5,6 +5,8 @@ extern crate rustc_infer;
 extern crate rustc_middle;
 extern crate rustc_trait_selection;
 
+use std::collections::hash_map;
+
 use flux_rustc_bridge::lowering::resolve_call_query;
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::DefId};
@@ -101,10 +103,7 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Result<Vec<DefId>, Can
                         continue;
                     };
 
-                    let impl_id = match try_resolve(tcx, *def_id, args) {
-                        Ok(impl_id) => impl_id,
-                        Err(reason) => return Err(reason),
-                    };
+                    let impl_id = try_resolve(tcx, *def_id, args)?;
 
                     if !tcx.is_mir_available(impl_id) {
                         return Err(CannotResolveReason::NoMIRAvailable(
@@ -183,19 +182,15 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
             }
 
             if tcx.is_mir_available(callee) {
-                if !fn_to_no_panic.contains_key(&callee) {
+                if let hash_map::Entry::Vacant(e) = fn_to_no_panic.entry(callee) {
                     match get_callees(&tcx, callee) {
                         Ok(callees) => {
-                            fn_to_no_panic
-                                .insert(callee, PanicSpec::MightPanic(PanicReason::Unknown));
+                            e.insert(PanicSpec::MightPanic(PanicReason::Unknown));
                             call_graph.insert(callee, callees);
                             worklist.push(callee);
                         }
                         Err(reason) => {
-                            fn_to_no_panic.insert(
-                                callee,
-                                PanicSpec::MightPanic(PanicReason::CannotResolve(reason)),
-                            );
+                            e.insert(PanicSpec::MightPanic(PanicReason::CannotResolve(reason)));
                         }
                     }
                 }
@@ -269,7 +264,7 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
     }
 
     let mut reason_to_count: FxHashMap<String, usize> = FxHashMap::default();
-    for (_, reason) in fn_to_no_panic.iter() {
+    for (_, reason) in &fn_to_no_panic {
         let key = match reason {
             PanicSpec::WillNotPanic => "WillNotPanic".to_string(),
             PanicSpec::MightPanic(r) => {
