@@ -223,8 +223,8 @@ pub enum LeanStatus {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(bound(deserialize = "Tag: FromStr", serialize = "Tag: ToString"))]
-pub struct FixpointResult<Tag> {
-    pub status: FixpointStatus<Tag>,
+pub struct VerificationResult<Tag> {
+    pub fixpoint_status: FixpointStatus<Tag>,
     pub solution: Vec<KVarBind>,
     #[serde(rename = "nonCutsSolution")]
     pub non_cuts_solution: Vec<KVarBind>,
@@ -323,7 +323,7 @@ impl<T: Types> Task<T> {
     }
 
     #[cfg(feature = "rust-fixpoint")]
-    pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
+    pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
         let mut cstr_with_env = ConstraintWithEnv::new(
             self.data_decls.clone(),
             self.kvars.clone(),
@@ -331,7 +331,7 @@ impl<T: Types> Task<T> {
             self.constants.clone(),
             self.constraint.clone(),
         );
-        Ok(FixpointResult {
+        Ok(VerificationResult {
             status: cstr_with_env.is_satisfiable(),
             solution: vec![],
             non_cuts_solution: vec![],
@@ -339,7 +339,7 @@ impl<T: Types> Task<T> {
     }
 
     #[cfg(not(feature = "rust-fixpoint"))]
-    pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
+    pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
