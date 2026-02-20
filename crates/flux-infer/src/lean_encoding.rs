@@ -707,11 +707,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let proof_name = format!("{vc_name}_proof");
         let path = LeanFile::Proof(def_id).path(self.genv);
 
-        if let Some(span) = self.genv.proven_externally(self.def_id.local_id()) {
-            let dst_span = SpanTrace::from_path(&path, 3, 5, proof_name.len());
-            dbg::hyperlink_json!(self.genv.tcx(), span, dst_span);
-        }
-
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             writeln!(file, "{}", self.import(&LeanFile::Vc(def_id)))?;
@@ -763,5 +758,15 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         )?;
         encoder.run()?;
         Ok(())
+    }
+}
+
+pub fn hyperlink_proof(genv: GlobalEnv, def_id: MaybeExternId) {
+    let vc_name = vc_name(genv, def_id.resolved_id());
+    let proof_name = format!("{vc_name}_proof");
+    let path = LeanFile::Proof(def_id.resolved_id()).path(genv);
+    if let Some(span) = genv.proven_externally(def_id.local_id()) {
+        let dst_span = SpanTrace::from_path(&path, 3, 5, proof_name.len());
+        dbg::hyperlink_json!(genv.tcx(), span, dst_span);
     }
 }
