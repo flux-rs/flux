@@ -110,16 +110,19 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
                 if genv.proven_externally(def_id).is_some() {
                     let key = lean_task_key(genv.tcx(), def_id.to_def_id());
                     // Skip proof check if previously verified successfully.
-                    if ck.cache
-                        .lookup_by_key(&key)
-                        .map(|r| matches!(r.lean_status, LeanStatus::Valid))
-                        .unwrap_or(false)
+                    if config::is_cache_enabled()
+                        && ck
+                            .cache
+                            .lookup_by_key(&key)
+                            .map(|r| matches!(r.lean_status, LeanStatus::Valid))
+                            .unwrap_or(false)
                     {
                         return Ok(());
                     }
                     lean_encoding::check_proof(genv, def_id.to_def_id())?;
                     // Mark as valid in cache so future runs skip re-verification.
-                    ck.cache.update_result_by_key(&key, |r| r.lean_status = LeanStatus::Valid);
+                    ck.cache
+                        .update_result_by_key(&key, |r| r.lean_status = LeanStatus::Valid);
                     Ok(())
                 } else {
                     Ok(())
