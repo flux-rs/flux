@@ -26,6 +26,7 @@ symbols! {
         int,
         no_panic,
         no_panic_if,
+        prop,
         ptr_size,
         real,
     }

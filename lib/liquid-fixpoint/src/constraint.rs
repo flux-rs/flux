@@ -115,6 +115,7 @@ pub struct DataField<T: Types> {
 pub enum Sort<T: Types> {
     Int,
     Bool,
+    Prop,
     Real,
     Str,
     BitVec(Box<Sort<T>>),
@@ -177,6 +178,7 @@ impl<T: Types> Sort<T> {
             Sort::Int
             | Sort::Real
             | Sort::Bool
+            | Sort::Prop
             | Sort::Str
             | Sort::BvSize(..)
             | Sort::BitVec(..) => {}
