@@ -230,7 +230,7 @@ impl LeanMode {
     const ERROR: &'static str = "expected one of `emit`, or `check`";
 
     pub fn is_emit(self) -> bool {
-        matches!(self, LeanMode::Emit | LeanMode::Check)
+        matches!(self, LeanMode::Emit)
     }
 
     pub fn is_check(self) -> bool {
