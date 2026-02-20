@@ -8,7 +8,6 @@ use flux_opt::PanicSpec;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordSet;
-use rustc_hash::FxHashMap;
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -29,7 +28,7 @@ use crate::{
     queries::{DispatchKey, Providers, Queries, QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, GenericArg, QualifierKind,
+        self, QualifierKind,
         refining::{Refine as _, Refiner},
     },
 };
