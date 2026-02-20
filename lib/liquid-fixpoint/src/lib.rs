@@ -224,7 +224,7 @@ pub enum LeanStatus {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(bound(deserialize = "Tag: FromStr", serialize = "Tag: ToString"))]
 pub struct VerificationResult<Tag> {
-    pub fixpoint_status: FixpointStatus<Tag>,
+    pub status: FixpointStatus<Tag>,
     pub solution: Vec<KVarBind>,
     #[serde(rename = "nonCutsSolution")]
     pub non_cuts_solution: Vec<KVarBind>,

@@ -653,13 +653,13 @@ where
             || self.genv.proven_externally(def_id.local_id()).is_some()
         {
             Ok(ParsedResult {
-                status: result.fixpoint_status,
+                status: result.status,
                 solution: self.parse_kvar_solutions(&result.solution),
                 non_cut_solution: self.parse_kvar_solutions(&result.non_cuts_solution),
             })
         } else {
             Ok(ParsedResult {
-                status: result.fixpoint_status,
+                status: result.status,
                 solution: FxIndexMap::default(),
                 non_cut_solution: FxIndexMap::default(),
             })
