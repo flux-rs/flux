@@ -7,11 +7,10 @@ use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
 use flux_config as config;
 use flux_errors::{E0999, ErrorGuaranteed};
-use flux_middle::rty::GenericArgsExt;
 use flux_opt::{PanicReason, PanicSpec};
 use flux_rustc_bridge::{
-    self, ToRustc, def_id_to_string,
-    lowering::{self, Lower, UnsupportedErr, resolve_call_query},
+    self, def_id_to_string,
+    lowering::{self, Lower, UnsupportedErr},
     mir::{self},
     ty,
 };
@@ -19,18 +18,14 @@ use flux_syntax::symbols::sym;
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_errors::Diagnostic;
-use rustc_hash::FxHashMap;
 use rustc_hir::{
     LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_index::IndexVec;
-use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{Decodable, Encodable};
-use rustc_middle::ty::TypingMode;
 use rustc_span::{DUMMY_SP, Span, Symbol};
-use rustc_trait_selection::traits::SelectionContext;
 
 use crate::{
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
@@ -630,18 +625,16 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 self,
                 |def_id| {
                     let def_id = def_id.local_id();
-                    println!("local: {}", genv.tcx().def_path_str(def_id));
                     let map = flux_opt::infer_no_panics(genv.tcx(), def_id.to_def_id());
                     map.get(&def_id.to_def_id())
-                        .cloned()
+                        .copied()
                         .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
                 },
                 |def_id| {
-                    println!("extern: {}", genv.tcx().def_path_str(def_id));
                     let map = flux_opt::infer_no_panics(genv.tcx(), def_id);
                     Some(
                         map.get(&def_id)
-                            .cloned()
+                            .copied()
                             .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph)),
                     )
                 },

@@ -44,7 +44,6 @@ use flux_middle::{
     metrics::{self, Metric, TimingKind},
     rty::{self, ESpan},
 };
-use flux_opt::{PanicReason, PanicSpec};
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::LocalDefId;
@@ -228,21 +227,10 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
             ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
             ConstrReason::NoPanic(callee, reason) => {
-                let note = if matches!(reason, PanicSpec::MightPanic(PanicReason::NotInCallGraph)) {
-                    format!(
-                        "callee_is_local: {}\ncallee_has_mir: {}",
-                        callee.is_local(),
-                        genv.tcx().is_mir_available(callee),
-                    )
-                } else {
-                    "".to_string()
-                };
-
                 genv.sess().emit_err(errors::PanicError {
                     span,
                     callee: genv.tcx().def_path_debug_str(callee),
                     reason: format!("{:?}", reason),
-                    note,
                 })
             }
         });
@@ -391,7 +379,5 @@ mod errors {
         pub(super) span: Span,
         pub(super) callee: String,
         pub(super) reason: String,
-        // This is so I can debug.
-        pub(super) note: String,
     }
 }
