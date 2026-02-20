@@ -97,7 +97,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             .iter_local_def_id()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
-        if config::lean().is_emit() {
+        if config::lean().is_check() || config::lean().is_emit() {
             lean_encoding::finalize(genv)
                 .unwrap_or_else(|err| bug!("error running lean-check {err:?}"));
         }
