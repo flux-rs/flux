@@ -545,6 +545,13 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
 
 pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
 
+pub use liquid_fixpoint::LeanStatus;
+
+/// Returns the cache key used for a function-body lean query.
+pub fn lean_task_key(tcx: rustc_middle::ty::TyCtxt, def_id: DefId) -> String {
+    FixpointQueryKind::Body.task_key(tcx, def_id)
+}
+
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,

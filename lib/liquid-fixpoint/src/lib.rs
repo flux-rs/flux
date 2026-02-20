@@ -213,6 +213,14 @@ pub enum FixpointStatus<Tag> {
     Crash(CrashInfo),
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(tag = "tag", content = "contents")]
+pub enum LeanStatus {
+    #[default]
+    Invalid,
+    Valid,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(bound(deserialize = "Tag: FromStr", serialize = "Tag: ToString"))]
 pub struct FixpointResult<Tag> {
@@ -220,6 +228,8 @@ pub struct FixpointResult<Tag> {
     pub solution: Vec<KVarBind>,
     #[serde(rename = "nonCutsSolution")]
     pub non_cuts_solution: Vec<KVarBind>,
+    #[serde(default)]
+    pub lean_status: LeanStatus,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
