@@ -42,6 +42,10 @@ pub trait TypeVisitor: Sized {
     fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<Self::BreakTy> {
         bty.super_visit_with(self)
     }
+
+    fn visit_region(&mut self, _re: &Region) -> ControlFlow<Self::BreakTy> {
+        ControlFlow::Continue(())
+    }
 }
 
 pub trait FallibleTypeFolder: Sized {
@@ -196,6 +200,17 @@ pub trait TypeVisitable: Sized {
                     }
                 } else {
                     expr.super_visit_with(self)
+                }
+            }
+            fn visit_region(&mut self, re: &Region) -> ControlFlow<()> {
+                if let ReBound(debruijn, _) = *re {
+                    if debruijn >= self.outer_index {
+                        ControlFlow::Break(())
+                    } else {
+                        ControlFlow::Continue(())
+                    }
+                } else {
+                    ControlFlow::Continue(())
                 }
             }
         }
@@ -840,8 +855,8 @@ impl TypeSuperFoldable for Ty {
 }
 
 impl TypeVisitable for Region {
-    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        ControlFlow::Continue(())
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        visitor.visit_region(self)
     }
 }
 
@@ -1003,7 +1018,7 @@ impl TypeVisitable for GenericArg {
         match self {
             GenericArg::Ty(ty) => ty.visit_with(visitor),
             GenericArg::Base(ty) => ty.visit_with(visitor),
-            GenericArg::Lifetime(_) => ControlFlow::Continue(()),
+            GenericArg::Lifetime(re) => re.visit_with(visitor),
             GenericArg::Const(_) => ControlFlow::Continue(()),
         }
     }
