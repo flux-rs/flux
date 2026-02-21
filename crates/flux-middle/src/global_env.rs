@@ -729,9 +729,9 @@ impl ErrorEmitter for GlobalEnv<'_, '_> {
 
 fn lean_parent_dir(tcx: TyCtxt) -> PathBuf {
     tcx.sess
-        .opts
-        .working_dir
-        .local_path_if_available()
-        .to_path_buf()
+        .source_map()
+        .working_dir()
+        .local_path()
+        .unwrap()
         .join(config::lean_dir())
 }
