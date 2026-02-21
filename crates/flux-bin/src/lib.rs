@@ -34,6 +34,8 @@ pub struct FluxMetadata {
     pub no_panic: Option<bool>,
     /// If present, enables lean mode
     pub lean: Option<LeanMode>,
+    /// If present, dumps the fixpoint constraint to a file
+    pub dump_constraint: Option<bool>,
 }
 
 impl FluxMetadata {
@@ -50,6 +52,9 @@ impl FluxMetadata {
         }
         if let Some(v) = self.lean {
             flags.push(format!("-Flean={v}"));
+        }
+        if let Some(v) = self.dump_constraint {
+            flags.push(format!("-Fdump-constraint={v}"));
         }
         if let Some(v) = self.scrape_quals {
             flags.push(format!("-Fscrape-quals={v}"));
