@@ -594,6 +594,7 @@ impl TypeSuperVisitable for Sort {
             Sort::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             Sort::Int
             | Sort::Bool
+            | Sort::Prop
             | Sort::Real
             | Sort::Str
             | Sort::Char
@@ -623,6 +624,7 @@ impl TypeSuperFoldable for Sort {
             Sort::Alias(kind, alias_ty) => Sort::Alias(*kind, alias_ty.try_fold_with(folder)?),
             Sort::Int
             | Sort::Bool
+            | Sort::Prop
             | Sort::Real
             | Sort::Loc
             | Sort::Str

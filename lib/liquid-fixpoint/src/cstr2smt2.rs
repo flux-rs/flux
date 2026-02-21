@@ -574,7 +574,9 @@ pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>, env: &Env<T>)
     match &sort {
         Sort::Int => Binding::Variable(ast::Int::new_const(name.display().to_string()).into()),
         Sort::Real => Binding::Variable(ast::Real::new_const(name.display().to_string()).into()),
-        Sort::Bool => Binding::Variable(ast::Bool::new_const(name.display().to_string()).into()),
+        Sort::Bool | Sort::Prop => {
+            Binding::Variable(ast::Bool::new_const(name.display().to_string()).into())
+        }
         Sort::Str => Binding::Variable(ast::String::new_const(name.display().to_string()).into()),
         Sort::Func(sorts) => {
             let mut domain = vec![z3_sort(&sorts[0], env)];
@@ -635,7 +637,7 @@ fn z3_sort<T: Types>(s: &Sort<T>, env: &Env<T>) -> z3::Sort {
     match s {
         Sort::Int => z3::Sort::int(),
         Sort::Real => z3::Sort::real(),
-        Sort::Bool => z3::Sort::bool(),
+        Sort::Bool | Sort::Prop => z3::Sort::bool(),
         Sort::Str => z3::Sort::string(),
         Sort::BitVec(bv_size) => {
             match **bv_size {

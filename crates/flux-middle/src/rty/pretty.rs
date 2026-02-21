@@ -114,6 +114,7 @@ impl Pretty for Sort {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Sort::Bool => w!(cx, f, "bool"),
+            Sort::Prop => w!(cx, f, "prop"),
             Sort::Int => w!(cx, f, "int"),
             Sort::Real => w!(cx, f, "real"),
             Sort::Str => w!(cx, f, "str"),

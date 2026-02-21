@@ -884,6 +884,7 @@ pub enum PrimSort {
     Map,
     Str,
     RawPtr,
+    Prop,
 }
 
 impl PrimSort {
@@ -897,6 +898,7 @@ impl PrimSort {
             PrimSort::Set => "Set",
             PrimSort::Map => "Map",
             PrimSort::RawPtr => "ptr",
+            PrimSort::Prop => "prop",
         }
     }
 
@@ -908,7 +910,8 @@ impl PrimSort {
             | PrimSort::Real
             | PrimSort::Char
             | PrimSort::Str
-            | PrimSort::RawPtr => 0,
+            | PrimSort::RawPtr
+            | PrimSort::Prop => 0,
             PrimSort::Set => 1,
             PrimSort::Map => 2,
         }
@@ -1689,6 +1692,7 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
             SortRes::PrimSort(PrimSort::RawPtr) => write!(f, "ptr"),
+            SortRes::PrimSort(PrimSort::Prop) => write!(f, "prop"),
             SortRes::SortParam(n) => write!(f, "@{n}"),
             SortRes::TyParam(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {
