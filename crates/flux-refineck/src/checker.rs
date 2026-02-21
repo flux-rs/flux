@@ -27,6 +27,7 @@ use flux_middle::{
         refining::{Refine, Refiner},
     },
 };
+use flux_opt::PanicSpec;
 use flux_rustc_bridge::{
     self, ToRustc,
     mir::{
@@ -950,9 +951,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         {
             let callee_no_panic = fn_sig.no_panic();
 
+            let auto_inferred_panic_spec = genv.inferred_no_panic(callee_def_id);
+
+            let infer_panic_expr = if matches!(auto_inferred_panic_spec, PanicSpec::WillNotPanic) {
+                Expr::tt()
+            } else {
+                Expr::ff()
+            };
+
             at.check_pred(
-                Expr::implies(self.fn_sig.no_panic(), callee_no_panic),
-                ConstrReason::NoPanic(callee_def_id),
+                Expr::implies(self.fn_sig.no_panic(), Expr::or(callee_no_panic, infer_panic_expr)),
+                ConstrReason::NoPanic(callee_def_id, auto_inferred_panic_spec),
             );
         }
 

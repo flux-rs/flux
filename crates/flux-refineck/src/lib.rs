@@ -228,10 +228,11 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
             ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
-            ConstrReason::NoPanic(callee) => {
+            ConstrReason::NoPanic(callee, reason) => {
                 genv.sess().emit_err(errors::PanicError {
                     span,
                     callee: genv.tcx().def_path_debug_str(callee),
+                    reason: format!("{:?}", reason),
                 })
             }
         });
@@ -379,5 +380,6 @@ mod errors {
         #[primary_span]
         pub(super) span: Span,
         pub(super) callee: String,
+        pub(super) reason: String,
     }
 }
