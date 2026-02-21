@@ -261,6 +261,10 @@ impl LeanFile {
         path.set_extension("lean");
         path
     }
+
+    pub fn import(&self, genv: GlobalEnv) -> String {
+        format!("import {}", self.segments(genv).join("."))
+    }
 }
 
 pub struct LeanEncoder<'genv, 'tcx> {
@@ -309,10 +313,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         snake_case_to_pascal_case(&name)
     }
 
-    fn import(&self, file: &LeanFile) -> String {
-        format!("import {}", file.segments(self.genv).join("."))
-    }
-
     fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: MaybeExternId,
@@ -349,7 +349,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         self.generate_lib_if_absent()?;
         self.generate_vc_file()?;
         self.generate_proof_if_absent()?;
-        self.record_proof()?;
+        // self.record_proof()?;
         Ok(())
     }
 
@@ -415,7 +415,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
         let path = file.path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
-            writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
+            writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
             namespaced(&mut file, |f| {
                 writeln!(f, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })
             })?;
@@ -451,10 +451,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         // No need to regenerate if created in this session; but otherwise regenerate as struct may have changed
         if let Some(mut file) = create_file_with_dirs(path)? {
             // import prelude
-            writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
+            writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
             // import sort dependencies
             for dep in self.data_decl_dependencies(data_decl) {
-                writeln!(file, "{}", self.import(dep))?;
+                writeln!(file, "{}", dep.import(self.genv))?;
             }
 
             // write data decl
@@ -522,10 +522,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = self.lean_file_for_fun(fun_def).path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
             // import prelude
-            writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
+            writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
             // import sort dependencies
             for dep in self.fun_def_dependencies(did, fun_def) {
-                writeln!(file, "{}", self.import(dep))?;
+                writeln!(file, "{}", dep.import(self.genv))?;
             }
 
             // write fun def
@@ -547,12 +547,12 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
             // import prelude
-            writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
+            writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
 
             let mut sort_deps = vec![];
             const_decl.sort.deps(&mut sort_deps);
             for dep in sort_deps {
-                writeln!(file, "{}", self.import(self.sort_file(&dep)))?;
+                writeln!(file, "{}", self.sort_file(&dep).import(self.genv))?;
             }
 
             namespaced(&mut file, |f| {
@@ -646,24 +646,29 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn generate_vc_imports(&self, file: &mut fs::File) -> io::Result<()> {
-        writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
+        writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
 
         for sort in &self.sort_deps.opaque_sorts {
             let name = self.datasort_name(&sort.name);
-            writeln!(file, "{}", self.import(&LeanFile::OpaqueSort(name)))?;
+            writeln!(file, "{}", LeanFile::OpaqueSort(name).import(self.genv))?;
         }
 
         for data_decl in &self.sort_deps.data_decls {
             let name = self.datasort_name(&data_decl.name);
-            writeln!(file, "{}", self.import(&LeanFile::Struct(name)))?;
+            writeln!(file, "{}", LeanFile::Struct(name).import(self.genv))?;
         }
 
         for fun_def in &self.fun_deps {
-            writeln!(file, "{}", self.import(&self.lean_file_for_fun(fun_def)))?;
+            writeln!(file, "{}", self.lean_file_for_fun(fun_def).import(self.genv))?;
         }
 
         for const_decl in &self.constants.interpreted {
-            writeln!(file, "{}", self.import(&self.lean_file_for_interpreted_const(const_decl)))?;
+            writeln!(
+                file,
+                "{}",
+                self.lean_file_for_interpreted_const(const_decl)
+                    .import(self.genv)
+            )?;
         }
 
         Ok(())
@@ -708,8 +713,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = LeanFile::Proof(def_id).path(self.genv);
 
         if let Some(mut file) = create_file_with_dirs(path)? {
-            writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
-            writeln!(file, "{}", self.import(&LeanFile::Vc(def_id)))?;
+            writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
+            writeln!(file, "{}", LeanFile::Vc(def_id).import(self.genv))?;
             namespaced(&mut file, |f| {
                 writeln!(f, "def {proof_name} : {vc_name} := by")?;
                 writeln!(f, "  unfold {vc_name}")?;
@@ -718,20 +723,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             file.sync_all()?;
         }
         Ok(())
-    }
-
-    fn record_proof(&self) -> io::Result<()> {
-        let path = LeanFile::Basic.path(self.genv);
-
-        let mut file = match create_file_with_dirs(&path)? {
-            Some(mut file) => {
-                // First invocation: reset VCs
-                writeln!(file, "-- Flux Basic Imports [DO NOT MODIFY] --")?;
-                file
-            }
-            None => fs::OpenOptions::new().append(true).open(path)?,
-        };
-        writeln!(file, "{}", self.import(&LeanFile::Proof(self.def_id.resolved_id())))
     }
 
     pub fn encode(
@@ -761,7 +752,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 }
 
-pub fn hyperlink_proof(genv: GlobalEnv, def_id: MaybeExternId) {
+fn hyperlink_proof(genv: GlobalEnv, def_id: MaybeExternId) {
     let vc_name = vc_name(genv, def_id.resolved_id());
     let proof_name = format!("{vc_name}_proof");
     let path = LeanFile::Proof(def_id.resolved_id()).path(genv);
@@ -769,4 +760,37 @@ pub fn hyperlink_proof(genv: GlobalEnv, def_id: MaybeExternId) {
         let dst_span = SpanTrace::from_path(&path, 3, 5, proof_name.len());
         dbg::hyperlink_json!(genv.tcx(), span, dst_span);
     }
+}
+
+fn record_proof(genv: GlobalEnv, def_id: MaybeExternId) -> io::Result<()> {
+    let path = LeanFile::Basic.path(genv);
+
+    let mut file = match create_file_with_dirs(&path)? {
+        Some(mut file) => {
+            // First invocation: reset VCs
+            writeln!(file, "-- Flux Basic Imports [DO NOT MODIFY] --")?;
+            file
+        }
+        None => fs::OpenOptions::new().append(true).open(path)?,
+    };
+    writeln!(file, "{}", LeanFile::Proof(def_id.resolved_id()).import(genv))
+}
+
+/// We need to both hyperlink the proof (so users can easily jump to it)
+/// and record the proof in `Basic.lean` (so that it gets checked by `lake build`),
+/// regardless of whether the proof was cached.
+pub fn log_proof(genv: GlobalEnv, def_id: MaybeExternId) -> Result<(), ErrorGuaranteed> {
+    hyperlink_proof(genv, def_id);
+    record_proof(genv, def_id)
+        .map_err(|_| {
+            let name = genv
+                .tcx()
+                .def_path(def_id.resolved_id())
+                .to_string_no_crate_verbose();
+            let msg = format!("failed to record proof for `{name}`");
+            let span = genv.tcx().def_span(def_id);
+            QueryErr::Emitted(genv.sess().dcx().handle().struct_span_err(span, msg).emit())
+        })
+        .emit(&genv)?;
+    Ok(())
 }

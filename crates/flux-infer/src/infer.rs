@@ -35,7 +35,7 @@ use crate::{
         Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, KVarSolutions,
         lean_task_key,
     },
-    lean_encoding::hyperlink_proof,
+    lean_encoding::log_proof,
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
@@ -230,7 +230,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         let cstr_variable_sorts = cstr.variable_sorts();
         let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
 
-        hyperlink_proof(self.genv, def_id);
+        log_proof(self.genv, def_id)?;
         // Skip re-generation if task is already cached (same hash → same lean files on disk).
         if config::is_cache_enabled() {
             let key = lean_task_key(self.genv.tcx(), def_id.resolved_id());
