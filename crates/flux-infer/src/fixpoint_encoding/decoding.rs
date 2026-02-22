@@ -88,7 +88,7 @@ where
             }
             fixpoint::Expr::Var(fvar) => {
                 match fvar {
-                    fixpoint::Var::Underscore => {
+                    fixpoint::Var::Underscore | fixpoint::Var::UnderscoreInvariant => {
                         unreachable!("Underscore should not appear in exprs")
                     }
                     fixpoint::Var::Global(global_var, _) => {

@@ -802,8 +802,8 @@ pub fn check_validity<T: Types>(
         vars.insert(var.clone(), new_binding(&var.display().to_string(), sort, &vars));
     }
     solver.push();
-    for assumption in &cstr.assumptions {
-        let pred_ast = pred_to_z3(&assumption, &mut vars, AllowKVars::NoKVars);
+    for assumption in &cstr.preconditions() {
+        let pred_ast = pred_to_z3(assumption, &mut vars, AllowKVars::NoKVars);
         solver.assert(&pred_ast);
     }
     let head_ast = pred_to_z3(&cstr.head, &mut vars, AllowKVars::NoKVars);
@@ -844,7 +844,7 @@ pub fn qe_and_simplify<T: Types>(
         vars.insert(var.clone(), new_binding(&var.display().to_string(), sort, &vars));
     }
     solver.push();
-    let lhs = z3::ast::Bool::and(&cstr.assumptions.iter().filter_map(|pred| {
+    let lhs = z3::ast::Bool::and(&cstr.preconditions().into_iter().filter_map(|pred| {
         let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
         // Assumptions that only pertain to non-quantified variables will
         // just be asserted.
@@ -906,8 +906,8 @@ pub fn qe_and_simplify<T: Types>(
                     solver.push();
                     // let new_goal = Goal::new(true, true, false);
                     // solver.assert(&new_cstr.as_bool().unwrap());
-                    for pred in &cstr.assumptions {
-                        let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
+                    for pred in &cstr.preconditions() {
+                        let pred_ast = pred_to_z3(pred, &mut vars, AllowKVars::NoKVars);
                         solver.assert(&pred_ast);
                         // new_goal.assert(&pred_ast);
                     }
@@ -931,38 +931,18 @@ pub fn qe_and_simplify<T: Types>(
                     };
                     solver.pop(1);
                     solver.push();
-                    for pred in &cstr.assumptions {
-                        match pred {
-                            Pred::Expr(Expr::Atom(BinRel::Ge, args)) => {
-                                match args.as_ref() {
-                                    [head, Expr::Constant(Constant::Numeral(0))] => {
-                                        let head_is_var = match head {
-                                            Expr::Var(_) => true,
-                                            Expr::App(app_head, _, app_args) =>
-                                                matches!(app_head.as_ref(), Expr::Var(_))
-                                                && app_args.len() == 1
-                                                && matches!(app_args[0], Expr::Var(_)),
-                                            _ => false,
-                                        };
-                                        if head_is_var {
-                                            let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
-                                            println!("asserting invariant {}", pred);
-                                            solver.assert(&pred_ast);
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-                            _ => {}
-                        }
+                    for pred in &cstr.preconditions() {
+                        let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
+                        println!("asserting invariant {}", pred);
+                        solver.assert(&pred_ast);
                     }
                     // println!("solved originally to: {}", fixpoint_expr);
                     return if prune_vacuous(&mut fixpoint_expr, &mut vars, &solver) {
                         Ok(Expr::FALSE)
                     } else {
-                        println!("before simplifying: {}", fixpoint_expr);
-                        simplify(&mut fixpoint_expr, &mut vars, &solver);
-                        println!("after simplifying: {}", fixpoint_expr);
+                        // println!("before simplifying: {}", fixpoint_expr);
+                        // simplify(&mut fixpoint_expr, &mut vars, &solver);
+                        // println!("after simplifying: {}", fixpoint_expr);
                         Ok(fixpoint_expr)
                     };
                 }
@@ -1088,9 +1068,9 @@ fn simplify<T: Types>(e: &mut Expr<T>, env: &mut Env<T>, solver: &Solver) {
                 let c = &conjuncts[i];
                 let expr = Expr::Imp(Box::new([Expr::And(other_cs), c.clone()]));
                 solver.push();
-                solver.assert(&expr_to_z3(&expr, env).as_bool().unwrap());
+                solver.assert(&expr_to_z3(&expr, env).as_bool().unwrap().not());
                 match solver.check() {
-                    SatResult::Sat => {
+                    SatResult::Unsat => {
                         conjuncts.remove(i);
                     }
                     _ => {
@@ -1124,9 +1104,9 @@ fn simplify<T: Types>(e: &mut Expr<T>, env: &mut Env<T>, solver: &Solver) {
                 let d = &disjuncts[i];
                 let expr = Expr::Imp(Box::new([Expr::Or(other_ds), d.clone()]));
                 solver.push();
-                solver.assert(&expr_to_z3(&expr, env).as_bool().unwrap());
+                solver.assert(&expr_to_z3(&expr, env).as_bool().unwrap().not());
                 match solver.check() {
-                    SatResult::Sat => {
+                    SatResult::Unsat => {
                         disjuncts.remove(i);
                     }
                     _ => {

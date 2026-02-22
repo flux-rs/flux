@@ -56,31 +56,38 @@ impl<T: Types> Constraint<T> {
     /// Flattens a single constraint into a list of individual constraints which
     /// may be checked for satisfiability.
     ///
-    /// Because this function is generic, it is your responsibility to filter
-    /// out UNDERSCORE binders (although it isn't strictly wrong to keep them
-    /// in).
-    ///
     /// NOTE: Assumes and requires that all binder names are unique, i.e.
     /// there is no shadowing (it is OK to have multiple binders of the same
     /// name so long as they never are used, e.g. UNDERSCORE).
-    pub fn flatten(&self) -> Vec<FlatConstraint<T>> {
+    pub fn flatten<F1, F2>(&self, is_underscore: F1, is_invariant: F2) -> Vec<FlatConstraint<T>>
+    where
+        F1: Copy + Fn(&T::Var) -> bool,
+        F2: Copy + Fn(&T::Var) -> bool,
+    {
         match self {
             Constraint::Pred(pred, tag) => {
                 vec![FlatConstraint {
                     binders: vec![],
                     assumptions: vec![],
+                    invariants: vec![],
                     head: pred.clone(),
                     tag: tag.clone(),
                 }]
             }
             Constraint::Conj(constrs) => {
-                constrs.iter().flat_map(|constr| constr.flatten()).collect_vec()
+                constrs.iter().flat_map(|constr| constr.flatten(is_underscore, is_invariant)).collect_vec()
             }
             Constraint::ForAll(bind, constr) => {
-                let mut flat_constrs = constr.flatten();
+                let mut flat_constrs = constr.flatten(is_underscore, is_invariant);
                 for constr in &mut flat_constrs {
-                    constr.binders.push((bind.name.clone(), bind.sort.clone()));
-                    constr.add_assumption(bind.pred.clone());
+                    if !is_underscore(&bind.name) {
+                        constr.binders.push((bind.name.clone(), bind.sort.clone()));
+                    }
+                    if is_invariant(&bind.name) {
+                        constr.add_invariant(bind.pred.clone());
+                    } else {
+                        constr.add_assumption(bind.pred.clone());
+                    }
                 }
                 flat_constrs
             }
@@ -98,6 +105,8 @@ pub struct FlatConstraint<T: Types> {
     /// All of the assumptions (i.e. a flattened conjunction of predicates from
     /// all of the binders)
     pub assumptions: Vec<Pred<T>>,
+    /// All of the invariants (special kind of assumptions)
+    pub invariants: Vec<Pred<T>>,
     pub head: Pred<T>,
     #[derive_where(skip)]
     pub tag: Option<T::Tag>,
@@ -121,6 +130,7 @@ impl<T: Types> FlatConstraint<T> {
         let new_constraint = FlatConstraint {
             binders: new_binders,
             assumptions: self.assumptions.clone(),
+            invariants: self.invariants.clone(),
             head: self.head.clone(),
             tag: self.tag.clone(),
         };
@@ -133,7 +143,7 @@ impl<T: Types> FlatConstraint<T> {
         let mut constr = Constraint::ForAll(Bind {
             name: underscore_var.clone(),
             sort: Sort::Int,
-            pred: Pred::And(self.assumptions.clone()),
+            pred: Pred::And(self.preconditions()),
         }, Box::new(head_constr));
 
         for (var, sort) in &self.binders {
@@ -158,6 +168,26 @@ impl<T: Types> FlatConstraint<T> {
                 self.assumptions.extend(e.as_conjunction().into_iter().map(|e| Pred::Expr(e)))
             }
         }
+    }
+
+    pub fn add_invariant(&mut self, invariant: Pred<T>) {
+        match invariant {
+            Pred::And(conjs) => {
+                self.invariants.extend(conjs.iter().flat_map(|conj| conj.as_conjunction()));
+            }
+            Pred::Expr(e) => {
+                self.invariants.extend(e.as_conjunction().into_iter().map(|e| Pred::Expr(e)))
+            }
+            Pred::KVar(_, _) => {
+                unreachable!("KVars shouldn't be invariants")
+            }
+        }
+    }
+
+    pub fn preconditions(&self) -> Vec<Pred<T>> {
+        let mut preconditions = self.assumptions.clone();
+        preconditions.extend(self.invariants.clone());
+        preconditions
     }
 
     /// Each element of the output is a wkvar, the constraint it corresponds to,

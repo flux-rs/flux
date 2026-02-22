@@ -11,7 +11,7 @@ use flux_infer::{
     },
     projections::NormalizeExt as _,
     refine_tree::{
-        BinderOriginator, BinderProvenance, CallReturn, Marker, RefineCtxtTrace, RefineParams,
+        AssumptionType, BinderOriginator, BinderProvenance, CallReturn, Marker, RefineCtxtTrace, RefineParams
     },
 };
 use flux_middle::{
@@ -310,7 +310,7 @@ fn check_fn_subtyping(
 
         // 3. INPUT subtyping (g-input <: f-input)
         for requires in super_sig.requires() {
-            infcx.assume_pred(requires);
+            infcx.assume_pred(requires, AssumptionType::Assumption);
         }
         for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
             let reason = ConstrReason::Subtype(SubtypeReason::Input);
@@ -1246,7 +1246,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             match guard {
                 Guard::None => {}
                 Guard::Pred(expr) => {
-                    infcx.assume_pred(&expr);
+                    infcx.assume_pred(&expr, AssumptionType::Assumption);
                 }
                 Guard::Match(place, variant_idx) => {
                     env.downcast(&mut infcx.at(terminator_span), &place, variant_idx)

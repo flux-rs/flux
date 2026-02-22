@@ -3,7 +3,7 @@ use std::{clone::Clone, fmt, ops::ControlFlow};
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_infer::{
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
-    projections::NormalizeExt as _,
+    projections::NormalizeExt as _, refine_tree::AssumptionType,
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -844,7 +844,7 @@ fn downcast_enum(
         .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)))
         .deeply_normalize(&mut infcx.at(span))?;
 
-    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));
+    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx), AssumptionType::Assumption);
 
     Ok(variant_sig.fields.to_vec())
 }

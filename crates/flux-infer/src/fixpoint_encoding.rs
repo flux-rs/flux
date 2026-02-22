@@ -97,6 +97,7 @@ pub mod fixpoint {
     #[derive(Hash, Copy, Clone, Debug, PartialEq, Eq)]
     pub enum Var {
         Underscore,
+        UnderscoreInvariant,
         Global(GlobalVar, Option<Symbol>),
         WKVar(Symbol, u32),
         Local(LocalVar),
@@ -142,6 +143,7 @@ pub mod fixpoint {
                 Var::UIFRel(BinRel::Eq) => write!(f, "eq"),
                 Var::UIFRel(BinRel::Ne) => write!(f, "ne"),
                 Var::Underscore => write!(f, "_$"), // To avoid clashing with `_` used for `app (_ bv_op n)` for parametric SMT ops
+                Var::UnderscoreInvariant => write!(f, "_invariant$"), // Not sure what kind of names can appear, but probably doesn't hurt to put a $ for uniqueness
                 Var::ConstGeneric(param) => {
                     write!(f, "constgen${}${}", param.name, param.index)
                 }
@@ -599,7 +601,10 @@ where
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
         let mut flat_constraint_map: HashMap<TagIdx, fixpoint::FlatConstraint> = constraint
-            .flatten()
+            .flatten(
+                |var| matches!(var, fixpoint::Var::Underscore | fixpoint::Var::UnderscoreInvariant),
+                |var| matches!(var, fixpoint::Var::UnderscoreInvariant),
+            )
             .into_iter()
             .flat_map(|flat_constraint| {
                 // We can't send a kvar to the SMT. If there's a kvar on the LHS we
@@ -770,10 +775,6 @@ where
                                     .try_collect().unwrap();
                                 let (binder_consts, mut new_flat_constraint) =
                                     flat_constraint.remove_binders(&fvars);
-                                // Some cleanup: remove all of the underscores (those aren't real binders)
-                                new_flat_constraint.binders.retain(|(var, _)| {
-                                    !matches!(var, fixpoint::Var::Underscore)
-                                });
                                 // Remove any wkvars and drop assumptions that are just wkvars or true
                                 new_flat_constraint.assumptions.retain_mut(|assumption| {
                                     *assumption = assumption.strip_wkvars();

@@ -35,7 +35,7 @@ use crate::{
         Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen,
     },
     projections::NormalizeExt as _,
-    refine_tree::{BinderOriginator, BinderProvenance, Cursor, Marker, RefineTree, Scope},
+    refine_tree::{AssumptionType, BinderOriginator, BinderProvenance, Cursor, Marker, RefineTree, Scope},
     wkvars::{Constraint, Constraints},
 };
 
@@ -477,8 +477,8 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.cursor.check_pred(pred, tag);
     }
 
-    pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
-        self.cursor.assume_pred(pred);
+    pub fn assume_pred(&mut self, pred: impl Into<Expr>, assumption_type: AssumptionType) {
+        self.cursor.assume_pred(pred, assumption_type);
     }
 
     pub fn unpack(&mut self, ty: &Ty, binder_provenance: BinderProvenance) -> Ty {
@@ -530,7 +530,7 @@ impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
     }
 
     fn hoist_constr(&mut self, pred: Expr) {
-        self.infcx.assume_pred(pred);
+        self.infcx.assume_pred(pred, AssumptionType::Assumption);
     }
 }
 
