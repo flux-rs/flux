@@ -430,16 +430,17 @@ impl SortEncodingCtxt {
         }
     }
 
-    pub fn user_sorts_to_fixpoint(&self, genv: GlobalEnv) -> Vec<fixpoint::SortDecl> {
+    pub fn user_sorts_to_fixpoint(&self, genv: GlobalEnv) -> Vec<(FluxDefId, fixpoint::SortDecl)> {
         self.opaque_sorts
             .iter()
             .enumerate()
             .map(|(idx, sort)| {
                 let param_count = genv.sort_decl_param_count(sort);
-                fixpoint::SortDecl {
+                let sort_decl = fixpoint::SortDecl {
                     name: fixpoint::DataSort::User(OpaqueId::from_usize(idx)),
                     vars: param_count,
-                }
+                };
+                (*sort, sort_decl)
             })
             .collect()
     }
@@ -1483,7 +1484,7 @@ impl KVarSolutions {
 
 #[derive(Debug)]
 pub struct SortDeps {
-    pub opaque_sorts: Vec<fixpoint::SortDecl>,
+    pub opaque_sorts: Vec<(FluxDefId, fixpoint::SortDecl)>,
     pub data_decls: Vec<fixpoint::DataDecl>,
     pub adt_map: FxIndexSet<DefId>,
 }

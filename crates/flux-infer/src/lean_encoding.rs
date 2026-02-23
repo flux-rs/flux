@@ -291,8 +291,13 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn datasort_name(&self, sort: &fixpoint::DataSort) -> String {
-        let name = format!("{}", WithLeanCtxt { item: sort, cx: &self.lean_cx() });
-        snake_case_to_pascal_case(&name)
+        if let fixpoint::DataSort::User(opaque_id) = sort {
+            let (flux_id, _) = &self.sort_deps.opaque_sorts[opaque_id.as_usize()];
+            return snake_case_to_pascal_case(flux_id.name().as_str());
+        } else {
+            let name = format!("{}", WithLeanCtxt { item: sort, cx: &self.lean_cx() });
+            snake_case_to_pascal_case(&name)
+        }
     }
 
     fn lean_file_for_fun(&self, fun: &fixpoint::FunDef) -> LeanFile {
@@ -369,7 +374,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
     fn sort_files(&self) -> FxHashMap<fixpoint::DataSort, LeanFile> {
         let mut res = FxHashMap::default();
-        for sort in &self.sort_deps.opaque_sorts {
+        for (_, sort) in &self.sort_deps.opaque_sorts {
             let data_sort = sort.name.clone();
             let name = self.datasort_name(&sort.name);
             let file = LeanFile::OpaqueSort(name);
@@ -625,7 +630,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         self.generate_lib_if_absent()?;
 
         // 2. Generate Opaque Struct Files
-        for sort in &self.sort_deps.opaque_sorts {
+        for (_, sort) in &self.sort_deps.opaque_sorts {
             self.generate_opaque_sort_file_if_not_present(sort)?;
         }
         // 2. Generate Struct Files
@@ -649,7 +654,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     fn generate_vc_imports(&self, file: &mut fs::File) -> io::Result<()> {
         writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
 
-        for sort in &self.sort_deps.opaque_sorts {
+        for (_, sort) in &self.sort_deps.opaque_sorts {
             let name = self.datasort_name(&sort.name);
             writeln!(file, "{}", self.import(&LeanFile::OpaqueSort(name)))?;
         }
