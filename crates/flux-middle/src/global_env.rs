@@ -590,6 +590,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let def_path = self.tcx().def_path_str(def_id.local_id());
         def_path.contains(def)
     }
+
     fn matches_pos(&self, def_id: MaybeExternId, line: usize, col: usize) -> bool {
         let def_id = def_id.local_id();
         let tcx = self.tcx();
