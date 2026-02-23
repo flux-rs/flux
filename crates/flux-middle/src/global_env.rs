@@ -585,6 +585,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         matcher(file_path)
     }
+
     fn matches_def(&self, def_id: MaybeExternId, def: &str) -> bool {
         // Does this def_id's name contain `fn_name`?
         let def_path = self.tcx().def_path_str(def_id.local_id());
