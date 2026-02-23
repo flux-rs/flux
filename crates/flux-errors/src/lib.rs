@@ -11,9 +11,9 @@ use flux_common::result::{ErrorCollector, ErrorEmitter};
 use rustc_data_structures::sync;
 pub use rustc_errors::ErrorGuaranteed;
 use rustc_errors::{
-    Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle, TerminalUrl,
+    Diagnostic, ErrCode, FatalAbort, FatalError, TerminalUrl,
     annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
-    emitter::{Emitter, HumanEmitter, HumanReadableErrorType, OutputTheme, stderr_destination},
+    emitter::{Emitter, HumanReadableErrorType, OutputTheme, stderr_destination},
     json::JsonEmitter,
     translation::Translator,
 };
@@ -31,9 +31,8 @@ impl FluxSession {
     pub fn new(
         opts: &config::Options,
         source_map: Arc<SourceMap>,
-        fallback_bundle: LazyFallbackBundle,
     ) -> Self {
-        let emitter = emitter(opts, source_map.clone(), fallback_bundle);
+        let emitter = emitter(opts, source_map.clone());
         let dcx = rustc_errors::DiagCtxt::new(emitter);
         Self { parse_sess: ParseSess::with_dcx(dcx, source_map) }
     }
@@ -74,9 +73,8 @@ impl FluxSession {
 fn emitter(
     sopts: &config::Options,
     source_map: Arc<SourceMap>,
-    fallback_fluent_bundle: LazyFallbackBundle,
 ) -> Box<dyn Emitter + sync::DynSend> {
-    let translator = Translator { fluent_bundle: None, fallback_fluent_bundle };
+    let translator = Translator::new();
 
     // All the code below is copied from rustc_session::session::default_emitter
     let macro_backtrace = sopts.unstable_opts.macro_backtrace;
@@ -99,43 +97,22 @@ fn emitter(
 
     match sopts.error_format {
         config::ErrorOutputType::HumanReadable { kind, color_config } => {
-            match kind {
-                HumanReadableErrorType::AnnotateSnippet { short, unicode } => {
-                    let emitter =
-                        AnnotateSnippetEmitter::new(stderr_destination(color_config), translator)
-                            .sm(source_map)
-                            .short_message(short)
-                            .diagnostic_width(sopts.diagnostic_width)
-                            .macro_backtrace(macro_backtrace)
-                            .track_diagnostics(track_diagnostics)
-                            .terminal_url(terminal_url)
-                            .theme(if unicode { OutputTheme::Unicode } else { OutputTheme::Ascii })
-                            .ignored_directories_in_source_blocks(
-                                sopts
-                                    .unstable_opts
-                                    .ignore_directory_in_diagnostics_source_blocks
-                                    .clone(),
-                            );
-                    Box::new(emitter.ui_testing(sopts.unstable_opts.ui_testing))
-                }
-                HumanReadableErrorType::Default { short } => {
-                    let emitter = HumanEmitter::new(stderr_destination(color_config), translator)
-                        .sm(source_map)
-                        .short_message(short)
-                        .diagnostic_width(sopts.diagnostic_width)
-                        .macro_backtrace(macro_backtrace)
-                        .track_diagnostics(track_diagnostics)
-                        .terminal_url(terminal_url)
-                        .theme(OutputTheme::Ascii)
-                        .ignored_directories_in_source_blocks(
-                            sopts
-                                .unstable_opts
-                                .ignore_directory_in_diagnostics_source_blocks
-                                .clone(),
-                        );
-                    Box::new(emitter.ui_testing(sopts.unstable_opts.ui_testing))
-                }
-            }
+            let HumanReadableErrorType { short, unicode } = kind;
+            let emitter = AnnotateSnippetEmitter::new(stderr_destination(color_config), translator)
+                .sm(source_map)
+                .short_message(short)
+                .diagnostic_width(sopts.diagnostic_width)
+                .macro_backtrace(macro_backtrace)
+                .track_diagnostics(track_diagnostics)
+                .terminal_url(terminal_url)
+                .theme(if unicode { OutputTheme::Unicode } else { OutputTheme::Ascii })
+                .ignored_directories_in_source_blocks(
+                    sopts
+                        .unstable_opts
+                        .ignore_directory_in_diagnostics_source_blocks
+                        .clone(),
+                );
+            Box::new(emitter.ui_testing(sopts.unstable_opts.ui_testing))
         }
         config::ErrorOutputType::Json { pretty, json_rendered, color_config } => {
             Box::new(

@@ -1,4 +1,3 @@
-#![feature(if_let_guard)]
 use globset::{Glob, GlobSet, GlobSetBuilder};
 pub use toml::Value;
 use tracing::Level;
