@@ -16,7 +16,8 @@ mod logger;
 
 fn main() -> io::Result<()> {
     if !config::verify() {
-        rustc_driver::main();
+        let code = rustc_driver::main();
+        exit(if code == ExitCode::SUCCESS { rustc_driver::EXIT_SUCCESS } else { rustc_driver::EXIT_FAILURE });
     }
 
     logger::install()?;

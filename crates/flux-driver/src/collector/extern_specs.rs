@@ -672,7 +672,7 @@ mod errors {
         #[primary_span]
         #[label]
         pub span: Span,
-        #[label(driver_extern_def_label)]
+        #[label(driver_mismatched_generics_extern_def_label)]
         pub extern_def: Span,
         pub def_descr: &'static str,
     }

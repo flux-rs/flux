@@ -1142,7 +1142,7 @@ mod errors {
         #[primary_span]
         #[label]
         span: Span,
-        #[label(driver_item_def_ident)]
+        #[label(driver_mismatched_spec_name_item_def_ident)]
         item_ident_span: Span,
         item_ident: Ident,
         def_descr: &'static str,

@@ -911,7 +911,7 @@ mod errors {
         #[primary_span]
         #[label]
         pub span: Span,
-        #[label(desugar_previous_definition)]
+        #[label(desugar_duplicate_definition_previous_definition)]
         pub previous_definition: Span,
         pub name: Ident,
     }

@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Write as FmtWrite,
     fs::read_to_string,
     path::{Path, PathBuf},
 };
@@ -9,7 +10,7 @@ use fluent_bundle::{FluentBundle, FluentError, FluentResource};
 use fluent_syntax::{
     ast::{
         Attribute, Entry, Expression, Identifier, InlineExpression, Message, Pattern,
-        PatternElement,
+        PatternElement, Variant, VariantKey,
     },
     parser::ParserError,
 };
@@ -56,19 +57,25 @@ fn finish(body: TokenStream, resource: TokenStream) -> proc_macro::TokenStream {
             pub mod _subdiag {
                 /// Default for `#[help]`
                 pub const help: rustc_errors::SubdiagMessage =
-                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("help"));
+                    rustc_errors::SubdiagMessage::Str(std::borrow::Cow::Borrowed(""));
                 /// Default for `#[note]`
                 pub const note: rustc_errors::SubdiagMessage =
-                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("note"));
+                    rustc_errors::SubdiagMessage::Str(std::borrow::Cow::Borrowed(""));
                 /// Default for `#[warn]`
                 pub const warn: rustc_errors::SubdiagMessage =
-                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("warn"));
+                    rustc_errors::SubdiagMessage::Str(std::borrow::Cow::Borrowed(""));
                 /// Default for `#[label]`
                 pub const label: rustc_errors::SubdiagMessage =
-                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("label"));
+                    rustc_errors::SubdiagMessage::Str(std::borrow::Cow::Borrowed(""));
                 /// Default for `#[suggestion]`
                 pub const suggestion: rustc_errors::SubdiagMessage =
-                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("suggestion"));
+                    rustc_errors::SubdiagMessage::Str(std::borrow::Cow::Borrowed(""));
+                /// Default for `#[note(once)]`
+                pub const note_once: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::Str(std::borrow::Cow::Borrowed(""));
+                /// Default for `#[help(once)]`
+                pub const help_once: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::Str(std::borrow::Cow::Borrowed(""));
             }
         }
     }
@@ -187,27 +194,21 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
                 }
             }
 
-            // `typeck_foo_bar` => `foo_bar` (in `typeck.ftl`)
-            // `const_eval_baz` => `baz` (in `const_eval.ftl`)
-            // `const-eval-hyphen-having` => `hyphen_having` (in `const_eval.ftl`)
-            // The last case we error about above, but we want to fall back gracefully
-            // so that only the error is being emitted and not also one about the macro
-            // failing.
             let crate_prefix = format!("{crate_name}_");
 
-            let snake_name = name.replace('-', "_");
-            if !snake_name.starts_with(&crate_prefix) {
+            let snake_name_str = name.replace('-', "_");
+            if !snake_name_str.starts_with(&crate_prefix) {
                 Diagnostic::spanned(
                     resource_span,
                     Level::Error,
                     format!("name `{name}` does not start with the crate name"),
                 )
                 .help(format!(
-                    "prepend `{crate_prefix}` to the slug name: `{crate_prefix}{snake_name}`"
+                    "prepend `{crate_prefix}` to the slug name: `{crate_prefix}{snake_name_str}`"
                 ))
                 .emit();
             };
-            let snake_name = Ident::new(&snake_name, resource_str.span());
+            let snake_name = Ident::new(&snake_name_str, resource_str.span());
 
             if !previous_attrs.insert(snake_name.clone()) {
                 continue;
@@ -215,21 +216,23 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
 
             let docstr =
                 format!("Constant referring to Fluent message `{name}` from `{crate_name}`");
+            let msg_val = value.as_ref().map(serialize_pattern).unwrap_or_default();
             constants.extend(quote! {
                 #[doc = #docstr]
                 pub const #snake_name: rustc_errors::DiagMessage =
-                    rustc_errors::DiagMessage::FluentIdentifier(
-                        std::borrow::Cow::Borrowed(#name),
-                        None
+                    rustc_errors::DiagMessage::Inline(
+                        std::borrow::Cow::Borrowed(#msg_val)
                     );
             });
 
-            for Attribute { id: Identifier { name: attr_name }, .. } in attributes {
-                let snake_name = Ident::new(
-                    &format!("{crate_prefix}{}", attr_name.replace('-', "_")),
-                    resource_str.span(),
-                );
-                if !previous_attrs.insert(snake_name.clone()) {
+            for Attribute { id: Identifier { name: attr_name }, value: attr_value, .. } in
+                attributes
+            {
+                // Use message-specific attribute constant name: {msg_name}_{attr_name}
+                let attr_snake_name_str =
+                    format!("{}_{}", snake_name_str, attr_name.replace('-', "_"));
+                let attr_snake_name = Ident::new(&attr_snake_name_str, resource_str.span());
+                if !previous_attrs.insert(attr_snake_name.clone()) {
                     continue;
                 }
 
@@ -243,13 +246,14 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
                     .emit();
                 }
 
+                let attr_val = serialize_pattern(attr_value);
                 let msg = format!(
                     "Constant referring to Fluent message `{name}.{attr_name}` from `{crate_name}`"
                 );
                 constants.extend(quote! {
                     #[doc = #msg]
-                    pub const #snake_name: rustc_errors::SubdiagMessage =
-                        rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed(#attr_name));
+                    pub const #attr_snake_name: rustc_errors::SubdiagMessage =
+                        rustc_errors::SubdiagMessage::Inline(std::borrow::Cow::Borrowed(#attr_val));
                 });
             }
 
@@ -318,4 +322,85 @@ fn variable_references<'a>(msg: &Message<&'a str>) -> Vec<&'a str> {
         }
     }
     refs
+}
+
+fn serialize_pattern(pattern: &Pattern<&str>) -> String {
+    let mut result = String::new();
+    for element in &pattern.elements {
+        match element {
+            PatternElement::TextElement { value } => result.push_str(value),
+            PatternElement::Placeable { expression } => {
+                result.push_str("{ ");
+                serialize_expression(expression, &mut result);
+                result.push_str(" }");
+            }
+        }
+    }
+    result
+}
+
+fn serialize_expression<'a>(expr: &Expression<&'a str>, out: &mut String) {
+    match expr {
+        Expression::Inline(inline) => serialize_inline_expression(inline, out),
+        Expression::Select { selector, variants } => {
+            serialize_inline_expression(selector, out);
+            out.push_str(" ->\n");
+            for variant in variants {
+                serialize_variant(variant, out);
+            }
+        }
+    }
+}
+
+fn serialize_variant<'a>(variant: &Variant<&'a str>, out: &mut String) {
+    if variant.default {
+        out.push_str("       *");
+    } else {
+        out.push_str("        ");
+    }
+    match &variant.key {
+        VariantKey::Identifier { name } => write!(out, "[{name}] ").unwrap(),
+        VariantKey::NumberLiteral { value } => write!(out, "[{value}] ").unwrap(),
+    }
+    for elt in &variant.value.elements {
+        match elt {
+            PatternElement::TextElement { value } => out.push_str(value),
+            PatternElement::Placeable { expression } => {
+                out.push_str("{ ");
+                serialize_expression(expression, out);
+                out.push_str(" }");
+            }
+        }
+    }
+    out.push('\n');
+}
+
+fn serialize_inline_expression<'a>(expr: &InlineExpression<&'a str>, out: &mut String) {
+    match expr {
+        InlineExpression::VariableReference { id } => {
+            out.push('$');
+            out.push_str(id.name);
+        }
+        InlineExpression::StringLiteral { value } => {
+            write!(out, "\"{value}\"").unwrap();
+        }
+        InlineExpression::NumberLiteral { value } => out.push_str(value),
+        InlineExpression::MessageReference { id, attribute } => {
+            out.push_str(id.name);
+            if let Some(attr) = attribute {
+                out.push('.');
+                out.push_str(attr.name);
+            }
+        }
+        InlineExpression::FunctionReference { id, .. } => out.push_str(id.name),
+        InlineExpression::TermReference { id, .. } => {
+            out.push('-');
+            out.push_str(id.name);
+        }
+        InlineExpression::Placeable { expression } => {
+            out.push_str("{ ");
+            serialize_expression(expression, out);
+            out.push_str(" }");
+        }
+    }
 }

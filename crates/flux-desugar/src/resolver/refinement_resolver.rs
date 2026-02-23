@@ -860,7 +860,7 @@ mod errors {
         #[label]
         span: Span,
         name: Symbol,
-        #[label(desugar_first_use)]
+        #[label(desugar_duplicate_param_first_use)]
         first_use: Span,
     }
 

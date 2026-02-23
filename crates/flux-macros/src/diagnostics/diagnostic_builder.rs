@@ -155,15 +155,32 @@ impl DiagnosticDeriveVariantBuilder {
                 .help("consider creating a `Subdiagnostic` instead"));
         }
 
-        let slug = subdiag.slug.unwrap_or_else(|| match subdiag.kind {
-            SubdiagnosticKind::Label => parse_quote! { _subdiag::label },
-            SubdiagnosticKind::Note => parse_quote! { _subdiag::note },
-            SubdiagnosticKind::NoteOnce => parse_quote! { _subdiag::note_once },
-            SubdiagnosticKind::Help => parse_quote! { _subdiag::help },
-            SubdiagnosticKind::HelpOnce => parse_quote! { _subdiag::help_once },
-            SubdiagnosticKind::Warn => parse_quote! { _subdiag::warn },
-            SubdiagnosticKind::Suggestion { .. } => parse_quote! { _subdiag::suggestion },
-            SubdiagnosticKind::MultipartSuggestion { .. } => unreachable!(),
+        let slug = subdiag.slug.unwrap_or_else(|| {
+            let attr_kind = match subdiag.kind {
+                SubdiagnosticKind::Label => "label",
+                SubdiagnosticKind::Note | SubdiagnosticKind::NoteOnce => "note",
+                SubdiagnosticKind::Help | SubdiagnosticKind::HelpOnce => "help",
+                SubdiagnosticKind::Warn => "warn",
+                SubdiagnosticKind::Suggestion { .. } => "suggestion",
+                SubdiagnosticKind::MultipartSuggestion { .. } => unreachable!(),
+            };
+            if let Some(parent_slug) = self.slug.value_ref() {
+                let parent_ident = parent_slug.segments.last().unwrap().ident.to_string();
+                let combined = format!("{parent_ident}_{attr_kind}");
+                let ident = Ident::new(&combined, Span::call_site());
+                parse_quote! { #ident }
+            } else {
+                match subdiag.kind {
+                    SubdiagnosticKind::Label => parse_quote! { _subdiag::label },
+                    SubdiagnosticKind::Note => parse_quote! { _subdiag::note },
+                    SubdiagnosticKind::NoteOnce => parse_quote! { _subdiag::note_once },
+                    SubdiagnosticKind::Help => parse_quote! { _subdiag::help },
+                    SubdiagnosticKind::HelpOnce => parse_quote! { _subdiag::help_once },
+                    SubdiagnosticKind::Warn => parse_quote! { _subdiag::warn },
+                    SubdiagnosticKind::Suggestion { .. } => parse_quote! { _subdiag::suggestion },
+                    SubdiagnosticKind::MultipartSuggestion { .. } => unreachable!(),
+                }
+            }
         });
 
         Ok(Some((subdiag.kind, slug, subdiag.no_span)))
