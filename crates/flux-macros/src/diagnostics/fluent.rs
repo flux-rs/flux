@@ -359,8 +359,8 @@ fn serialize_variant<'a>(variant: &Variant<&'a str>, out: &mut String) {
         out.push_str("        ");
     }
     match &variant.key {
-        VariantKey::Identifier { name } => write!(out, "[{name}] ").unwrap(),
-        VariantKey::NumberLiteral { value } => write!(out, "[{value}] ").unwrap(),
+        VariantKey::Identifier { name } => write!(out, "[{name}] ").expect("writing to String never fails"),
+        VariantKey::NumberLiteral { value } => write!(out, "[{value}] ").expect("writing to String never fails"),
     }
     for elt in &variant.value.elements {
         match elt {
@@ -382,7 +382,7 @@ fn serialize_inline_expression<'a>(expr: &InlineExpression<&'a str>, out: &mut S
             out.push_str(id.name);
         }
         InlineExpression::StringLiteral { value } => {
-            write!(out, "\"{value}\"").unwrap();
+            write!(out, "\"{value}\"").expect("writing to String never fails");
         }
         InlineExpression::NumberLiteral { value } => out.push_str(value),
         InlineExpression::MessageReference { id, attribute } => {
