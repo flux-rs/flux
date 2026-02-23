@@ -49,8 +49,9 @@ where
             fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(_)) => {
                 panic!("oh no! tuple!") // Ok(rty::SortCtor::Tuple(*size))
             }
-            fixpoint::SortCtor::Data(fixpoint::DataSort::User(def_id)) => {
-                Ok(rty::SortCtor::User(*def_id))
+            fixpoint::SortCtor::Data(fixpoint::DataSort::User(opaque_id)) => {
+                let def_id = self.scx.opaque_sorts[opaque_id.as_usize()];
+                Ok(rty::SortCtor::User(def_id))
             }
             fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id)) => {
                 let def_id = self.scx.adt_sorts[adt_id.as_usize()];
