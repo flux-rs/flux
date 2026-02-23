@@ -27,7 +27,7 @@ use rustc_middle::{queries, ty::TyCtxt, util};
 use rustc_session::config::OutputType;
 use rustc_span::FileName;
 
-use crate::{DEFAULT_LOCALE_RESOURCES, collector::SpecCollector};
+use crate::collector::SpecCollector;
 
 #[derive(Default)]
 pub struct FluxCallbacks;
@@ -60,7 +60,6 @@ impl FluxCallbacks {
         let sess = FluxSession::new(
             &tcx.sess.opts,
             tcx.sess.psess.clone_source_map(),
-            rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false),
         );
 
         let mut providers = Providers::default();
