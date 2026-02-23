@@ -19,7 +19,7 @@ pub struct Flags {
     pub lean_project: String,
     /// If present, only check files matching the [`IncludePattern`] a glob pattern.
     pub include: Option<IncludePattern>,
-    /// If present, only trust items matching the [`IncludePattern`] a glob pattern.
+    /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
     pub include_trusted: Option<IncludePattern>,
     /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
     /// (default `64`).
