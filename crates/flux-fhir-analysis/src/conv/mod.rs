@@ -1530,19 +1530,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             _ => self.report_assoc_item_not_found(assoc_ident.span, tag)?,
         };
 
-        let Some(trait_ref) = bound.no_bound_vars() else {
-            // This is a programmer error and we should gracefully report it. It's triggered
-            // by code like this
-            // ```
-            // trait Super<'a> { type Assoc; }
-            // trait Child: for<'a> Super<'a> {}
-            // fn foo<T: Child>(x: T::Assoc) {}
-            // ```
-            Err(self.emit(
-                query_bug!("associated path with uninferred generic parameters")
-                    .at(assoc_ident.span),
-            ))?
-        };
+        let trait_ref = Tag::resolve_poly_trait_ref(self.genv(), bound)
+            .map_err(|error| self.emit(error.at(assoc_ident.span)))?;
 
         let trait_ref = trait_ref
             .lower(tcx)
@@ -2780,6 +2769,11 @@ trait AssocItemTag: Copy {
         trait_refs: impl Iterator<Item = ty::PolyTraitRef<'tcx>>,
         assoc_name: Ident,
     ) -> impl Iterator<Item = ty::PolyTraitRef<'tcx>>;
+
+    fn resolve_poly_trait_ref<'tcx>(
+        genv: GlobalEnv<'_, 'tcx>,
+        poly_trait_ref: ty::PolyTraitRef<'tcx>,
+    ) -> QueryResult<ty::TraitRef<'tcx>>;
 }
 
 impl AssocItemTag for AssocTag {
@@ -2813,6 +2807,32 @@ impl AssocItemTag for AssocTag {
     ) -> impl Iterator<Item = ty::PolyTraitRef<'tcx>> {
         traits::transitive_bounds_that_define_assoc_item(genv.tcx(), trait_refs, assoc_name)
     }
+
+    fn resolve_poly_trait_ref<'tcx>(
+        _: GlobalEnv<'_, 'tcx>,
+        poly_trait_ref: ty::PolyTraitRef<'tcx>,
+    ) -> QueryResult<ty::TraitRef<'tcx>> {
+        // For associated types, we require the trait bound to have no higher-ranked lifetimes.
+        // Unlike associated refinements (see `AssocReftTag::resolve_poly_trait_ref`), lifetimes
+        // can flow into associated types (e.g., `type Assoc = &'a i32`), so we cannot simply
+        // erase them. This mirrors Rust's own error E0212 "cannot use the associated type of
+        // a trait with uninferred generic parameters". The user must use fully qualified syntax
+        // to specify the lifetime explicitly.
+        //
+        // Example that triggers this error:
+        // ```ignore
+        // trait Super<'a> { type Assoc; }
+        // trait Child: for<'a> Super<'a> {}
+        // fn foo<T: Child>(x: T::Assoc) {}
+        // ```
+        if let Some(trait_ref) = poly_trait_ref.no_bound_vars() {
+            Ok(trait_ref)
+        } else {
+            // FIXME(nilehmann) this is a user error and we should report it gracefully instead
+            // of as an ICE
+            Err(query_bug!("associated path with uninferred generic parameters"))
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -2843,6 +2863,33 @@ impl AssocItemTag for AssocReftTag {
         _assoc_name: Ident,
     ) -> impl Iterator<Item = ty::PolyTraitRef<'tcx>> {
         transitive_bounds(genv.tcx(), trait_refs)
+    }
+
+    fn resolve_poly_trait_ref<'tcx>(
+        genv: GlobalEnv<'_, 'tcx>,
+        poly_trait_ref: ty::PolyTraitRef<'tcx>,
+    ) -> QueryResult<ty::TraitRef<'tcx>> {
+        // Unlike associated types (see `AssocTag::resolve_poly_trait_ref`), we don't error when the
+        // trait bound has higher-ranked lifetimes. For associated types, lifetimes can flow
+        // into the type (e.g., `type Assoc = &'a i32`), so they must be tracked. For associated
+        // refinements, we've decided that lifetimes should not affect refinements, so we simply
+        // erase the lifetime. This allows code like:
+        //
+        // ```ignore
+        // #[assoc(fn my_assoc(x: int) -> bool)]
+        // trait MyTrait<'a> {}
+        //
+        // #[spec(fn(i32{v: T::my_assoc(v)}))]
+        // fn test<T>(f: i32)
+        // where
+        //     for<'a> T: MyTrait<'a>,
+        // {}
+        // ```
+        //
+        // See https://github.com/flux-rs/flux/issues/1510
+        Ok(genv
+            .tcx()
+            .instantiate_bound_regions_with_erased(poly_trait_ref))
     }
 }
 
