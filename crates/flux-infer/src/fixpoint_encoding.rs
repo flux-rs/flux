@@ -34,7 +34,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
-    FixpointResult, FixpointStatus, KVarBind, SmtSolver,
+    FixpointStatus, KVarBind, SmtSolver, VerificationResult,
     parser::{FromSexp, ParseError},
     sexp::Parser,
 };
@@ -560,7 +560,14 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     tags_inv: UnordMap<T, TagIdx>,
 }
 
-pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
+pub type FixQueryCache = QueryCache<VerificationResult<TagIdx>>;
+
+pub use liquid_fixpoint::LeanStatus;
+
+/// Returns the cache key used for a function-body lean query.
+pub fn lean_task_key(tcx: rustc_middle::ty::TyCtxt, def_id: DefId) -> String {
+    FixpointQueryKind::Body.task_key(tcx, def_id)
+}
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
@@ -868,7 +875,7 @@ where
         def_id: DefId,
         kind: FixpointQueryKind,
         cache: &mut FixQueryCache,
-    ) -> FixpointResult<TagIdx> {
+    ) -> VerificationResult<TagIdx> {
         let key = kind.task_key(genv.tcx(), def_id);
 
         let hash = task.hash_with_default();
