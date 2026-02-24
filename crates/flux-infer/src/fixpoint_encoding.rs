@@ -409,7 +409,7 @@ impl SortEncodingCtxt {
         if let Some(idx) = self.opaque_sorts.get_index_of(&def_id) {
             OpaqueId::from_usize(idx)
         } else {
-            let opaque_id = OpaqueId::from_usize(self.adt_sorts.len());
+            let opaque_id = OpaqueId::from_usize(self.opaque_sorts.len());
             self.opaque_sorts.insert(def_id);
             opaque_id
         }
@@ -425,7 +425,10 @@ impl SortEncodingCtxt {
         }
     }
 
-    pub fn user_sorts_to_fixpoint(&self, genv: GlobalEnv) -> Vec<(FluxDefId, fixpoint::SortDecl)> {
+    pub fn opaque_sorts_to_fixpoint(
+        &self,
+        genv: GlobalEnv,
+    ) -> Vec<(FluxDefId, fixpoint::SortDecl)> {
         self.opaque_sorts
             .iter()
             .enumerate()
@@ -840,7 +843,7 @@ where
         kvar_solutions: KVarSolutions,
     ) -> QueryResult {
         // FIXME(nilehmann) opaque sorts should be part of the task.
-        let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
+        let opaque_sorts = self.scx.opaque_sorts_to_fixpoint(self.genv);
         let (const_deps, constraint) = self.compute_const_deps(task.constants, task.constraint);
         let sort_deps =
             SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
