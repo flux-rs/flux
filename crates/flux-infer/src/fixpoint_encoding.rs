@@ -94,7 +94,7 @@ pub mod fixpoint {
     }
 
     newtype_index! {
-        /// Unique id assigned to each [`rty::AdtSortDef`] that needs to be encoded
+        /// Unique id assigned to each Opaque sort constructor that needs to be encoded
         /// into fixpoint
         pub struct OpaqueId {}
     }
@@ -160,7 +160,6 @@ pub mod fixpoint {
     pub enum DataSort {
         Tuple(usize),
         Adt(AdtId),
-        // User(OpaqueId, FluxDefId),
         User(OpaqueId),
     }
 
@@ -173,9 +172,6 @@ pub mod fixpoint {
                 DataSort::Adt(adt_id) => {
                     write!(f, "Adt{}", adt_id.as_u32())
                 }
-                // There's no way to declare opaque sorts in the fixpoint horn syntax so we encode user
-                // declared opaque sorts as integers. Well-formedness should ensure values of these
-                // sorts are used "opaquely", i.e., the only values of these sorts are variables.
                 DataSort::User(opaque_id) => {
                     write!(f, "OpaqueAdt{}", opaque_id.as_u32())
                 }
@@ -323,10 +319,9 @@ impl SortEncodingCtxt {
             rty::Sort::Char => fixpoint::Sort::Int,
             rty::Sort::BitVec(size) => fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(*size))),
 
-            // There's no way to declare opaque sorts in the fixpoint horn syntax so we encode type
-            // parameter sorts and (unormalizable) type alias sorts as integers. Well-formedness
-            // should ensure values of these sorts are used "opaquely", i.e., the only values of
-            // these sorts are variables.
+            // We encode type parameter sorts and (unormalizable) type alias sorts as integers.
+            // Well-formedness should ensure values of these sorts are used "opaquely", i.e.
+            // the only values of these sorts are variables.
             rty::Sort::Param(_)
             | rty::Sort::RawPtr
             | rty::Sort::Alias(rty::AliasKind::Opaque | rty::AliasKind::Projection, ..) => {
