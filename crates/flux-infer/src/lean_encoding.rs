@@ -291,13 +291,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn datasort_name(&self, sort: &fixpoint::DataSort) -> String {
-        if let fixpoint::DataSort::User(opaque_id) = sort {
-            let (flux_id, _) = &self.sort_deps.opaque_sorts[opaque_id.as_usize()];
-            return snake_case_to_pascal_case(flux_id.name().as_str());
-        } else {
-            let name = format!("{}", WithLeanCtxt { item: sort, cx: &self.lean_cx() });
-            snake_case_to_pascal_case(&name)
-        }
+        let name = format!("{}", WithLeanCtxt { item: sort, cx: &self.lean_cx() });
+        snake_case_to_pascal_case(&name)
     }
 
     fn lean_file_for_fun(&self, fun: &fixpoint::FunDef) -> LeanFile {
