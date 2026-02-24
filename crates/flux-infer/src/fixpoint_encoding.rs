@@ -2193,6 +2193,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .args
             .to_rustc(tcx)
             .truncate_to(tcx, tcx.generics_of(alias_reft.assoc_id.parent()));
+        // See <https://github.com/flux-rs/flux/issues/1510#issuecomment-3953871782> as an example
+        // for why we erase regions.
+        let args = tcx.erase_and_anonymize_regions(args);
         let key = ConstKey::Alias(alias_reft.assoc_id, args);
         self.const_env
             .get_or_insert(key, |global_name| {
