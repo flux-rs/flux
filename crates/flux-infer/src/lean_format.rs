@@ -6,6 +6,7 @@ use flux_common::{
     dbg::{self, as_subscript},
 };
 use flux_middle::{
+    def_id::FluxDefId,
     global_env::GlobalEnv,
     rty::{PrettyMap, PrettyVar},
 };
@@ -32,6 +33,7 @@ pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub pretty_var_map: &'a PrettyMap<LocalVar>,
     pub adt_map: &'a FxIndexSet<DefId>,
+    pub opaque_adt_map: &'a [(FluxDefId, SortDecl)],
     pub kvar_solutions: &'a KVarSolutions,
     pub bool_mode: BoolMode,
 }
@@ -105,7 +107,10 @@ impl LeanFmt for DataField {
 impl LeanFmt for DataSort {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> std::fmt::Result {
         match self {
-            DataSort::User(def_id) => write!(f, "{}", def_id.name()),
+            DataSort::User(opaque_id) => {
+                let (def_id, _) = cx.opaque_adt_map.get(opaque_id.as_usize()).unwrap();
+                write!(f, "{}", snake_case_to_pascal_case(def_id.name().as_str()))
+            }
             DataSort::Tuple(n) => write!(f, "Tupleₓ{}", dbg::as_subscript(n)),
             DataSort::Adt(adt_id) => {
                 let def_id = cx.adt_map.get_index(adt_id.as_usize()).unwrap();

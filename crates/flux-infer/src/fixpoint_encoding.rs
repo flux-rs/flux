@@ -7,7 +7,7 @@ use std::{
     ops::Range,
 };
 
-use fixpoint::AdtId;
+use fixpoint::{AdtId, OpaqueId};
 use flux_common::{
     bug,
     cache::QueryCache,
@@ -93,6 +93,12 @@ pub mod fixpoint {
         pub struct AdtId {}
     }
 
+    newtype_index! {
+        /// Unique id assigned to each opaque/user sort that needs to be encoded
+        /// into fixpoint (see `DataSort::User(OpaqueId)` and `declare_opaque_sort`)
+        pub struct OpaqueId {}
+    }
+
     #[derive(Hash, Copy, Clone, Debug, PartialEq, Eq)]
     pub enum Var {
         Underscore,
@@ -154,7 +160,7 @@ pub mod fixpoint {
     pub enum DataSort {
         Tuple(usize),
         Adt(AdtId),
-        User(FluxDefId),
+        User(OpaqueId),
     }
 
     impl Identifier for DataSort {
@@ -166,11 +172,8 @@ pub mod fixpoint {
                 DataSort::Adt(adt_id) => {
                     write!(f, "Adt{}", adt_id.as_u32())
                 }
-                // There's no way to declare opaque sorts in the fixpoint horn syntax so we encode user
-                // declared opaque sorts as integers. Well-formedness should ensure values of these
-                // sorts are used "opaquely", i.e., the only values of these sorts are variables.
-                DataSort::User(..) => {
-                    write!(f, "int")
+                DataSort::User(opaque_id) => {
+                    write!(f, "OpaqueAdt{}", opaque_id.as_u32())
                 }
             }
         }
@@ -303,7 +306,7 @@ pub struct SortEncodingCtxt {
     /// Fixpoint data-decls
     adt_sorts: FxIndexSet<DefId>,
     /// Set of all opaque types that need to be defined
-    user_sorts: FxIndexSet<FluxDefId>,
+    opaque_sorts: FxIndexSet<FluxDefId>,
 }
 
 impl SortEncodingCtxt {
@@ -315,18 +318,10 @@ impl SortEncodingCtxt {
             rty::Sort::Str => fixpoint::Sort::Str,
             rty::Sort::Char => fixpoint::Sort::Int,
             rty::Sort::BitVec(size) => fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(*size))),
-            rty::Sort::App(rty::SortCtor::User(def_id), args) => {
-                self.declare_opaque_sort(*def_id);
-                let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
-                fixpoint::Sort::App(
-                    fixpoint::SortCtor::Data(fixpoint::DataSort::User(*def_id)),
-                    args,
-                )
-            }
-            // There's no way to declare opaque sorts in the fixpoint horn syntax so we encode type
-            // parameter sorts and (unormalizable) type alias sorts as integers. Well-formedness
-            // should ensure values of these sorts are used "opaquely", i.e., the only values of
-            // these sorts are variables.
+
+            // We encode type parameter sorts and (unormalizable) type alias sorts as integers.
+            // Well-formedness should ensure values of these sorts are used "opaquely", i.e.
+            // the only values of these sorts are variables.
             rty::Sort::Param(_)
             | rty::Sort::RawPtr
             | rty::Sort::Alias(rty::AliasKind::Opaque | rty::AliasKind::Projection, ..) => {
@@ -360,6 +355,14 @@ impl SortEncodingCtxt {
                         vec![],
                     )
                 }
+            }
+            rty::Sort::App(rty::SortCtor::User(def_id), args) => {
+                let opaque_id = self.declare_opaque_sort(*def_id);
+                let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
+                fixpoint::Sort::App(
+                    fixpoint::SortCtor::Data(fixpoint::DataSort::User(opaque_id)),
+                    args,
+                )
             }
             rty::Sort::Tuple(sorts) => {
                 // do not generate 1-tuples
@@ -402,8 +405,14 @@ impl SortEncodingCtxt {
         self.tuples.insert(arity);
     }
 
-    pub fn declare_opaque_sort(&mut self, def_id: FluxDefId) {
-        self.user_sorts.insert(def_id);
+    pub fn declare_opaque_sort(&mut self, def_id: FluxDefId) -> OpaqueId {
+        if let Some(idx) = self.opaque_sorts.get_index_of(&def_id) {
+            OpaqueId::from_usize(idx)
+        } else {
+            let opaque_id = OpaqueId::from_usize(self.opaque_sorts.len());
+            self.opaque_sorts.insert(def_id);
+            opaque_id
+        }
     }
 
     pub fn declare_adt(&mut self, did: DefId) -> AdtId {
@@ -416,12 +425,20 @@ impl SortEncodingCtxt {
         }
     }
 
-    pub fn user_sorts_to_fixpoint(&self, genv: GlobalEnv) -> Vec<fixpoint::SortDecl> {
-        self.user_sorts
+    pub fn opaque_sorts_to_fixpoint(
+        &self,
+        genv: GlobalEnv,
+    ) -> Vec<(FluxDefId, fixpoint::SortDecl)> {
+        self.opaque_sorts
             .iter()
-            .map(|sort| {
+            .enumerate()
+            .map(|(idx, sort)| {
                 let param_count = genv.sort_decl_param_count(sort);
-                fixpoint::SortDecl { name: fixpoint::DataSort::User(*sort), vars: param_count }
+                let sort_decl = fixpoint::SortDecl {
+                    name: fixpoint::DataSort::User(OpaqueId::from_usize(idx)),
+                    vars: param_count,
+                };
+                (*sort, sort_decl)
             })
             .collect()
     }
@@ -826,7 +843,7 @@ where
         kvar_solutions: KVarSolutions,
     ) -> QueryResult {
         // FIXME(nilehmann) opaque sorts should be part of the task.
-        let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
+        let opaque_sorts = self.scx.opaque_sorts_to_fixpoint(self.genv);
         let (const_deps, constraint) = self.compute_const_deps(task.constants, task.constraint);
         let sort_deps =
             SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
@@ -1465,7 +1482,7 @@ impl KVarSolutions {
 
 #[derive(Debug)]
 pub struct SortDeps {
-    pub opaque_sorts: Vec<fixpoint::SortDecl>,
+    pub opaque_sorts: Vec<(FluxDefId, fixpoint::SortDecl)>,
     pub data_decls: Vec<fixpoint::DataDecl>,
     pub adt_map: FxIndexSet<DefId>,
 }
@@ -2524,6 +2541,12 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt<'_> {
         {
             return Ok(fixpoint::DataSort::Adt(fixpoint::AdtId::from(adt_id)));
         }
+        if let Some(idx) = name.strip_prefix("OpaqueAdt")
+            && let Ok(opaque_id) = idx.parse::<u32>()
+        {
+            return Ok(fixpoint::DataSort::User(fixpoint::OpaqueId::from(opaque_id)));
+        }
+
         Err(ParseError::err(format!("Unknown sort: {name}")))
     }
 }
