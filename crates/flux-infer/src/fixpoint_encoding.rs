@@ -94,8 +94,8 @@ pub mod fixpoint {
     }
 
     newtype_index! {
-        /// Unique id assigned to each [`rty::AdtSortDef`] that needs to be encoded
-        /// into fixpoint
+        /// Unique id assigned to each opaque/user sort that needs to be encoded
+        /// into fixpoint (see `DataSort::User(OpaqueId)` and `declare_opaque_sort`)
         pub struct OpaqueId {}
     }
 
