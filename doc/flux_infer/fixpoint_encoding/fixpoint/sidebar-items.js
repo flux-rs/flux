@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["DataSort","Var"],"mod":["fixpoint_generated"],"struct":["AdtId","GlobalVar","KVid","LocalVar","SymStr"]};
+window.SIDEBAR_ITEMS = {"enum":["DataSort","Var"],"mod":["fixpoint_generated"],"struct":["AdtId","GlobalVar","KVid","LocalVar","OpaqueId","SymStr"]};
