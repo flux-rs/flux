@@ -349,7 +349,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         self.generate_lib_if_absent()?;
         self.generate_vc_file()?;
         self.generate_proof_if_absent()?;
-        // self.record_proof()?;
         Ok(())
     }
 
