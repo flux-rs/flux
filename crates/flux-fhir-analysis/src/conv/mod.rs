@@ -54,7 +54,7 @@ use rustc_span::{
     symbol::{Ident, kw},
 };
 use rustc_trait_selection::traits;
-use rustc_type_ir::{DebruijnIndex, TypeVisitableExt};
+use rustc_type_ir::DebruijnIndex;
 
 /// Wrapper over a type implementing [`ConvPhase`]. We have this to implement most functionality as
 /// inherent methods instead of defining them as default implementation in the trait definition.
