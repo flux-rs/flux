@@ -414,7 +414,7 @@ impl SortEncodingCtxt {
         if let Some(idx) = self.opaque_sorts.get_index_of(&def_id) {
             OpaqueId::from_usize(idx)
         } else {
-            let opaque_id = OpaqueId::from_usize(self.adt_sorts.len());
+            let opaque_id = OpaqueId::from_usize(self.opaque_sorts.len());
             self.opaque_sorts.insert(def_id);
             opaque_id
         }
