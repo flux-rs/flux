@@ -333,10 +333,10 @@ fn report_errors(
             );
             err_diag.note(debug_str);
         } else {
-            let pred_pretty_cx = pretty::PrettyCx::default(genv).with_free_var_substs(subst);
-            err_diag.subdiagnostic(errors::FailingConstraint {
-                constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_ctx.expr)),
-            });
+            // let pred_pretty_cx = pretty::PrettyCx::default(genv).with_free_var_substs(subst);
+            // err_diag.subdiagnostic(errors::FailingConstraint {
+            //     constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_ctx.expr)),
+            // });
             for (wkvid, solution) in wkvar_solutions {
                 add_fn_fix_diagnostic(genv, &mut err_diag, *wkvid, solution);
             }
@@ -495,28 +495,28 @@ fn add_fn_fix_diagnostic<'a>(
         .def_ident_span(wkvid.0)
         .unwrap_or_else(|| genv.tcx().def_span(wkvid.0));
     let fn_sig = genv.fn_sig(wkvid.0).unwrap();
-    let mut wkvar_subst = WKVarSubst::new([(wkvid, solution.clone())].into());
+    let mut wkvar_subst = WKVarSubst::new([(wkvid, solution.clone())].into(), false);
     let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
     let fixed_fn_sig_snippet =
         format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig));
-    match genv.resolve_id(wkvid.0) {
-        ResolvedDefId::Local(local_id) | ResolvedDefId::ExternSpec(local_id, _) => {
-            if let Ok(fn_sig) = genv.fhir_expect_fn_sig(local_id) {
-                let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
-                assert!(subst_solutions.len() == 1);
-                // TODO: better info about fix types
-                // let fix_type = match wkvid.1.as_u32() {
-                //     0 => "precondition",
-                //     1 => "postcondition",
-                //     _ => unreachable!("invalid wkvid {:?}", wkvid),
-                // };
-                diag.span_suggestion(
-                    fn_sig.decl.span,
-                    format!("try adding the refinement {:?}", subst_solutions[0]),
-                    fixed_fn_sig_snippet,
-                    Applicability::MaybeIncorrect,
-                );
-            } else {
+    // match genv.resolve_id(wkvid.0) {
+    //     ResolvedDefId::Local(local_id) | ResolvedDefId::ExternSpec(local_id, _) => {
+    //         if let Ok(fn_sig) = genv.fhir_expect_fn_sig(local_id) {
+    //             let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
+    //             assert!(subst_solutions.len() == 1);
+    //             // TODO: better info about fix types
+    //             // let fix_type = match wkvid.1.as_u32() {
+    //             //     0 => "precondition",
+    //             //     1 => "postcondition",
+    //             //     _ => unreachable!("invalid wkvid {:?}", wkvid),
+    //             // };
+    //             diag.span_suggestion(
+    //                 fn_sig.decl.span,
+    //                 format!("try adding the refinement {:?}", subst_solutions[0]),
+    //                 fixed_fn_sig_snippet,
+    //                 Applicability::MaybeIncorrect,
+    //             );
+    //         } else {
                 let fn_first_line = fn_first_line(genv, wkvid.0);
                 let fn_first_line_snippet = genv
                     .tcx()
@@ -527,25 +527,27 @@ fn add_fn_fix_diagnostic<'a>(
                 let prefix_spaces = &fn_first_line_snippet[..fn_first_line_snippet
                     .find(|c: char| !c.is_whitespace())
                     .unwrap_or(fn_first_line_snippet.len())];
+                let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
+                assert!(subst_solutions.len() == 1);
                 diag.span_suggestion(
                     fn_first_line,
-                    "try adding the signature",
+                    format!("try adding the refinement {:?}", subst_solutions[0]),
                     format!(
-                        "{}#[spec({})]\n{}",
+                        "{}#[sig({})]\n{}",
                         prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet
                     ),
                     Applicability::MaybeIncorrect,
                 );
-            }
-        }
-        ResolvedDefId::Extern(def_id) => {
-            diag.subdiagnostic(errors::WKVarFnFix {
-                span: fn_span,
-                fn_name,
-                fix: fixed_fn_sig_snippet,
-            });
-        }
-    }
+        //     }
+        // }
+    //     ResolvedDefId::Extern(def_id) => {
+    //         diag.subdiagnostic(errors::WKVarFnFix {
+    //             span: fn_span,
+    //             fn_name,
+    //             fix: fixed_fn_sig_snippet,
+    //         });
+    //     }
+    // }
 }
 
 fn fn_first_line<'a>(genv: GlobalEnv<'a, '_>, def_id: DefId) -> Span {

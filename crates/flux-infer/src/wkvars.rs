@@ -164,13 +164,16 @@ pub struct WKVarSubst {
     /// In theory there should only ever be one value in this map.
     pub subst_instantiations: HashMap<rty::WKVid, Vec<rty::Expr>>,
     pub wkvar_instantiations: HashMap<rty::WKVid, rty::Binder<rty::Expr>>,
+    /// Keep wkvars after substituting
+    pub keep_wkvars: bool,
 }
 
 impl WKVarSubst {
-    pub fn new(wkvar_instantiations: HashMap<rty::WKVid, rty::Binder<rty::Expr>>) -> Self {
+    pub fn new(wkvar_instantiations: HashMap<rty::WKVid, rty::Binder<rty::Expr>>, keep_wkvars: bool) -> Self {
         WKVarSubst {
             subst_instantiations: Default::default(),
             wkvar_instantiations,
+            keep_wkvars,
         }
     }
 }
@@ -187,10 +190,11 @@ impl TypeFolder for WKVarSubst {
                 self.subst_instantiations.entry(*wkvid)
                     .and_modify(|insts| insts.push(instantiated_e.clone()))
                     .or_insert_with(|| vec![instantiated_e.clone()]);
-                // NOTE: keeps the original wkvar to allow iterative
-                // substitutions --- it gets turned into TRUE when output
-                // anyway.
-                rty::Expr::and(instantiated_e, e.clone())
+                if self.keep_wkvars {
+                    rty::Expr::and(instantiated_e, e.clone())
+                } else {
+                    instantiated_e
+                }
             }
             _ => e.super_fold_with(self),
         }
@@ -600,7 +604,7 @@ impl WKVarSolutions {
         for (def_id, wkvar_instantiations) in solutions_by_fn {
             let wkvar_fn_name = genv.tcx().def_path_str(def_id);
             let fn_sig = genv.fn_sig(def_id).unwrap();
-            let mut wkvar_subst = WKVarSubst::new(wkvar_instantiations);
+            let mut wkvar_subst = WKVarSubst::new(wkvar_instantiations, false);
             let solved_fn_sig = rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
             let fixed_fn_sig_snippet =
                 format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
@@ -738,20 +742,21 @@ impl WKVarSolutions {
                 .solutions
                 .iter()
                 .filter_map(|(wkvid, solution)| solution.into_wkvar_subst().map(|subst| (wkvid.clone(), subst)))
-                .collect()
+                .collect(),
+            false,
         );
         let fn_pretty_cx = pretty::PrettyCx::default(genv).hide_regions(true);
         for ((fn_name, fn_def_id), kvids) in wkvars_by_fn_name.iter() {
             if file_read_user_interactions.is_none() {
-                println!("fn {}", fn_name);
+                // println!("fn {}", fn_name);
                 let fn_sig = genv.fn_sig(fn_def_id).unwrap();
                 let solved_fn_sig = rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
-                println!("sig {:?}", pretty::with_cx!(&fn_pretty_cx, &solved_fn_sig));
+                // println!("sig {:?}", pretty::with_cx!(&fn_pretty_cx, &solved_fn_sig));
             }
             for kvid in kvids {
                 let wkvid = (*fn_def_id, *kvid);
                 if file_read_user_interactions.is_none() {
-                    println!("  $wk{}", kvid.as_u32());
+                    // println!("  $wk{}", kvid.as_u32());
                 }
                 let solution = &self.solutions[&wkvid];
                 let ground_truth_exprs = solution.actual_exprs.iter()
@@ -930,6 +935,7 @@ pub fn iterative_solve<F>(
                     .iter()
                     .filter_map(|(wkvid, solution)| solution.into_wkvar_subst().map(|subst| (wkvid.clone(), subst)))
                     .collect(),
+                true,
             );
             // if solutions.solutions.len() > 0 {
             //     println!("{:?}", cstr.refine_tree);
