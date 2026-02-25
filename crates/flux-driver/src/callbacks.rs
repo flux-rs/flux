@@ -109,18 +109,18 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             .definitions()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
-        println!("-----------------------");
-        println!("Starting solution loop.");
+        // println!("-----------------------");
+        // println!("Starting solution loop.");
 
         let (solution, errors, user_interactions) =
-            match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 100, |local_id, errors| {let _ = report_fixpoint_errors(genv, local_id, errors);}) {
+            match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 0, |local_id, errors| {let _ = report_fixpoint_errors(genv, local_id, errors);}) {
                 Ok(outputs) => outputs,
                 Err(e) => panic!("Encountered error {:?}", e),
             };
 
-        println!("Solution loop finished.");
+        // println!("Solution loop finished.");
         let crate_name = genv.tcx().crate_name(LOCAL_CRATE);
-        println!("writing to {:?}", config::log_dir());
+        // println!("writing to {:?}", config::log_dir());
         create_dir_all(config::log_dir()).unwrap();
         solution.write_summary_file(
             genv,
@@ -181,8 +181,8 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
                 .into_iter()
                 .flat_map(|(_, errs)| errs.into_iter())
                 .collect_vec();
-            println!("{} Remaining errors:", errs.len());
-            report_fixpoint_errors(genv, local_id, errs)?;
+            // println!("{} Remaining errors:", errs.len());
+            // report_fixpoint_errors(genv, local_id, errs)?;
         }
 
         ck.cache.save().unwrap_or(());

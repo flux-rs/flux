@@ -851,7 +851,7 @@ pub fn qe_and_simplify<T: Types>(
         // println!("assumption:\n{:?}", pred_ast);
         let fvs = pred.free_vars();
         if fvs.is_subset(&const_vars) {
-            println!("assertion\n  {}", pred);
+            // println!("assertion\n  {}", pred);
             goal.assert(&pred_ast);
             None
         } else {
@@ -923,7 +923,7 @@ pub fn qe_and_simplify<T: Types>(
                     //         .unwrap();
                     // return z3_to_expr(&vars, &simplified_cstr);
                     let mut fixpoint_expr = z3_to_expr(&vars, &new_cstr)?;
-                    println!("checking {} for vacuity,", fixpoint_expr);
+                    // println!("checking {} for vacuity,", fixpoint_expr);
                     solver.assert(new_cstr.as_bool().unwrap());
                     match solver.check() {
                         SatResult::Unsat => return Ok(Expr::FALSE),
@@ -933,7 +933,7 @@ pub fn qe_and_simplify<T: Types>(
                     solver.push();
                     for pred in &cstr.preconditions() {
                         let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
-                        println!("asserting invariant {}", pred);
+                        // println!("asserting invariant {}", pred);
                         solver.assert(&pred_ast);
                     }
                     // println!("solved originally to: {}", fixpoint_expr);

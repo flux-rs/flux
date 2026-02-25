@@ -112,7 +112,7 @@ impl WKVarInstantiator<'_> {
         wkvar_args: &[rty::Expr],
         expr: &rty::Expr,
     ) -> Option<rty::Binder<rty::Expr>> {
-        println!("trying to instantiate {:?} using args {:?}", expr, wkvar_args);
+        // println!("trying to instantiate {:?} using args {:?}", expr, wkvar_args);
         let expr_without_metadata = expr.erase_metadata();
         let expr_eta_expanded_rel = expr_without_metadata.expand_bin_rels();
         let mut args_to_param = HashMap::new();
@@ -138,14 +138,14 @@ impl WKVarInstantiator<'_> {
             // so the scope is the same.
             current_index: INNERMOST,
         };
-        println!("eta expanded args: {:?}", args_to_param);
+        // println!("eta expanded args: {:?}", args_to_param);
         instantiator
             .try_fold_expr(&expr_eta_expanded_rel)
-            .map_err(|e| println!("Couldn't unify with {:?}", e))
+            // .map_err(|e| println!("Couldn't unify with {:?}", e))
             .ok()
             .and_then(|instantiated_e| {
                 if !instantiator.any_self_args_used && !instantiator.self_args.is_empty() {
-                    println!("Dropping instantiation {:?} because no self args were used", instantiated_e);
+                    // println!("Dropping instantiation {:?} because no self args were used", instantiated_e);
                     None
                 } else {
                 Some(rty::Binder::bind_with_sorts(
@@ -195,6 +195,11 @@ impl TypeFolder for WKVarSubst {
                 } else {
                     instantiated_e
                 }
+            }
+            // Replace wkvars with true (i.e. eliminate them) if we aren't keeping them
+            rty::ExprKind::WKVar(_)
+                if !self.keep_wkvars => {
+                rty::Expr::tt()
             }
             _ => e.super_fold_with(self),
         }
@@ -608,8 +613,8 @@ impl WKVarSolutions {
             let solved_fn_sig = rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
             let fixed_fn_sig_snippet =
                 format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
-            println!("Solution: fn {}", wkvar_fn_name);
-            println!("  {}", fixed_fn_sig_snippet);
+            // println!("Solution: fn {}", wkvar_fn_name);
+            // println!("  {}", fixed_fn_sig_snippet);
         }
 
         (stats_by_fn, num_nontrivial_real_wkvars, num_nontrivial_internal_wkvars)
@@ -643,71 +648,71 @@ impl WKVarSolutions {
                 num_removed_solved_exprs: stats.num_removed_solved_exprs,
                 num_actual_exprs: stats.num_actual_exprs,
             };
-            println!("fn {}", row.fn_name);
-            println!("  num solved:  {}", row.num_solved_exprs);
-            println!("  num assumed: {}", row.num_assumed_exprs);
-            println!("  num removed: {}", row.num_removed_solved_exprs);
-            println!("  num actual:  {}", row.num_actual_exprs);
+            // println!("fn {}", row.fn_name);
+            // println!("  num solved:  {}", row.num_solved_exprs);
+            // println!("  num assumed: {}", row.num_assumed_exprs);
+            // println!("  num removed: {}", row.num_removed_solved_exprs);
+            // println!("  num actual:  {}", row.num_actual_exprs);
             latex_table.push_str(&format!("{} & {} & {} & {} & {}\\\\\n", row.fn_name, row.num_solved_exprs, row.num_assumed_exprs, row.num_removed_solved_exprs, row.num_actual_exprs));
             writer.serialize(row)
         })?;
         let num_wkvars = self.wkvars.len();
         let num_internal_wkvars = self.internal_wkvars.len();
         latex_table.push_str(&format!("TOTAL & {} & {} & {} & {}", total.num_solved_exprs, total.num_assumed_exprs, total.num_removed_solved_exprs, total.num_actual_exprs));
-        println!("SUMMARY");
-        println!("  num fns:                    {}", num_fns);
-        println!("  num total wkvars:           {}", num_wkvars);
-        println!("    internal wkvars:          {}", num_internal_wkvars);
-        println!("    real wkvars:              {}", num_wkvars - num_internal_wkvars);
-        println!(
-            "  num nontrivial wkvars:      {}",
-            num_nontrivial_real_wkvars + num_nontrivial_internal_wkvars
-        );
-        println!("    internal wkvars:          {}", num_nontrivial_internal_wkvars);
-        println!("    real wkvars:              {}", num_nontrivial_real_wkvars);
-        println!("  num nontrivial head cstrs:  {}", self.num_nontrivial_head_cstrs);
-        println!("  num solved exprs:           {}", total.num_solved_exprs);
-        println!("  num assumed exprs:          {}", total.num_assumed_exprs);
-        println!("  num removed exprs:          {}", total.num_removed_solved_exprs);
-        println!("  num actual exprs:           {}", total.num_actual_exprs);
-        println!("Copy/pastable entry:");
-        println!(
-            "{}",
-            [
-                num_fns,
-                num_wkvars,
-                num_internal_wkvars,
-                num_wkvars - num_internal_wkvars,
-                num_nontrivial_real_wkvars + num_nontrivial_internal_wkvars,
-                num_nontrivial_internal_wkvars,
-                num_nontrivial_real_wkvars,
-                self.num_nontrivial_head_cstrs,
-                total.num_solved_exprs,
-                total.num_assumed_exprs,
-                total.num_removed_solved_exprs,
-                total.num_actual_exprs
-            ]
-            .iter()
-            .map(|n| format!("{}", n))
-            .join("\t")
-        );
-        println!("LaTeX Table:\n{}", latex_table);
-        let total_row = CsvRow {
-            fn_name: "TOTAL".to_string(),
-            num_solved_exprs: total.num_solved_exprs,
-            num_assumed_exprs: total.num_assumed_exprs,
-            num_removed_solved_exprs: total.num_removed_solved_exprs,
-            num_actual_exprs: total.num_actual_exprs,
-        };
-        writer.serialize(total_row)?;
-        writer.flush()?;
-        println!("CRATE & {} & {} & {} & {:.0}\\% & {:.0}\\% & TIME & ITERS & LoC",
-                 total.num_assumed_exprs,
-                 total.num_removed_solved_exprs,
-                 total.num_assumed_exprs + total.num_removed_solved_exprs,
-                 100.0 * total.num_solved_exprs as f64 / ((total.num_assumed_exprs + total.num_solved_exprs) as f64),
-                 100.0 * ((total.num_solved_exprs + total.num_assumed_exprs) as f64) / total.num_actual_exprs as f64,
-        );
+        // println!("SUMMARY");
+        // println!("  num fns:                    {}", num_fns);
+        // println!("  num total wkvars:           {}", num_wkvars);
+        // println!("    internal wkvars:          {}", num_internal_wkvars);
+        // println!("    real wkvars:              {}", num_wkvars - num_internal_wkvars);
+        // println!(
+        //     "  num nontrivial wkvars:      {}",
+        //     num_nontrivial_real_wkvars + num_nontrivial_internal_wkvars
+        // );
+        // println!("    internal wkvars:          {}", num_nontrivial_internal_wkvars);
+        // println!("    real wkvars:              {}", num_nontrivial_real_wkvars);
+        // println!("  num nontrivial head cstrs:  {}", self.num_nontrivial_head_cstrs);
+        // println!("  num solved exprs:           {}", total.num_solved_exprs);
+        // println!("  num assumed exprs:          {}", total.num_assumed_exprs);
+        // println!("  num removed exprs:          {}", total.num_removed_solved_exprs);
+        // println!("  num actual exprs:           {}", total.num_actual_exprs);
+        // println!("Copy/pastable entry:");
+        // println!(
+        //     "{}",
+        //     [
+        //         num_fns,
+        //         num_wkvars,
+        //         num_internal_wkvars,
+        //         num_wkvars - num_internal_wkvars,
+        //         num_nontrivial_real_wkvars + num_nontrivial_internal_wkvars,
+        //         num_nontrivial_internal_wkvars,
+        //         num_nontrivial_real_wkvars,
+        //         self.num_nontrivial_head_cstrs,
+        //         total.num_solved_exprs,
+        //         total.num_assumed_exprs,
+        //         total.num_removed_solved_exprs,
+        //         total.num_actual_exprs
+        //     ]
+        //     .iter()
+        //     .map(|n| format!("{}", n))
+        //     .join("\t")
+        // );
+        // println!("LaTeX Table:\n{}", latex_table);
+        // let total_row = CsvRow {
+        //     fn_name: "TOTAL".to_string(),
+        //     num_solved_exprs: total.num_solved_exprs,
+        //     num_assumed_exprs: total.num_assumed_exprs,
+        //     num_removed_solved_exprs: total.num_removed_solved_exprs,
+        //     num_actual_exprs: total.num_actual_exprs,
+        // };
+        // writer.serialize(total_row)?;
+        // writer.flush()?;
+        // println!("CRATE & {} & {} & {} & {:.0}\\% & {:.0}\\% & TIME & ITERS & LoC",
+        //          total.num_assumed_exprs,
+        //          total.num_removed_solved_exprs,
+        //          total.num_assumed_exprs + total.num_removed_solved_exprs,
+        //          100.0 * total.num_solved_exprs as f64 / ((total.num_assumed_exprs + total.num_solved_exprs) as f64),
+        //          100.0 * ((total.num_solved_exprs + total.num_assumed_exprs) as f64) / total.num_actual_exprs as f64,
+        // );
         Ok(())
     }
 
@@ -771,12 +776,12 @@ impl WKVarSolutions {
                                                         .collect_vec();
                 if !ground_truth_exprs.is_empty() {
                     if file_read_user_interactions.is_none() {
-                        println!("    Add a ground truth solution?");
+                        // println!("    Add a ground truth solution?");
                     }
                     for expr in ground_truth_exprs {
                         let id = format!("g{}", id_prefix.next().unwrap());
                         if file_read_user_interactions.is_none() {
-                            println!("    [{}] {:?}", id, &expr);
+                            // println!("    [{}] {:?}", id, &expr);
                         }
                         let interaction = UserInteraction {
                             wkvid: (*fn_def_id, *kvid),
@@ -787,7 +792,7 @@ impl WKVarSolutions {
                 }
                 if let Some(solved_exprs) = &solution.solved_exprs && !solved_exprs.skip_binder_ref().is_empty() {
                     if file_read_user_interactions.is_none() {
-                        println!("    Remove an assumed solution?");
+                        // println!("    Remove an assumed solution?");
                     }
                     for expr in solved_exprs.skip_binder_ref() {
                         // Don't try to double remove
@@ -796,7 +801,7 @@ impl WKVarSolutions {
                         }
                         let id = format!("r{}", id_prefix.next().unwrap());
                         if file_read_user_interactions.is_none() {
-                            println!("    [{}] {:?}", id, expr);
+                            // println!("    [{}] {:?}", id, expr);
                         }
                         let interaction = UserInteraction {
                             wkvid: (*fn_def_id, *kvid),
@@ -812,7 +817,7 @@ impl WKVarSolutions {
         let mut user_inputs = vec![];
         while !input_ok {
             if file_read_user_interactions.is_none() {
-                println!("Enter your choices separated by commas");
+                // println!("Enter your choices separated by commas");
             }
             input.clear();
             match file_read_user_interactions {
@@ -836,7 +841,7 @@ impl WKVarSolutions {
                     user_inputs = inputs;
                     input_ok = true;
                 }
-                Err(err) => println!("{}", err),
+                Err(err) => {}, //println!("{}", err),
             }
         }
         prev_interactions.push(input.trim_end_matches("\n").to_string());
@@ -846,11 +851,11 @@ impl WKVarSolutions {
             let solution = &mut self.solutions[&interaction.wkvid];
             match &interaction.kind {
                 InteractionKind::AddGroundTruth(expr) => {
-                    println!("Adding ground truth {:?} to {:?}", expr, interaction.wkvid);
+                    // println!("Adding ground truth {:?} to {:?}", expr, interaction.wkvid);
                     any_interaction = solution.add_assumed_expr(&expr) || any_interaction;
                 }
                 InteractionKind::RemoveSolution(expr) => {
-                    println!("Removing {:?} from {:?}", expr, interaction.wkvid);
+                    // println!("Removing {:?} from {:?}", expr, interaction.wkvid);
                     any_interaction = solution.removed_solved_exprs.insert(expr.clone()) || any_interaction;
                 }
             }
@@ -910,13 +915,13 @@ pub fn iterative_solve<F>(
     let mut user_interactions = Vec::new();
     let mut file_read_user_interactions = if let Some(interactions_file) = flux_config::user_interactions_file() {
         let interactions = std::fs::read_to_string(interactions_file.as_path()).unwrap().lines().map(|line| line.to_string()).collect_vec();
-        println!("Read user interactions from file:\n  {:?}", interactions);
+        // println!("Read user interactions from file:\n  {:?}", interactions);
         Some(interactions)
     } else {
         None
     };
     while any_wkvar_change && i <= max_iters {
-        println!("iteration {} of {}", i, max_iters);
+        // println!("iteration {} of {}", i, max_iters);
         let mut instantiations_message = String::new();
         any_wkvar_change = false;
         all_errors = Vec::new();
@@ -1020,13 +1025,13 @@ pub fn iterative_solve<F>(
             report_errors(*local_id, err.clone());
         }
         println!("{}", instantiations_message);
-        any_wkvar_change = new_solutions.prompt_user(genv, &mut user_interactions, &mut file_read_user_interactions) || any_wkvar_change;
-        // if !any_wkvar_change {
-        //     for (local_id, err) in &all_errors {
-        //         report_errors(*local_id, err.clone());
-        //     }
-        //     any_wkvar_change = any_wkvar_change || new_solutions.prompt_user(genv, &mut user_interactions, &mut file_read_user_interactions);
-        // }
+        // any_wkvar_change = new_solutions.prompt_user(genv, &mut user_interactions, &mut file_read_user_interactions) || any_wkvar_change;
+        if !any_wkvar_change {
+            for (local_id, err) in &all_errors {
+                report_errors(*local_id, err.clone());
+            }
+            any_wkvar_change = any_wkvar_change || new_solutions.prompt_user(genv, &mut user_interactions, &mut file_read_user_interactions);
+        }
 
         let _ = new_solutions.stats_by_fn(genv);
 
@@ -1126,7 +1131,7 @@ pub fn iterative_solve<F>(
         // }
         // i += 1;
     }
-    println!("Solution loop finished in {} iterations.", i);
+    // println!("Solution loop finished in {} iterations.", i);
     Ok((new_solutions, all_errors, user_interactions))
 }
 

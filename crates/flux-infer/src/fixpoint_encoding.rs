@@ -662,7 +662,7 @@ where
         let id = def_id.resolved_id();
         let crate_name = self.genv.tcx().crate_name(id.krate);
         let item_name = self.genv.tcx().def_path(id).to_filename_friendly_no_crate();
-        println!("checking {} in {}", item_name, crate_name);
+        // println!("checking {} in {}", item_name, crate_name);
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
         }
@@ -684,7 +684,7 @@ where
                         subst_solution.as_conjunction()
                         // We'll do hoisting later when we split disjuncts.
                     } else {
-                        println!("Missing kvar solution for kvid {:?}", kvid);
+                        // println!("Missing kvar solution for kvid {:?}", kvid);
                         vec![]
                     };
                     exprs.into_iter().map(|expr| fixpoint::Pred::Expr(expr)).collect()
@@ -710,10 +710,10 @@ where
                         let blame_ctx = self.blame_ctx_map[&tag_idx].clone();
                         let mut possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = FxIndexMap::default();
                         if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
-                            println!(
-                                "Looking for weak kvars that might solve {}",
-                                flat_constraint.head,
-                            );
+                            // println!(
+                            //     "Looking for weak kvars that might solve {}",
+                            //     flat_constraint.head,
+                            // );
                             // FIXME: this should be a better source of fresh names, but 100000
                             // should be safe.
                             let mut fresh_rty_name: usize = 100_000;
@@ -725,7 +725,7 @@ where
                                 fixpoint::Var::Local(local_var)
                             };
                             let wkvars_and_constraints = flat_constraint.wkvars_and_constrs(&mut fresh_var);
-                            println!("There are {} wkvars/constraint pairs to try", wkvars_and_constraints.len());
+                            // println!("There are {} wkvars/constraint pairs to try", wkvars_and_constraints.len());
                             for (wkvar, flat_constraint, other_constrs) in wkvars_and_constraints {
                                 if !other_constrs.iter().all(|other_constr| {
                                     let binder_consts = other_constr.binders.iter().map(|(var, sort)| {
@@ -739,7 +739,7 @@ where
                                     check_validity(&other_constr, &binder_consts, &constants_without_inequalities, data_decls.clone())
                                     
                                 }) {
-                                    println!("WARN: There is at least one non-valid constraint among {} other constraints, skipping solving...", other_constrs.len());
+                                    // println!("WARN: There is at least one non-valid constraint among {} other constraints, skipping solving...", other_constrs.len());
                                     // for constraint in other_constrs {
                                     //     for assumption in constraint.assumptions.iter() {
                                     //         println!("  {}", assumption);
@@ -754,7 +754,7 @@ where
                                     panic!()
                                 };
                                 let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.0).to_filename_friendly_no_crate(), wkvid.1.as_u32());
-                                println!("Trying {}({}) to solve", wkvid_string, wkvar.args.iter().map(|arg| format!("{}", arg)).join(", "));
+                                // println!("Trying {}({}) to solve", wkvid_string, wkvar.args.iter().map(|arg| format!("{}", arg)).join(", "));
                                 let fvars: HashSet<fixpoint::Var> = wkvar
                                     .args
                                     .iter()
@@ -795,9 +795,9 @@ where
                                                 if !e.is_trivially_false()
                                                     && !e.is_trivially_true() {
                                                     if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &e) {
-                                                        println!("recording solution: {:?}", binder_e);
+                                                        // println!("recording solution: {:?}", binder_e);
                                                         if fe.total_num_disjuncts() > new_flat_constraint.assumptions.len() + 1 {
-                                                            println!("WARN: skipping answer with too many disjuncts");
+                                                            // println!("WARN: skipping answer with too many disjuncts");
                                                             // Try the regular expression
                                                             if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
                                                                 possible_solutions.entry(*wkvid)
@@ -810,7 +810,7 @@ where
                                                                 .push(binder_e);
                                                         }
                                                     } else {
-                                                        println!("got nontrivial solution {} but couldn't unify it with args {:?}", fe, wkvar.args);
+                                                        // println!("got nontrivial solution {} but couldn't unify it with args {:?}", fe, wkvar.args);
                                                         if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
                                                             possible_solutions.entry(*wkvid)
                                                                 .or_default()
@@ -818,14 +818,14 @@ where
                                                         }
                                                     }
                                                 } else {
-                                                    println!("skipped trivial solution");
+                                                    // println!("skipped trivial solution");
                                                 }
                                             }
-                                            Err(err) => println!("failed to decode fixpoint expr because of {:?}", err),
+                                            Err(err) => {}, // println!("failed to decode fixpoint expr because of {:?}", err),
                                     }
                                     }
                                     Err(err) => {
-                                        println!("failed to decode z3 expr because of {:?}", err);
+                                        // println!("failed to decode z3 expr because of {:?}", err);
                                         if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
                                             possible_solutions.entry(*wkvid)
                                                 .or_default()
@@ -1202,7 +1202,7 @@ where
                 .collect::<QueryResult<Vec<fixpoint::Expr>>>()?;
             Ok(fixpoint::Pred::Expr(fixpoint::Expr::WKVar(fixpoint::WKVar { wkvid: var, args })))
         } else {
-            println!("WARN: Skipping encoding wkvar {:?} because it isn't in the global map", wkvar.wkvid);
+            // println!("WARN: Skipping encoding wkvar {:?} because it isn't in the global map", wkvar.wkvid);
             Ok(fixpoint::Pred::Expr(fixpoint::Expr::Constant(fixpoint::Constant::Boolean(true))))
         }
     }
@@ -1669,7 +1669,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         match internal_func {
             InternalFuncKind::Val(op) => {
                 if !sort_args.is_empty() {
-                    println!("sort_args ({:?}) is not empty for val: {:?} with args {:?}" , op, sort_args, args)
+                    // println!("sort_args ({:?}) is not empty for val: {:?} with args {:?}" , op, sort_args, args)
                 }
                 let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
                 let args = self.exprs_to_fixpoint(args, scx)?;
@@ -1677,7 +1677,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             InternalFuncKind::Rel(op) => {
                 if !sort_args.is_empty() {
-                    println!("sort_args ({:?}) is not empty for rel: {:?} with args {:?}" , op, sort_args, args)
+                    // println!("sort_args ({:?}) is not empty for rel: {:?} with args {:?}" , op, sort_args, args)
                 }
                 let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
                     prim_rel.body.replace_bound_refts(args)
@@ -1753,7 +1753,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     self.internal_func_to_fixpoint(func, sort_args, args, scx)?
                 } else {
                     if !sort_args.is_empty() {
-                        println!("sort_args ({:?}) is not empty for expr {:?}", sort_args, expr);
+                        // println!("sort_args ({:?}) is not empty for expr {:?}", sort_args, expr);
                     }
                     let func = self.expr_to_fixpoint(func, scx)?;
                     let sort_args = self.sort_args_to_fixpoint(sort_args, scx);
@@ -2323,7 +2323,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> Option<fixpoint::Var> {
         if !wkvid.0.is_local() {
             let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.0).to_filename_friendly_no_crate(), wkvid.1.as_u32());
-            println!("INFO: skipping encoding {} because it is not local", wkvid_string);
+            // println!("INFO: skipping encoding {} because it is not local", wkvid_string);
             return None;
         }
         let key = ConstKey::WKVar(*wkvid, self_args);

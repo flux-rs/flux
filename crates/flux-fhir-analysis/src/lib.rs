@@ -604,6 +604,7 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 fn_sig = fn_sig.hoist_input_binders();
             }
             if weak_kvars_empty && !genv.no_suggestions(def_id.local_id()) {
+                // println!("adding wkvars for {:?}", def_id);
                 fn_sig = fn_sig.hoist_input_binders();
                 let id = match def_id {
                     MaybeExternId::Extern(_local_id, def_id) => def_id,
