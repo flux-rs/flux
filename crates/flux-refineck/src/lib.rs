@@ -489,13 +489,14 @@ fn add_fn_fix_diagnostic<'a>(
     wkvid: rty::WKVid,
     solution: &rty::Binder<rty::Expr>,
 ) {
+    let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()).prettify());
     let fn_name = genv.tcx().def_path_str(wkvid.0);
     let fn_span = genv
         .tcx()
         .def_ident_span(wkvid.0)
         .unwrap_or_else(|| genv.tcx().def_span(wkvid.0));
     let fn_sig = genv.fn_sig(wkvid.0).unwrap();
-    let mut wkvar_subst = WKVarSubst::new([(wkvid, solution.clone())].into(), false);
+    let mut wkvar_subst = WKVarSubst::new([(wkvid, pretty_solution)].into(), false);
     let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
     let fixed_fn_sig_snippet =
         format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig));
@@ -531,7 +532,7 @@ fn add_fn_fix_diagnostic<'a>(
                 assert!(subst_solutions.len() == 1);
                 diag.span_suggestion(
                     fn_first_line,
-                    format!("try adding the refinement {:?}", subst_solutions[0]),
+                    "try adding the refinement",
                     format!(
                         "{}#[sig({})]\n{}",
                         prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet

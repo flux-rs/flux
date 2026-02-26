@@ -2188,3 +2188,222 @@ pub(crate) mod pretty {
         }
     }
 }
+
+impl Expr {
+    /// Applies transformations to simplify and humanize canonical Z3 outputs.
+    pub fn prettify(&self) -> Self {
+        self.fold_constants()
+            .push_negations()
+            .simplify_arithmetic()
+            .simplify_bounds()
+    }
+
+    /// Evaluates expressions with constant operands recursively.
+    pub fn fold_constants(&self) -> Self {
+        let span = self.span();
+        match self.kind() {
+            ExprKind::UnaryOp(op, a) => {
+                let a_fold = a.fold_constants();
+
+                if let ExprKind::Constant(c) = a_fold.kind() {
+                    match (op, c) {
+                        (UnOp::Not, Constant::Bool(b)) => {
+                            return Expr::constant(Constant::Bool(!b)).at_opt(span);
+                        }
+                        (UnOp::Neg, Constant::Int(n)) => {
+                            return Expr::constant(Constant::Int(n.neg())).at_opt(span);
+                        }
+                        _ => {}
+                    }
+                }
+                Expr::unary_op(*op, a_fold).at_opt(span)
+            }
+
+            ExprKind::BinaryOp(op, a, b) => {
+                let a_fold = a.fold_constants();
+                let b_fold = b.fold_constants();
+
+                if let (ExprKind::Constant(c1), ExprKind::Constant(c2)) = (a_fold.kind(), b_fold.kind()) {
+                    // 1. Leverage existing const_op logic (handles Bools, Eq, Ne, and Int comparisons)
+                    if let Some(c3) = Expr::const_op(op, c1, c2) {
+                        return Expr::constant(c3).at_opt(span);
+                    }
+
+                    // 2. Handle integer arithmetic
+                    if let (Constant::Int(n1), Constant::Int(n2)) = (c1, c2) {
+                        let result = match op {
+                            BinOp::Add(_) => n1.checked_add(n2),
+                            BinOp::Sub(_) => n1.checked_sub(n2),
+                            BinOp::Mul(_) => n1.checked_mul(n2),
+                            BinOp::Div(_) => n1.checked_div(n2),
+                            BinOp::Mod(_) => n1.checked_rem(n2),
+                            _ => None,
+                        };
+
+                        if let Some(res) = result {
+                            return Expr::constant(Constant::Int(res)).at_opt(span);
+                        }
+                    }
+                }
+
+                Expr::binary_op(op.clone(), a_fold, b_fold).at_opt(span)
+            }
+
+            ExprKind::IfThenElse(p, e1, e2) => {
+                let p_fold = p.fold_constants();
+
+                // Short-circuit the ITE if the predicate is a constant boolean
+                if let ExprKind::Constant(Constant::Bool(b)) = p_fold.kind() {
+                    if *b {
+                        return e1.fold_constants().at_opt(span);
+                    } else {
+                        return e2.fold_constants().at_opt(span);
+                    }
+                }
+
+                Expr::ite(p_fold, e1.fold_constants(), e2.fold_constants()).at_opt(span)
+            }
+
+            // Other variants (Tuple, App, FieldProj, etc.) recursively fall through
+            // untouched to avoid making assumptions about how your inner types construct.
+            _ => self.clone(),
+        }
+    }
+
+    /// Pass 1: Eliminate `Not` over inequalities and boolean operations.
+    pub fn push_negations(&self) -> Self {
+        let span = self.span();
+        match self.kind() {
+            ExprKind::UnaryOp(UnOp::Not, inner) => {
+                match inner.kind() {
+                    // Double negation
+                    ExprKind::UnaryOp(UnOp::Not, a) => a.push_negations().at_opt(span),
+
+                    // Flipped Inequalities
+                    ExprKind::BinaryOp(BinOp::Le(s), a, b) => Expr::binary_op(BinOp::Gt(s.clone()), a.push_negations(), b.push_negations()).at_opt(span),
+                    ExprKind::BinaryOp(BinOp::Lt(s), a, b) => Expr::binary_op(BinOp::Ge(s.clone()), a.push_negations(), b.push_negations()).at_opt(span),
+                    ExprKind::BinaryOp(BinOp::Ge(s), a, b) => Expr::binary_op(BinOp::Lt(s.clone()), a.push_negations(), b.push_negations()).at_opt(span),
+                    ExprKind::BinaryOp(BinOp::Gt(s), a, b) => Expr::binary_op(BinOp::Le(s.clone()), a.push_negations(), b.push_negations()).at_opt(span),
+
+                    // Equalities
+                    ExprKind::BinaryOp(BinOp::Eq, a, b) => Expr::binary_op(BinOp::Ne, a.push_negations(), b.push_negations()).at_opt(span),
+                    ExprKind::BinaryOp(BinOp::Ne, a, b) => Expr::binary_op(BinOp::Eq, a.push_negations(), b.push_negations()).at_opt(span),
+
+                    // De Morgan's
+                    ExprKind::BinaryOp(BinOp::Or, a, b) => Expr::binary_op(BinOp::And, a.not().push_negations(), b.not().push_negations()).at_opt(span),
+                    ExprKind::BinaryOp(BinOp::And, a, b) => Expr::binary_op(BinOp::Or, a.not().push_negations(), b.not().push_negations()).at_opt(span),
+
+                    // Otherwise just wrap and stop
+                    _ => Expr::unary_op(UnOp::Not, inner.push_negations()).at_opt(span),
+                }
+            }
+            ExprKind::BinaryOp(op, a, b) => Expr::binary_op(op.clone(), a.push_negations(), b.push_negations()).at_opt(span),
+            ExprKind::UnaryOp(op, a) => Expr::unary_op(*op, a.push_negations()).at_opt(span),
+            ExprKind::IfThenElse(p, e1, e2) => Expr::ite(p.push_negations(), e1.push_negations(), e2.push_negations()).at_opt(span),
+            _ => self.clone(),
+        }
+    }
+
+    /// Pass 2: Clean up canonicalized arithmetic (e.g. `b0 * -1 + b1` -> `b1 - b0`)
+    pub fn simplify_arithmetic(&self) -> Self {
+        let span = self.span();
+        match self.kind() {
+            ExprKind::BinaryOp(BinOp::Mul(s), a, b) => {
+                let a_simp = a.simplify_arithmetic();
+                let b_simp = b.simplify_arithmetic();
+
+                let is_minus_one = |e: &Expr| matches!(e.kind(), ExprKind::Constant(c) if *c == Constant::from(-1));
+
+                if is_minus_one(&b_simp) {
+                    return a_simp.neg().at_opt(span);
+                }
+                if is_minus_one(&a_simp) {
+                    return b_simp.neg().at_opt(span);
+                }
+
+                Expr::binary_op(BinOp::Mul(s.clone()), a_simp, b_simp).at_opt(span)
+            }
+            ExprKind::BinaryOp(BinOp::Add(s), a, b) => {
+                let a_simp = a.simplify_arithmetic();
+                let b_simp = b.simplify_arithmetic();
+
+                if let ExprKind::UnaryOp(UnOp::Neg, x) = a_simp.kind() {
+                    return Expr::binary_op(BinOp::Sub(s.clone()), b_simp, x.clone()).at_opt(span);
+                }
+                if let ExprKind::UnaryOp(UnOp::Neg, y) = b_simp.kind() {
+                    return Expr::binary_op(BinOp::Sub(s.clone()), a_simp, y.clone()).at_opt(span);
+                }
+
+                Expr::binary_op(BinOp::Add(s.clone()), a_simp, b_simp).at_opt(span)
+            }
+            ExprKind::BinaryOp(op, a, b) => Expr::binary_op(op.clone(), a.simplify_arithmetic(), b.simplify_arithmetic()).at_opt(span),
+            ExprKind::UnaryOp(op, a) => Expr::unary_op(*op, a.simplify_arithmetic()).at_opt(span),
+            ExprKind::IfThenElse(p, e1, e2) => Expr::ite(p.simplify_arithmetic(), e1.simplify_arithmetic(), e2.simplify_arithmetic()).at_opt(span),
+            _ => self.clone(),
+        }
+    }
+
+    /// Pass 3: Integer shifts and inequality rearrangement
+    pub fn simplify_bounds(&self) -> Self {
+        let span = self.span();
+        match self.kind() {
+            ExprKind::BinaryOp(op, a, b) => {
+                let a_simp = a.simplify_bounds();
+                let b_simp = b.simplify_bounds();
+
+                let is_minus_one = |e: &Expr| matches!(e.kind(), ExprKind::Constant(c) if *c == Constant::from(-1));
+                let is_zero = |e: &Expr| matches!(e.kind(), ExprKind::Constant(c) if *c == Constant::from(0));
+
+                // Important: this logic only applies if the operators are specifically typed for integers
+                match op {
+                    BinOp::Gt(Sort::Int) => {
+                        // X > -1  ==>  X >= 0
+                        if is_minus_one(&b_simp) {
+                            return Expr::binary_op(BinOp::Ge(Sort::Int), a_simp, Expr::zero()).at_opt(span).simplify_bounds();
+                        }
+                        // X - Y > 0  ==>  X > Y
+                        if is_zero(&b_simp) {
+                            if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
+                                return Expr::binary_op(BinOp::Gt(s_sub.clone()), x.clone(), y.clone()).at_opt(span);
+                            }
+                        }
+                    }
+                    BinOp::Ge(Sort::Int) => {
+                        // X - Y >= 0  ==>  X >= Y
+                        if is_zero(&b_simp) {
+                            if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
+                                return Expr::binary_op(BinOp::Ge(s_sub.clone()), x.clone(), y.clone()).at_opt(span);
+                            }
+                        }
+                    }
+                    BinOp::Lt(Sort::Int) => {
+                        // X - Y < 0  ==>  X < Y
+                        if is_zero(&b_simp) {
+                            if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
+                                return Expr::binary_op(BinOp::Lt(s_sub.clone()), x.clone(), y.clone()).at_opt(span);
+                            }
+                        }
+                    }
+                    BinOp::Le(Sort::Int) => {
+                        // X <= -1  ==>  X < 0
+                        if is_minus_one(&b_simp) {
+                            return Expr::binary_op(BinOp::Lt(Sort::Int), a_simp, Expr::zero()).at_opt(span).simplify_bounds();
+                        }
+                        // X - Y <= 0  ==>  X <= Y
+                        if is_zero(&b_simp) {
+                            if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
+                                return Expr::binary_op(BinOp::Le(s_sub.clone()), x.clone(), y.clone()).at_opt(span);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+
+                Expr::binary_op(op.clone(), a_simp, b_simp).at_opt(span)
+            }
+            ExprKind::UnaryOp(op, a) => Expr::unary_op(*op, a.simplify_bounds()).at_opt(span),
+            ExprKind::IfThenElse(p, e1, e2) => Expr::ite(p.simplify_bounds(), e1.simplify_bounds(), e2.simplify_bounds()).at_opt(span),
+            _ => self.clone(),
+        }
+    }
+}
