@@ -112,7 +112,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 .bytes();
             let body = rty::Expr::constant(rty::Constant::from(size));
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
-        } else if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce) {
+        } else if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
             && alias_reft.assoc_id.name() == sym::no_panic
         {
             let self_ty = alias_reft.self_ty();
