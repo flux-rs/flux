@@ -232,8 +232,9 @@ impl Pretty for FnSig {
             join!(", ", self.inputs.iter().map(|input| input.shallow_canonicalize())),
             &self.output
         )?;
-        if !self.requires.is_empty() {
-            w!(cx, f, " requires {:?}", join!(" ∧ ", &self.requires))?;
+        let filtered_requires = self.requires.iter().filter(|r| !r.is_trivially_true()).collect_vec();
+        if !filtered_requires.is_empty() {
+            w!(cx, f, " requires {:?}", join!(" && ", &filtered_requires))?;
         }
         Ok(())
     }
@@ -248,8 +249,14 @@ impl Pretty for Binder<FnOutput> {
 impl Pretty for FnOutput {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         w!(cx, f, "{:?}", &self.ret.shallow_canonicalize())?;
-        if !self.ensures.is_empty() {
-            w!(cx, f, " ensures {:?}", join!(" ∧ ", &self.ensures))?;
+        let filtered_ensures = self.ensures.iter().filter(|e| {
+            match e {
+                Ensures::Pred(p) => !p.is_trivially_true(),
+                _ => true,
+            }
+        }).collect_vec();
+        if !filtered_ensures.is_empty() {
+            w!(cx, f, " ensures {:?}", join!(" && ", &filtered_ensures))?;
         }
         Ok(())
     }
