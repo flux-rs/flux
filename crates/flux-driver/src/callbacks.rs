@@ -3,7 +3,10 @@ use std::path::Path;
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
-use flux_infer::{fixpoint_encoding::FixQueryCache, lean_encoding};
+use flux_infer::{
+    fixpoint_encoding::{FixQueryCache, LeanStatus, lean_task_key},
+    lean_encoding,
+};
 use flux_metadata::CStore;
 use flux_middle::{
     Specs,
@@ -97,7 +100,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             .iter_local_def_id()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
-        if config::lean().is_emit() {
+        if config::lean().is_check() || config::lean().is_emit() {
             lean_encoding::finalize(genv)
                 .unwrap_or_else(|err| bug!("error running lean-check {err:?}"));
         }
@@ -105,7 +108,22 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let lean_result = if config::lean().is_check() {
             genv.iter_local_def_id().try_for_each_exhaust(|def_id| {
                 if genv.proven_externally(def_id).is_some() {
-                    lean_encoding::check_proof(genv, def_id.to_def_id())
+                    let key = lean_task_key(genv.tcx(), def_id.to_def_id());
+                    // Skip proof check if previously verified successfully.
+                    if config::is_cache_enabled()
+                        && ck
+                            .cache
+                            .lookup_by_key(&key)
+                            .map(|r| matches!(r.lean_status, LeanStatus::Valid))
+                            .unwrap_or(false)
+                    {
+                        return Ok(());
+                    }
+                    lean_encoding::check_proof(genv, def_id.to_def_id())?;
+                    // Mark as valid in cache so future runs skip re-verification.
+                    ck.cache
+                        .update_result_by_key(&key, |r| r.lean_status = LeanStatus::Valid);
+                    Ok(())
                 } else {
                     Ok(())
                 }

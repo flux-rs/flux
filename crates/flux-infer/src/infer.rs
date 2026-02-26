@@ -34,7 +34,9 @@ use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{
         Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, KVarSolutions,
+        lean_task_key,
     },
+    lean_encoding::log_proof,
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
@@ -228,6 +230,17 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
         let cstr_variable_sorts = cstr.variable_sorts();
         let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
+
+        log_proof(self.genv, def_id)?;
+        // Skip re-generation if task is already cached (same hash → same lean files on disk).
+        if config::is_cache_enabled() {
+            let key = lean_task_key(self.genv.tcx(), def_id.resolved_id());
+            let hash = task.hash_with_default();
+            if cache.lookup(&key, hash).is_some() {
+                return Ok(());
+            }
+        }
+
         let result = fcx.run_task(cache, def_id, FixpointQueryKind::Body, &task)?;
 
         fcx.generate_lean_files(

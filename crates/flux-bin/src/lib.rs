@@ -34,10 +34,16 @@ pub struct FluxMetadata {
     pub no_panic: Option<bool>,
     /// If present, enables lean mode
     pub lean: Option<LeanMode>,
+    /// If present, dumps the fixpoint constraint to a file
+    pub dump_constraint: Option<bool>,
 }
 
 impl FluxMetadata {
-    pub fn into_flags(self, target_dir: &Utf8Path, glob_prefix: Option<&Utf8Path>) -> Vec<String> {
+    pub fn into_flags(
+        self,
+        target_dir: &Utf8Path,
+        inlude_pattern_prefix: Option<&Utf8Path>,
+    ) -> Vec<String> {
         let mut flags = vec![];
         if let Some(true) = self.cache {
             flags.push(format!("-Fcache={}", target_dir.join("FLUXCACHE")));
@@ -50,6 +56,9 @@ impl FluxMetadata {
         }
         if let Some(v) = self.lean {
             flags.push(format!("-Flean={v}"));
+        }
+        if let Some(v) = self.dump_constraint {
+            flags.push(format!("-Fdump-constraint={v}"));
         }
         if let Some(v) = self.scrape_quals {
             flags.push(format!("-Fscrape-quals={v}"));
@@ -71,18 +80,34 @@ impl FluxMetadata {
         }
         if let Some(patterns) = self.include {
             for pat in patterns {
-                if let Some(glob_prefix) = glob_prefix
-                    && !glob_prefix.as_str().is_empty()
-                {
-                    // I haven't tested this on windows, but it should work because `globset`
-                    // will normalize patterns to use `/` as separator
-                    // don't use the empty `glob_prefix` as that makes the pattern hang off root!
-                    flags.push(format!("-Finclude={glob_prefix}/{pat}"));
+                if let Some(prefix) = inlude_pattern_prefix {
+                    flags.push(format!("-Finclude={}", prepend_prefix_to_pattern(prefix, &pat)));
                 } else {
                     flags.push(format!("-Finclude={pat}"));
                 }
             }
         }
         flags
+    }
+}
+
+fn prepend_prefix_to_pattern(prefix: &Utf8Path, pat: &str) -> String {
+    // don't use the empty `prefix` as that makes the pattern hang off root!
+    if prefix.as_str().is_empty() {
+        return pat.to_string();
+    }
+    if pat.starts_with("def:") {
+        return pat.to_string();
+    }
+    // I haven't tested this on windows, but it should work because `globset`
+    // will normalize patterns to use `/` as separator.
+    if let Some(pat) = pat.strip_prefix("glob:") {
+        format!("glob:{prefix}/{pat}")
+    } else if let Some(pat) = pat.strip_prefix("span:") {
+        // span patterns are of the form `span:<file>:<line>:<column>""
+        format!("span:{prefix}/{pat}")
+    } else {
+        // no prefix defaults to glob patterns.
+        format!("{prefix}/{pat}")
     }
 }
