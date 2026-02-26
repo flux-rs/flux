@@ -830,8 +830,7 @@ fn normalize_alias_reft<'tcx>(
                 .apply(refine_args);
             Ok((true, e))
         }
-        Some(ImplSource::Builtin(a, b)) => {
-            // print the builtin type.
+        Some(ImplSource::Builtin(..)) => {
             let e = genv
                 .builtin_assoc_reft_body(infcx.typing_env(param_env), alias_reft)
                 .apply(refine_args);
