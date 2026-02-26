@@ -521,7 +521,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
     }
 
     fn lift_const_arg(&mut self, const_arg: &hir::ConstArg) -> fhir::ConstArg {
-        fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span: const_arg.span() }
+        fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span: const_arg.span }
     }
 
     #[track_caller]
