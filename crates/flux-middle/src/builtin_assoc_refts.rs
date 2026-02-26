@@ -100,20 +100,6 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 
                 let mut map = UnordMap::default();
 
-                // Fn
-                let fn_id = tcx.require_lang_item(LangItem::Fn, DUMMY_SP);
-                map.insert(
-                    FluxDefId::new(fn_id, sym::no_panic),
-                    rty::FuncSort::new(vec![], rty::Sort::Bool),
-                );
-
-                // FnMut
-                let fn_mut_id = tcx.require_lang_item(LangItem::FnMut, DUMMY_SP);
-                map.insert(
-                    FluxDefId::new(fn_mut_id, sym::no_panic),
-                    rty::FuncSort::new(vec![], rty::Sort::Bool),
-                );
-
                 // FnOnce
                 let fn_once_id = tcx.require_lang_item(LangItem::FnOnce, DUMMY_SP);
                 map.insert(
