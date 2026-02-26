@@ -27,6 +27,19 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 
                 let mut map = UnordMap::default();
 
+                // Fn
+                let fn_id = tcx.require_lang_item(LangItem::Fn, DUMMY_SP);
+                map.insert(
+                    fn_id,
+                    AssocRefinements {
+                        items: List::from_arr([AssocReft::new(
+                            FluxDefId::new(fn_id, sym::no_panic),
+                            false,
+                            tcx.def_span(fn_id),
+                        )]),
+                    },
+                );
+
                 // FnOnce
                 let fn_once_id = tcx.require_lang_item(LangItem::FnOnce, DUMMY_SP);
                 map.insert(
@@ -36,6 +49,19 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                             FluxDefId::new(fn_once_id, sym::no_panic),
                             false,
                             tcx.def_span(fn_once_id),
+                        )]),
+                    },
+                );
+
+                // FnMut
+                let fn_mut_id = tcx.require_lang_item(LangItem::FnMut, DUMMY_SP);
+                map.insert(
+                    fn_mut_id,
+                    AssocRefinements {
+                        items: List::from_arr([AssocReft::new(
+                            FluxDefId::new(fn_mut_id, sym::no_panic),
+                            false,
+                            tcx.def_span(fn_mut_id),
                         )]),
                     },
                 );
@@ -73,6 +99,20 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 let tcx = self.tcx();
 
                 let mut map = UnordMap::default();
+
+                // Fn
+                let fn_id = tcx.require_lang_item(LangItem::Fn, DUMMY_SP);
+                map.insert(
+                    FluxDefId::new(fn_id, sym::no_panic),
+                    rty::FuncSort::new(vec![], rty::Sort::Bool),
+                );
+
+                // FnMut
+                let fn_mut_id = tcx.require_lang_item(LangItem::FnMut, DUMMY_SP);
+                map.insert(
+                    FluxDefId::new(fn_mut_id, sym::no_panic),
+                    rty::FuncSort::new(vec![], rty::Sort::Bool),
+                );
 
                 // FnOnce
                 let fn_once_id = tcx.require_lang_item(LangItem::FnOnce, DUMMY_SP);
@@ -112,7 +152,9 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 .bytes();
             let body = rty::Expr::constant(rty::Constant::from(size));
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
-        } else if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
+        } else if (tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
+            || tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::Fn)
+            || tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnMut))
             && alias_reft.assoc_id.name() == sym::no_panic
         {
             let self_ty = alias_reft.self_ty();
