@@ -320,6 +320,7 @@ impl LeanFmt for Sort {
     fn lean_fmt(&self, f: &mut std::fmt::Formatter, cx: &LeanCtxt) -> std::fmt::Result {
         match self {
             Sort::Int => write!(f, "Int"),
+            Sort::Prop => write!(f, "Prop"),
             Sort::Bool => {
                 match cx.bool_mode {
                     BoolMode::Bool => write!(f, "Bool"),

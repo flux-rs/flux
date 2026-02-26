@@ -1032,6 +1032,7 @@ impl ena::unify::EqUnifyValue for BvSize {}
 pub enum Sort {
     Int,
     Bool,
+    Prop,
     Real,
     BitVec(BvSize),
     Str,
@@ -1101,12 +1102,13 @@ impl Sort {
         matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
     }
 
-    /// Returns `true` if the sort is [`Bool`].
+    /// Returns `true` if the sort is [`Bool`] or [`Prop`].
     ///
     /// [`Bool`]: Sort::Bool
+    /// [`Prop`]: Sort::Prop
     #[must_use]
     pub fn is_bool(&self) -> bool {
-        matches!(self, Self::Bool)
+        matches!(self, Self::Bool | Self::Prop)
     }
 
     pub fn cast_kind(self: &Sort, to: &Sort) -> CastKind {
@@ -1114,7 +1116,7 @@ impl Sort {
             || (matches!(self, Sort::Char | Sort::Int) && matches!(to, Sort::Char | Sort::Int))
         {
             CastKind::Identity
-        } else if matches!(self, Sort::Bool) && matches!(to, Sort::Int) {
+        } else if matches!(self, Sort::Bool | Sort::Prop) && matches!(to, Sort::Int) {
             CastKind::BoolToInt
         } else if to.is_unit() {
             CastKind::IntoUnit

@@ -228,6 +228,7 @@ impl<T: Types> fmt::Display for Sort<T> {
         match self {
             Sort::Int => write!(f, "int"),
             Sort::Bool => write!(f, "bool"),
+            Sort::Prop => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
             Sort::Str => write!(f, "Str"),
             Sort::Var(i) => write!(f, "@({i})"),

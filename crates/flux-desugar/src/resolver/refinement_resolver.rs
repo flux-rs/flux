@@ -637,6 +637,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Str))
         } else if segment.name == sym::ptr {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::RawPtr))
+        } else if segment.name == sym::prop {
+            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Prop))
         } else {
             None
         }

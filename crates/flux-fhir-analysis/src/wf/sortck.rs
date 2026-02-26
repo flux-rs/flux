@@ -368,7 +368,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                             Err(self.emit_field_not_found(&sort, fld))
                         }
                     }
-                    rty::Sort::Bool | rty::Sort::Int | rty::Sort::Real => {
+                    rty::Sort::Bool | rty::Sort::Prop | rty::Sort::Int | rty::Sort::Real => {
                         Err(self.emit_err(errors::InvalidPrimitiveDotAccess::new(&sort, fld)))
                     }
                     _ => Err(self.emit_field_not_found(&sort, fld)),
@@ -704,6 +704,7 @@ impl<'genv> InferCtxt<'genv, '_> {
             (rty::Sort::BitVec(size1), rty::Sort::BitVec(size2)) => {
                 self.try_equate_bv_sizes(*size1, *size2)?;
             }
+            (rty::Sort::Bool, rty::Sort::Prop) | (rty::Sort::Prop, rty::Sort::Bool) => {}
             _ if sort1 == sort2 => {}
             _ => return None,
         }

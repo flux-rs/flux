@@ -315,6 +315,7 @@ impl SortEncodingCtxt {
             rty::Sort::Int => fixpoint::Sort::Int,
             rty::Sort::Real => fixpoint::Sort::Real,
             rty::Sort::Bool => fixpoint::Sort::Bool,
+            rty::Sort::Prop => fixpoint::Sort::Prop,
             rty::Sort::Str => fixpoint::Sort::Str,
             rty::Sort::Char => fixpoint::Sort::Int,
             rty::Sort::BitVec(size) => fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(*size))),
