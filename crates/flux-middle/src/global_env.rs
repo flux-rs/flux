@@ -497,28 +497,22 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             == def_id
     }
 
-    /// Returns whether `def_id` is the `call` method in the `Fn` trait.
+    /// Returns whether `def_id` is the `call` method in the `Fn` trait,
+    /// the `call_mut` method in the `FnMut` trait,
+    /// or the `call_once` method in the `FnOnce` trait.
     pub fn is_fn_call(&self, def_id: DefId) -> bool {
+        let methods_and_names = [
+            (LangItem::Fn, sym::call),
+            (LangItem::FnMut, sym::call_mut),
+            (LangItem::FnOnce, sym::call_once),
+        ];
         let tcx = self.tcx();
         let Some(assoc_item) = tcx.opt_associated_item(def_id) else { return false };
         let Some(trait_id) = assoc_item.trait_container(tcx) else { return false };
-        assoc_item.name() == sym::call && tcx.is_lang_item(trait_id, LangItem::Fn)
-    }
 
-    /// Returns whether `def_id` is the `call_mut` method in the `FnMut` trait.
-    pub fn is_fnmut_call(&self, def_id: DefId) -> bool {
-        let tcx = self.tcx();
-        let Some(assoc_item) = tcx.opt_associated_item(def_id) else { return false };
-        let Some(trait_id) = assoc_item.trait_container(tcx) else { return false };
-        assoc_item.name() == sym::call_mut && tcx.is_lang_item(trait_id, LangItem::FnMut)
-    }
-
-    /// Returns whether `def_id` is the `call_once` method in the `FnOnce` trait.
-    pub fn is_fnonce_call(&self, def_id: DefId) -> bool {
-        let tcx = self.tcx();
-        let Some(assoc_item) = tcx.opt_associated_item(def_id) else { return false };
-        let Some(trait_id) = assoc_item.trait_container(tcx) else { return false };
-        assoc_item.name() == sym::call_once && tcx.is_lang_item(trait_id, LangItem::FnOnce)
+        methods_and_names.iter().any(|(lang_item, method_name)| {
+            assoc_item.name() == *method_name && tcx.is_lang_item(trait_id, *lang_item)
+        })
     }
 
     /// Iterator over all local def ids that are not a extern spec
