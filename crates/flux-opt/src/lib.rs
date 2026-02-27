@@ -41,6 +41,12 @@ pub enum CannotResolveReason {
     NotFnDef(DefId),
 }
 
+#[derive(Debug, Clone)]
+struct GraphBuildResult {
+    call_graph: CallGraph,
+    initial_specs: FxHashMap<DefId, PanicSpec>,
+}
+
 fn is_panic_or_abort_fn(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
     let lang_items = tcx.lang_items();
     [
@@ -124,55 +130,13 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Result<Vec<DefId>, Can
     Ok(callees)
 }
 
-fn explore_reachable_call_graph(
+fn build_closed_call_graph(
     tcx: TyCtxt,
     root: DefId,
-) -> (CallGraph, FxHashMap<DefId, PanicSpec>) {
-    let mut fn_to_no_panic: FxHashMap<DefId, PanicSpec> = FxHashMap::default();
-    let mut call_graph: CallGraph = FxHashMap::default();
-    let mut worklist: Vec<DefId> = vec![];
-
-    if !tcx.def_kind(root).is_fn_like() {
-        flux_common::bug!(
-            "flux-opt::infer_no_panics: root DefId {} is not a function",
-            tcx.def_path_str(root)
-        );
-    }
-
-    // let call_graph: CallGraph = build_call_graph(tcx, root);
-
-    if !tcx.is_mir_available(root) {
-        let def_kind = tcx.def_kind(root);
-        if matches!(def_kind, DefKind::AssocFn) {
-            fn_to_no_panic.insert(
-                root,
-                PanicSpec::MightPanic(PanicReason::CannotResolve(
-                    CannotResolveReason::UnresolvedTraitMethod(root),
-                )),
-            );
-        } else {
-            fn_to_no_panic.insert(
-                root,
-                PanicSpec::MightPanic(PanicReason::CannotResolve(
-                    CannotResolveReason::NoMIRAvailable(root, tcx.def_kind(root)),
-                )),
-            );
-        }
-        return (call_graph, fn_to_no_panic);
-    }
-
-    match get_callees(&tcx, root) {
-        Ok(callees) => {
-            fn_to_no_panic.insert(root, PanicSpec::MightPanic(PanicReason::Unknown));
-            call_graph.insert(root, callees);
-        }
-        Err(reason) => {
-            fn_to_no_panic.insert(root, PanicSpec::MightPanic(PanicReason::CannotResolve(reason)));
-            return (call_graph, fn_to_no_panic);
-        }
-    }
-    worklist.push(root);
-
+    call_graph: &mut CallGraph,
+    fn_to_no_panic: &mut FxHashMap<DefId, PanicSpec>,
+) {
+    let mut worklist: Vec<DefId> = vec![root];
     // 2. Explore reachable callees (build closed call graph)
     while let Some(f) = worklist.pop() {
         let callees = call_graph.get(&f).unwrap().clone();
@@ -207,7 +171,53 @@ fn explore_reachable_call_graph(
             }
         }
     }
-    (call_graph, fn_to_no_panic)
+}
+
+fn explore_reachable_call_graph(tcx: TyCtxt, root: DefId) -> GraphBuildResult {
+    let mut fn_to_no_panic: FxHashMap<DefId, PanicSpec> = FxHashMap::default();
+    let mut call_graph: CallGraph = FxHashMap::default();
+
+    if !tcx.def_kind(root).is_fn_like() {
+        flux_common::bug!(
+            "flux-opt::infer_no_panics: root DefId {} is not a function",
+            tcx.def_path_str(root)
+        );
+    }
+
+    if !tcx.is_mir_available(root) {
+        let def_kind = tcx.def_kind(root);
+        if matches!(def_kind, DefKind::AssocFn) {
+            fn_to_no_panic.insert(
+                root,
+                PanicSpec::MightPanic(PanicReason::CannotResolve(
+                    CannotResolveReason::UnresolvedTraitMethod(root),
+                )),
+            );
+        } else {
+            fn_to_no_panic.insert(
+                root,
+                PanicSpec::MightPanic(PanicReason::CannotResolve(
+                    CannotResolveReason::NoMIRAvailable(root, tcx.def_kind(root)),
+                )),
+            );
+        }
+        return GraphBuildResult { call_graph, initial_specs: fn_to_no_panic };
+    }
+
+    match get_callees(&tcx, root) {
+        Ok(callees) => {
+            fn_to_no_panic.insert(root, PanicSpec::MightPanic(PanicReason::Unknown));
+            call_graph.insert(root, callees);
+        }
+        Err(reason) => {
+            fn_to_no_panic.insert(root, PanicSpec::MightPanic(PanicReason::CannotResolve(reason)));
+            return GraphBuildResult { call_graph, initial_specs: fn_to_no_panic };
+        }
+    }
+
+    build_closed_call_graph(tcx, root, &mut call_graph, &mut fn_to_no_panic);
+
+    GraphBuildResult { call_graph, initial_specs: fn_to_no_panic }
 }
 
 fn run_fixpoint(call_graph: &CallGraph, fn_to_no_panic: &mut FxHashMap<DefId, PanicSpec>) {
@@ -272,8 +282,9 @@ fn run_fixpoint(call_graph: &CallGraph, fn_to_no_panic: &mut FxHashMap<DefId, Pa
 /// The entry point for no-panic inference. Given a root function, explores its call graph and returns
 /// an over-approximation of if it might panic, and why.
 pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> {
-    let (call_graph, mut fn_to_no_panic) = explore_reachable_call_graph(tcx, root);
-    run_fixpoint(&call_graph, &mut fn_to_no_panic);
+    let GraphBuildResult { call_graph, mut initial_specs } =
+        explore_reachable_call_graph(tcx, root);
+    run_fixpoint(&call_graph, &mut initial_specs);
 
-    fn_to_no_panic
+    initial_specs
 }
