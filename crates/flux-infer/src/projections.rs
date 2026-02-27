@@ -17,7 +17,7 @@ use flux_middle::{
 use flux_rustc_bridge::{ToRustc, lowering::Lower};
 use itertools::izip;
 use rustc_hir::def_id::DefId;
-use rustc_infer::traits::Obligation;
+use rustc_infer::traits::{BuiltinImplSource, Obligation};
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{TyCtxt, Variance},
@@ -804,6 +804,7 @@ fn normalize_alias_reft<'tcx>(
     let trait_ref = alias_reft.to_rustc_trait_ref(tcx);
     let trait_ref = tcx.erase_and_anonymize_regions(trait_ref);
     let trait_pred = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
+
     let impl_source = selcx
         .select(&trait_pred)
         .map_err(|e| query_bug!("error selecting {trait_pred:?}: {e:?}"))?;
@@ -824,7 +825,7 @@ fn normalize_alias_reft<'tcx>(
                 .apply(refine_args);
             Ok((true, e))
         }
-        Some(ImplSource::Builtin(..)) => {
+        Some(ImplSource::Builtin(BuiltinImplSource::Misc | BuiltinImplSource::Trivial, _)) => {
             let e = genv
                 .builtin_assoc_reft_body(infcx.typing_env(param_env), alias_reft)
                 .apply(refine_args);
