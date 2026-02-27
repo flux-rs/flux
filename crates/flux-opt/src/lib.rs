@@ -124,9 +124,10 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Result<Vec<DefId>, Can
     Ok(callees)
 }
 
-/// The entry point for no-panic inference. Given a root function, explores its call graph and returns
-/// an over-approximation of if it might panic, and why.
-pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> {
+fn explore_reachable_call_graph(
+    tcx: TyCtxt,
+    root: DefId,
+) -> (CallGraph, FxHashMap<DefId, PanicSpec>) {
     let mut fn_to_no_panic: FxHashMap<DefId, PanicSpec> = FxHashMap::default();
     let mut call_graph: CallGraph = FxHashMap::default();
     let mut worklist: Vec<DefId> = vec![];
@@ -137,6 +138,8 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
             tcx.def_path_str(root)
         );
     }
+
+    // let call_graph: CallGraph = build_call_graph(tcx, root);
 
     if !tcx.is_mir_available(root) {
         let def_kind = tcx.def_kind(root);
@@ -155,7 +158,7 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
                 )),
             );
         }
-        return fn_to_no_panic;
+        return (call_graph, fn_to_no_panic);
     }
 
     match get_callees(&tcx, root) {
@@ -165,7 +168,7 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
         }
         Err(reason) => {
             fn_to_no_panic.insert(root, PanicSpec::MightPanic(PanicReason::CannotResolve(reason)));
-            return fn_to_no_panic;
+            return (call_graph, fn_to_no_panic);
         }
     }
     worklist.push(root);
@@ -204,8 +207,10 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
             }
         }
     }
+    (call_graph, fn_to_no_panic)
+}
 
-    // 3. Fixpoint: promote to WillNotPanic when all callees are WillNotPanic
+fn run_fixpoint(call_graph: &CallGraph, fn_to_no_panic: &mut FxHashMap<DefId, PanicSpec>) {
     let mut changed = true;
     while changed {
         changed = false;
@@ -262,36 +267,13 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
             }
         }
     }
+}
 
-    let mut reason_to_count: FxHashMap<String, usize> = FxHashMap::default();
-    for (_, reason) in &fn_to_no_panic {
-        let key = match reason {
-            PanicSpec::WillNotPanic => "WillNotPanic".to_string(),
-            PanicSpec::MightPanic(r) => {
-                match r {
-                    PanicReason::Unknown => "Unknown".to_string(),
-                    PanicReason::ContainsPanic => "ContainsPanic".to_string(),
-                    PanicReason::Transitive => "Transitive".to_string(),
-                    PanicReason::CannotResolve(reason) => {
-                        match reason {
-                            CannotResolveReason::UnresolvedTraitMethod(_) => {
-                                "CannotResolve:UnresolvedTraitMethod".to_string()
-                            }
-                            CannotResolveReason::NotFnDef(_) => {
-                                "CannotResolve:NotFnDef".to_string()
-                            }
-                            CannotResolveReason::NoMIRAvailable(_, _) => {
-                                "CannotResolve:NoMIRAvailable".to_string()
-                            }
-                        }
-                    }
-                    PanicReason::NotInCallGraph => unreachable!(),
-                }
-            }
-        };
-
-        *reason_to_count.entry(key).or_default() += 1;
-    }
+/// The entry point for no-panic inference. Given a root function, explores its call graph and returns
+/// an over-approximation of if it might panic, and why.
+pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> {
+    let (call_graph, mut fn_to_no_panic) = explore_reachable_call_graph(tcx, root);
+    run_fixpoint(&call_graph, &mut fn_to_no_panic);
 
     fn_to_no_panic
 }
