@@ -1,17 +1,17 @@
-#[flux::no_panic]
-fn foo() {
-    bar();
+#[flux::sig(fn(f: F) -> i32)]
+#[flux::no_panic_if(F::no_panic())]
+fn foo<F: Fn(i32) -> i32>(f: F) -> i32 {
+    f(3)
 }
 
-fn bar() {
-    baz();
-    qux();
+#[flux::sig(fn(f: F) -> i32)]
+#[flux::no_panic_if(F::no_panic())]
+fn foo2<F: FnOnce(i32) -> i32>(f: F) -> i32 {
+    f(3)
 }
 
-fn baz() -> i32 {
-    4
-}
-
-fn qux() -> i32 {
-    3
+#[flux::sig(fn(f: F) -> i32)]
+#[flux::no_panic_if(F::no_panic())]
+fn foo3<F: FnMut(i32) -> i32>(mut f: F) -> i32 {
+    f(3)
 }
