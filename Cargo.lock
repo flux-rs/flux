@@ -577,6 +577,7 @@ dependencies = [
  "flux-errors",
  "flux-macros",
  "flux-middle",
+ "flux-opt",
  "flux-rustc-bridge",
  "itertools 0.14.0",
  "liquid-fixpoint",
@@ -632,6 +633,7 @@ dependencies = [
  "flux-config",
  "flux-errors",
  "flux-macros",
+ "flux-opt",
  "flux-rustc-bridge",
  "flux-syntax",
  "hashbrown 0.14.5",
@@ -646,6 +648,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-opt"
+version = "0.1.0"
+dependencies = [
+ "flux-common",
+ "flux-config",
+ "flux-errors",
+ "flux-macros",
+ "flux-rustc-bridge",
+ "itertools 0.14.0",
+ "liquid-fixpoint",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "flux-refineck"
 version = "0.1.0"
 dependencies = [
@@ -655,6 +674,7 @@ dependencies = [
  "flux-infer",
  "flux-macros",
  "flux-middle",
+ "flux-opt",
  "flux-rustc-bridge",
  "itertools 0.14.0",
  "liquid-fixpoint",

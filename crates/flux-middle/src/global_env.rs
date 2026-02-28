@@ -4,6 +4,7 @@ use flux_arc_interner::List;
 use flux_common::{bug, result::ErrorEmitter};
 use flux_config as config;
 use flux_errors::FluxSession;
+use flux_opt::PanicSpec;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordSet;
@@ -456,6 +457,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.lower_late_bound_vars(self, def_id)
     }
 
+    /// Whether we have inferred that the function cannot panic.
+    pub fn inferred_no_panic(self, def_id: impl IntoQueryParam<DefId>) -> PanicSpec {
+        self.inner
+            .queries
+            .inferred_no_panic(self, def_id.into_query_param())
+    }
+
     /// Whether the function is marked with `#[flux::no_panic]`
     pub fn no_panic(self, def_id: impl IntoQueryParam<DefId>) -> bool {
         self.inner.queries.no_panic(self, def_id.into_query_param())
@@ -497,12 +505,22 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             == def_id
     }
 
-    /// Returns whether `def_id` is the `call` method in the `Fn` trait.
+    /// Returns whether `def_id` is the `call` method in the `Fn` trait,
+    /// the `call_mut` method in the `FnMut` trait,
+    /// or the `call_once` method in the `FnOnce` trait.
     pub fn is_fn_call(&self, def_id: DefId) -> bool {
+        let methods_and_names = [
+            (LangItem::Fn, sym::call),
+            (LangItem::FnMut, sym::call_mut),
+            (LangItem::FnOnce, sym::call_once),
+        ];
         let tcx = self.tcx();
         let Some(assoc_item) = tcx.opt_associated_item(def_id) else { return false };
         let Some(trait_id) = assoc_item.trait_container(tcx) else { return false };
-        assoc_item.name() == sym::call && tcx.is_lang_item(trait_id, LangItem::Fn)
+
+        methods_and_names.iter().any(|(lang_item, method_name)| {
+            assoc_item.name() == *method_name && tcx.is_lang_item(trait_id, *lang_item)
+        })
     }
 
     /// Iterator over all local def ids that are not a extern spec

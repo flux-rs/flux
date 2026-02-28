@@ -7,6 +7,7 @@ use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
 use flux_config as config;
 use flux_errors::{E0999, ErrorGuaranteed};
+use flux_opt::{PanicReason, PanicSpec};
 use flux_rustc_bridge::{
     self, def_id_to_string,
     lowering::{self, Lower, UnsupportedErr},
@@ -287,6 +288,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
+    auto_inferred_no_panic: Cache<DefId, PanicSpec>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -328,6 +330,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_late_bound_vars: Default::default(),
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
+            auto_inferred_no_panic: Default::default(),
         }
     }
 
@@ -609,6 +612,33 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     }
                     Ok(rty::ConstantInfo::Uninterpreted)
                 },
+            )
+        })
+    }
+
+    /// An internal function that runs `flux-opt`'s no_panic inference
+    /// tool and saves the results in the query cache.
+    pub(crate) fn inferred_no_panic(&self, genv: GlobalEnv, def_id: DefId) -> PanicSpec {
+        run_with_cache(&self.auto_inferred_no_panic, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                self,
+                |def_id| {
+                    let def_id = def_id.local_id();
+                    let map = flux_opt::infer_no_panics(genv.tcx(), def_id.to_def_id());
+                    map.get(&def_id.to_def_id())
+                        .copied()
+                        .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
+                },
+                |def_id| {
+                    let map = flux_opt::infer_no_panics(genv.tcx(), def_id);
+                    Some(
+                        map.get(&def_id)
+                            .copied()
+                            .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph)),
+                    )
+                },
+                |_| PanicSpec::MightPanic(PanicReason::Unknown),
             )
         })
     }
