@@ -17,11 +17,6 @@ use rustc_trait_selection::traits::SelectionContext;
 
 pub type CallGraph = FxHashMap<DefId, Vec<DefId>>;
 
-struct CallGraphResult {
-    call_graph: CallGraph,
-    resolution_failures: FxHashMap<DefId, CannotResolveReason>,
-}
-
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum PanicSpec {
     WillNotPanic,
@@ -243,9 +238,8 @@ fn explore(
 }
 
 /// Runs a fixpoint algorithm over the call graph to propagate panic specs.
+/// If all callees are known to not panic, then this function is known to not panic.
 /// If a function has a callee that might panic, then it transitively might panic.
-/// If a function has a callee that we failed to resolve, then we mark that it might panic.
-/// Otherwise, if all callees are known to not panic, then this function is known to not panic.
 fn run_fixpoint(call_graph: &CallGraph, fn_to_no_panic: &mut FxHashMap<DefId, PanicSpec>) {
     let mut changed = true;
     while changed {
@@ -284,7 +278,7 @@ fn run_fixpoint(call_graph: &CallGraph, fn_to_no_panic: &mut FxHashMap<DefId, Pa
             if bad_callees.is_empty() {
                 changed = true;
                 fn_to_no_panic.insert(f, PanicSpec::WillNotPanic);
-            // Case 2: This function calls a known panic fn, or has a callee that transitively might panic, so this function transitively might panic.
+            // Case 2: This function has a callee that transitively might panic, so this function transitively might panic.
             } else if matches!(current_spec, PanicSpec::MightPanic(PanicReason::Unknown)) {
                 let current_spec = fn_to_no_panic.get_mut(&f).unwrap();
                 changed = true;
