@@ -49,7 +49,7 @@ struct GraphBuildResult {
 /// an over-approximation of if it might panic and why.
 pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> {
     // 1. Build the call graph.
-    let GraphBuildResult { call_graph, resolution_failures } = build_call_graph(tcx, root);
+    let GraphBuildResult { call_graph, resolution_failures } = build_call_graph(tcx, &[root]);
 
     // 2. Seed the call graph with initial panic specs -- if the previous step found
     //    resolution failures, add those reasons here. Otherwise, seed with Unknown.
@@ -73,18 +73,22 @@ pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> 
 }
 
 /// Builds the call graph starting from the root function. If we encounter a call we can't resolve, we add it to the resolution_failures map and keep going.
-fn build_call_graph(tcx: TyCtxt, root: DefId) -> GraphBuildResult {
+fn build_call_graph(tcx: TyCtxt, roots: &[DefId]) -> GraphBuildResult {
     let mut resolution_failures = FxHashMap::default();
     let mut call_graph: CallGraph = FxHashMap::default();
 
-    if !tcx.def_kind(root).is_fn_like() {
+    if roots.iter().any(|root| !tcx.def_kind(*root).is_fn_like()) {
         flux_common::bug!(
-            "flux-opt::infer_no_panics: root DefId {} is not a function",
-            tcx.def_path_str(root)
+            "flux-opt::infer_no_panics: all root DefIds must be functions, but found non-function roots: {:?}",
+            roots
+                .iter()
+                .filter(|root| !tcx.def_kind(**root).is_fn_like())
+                .map(|root| tcx.def_path_str(*root))
+                .collect::<Vec<_>>()
         );
     }
 
-    explore(tcx, root, &mut call_graph, &mut resolution_failures);
+    explore(tcx, roots, &mut call_graph, &mut resolution_failures);
 
     GraphBuildResult { call_graph, resolution_failures }
 }
@@ -160,32 +164,36 @@ fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Result<Vec<DefId>, CannotResolveR
 /// Explores the call graph starting from the root function, populating the call graph and resolution failures.
 fn explore(
     tcx: TyCtxt,
-    root: DefId,
+    roots: &[DefId],
     call_graph: &mut CallGraph,
     resolution_failures: &mut FxHashMap<DefId, CannotResolveReason>,
 ) {
-    let mut worklist: Vec<DefId> = vec![root];
+    let mut worklist: Vec<DefId> = roots.to_vec();
 
-    // 1. Seed the worklist with the root function, and add its callees to the call graph.
-    if !tcx.is_mir_available(root) {
-        let def_kind = tcx.def_kind(root);
-        if matches!(def_kind, DefKind::AssocFn) {
-            resolution_failures.insert(root, CannotResolveReason::UnresolvedTraitMethod(root));
-        } else {
-            resolution_failures.insert(root, CannotResolveReason::NoMIRAvailable(root, def_kind));
-        }
-        call_graph.insert(root, Vec::new());
-        return;
-    }
-
-    match get_callees(&tcx, root) {
-        Ok(callees) => {
-            call_graph.insert(root, callees);
-        }
-        Err(reason) => {
+    // 1. Seed the worklist with the root functions, and add their callees to the call graph.
+    for root in roots {
+        let root = *root;
+        if !tcx.is_mir_available(root) {
+            let def_kind = tcx.def_kind(root);
+            if matches!(def_kind, DefKind::AssocFn) {
+                resolution_failures.insert(root, CannotResolveReason::UnresolvedTraitMethod(root));
+            } else {
+                resolution_failures
+                    .insert(root, CannotResolveReason::NoMIRAvailable(root, def_kind));
+            }
             call_graph.insert(root, Vec::new());
-            resolution_failures.insert(root, reason);
             return;
+        }
+
+        match get_callees(&tcx, root) {
+            Ok(callees) => {
+                call_graph.insert(root, callees);
+            }
+            Err(reason) => {
+                call_graph.insert(root, Vec::new());
+                resolution_failures.insert(root, reason);
+                return;
+            }
         }
     }
 
