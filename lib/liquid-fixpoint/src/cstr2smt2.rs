@@ -941,6 +941,15 @@ pub fn qe_and_simplify<T: Types>(
                         Ok(Expr::FALSE)
                     } else {
                         // println!("before simplifying: {}", fixpoint_expr);
+                        //
+                        // TODO: this is wrong, we want to prune disjunctions to
+                        // the weakest logical statement possible.
+                        //
+                        // Right now we simplify `a > 0 || a >= 0` to `a > 0`
+                        // when we should simplify it to `a >= 0`. Not sure
+                        // what this means for logical AND, probably we can
+                        // flip it to strongest?`
+                        //
                         // simplify(&mut fixpoint_expr, &mut vars, &solver);
                         // println!("after simplifying: {}", fixpoint_expr);
                         Ok(fixpoint_expr)
