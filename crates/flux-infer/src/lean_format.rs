@@ -622,7 +622,7 @@ impl LeanFmt for KVarDecl {
 impl LeanFmt for (&KVid, &ClosedSolution) {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         let (kvid, (implicit, (explicit, inner))) = self;
-        write!(f, "noncomputable def k{} ", kvid.as_usize())?;
+        write!(f, "def k{} ", kvid.as_usize())?;
         for (arg, sort) in implicit.iter().chain(explicit) {
             write!(f, "(")?;
             arg.lean_fmt(f, cx)?;
@@ -661,7 +661,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
             writeln!(f, "open {namespace}\n\n")?;
         }
 
-        write!(f, "\n\nnoncomputable def {theorem_name} := ")?;
+        write!(f, "\n\ndef {theorem_name} := ")?;
 
         if self.kvars.is_empty() {
             self.constr.lean_fmt(f, cx)

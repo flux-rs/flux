@@ -419,11 +419,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
             writeln!(file, "{}", self.open_classical())?;
             namespaced(&mut file, |f| {
-                writeln!(
-                    f,
-                    "noncomputable def {} := sorry",
-                    WithLeanCtxt { item: sort, cx: &self.lean_cx() }
-                )
+                writeln!(f, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })
             })?;
             file.sync_all()?;
         }
@@ -728,7 +724,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", LeanFile::Vc(def_id).import(self.genv))?;
             writeln!(file, "{}", self.open_classical())?;
             namespaced(&mut file, |f| {
-                writeln!(f, "noncomputable def {proof_name} : {vc_name} := by")?;
+                writeln!(f, "def {proof_name} : {vc_name} := by")?;
                 writeln!(f, "  unfold {vc_name}")?;
                 writeln!(f, "  sorry")
             })?;
