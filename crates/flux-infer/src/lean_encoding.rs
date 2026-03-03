@@ -25,9 +25,7 @@ use rustc_span::ErrorGuaranteed;
 
 use crate::{
     fixpoint_encoding::{ConstDeps, InterpretedConst, KVarSolutions, SortDeps, fixpoint},
-    lean_format::{
-        self, BoolMode, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case,
-    },
+    lean_format::{self, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case},
 };
 
 /// Helper macro to create Vec<String> from string-like values
@@ -290,7 +288,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             adt_map: &self.sort_deps.adt_map,
             opaque_adt_map: &self.sort_deps.opaque_sorts,
             kvar_solutions: &self.kvar_solutions,
-            bool_mode: BoolMode::Bool,
         }
     }
 
@@ -312,6 +309,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     fn var_name(&self, var: &fixpoint::Var) -> String {
         let name = format!("{}", WithLeanCtxt { item: var, cx: &self.lean_cx() });
         snake_case_to_pascal_case(&name)
+    }
+
+    fn open_classical(&self) -> &str {
+        "open Classical"
     }
 
     fn new(
@@ -416,6 +417,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = file.path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
+            writeln!(file, "{}", self.open_classical())?;
             namespaced(&mut file, |f| {
                 writeln!(f, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })
             })?;
@@ -456,6 +458,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             for dep in self.data_decl_dependencies(data_decl) {
                 writeln!(file, "{}", dep.import(self.genv))?;
             }
+            writeln!(file, "{}", self.open_classical())?;
 
             // write data decl
             namespaced(&mut file, |f| {
@@ -527,6 +530,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             for dep in self.fun_def_dependencies(did, fun_def) {
                 writeln!(file, "{}", dep.import(self.genv))?;
             }
+            writeln!(file, "{}", self.open_classical())?;
 
             // write fun def
             namespaced(&mut file, |f| {
@@ -554,6 +558,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             for dep in sort_deps {
                 writeln!(file, "{}", self.sort_file(&dep).import(self.genv))?;
             }
+
+            writeln!(file, "{}", self.open_classical())?;
 
             namespaced(&mut file, |f| {
                 if let Some(comment) = &const_decl.comment {
@@ -683,6 +689,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = LeanFile::Vc(def_id).path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
             self.generate_vc_imports(&mut file)?;
+            writeln!(file, "{}", self.open_classical())?;
 
             let vc_name = vc_name(self.genv, def_id);
             // 3. Write the VC
@@ -715,6 +722,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
             writeln!(file, "{}", LeanFile::Vc(def_id).import(self.genv))?;
+            writeln!(file, "{}", self.open_classical())?;
             namespaced(&mut file, |f| {
                 writeln!(f, "def {proof_name} : {vc_name} := by")?;
                 writeln!(f, "  unfold {vc_name}")?;
