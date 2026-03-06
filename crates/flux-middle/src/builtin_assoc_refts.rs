@@ -118,11 +118,12 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
             let self_ty = alias_reft.self_ty();
             let body = match self_ty.as_bty_skipping_binder() {
                 BaseTy::Closure(_, _, _, no_panic) => {
-                    if *no_panic {
-                        rty::Expr::tt()
-                    } else {
-                        rty::Expr::ff()
-                    }
+                    no_panic.clone()
+                    // if *no_panic {
+                    //     rty::Expr::tt()
+                    // } else {
+                    //     rty::Expr::ff()
+                    // }
                 }
                 _ => rty::Expr::ff(),
             };

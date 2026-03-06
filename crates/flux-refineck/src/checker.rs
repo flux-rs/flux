@@ -1335,7 +1335,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let closure_id = did.expect_local();
         let span = tcx.def_span(closure_id);
         let body = genv.mir(closure_id).with_span(span)?;
-        let no_panic = self.genv.no_panic(*did);
+        let mut no_panic = if self.genv.no_panic(*did) { Expr::tt() } else { Expr::ff() };
+
+        if let Ok(fn_sig) = self.genv.fn_sig(self.checker_id.root_id().to_def_id()) {
+            no_panic = fn_sig.skip_binder().skip_binder().no_panic();
+        }
+
         let closure_sig = rty::to_closure_sig(tcx, closure_id, upvar_tys, args, poly_sig, no_panic);
         Checker::run(
             infcx.change_item(closure_id, &body.infcx),
@@ -1343,6 +1348,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             self.inherited.reborrow(),
             closure_sig,
         )
+    }
+
+    // TODO: this function should ensure that the EarlyBinder matches that of the closure, and that
+    //       the inner binder of the FnSig can't mention EarlyBinder variables.
+    //       For now, this is a nothing burger.
+    fn no_panic_if_ok(expr: Expr) -> bool {
+        true
     }
 
     fn check_rvalue_closure(
@@ -1363,7 +1375,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (3) "Save" the closure type in the `closures` map
         self.inherited.closures.insert(*did, poly_sig);
         // (4) Return the closure type
-        let no_panic = self.genv.no_panic(*did);
+        let mut no_panic = if self.genv.no_panic(*did) { Expr::tt() } else { Expr::ff() };
+
+        // (5) Walk up the parent chain and find the first non-closure parent to determine
+        //     the context in which the closure is defined.
+        let parent_id: DefId = self.checker_id.root_id().to_def_id();
+        if let Ok(fn_sig) = self.genv.fn_sig(parent_id) {
+            // TODO:
+            no_panic = fn_sig.skip_binder().skip_binder().no_panic();
+        }
+
         Ok(Ty::closure(*did, upvar_tys, args, no_panic))
     }
 
