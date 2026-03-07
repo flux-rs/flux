@@ -3,7 +3,11 @@ use std::rc::Rc;
 use rustc_hir::def_id::CrateNum;
 use rustc_span::def_id::DefId;
 
-use crate::{def_id::FluxDefId, queries::QueryResult, rty};
+use crate::{
+    def_id::FluxDefId,
+    queries::QueryResult,
+    rty::{self, Expr},
+};
 
 pub type OptResult<T> = Option<QueryResult<T>>;
 
@@ -37,6 +41,7 @@ pub trait CrateStore {
     fn func_span(&self, def_id: FluxDefId) -> Option<rustc_span::Span>;
     fn sort_decl_param_count(&self, def_id: FluxDefId) -> Option<usize>;
     fn no_panic(&self, def_id: DefId) -> Option<bool>;
+    fn no_panic_if(&self, def_id: DefId) -> Option<Expr>;
 }
 
 pub type CrateStoreDyn = dyn CrateStore;

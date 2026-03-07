@@ -27,7 +27,7 @@ use crate::{
     queries::{DispatchKey, Providers, Queries, QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, QualifierKind,
+        self, Expr, QualifierKind,
         refining::{Refine as _, Refiner},
     },
 };
@@ -459,6 +459,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// Whether the function is marked with `#[flux::no_panic]`
     pub fn no_panic(self, def_id: impl IntoQueryParam<DefId>) -> bool {
         self.inner.queries.no_panic(self, def_id.into_query_param())
+    }
+
+    pub fn no_panic_if(self, def_id: impl IntoQueryParam<DefId>) -> Expr {
+        self.inner
+            .queries
+            .no_panic_if(self, def_id.into_query_param())
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {

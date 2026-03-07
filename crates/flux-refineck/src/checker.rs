@@ -1353,8 +1353,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     // TODO: this function should ensure that the EarlyBinder matches that of the closure, and that
     //       the inner binder of the FnSig can't mention EarlyBinder variables.
     //       For now, this is a nothing burger.
-    fn no_panic_if_ok(expr: Expr) -> bool {
-        true
+    fn no_panic_if_ok(parent_sig: PolyFnSig, closure_sig: PolyFnSig) -> () {
+        // 1. The EarlyBinder matches that of the closure.
     }
 
     fn check_rvalue_closure(
@@ -1379,11 +1379,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // (5) Walk up the parent chain and find the first non-closure parent to determine
         //     the context in which the closure is defined.
-        let parent_id: DefId = self.checker_id.root_id().to_def_id();
-        if let Ok(fn_sig) = self.genv.fn_sig(parent_id) {
-            // TODO:
-            no_panic = fn_sig.skip_binder().skip_binder().no_panic();
-        }
+        let no_panic = self.genv.no_panic_if(self.checker_id.root_id());
 
         Ok(Ty::closure(*did, upvar_tys, args, no_panic))
     }

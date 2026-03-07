@@ -287,6 +287,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
+    no_panic_if: Cache<DefId, Expr>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -328,6 +329,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_late_bound_vars: Default::default(),
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
+            no_panic_if: Default::default(),
         }
     }
 
@@ -666,6 +668,50 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 },
                 |def_id| genv.cstore().no_panic(def_id),
                 |_| false,
+            )
+        })
+    }
+
+    pub(crate) fn no_panic_if(&self, genv: GlobalEnv, def_id: DefId) -> Expr {
+        run_with_cache(&self.no_panic_if, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                self,
+                |def_id| {
+                    let mut current_id = def_id.local_id();
+
+                    // Walk up the entire parent chain within this closure
+                    loop {
+                        // Skip dummy items and closures.
+                        if genv.is_dummy(current_id)
+                            || genv.tcx().is_closure_like(current_id.into())
+                        {
+                            if let Some(parent) = genv.tcx().opt_local_parent(current_id) {
+                                current_id = parent;
+                                continue;
+                            } else {
+                                return Expr::ff(); // Reached top without finding non-dummy
+                            }
+                        }
+
+                        if let Ok(sig) = genv.fn_sig(current_id.to_def_id()) {
+                            return sig.skip_binder().skip_binder().no_panic();
+                        }
+
+                        // Move to the next parent
+                        if let Some(parent) = genv.tcx().opt_local_parent(current_id) {
+                            current_id = parent;
+                        } else {
+                            break; // Reached the top
+                        }
+                    }
+
+                    // Be default, try to inherit the `no_panic` status from the raw annotations if
+                    // `no_panic_if` is not present.
+                    if genv.no_panic(def_id) { Expr::tt() } else { Expr::ff() }
+                },
+                |def_id| genv.cstore().no_panic_if(def_id),
+                |_| Expr::ff(),
             )
         })
     }

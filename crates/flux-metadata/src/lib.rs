@@ -178,6 +178,7 @@ pub struct Tables<K: Eq + Hash> {
     func_span: UnordMap<FluxId<K>, Span>,
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
     no_panic: UnordMap<K, bool>,
+    no_panic_if: UnordMap<K, rty::Expr>,
 }
 
 impl CStore {
@@ -258,6 +259,10 @@ impl CrateStore for CStore {
 
     fn no_panic(&self, def_id: DefId) -> Option<bool> {
         get!(self, no_panic, def_id)
+    }
+
+    fn no_panic_if(&self, def_id: DefId) -> Option<rty::Expr> {
+        get!(self, no_panic_if, def_id)
     }
 
     fn variants_of(
