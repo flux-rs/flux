@@ -1,3 +1,6 @@
+driver_no_panic_if_without_sig =
+    `no_panic_if` attribute requires a `sig` annotation on the same item
+
 driver_duplicated_attr =
     duplicated attribute `{$name}`
 
