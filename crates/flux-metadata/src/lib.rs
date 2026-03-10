@@ -261,10 +261,6 @@ impl CrateStore for CStore {
         get!(self, no_panic, def_id)
     }
 
-    fn no_panic_if(&self, def_id: DefId) -> Option<rty::Expr> {
-        get!(self, no_panic_if, def_id)
-    }
-
     fn variants_of(
         &self,
         def_id: DefId,

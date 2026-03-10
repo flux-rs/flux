@@ -27,7 +27,7 @@ use crate::{
     queries::{DispatchKey, Providers, Queries, QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, Expr, QualifierKind,
+        self, QualifierKind,
         refining::{Refine as _, Refiner},
     },
 };
@@ -439,6 +439,24 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .variants_of(self, def_id.into_query_param())
     }
 
+    pub fn parent_of_closure(self, def_id: DefId) -> DefId {
+        let tcx = self.tcx();
+        // assert_eq!(tcx.def_kind(def_id), DefKind::Closure);
+
+        let mut current = def_id;
+
+        loop {
+            let kind = tcx.def_kind(current);
+
+            if kind != DefKind::Closure && kind.is_fn_like() {
+                return current;
+            }
+
+            // This bugs out if we reach the top of the parent chain without finding a function item.
+            current = tcx.parent(current);
+        }
+    }
+
     pub fn variant_sig(
         self,
         def_id: DefId,
@@ -459,12 +477,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// Whether the function is marked with `#[flux::no_panic]`
     pub fn no_panic(self, def_id: impl IntoQueryParam<DefId>) -> bool {
         self.inner.queries.no_panic(self, def_id.into_query_param())
-    }
-
-    pub fn no_panic_if(self, def_id: impl IntoQueryParam<DefId>) -> Expr {
-        self.inner
-            .queries
-            .no_panic_if(self, def_id.into_query_param())
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {
