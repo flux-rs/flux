@@ -1,4 +1,5 @@
 #[flux_rs::no_panic_if(true)]
+#[flux_rs::sig(fn() -> ())]
 fn foo1() {
     evil(); //~ ERROR may panic
     let x = || {
