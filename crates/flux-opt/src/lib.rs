@@ -48,13 +48,24 @@ struct GraphBuildResult {
     pub resolution_failures: FxHashMap<DefId, CannotResolveReason>,
 }
 
+/// Andrew:
+/// 1. inside `queries.rs`, steal the shape of `GlobalEnv::normalized_defns` to punt the external crate
+///    queries to the cratestore
+/// 2. When we reach the boundary of a call to something external _here_, query the GlobalEnv for the no-panic spec.
+/// 3. ^ Unless, it's core.
+
 /// The entry point for no-panic inference. Given a root function, explores its call graph and returns
 /// an over-approximation of if it might panic and why.
 pub fn infer_no_panics(tcx: TyCtxt, crate_num: CrateNum) -> FxHashMap<DefId, PanicSpec> {
+    println!("how many body owners are there? {}", tcx.hir_body_owners().count());
     let roots = tcx
         .hir_body_owners()
         .filter_map(|def_id| {
             let def_id = def_id.to_def_id();
+            println!("looking at {} with crate num {}", tcx.def_path_str(def_id), def_id.krate);
+            if def_id.krate != crate_num {
+                return None;
+            }
             if tcx.def_kind(def_id).is_fn_like() { Some(def_id) } else { None }
         })
         .collect::<Vec<_>>();

@@ -625,6 +625,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         crate_num: CrateNum,
     ) -> FxHashMap<DefId, PanicSpec> {
         run_with_cache(&self.crate_auto_inferred_no_panic, crate_num, || {
+            println!("running crate-level inference on crate num {crate_num}");
             flux_opt::infer_no_panics(genv.tcx(), crate_num)
         })
     }
@@ -638,30 +639,20 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 self,
                 |def_id| {
                     let def_id = def_id.local_id();
-                    println!("querying inferred no_panic for {def_id:?}");
-                    println!("that is the {} function", genv.tcx().def_path_str(def_id));
                     let map = self.inferred_no_panic_crate(genv, def_id.to_def_id().krate);
                     map.get(&def_id.to_def_id())
                         .copied()
                         .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
                 },
                 |def_id| {
-                    println!("external!");
-                    println!(
-                        "querying inferred no_panic for {def_id:?} with crate num {}",
-                        def_id.krate
-                    );
-                    println!("that is the {} function", genv.tcx().def_path_str(def_id));
                     let map = self.inferred_no_panic_crate(genv, def_id.krate);
-                    println!("map size: {}", map.len());
-                    println!("map keys: {:?}", map.keys().take(10).collect_vec());
                     Some(
                         map.get(&def_id)
                             .copied()
                             .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph)),
                     )
                 },
-                |def_id| PanicSpec::MightPanic(PanicReason::Unknown),
+                |_| PanicSpec::MightPanic(PanicReason::Unknown),
             )
         })
     }
