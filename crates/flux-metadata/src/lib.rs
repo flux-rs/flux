@@ -178,7 +178,6 @@ pub struct Tables<K: Eq + Hash> {
     func_span: UnordMap<FluxId<K>, Span>,
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
     no_panic: UnordMap<K, bool>,
-    no_panic_if: UnordMap<K, rty::Expr>,
 }
 
 impl CStore {

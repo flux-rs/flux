@@ -755,7 +755,6 @@ pub fn to_closure_sig(
         fn_sig.requires.clone(),
         inputs.into(),
         output,
-        // if no_panic { crate::rty::Expr::tt() } else { crate::rty::Expr::ff() },
         no_panic,
         false,
     );

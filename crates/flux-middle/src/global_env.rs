@@ -441,7 +441,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn parent_of_closure(self, def_id: DefId) -> DefId {
         let tcx = self.tcx();
-        // assert_eq!(tcx.def_kind(def_id), DefKind::Closure);
 
         let mut current = def_id;
 
@@ -452,7 +451,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                 return current;
             }
 
-            // This bugs out if we reach the top of the parent chain without finding a function item.
+            // This `bug!`s out if we reach the top of the parent chain without finding a function item.
             current = tcx.parent(current);
         }
     }

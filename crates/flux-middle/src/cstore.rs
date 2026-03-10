@@ -3,11 +3,7 @@ use std::rc::Rc;
 use rustc_hir::def_id::CrateNum;
 use rustc_span::def_id::DefId;
 
-use crate::{
-    def_id::FluxDefId,
-    queries::QueryResult,
-    rty::{self},
-};
+use crate::{def_id::FluxDefId, queries::QueryResult, rty};
 
 pub type OptResult<T> = Option<QueryResult<T>>;
 
