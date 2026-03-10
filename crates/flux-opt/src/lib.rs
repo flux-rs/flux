@@ -7,7 +7,10 @@ extern crate rustc_trait_selection;
 
 use flux_rustc_bridge::lowering::resolve_call_query;
 use rustc_hash::FxHashMap;
-use rustc_hir::{def::DefKind, def_id::DefId};
+use rustc_hir::{
+    def::DefKind,
+    def_id::{CrateNum, DefId},
+};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     mir::TerminatorKind,
@@ -47,9 +50,17 @@ struct GraphBuildResult {
 
 /// The entry point for no-panic inference. Given a root function, explores its call graph and returns
 /// an over-approximation of if it might panic and why.
-pub fn infer_no_panics(tcx: TyCtxt, root: DefId) -> FxHashMap<DefId, PanicSpec> {
+pub fn infer_no_panics(tcx: TyCtxt, crate_num: CrateNum) -> FxHashMap<DefId, PanicSpec> {
+    let roots = tcx
+        .hir_body_owners()
+        .filter_map(|def_id| {
+            let def_id = def_id.to_def_id();
+            if tcx.def_kind(def_id).is_fn_like() { Some(def_id) } else { None }
+        })
+        .collect::<Vec<_>>();
     // 1. Build the call graph.
-    let GraphBuildResult { call_graph, resolution_failures } = build_call_graph(tcx, &[root]);
+    let GraphBuildResult { call_graph, resolution_failures } =
+        build_call_graph(tcx, &roots.as_slice());
 
     // 2. Seed the call graph with initial panic specs -- if the previous step found
     //    resolution failures, add those reasons here. Otherwise, seed with Unknown.
@@ -187,9 +198,18 @@ fn explore(
 
         match get_callees(&tcx, root) {
             Ok(callees) => {
+                println!(
+                    "callees for {}: {:?}",
+                    tcx.def_path_str(root),
+                    callees
+                        .iter()
+                        .map(|callee| tcx.def_path_str(*callee))
+                        .collect::<Vec<_>>()
+                );
                 call_graph.insert(root, callees);
             }
             Err(reason) => {
+                println!("failed to get callees for {}: {:?}", tcx.def_path_str(root), reason);
                 call_graph.insert(root, Vec::new());
                 resolution_failures.insert(root, reason);
                 return;

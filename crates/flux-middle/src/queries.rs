@@ -18,6 +18,7 @@ use flux_syntax::symbols::sym;
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_errors::Diagnostic;
+use rustc_hash::FxHashMap;
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -288,6 +289,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
+    crate_auto_inferred_no_panic: Cache<CrateNum, FxHashMap<DefId, PanicSpec>>,
     auto_inferred_no_panic: Cache<DefId, PanicSpec>,
 }
 
@@ -331,6 +333,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
             auto_inferred_no_panic: Default::default(),
+            crate_auto_inferred_no_panic: Default::default(),
         }
     }
 
@@ -616,6 +619,16 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
+    fn inferred_no_panic_crate(
+        &self,
+        genv: GlobalEnv,
+        crate_num: CrateNum,
+    ) -> FxHashMap<DefId, PanicSpec> {
+        run_with_cache(&self.crate_auto_inferred_no_panic, crate_num, || {
+            flux_opt::infer_no_panics(genv.tcx(), crate_num)
+        })
+    }
+
     /// An internal function that runs `flux-opt`'s no_panic inference
     /// tool and saves the results in the query cache.
     pub(crate) fn inferred_no_panic(&self, genv: GlobalEnv, def_id: DefId) -> PanicSpec {
@@ -625,20 +638,30 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 self,
                 |def_id| {
                     let def_id = def_id.local_id();
-                    let map = flux_opt::infer_no_panics(genv.tcx(), def_id.to_def_id());
+                    println!("querying inferred no_panic for {def_id:?}");
+                    println!("that is the {} function", genv.tcx().def_path_str(def_id));
+                    let map = self.inferred_no_panic_crate(genv, def_id.to_def_id().krate);
                     map.get(&def_id.to_def_id())
                         .copied()
                         .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
                 },
                 |def_id| {
-                    let map = flux_opt::infer_no_panics(genv.tcx(), def_id);
+                    println!("external!");
+                    println!(
+                        "querying inferred no_panic for {def_id:?} with crate num {}",
+                        def_id.krate
+                    );
+                    println!("that is the {} function", genv.tcx().def_path_str(def_id));
+                    let map = self.inferred_no_panic_crate(genv, def_id.krate);
+                    println!("map size: {}", map.len());
+                    println!("map keys: {:?}", map.keys().take(10).collect_vec());
                     Some(
                         map.get(&def_id)
                             .copied()
                             .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph)),
                     )
                 },
-                |_| PanicSpec::MightPanic(PanicReason::Unknown),
+                |def_id| PanicSpec::MightPanic(PanicReason::Unknown),
             )
         })
     }
