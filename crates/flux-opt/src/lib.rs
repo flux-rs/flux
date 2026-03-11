@@ -57,12 +57,6 @@ struct GraphBuildResult {
     external_callees: FxHashSet<DefId>,
 }
 
-/// Andrew:
-/// 1. inside `queries.rs`, steal the shape of `GlobalEnv::normalized_defns` to punt the external crate
-///    queries to the cratestore
-/// 2. When we reach the boundary of a call to something external _here_, query the GlobalEnv for the no-panic spec.
-/// 3. ^ Unless, it's core.
-
 /// The entry point for no-panic inference. Given a root function, explores its call graph and returns
 /// an over-approximation of if it might panic and why.
 pub fn infer_no_panics(

@@ -325,7 +325,10 @@ impl CrateStore for CStore {
     }
 
     fn inferred_no_panic(&self, krate: CrateNum) -> rustc_hash::FxHashMap<DefId, PanicSpec> {
-        self.local_tables[&krate].no_panic_specs.clone()
+        // TODO: Some transitive deps (e.g. `hashbrown`) have no flux metadata. Return
+        // an empty map (conservative: MightPanic) until the proper fix is in place.
+        // See notes/hashbrown-inferred-no-panic.txt.
+        self.local_tables.get(&krate).map(|t| t.no_panic_specs.clone()).unwrap_or_default()
     }
 
     fn func_sort(&self, key: FluxDefId) -> Option<rty::PolyFuncSort> {
