@@ -104,7 +104,7 @@ fn flux_def_ident_span(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> Span {
 }
 
 fn inferred_no_panic(genv: GlobalEnv) -> FxHashMap<DefId, PanicSpec> {
-    flux_opt::infer_no_panics(genv.tcx(), LOCAL_CRATE)
+    flux_opt::infer_no_panics(genv.tcx(), LOCAL_CRATE, |def_id| genv.inferred_no_panic(def_id))
 }
 
 fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {

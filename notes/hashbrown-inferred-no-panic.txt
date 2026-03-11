@@ -1,0 +1,55 @@
+Issue: `hashbrown` (and potentially other transitive deps) not found in `local_tables`
+======================================================================================
+
+Discovered while running: `cargo x run ./tests/tests/pos/surface/rset00.rs`
+Branch: ninehusky-auto-infer-no-panic
+
+## What happened
+
+When flux checks a function that calls into an external non-stdlib crate, it tries to
+look up that crate's inferred-no-panic map via `genv.cstore().inferred_no_panic(krate)`.
+This hits `CStore::inferred_no_panic`, which indexes into `local_tables` and panics if
+the krate isn't present.
+
+The specific offender discovered was `hashbrown`, which is a transitive dependency of
+`flux-core` (used internally by std's HashMap). `hashbrown` is compiled by cargo but
+NOT through the flux analysis pipeline, so it never emits flux metadata and is never
+inserted into `local_tables`.
+
+## Call chain (from backtrace)
+
+    flux_refineck::checker::Checker::check_call
+      -> genv.inferred_no_panic(callee_def_id)           [global_env.rs]
+        -> queries::inferred_no_panic_crate(krate)        [queries.rs]
+          -> genv.cstore().inferred_no_panic(krate)       [queries.rs - else branch]
+            -> self.local_tables[&krate]                  [flux-metadata/lib.rs:328] PANIC
+
+Also triggered recursively via the `external_spec` closure inside `infer_no_panics`:
+
+    flux_opt::infer_no_panics (for LOCAL_CRATE)
+      -> external_spec(callee_def_id)                     [fhir-analysis/lib.rs]
+        -> genv.inferred_no_panic(callee_def_id)
+          -> ... (same path as above) -> PANIC
+
+## Why the assumption broke
+
+The original assumption was: "cargo's scheduler ensures all non-stdlib dependencies were
+compiled through flux and therefore have flux metadata in local_tables." This is NOT true
+for all transitive deps. Crates like `hashbrown`, `compiler_builtins`, `getrandom`, etc.
+may be pulled in as transitive deps without ever going through the flux pipeline.
+
+## Proposed fix (not yet implemented)
+
+Add `has_inferred_no_panic(krate: CrateNum) -> bool` to the `CrateStore` trait,
+implemented as `self.local_tables.contains_key(&krate)` in `CStore`. Then in
+`queries::inferred_no_panic_crate`, guard the cstore call:
+
+    } else if is_stdlib_crate(genv.tcx(), krate) || !genv.cstore().has_inferred_no_panic(krate) {
+        FxHashMap::default()
+    } else {
+        genv.cstore().inferred_no_panic(krate)
+    }
+
+This keeps `CStore::inferred_no_panic` as a strict/panicking invariant check, while
+`queries.rs` handles the "no metadata available" case explicitly and conservatively
+(returning empty map => MightPanic for all functions in that crate).

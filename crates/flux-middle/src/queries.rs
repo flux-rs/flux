@@ -635,6 +635,19 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             } else if is_stdlib_crate(genv.tcx(), krate) {
                 FxHashMap::default()
             } else {
+                // Andrew: After implementing crate-level boundaries for the call graph,
+                // I found that we were hitting a panic at
+                // `crates/flux-metadata/src/lib.rs:328:26:`, saying that
+                // we were unable to find an entry for a crate in `local_tables`.
+                // Here are Claude's notes on the issue:
+                // TEMPORARY TRACE: see notes/hashbrown-inferred-no-panic.txt for context.
+                // Some transitive deps (e.g. `hashbrown`) are not compiled through flux
+                // and therefore have no entry in local_tables. This will panic if krate
+                // is one of those. Remove once the fix is implemented.
+                eprintln!(
+                    "[inferred_no_panic_crate] looking up external crate: {:?}",
+                    genv.tcx().crate_name(krate)
+                );
                 genv.cstore().inferred_no_panic(krate)
             }
         })
