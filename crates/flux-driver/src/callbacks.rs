@@ -94,7 +94,10 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let combined_constraints = combine_constraints(genv, ck.constraints).expect("combine_constriants failed");
         let rendered_constraint = format!("{}", join(combined_constraints, "\n"));
 
-        let constraint_file = std::fs::File::create(&config::log_dir().join(format!("{}-all-in-one-constraint.smt2", crate_name))).expect("file creation failed");
+        let filepath = config::log_dir().join(format!("{}-all-in-one-constraint.smt2", crate_name));
+        std::fs::create_dir_all(&config::log_dir()).unwrap();
+        println!("creating {:?}", filepath);
+        let constraint_file = std::fs::File::create(filepath).expect("file creation failed");
         let mut writer = std::io::BufWriter::new(constraint_file);
         write!(writer, "{}", rendered_constraint).expect("write failed");
 
