@@ -8,6 +8,7 @@ use flux_opt::PanicSpec;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordSet;
+use rustc_hash::FxHashMap;
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -168,6 +169,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
             slice::from_raw_parts(dst.as_ptr(), len)
         }
+    }
+
+    pub fn inferred_no_panic_crate(self, krate: CrateNum) -> FxHashMap<DefId, PanicSpec> {
+        self.inner.queries.inferred_no_panic_crate(self, krate)
     }
 
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {

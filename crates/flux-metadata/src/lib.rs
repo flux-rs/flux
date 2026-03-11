@@ -33,10 +33,12 @@ use flux_middle::{
     queries::QueryResult,
     rty,
 };
+use flux_opt::PanicSpec;
 use rustc_data_structures::{
     fx::FxHashMap,
     unord::{ExtendUnord, UnordMap},
 };
+use rustc_hash::FxHashMap as RustcFxHashMap;
 use rustc_hir::{
     def::{CtorKind, DefKind},
     def_id::{LOCAL_CRATE, LocalDefId},
@@ -178,6 +180,7 @@ pub struct Tables<K: Eq + Hash> {
     func_span: UnordMap<FluxId<K>, Span>,
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
     no_panic: UnordMap<K, bool>,
+    no_panic_specs: RustcFxHashMap<DefId, PanicSpec>,
 }
 
 impl CStore {
@@ -321,6 +324,10 @@ impl CrateStore for CStore {
         self.local_tables[&krate].normalized_defns.clone()
     }
 
+    fn inferred_no_panic(&self, krate: CrateNum) -> rustc_hash::FxHashMap<DefId, PanicSpec> {
+        self.local_tables[&krate].no_panic_specs.clone()
+    }
+
     fn func_sort(&self, key: FluxDefId) -> Option<rty::PolyFuncSort> {
         get!(self, func_sort, key)
     }
@@ -361,6 +368,7 @@ impl CrateMetadata {
 
 fn encode_flux_defs(genv: GlobalEnv, tables: &mut Tables<DefIndex>) {
     tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
+    tables.no_panic_specs = genv.inferred_no_panic_crate(LOCAL_CRATE);
 
     for (def_id, item) in genv.fhir_iter_flux_items() {
         match item {

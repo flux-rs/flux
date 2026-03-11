@@ -562,6 +562,7 @@ dependencies = [
  "flux-infer",
  "flux-macros",
  "flux-middle",
+ "flux-opt",
  "flux-rustc-bridge",
  "itertools 0.14.0",
  "rustc-hash",
@@ -614,6 +615,7 @@ dependencies = [
  "flux-errors",
  "flux-macros",
  "flux-middle",
+ "flux-opt",
  "itertools 0.14.0",
  "rustc-hash",
 ]

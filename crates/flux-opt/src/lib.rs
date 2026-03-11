@@ -2,7 +2,10 @@
 
 extern crate rustc_hir;
 extern crate rustc_infer;
+extern crate rustc_macros;
 extern crate rustc_middle;
+extern crate rustc_serialize;
+extern crate rustc_span;
 extern crate rustc_trait_selection;
 
 use flux_rustc_bridge::lowering::resolve_call_query;
@@ -12,6 +15,7 @@ use rustc_hir::{
     def_id::{CrateNum, DefId},
 };
 use rustc_infer::infer::TyCtxtInferExt;
+use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir::TerminatorKind,
     ty::{TyCtxt, TypingMode},
@@ -20,13 +24,13 @@ use rustc_trait_selection::traits::SelectionContext;
 
 pub type CallGraph = FxHashMap<DefId, Vec<DefId>>;
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub enum PanicSpec {
     WillNotPanic,
     MightPanic(PanicReason),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum PanicReason {
     Unknown,
     Transitive,
@@ -35,7 +39,7 @@ pub enum PanicReason {
     NoMIRAvailable,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum CannotResolveReason {
     NoMIRAvailable(DefId, DefKind),
     UnresolvedTraitMethod(DefId),
@@ -57,12 +61,10 @@ struct GraphBuildResult {
 /// The entry point for no-panic inference. Given a root function, explores its call graph and returns
 /// an over-approximation of if it might panic and why.
 pub fn infer_no_panics(tcx: TyCtxt, crate_num: CrateNum) -> FxHashMap<DefId, PanicSpec> {
-    println!("how many body owners are there? {}", tcx.hir_body_owners().count());
     let roots = tcx
         .hir_body_owners()
         .filter_map(|def_id| {
             let def_id = def_id.to_def_id();
-            println!("looking at {} with crate num {}", tcx.def_path_str(def_id), def_id.krate);
             if def_id.krate != crate_num {
                 return None;
             }
@@ -209,18 +211,9 @@ fn explore(
 
         match get_callees(&tcx, root) {
             Ok(callees) => {
-                println!(
-                    "callees for {}: {:?}",
-                    tcx.def_path_str(root),
-                    callees
-                        .iter()
-                        .map(|callee| tcx.def_path_str(*callee))
-                        .collect::<Vec<_>>()
-                );
                 call_graph.insert(root, callees);
             }
             Err(reason) => {
-                println!("failed to get callees for {}: {:?}", tcx.def_path_str(root), reason);
                 call_graph.insert(root, Vec::new());
                 resolution_failures.insert(root, reason);
                 return;

@@ -36,21 +36,24 @@ use flux_middle::{
         refining::{self, Refiner},
     },
 };
+use flux_opt::PanicSpec;
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
 use rustc_abi::FIRST_VARIANT;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
+use rustc_hash::FxHashMap;
 use rustc_hir::{
     OwnerId,
     def::{CtorOf, DefKind},
-    def_id::{DefId, LocalDefId},
+    def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_span::Span;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn provide(providers: &mut Providers) {
+    providers.inferred_no_panic = inferred_no_panic;
     providers.normalized_defns = normalized_defns;
     providers.func_sort = func_sort;
     providers.func_span = flux_def_ident_span;
@@ -98,6 +101,10 @@ fn flux_def_ident_span(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> Span {
     genv.fhir_spec_func_body(def_id.local_id())
         .unwrap()
         .ident_span
+}
+
+fn inferred_no_panic(genv: GlobalEnv) -> FxHashMap<DefId, PanicSpec> {
+    flux_opt::infer_no_panics(genv.tcx(), LOCAL_CRATE)
 }
 
 fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {

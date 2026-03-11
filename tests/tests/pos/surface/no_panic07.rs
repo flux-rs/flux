@@ -6,6 +6,6 @@ pub fn decode_bytes_be(buf: &[u8], out: &mut [u8]) {
     //     let x = 3;
     // }
 
-    // call somethign in std that won't panic, for sure.
+    // call something in std that won't panic, for sure.
     let _ = std::mem::size_of::<u8>();
 }

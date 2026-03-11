@@ -1,5 +1,7 @@
 use std::rc::Rc;
 
+use flux_opt::PanicSpec;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::CrateNum;
 use rustc_span::def_id::DefId;
 
@@ -37,6 +39,7 @@ pub trait CrateStore {
     fn func_span(&self, def_id: FluxDefId) -> Option<rustc_span::Span>;
     fn sort_decl_param_count(&self, def_id: FluxDefId) -> Option<usize>;
     fn no_panic(&self, def_id: DefId) -> Option<bool>;
+    fn inferred_no_panic(&self, krate: CrateNum) -> FxHashMap<DefId, PanicSpec>;
 }
 
 pub type CrateStoreDyn = dyn CrateStore;
