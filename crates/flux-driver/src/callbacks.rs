@@ -67,6 +67,7 @@ impl FluxCallbacks {
         );
 
         let mut providers = Providers::default();
+        flux_opt::provide(&mut providers);
         flux_desugar::provide(&mut providers);
         flux_fhir_analysis::provide(&mut providers);
         providers.collect_specs = collect_specs;

@@ -5,12 +5,14 @@ extern crate rustc_infer;
 extern crate rustc_middle;
 extern crate rustc_trait_selection;
 
-use flux_middle::{CannotResolveReason, PanicReason, PanicSpec};
+use flux_middle::{
+    CannotResolveReason, PanicReason, PanicSpec, global_env::GlobalEnv, queries::Providers,
+};
 use flux_rustc_bridge::lowering::resolve_call_query;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
     def::DefKind,
-    def_id::{CrateNum, DefId},
+    def_id::{CrateNum, DefId, LOCAL_CRATE},
 };
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
@@ -20,6 +22,14 @@ use rustc_middle::{
 use rustc_trait_selection::traits::SelectionContext;
 
 pub type CallGraph = FxHashMap<DefId, Vec<DefId>>;
+
+pub fn provide(providers: &mut Providers) {
+    providers.inferred_no_panic = inferred_no_panic;
+}
+
+pub fn inferred_no_panic(genv: GlobalEnv) -> FxHashMap<DefId, PanicSpec> {
+    infer_no_panics(genv.tcx(), LOCAL_CRATE, |def_id| genv.inferred_no_panic(def_id))
+}
 
 fn is_stdlib_crate(tcx: TyCtxt, krate: CrateNum) -> bool {
     matches!(tcx.crate_name(krate).as_str(), "core" | "alloc" | "std")
