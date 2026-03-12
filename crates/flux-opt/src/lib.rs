@@ -50,13 +50,21 @@ pub fn infer_no_panics(
     external_spec: impl Fn(DefId) -> PanicSpec,
 ) -> FxHashMap<DefId, PanicSpec> {
     let tcx = genv.tcx();
+
+    // We need to use `iter_local_def_id` instead of `hir_body_owners`
+    // so that we can visit trait items with no MIR, I think.
     let roots = tcx
-        .hir_body_owners()
-        .filter_map(|def_id| {
-            let def_id = def_id.to_def_id();
-            if tcx.def_kind(def_id).is_fn_like() { Some(def_id) } else { None }
+        .iter_local_def_id()
+        .filter_map(|local_id| {
+            let def_id = local_id.to_def_id();
+            if !tcx.def_kind(def_id).is_fn_like() { None } else { Some(def_id) }
         })
         .collect::<Vec<_>>();
+
+    eprintln!("{} roots for crate {}:", roots.len(), tcx.crate_name(crate_num));
+    for root in &roots {
+        eprintln!("  {}", tcx.def_path_str(*root));
+    }
 
     // 1. Build the call graph.
     let GraphBuildResult { call_graph, resolution_failures, external_callees } =

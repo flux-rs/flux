@@ -1,9 +1,30 @@
-#[flux::no_panic]
-pub fn decode_bytes_be(buf: &[u8], out: &mut [u8]) {
-    // This test checks that no-panic inference is able to resolve the
-    // call to `iter().rev().enumerate()` and determine that it does not panic.
-    let l = out.len();
-    for (i, b) in buf[..out.len()].iter().rev().enumerate() {
-        let x = 3;
+mod iface {
+    pub trait Receive {
+        fn receive_buffer(&self);
     }
+
+    pub trait UartData: Receive {}
 }
+
+mod driver {
+    use super::iface::{Receive, UartData};
+
+    pub struct MyUart;
+
+    impl Receive for MyUart {
+        fn receive_buffer(&self) {}
+    }
+
+    impl UartData for MyUart {}
+}
+
+use iface::UartData;
+
+#[flux::no_panic]
+fn foo(x: &dyn UartData) {
+    let clos = || {
+        x.receive_buffer();
+    };
+}
+
+fn main() {}
