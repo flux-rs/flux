@@ -68,12 +68,10 @@ pub fn infer_no_panics(
         .hir_body_owners()
         .filter_map(|def_id| {
             let def_id = def_id.to_def_id();
-            if def_id.krate != crate_num {
-                return None;
-            }
             if tcx.def_kind(def_id).is_fn_like() { Some(def_id) } else { None }
         })
         .collect::<Vec<_>>();
+
     // 1. Build the call graph.
     let GraphBuildResult { call_graph, resolution_failures, external_callees } =
         build_call_graph(tcx, crate_num, &roots.as_slice());
@@ -159,45 +157,53 @@ fn try_resolve<'tcx>(
     Ok(impl_id)
 }
 
-/// Returns the callees of a function, or an error if we fail to resolve any callees.
-fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Result<Vec<DefId>, CannotResolveReason> {
+/// Returns the callees of a function as (resolved, failures), where failures are
+/// (callee_def_id, reason) pairs. Continues past individual resolution failures
+/// rather than short-circuiting, so all reachable callees end up in the call graph.
+fn get_callees(tcx: &TyCtxt, def_id: DefId) -> (Vec<DefId>, Vec<(DefId, CannotResolveReason)>) {
     let body = tcx.optimized_mir(def_id);
 
-    let mut callees = Vec::new();
+    let mut resolved = Vec::new();
+    let mut failures = Vec::new();
     for bb in body.basic_blocks.iter() {
         if let TerminatorKind::Call { func, .. } = &bb.terminator().kind {
             let ty = func.ty(&body.local_decls, *tcx);
-            // 1. Here, try to resolve the callee to either a method in an impl or a free function.
-            // Otherwise, assume the caller can panic.
-            // We can resolve the callee DefId by constructing a inferctxt from the tyctxt
 
             match ty.kind() {
-                rustc_middle::ty::TyKind::FnDef(def_id, args) => {
-                    let Some(_trait_id) = tcx.trait_of_assoc(*def_id) else {
-                        // If it's a free function, there's no need to resolve.
-                        callees.push(*def_id);
+                rustc_middle::ty::TyKind::FnDef(callee_id, args) => {
+                    let Some(_trait_id) = tcx.trait_of_assoc(*callee_id) else {
+                        // Free function — no resolution needed.
+                        resolved.push(*callee_id);
                         continue;
                     };
 
-                    let impl_id = try_resolve(tcx, *def_id, args)?;
-
-                    if !tcx.is_mir_available(impl_id) {
-                        return Err(CannotResolveReason::NoMIRAvailable(
-                            impl_id,
-                            tcx.def_kind(impl_id),
-                        ));
+                    match try_resolve(tcx, *callee_id, args) {
+                        Err(reason) => {
+                            failures.push((*callee_id, reason));
+                        }
+                        Ok(impl_id) => {
+                            if !tcx.is_mir_available(impl_id) {
+                                failures.push((
+                                    impl_id,
+                                    CannotResolveReason::NoMIRAvailable(
+                                        impl_id,
+                                        tcx.def_kind(impl_id),
+                                    ),
+                                ));
+                            } else {
+                                resolved.push(impl_id);
+                            }
+                        }
                     }
-
-                    callees.push(impl_id);
                 }
                 _ => {
-                    // Error case 2: We're trying to reason about something that's not an FnDef.
-                    return Err(CannotResolveReason::NotFnDef(def_id));
+                    // Not an FnDef (e.g. function pointer / closure) — use caller as sentinel.
+                    failures.push((def_id, CannotResolveReason::NotFnDef(def_id)));
                 }
             };
         }
     }
-    Ok(callees)
+    (resolved, failures)
 }
 
 /// Explores the call graph starting from the root function, populating the call graph and resolution failures.
@@ -211,6 +217,17 @@ fn explore(
 ) {
     let mut worklist: Vec<DefId> = roots.to_vec();
 
+    // Helper: register individual callee failures as leaves in the call graph.
+    let register_failures =
+        |call_graph: &mut CallGraph,
+         resolution_failures: &mut FxHashMap<DefId, CannotResolveReason>,
+         failures: Vec<(DefId, CannotResolveReason)>| {
+            for (failed_id, reason) in failures {
+                call_graph.entry(failed_id).or_default();
+                resolution_failures.entry(failed_id).or_insert(reason);
+            }
+        };
+
     // 1. Seed the worklist with the root functions, and add their callees to the call graph.
     for root in roots {
         let root = *root;
@@ -223,19 +240,24 @@ fn explore(
                     .insert(root, CannotResolveReason::NoMIRAvailable(root, def_kind));
             }
             call_graph.insert(root, Vec::new());
-            return;
+            continue;
         }
 
-        match get_callees(&tcx, root) {
-            Ok(callees) => {
-                call_graph.insert(root, callees);
-            }
-            Err(reason) => {
-                call_graph.insert(root, Vec::new());
-                resolution_failures.insert(root, reason);
-                return;
-            }
+        let (resolved, failures) = get_callees(&tcx, root);
+        println!("callees of {}:", tcx.def_path_str(root));
+        println!("resolved:");
+        for callee in &resolved {
+            println!("  {}", tcx.def_path_str(*callee));
         }
+
+        println!("failures:");
+        for (failed_id, reason) in &failures {
+            println!("  {}: {:?}", tcx.def_path_str(*failed_id), reason);
+        }
+        println!("MIR of root:");
+        println!("{:#?}", tcx.optimized_mir(root));
+        register_failures(call_graph, resolution_failures, failures);
+        call_graph.insert(root, resolved);
     }
 
     // 2. Explore reachable callees (build closed call graph)
@@ -255,16 +277,12 @@ fn explore(
             }
 
             if tcx.is_mir_available(callee) {
-                match get_callees(&tcx, callee) {
-                    Ok(callees) => {
-                        call_graph.insert(callee, callees);
-                        worklist.push(callee);
-                    }
-                    Err(reason) => {
-                        resolution_failures.insert(callee, reason);
-                    }
-                }
+                let (resolved, failures) = get_callees(&tcx, callee);
+                register_failures(call_graph, resolution_failures, failures);
+                call_graph.insert(callee, resolved);
+                worklist.push(callee);
             } else {
+                call_graph.entry(callee).or_default();
                 resolution_failures.insert(
                     callee,
                     CannotResolveReason::NoMIRAvailable(callee, tcx.def_kind(callee)),

@@ -630,10 +630,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         }
 
         run_with_cache(&self.inferred_no_panic, krate, || {
-            if krate == LOCAL_CRATE {
+            if krate == LOCAL_CRATE || is_stdlib_crate(genv.tcx(), krate) {
                 (self.providers.inferred_no_panic)(genv)
-            } else if is_stdlib_crate(genv.tcx(), krate) {
-                FxHashMap::default()
             } else {
                 genv.cstore().inferred_no_panic(krate)
             }
