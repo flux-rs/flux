@@ -642,7 +642,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         // This just dispatches to the appropriate provider.
         let map = self.inferred_no_panic_crate(genv, def_id.krate);
         let Some(spec) = map.get(&def_id) else {
-            return PanicSpec::MightPanic(PanicReason::NotInCallGraph);
+            bug!(
+                "Invariant violation: could not find inferred no-panic spec for {def_id:?} in crate {:?}",
+                def_id.krate
+            )
         };
         *spec
     }
