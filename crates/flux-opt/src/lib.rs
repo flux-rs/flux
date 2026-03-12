@@ -28,7 +28,7 @@ pub fn provide(providers: &mut Providers) {
 }
 
 pub fn inferred_no_panic(genv: GlobalEnv) -> FxHashMap<DefId, PanicSpec> {
-    infer_no_panics(genv.tcx(), LOCAL_CRATE, |def_id| genv.inferred_no_panic(def_id))
+    infer_no_panics(genv, LOCAL_CRATE, |def_id| genv.inferred_no_panic(def_id))
 }
 
 fn is_stdlib_crate(tcx: TyCtxt, krate: CrateNum) -> bool {
@@ -45,10 +45,11 @@ struct GraphBuildResult {
 /// The entry point for no-panic inference. Given a root function, explores its call graph and returns
 /// an over-approximation of if it might panic and why.
 pub fn infer_no_panics(
-    tcx: TyCtxt,
+    genv: GlobalEnv,
     crate_num: CrateNum,
     external_spec: impl Fn(DefId) -> PanicSpec,
 ) -> FxHashMap<DefId, PanicSpec> {
+    let tcx = genv.tcx();
     let roots = tcx
         .hir_body_owners()
         .filter_map(|def_id| {
@@ -59,7 +60,7 @@ pub fn infer_no_panics(
 
     // 1. Build the call graph.
     let GraphBuildResult { call_graph, resolution_failures, external_callees } =
-        build_call_graph(tcx, crate_num, &roots.as_slice());
+        build_call_graph(genv, crate_num, &roots.as_slice());
 
     // 2. Seed the call graph with initial panic specs.
     //    - External non-stdlib callees: use the provided spec from their crate's metadata.
@@ -87,7 +88,8 @@ pub fn infer_no_panics(
 }
 
 /// Builds the call graph starting from the root function. If we encounter a call we can't resolve, we add it to the resolution_failures map and keep going.
-fn build_call_graph(tcx: TyCtxt, crate_num: CrateNum, roots: &[DefId]) -> GraphBuildResult {
+fn build_call_graph(genv: GlobalEnv, crate_num: CrateNum, roots: &[DefId]) -> GraphBuildResult {
+    let tcx = genv.tcx();
     let mut resolution_failures = FxHashMap::default();
     let mut call_graph: CallGraph = FxHashMap::default();
     let mut external_callees: FxHashSet<DefId> = FxHashSet::default();
@@ -104,7 +106,7 @@ fn build_call_graph(tcx: TyCtxt, crate_num: CrateNum, roots: &[DefId]) -> GraphB
     }
 
     explore(
-        tcx,
+        genv,
         crate_num,
         roots,
         &mut call_graph,
@@ -117,7 +119,7 @@ fn build_call_graph(tcx: TyCtxt, crate_num: CrateNum, roots: &[DefId]) -> GraphB
 
 /// Tries to resolve a trait method call to an impl method. If successful, returns the DefId of the impl method.
 fn try_resolve<'tcx>(
-    tcx: &TyCtxt<'tcx>,
+    tcx: TyCtxt<'tcx>,
     caller_id: DefId,
     callee_id: DefId,
     args: rustc_middle::ty::GenericArgsRef<'tcx>,
@@ -129,7 +131,7 @@ fn try_resolve<'tcx>(
         .build(TypingMode::non_body_analysis());
     let mut selcx = SelectionContext::new(&infcx);
 
-    let resolved = resolve_call_query(*tcx, &mut selcx, param_env, callee_id, args);
+    let resolved = resolve_call_query(tcx, &mut selcx, param_env, callee_id, args);
 
     let Some((impl_id, _)) = resolved else {
         // Error case 1: we fail to resolve a trait method to an impl.
@@ -146,20 +148,25 @@ fn try_resolve<'tcx>(
 /// Returns the callees of a function as (resolved, failures), where failures are
 /// (callee_def_id, reason) pairs. Continues past individual resolution failures
 /// rather than short-circuiting, so all reachable callees end up in the call graph.
-fn get_callees(tcx: &TyCtxt, def_id: DefId) -> (Vec<DefId>, Vec<(DefId, CannotResolveReason)>) {
-    // let body = if def_id.is_local() {
-    //     // genv.mir(def_id.expect_local())
-    //     tcx.mir_built(def_id.expect_local())
-    // } else {
-    //     tcx.optimized_mir(def_id)
-    // }
-    let body = tcx.optimized_mir(def_id);
+fn get_callees<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
+    def_id: DefId,
+) -> (Vec<DefId>, Vec<(DefId, CannotResolveReason)>) {
+    let tcx = genv.tcx();
+    // Keep the Rc alive for the duration of this function so we can borrow from it.
+    let local_mir;
+    let body: &rustc_middle::mir::Body<'tcx> = if let Some(local_id) = def_id.as_local() {
+        local_mir = genv.mir(local_id).unwrap();
+        &local_mir.body.rustc_body
+    } else {
+        tcx.optimized_mir(def_id)
+    };
 
     let mut resolved = Vec::new();
     let mut failures = Vec::new();
     for bb in body.basic_blocks.iter() {
         if let TerminatorKind::Call { func, .. } = &bb.terminator().kind {
-            let ty = func.ty(&body.local_decls, *tcx);
+            let ty = func.ty(&body.local_decls, tcx);
 
             match ty.kind() {
                 rustc_middle::ty::TyKind::FnDef(callee_id, args) => {
@@ -200,13 +207,14 @@ fn get_callees(tcx: &TyCtxt, def_id: DefId) -> (Vec<DefId>, Vec<(DefId, CannotRe
 
 /// Explores the call graph starting from the root function, populating the call graph and resolution failures.
 fn explore(
-    tcx: TyCtxt,
+    genv: GlobalEnv,
     crate_num: CrateNum,
     roots: &[DefId],
     call_graph: &mut CallGraph,
     resolution_failures: &mut FxHashMap<DefId, CannotResolveReason>,
     external_callees: &mut FxHashSet<DefId>,
 ) {
+    let tcx = genv.tcx();
     let mut worklist: Vec<DefId> = roots.to_vec();
 
     // Helper: register individual callee failures as leaves in the call graph.
@@ -235,7 +243,7 @@ fn explore(
             continue;
         }
 
-        let (resolved, failures) = get_callees(&tcx, root);
+        let (resolved, failures) = get_callees(genv, root);
         // println!("callees of {}:", tcx.def_path_str(root));
         // println!("resolved:");
         // for callee in &resolved {
@@ -269,7 +277,7 @@ fn explore(
             }
 
             if tcx.is_mir_available(callee) {
-                let (resolved, failures) = get_callees(&tcx, callee);
+                let (resolved, failures) = get_callees(genv, callee);
                 register_failures(call_graph, resolution_failures, failures);
                 call_graph.insert(callee, resolved);
                 worklist.push(callee);
