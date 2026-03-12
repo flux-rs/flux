@@ -22,6 +22,7 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
+    PanicSpec,
     def_id::{FluxDefId, FluxId, MaybeExternId},
     fhir::{
         self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
@@ -36,7 +37,6 @@ use flux_middle::{
         refining::{self, Refiner},
     },
 };
-use flux_opt::PanicSpec;
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
 use rustc_abi::FIRST_VARIANT;

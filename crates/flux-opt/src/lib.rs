@@ -2,12 +2,10 @@
 
 extern crate rustc_hir;
 extern crate rustc_infer;
-extern crate rustc_macros;
 extern crate rustc_middle;
-extern crate rustc_serialize;
-extern crate rustc_span;
 extern crate rustc_trait_selection;
 
+use flux_middle::{CannotResolveReason, PanicReason, PanicSpec};
 use flux_rustc_bridge::lowering::resolve_call_query;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
@@ -15,7 +13,6 @@ use rustc_hir::{
     def_id::{CrateNum, DefId},
 };
 use rustc_infer::infer::TyCtxtInferExt;
-use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir::TerminatorKind,
     ty::{TyCtxt, TypingMode},
@@ -23,28 +20,6 @@ use rustc_middle::{
 use rustc_trait_selection::traits::SelectionContext;
 
 pub type CallGraph = FxHashMap<DefId, Vec<DefId>>;
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Encodable, Decodable)]
-pub enum PanicSpec {
-    WillNotPanic,
-    MightPanic(PanicReason),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub enum PanicReason {
-    Unknown,
-    Transitive,
-    CannotResolve(CannotResolveReason),
-    NotInCallGraph,
-    NoMIRAvailable,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub enum CannotResolveReason {
-    NoMIRAvailable(DefId, DefKind),
-    UnresolvedTraitMethod(DefId),
-    NotFnDef(DefId),
-}
 
 fn is_stdlib_crate(tcx: TyCtxt, krate: CrateNum) -> bool {
     matches!(tcx.crate_name(krate).as_str(), "core" | "alloc" | "std")
@@ -133,21 +108,22 @@ fn build_call_graph(tcx: TyCtxt, crate_num: CrateNum, roots: &[DefId]) -> GraphB
 /// Tries to resolve a trait method call to an impl method. If successful, returns the DefId of the impl method.
 fn try_resolve<'tcx>(
     tcx: &TyCtxt<'tcx>,
-    def_id: DefId,
+    caller_id: DefId,
+    callee_id: DefId,
     args: rustc_middle::ty::GenericArgsRef<'tcx>,
 ) -> Result<DefId, CannotResolveReason> {
-    let param_env = tcx.param_env(def_id);
+    let param_env = tcx.param_env(caller_id);
     let infcx = tcx
         .infer_ctxt()
         .with_next_trait_solver(true)
         .build(TypingMode::non_body_analysis());
     let mut selcx = SelectionContext::new(&infcx);
 
-    let resolved = resolve_call_query(*tcx, &mut selcx, param_env, def_id, args);
+    let resolved = resolve_call_query(*tcx, &mut selcx, param_env, callee_id, args);
 
     let Some((impl_id, _)) = resolved else {
         // Error case 1: we fail to resolve a trait method to an impl.
-        return Err(CannotResolveReason::UnresolvedTraitMethod(def_id));
+        return Err(CannotResolveReason::UnresolvedTraitMethod(callee_id));
     };
 
     if !tcx.is_mir_available(impl_id) {
@@ -161,6 +137,12 @@ fn try_resolve<'tcx>(
 /// (callee_def_id, reason) pairs. Continues past individual resolution failures
 /// rather than short-circuiting, so all reachable callees end up in the call graph.
 fn get_callees(tcx: &TyCtxt, def_id: DefId) -> (Vec<DefId>, Vec<(DefId, CannotResolveReason)>) {
+    // let body = if def_id.is_local() {
+    //     // genv.mir(def_id.expect_local())
+    //     tcx.mir_built(def_id.expect_local())
+    // } else {
+    //     tcx.optimized_mir(def_id)
+    // }
     let body = tcx.optimized_mir(def_id);
 
     let mut resolved = Vec::new();
@@ -177,7 +159,7 @@ fn get_callees(tcx: &TyCtxt, def_id: DefId) -> (Vec<DefId>, Vec<(DefId, CannotRe
                         continue;
                     };
 
-                    match try_resolve(tcx, *callee_id, args) {
+                    match try_resolve(tcx, def_id, *callee_id, args) {
                         Err(reason) => {
                             failures.push((*callee_id, reason));
                         }
@@ -244,18 +226,18 @@ fn explore(
         }
 
         let (resolved, failures) = get_callees(&tcx, root);
-        println!("callees of {}:", tcx.def_path_str(root));
-        println!("resolved:");
-        for callee in &resolved {
-            println!("  {}", tcx.def_path_str(*callee));
-        }
+        // println!("callees of {}:", tcx.def_path_str(root));
+        // println!("resolved:");
+        // for callee in &resolved {
+        //     println!("  {}", tcx.def_path_str(*callee));
+        // }
 
-        println!("failures:");
-        for (failed_id, reason) in &failures {
-            println!("  {}: {:?}", tcx.def_path_str(*failed_id), reason);
-        }
-        println!("MIR of root:");
-        println!("{:#?}", tcx.optimized_mir(root));
+        // println!("failures:");
+        // for (failed_id, reason) in &failures {
+        //     println!("  {}: {:?}", tcx.def_path_str(*failed_id), reason);
+        // }
+        // println!("MIR of root:");
+        // println!("{:#?}", tcx.optimized_mir(root));
         register_failures(call_graph, resolution_failures, failures);
         call_graph.insert(root, resolved);
     }

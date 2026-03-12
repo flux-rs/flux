@@ -4,7 +4,6 @@ use flux_arc_interner::List;
 use flux_common::{bug, result::ErrorEmitter};
 use flux_config as config;
 use flux_errors::FluxSession;
-use flux_opt::PanicSpec;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordSet;
@@ -23,6 +22,7 @@ pub use rustc_span::{Symbol, symbol::Ident};
 use tempfile::TempDir;
 
 use crate::{
+    PanicSpec,
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},

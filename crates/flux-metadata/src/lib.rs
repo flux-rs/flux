@@ -26,6 +26,7 @@ use derive_where::derive_where;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use flux_middle::{
+    PanicSpec,
     cstore::{CrateStore, OptResult},
     def_id::{FluxDefId, FluxId},
     fhir,
@@ -33,7 +34,6 @@ use flux_middle::{
     queries::QueryResult,
     rty,
 };
-use flux_opt::PanicSpec;
 use rustc_data_structures::{
     fx::FxHashMap,
     unord::{ExtendUnord, UnordMap},
@@ -328,7 +328,10 @@ impl CrateStore for CStore {
         // TODO: Some transitive deps (e.g. `hashbrown`) have no flux metadata. Return
         // an empty map (conservative: MightPanic) until the proper fix is in place.
         // See notes/hashbrown-inferred-no-panic.txt.
-        self.local_tables.get(&krate).map(|t| t.no_panic_specs.clone()).unwrap_or_default()
+        self.local_tables
+            .get(&krate)
+            .map(|t| t.no_panic_specs.clone())
+            .unwrap_or_default()
     }
 
     fn func_sort(&self, key: FluxDefId) -> Option<rty::PolyFuncSort> {

@@ -13,6 +13,7 @@ use flux_infer::{
     refine_tree::{Marker, RefineCtxtTrace},
 };
 use flux_middle::{
+    PanicSpec,
     global_env::GlobalEnv,
     pretty::PrettyCx,
     queries::{QueryResult, try_query},
@@ -27,7 +28,6 @@ use flux_middle::{
         refining::{Refine, Refiner},
     },
 };
-use flux_opt::PanicSpec;
 use flux_rustc_bridge::{
     self, ToRustc,
     mir::{

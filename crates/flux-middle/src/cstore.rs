@@ -1,11 +1,10 @@
 use std::rc::Rc;
 
-use flux_opt::PanicSpec;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::CrateNum;
 use rustc_span::def_id::DefId;
 
-use crate::{def_id::FluxDefId, queries::QueryResult, rty};
+use crate::{PanicSpec, def_id::FluxDefId, queries::QueryResult, rty};
 
 pub type OptResult<T> = Option<QueryResult<T>>;
 

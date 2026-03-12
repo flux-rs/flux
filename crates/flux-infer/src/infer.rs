@@ -4,7 +4,7 @@ use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_sp
 use flux_config::{self as config, InferOpts, OverflowMode, RawDerefMode};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
-    FixpointQueryKind,
+    FixpointQueryKind, PanicSpec,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric},
@@ -19,7 +19,6 @@ use flux_middle::{
         fold::TypeFoldable,
     },
 };
-use flux_opt::PanicSpec;
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;

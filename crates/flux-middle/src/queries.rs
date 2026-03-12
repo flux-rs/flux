@@ -7,7 +7,6 @@ use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
 use flux_config as config;
 use flux_errors::{E0999, ErrorGuaranteed};
-use flux_opt::{PanicReason, PanicSpec};
 use flux_rustc_bridge::{
     self, def_id_to_string,
     lowering::{self, Lower, UnsupportedErr},
@@ -29,6 +28,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
+    PanicReason, PanicSpec,
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
