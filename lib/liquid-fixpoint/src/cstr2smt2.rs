@@ -837,7 +837,7 @@ pub fn qe_and_simplify<T: Types>(
         const_vars.insert(const_decl.name.clone());
         vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars));
     });
-    let free_vars: HashSet<_> = vars.bindings.keys().cloned().collect();
+    // let free_vars: HashSet<_> = vars.bindings.keys().cloned().collect();
     // These are going to be the bound vars, so we declare the free vars above them.
     for (var, sort) in &cstr.binders {
         // TODO: eliminate binders that are unused.
@@ -855,15 +855,16 @@ pub fn qe_and_simplify<T: Types>(
             goal.assert(&pred_ast);
             None
         } else {
+            Some(pred_ast)
             // println!("precondition\n {}", pred);
-            if fvs.is_subset(&free_vars) {
-                // println!("assumption\n  {}", pred);
-                // goal.assert(&pred_ast);
-                Some(pred_ast)
-                // None
-            } else {
-                Some(pred_ast)
-            }
+            // if fvs.is_subset(&free_vars) {
+            //     // println!("assumption\n  {}", pred);
+            //     // goal.assert(&pred_ast);
+            //     Some(pred_ast)
+            //     // None
+            // } else {
+            //     Some(pred_ast)
+            // }
         }
     }).collect_vec());
     let rhs = pred_to_z3(&cstr.head, &mut vars, AllowKVars::NoKVars);
@@ -924,18 +925,18 @@ pub fn qe_and_simplify<T: Types>(
                     // return z3_to_expr(&vars, &simplified_cstr);
                     let mut fixpoint_expr = z3_to_expr(&vars, &new_cstr)?;
                     // println!("checking {} for vacuity,", fixpoint_expr);
-                    solver.assert(new_cstr.as_bool().unwrap());
-                    match solver.check() {
-                        SatResult::Unsat => return Ok(Expr::FALSE),
-                        _ => {}
-                    };
-                    solver.pop(1);
-                    solver.push();
-                    for pred in &cstr.preconditions() {
-                        let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
-                        // println!("asserting invariant {}", pred);
-                        solver.assert(&pred_ast);
-                    }
+                    // solver.assert(new_cstr.as_bool().unwrap());
+                    // match solver.check() {
+                    //     SatResult::Unsat => return Ok(Expr::FALSE),
+                    //     _ => {}
+                    // };
+                    // solver.pop(1);
+                    // solver.push();
+                    // for pred in &cstr.preconditions() {
+                    //     let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
+                    //     // println!("asserting invariant {}", pred);
+                    //     solver.assert(&pred_ast);
+                    // }
                     // println!("solved originally to: {}", fixpoint_expr);
                     return if prune_vacuous(&mut fixpoint_expr, &mut vars, &solver) {
                         Ok(Expr::FALSE)
