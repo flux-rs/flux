@@ -497,11 +497,8 @@ impl Node {
                     self.kind = NodeKind::Head(pred, *tag);
                 }
             }
-            NodeKind::Assumption(pred, assumption_type) => {
-                // Skip invariants because we don't ever want to simplify or
-                // remove them.
-                if let AssumptionType::Assumption = assumption_type &&
-                    let SimplifyPhase::Full(genv) = phase {
+            NodeKind::Assumption(pred, _assumption_type) => {
+                if let SimplifyPhase::Full(genv) = phase {
                         *pred = pred.normalize(genv).simplify(assumed_preds);
                 }
                 pred.visit_conj(|conjunct| {
