@@ -624,7 +624,7 @@ impl WKVarSolutions {
         &self,
         genv: GlobalEnv,
         path: &std::path::PathBuf,
-        num_iters: usize,
+        _num_iters: usize,
     ) -> std::io::Result<()> {
         #[derive(serde::Serialize)]
         struct CsvRow {
@@ -636,48 +636,65 @@ impl WKVarSolutions {
             time_to_check: f32,
             time_to_hint: f32,
             total_time: f32,
+            iters: usize,
         }
         let (stats_by_fn, num_nontrivial_real_wkvars, num_nontrivial_internal_wkvars) = self.stats_by_fn(genv);
         let mut writer = csv::Writer::from_path(path.as_path())?;
         let (fn_timings, total_time) = refinement_hint_timings();
         let mut total_hint_time: f32 = 0.0;
-        let mut total_check_time: f32 = 0.0;
+        let mut total_query_time: f32 = 0.0;
+        let mut total_num_iters = 0;
         let mut total = WKVarSolutionStats::default();
         let num_fns = stats_by_fn.len();
         let mut latex_table = String::new();
-        latex_table.push_str("Function name & Inferences & Guided Assumptions & Guided Removals & Ground Truth Expressions \\\\\n");
+        latex_table.push_str("Function name & Inferences & Guided Assumptions & Guided Removals & Ground Truth Expressions & VC check time & Reft hint time & Total time & Iters \\\\\n");
         stats_by_fn.into_iter().try_for_each(|((fn_def_id, fn_name), stats)| {
-            if (stats.num_solved_exprs > 0 || stats.num_assumed_exprs > 0 || stats.num_actual_exprs > 0) {
-                println!("{}", fn_name);
-                let timings = &fn_timings[&fn_def_id];
-                println!("timings {:?}", timings);
-                total = total.combine(&stats);
-                let row = CsvRow {
-                    fn_name,
-                    num_solved_exprs: stats.num_solved_exprs,
-                    num_assumed_exprs: stats.num_assumed_exprs,
-                    num_removed_solved_exprs: stats.num_removed_solved_exprs,
-                    num_actual_exprs: stats.num_actual_exprs,
-                    time_to_check: (timings.total_check - timings.reft_hint).as_secs_f32(),
-                    time_to_hint: timings.reft_hint.as_secs_f32(),
-                    total_time: timings.total_check.as_secs_f32(),
-                };
-                total_hint_time += timings.reft_hint.as_secs_f32();
-                total_check_time += (timings.total_check - timings.reft_hint).as_secs_f32();
-                // println!("fn {}", row.fn_name);
-                // println!("  num solved:  {}", row.num_solved_exprs);
-                // println!("  num assumed: {}", row.num_assumed_exprs);
-                // println!("  num removed: {}", row.num_removed_solved_exprs);
-                // println!("  num actual:  {}", row.num_actual_exprs);
-                latex_table.push_str(&format!("{} & {} & {} & {} & {}\\\\\n", row.fn_name, row.num_solved_exprs, row.num_assumed_exprs, row.num_removed_solved_exprs, row.num_actual_exprs));
-                writer.serialize(row)
-            } else {
-                Ok(())
-            }
+            let timings = fn_timings.get(&fn_def_id).cloned().unwrap_or_default();
+            total = total.combine(&stats);
+            let row = CsvRow {
+                fn_name,
+                num_solved_exprs: stats.num_solved_exprs,
+                num_assumed_exprs: stats.num_assumed_exprs,
+                num_removed_solved_exprs: stats.num_removed_solved_exprs,
+                num_actual_exprs: stats.num_actual_exprs,
+                time_to_check: timings.query.as_secs_f32(),
+                time_to_hint: timings.reft_hint.as_secs_f32(),
+                total_time: (timings.query + timings.reft_hint).as_secs_f32(),
+                iters: timings.iters,
+            };
+            total_hint_time += timings.reft_hint.as_secs_f32();
+            total_query_time += timings.query.as_secs_f32();
+            total_num_iters = std::cmp::max(total_num_iters, timings.iters);
+            // println!("fn {}", row.fn_name);
+            // println!("  num solved:  {}", row.num_solved_exprs);
+            // println!("  num assumed: {}", row.num_assumed_exprs);
+            // println!("  num removed: {}", row.num_removed_solved_exprs);
+            // println!("  num actual:  {}", row.num_actual_exprs);
+            latex_table.push_str(&format!("{} & {} & {} & {} & {} & {} & {} & {} & {}\\\\\n",
+                                            row.fn_name,
+                                            row.num_solved_exprs,
+                                            row.num_assumed_exprs,
+                                            row.num_removed_solved_exprs,
+                                            row.num_actual_exprs,
+                                            row.time_to_check,
+                                            row.time_to_hint,
+                                            row.total_time,
+                                            row.iters,
+            ));
+            writer.serialize(row)
         })?;
         let num_wkvars = self.wkvars.len();
         let num_internal_wkvars = self.internal_wkvars.len();
-        latex_table.push_str(&format!("TOTAL & {} & {} & {} & {}", total.num_solved_exprs, total.num_assumed_exprs, total.num_removed_solved_exprs, total.num_actual_exprs));
+        latex_table.push_str(&format!("TOTAL & {} & {} & {} & {} & {} & {} & {} & {}",
+                                      total.num_solved_exprs,
+                                      total.num_assumed_exprs,
+                                      total.num_removed_solved_exprs,
+                                      total.num_actual_exprs,
+                                      total_query_time,
+                                      total_hint_time,
+                                      total_query_time + total_hint_time,
+                                      num_iters,
+        ));
         println!("SUMMARY");
         println!("  num fns:                    {}", num_fns);
         println!("  num total wkvars:           {}", num_wkvars);
@@ -722,19 +739,22 @@ impl WKVarSolutions {
             num_assumed_exprs: total.num_assumed_exprs,
             num_removed_solved_exprs: total.num_removed_solved_exprs,
             num_actual_exprs: total.num_actual_exprs,
-            time_to_check: total_check_time,
+            time_to_check: total_query_time,
             time_to_hint: total_hint_time,
-            total_time: total_check_time + total_hint_time,
+            total_time: total_query_time + total_hint_time,
+            iters: num_iters,
         };
         writer.serialize(total_row)?;
         writer.flush()?;
-        println!("CRATE & {} & {} & {} & {:.0}\\% & {:.0}\\% & {} & {} & LoC",
+        println!();
+        println!("CRATE & {} & {} & {} & {:.0}\\% & {:.0}\\% & {} & {} & {} & LoC",
                  total.num_assumed_exprs,
                  total.num_removed_solved_exprs,
                  total.num_assumed_exprs + total.num_removed_solved_exprs,
                  100.0 * total.num_solved_exprs as f64 / ((total.num_assumed_exprs + total.num_solved_exprs) as f64),
                  100.0 * ((total.num_solved_exprs + total.num_assumed_exprs) as f64) / total.num_actual_exprs as f64,
                  total_time.as_secs_f32(),
+                 total_time.as_secs_f32() - total_hint_time,
                  num_iters,
         );
         Ok(())
@@ -977,6 +997,7 @@ pub fn iterative_solve<F>(
             solved_refine_tree.simplify(genv);
             let fcstr = solved_refine_tree.into_fixpoint(&mut fcx)?;
             // println!("converted to fixpoint");
+             
             let fixpoint_answer = fcx.check(
                 &mut QueryCache::new(),
                 cstr.def_id,

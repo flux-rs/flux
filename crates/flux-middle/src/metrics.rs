@@ -127,10 +127,11 @@ fn snd<A, B: Copy>(&(_, b): &(A, B)) -> B {
     b
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct FnTiming {
-    pub total_check: Duration,
+    pub query: Duration,
     pub reft_hint: Duration,
+    pub iters: usize,
 }
 
 pub fn refinement_hint_timings() -> (HashMap<DefId, FnTiming>, Duration) {
@@ -139,16 +140,17 @@ pub fn refinement_hint_timings() -> (HashMap<DefId, FnTiming>, Duration) {
     for timing in TIMINGS.lock().unwrap().iter() {
         match timing.kind {
             TimingKind::RefinementHint(fn_def_id) => {
-                timings_by_fn
+                let timings = timings_by_fn
                     .entry(fn_def_id.to_def_id())
-                    .or_default()
-                    .reft_hint = timing.duration;
+                    .or_default();
+                timings.reft_hint += timing.duration;
+                timings.iters += 1;
             }
-            TimingKind::CheckFn(fn_def_id) => {
+            TimingKind::FixpointQuery(def_id, _) => {
                 timings_by_fn
-                    .entry(fn_def_id.to_def_id())
+                    .entry(def_id)
                     .or_default()
-                    .total_check = timing.duration;
+                    .query += timing.duration;
             }
             TimingKind::Total => {
                 // This should only appear once
