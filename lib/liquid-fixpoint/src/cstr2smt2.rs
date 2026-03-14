@@ -825,6 +825,14 @@ pub fn qe_and_simplify<T: Types>(
     let solver = Solver::new();
     let goal = Goal::new(true, true, false);
     let mut vars = Env::new();
+    // println!("NEW CSTR");
+    // for assumption in &cstr.assumptions {
+    //     println!("assumption {}", assumption);
+    // }
+    // for invariant in &cstr.invariants {
+    //     println!("invariant {}", invariant);
+    // }
+    // println!("head {}", cstr.head);
     datatype_decls.iter().for_each(|data_decl| {
         let datatype_sort = new_datatype(&data_decl.name, &data_decl, &mut vars);
         vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
@@ -851,23 +859,24 @@ pub fn qe_and_simplify<T: Types>(
         // Assumptions that only pertain to non-quantified variables will
         // just be asserted.
         // println!("assumption:\n{:?}", pred_ast);
-        let fvs = pred.free_vars();
-        if fvs.is_subset(&const_vars) {
-            // println!("assertion\n  {}", pred);
-            goal.assert(&pred_ast);
-            None
-        } else {
-            Some(pred_ast)
-            // println!("precondition\n {}", pred);
-            // if fvs.is_subset(&free_vars) {
-            //     // println!("assumption\n  {}", pred);
-            //     // goal.assert(&pred_ast);
-            //     Some(pred_ast)
-            //     // None
-            // } else {
-            //     Some(pred_ast)
-            // }
-        }
+        Some(pred_ast)
+        // let fvs = pred.free_vars();
+        // if fvs.is_subset(&const_vars) {
+        //     // println!("assertion\n  {}", pred);
+        //     // goal.assert(&pred_ast);
+        //     Some(pred_ast)
+        // } else {
+        //     Some(pred_ast)
+        //     // println!("precondition\n {}", pred);
+        //     // if fvs.is_subset(&free_vars) {
+        //     //     // println!("assumption\n  {}", pred);
+        //     //     // goal.assert(&pred_ast);
+        //     //     Some(pred_ast)
+        //     //     // None
+        //     // } else {
+        //     //     Some(pred_ast)
+        //     // }
+        // }
     }).collect_vec());
     let rhs = pred_to_z3(&cstr.head, &mut vars, AllowKVars::NoKVars);
     let mut body = z3::ast::Bool::implies(&lhs, &rhs);
@@ -896,15 +905,46 @@ pub fn qe_and_simplify<T: Types>(
     //     println!("{:?}: {:?}", sort, z3_sort);
     // }
     goal.assert(&body);
-    let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("nnf")).and_then(&Tactic::new("simplify"));
+    let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("nnf"));//.and_then(&Tactic::new("simplify"));
     match qe_and_simplify.try_for(std::time::Duration::from_secs(10)).apply(&goal, None) {
         Ok(apply_result) => {
-            // println!("got result:");
-            if let Some(new_goal) = apply_result.list_subgoals().last() {
-                // for formula in new_goal.iter_formulas::<ast::Dynamic>() {
-                //     println!("formula: {:?}", formula);
+            let new_goals = apply_result.list_subgoals().last();
+            if let Some(new_goal) = new_goals {
+                // if new_goals.len() > 1 {
+                //     println!("---------MULTIPLE GOALS------");
+                //     println!();
+                //     println!();
+                //     for g in &new_goals {
+                //         println!(" GOAL {:?}", g);
+                //     }
                 // }
-                if let Some(new_cstr) = new_goal.iter_formulas::<ast::Dynamic>().last() {
+                // let new_goal = new_goals.last().unwrap();
+                let new_formulae: Vec<_> = new_goal.iter_formulas::<ast::Dynamic>().map(|f| {
+                    let fixpoint_expr = z3_to_expr(&vars, &f)?;
+                    Ok((fixpoint_expr.total_num_disjuncts(), fixpoint_expr))
+                }).try_collect()?;
+                // for whatever reason the unsound formulae have just one more disjunct (usually).
+                // I seriously have no clue what's going on.
+                let more_than_one_formula = new_formulae.len() > 1;
+                if more_than_one_formula {
+                    println!("-----------------------------");
+                    println!();
+                    println!();
+                    println!("WARN: Multiple Formulae");
+                    for (_size, formula) in &new_formulae {
+                        println!("       {}", formula);
+                    }
+                    println!();
+                    println!();
+                    println!("-----------------------------");
+
+                }
+                if let Some((_min_size, mut min_size_formula)) = new_formulae.into_iter().min_by_key(|(num_disjuncts, _)| *num_disjuncts) {
+                    if more_than_one_formula {
+                        println!();
+                        println!("using  {}", min_size_formula);
+                    }
+
                     solver.pop(1);
                     solver.push();
                     // let new_goal = Goal::new(true, true, false);
@@ -912,8 +952,10 @@ pub fn qe_and_simplify<T: Types>(
                     for pred in &cstr.preconditions() {
                         let pred_ast = pred_to_z3(pred, &mut vars, AllowKVars::NoKVars);
                         solver.assert(&pred_ast);
+                        // println!("asserting precondition {}", pred);
                         // new_goal.assert(&pred_ast);
                     }
+                    // println!("head: {}", cstr.head);
                     // new_goal.assert(&new_cstr);
                     // let simplify = Tactic::new("ctx-simplify");
                     // let simplified_cstr = simplify.apply(&new_goal, None)
@@ -925,7 +967,6 @@ pub fn qe_and_simplify<T: Types>(
                     //         .last()
                     //         .unwrap();
                     // return z3_to_expr(&vars, &simplified_cstr);
-                    let mut fixpoint_expr = z3_to_expr(&vars, &new_cstr)?;
                     // println!("checking {} for vacuity,", fixpoint_expr);
                     // solver.assert(new_cstr.as_bool().unwrap());
                     // match solver.check() {
@@ -939,8 +980,10 @@ pub fn qe_and_simplify<T: Types>(
                     //     // println!("asserting invariant {}", pred);
                     //     solver.assert(&pred_ast);
                     // }
-                    // println!("solved originally to: {}", fixpoint_expr);
-                    return if prune_vacuous(&mut fixpoint_expr, &mut vars, &solver) {
+                    println!("solved originally to: {}", min_size_formula);
+                    let res = prune_vacuous(&mut min_size_formula, &mut vars, &solver);
+                    println!("pruned to {} (vacuous: {})", min_size_formula, res);
+                    return if res {
                         Ok(Expr::FALSE)
                     } else {
                         // println!("before simplifying: {}", fixpoint_expr);
@@ -955,7 +998,17 @@ pub fn qe_and_simplify<T: Types>(
                         //
                         // simplify(&mut fixpoint_expr, &mut vars, &solver);
                         // println!("after simplifying: {}", fixpoint_expr);
-                        Ok(fixpoint_expr)
+
+                        solver.pop(1);
+                        let pred_ast = expr_to_z3(&min_size_formula, &mut vars);
+                        solver.assert(z3::ast::Bool::not(&z3::ast::Bool::implies(&pred_ast.as_bool().unwrap(), z3::ast::Bool::implies(&lhs, &rhs))));
+                        match solver.check() {
+                            SatResult::Unsat => Ok(min_size_formula),
+                            _ => {
+                                println!("Rejecting {} for failed sanity check", min_size_formula);
+                                Err(Z3DecodeError::FailedSanityCheck)
+                            }
+                        }
                     };
                 }
             }
@@ -1161,6 +1214,7 @@ pub enum Z3DecodeError {
     NoResults,
     TriviallyFalse,
     QEFail,
+    FailedSanityCheck,
 }
 
 fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3DecodeError> {

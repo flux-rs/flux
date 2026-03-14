@@ -87,11 +87,12 @@ impl<T: Types> Constraint<T> {
                     if !is_underscore(&bind.name) {
                         constr.binders.push((bind.name.clone(), bind.sort.clone()));
                     }
-                    if is_invariant(&bind.name) {
-                        constr.add_invariant(bind.pred.clone());
-                    } else {
-                        constr.add_assumption(bind.pred.clone());
-                    }
+                    constr.add_assumption(bind.pred.clone());
+                    // if is_invariant(&bind.name) {
+                    //     constr.add_invariant(bind.pred.clone());
+                    // } else {
+                    //     constr.add_assumption(bind.pred.clone());
+                    // }
                 }
                 flat_constrs
             }
