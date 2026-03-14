@@ -670,7 +670,7 @@ where
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
         let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
 
-        time_it::<QueryResult<Answer<Tag>>>(TimingKind::RefinementHint(id), || {
+        time_it::<QueryResult<Answer<Tag>>>(TimingKind::RefinementHint(def_id.as_local().unwrap()), || {
             for constraint in flat_constraint_map.values_mut() {
                 constraint.assumptions = constraint.assumptions.iter().flat_map(|pred| {
                     // Remove all trivially true assumptions

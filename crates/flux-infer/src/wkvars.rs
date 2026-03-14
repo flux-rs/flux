@@ -2,12 +2,12 @@
 
 use std::{
     collections::{ HashMap, HashSet, hash_map::Entry },
-    ops::ControlFlow,
+    ops::ControlFlow, time::Duration,
 };
 
 use flux_common::cache::QueryCache;
 use flux_middle::{
-    FixpointQueryKind, def_id::{self, MaybeExternId}, global_env::GlobalEnv, pretty, queries::QueryResult, rty::{
+    FixpointQueryKind, def_id::{self, MaybeExternId}, global_env::GlobalEnv, metrics::refinement_hint_timings, pretty, queries::QueryResult, rty::{
         self,
         fold::{
             FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable,
@@ -578,8 +578,8 @@ impl WKVarSolutions {
         Ok(serde_json::to_writer_pretty(writer, &solutions_by_wkvar)?)
     }
 
-    fn stats_by_fn(&self, genv: GlobalEnv) -> (FxIndexMap<String, WKVarSolutionStats>, usize, usize) {
-        let mut stats_by_fn: FxIndexMap<String, WKVarSolutionStats> = Default::default();
+    fn stats_by_fn(&self, genv: GlobalEnv) -> (FxIndexMap<(DefId, String), WKVarSolutionStats>, usize, usize) {
+        let mut stats_by_fn: FxIndexMap<(DefId, String), WKVarSolutionStats> = Default::default();
         let mut solutions_by_fn: FxIndexMap<_, HashMap<rty::WKVid, rty::Binder<rty::Expr>>> = Default::default();
         let mut num_nontrivial_real_wkvars = 0;
         let mut num_nontrivial_internal_wkvars = 0;
@@ -599,7 +599,7 @@ impl WKVarSolutions {
                                .insert(*wkvid, sol);
             }
             stats_by_fn
-                .entry(wkvar_fn_name)
+                .entry((wkvid.0, wkvar_fn_name))
                 .and_modify(|stats| {
                     *stats = stats.combine(&solution.to_summary(genv).to_stats());
                 })
@@ -613,8 +613,8 @@ impl WKVarSolutions {
             let solved_fn_sig = rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
             let fixed_fn_sig_snippet =
                 format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
-            // println!("Solution: fn {}", wkvar_fn_name);
-            // println!("  {}", fixed_fn_sig_snippet);
+            println!("Solution: fn {}", wkvar_fn_name);
+            println!("  {}", fixed_fn_sig_snippet);
         }
 
         (stats_by_fn, num_nontrivial_real_wkvars, num_nontrivial_internal_wkvars)
@@ -624,6 +624,7 @@ impl WKVarSolutions {
         &self,
         genv: GlobalEnv,
         path: &std::path::PathBuf,
+        num_iters: usize,
     ) -> std::io::Result<()> {
         #[derive(serde::Serialize)]
         struct CsvRow {
@@ -632,29 +633,47 @@ impl WKVarSolutions {
             num_assumed_exprs: usize,
             num_removed_solved_exprs: usize,
             num_actual_exprs: usize,
+            time_to_check: f32,
+            time_to_hint: f32,
+            total_time: f32,
         }
         let (stats_by_fn, num_nontrivial_real_wkvars, num_nontrivial_internal_wkvars) = self.stats_by_fn(genv);
         let mut writer = csv::Writer::from_path(path.as_path())?;
+        let (fn_timings, total_time) = refinement_hint_timings();
+        let mut total_hint_time: f32 = 0.0;
+        let mut total_check_time: f32 = 0.0;
         let mut total = WKVarSolutionStats::default();
         let num_fns = stats_by_fn.len();
         let mut latex_table = String::new();
         latex_table.push_str("Function name & Inferences & Guided Assumptions & Guided Removals & Ground Truth Expressions \\\\\n");
-        stats_by_fn.into_iter().try_for_each(|(fn_name, stats)| {
-            total = total.combine(&stats);
-            let row = CsvRow {
-                fn_name,
-                num_solved_exprs: stats.num_solved_exprs,
-                num_assumed_exprs: stats.num_assumed_exprs,
-                num_removed_solved_exprs: stats.num_removed_solved_exprs,
-                num_actual_exprs: stats.num_actual_exprs,
-            };
-            // println!("fn {}", row.fn_name);
-            // println!("  num solved:  {}", row.num_solved_exprs);
-            // println!("  num assumed: {}", row.num_assumed_exprs);
-            // println!("  num removed: {}", row.num_removed_solved_exprs);
-            // println!("  num actual:  {}", row.num_actual_exprs);
-            latex_table.push_str(&format!("{} & {} & {} & {} & {}\\\\\n", row.fn_name, row.num_solved_exprs, row.num_assumed_exprs, row.num_removed_solved_exprs, row.num_actual_exprs));
-            writer.serialize(row)
+        stats_by_fn.into_iter().try_for_each(|((fn_def_id, fn_name), stats)| {
+            if (stats.num_solved_exprs > 0 || stats.num_assumed_exprs > 0 || stats.num_actual_exprs > 0) {
+                println!("{}", fn_name);
+                let timings = &fn_timings[&fn_def_id];
+                println!("timings {:?}", timings);
+                total = total.combine(&stats);
+                let row = CsvRow {
+                    fn_name,
+                    num_solved_exprs: stats.num_solved_exprs,
+                    num_assumed_exprs: stats.num_assumed_exprs,
+                    num_removed_solved_exprs: stats.num_removed_solved_exprs,
+                    num_actual_exprs: stats.num_actual_exprs,
+                    time_to_check: (timings.total_check - timings.reft_hint).as_secs_f32(),
+                    time_to_hint: timings.reft_hint.as_secs_f32(),
+                    total_time: timings.total_check.as_secs_f32(),
+                };
+                total_hint_time += timings.reft_hint.as_secs_f32();
+                total_check_time += (timings.total_check - timings.reft_hint).as_secs_f32();
+                // println!("fn {}", row.fn_name);
+                // println!("  num solved:  {}", row.num_solved_exprs);
+                // println!("  num assumed: {}", row.num_assumed_exprs);
+                // println!("  num removed: {}", row.num_removed_solved_exprs);
+                // println!("  num actual:  {}", row.num_actual_exprs);
+                latex_table.push_str(&format!("{} & {} & {} & {} & {}\\\\\n", row.fn_name, row.num_solved_exprs, row.num_assumed_exprs, row.num_removed_solved_exprs, row.num_actual_exprs));
+                writer.serialize(row)
+            } else {
+                Ok(())
+            }
         })?;
         let num_wkvars = self.wkvars.len();
         let num_internal_wkvars = self.internal_wkvars.len();
@@ -703,15 +722,20 @@ impl WKVarSolutions {
             num_assumed_exprs: total.num_assumed_exprs,
             num_removed_solved_exprs: total.num_removed_solved_exprs,
             num_actual_exprs: total.num_actual_exprs,
+            time_to_check: total_check_time,
+            time_to_hint: total_hint_time,
+            total_time: total_check_time + total_hint_time,
         };
         writer.serialize(total_row)?;
         writer.flush()?;
-        println!("CRATE & {} & {} & {} & {:.0}\\% & {:.0}\\% & TIME & ITERS & LoC",
+        println!("CRATE & {} & {} & {} & {:.0}\\% & {:.0}\\% & {} & {} & LoC",
                  total.num_assumed_exprs,
                  total.num_removed_solved_exprs,
                  total.num_assumed_exprs + total.num_removed_solved_exprs,
                  100.0 * total.num_solved_exprs as f64 / ((total.num_assumed_exprs + total.num_solved_exprs) as f64),
                  100.0 * ((total.num_solved_exprs + total.num_assumed_exprs) as f64) / total.num_actual_exprs as f64,
+                 total_time.as_secs_f32(),
+                 num_iters,
         );
         Ok(())
     }
@@ -881,7 +905,7 @@ pub fn iterative_solve<F>(
     cstrs: Constraints,
     max_iters: usize,
     report_errors: F,
-) -> QueryResult<(WKVarSolutions, Vec<(LocalDefId, Vec<FixpointCheckError<Tag>>)>, Vec<String>)>
+) -> QueryResult<(WKVarSolutions, Vec<(LocalDefId, Vec<FixpointCheckError<Tag>>)>, Vec<String>, usize)>
     where F: Fn(LocalDefId, Vec<FixpointCheckError<Tag>>)
 {
     let mut constraint_lhs_wkvars: FxIndexMap<LocalDefId, FxIndexSet<rty::WKVid>> =
@@ -1133,7 +1157,7 @@ pub fn iterative_solve<F>(
         // i += 1;
     }
     // println!("Solution loop finished in {} iterations.", i);
-    Ok((new_solutions, all_errors, user_interactions))
+    Ok((new_solutions, all_errors, user_interactions, i))
 }
 
 /// DEPRECATED: Solution candidates are now generated by doing qe and are no

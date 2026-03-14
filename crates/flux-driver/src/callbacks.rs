@@ -112,7 +112,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         println!("-----------------------");
         println!("Starting solution loop.");
 
-        let (solution, errors, user_interactions) =
+        let (solution, errors, user_interactions, iters) =
             match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 100, |local_id, errors| {let _ = report_fixpoint_errors(genv, local_id, errors);}) {
                 Ok(outputs) => outputs,
                 Err(e) => panic!("Encountered error {:?}", e),
@@ -129,6 +129,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         solution.write_stats_file(
             genv,
             &config::log_dir().join(format!("{}-wkvar-solve-stats.csv", crate_name)),
+            iters,
         ).unwrap();
         if config::save_user_interactions() {
             let current_timestamp = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap().as_millis();

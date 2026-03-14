@@ -1,8 +1,5 @@
 use std::{
-    fs,
-    io::{self, Write as _},
-    sync::{Mutex, atomic::AtomicU32},
-    time::{Duration, Instant},
+    collections::HashMap, fs, io::{self, Write as _}, sync::{Mutex, atomic::AtomicU32}, time::{Duration, Instant}
 };
 
 use flux_config as config;
@@ -101,7 +98,7 @@ pub enum TimingKind {
     /// Time taken to run a single fixpoint query
     FixpointQuery(DefId, FixpointQueryKind),
     /// Time taken to generate fixes for a query
-    RefinementHint(DefId),
+    RefinementHint(LocalDefId),
 }
 
 #[derive(Serialize)]
@@ -128,6 +125,39 @@ struct QueryTiming {
 
 fn snd<A, B: Copy>(&(_, b): &(A, B)) -> B {
     b
+}
+
+#[derive(Default, Debug)]
+pub struct FnTiming {
+    pub total_check: Duration,
+    pub reft_hint: Duration,
+}
+
+pub fn refinement_hint_timings() -> (HashMap<DefId, FnTiming>, Duration) {
+    let mut total = Duration::from_secs(0);
+    let mut timings_by_fn: HashMap<_, FnTiming> = HashMap::default();
+    for timing in TIMINGS.lock().unwrap().iter() {
+        match timing.kind {
+            TimingKind::RefinementHint(fn_def_id) => {
+                timings_by_fn
+                    .entry(fn_def_id.to_def_id())
+                    .or_default()
+                    .reft_hint = timing.duration;
+            }
+            TimingKind::CheckFn(fn_def_id) => {
+                timings_by_fn
+                    .entry(fn_def_id.to_def_id())
+                    .or_default()
+                    .total_check = timing.duration;
+            }
+            TimingKind::Total => {
+                // This should only appear once
+                total = timing.duration;
+            }
+            _ => {}
+        }
+    }
+    (timings_by_fn, total)
 }
 
 pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
