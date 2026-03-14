@@ -508,7 +508,7 @@ impl Node {
             _ => {}
         }
         let is_false_asm =
-            matches!(&self.kind, NodeKind::Assumption(pred, AssumptionType::Assumption) if pred.is_trivially_false());
+            matches!(&self.kind, NodeKind::Assumption(pred, _) if pred.is_trivially_false());
 
         // Then simplify the children
         // (the order matters here because we need to collect assumed preds first)
@@ -520,8 +520,8 @@ impl Node {
 
         // Then remove any unnecessary children
         match &mut self.kind {
-            NodeKind::Head(..) | NodeKind::True | NodeKind::Assumption(_, AssumptionType::Invariant) => {}
-            NodeKind::Assumption(_, AssumptionType::Assumption)
+            NodeKind::Head(..) | NodeKind::True => {}
+            NodeKind::Assumption(_, _)
             | NodeKind::Trace(_)
             | NodeKind::Root(_)
             | NodeKind::ForAll(..) => {
@@ -1030,13 +1030,12 @@ impl Node {
                 let pred = assignment.simplify(pred);
                 self.kind = NodeKind::Head(pred, *tag);
             }
-            // Skip invariants in case we remove them.
+            // We used to skip invariants in case we remove them.
             //
-            // It's unlikely that this happens, but we want to preserve
-            // invariants so we can simplify QE'd suggestions.
-            NodeKind::Assumption(pred, AssumptionType::Assumption) => {
+            // Now we don't but we could again.
+            NodeKind::Assumption(pred, assumption_type) => {
                 let pred = assignment.simplify(pred);
-                self.kind = NodeKind::Assumption(pred, AssumptionType::Assumption);
+                self.kind = NodeKind::Assumption(pred, assumption_type.clone());
             }
             _ => {}
         }
