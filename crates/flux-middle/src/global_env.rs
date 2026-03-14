@@ -469,6 +469,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .inferred_no_panic(self, def_id.into_query_param())
     }
 
+    /// Whether the crate has Flux metadata in the cratestore.
+    pub fn cstore_has_crate(self, krate: CrateNum) -> bool {
+        self.cstore().has_crate(krate)
+    }
+
     /// Whether the function is marked with `#[flux::no_panic]`
     pub fn no_panic(self, def_id: impl IntoQueryParam<DefId>) -> bool {
         self.inner.queries.no_panic(self, def_id.into_query_param())

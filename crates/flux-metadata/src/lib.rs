@@ -334,6 +334,10 @@ impl CrateStore for CStore {
             .unwrap_or_default()
     }
 
+    fn has_crate(&self, krate: CrateNum) -> bool {
+        self.local_tables.contains_key(&krate)
+    }
+
     fn func_sort(&self, key: FluxDefId) -> Option<rty::PolyFuncSort> {
         get!(self, func_sort, key)
     }

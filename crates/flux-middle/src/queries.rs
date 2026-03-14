@@ -630,7 +630,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         }
 
         run_with_cache(&self.inferred_no_panic, krate, || {
-            if krate == LOCAL_CRATE || is_stdlib_crate(genv.tcx(), krate) {
+            if krate == LOCAL_CRATE
+                || is_stdlib_crate(genv.tcx(), krate)
+                || !genv.cstore_has_crate(krate)
+            {
                 (self.providers.inferred_no_panic)(genv)
             } else {
                 genv.cstore().inferred_no_panic(krate)
@@ -643,8 +646,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         let map = self.inferred_no_panic_crate(genv, def_id.krate);
         let Some(spec) = map.get(&def_id) else {
             bug!(
-                "Invariant violation: could not find inferred no-panic spec for {def_id:?} in crate {:?}",
-                def_id.krate
+                "inferred no_panic spec for {def_id:?} not found in the map of its crate, even though it should be there according to the provider"
             )
         };
         *spec

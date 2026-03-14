@@ -31,8 +31,18 @@ pub fn inferred_no_panic(genv: GlobalEnv) -> FxHashMap<DefId, PanicSpec> {
     infer_no_panics(genv, LOCAL_CRATE, |def_id| genv.inferred_no_panic(def_id))
 }
 
-fn is_stdlib_crate(tcx: TyCtxt, krate: CrateNum) -> bool {
-    matches!(tcx.crate_name(krate).as_str(), "core" | "alloc" | "std")
+fn should_include_in_call_graph(genv: GlobalEnv, krate: CrateNum) -> bool {
+    krate == LOCAL_CRATE || is_outside_cstore(genv, krate) || is_stdlib_crate(genv, krate)
+}
+
+fn is_stdlib_crate(genv: GlobalEnv, krate: CrateNum) -> bool {
+    matches!(genv.tcx().crate_name(krate).as_str(), "core" | "alloc" | "std")
+}
+
+fn is_outside_cstore(genv: GlobalEnv, krate: CrateNum) -> bool {
+    // If the crate has no Flux metadata in the cratestore, flux never visited it,
+    // so we should include that crate's functions in this call graph.
+    !genv.cstore_has_crate(krate)
 }
 
 #[derive(Debug, Clone)]
@@ -60,11 +70,6 @@ pub fn infer_no_panics(
             if !tcx.def_kind(def_id).is_fn_like() { None } else { Some(def_id) }
         })
         .collect::<Vec<_>>();
-
-    eprintln!("{} roots for crate {}:", roots.len(), tcx.crate_name(crate_num));
-    for root in &roots {
-        eprintln!("  {}", tcx.def_path_str(*root));
-    }
 
     // 1. Build the call graph.
     let GraphBuildResult { call_graph, resolution_failures, external_callees } =
@@ -278,7 +283,8 @@ fn explore(
             }
 
             // External non-stdlib callees: treat as a leaf and record for spec lookup.
-            if callee.krate != crate_num && !is_stdlib_crate(tcx, callee.krate) {
+            // if callee.krate != crate_num && !is_stdlib_crate(tcx, callee.krate) {
+            if !should_include_in_call_graph(genv, callee.krate) {
                 call_graph.entry(callee).or_insert_with(Vec::new);
                 external_callees.insert(callee);
                 continue;
