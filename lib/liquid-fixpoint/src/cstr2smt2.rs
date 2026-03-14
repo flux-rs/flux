@@ -1,7 +1,9 @@
 use core::panic;
 use std::{ collections::{HashMap, HashSet}, iter, str::FromStr, vec};
 
-use indexmap::IndexMap;
+use rustc_data_structures::{
+    fx::FxIndexMap,
+};
 use itertools::Itertools;
 use z3::{
     AstKind, FuncDecl, Goal, SatResult, Solver, SortKind, Tactic, ast::{self, Ast}
@@ -32,16 +34,16 @@ impl From<ast::Dynamic> for Binding {
 }
 
 pub(crate) struct Env<T: Types> {
-    bindings: IndexMap<T::Var, Vec<Binding>>,
-    data_types: IndexMap<T::Sort, z3::Sort>,
-    rev_bindings: IndexMap<String, T::Var>,
+    bindings: FxIndexMap<T::Var, Vec<Binding>>,
+    data_types: FxIndexMap<T::Sort, z3::Sort>,
+    rev_bindings: FxIndexMap<String, T::Var>,
     bound_vars: Vec<Vec<(String, Binding)>>,
     fresh_var_counter: usize,
 }
 
 impl<T: Types> Env<T> {
     pub(crate) fn new() -> Self {
-        Self { bindings: IndexMap::new(), data_types: IndexMap::new(), rev_bindings: IndexMap::new(), bound_vars: vec![], fresh_var_counter: 0 }
+        Self { bindings: FxIndexMap::default(), data_types: FxIndexMap::default(), rev_bindings: FxIndexMap::default(), bound_vars: vec![], fresh_var_counter: 0 }
     }
 
     pub(crate) fn insert<B: Into<Binding>>(&mut self, name: T::Var, value: B) {

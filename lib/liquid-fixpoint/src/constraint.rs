@@ -3,6 +3,10 @@ use std::{collections::HashSet, hash::Hash};
 use derive_where::derive_where;
 use itertools::Itertools;
 
+use rustc_data_structures::{
+    fx::FxIndexSet,
+};
+
 use crate::{ConstDecl, ThyFunc, Types};
 
 #[derive_where(Hash, Clone, Debug)]
@@ -68,8 +72,8 @@ impl<T: Types> Constraint<T> {
             Constraint::Pred(pred, tag) => {
                 vec![FlatConstraint {
                     binders: vec![],
-                    assumptions: vec![],
-                    invariants: vec![],
+                    assumptions: Default::default(),
+                    invariants: Default::default(),
                     head: pred.clone(),
                     tag: tag.clone(),
                 }]
@@ -95,7 +99,7 @@ impl<T: Types> Constraint<T> {
     }
 }
 
-#[derive_where(Hash, Clone, Debug)]
+#[derive_where(Clone, Debug)]
 pub struct FlatConstraint<T: Types> {
     /// All of the binders that come before the head.
     ///
@@ -104,9 +108,9 @@ pub struct FlatConstraint<T: Types> {
     pub binders: Vec<(T::Var, Sort<T>)>,
     /// All of the assumptions (i.e. a flattened conjunction of predicates from
     /// all of the binders)
-    pub assumptions: Vec<Pred<T>>,
+    pub assumptions: FxIndexSet<Pred<T>>,
     /// All of the invariants (special kind of assumptions)
-    pub invariants: Vec<Pred<T>>,
+    pub invariants: FxIndexSet<Pred<T>>,
     pub head: Pred<T>,
     #[derive_where(skip)]
     pub tag: Option<T::Tag>,
@@ -143,7 +147,7 @@ impl<T: Types> FlatConstraint<T> {
         let mut constr = Constraint::ForAll(Bind {
             name: underscore_var.clone(),
             sort: Sort::Int,
-            pred: Pred::And(self.preconditions()),
+            pred: Pred::And(self.preconditions().into_iter().collect_vec()),
         }, Box::new(head_constr));
 
         for (var, sort) in &self.binders {
@@ -162,7 +166,7 @@ impl<T: Types> FlatConstraint<T> {
                 self.assumptions.extend(conjs.iter().flat_map(|conj| conj.as_conjunction()));
             }
             a@Pred::KVar(_, _) => {
-                self.assumptions.push(a);
+                self.assumptions.insert(a);
             }
             Pred::Expr(e) => {
                 self.assumptions.extend(e.as_conjunction().into_iter().map(|e| Pred::Expr(e)))
@@ -184,7 +188,7 @@ impl<T: Types> FlatConstraint<T> {
         }
     }
 
-    pub fn preconditions(&self) -> Vec<Pred<T>> {
+    pub fn preconditions(&self) -> FxIndexSet<Pred<T>> {
         let mut preconditions = self.assumptions.clone();
         preconditions.extend(self.invariants.clone());
         preconditions
@@ -233,7 +237,7 @@ impl<T: Types> FlatConstraint<T> {
                            .filter_map(|(i, assumption)| {
                                if let Pred::Expr(assumption_expr) = assumption && assumption_expr.has_wkvar_reachable_by_split() {
                                    let mut flat_constraint = self.clone();
-                                   flat_constraint.assumptions.remove(i);
+                                   flat_constraint.assumptions.shift_remove_index(i);
                                    Some((assumption_expr.clone(), flat_constraint, vec![]))
                                } else {
                                    None
@@ -348,7 +352,7 @@ pub struct DataField<T: Types> {
     pub sort: Sort<T>,
 }
 
-#[derive_where(Hash, Clone, Debug)]
+#[derive_where(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum Sort<T: Types> {
     Int,
     Bool,
@@ -390,14 +394,14 @@ impl<T: Types> Sort<T> {
     }
 }
 
-#[derive_where(Hash, Clone, Debug)]
+#[derive_where(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum SortCtor<T: Types> {
     Set,
     Map,
     Data(T::Sort),
 }
 
-#[derive_where(Hash, Clone, Debug)]
+#[derive_where(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum Pred<T: Types> {
     And(Vec<Self>),
     KVar(T::KVar, Vec<T::Var>),
@@ -524,13 +528,13 @@ impl BoundVar {
     }
 }
 
-#[derive_where(Hash, Debug, Clone)]
+#[derive_where(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct WKVar<T: Types> {
     pub wkvid: T::Var,
     pub args: Vec<Expr<T>>,
 }
 
-#[derive_where(Hash, Clone, Debug)]
+#[derive_where(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum Expr<T: Types> {
     Constant(Constant<T>),
     Var(T::Var),
@@ -1157,7 +1161,7 @@ pub struct DNF<T: Types> {
     pub disjuncts: Vec<Vec<Expr<T>>>,
 }
 
-#[derive_where(Hash, Clone, Debug)]
+#[derive_where(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum Constant<T: Types> {
     Numeral(u128),
     // Currently we only support parsing integers as decimals. We should extend this to allow

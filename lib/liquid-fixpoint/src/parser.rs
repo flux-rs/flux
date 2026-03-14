@@ -1,6 +1,8 @@
 use std::fmt;
 
-use indexmap::IndexSet;
+use rustc_data_structures::{
+    fx::FxIndexSet,
+};
 use itertools::Itertools;
 
 use crate::{
@@ -44,7 +46,7 @@ pub trait FromSexp<T: Types> {
 pub struct FromSexpWrapper<T: Types, Parser> {
     pub parser: Parser,
     pub _phantom: std::marker::PhantomData<T>,
-    scopes: Vec<IndexSet<String>>,
+    scopes: Vec<FxIndexSet<String>>,
 }
 
 type KvarSolution<T> = (Vec<Sort<T>>, Expr<T>);

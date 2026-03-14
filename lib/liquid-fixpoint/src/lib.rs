@@ -9,6 +9,8 @@ extern crate rustc_macros;
 extern crate rustc_serialize;
 #[cfg(feature = "nightly")]
 extern crate rustc_span;
+#[cfg(feature = "nightly")]
+extern crate rustc_data_structures;
 
 mod constraint;
 #[cfg(feature = "rust-fixpoint")]
@@ -58,7 +60,7 @@ pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
     type KVar: Identifier + Hash + Clone + Debug + Eq;
     type Var: Identifier + Hash + Clone + Debug + Eq;
-    type String: FixpointFmt + Hash + Clone + Debug;
+    type String: FixpointFmt + Hash + Clone + Debug + Eq;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
 }
 

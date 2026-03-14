@@ -180,7 +180,7 @@ pub mod fixpoint {
         }
     }
 
-    #[derive(Hash, Clone, Debug)]
+    #[derive(Hash, Clone, Debug, PartialEq, Eq)]
     pub struct SymStr(pub Symbol);
 
     #[cfg(feature = "rust-fixpoint")]
@@ -675,22 +675,22 @@ where
                 constraint.assumptions = constraint.assumptions.iter().flat_map(|pred| {
                     // Remove all trivially true assumptions
                     if pred.is_trivially_true() {
-                        vec![]
+                        vec![].into_iter()
                     // Substitute the kvar solutions in
                     } else if let fixpoint::Pred::KVar(kvid, args) = pred {
                         let exprs = if let Some((sorts, solution)) = &fixpoint_solution.get(&kvid) {
                             assert!(sorts.len() == args.len());
                             let arg_exprs = args.into_iter().map(|arg| fixpoint::Expr::Var(*arg)).collect_vec();
                             let subst_solution = solution.substitute_bvar(&arg_exprs, 0);
-                            subst_solution.as_conjunction()
+                            subst_solution.as_conjunction().into_iter()
                             // We'll do hoisting later when we split disjuncts.
                         } else {
                             // println!("Missing kvar solution for kvid {:?}", kvid);
-                            vec![]
+                            vec![].into_iter()
                         };
-                        exprs.into_iter().map(|expr| fixpoint::Pred::Expr(expr)).collect()
+                        exprs.into_iter().map(|expr| fixpoint::Pred::Expr(expr)).collect_vec().into_iter()
                     } else {
-                        vec![pred.clone()]
+                        vec![pred.clone()].into_iter()
                     }
                 }).collect();
             }
@@ -711,10 +711,10 @@ where
                             let blame_ctx = self.blame_ctx_map[&tag_idx].clone();
                             let mut possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = FxIndexMap::default();
                             if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
-                                // println!(
-                                //     "Looking for weak kvars that might solve {}",
-                                //     flat_constraint.head,
-                                // );
+                                println!(
+                                    "Looking for weak kvars that might solve {}",
+                                    flat_constraint.head,
+                                );
                                 // FIXME: this should be a better source of fresh names, but 100000
                                 // should be safe.
                                 let mut fresh_rty_name: usize = 100_000;
@@ -756,7 +756,7 @@ where
                                         panic!()
                                     };
                                     let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.0).to_filename_friendly_no_crate(), wkvid.1.as_u32());
-                                    // println!("Trying {}({}) to solve", wkvid_string, wkvar.args.iter().map(|arg| format!("{}", arg)).join(", "));
+                                    println!("Trying {}({}) to solve", wkvid_string, wkvar.args.iter().map(|arg| format!("{}", arg)).join(", "));
                                     let fvars: HashSet<fixpoint::Var> = wkvar
                                         .args
                                         .iter()
@@ -778,10 +778,14 @@ where
                                     let (binder_consts, mut new_flat_constraint) =
                                         flat_constraint.remove_binders(&fvars);
                                     // Remove any wkvars and drop assumptions that are just wkvars or true
-                                    new_flat_constraint.assumptions.retain_mut(|assumption| {
-                                        *assumption = assumption.strip_wkvars();
-                                        !assumption.is_trivially_true()
-                                    });
+                                    new_flat_constraint.assumptions = new_flat_constraint.assumptions.into_iter().filter_map(|assumption| {
+                                        let assumption = assumption.strip_wkvars();
+                                        if !assumption.is_trivially_true() {
+                                            Some(assumption)
+                                        } else {
+                                            None
+                                        }
+                                    }).collect();
                                     // println!("checking validity normally");
                                     // if check_validity(&new_flat_constraint, &binder_consts, &constants_without_inequalities, data_decls.clone()) {
                                     //     panic!("a constraint is valid when it shouldn't be");
@@ -829,7 +833,7 @@ where
                                         }
                                         }
                                         Err(err) => {
-                                            // println!("failed to decode z3 expr because of {:?}", err);
+                                            println!("failed to decode z3 expr because of {:?}", err);
                                             if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
                                                 possible_solutions.entry(*wkvid)
                                                     .or_default()

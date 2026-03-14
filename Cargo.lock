@@ -900,7 +900,6 @@ name = "liquid-fixpoint"
 version = "0.1.0"
 dependencies = [
  "derive-where",
- "indexmap",
  "itertools 0.14.0",
  "serde",
  "serde_json",

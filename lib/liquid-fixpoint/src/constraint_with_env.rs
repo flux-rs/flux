@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use derive_where::derive_where;
-use indexmap::IndexMap;
+
+use rustc_data_structures::{
+    fx::FxIndexMap,
+};
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
@@ -160,11 +163,11 @@ impl<T: Types> ConstraintWithEnv<T> {
 }
 
 pub fn topo_sort_data_declarations<T: Types>(datatype_decls: Vec<DataDecl<T>>) -> Vec<DataDecl<T>> {
-    let mut datatype_dependencies: IndexMap<T::Sort, Vec<T::Sort>> = IndexMap::new();
+    let mut datatype_dependencies: FxIndexMap<T::Sort, Vec<T::Sort>> = FxIndexMap::default();
     for datatype_decl in &datatype_decls {
         datatype_dependencies.insert(datatype_decl.name.clone(), vec![]);
     }
-    let mut data_decls_by_name = IndexMap::new();
+    let mut data_decls_by_name = FxIndexMap::default();
     for datatype_decl in datatype_decls {
         for data_constructor in &datatype_decl.ctors {
             for accessor in &data_constructor.fields {
