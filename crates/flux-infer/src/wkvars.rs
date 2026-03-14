@@ -693,7 +693,7 @@ impl WKVarSolutions {
                                       total_query_time,
                                       total_hint_time,
                                       total_query_time + total_hint_time,
-                                      num_iters,
+                                      total_num_iters,
         ));
         println!("SUMMARY");
         println!("  num fns:                    {}", num_fns);
@@ -742,7 +742,7 @@ impl WKVarSolutions {
             time_to_check: total_query_time,
             time_to_hint: total_hint_time,
             total_time: total_query_time + total_hint_time,
-            iters: num_iters,
+            iters: total_num_iters,
         };
         writer.serialize(total_row)?;
         writer.flush()?;
@@ -755,7 +755,7 @@ impl WKVarSolutions {
                  100.0 * ((total.num_solved_exprs + total.num_assumed_exprs) as f64) / total.num_actual_exprs as f64,
                  total_time.as_secs_f32(),
                  total_time.as_secs_f32() - total_hint_time,
-                 num_iters,
+                 total_num_iters,
         );
         Ok(())
     }
