@@ -965,6 +965,7 @@ pub fn iterative_solve<F>(
     } else {
         None
     };
+    let mut cache = QueryCache::new();
     while any_wkvar_change && i <= max_iters {
         // println!("iteration {} of {}", i, max_iters);
         let mut instantiations_message = String::new();
@@ -999,7 +1000,7 @@ pub fn iterative_solve<F>(
             // println!("converted to fixpoint");
              
             let fixpoint_answer = fcx.check(
-                &mut QueryCache::new(),
+                &mut cache,
                 cstr.def_id,
                 fcstr,
                 cstr.query_kind,
