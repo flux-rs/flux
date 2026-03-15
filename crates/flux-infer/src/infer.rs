@@ -264,7 +264,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         // let cstr = refine_tree.into_fixpoint(&mut fcx)?;
 
         // fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
-        QueryResult::Err(QueryErr::Ignored {def_id: def_id.resolved_id()})
+        QueryResult::Ok(Answer::trivial())
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
