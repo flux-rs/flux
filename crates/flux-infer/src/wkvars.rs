@@ -747,14 +747,15 @@ impl WKVarSolutions {
         writer.serialize(total_row)?;
         writer.flush()?;
         println!();
-        println!("CRATE & {} & {} & {} & {:.0}\\% & {:.0}\\% & {} & {} & {} & LoC",
+        println!("CRATE & {} & {} & {} & {} & {:.0}\\% & {:.0}\\% & {:.2} & {:.2} & {} & LoC",
+                 total.num_solved_exprs,
                  total.num_assumed_exprs,
                  total.num_removed_solved_exprs,
                  total.num_assumed_exprs + total.num_removed_solved_exprs,
                  100.0 * total.num_solved_exprs as f64 / ((total.num_assumed_exprs + total.num_solved_exprs) as f64),
                  100.0 * ((total.num_solved_exprs + total.num_assumed_exprs) as f64) / total.num_actual_exprs as f64,
-                 total_time.as_secs_f32(),
-                 total_time.as_secs_f32() - total_hint_time,
+                 total_query_time + total_hint_time,
+                 total_hint_time,
                  total_num_iters,
         );
         Ok(())
