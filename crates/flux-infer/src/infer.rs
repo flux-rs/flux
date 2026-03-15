@@ -260,10 +260,11 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             backend,
         });
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
-        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
+        // let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
+        // let cstr = refine_tree.into_fixpoint(&mut fcx)?;
 
-        fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
+        // fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
+        QueryResult::Err(QueryErr::Ignored {def_id: def_id.resolved_id()})
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
