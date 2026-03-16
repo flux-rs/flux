@@ -148,10 +148,7 @@ impl TypeFolder for &Holes {
 
     fn fold_region(&mut self, r: &rty::Region) -> rty::Region {
         if let rty::Region::ReVar(vid) = r {
-            self.regions
-                .get(vid)
-                .copied()
-                .unwrap_or_else(|| bug!("unfilled region hole {vid:?}"))
+            self.regions.get(vid).copied().unwrap_or(rty::ReErased)
         } else {
             *r
         }
