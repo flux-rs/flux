@@ -337,7 +337,7 @@ fn report_errors(
             // err_diag.subdiagnostic(errors::FailingConstraint {
             //     constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_ctx.expr)),
             // });
-            for (wkvid, solution) in wkvar_solutions {
+            for (wkvid, (solution, _)) in wkvar_solutions {
                 add_fn_fix_diagnostic(genv, &mut err_diag, *wkvid, solution);
             }
             // for blamed_binder in blamed_binders {

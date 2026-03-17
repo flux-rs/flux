@@ -538,14 +538,14 @@ pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
 pub struct FixpointCheckError<Tag> {
     pub tag: Tag,
     pub blame_ctx: BlameCtxt,
-    pub possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>>,
+    pub possible_solutions: FxIndexMap<rty::WKVid, Vec<(rty::Binder<rty::Expr>, bool)>>,
 }
 
 impl<Tag> FixpointCheckError<Tag> {
     pub fn new(
         tag: Tag,
         blame_ctx: BlameCtxt,
-        possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>>,
+        possible_solutions: FxIndexMap<rty::WKVid, Vec<(rty::Binder<rty::Expr>, bool)>>,
     ) -> Self {
         Self { tag, blame_ctx, possible_solutions }
     }
@@ -709,7 +709,7 @@ where
                         .map(|tag_idx| {
                             let tag = self.tags[tag_idx];
                             let blame_ctx = self.blame_ctx_map[&tag_idx].clone();
-                            let mut possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = FxIndexMap::default();
+                            let mut possible_solutions: FxIndexMap<rty::WKVid, Vec<(rty::Binder<rty::Expr>, bool)>> = FxIndexMap::default();
                             if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
                                 println!(
                                     "Looking for weak kvars that might solve {}",
@@ -796,51 +796,66 @@ where
                                     // println!(" ==>");
                                     // println!("  {}", new_flat_constraint.head);
                                     println!("qe and simplify {}", wkvid_string);
-                                    match qe_and_simplify(&new_flat_constraint, &binder_consts, &constants_without_inequalities, data_decls.clone()) {
-                                        Ok(fe) => {
-                                            match self.fixpoint_to_expr(&fe) {
-                                                Ok(e) => {
-                                                    if !e.is_trivially_false()
-                                                        && !e.is_trivially_true() {
-                                                        if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &e) {
-                                                            // println!("recording solution: {:?}", binder_e);
-                                                            if fe.total_num_disjuncts() > 3 {
-                                                                // println!("WARN: skipping answer with too many disjuncts");
-                                                                // Try the regular expression
-                                                                if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
-                                                                    possible_solutions.entry(*wkvid)
-                                                                        .or_default()
-                                                                        .push(binder_e);
-                                                                }
-                                                            } else {
-                                                                possible_solutions.entry(*wkvid)
-                                                                    .or_default()
-                                                                    .push(binder_e);
-                                                            }
-                                                        } else {
-                                                            // println!("got nontrivial solution {} but couldn't unify it with args {:?}", fe, wkvar.args);
-                                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
-                                                                possible_solutions.entry(*wkvid)
-                                                                    .or_default()
-                                                                    .push(binder_e);
-                                                            }
-                                                        }
-                                                    } else {
-                                                        // println!("skipped trivial solution");
-                                                    }
-                                                }
-                                                Err(err) => {}, // println!("failed to decode fixpoint expr because of {:?}", err),
-                                        }
-                                        }
-                                        Err(err) => {
-                                            println!("failed to decode z3 expr because of {:?}", err);
-                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
-                                                possible_solutions.entry(*wkvid)
-                                                    .or_default()
-                                                    .push(binder_e);
-                                            }
-                                        }
+                                    let fixpoint::Pred::Expr(original_head_fe) = &new_flat_constraint.head else {
+                                        panic!()
+                                    };
+                                    let Ok(original_head_rty) = self.fixpoint_to_expr(original_head_fe) else {
+                                        panic!()
+                                    };
+
+                                    if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &original_head_rty) {
+                                        possible_solutions.entry(*wkvid)
+                                            .or_default()
+                                            .push((binder_e, false));
                                     }
+                                    // match qe_and_simplify(&new_flat_constraint, &binder_consts, &constants_without_inequalities, data_decls.clone()) {
+                                    //     Ok(fe) => {
+                                    //         match self.fixpoint_to_expr(&fe) {
+                                    //             Ok(e) => {
+                                    //                 if !e.is_trivially_false()
+                                    //                     && !e.is_trivially_true() {
+                                    //                     if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &e) {
+                                    //                         // println!("recording solution: {:?}", binder_e);
+                                    //                         if fe.total_num_disjuncts() > 3 {
+                                    //                             println!("WARN: skipping answer with too many disjuncts");
+                                    //                             // Try the regular expression
+                                    //                             if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &original_head_rty) {
+                                    //                                 possible_solutions.entry(*wkvid)
+                                    //                                     .or_default()
+                                    //                                     .push((binder_e, false));
+                                    //                             }
+                                    //                         } else {
+                                    //                             let original_head_sol = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &original_head_rty);
+                                    //                             println!("without qe: {:?}", original_head_sol);
+                                    //                             possible_solutions.entry(*wkvid)
+                                    //                                 .or_default()
+                                    //                                 .push((binder_e, original_head_sol.is_none()));
+                                    //                         }
+                                    //                     } else {
+                                    //                         // println!("got nontrivial solution {} but couldn't unify it with args {:?}", fe, wkvar.args);
+                                    //                         if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &original_head_rty) {
+                                    //                             possible_solutions.entry(*wkvid)
+                                    //                                 .or_default()
+                                    //                                 .push((binder_e, false));
+                                    //                         }
+                                    //                     }
+                                    //                 } else {
+                                    //                     // println!("skipped trivial solution");
+                                    //                 }
+                                    //             }
+                                    //             Err(err) => {
+                                    //                 panic!("failed to decode fixpoint expr: {:?}", err)
+                                    //             }, // println!("failed to decode fixpoint expr because of {:?}", err),
+                                    //         }
+                                    //     }
+                                    //     Err(_) => {
+                                    //         if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &original_head_rty) {
+                                    //             possible_solutions.entry(*wkvid)
+                                    //                 .or_default()
+                                    //                 .push((binder_e, false));
+                                    //         }
+                                    //     }
+                                    // }
                                 }
                             }
                             FixpointCheckError::new(

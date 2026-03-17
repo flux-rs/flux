@@ -295,6 +295,7 @@ pub struct WKVarSolution {
     /// a binder because we assume them to be compatible.
     pub removed_solved_exprs: FxHashSet<rty::Expr>,
     pub actual_exprs: Vec<rty::Binder<rty::Expr>>,
+    pub expr_needs_qe: HashMap<rty::Expr, bool>,
 }
 
 impl WKVarSolution {
@@ -315,21 +316,37 @@ impl WKVarSolution {
             assumed_exprs: Default::default(),
             removed_solved_exprs: Default::default(),
             actual_exprs,
+            expr_needs_qe: Default::default(),
         }
     }
-    pub fn into_wkvar_subst(&self) -> Option<rty::Binder<rty::Expr>> {
+
+    pub fn active_solved_exprs(&self) -> Option<rty::Binder<Vec<rty::Expr>>> {
+        match &self.solved_exprs {
+            Some(solved_exprs) => {
+                Some(solved_exprs.map_ref(|exprs| {
+                    exprs
+                        .iter()
+                        .filter(|expr| !self.removed_solved_exprs.contains(expr))
+                        .cloned()
+                        .collect_vec()
+                }))
+            }
+            None => None,
+        }
+    }
+
+    pub fn into_solution_exprs(&self) -> Option<rty::Binder<Vec<rty::Expr>>> {
         match (&self.solved_exprs, &self.assumed_exprs) {
             (None, Some(assumed_exprs)) => {
-                Some(assumed_exprs.map_ref(|exprs| rty::Expr::and_from_iter(exprs.iter().cloned())))
+                Some(assumed_exprs.map_ref(|exprs| exprs.iter().cloned().collect_vec()))
             }
             (Some(solved_exprs), None) => {
                 Some(solved_exprs.map_ref(|exprs| {
-                    rty::Expr::and_from_iter(
-                        exprs
-                            .iter()
-                            .filter(|expr| !self.removed_solved_exprs.contains(expr))
-                            .cloned(),
-                    )
+                    exprs
+                        .iter()
+                        .filter(|expr| !self.removed_solved_exprs.contains(expr))
+                        .cloned()
+                        .collect_vec()
                 }))
             }
             (None, None) => None,
@@ -339,18 +356,21 @@ impl WKVarSolution {
                 assert!(solved_exprs.vars().len() == assumed_exprs.vars().len());
                 Some(assumed_exprs.map_ref(|assumed_exprs_inner| {
                     // Put all of the solutions into a conjunction
-                    rty::Expr::and_from_iter(
                         assumed_exprs_inner.iter().cloned().chain(
                             solved_exprs
                                 .skip_binder_ref()
                                 .iter()
                                 .filter(|expr| !self.removed_solved_exprs.contains(expr))
                                 .cloned(),
-                        ),
-                    )
+                    ).collect_vec()
                 }))
             }
         }
+    }
+
+    pub fn into_wkvar_subst(&self) ->  Option<rty::Binder<rty::Expr>> {
+        self.into_solution_exprs().map(|bind_es|
+                                     bind_es.map(|es| rty::Expr::and_from_iter(es.into_iter())))
     }
 
     fn has_solved_expr(&self, expr: &rty::Expr) -> bool {
@@ -394,13 +414,17 @@ impl WKVarSolution {
         }
     }
 
-    fn add_solved_expr(&mut self, solved_expr: &rty::Binder<rty::Expr>) -> bool {
+    fn add_solved_expr(&mut self, solved_expr: &rty::Binder<rty::Expr>, needs_qe: bool) -> bool {
         if self
             .removed_solved_exprs
             .contains(&solved_expr.skip_binder_ref().erase_metadata())
         {
             return false;
         }
+        self.expr_needs_qe
+            .entry(solved_expr.skip_binder_ref().erase_metadata())
+            .and_modify(|e_needs_qe| *e_needs_qe &= needs_qe)
+            .or_insert(needs_qe);
         Self::add_expr(&mut self.solved_exprs, solved_expr)
     }
 
@@ -483,6 +507,11 @@ impl WKVarSolution {
         } else {
             vec![]
         };
+        let qe_solved_exprs_not_removed = self.active_solved_exprs().map(|binder_es| {
+            binder_es.skip_binder().into_iter().filter(|e| self.expr_needs_qe[e]).map(|expr|
+                format!("{:?}", flux_middle::pretty::with_cx!(&pretty_cx, &expr))
+            ).collect_vec()
+        }).unwrap_or(vec![]);
         let summary_removed_solved_exprs = self
             .removed_solved_exprs
             .iter()
@@ -495,6 +524,7 @@ impl WKVarSolution {
             .collect_vec();
         WKVarSolutionSummary {
             solved_exprs: summary_solved_exprs,
+            qe_solved_exprs_not_removed,
             assumed_exprs: summary_assumed_exprs,
             removed_solved_exprs: summary_removed_solved_exprs,
             actual_exprs: summary_actual_exprs,
@@ -505,6 +535,7 @@ impl WKVarSolution {
 #[derive(Clone, serde::Serialize)]
 pub struct WKVarSolutionSummary {
     pub solved_exprs: Vec<String>,
+    pub qe_solved_exprs_not_removed: Vec<String>,
     pub assumed_exprs: Vec<String>,
     pub removed_solved_exprs: Vec<String>,
     pub actual_exprs: Vec<String>,
@@ -514,6 +545,7 @@ impl WKVarSolutionSummary {
     pub fn to_stats(&self) -> WKVarSolutionStats {
         WKVarSolutionStats {
             num_solved_exprs: self.solved_exprs.len(),
+            num_qe_solved_exprs_not_removed: self.qe_solved_exprs_not_removed.len(),
             num_assumed_exprs: self.assumed_exprs.len(),
             num_removed_solved_exprs: self.removed_solved_exprs.len(),
             num_actual_exprs: self.actual_exprs.len(),
@@ -524,6 +556,7 @@ impl WKVarSolutionSummary {
 #[derive(serde::Serialize, Default)]
 pub struct WKVarSolutionStats {
     pub num_solved_exprs: usize,
+    pub num_qe_solved_exprs_not_removed: usize,
     pub num_assumed_exprs: usize,
     pub num_removed_solved_exprs: usize,
     pub num_actual_exprs: usize,
@@ -533,6 +566,7 @@ impl WKVarSolutionStats {
     pub fn combine(&self, other: &Self) -> Self {
         Self {
             num_solved_exprs: self.num_solved_exprs + other.num_solved_exprs,
+            num_qe_solved_exprs_not_removed: self.num_qe_solved_exprs_not_removed + other.num_qe_solved_exprs_not_removed,
             num_assumed_exprs: self.num_assumed_exprs + other.num_assumed_exprs,
             num_removed_solved_exprs: self.num_removed_solved_exprs
                 + other.num_removed_solved_exprs,
@@ -633,6 +667,7 @@ impl WKVarSolutions {
             num_assumed_exprs: usize,
             num_removed_solved_exprs: usize,
             num_actual_exprs: usize,
+            num_qe_solved_exprs_not_removed: usize,
             time_to_check: f32,
             time_to_hint: f32,
             total_time: f32,
@@ -647,7 +682,7 @@ impl WKVarSolutions {
         let mut total = WKVarSolutionStats::default();
         let num_fns = stats_by_fn.len();
         let mut latex_table = String::new();
-        latex_table.push_str("Function name & Inferences & Guided Assumptions & Guided Removals & Ground Truth Expressions & VC check time & Reft hint time & Total time & Iters \\\\\n");
+        latex_table.push_str("Function name & Inferences & Guided Assumptions & Guided Removals & Ground Truth Expressions & Num QE Solved & VC check time & Reft hint time & Total time & Iters \\\\\n");
         stats_by_fn.into_iter().try_for_each(|((fn_def_id, fn_name), stats)| {
             let timings = fn_timings.get(&fn_def_id).cloned().unwrap_or_default();
             total = total.combine(&stats);
@@ -657,6 +692,7 @@ impl WKVarSolutions {
                 num_assumed_exprs: stats.num_assumed_exprs,
                 num_removed_solved_exprs: stats.num_removed_solved_exprs,
                 num_actual_exprs: stats.num_actual_exprs,
+                num_qe_solved_exprs_not_removed: stats.num_qe_solved_exprs_not_removed,
                 time_to_check: timings.query.as_secs_f32(),
                 time_to_hint: timings.reft_hint.as_secs_f32(),
                 total_time: (timings.query + timings.reft_hint).as_secs_f32(),
@@ -670,12 +706,13 @@ impl WKVarSolutions {
             // println!("  num assumed: {}", row.num_assumed_exprs);
             // println!("  num removed: {}", row.num_removed_solved_exprs);
             // println!("  num actual:  {}", row.num_actual_exprs);
-            latex_table.push_str(&format!("{} & {} & {} & {} & {} & {} & {} & {} & {}\\\\\n",
+            latex_table.push_str(&format!("{} & {} & {} & {} & {} & {} & {} & {} & {} & {}\\\\\n",
                                             row.fn_name,
                                             row.num_solved_exprs,
                                             row.num_assumed_exprs,
                                             row.num_removed_solved_exprs,
                                             row.num_actual_exprs,
+                                            row.num_qe_solved_exprs_not_removed,
                                             row.time_to_check,
                                             row.time_to_hint,
                                             row.total_time,
@@ -685,11 +722,12 @@ impl WKVarSolutions {
         })?;
         let num_wkvars = self.wkvars.len();
         let num_internal_wkvars = self.internal_wkvars.len();
-        latex_table.push_str(&format!("TOTAL & {} & {} & {} & {} & {} & {} & {} & {}",
+        latex_table.push_str(&format!("TOTAL & {} & {} & {} & {} & {} & {} & {} & {} & {}",
                                       total.num_solved_exprs,
                                       total.num_assumed_exprs,
                                       total.num_removed_solved_exprs,
                                       total.num_actual_exprs,
+                                      total.num_qe_solved_exprs_not_removed,
                                       total_query_time,
                                       total_hint_time,
                                       total_query_time + total_hint_time,
@@ -738,6 +776,7 @@ impl WKVarSolutions {
             num_solved_exprs: total.num_solved_exprs,
             num_assumed_exprs: total.num_assumed_exprs,
             num_removed_solved_exprs: total.num_removed_solved_exprs,
+            num_qe_solved_exprs_not_removed: total.num_qe_solved_exprs_not_removed,
             num_actual_exprs: total.num_actual_exprs,
             time_to_check: total_query_time,
             time_to_hint: total_hint_time,
@@ -1012,7 +1051,7 @@ pub fn iterative_solve<F>(
                 // println!("failing constraint {:?}", &error.blame_ctx.expr);
                 // let solution_candidates = _find_solution_candidates(&error.blame_ctx);
                 for (wkvid, instantiations) in error.possible_solutions.iter() {
-                    for instantiation in instantiations {
+                    for (instantiation, needs_qe) in instantiations {
                         // // Accept all solutions given
                         // let ground_truth_solutions = {
                         //     if let Some(solutions_map) = genv.weak_kvars_for(wkvid.0) {
@@ -1050,7 +1089,7 @@ pub fn iterative_solve<F>(
                         //     println!("skipping adding an expr because of reasons");
                         //     continue;
                         // }
-                        any_wkvar_change = solution.add_solved_expr(instantiation) || any_wkvar_change;
+                        any_wkvar_change = solution.add_solved_expr(instantiation, *needs_qe) || any_wkvar_change;
                     }
                 }
             }
