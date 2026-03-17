@@ -678,17 +678,18 @@ where
                         vec![].into_iter()
                     // Substitute the kvar solutions in
                     } else if let fixpoint::Pred::KVar(kvid, args) = pred {
-                        let exprs = if let Some((sorts, solution)) = &fixpoint_solution.get(&kvid) {
-                            assert!(sorts.len() == args.len());
-                            let arg_exprs = args.into_iter().map(|arg| fixpoint::Expr::Var(*arg)).collect_vec();
-                            let subst_solution = solution.substitute_bvar(&arg_exprs, 0);
-                            subst_solution.as_conjunction().into_iter()
-                            // We'll do hoisting later when we split disjuncts.
-                        } else {
-                            // println!("Missing kvar solution for kvid {:?}", kvid);
-                            vec![].into_iter()
-                        };
-                        exprs.into_iter().map(|expr| fixpoint::Pred::Expr(expr)).collect_vec().into_iter()
+                        vec![].into_iter()
+                        // let exprs = if let Some((sorts, solution)) = &fixpoint_solution.get(&kvid) {
+                        //     assert!(sorts.len() == args.len());
+                        //     let arg_exprs = args.into_iter().map(|arg| fixpoint::Expr::Var(*arg)).collect_vec();
+                        //     let subst_solution = solution.substitute_bvar(&arg_exprs, 0);
+                        //     subst_solution.as_conjunction().into_iter()
+                        //     // We'll do hoisting later when we split disjuncts.
+                        // } else {
+                        //     // println!("Missing kvar solution for kvid {:?}", kvid);
+                        //     vec![].into_iter()
+                        // };
+                        // exprs.into_iter().map(|expr| fixpoint::Pred::Expr(expr)).collect_vec().into_iter()
                     } else {
                         vec![pred.clone()].into_iter()
                     }
