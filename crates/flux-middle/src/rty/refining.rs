@@ -198,9 +198,10 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         let def_id = alias_ty.def_id;
         let args = self.refine_generic_args(def_id, &alias_ty.args)?;
 
+        let span = self.genv.tcx().def_span(def_id);
         let refine_args = if let ty::AliasKind::Opaque = alias_kind {
             rty::RefineArgs::for_item(self.genv, def_id, |param, _| {
-                let param = param.instantiate(self.genv.tcx(), &args, &[]);
+                let param = param.instantiate(self.genv.tcx(), &args, &[], span);
                 Ok(rty::Expr::hole(rty::HoleKind::Expr(param.sort)))
             })?
         } else {

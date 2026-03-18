@@ -138,7 +138,8 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
             .iter_own_params()
             .enumerate()
         {
-            let param = param.instantiate(self.genv.tcx(), args, &[]);
+            let span = self.genv.tcx().def_span(def_id);
+            let param = param.instantiate(self.genv.tcx(), args, &[], span);
             let sort = param
                 .sort
                 .deeply_normalize_sorts(def_id, self.genv, self.infcx)?;
@@ -323,8 +324,9 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         callee_def_id: DefId,
         args: &[rty::GenericArg],
     ) -> InferResult<List<Expr>> {
+        let span = self.genv.tcx().def_span(callee_def_id);
         Ok(RefineArgs::for_item(self.genv, callee_def_id, |param, _| {
-            let param = param.instantiate(self.genv.tcx(), args, &[]);
+            let param = param.instantiate(self.genv.tcx(), args, &[], span);
             Ok(self.fresh_infer_var(&param.sort, param.mode))
         })?)
     }
@@ -658,12 +660,13 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         fields: &[Ty],
         reason: ConstrReason,
     ) -> InferResult<Ty> {
+        let span = self.span;
         let ret = self.ensure_resolved_evars(|this| {
             // Replace holes in generic arguments with fresh inference variables
             let generic_args = this.instantiate_generic_args(generic_args);
 
             let variant = variant
-                .instantiate(this.tcx(), &generic_args, &[])
+                .instantiate(this.tcx(), &generic_args, &[], span)
                 .replace_bound_refts_with(|sort, mode, _| this.fresh_infer_var(sort, mode));
 
             // Check arguments
@@ -1192,10 +1195,12 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             )?;
             self.obligations.extend(obligs);
         } else {
+            let span = infcx.tcx().def_span(infcx.def_id);
             let bounds = infcx.genv.item_bounds(alias_ty.def_id)?.instantiate(
                 infcx.tcx(),
                 &alias_ty.args,
                 &alias_ty.refine_args,
+                span,
             );
             for clause in &bounds {
                 if !clause.kind().vars().is_empty() {

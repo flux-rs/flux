@@ -378,7 +378,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         // Otherwise, check if the trait has a default body
         if let Some(body) = self.default_assoc_refinement_body(trait_assoc_id)? {
             let impl_trait_ref = self.impl_trait_ref(impl_id)?.instantiate_identity();
-            return Ok(rty::EarlyBinder(body.instantiate(self.tcx(), &impl_trait_ref.args, &[])));
+            let span = self.tcx().def_span(impl_id);
+            return Ok(rty::EarlyBinder(body.instantiate(
+                self.tcx(),
+                &impl_trait_ref.args,
+                &[],
+                span,
+            )));
         }
 
         Err(QueryErr::MissingAssocReft {

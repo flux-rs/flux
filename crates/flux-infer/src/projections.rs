@@ -210,9 +210,8 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 let impl_trait_ref = self.genv().impl_trait_ref(impl_def_id)?.skip_binder();
 
                 let generics = self.tcx().generics_of(impl_def_id);
-                let span = self.tcx().def_span(impl_def_id);
 
-                let mut subst = TVarSubst::new(generics, span);
+                let mut subst = TVarSubst::new(generics, self.infcx.span);
                 for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
                     subst.generic_args(a, b);
                 }
@@ -234,7 +233,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 Ok(self
                     .genv()
                     .type_of(assoc_type_id)?
-                    .instantiate(tcx, &args, &[])
+                    .instantiate(tcx, &args, &[], self.infcx.span)
                     .expect_subset_ty_ctor())
             }
         }
@@ -354,6 +353,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 self.tcx(),
                 &alias_ty.args,
                 &alias_ty.refine_args,
+                self.infcx.span,
             );
             self.assemble_candidates_from_predicates(
                 &bounds,
@@ -381,8 +381,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         // FIXME(nilehmann) This is a patch to not panic inside rustc so we are
         // able to catch the bug
         if trait_pred.has_escaping_bound_vars() {
-            let span = self.tcx().def_span(self.def_id());
-            span_bug!(span, "trait_pred with escaping bound vars! {trait_pred:?}");
+            span_bug!(self.infcx.span, "trait_pred with escaping bound vars! {trait_pred:?}");
         }
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => {
@@ -442,10 +441,11 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
         match ty.kind() {
             TyKind::Indexed(BaseTy::Alias(AliasKind::Free, alias_ty), idx) => {
+                let span = self.infcx.span;
                 Ok(self
                     .genv()
                     .type_of(alias_ty.def_id)?
-                    .instantiate(self.tcx(), &alias_ty.args, &alias_ty.refine_args)
+                    .instantiate(self.tcx(), &alias_ty.args, &alias_ty.refine_args, span)
                     .expect_ctor()
                     .replace_bound_reft(idx))
             }
@@ -793,6 +793,7 @@ fn normalize_alias_reft<'tcx>(
     refine_args: &RefineArgs,
 ) -> QueryResult<(bool, Expr)> {
     let tcx = genv.tcx();
+    let span = tcx.def_span(def_id);
 
     let is_final = genv.assoc_refinement(alias_reft.assoc_id)?.final_;
     if is_final {
@@ -801,7 +802,7 @@ fn normalize_alias_reft<'tcx>(
             .unwrap_or_else(|| {
                 bug!("final associated refinement without body - should be caught in desugar")
             })
-            .instantiate(genv.tcx(), &alias_reft.args, &[])
+            .instantiate(genv.tcx(), &alias_reft.args, &[], span)
             .apply(refine_args);
         return Ok((true, e));
     }
@@ -826,9 +827,10 @@ fn normalize_alias_reft<'tcx>(
                     .lower(tcx)
                     .map_err(|reason| query_bug!("{reason:?}"))?,
             )?;
+            let span = tcx.def_span(impl_def_id);
             let e = genv
                 .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
-                .instantiate(tcx, &args, &[])
+                .instantiate(tcx, &args, &[], span)
                 .apply(refine_args);
             Ok((true, e))
         }

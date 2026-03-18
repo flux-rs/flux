@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use flux_common::{bug, tracked_span_bug};
+use flux_common::{bug, span_bug, tracked_span_bug};
 use rustc_type_ir::DebruijnIndex;
 
 use self::fold::FallibleTypeFolder;
@@ -131,6 +131,7 @@ pub trait GenericsSubstDelegate {
 pub(crate) struct GenericArgsDelegate<'a, 'tcx>(
     pub(crate) &'a [GenericArg],
     pub(crate) TyCtxt<'tcx>,
+    pub(crate) Span,
 );
 
 impl GenericsSubstDelegate for GenericArgsDelegate<'_, '_> {
@@ -138,17 +139,17 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_, '_> {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Base(ctor)) => Ok(ctor.sort()),
             Some(arg) => {
-                tracked_span_bug!("expected base type for generic parameter, found `{arg:?}`")
+                span_bug!(self.2, "expected base type for generic parameter, found `{arg:?}`")
             }
-            None => tracked_span_bug!("type parameter out of range {param_ty:?}"),
+            None => span_bug!(self.2, "type parameter out of range {param_ty:?}"),
         }
     }
 
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Result<Ty, !> {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Ty(ty)) => Ok(ty.clone()),
-            Some(arg) => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
-            None => tracked_span_bug!("type parameter out of range {param_ty:?}"),
+            Some(arg) => span_bug!(self.2, "expected type for generic parameter, found `{arg:?}`"),
+            None => span_bug!(self.2, "type parameter out of range {param_ty:?}"),
         }
     }
 
@@ -156,17 +157,19 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_, '_> {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Base(ctor)) => Ok(ctor.clone()),
             Some(arg) => {
-                tracked_span_bug!("expected base type for generic parameter, found `{arg:?}`")
+                span_bug!(self.2, "expected base type for generic parameter, found `{arg:?}`")
             }
-            None => tracked_span_bug!("type parameter out of range"),
+            None => span_bug!(self.2, "type parameter out of range"),
         }
     }
 
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Result<Region, !> {
         match self.0.get(ebr.index as usize) {
             Some(GenericArg::Lifetime(re)) => Ok(*re),
-            Some(arg) => bug!("expected region for generic parameter, found `{arg:?}`"),
-            None => bug!("region parameter out of range"),
+            Some(arg) => {
+                span_bug!(self.2, "expected region for generic parameter, found `{arg:?}`")
+            }
+            None => span_bug!(self.2, "region parameter out of range"),
         }
     }
 
@@ -174,8 +177,10 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_, '_> {
         if let ConstKind::Param(param_const) = &param.kind {
             match self.0.get(param_const.index as usize) {
                 Some(GenericArg::Const(cst)) => cst.clone(),
-                Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
-                None => bug!("generic parameter out of range"),
+                Some(arg) => {
+                    span_bug!(self.2, "expected const for generic parameter, found `{arg:?}`")
+                }
+                None => span_bug!(self.2, "generic parameter out of range"),
             }
         } else {
             param.clone()
@@ -185,8 +190,8 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_, '_> {
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
         match self.0.get(param_const.index as usize) {
             Some(GenericArg::Const(cst)) => Expr::from_const(self.1, cst),
-            Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
-            None => bug!("generic parameter out of range"),
+            Some(arg) => span_bug!(self.2, "expected const for generic parameter, found `{arg:?}`"),
+            None => span_bug!(self.2, "generic parameter out of range"),
         }
     }
 }
