@@ -1,6 +1,6 @@
 use std::iter;
 
-use flux_common::{bug, iter::IterExt, tracked_span_bug};
+use flux_common::{bug, iter::IterExt, span_bug, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -379,7 +379,8 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         // FIXME(nilehmann) This is a patch to not panic inside rustc so we are
         // able to catch the bug
         if trait_pred.has_escaping_bound_vars() {
-            tracked_span_bug!();
+            let span = self.tcx().def_span(self.def_id());
+            span_bug!(span, "trait_pred with escaping bound vars! {trait_pred:?}");
         }
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => {
