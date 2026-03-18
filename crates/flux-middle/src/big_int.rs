@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{cmp::Ordering, fmt};
 
 use rustc_macros::{Decodable, Encodable};
 
@@ -10,10 +10,27 @@ use rustc_macros::{Decodable, Encodable};
 /// because we never do arithmetic. We can change the representation in the future (and use arbitrary
 /// precision integers) if this ever becomes a problem, e.g., if we want to do (precise) arithmetic
 /// during constant folding.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, Encodable, Decodable, PartialOrd, Ord)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub struct BigInt {
     sign: Sign,
     val: u128,
+}
+
+impl PartialOrd for BigInt {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for BigInt {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self.sign, other.sign) {
+            (Sign::Negative, Sign::NonNegative) => Ordering::Less,
+            (Sign::NonNegative, Sign::Negative) => Ordering::Greater,
+            (Sign::NonNegative, Sign::NonNegative) => self.val.cmp(&other.val),
+            (Sign::Negative, Sign::Negative) => other.val.cmp(&self.val),
+        }
+    }
 }
 
 /// This are in order so negative is less than non-negative.

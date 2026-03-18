@@ -98,7 +98,9 @@ fn check_body(
     .map_err(|err| err.emit(genv, def_id))?;
 
     // PHASE 3: invoke fixpoint on the constraint
-    if genv.proven_externally(def_id).is_some() || flux_config::lean().is_emit() {
+    if (genv.proven_externally(def_id).is_some() && flux_config::lean().is_check())
+        || flux_config::lean().is_emit()
+    {
         infcx_root
             .execute_lean_query(cache, MaybeExternId::Local(def_id))
             .emit(&genv)
