@@ -22,6 +22,7 @@ use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{TyCtxt, Variance},
 };
+use rustc_span::Span;
 use rustc_trait_selection::{
     solve::deeply_normalize,
     traits::{FulfillmentError, SelectionContext},
@@ -209,8 +210,9 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 let impl_trait_ref = self.genv().impl_trait_ref(impl_def_id)?.skip_binder();
 
                 let generics = self.tcx().generics_of(impl_def_id);
+                let span = self.tcx().def_span(impl_def_id);
 
-                let mut subst = TVarSubst::new(generics);
+                let mut subst = TVarSubst::new(generics, span);
                 for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
                     subst.generic_args(a, b);
                 }
@@ -507,6 +509,7 @@ pub enum Candidate {
 #[derive(Debug)]
 struct TVarSubst {
     args: Vec<Option<GenericArg>>,
+    span: Span,
 }
 
 impl GenericsSubstDelegate for &TVarSubst {
@@ -554,8 +557,8 @@ impl GenericsSubstDelegate for &TVarSubst {
         tracked_span_bug!()
     }
 
-    fn const_for_param(&mut self, _param: &Const) -> Const {
-        tracked_span_bug!()
+    fn const_for_param(&mut self, param: &Const) -> Const {
+        span_bug!(self.span, "unexpected const_for_param: {param:?}")
     }
 }
 
@@ -600,8 +603,8 @@ impl FallibleTypeFolder for SortNormalizer<'_, '_, '_> {
 }
 
 impl TVarSubst {
-    fn new(generics: &rustc_middle::ty::Generics) -> Self {
-        Self { args: vec![None; generics.count()] }
+    fn new(generics: &rustc_middle::ty::Generics, span: Span) -> Self {
+        Self { args: vec![None; generics.count()], span }
     }
 
     fn instantiate_partial<T: TypeFoldable>(&mut self, pred: EarlyBinder<T>) -> Option<T> {
