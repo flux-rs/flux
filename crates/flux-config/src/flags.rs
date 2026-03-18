@@ -115,6 +115,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
     let mut flags = Flags::default();
     let mut includes: Vec<String> = Vec::new();
     let mut trusteds: Vec<String> = Vec::new();
+    let mut trusted_impls: Vec<String> = Vec::new();
     for arg in env::args() {
         let Some((key, value)) = parse_flux_arg(&arg) else { continue };
 
@@ -140,6 +141,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "include" => parse_opt_include(&mut includes, value),
             "include-trusted" => parse_opt_include(&mut trusteds, value),
+            "include-trusted-impl" => parse_opt_include(&mut trusted_impls, value),
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
@@ -169,6 +171,13 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             process::exit(1);
         });
         flags.include_trusted = Some(trusted);
+    }
+    if !trusted_impls.is_empty() {
+        let trusted_impl = IncludePattern::new(trusted_impls).unwrap_or_else(|err| {
+            eprintln!("error: invalid trusted-impl pattern: {err}");
+            process::exit(1);
+        });
+        flags.include_trusted_impl = Some(trusted_impl);
     }
     flags
 });
