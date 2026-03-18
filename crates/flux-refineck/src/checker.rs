@@ -295,8 +295,8 @@ fn check_fn_subtyping(
         // in subtyping_mono, skip next two steps...
         let sub_sig = match sub_sig {
             SubFn::Poly(def_id, early_sig, sub_args) => {
-                let refine_args = infcx.instantiate_refine_args(def_id, &sub_args)?;
-                early_sig.instantiate(tcx, &sub_args, &refine_args)
+                let refine_args = infcx.instantiate_refine_args(def_id, &sub_args, span)?;
+                early_sig.instantiate(tcx, &sub_args, &refine_args, span)
             }
             SubFn::Mono(sig) => sig,
         };
@@ -394,9 +394,12 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
 
     let mut infcx = root_ctxt.infcx(impl_method_id, &rustc_infcx);
 
-    let trait_fn_sig =
-        genv.fn_sig(trait_method_id)?
-            .instantiate(tcx, &trait_method_args, &trait_refine_args);
+    let trait_fn_sig = genv.fn_sig(trait_method_id)?.instantiate(
+        tcx,
+        &trait_method_args,
+        &trait_refine_args,
+        span,
+    );
     let impl_sig = genv.fn_sig(impl_method_id)?;
     let sub_sig = SubFn::Poly(impl_method_id, impl_sig, impl_method_args);
 
@@ -904,7 +907,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let early_refine_args = match callee_def_id {
             Some(callee_def_id) => {
                 infcx
-                    .instantiate_refine_args(callee_def_id, &generic_args)
+                    .instantiate_refine_args(callee_def_id, &generic_args, span)
                     .with_span(span)?
             }
             None => rty::List::empty(),
@@ -915,7 +918,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 genv.predicates_of(callee_def_id)
                     .with_span(span)?
                     .predicates()
-                    .instantiate(tcx, &generic_args, &early_refine_args)
+                    .instantiate(tcx, &generic_args, &early_refine_args, span)
             }
             None => crate::rty::List::empty(),
         };
@@ -933,7 +936,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // Instantiate function signature and normalize it
         let late_refine_args = vec![];
         let fn_sig = fn_sig
-            .instantiate(tcx, &generic_args, &early_refine_args)
+            .instantiate(tcx, &generic_args, &early_refine_args, span)
             .replace_bound_vars(
                 |_| rty::ReErased,
                 |sort, mode, _| infcx.fresh_infer_var(sort, mode),

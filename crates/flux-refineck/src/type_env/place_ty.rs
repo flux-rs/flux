@@ -818,7 +818,7 @@ fn downcast_struct(
         .map(|proj| idx.proj_and_reduce(proj))
         .collect_vec();
     Ok(struct_variant(infcx.genv, adt.did())?
-        .instantiate(tcx, args, &[])
+        .instantiate(tcx, args, &[], span)
         .replace_bound_refts(&flds)
         .deeply_normalize(&mut infcx.at(span))?
         .fields
@@ -854,7 +854,7 @@ fn downcast_enum(
         .genv
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
-        .instantiate(tcx, args, &[])
+        .instantiate(tcx, args, &[], span)
         .replace_bound_refts_with(|sort, _, kind| {
             Expr::fvar(infcx.define_bound_reft_var(sort, kind))
         })
