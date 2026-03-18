@@ -32,6 +32,9 @@ pub struct FluxMetadata {
     /// If present, only consider `DefId` in files that match any of the glob patterns as trusted.
     /// Patterns are checked relative to the location of the manifest file.
     pub include_trusted: Option<Vec<String>>,
+    /// If present, only consider `DefId` in files that match any of the glob patterns as trusted_impl.
+    /// Patterns are checked relative to the location of the manifest file.
+    pub include_trusted_impl: Option<Vec<String>>,
     /// If present, every function in the module is implicitly labeled with a `no_panic` by default.
     /// This means that the only way a function can panic is if it calls an external function without this attribute.
     pub no_panic: Option<bool>,
@@ -45,7 +48,7 @@ impl FluxMetadata {
     pub fn into_flags(
         self,
         target_dir: &Utf8Path,
-        inlude_pattern_prefix: Option<&Utf8Path>,
+        include_pattern_prefix: Option<&Utf8Path>,
     ) -> Vec<String> {
         let mut flags = vec![];
         if let Some(true) = self.cache {
@@ -83,7 +86,7 @@ impl FluxMetadata {
         }
         if let Some(patterns) = self.include {
             for pat in patterns {
-                if let Some(prefix) = inlude_pattern_prefix {
+                if let Some(prefix) = include_pattern_prefix {
                     flags.push(format!("-Finclude={}", prepend_prefix_to_pattern(prefix, &pat)));
                 } else {
                     flags.push(format!("-Finclude={pat}"));
@@ -92,12 +95,23 @@ impl FluxMetadata {
         }
         if let Some(patterns) = self.include_trusted {
             for pat in patterns {
-                if let Some(glob_prefix) = glob_prefix
+                if let Some(glob_prefix) = include_pattern_prefix
                     && !glob_prefix.as_str().is_empty()
                 {
                     flags.push(format!("-Finclude-trusted={glob_prefix}/{pat}"));
                 } else {
                     flags.push(format!("-Finclude-trusted={pat}"));
+                }
+            }
+        }
+        if let Some(patterns) = self.include_trusted_impl {
+            for pat in patterns {
+                if let Some(glob_prefix) = include_pattern_prefix
+                    && !glob_prefix.as_str().is_empty()
+                {
+                    flags.push(format!("-Finclude-trusted-impl={glob_prefix}/{pat}"));
+                } else {
+                    flags.push(format!("-Finclude-trusted-impl={pat}"));
                 }
             }
         }

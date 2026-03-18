@@ -77,8 +77,13 @@ pub fn cache_path() -> Option<&'static Path> {
 pub fn include_pattern() -> Option<&'static IncludePattern> {
     FLAGS.include.as_ref()
 }
+
 pub fn trusted_pattern() -> Option<&'static IncludePattern> {
     FLAGS.include_trusted.as_ref()
+}
+
+pub fn trusted_impl_pattern() -> Option<&'static IncludePattern> {
+    FLAGS.include_trusted_impl.as_ref()
 }
 
 fn check_overflow() -> OverflowMode {

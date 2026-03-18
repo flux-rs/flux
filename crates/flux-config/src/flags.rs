@@ -21,6 +21,8 @@ pub struct Flags {
     pub include: Option<IncludePattern>,
     /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
     pub include_trusted: Option<IncludePattern>,
+    /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
+    pub include_trusted_impl: Option<IncludePattern>,
     /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
     /// (default `64`).
     pub pointer_width: PointerWidth,
@@ -88,6 +90,7 @@ impl Default for Flags {
             pointer_width: PointerWidth::default(),
             include: None,
             include_trusted: None,
+            include_trusted_impl: None,
             cache: None,
             check_overflow: OverflowMode::default(),
             allow_raw_deref: RawDerefMode::default(),

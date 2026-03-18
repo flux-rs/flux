@@ -645,10 +645,18 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Check whether the `def_id` (or the file where `def_id` is defined)
-    /// is in the `trusted` pattern, and conservatively return `false` if
+    /// is in the `include_trusted` pattern, and conservatively return `false` if
     /// anything unexpected happens.
     fn matches_trusted_pattern(&self, def_id: MaybeExternId) -> bool {
         let Some(pattern) = config::trusted_pattern() else { return false };
+        self.matches_pattern(def_id, pattern)
+    }
+
+    /// Check whether the `def_id` (or the file where `def_id` is defined)
+    /// is in the `include_trusted_impl` pattern, and conservatively return `false` if
+    /// anything unexpected happens.
+    fn matches_trusted_impl_pattern(&self, def_id: MaybeExternId) -> bool {
+        let Some(pattern) = config::trusted_impl_pattern() else { return false };
         self.matches_pattern(def_id, pattern)
     }
 
@@ -680,7 +688,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .traverse_parents(def_id, |did| self.fhir_attr_map(did).trusted_impl())
             .map(|trusted| trusted.to_bool())
             .unwrap_or(false);
-        annotation || self.matches_trusted_pattern(MaybeExternId::Local(def_id))
+        annotation || self.matches_trusted_impl_pattern(MaybeExternId::Local(def_id))
     }
 
     /// Whether the item is a dummy item created by the extern spec macro.
