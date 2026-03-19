@@ -390,6 +390,9 @@ pub fn walk_where_predicate<'v, V: Visitor<'v>>(vis: &mut V, predicate: &WhereBo
 }
 
 pub fn walk_fn_sig<'v, V: Visitor<'v>>(vis: &mut V, sig: &FnSig<'v>) {
+    if let Some(no_panic_if) = &sig.no_panic_if {
+        vis.visit_expr(no_panic_if);
+    }
     vis.visit_fn_decl(sig.decl);
 }
 
