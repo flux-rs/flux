@@ -12,6 +12,6 @@ struct Foo;
 
 impl Drop for Foo {
     #[flux_rs::sig(fn(&mut Self[@s]))]
-    #[flux_rs::no_panic_if(s != State::Bad)] // bogus field access
+    #[flux_rs::no_panic_if(s != State::Bad)] // `s` should be a `State`, but my changes seem to have made it a `Foo`...
     fn drop(&mut self) {}
 }
