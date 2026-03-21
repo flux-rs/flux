@@ -1201,53 +1201,54 @@
 <a href=#1201 id=1201 data-nosnippet>1201</a>                            dcx.struct_span_err(cx_span, fluent::middle_query_not_included_at);
 <a href=#1202 id=1202 data-nosnippet>1202</a>                        diag.arg(<span class="string">"kind"</span>, tcx.def_kind(def_id).descr(def_id));
 <a href=#1203 id=1203 data-nosnippet>1203</a>                        diag.arg(<span class="string">"name"</span>, def_id_to_string(def_id));
-<a href=#1204 id=1204 data-nosnippet>1204</a>                        <span class="kw">if let </span><span class="prelude-val">Some</span>(def_ident_span) = tcx.def_ident_span(def_id) {
-<a href=#1205 id=1205 data-nosnippet>1205</a>                            diag.span_help(def_ident_span, fluent::_subdiag::help);
-<a href=#1206 id=1206 data-nosnippet>1206</a>                        }
-<a href=#1207 id=1207 data-nosnippet>1207</a>                        diag
-<a href=#1208 id=1208 data-nosnippet>1208</a>                    }
-<a href=#1209 id=1209 data-nosnippet>1209</a>                    QueryErr::MissingAssocReft { name, .. } =&gt; {
-<a href=#1210 id=1210 data-nosnippet>1210</a>                        <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx
-<a href=#1211 id=1211 data-nosnippet>1211</a>                            .struct_span_err(cx_span, fluent::middle_query_missing_assoc_reft_at);
-<a href=#1212 id=1212 data-nosnippet>1212</a>                        diag.arg(<span class="string">"name"</span>, name);
-<a href=#1213 id=1213 data-nosnippet>1213</a>                        diag.code(E0999);
-<a href=#1214 id=1214 data-nosnippet>1214</a>                        diag
-<a href=#1215 id=1215 data-nosnippet>1215</a>                    }
-<a href=#1216 id=1216 data-nosnippet>1216</a>                    QueryErr::OpaqueStruct { struct_id } =&gt; {
-<a href=#1217 id=1217 data-nosnippet>1217</a>                        <span class="kw">let </span><span class="kw-2">mut </span>diag =
-<a href=#1218 id=1218 data-nosnippet>1218</a>                            dcx.struct_span_err(cx_span, fluent::middle_query_opaque_struct);
-<a href=#1219 id=1219 data-nosnippet>1219</a>                        diag.arg(<span class="string">"struct"</span>, tcx.def_path_str(struct_id));
-<a href=#1220 id=1220 data-nosnippet>1220</a>                        diag.span_label(cx_span, fluent::_subdiag::label);
-<a href=#1221 id=1221 data-nosnippet>1221</a>                        <span class="kw">if let </span>ErrCtxt::FnCheck(<span class="kw">_</span>, fn_def_id) = <span class="self">self</span>.cx {
-<a href=#1222 id=1222 data-nosnippet>1222</a>                            <span class="kw">let </span>fn_span = tcx.def_span(fn_def_id);
-<a href=#1223 id=1223 data-nosnippet>1223</a>                            diag.arg(<span class="string">"def_kind"</span>, tcx.def_descr(fn_def_id.to_def_id()));
-<a href=#1224 id=1224 data-nosnippet>1224</a>                            diag.span_label(fn_span, fluent::middle_query_opaque_struct_help);
-<a href=#1225 id=1225 data-nosnippet>1225</a>                            diag.note(fluent::middle_query_opaque_struct_note);
-<a href=#1226 id=1226 data-nosnippet>1226</a>                        }
-<a href=#1227 id=1227 data-nosnippet>1227</a>                        diag
-<a href=#1228 id=1228 data-nosnippet>1228</a>                    }
-<a href=#1229 id=1229 data-nosnippet>1229</a>                    QueryErr::InvalidGenericArg { .. }
-<a href=#1230 id=1230 data-nosnippet>1230</a>                    | QueryErr::Emitted(<span class="kw">_</span>)
-<a href=#1231 id=1231 data-nosnippet>1231</a>                    | QueryErr::Bug { .. } =&gt; {
-<a href=#1232 id=1232 data-nosnippet>1232</a>                        <span class="kw">let </span><span class="kw-2">mut </span>diag = <span class="self">self</span>.err.into_diag(dcx, level);
-<a href=#1233 id=1233 data-nosnippet>1233</a>                        diag.span(cx_span);
-<a href=#1234 id=1234 data-nosnippet>1234</a>                        diag
-<a href=#1235 id=1235 data-nosnippet>1235</a>                    }
-<a href=#1236 id=1236 data-nosnippet>1236</a>                };
-<a href=#1237 id=1237 data-nosnippet>1237</a>                diag.code(E0999);
-<a href=#1238 id=1238 data-nosnippet>1238</a>                diag
-<a href=#1239 id=1239 data-nosnippet>1239</a>            },
-<a href=#1240 id=1240 data-nosnippet>1240</a>        )
-<a href=#1241 id=1241 data-nosnippet>1241</a>    }
-<a href=#1242 id=1242 data-nosnippet>1242</a>}
-<a href=#1243 id=1243 data-nosnippet>1243</a>
-<a href=#1244 id=1244 data-nosnippet>1244</a><span class="kw">impl </span>From&lt;ErrorGuaranteed&gt; <span class="kw">for </span>QueryErr {
-<a href=#1245 id=1245 data-nosnippet>1245</a>    <span class="kw">fn </span>from(err: ErrorGuaranteed) -&gt; <span class="self">Self </span>{
-<a href=#1246 id=1246 data-nosnippet>1246</a>        <span class="self">Self</span>::Emitted(err)
-<a href=#1247 id=1247 data-nosnippet>1247</a>    }
-<a href=#1248 id=1248 data-nosnippet>1248</a>}
-<a href=#1249 id=1249 data-nosnippet>1249</a>
-<a href=#1250 id=1250 data-nosnippet>1250</a><span class="kw">pub fn </span>try_query&lt;T&gt;(f: <span class="kw">impl </span>FnOnce() -&gt; QueryResult&lt;T&gt;) -&gt; QueryResult&lt;T&gt; {
-<a href=#1251 id=1251 data-nosnippet>1251</a>    f()
-<a href=#1252 id=1252 data-nosnippet>1252</a>}
+<a href=#1204 id=1204 data-nosnippet>1204</a>                        <span class="kw">let </span>span = tcx
+<a href=#1205 id=1205 data-nosnippet>1205</a>                            .def_ident_span(def_id)
+<a href=#1206 id=1206 data-nosnippet>1206</a>                            .unwrap_or_else(|| tcx.def_span(def_id));
+<a href=#1207 id=1207 data-nosnippet>1207</a>                        diag.span_help(span, fluent::_subdiag::help);
+<a href=#1208 id=1208 data-nosnippet>1208</a>                        diag
+<a href=#1209 id=1209 data-nosnippet>1209</a>                    }
+<a href=#1210 id=1210 data-nosnippet>1210</a>                    QueryErr::MissingAssocReft { name, .. } =&gt; {
+<a href=#1211 id=1211 data-nosnippet>1211</a>                        <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx
+<a href=#1212 id=1212 data-nosnippet>1212</a>                            .struct_span_err(cx_span, fluent::middle_query_missing_assoc_reft_at);
+<a href=#1213 id=1213 data-nosnippet>1213</a>                        diag.arg(<span class="string">"name"</span>, name);
+<a href=#1214 id=1214 data-nosnippet>1214</a>                        diag.code(E0999);
+<a href=#1215 id=1215 data-nosnippet>1215</a>                        diag
+<a href=#1216 id=1216 data-nosnippet>1216</a>                    }
+<a href=#1217 id=1217 data-nosnippet>1217</a>                    QueryErr::OpaqueStruct { struct_id } =&gt; {
+<a href=#1218 id=1218 data-nosnippet>1218</a>                        <span class="kw">let </span><span class="kw-2">mut </span>diag =
+<a href=#1219 id=1219 data-nosnippet>1219</a>                            dcx.struct_span_err(cx_span, fluent::middle_query_opaque_struct);
+<a href=#1220 id=1220 data-nosnippet>1220</a>                        diag.arg(<span class="string">"struct"</span>, tcx.def_path_str(struct_id));
+<a href=#1221 id=1221 data-nosnippet>1221</a>                        diag.span_label(cx_span, fluent::_subdiag::label);
+<a href=#1222 id=1222 data-nosnippet>1222</a>                        <span class="kw">if let </span>ErrCtxt::FnCheck(<span class="kw">_</span>, fn_def_id) = <span class="self">self</span>.cx {
+<a href=#1223 id=1223 data-nosnippet>1223</a>                            <span class="kw">let </span>fn_span = tcx.def_span(fn_def_id);
+<a href=#1224 id=1224 data-nosnippet>1224</a>                            diag.arg(<span class="string">"def_kind"</span>, tcx.def_descr(fn_def_id.to_def_id()));
+<a href=#1225 id=1225 data-nosnippet>1225</a>                            diag.span_label(fn_span, fluent::middle_query_opaque_struct_help);
+<a href=#1226 id=1226 data-nosnippet>1226</a>                            diag.note(fluent::middle_query_opaque_struct_note);
+<a href=#1227 id=1227 data-nosnippet>1227</a>                        }
+<a href=#1228 id=1228 data-nosnippet>1228</a>                        diag
+<a href=#1229 id=1229 data-nosnippet>1229</a>                    }
+<a href=#1230 id=1230 data-nosnippet>1230</a>                    QueryErr::InvalidGenericArg { .. }
+<a href=#1231 id=1231 data-nosnippet>1231</a>                    | QueryErr::Emitted(<span class="kw">_</span>)
+<a href=#1232 id=1232 data-nosnippet>1232</a>                    | QueryErr::Bug { .. } =&gt; {
+<a href=#1233 id=1233 data-nosnippet>1233</a>                        <span class="kw">let </span><span class="kw-2">mut </span>diag = <span class="self">self</span>.err.into_diag(dcx, level);
+<a href=#1234 id=1234 data-nosnippet>1234</a>                        diag.span(cx_span);
+<a href=#1235 id=1235 data-nosnippet>1235</a>                        diag
+<a href=#1236 id=1236 data-nosnippet>1236</a>                    }
+<a href=#1237 id=1237 data-nosnippet>1237</a>                };
+<a href=#1238 id=1238 data-nosnippet>1238</a>                diag.code(E0999);
+<a href=#1239 id=1239 data-nosnippet>1239</a>                diag
+<a href=#1240 id=1240 data-nosnippet>1240</a>            },
+<a href=#1241 id=1241 data-nosnippet>1241</a>        )
+<a href=#1242 id=1242 data-nosnippet>1242</a>    }
+<a href=#1243 id=1243 data-nosnippet>1243</a>}
+<a href=#1244 id=1244 data-nosnippet>1244</a>
+<a href=#1245 id=1245 data-nosnippet>1245</a><span class="kw">impl </span>From&lt;ErrorGuaranteed&gt; <span class="kw">for </span>QueryErr {
+<a href=#1246 id=1246 data-nosnippet>1246</a>    <span class="kw">fn </span>from(err: ErrorGuaranteed) -&gt; <span class="self">Self </span>{
+<a href=#1247 id=1247 data-nosnippet>1247</a>        <span class="self">Self</span>::Emitted(err)
+<a href=#1248 id=1248 data-nosnippet>1248</a>    }
+<a href=#1249 id=1249 data-nosnippet>1249</a>}
+<a href=#1250 id=1250 data-nosnippet>1250</a>
+<a href=#1251 id=1251 data-nosnippet>1251</a><span class="kw">pub fn </span>try_query&lt;T&gt;(f: <span class="kw">impl </span>FnOnce() -&gt; QueryResult&lt;T&gt;) -&gt; QueryResult&lt;T&gt; {
+<a href=#1252 id=1252 data-nosnippet>1252</a>    f()
+<a href=#1253 id=1253 data-nosnippet>1253</a>}
 </code></pre></div></section></main></body></html>
