@@ -2,7 +2,7 @@
 
 extern crate rustc_driver;
 
-use std::{env, io, process::exit};
+use std::{env, io, process::{ExitCode, exit}};
 
 use flux_config::{
     self as config,
@@ -10,7 +10,7 @@ use flux_config::{
 };
 use flux_driver::callbacks::FluxCallbacks;
 use flux_middle::metrics;
-use rustc_driver::{EXIT_SUCCESS, catch_with_exit_code, run_compiler};
+use rustc_driver::{catch_with_exit_code, run_compiler};
 
 mod logger;
 
@@ -49,8 +49,12 @@ fn main() -> io::Result<()> {
     let exit_code = catch_with_exit_code(move || {
         run_compiler(&args, &mut FluxCallbacks);
     });
-    if config::summary() && exit_code == EXIT_SUCCESS {
+    if config::summary() && exit_code == ExitCode::SUCCESS {
         metrics::print_summary(start.elapsed())?;
     };
-    exit(exit_code)
+    exit(if exit_code == ExitCode::SUCCESS {
+        rustc_driver::EXIT_SUCCESS
+    } else {
+        rustc_driver::EXIT_FAILURE
+    })
 }

@@ -12,12 +12,12 @@ use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 use rustc_hir::{Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec};
-use rustc_macros::{TyDecodable, TyEncodable, extension};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegionKind, BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
-        LateParamRegion, LateParamRegionKind, ParamTy, RegionVid, ScalarInt, UintTy,
+        BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy, LateParamRegion,
+        LateParamRegionKind, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
 use rustc_middle::{
@@ -43,7 +43,22 @@ pub struct EarlyBinder<T>(pub T);
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Binder<T>(T, List<BoundVariableKind>);
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
+pub enum BoundRegionKind {
+    /// An anonymous region parameter for a given fn (&T)
+    Anon,
+    /// An anonymous region parameter with a `Symbol` name.
+    ///
+    /// Used to give late-bound regions names for things like pretty printing.
+    NamedForPrinting(Symbol),
+    /// Late-bound regions that appear in the AST.
+    Named(DefId),
+    /// Anonymous region for the implicit env pointer parameter
+    /// to a closure
+    ClosureEnv,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
 pub enum BoundVariableKind {
     Region(BoundRegionKind),
 }
@@ -54,14 +69,29 @@ impl BoundVariableKind {
     fn to_rustc<'tcx>(
         vars: &[Self],
         tcx: TyCtxt<'tcx>,
-    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind> {
+    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind<'tcx>> {
         tcx.mk_bound_variable_kinds_from_iter(vars.iter().flat_map(|kind| {
             match kind {
                 BoundVariableKind::Region(brk) => {
-                    Some(rustc_middle::ty::BoundVariableKind::Region(*brk))
+                    Some(rustc_middle::ty::BoundVariableKind::Region(brk.to_rustc(tcx)))
                 }
             }
         }))
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for BoundRegionKind {
+    type T = rustc_middle::ty::BoundRegionKind<'tcx>;
+
+    fn to_rustc(&self, _tcx: TyCtxt<'tcx>) -> Self::T {
+        match *self {
+            BoundRegionKind::Anon => rustc_middle::ty::BoundRegionKind::Anon,
+            BoundRegionKind::NamedForPrinting(name) => {
+                rustc_middle::ty::BoundRegionKind::NamedForPrinting(name)
+            }
+            BoundRegionKind::Named(def_id) => rustc_middle::ty::BoundRegionKind::Named(def_id),
+            BoundRegionKind::ClosureEnv => rustc_middle::ty::BoundRegionKind::ClosureEnv,
+        }
     }
 }
 
@@ -317,9 +347,9 @@ impl<'tcx> ToRustc<'tcx> for ValTree {
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         match self {
             ValTree::Leaf(scalar) => rustc_middle::ty::ValTree::from_scalar_int(tcx, *scalar),
-            ValTree::Branch(trees) => {
-                let trees = trees.iter().map(|tree| tree.to_rustc(tcx));
-                rustc_middle::ty::ValTree::from_branches(tcx, trees)
+            ValTree::Branch(consts) => {
+                let consts = consts.iter().map(|c| c.to_rustc(tcx));
+                rustc_middle::ty::ValTree::from_branches(tcx, consts)
             }
         }
     }
@@ -354,7 +384,7 @@ pub struct UnevaluatedConst {
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ValTree {
     Leaf(ScalarInt),
-    Branch(List<ValTree>),
+    Branch(List<Const>),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -455,10 +485,10 @@ pub struct BoundRegion {
 }
 
 impl<'tcx> ToRustc<'tcx> for BoundRegion {
-    type T = rustc_middle::ty::BoundRegion;
+    type T = rustc_middle::ty::BoundRegion<'tcx>;
 
-    fn to_rustc(&self, _tcx: TyCtxt<'tcx>) -> Self::T {
-        rustc_middle::ty::BoundRegion { var: self.var, kind: self.kind }
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        rustc_middle::ty::BoundRegion { var: self.var, kind: self.kind.to_rustc(tcx) }
     }
 }
 
@@ -990,7 +1020,7 @@ impl_slice_internable!(
     GenericParamDef,
     BoundVariableKind,
     Clause,
-    ValTree,
+    Const,
     Binder<ExistentialPredicate>,
 );
 
@@ -1171,7 +1201,7 @@ pub fn region_to_string(region: Region) -> String {
                     format!("{debruijn:?}{region:?}")
                 }
                 BoundRegionKind::ClosureEnv => "'<env>".to_string(),
-                BoundRegionKind::NamedAnon(sym) => format!("{sym}"),
+                BoundRegionKind::NamedForPrinting(sym) => format!("{sym}"),
             }
         }
         Region::ReEarlyParam(region) => region.name.to_string(),

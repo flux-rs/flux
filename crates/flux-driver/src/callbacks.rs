@@ -26,7 +26,7 @@ use rustc_hir::{
     def_id::{LOCAL_CRATE, LocalDefId},
 };
 use rustc_interface::interface::Compiler;
-use rustc_middle::{query, ty::TyCtxt};
+use rustc_middle::{queries, ty::TyCtxt, util};
 use rustc_session::config::OutputType;
 use rustc_span::FileName;
 
@@ -40,7 +40,7 @@ impl Callbacks for FluxCallbacks {
         assert!(config.override_queries.is_none());
 
         config.override_queries = Some(|_, local| {
-            local.mir_borrowck = mir_borrowck;
+            local.queries.mir_borrowck = mir_borrowck;
         });
         // this should always be empty otherwise something changed in rustc and all our assumptions
         // about symbol interning are wrong.
@@ -189,11 +189,11 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let span = tcx.def_span(def_id);
         let sm = tcx.sess.source_map();
         let FileName::Real(file_name) = sm.span_to_filename(span) else { return true };
-        let mut file_path = file_name.local_path_if_available();
+        let Some(mut file_path) = file_name.local_path() else { return true };
 
         // If the path is absolute try to normalize it to be relative to the working_dir
         if file_path.is_absolute() {
-            let working_dir = tcx.sess.opts.working_dir.local_path_if_available();
+            let Some(working_dir) = sm.working_dir().local_path() else { return true };
             let Ok(p) = file_path.strip_prefix(working_dir) else { return true };
             file_path = p;
         }
@@ -394,7 +394,7 @@ fn trigger_queries(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult {
 fn mir_borrowck<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
-) -> query::queries::mir_borrowck::ProvidedValue<'tcx> {
+) -> queries::mir_borrowck::ProvidedValue<'tcx> {
     let bodies_with_facts = rustc_borrowck::consumers::get_bodies_with_borrowck_facts(
         tcx,
         def_id,
@@ -407,8 +407,8 @@ fn mir_borrowck<'tcx>(
             flux_common::mir_storage::store_mir_body(tcx, def_id, body_with_facts);
         }
     }
-    let mut providers = query::Providers::default();
-    rustc_borrowck::provide(&mut providers);
-    let original_mir_borrowck = providers.mir_borrowck;
+    let mut providers = util::Providers::default();
+    rustc_borrowck::provide(&mut providers.queries);
+    let original_mir_borrowck = providers.queries.mir_borrowck;
     original_mir_borrowck(tcx, def_id)
 }

@@ -5,12 +5,12 @@ use flux_common::tracked_span_bug;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_rustc_bridge::{
     ToRustc,
-    ty::{BoundRegion, Region},
+    ty::{BoundRegion, BoundRegionKind, Region},
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::{BoundRegionKind, TyCtxt};
+use rustc_middle::ty::TyCtxt;
 use rustc_span::Symbol;
 
 use super::{
@@ -263,11 +263,11 @@ impl BoundVariableKind {
     fn to_rustc<'tcx>(
         vars: &[Self],
         tcx: TyCtxt<'tcx>,
-    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind> {
+    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind<'tcx>> {
         tcx.mk_bound_variable_kinds_from_iter(vars.iter().flat_map(|kind| {
             match kind {
                 BoundVariableKind::Region(brk) => {
-                    Some(rustc_middle::ty::BoundVariableKind::Region(*brk))
+                    Some(rustc_middle::ty::BoundVariableKind::Region(brk.to_rustc(tcx)))
                 }
                 BoundVariableKind::Refine(..) => None,
             }
