@@ -482,7 +482,7 @@ care about some <em>properties</em> that it may have. For example, we don't
 care that an <code>i32</code> is equal to <code>5</code> or <code>10</code> or <code>n</code> but that it is
 non-negative.</p>
 <div class="table-wrapper"><table><thead><tr><th style="text-align: left"><strong>Type</strong></th><th style="text-align: left"><strong>Meaning</strong></th></tr></thead><tbody>
-<tr><td style="text-align: left"><code>i32{v: 0 &lt;  v}</code></td><td style="text-align: left">The set of <code>i32</code> values that positive</td></tr>
+<tr><td style="text-align: left"><code>i32{v: 0 &lt;  v}</code></td><td style="text-align: left">The set of <code>i32</code> values that are positive</td></tr>
 <tr><td style="text-align: left"><code>i32{v: n &lt;= v}</code></td><td style="text-align: left">The set of <code>i32</code> values greater than or equal to <code>n</code></td></tr>
 </tbody></table>
 </div>
@@ -629,7 +629,7 @@ then <code>i32[2]</code> and finally, the returned type <code>i32[3]</code>.</p>
 <!-- SLIDE -->
 <h2 id="exclusive-ownership-and-loops"><a class="header" href="#exclusive-ownership-and-loops">Exclusive Ownership and Loops</a></h2>
 <p>This exclusive ownership mechanism is at work in the <code>factorial</code> example
-we signed off with <a href="tutorial/./01-introducing-flux.html">previously</a></p>
+we signed off with <a href="tutorial/./01-refinements.html#example-factorial">previously</a></p>
 <pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn (n:i32{0 &lt;= n}) -&gt; i32{v:n &lt;= v})]
 pub fn factorial(n: i32) -&gt; i32 {
     let mut i = 0;  // i: i32[0]
