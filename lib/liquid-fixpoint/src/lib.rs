@@ -39,7 +39,6 @@ use std::{
     io::{BufWriter, Write as IOWrite},
     process::{Command, Stdio},
 };
-};
 
 pub use constraint::{
     BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,

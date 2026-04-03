@@ -10,15 +10,15 @@
 /// (assert (forall ((x Int)) (=> (and (P1 x x) (not (>= x 0))) false)))
 /// (check-sat)
 /// ```
-use std::fmt::{self, Write};
+use std::fmt;
 
 use crate::{
-    Backend, Bind, ConstDecl, Constraint, Expr, FunDef, Identifier, KVarDecl, Pred, Sort, Task,
+    Constraint, Expr, Identifier, KVarDecl, Pred, Sort, Task,
     Types,
 };
 
 use crate::format_datalog::{
-    collect_tagged_heads, fmt_const_decl_datalog, fmt_data_decl_smt, fmt_expr_smt,
+    fmt_const_decl_datalog, fmt_data_decl_smt, fmt_expr_smt,
     fmt_fun_def_datalog, fmt_sort_smt,
 };
 
@@ -44,8 +44,6 @@ enum Head<'a, T: Types> {
     KVar(&'a T::KVar, &'a [Expr<T>]),
     /// Head is a concrete expression that must hold (negated → false for query)
     Query(&'a Expr<T>),
-    /// Head is `false`
-    Fail,
 }
 
 /// Collect all Horn clauses from a constraint tree
@@ -143,7 +141,7 @@ fn flatten_pred_head<'a, T: Types>(
 fn clone_guards<'a, T: Types>(guards: &[Guard<'a, T>]) -> Vec<Guard<'a, T>> {
     guards
         .iter()
-        .map(|g| match g {
+        .map(|g| match *g {
             Guard::KVar(k, args) => Guard::KVar(k, args),
             Guard::Expr(e) => Guard::Expr(e),
         })
@@ -268,11 +266,6 @@ fn fmt_assert<T: Types>(clause: &HornClause<'_, T>, f: &mut fmt::Formatter<'_>) 
                 fmt_expr_smt(e, f)?;
                 write!(f, "))")?;
             }
-            write!(f, " false)")?;
-        }
-        Head::Fail => {
-            write!(f, "(=> ")?;
-            fmt_guard_conjunction(&clause.guards, f)?;
             write!(f, " false)")?;
         }
     }

@@ -11,12 +11,12 @@
 /// (rule (=> (and (g x) (not (>= x 0))) fail))
 /// (query fail)
 /// ```
-use std::fmt::{self, Write};
+use std::fmt;
 
 use indexmap::IndexMap;
 
 use crate::{
-    Backend, BinOp, BinRel, Bind, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField,
+    BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl,
     Expr, FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Sort, SortCtor, Task, ThyFunc, Types,
 };
 
@@ -42,8 +42,6 @@ enum Head<'a, T: Types> {
     KVar(&'a T::KVar, &'a [Expr<T>]),
     /// Head is `false` — a query clause with negated concrete expression
     Query(&'a Expr<T>),
-    /// Head is `fail` — directly asserts failure
-    Fail,
 }
 
 /// Collect all Horn clauses from a constraint tree
@@ -147,7 +145,7 @@ fn flatten_pred_head<'a, T: Types>(
 fn clone_guards<'a, T: Types>(guards: &[Guard<'a, T>]) -> Vec<Guard<'a, T>> {
     guards
         .iter()
-        .map(|g| match g {
+        .map(|g| match *g {
             Guard::KVar(k, args) => Guard::KVar(k, args),
             Guard::Expr(e) => Guard::Expr(e),
         })
@@ -158,87 +156,6 @@ fn is_trivially_true_expr<T: Types>(e: &Expr<T>) -> bool {
     matches!(e, Expr::Constant(Constant::Boolean(true)))
 }
 
-/// Format a task in the Datalog-style CHC format
-pub(crate) fn fmt_datalog<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    // Comments
-    for line in &task.comments {
-        writeln!(f, ";; {line}")?;
-    }
-    if !task.comments.is_empty() {
-        writeln!(f)?;
-    }
-
-    // Data type declarations
-    for data_decl in &task.data_decls {
-        fmt_data_decl_smt(data_decl, f)?;
-    }
-
-    // Constant declarations
-    for cinfo in &task.constants {
-        fmt_const_decl_datalog(cinfo, f)?;
-    }
-
-    // Function definitions
-    for fun_decl in &task.define_funs {
-        fmt_fun_def_datalog(fun_decl, f)?;
-    }
-
-    // KVar declarations as relations
-    for kvar in &task.kvars {
-        fmt_kvar_as_rel(kvar, f)?;
-    }
-
-    // Flatten constraints into Horn clauses
-    let mut clauses = Vec::new();
-    let mut tagged_heads = Vec::new();
-    let mut vars = Vec::new();
-    let mut guards = Vec::new();
-    flatten_constraint(
-        &task.constraint,
-        &mut vars,
-        &mut guards,
-        &mut clauses,
-        &mut tagged_heads,
-    );
-
-    // Collect all variables used across clauses
-    let mut all_vars: IndexMap<String, &Sort<T>> = IndexMap::new();
-    for clause in &clauses {
-        for (var, sort) in &clause.vars {
-            let var_name = format!("{}", var.display());
-            all_vars.entry(var_name).or_insert(sort);
-        }
-    }
-
-    // Declare variables
-    for (var_name, sort) in &all_vars {
-        write!(f, "(declare-var {var_name} ")?;
-        fmt_sort_smt(sort, f)?;
-        writeln!(f, ")")?;
-    }
-
-    // Check if we need a fail relation
-    let has_query = clauses.iter().any(|c| matches!(c.head, Head::Query(_) | Head::Fail));
-    if has_query {
-        writeln!(f, "(declare-rel fail ())")?;
-    }
-
-    writeln!(f)?;
-
-    // Write rules
-    for clause in &clauses {
-        fmt_rule(clause, f)?;
-    }
-
-    // Write query
-    if has_query {
-        writeln!(f)?;
-        writeln!(f, "(query fail)")?;
-    }
-
-    Ok(())
-}
-
 fn fmt_kvar_as_rel<T: Types>(kvar: &KVarDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "(declare-rel {} (", kvar.kvid.display())?;
     for (i, sort) in kvar.sorts.iter().enumerate() {
@@ -246,37 +163,6 @@ fn fmt_kvar_as_rel<T: Types>(kvar: &KVarDecl<T>, f: &mut fmt::Formatter<'_>) -> 
             write!(f, " ")?;
         }
         fmt_sort_smt(sort, f)?;
-    }
-    writeln!(f, "))")
-}
-
-fn fmt_rule<T: Types>(clause: &HornClause<'_, T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "(rule (=> ")?;
-    fmt_guard_conjunction(&clause.guards, f)?;
-    write!(f, " ")?;
-    match &clause.head {
-        Head::KVar(k, args) => {
-            write!(f, "({}", k.display())?;
-            for arg in *args {
-                write!(f, " ")?;
-                fmt_expr_smt(arg, f)?;
-            }
-            write!(f, ")")?;
-        }
-        Head::Query(e) => {
-            // (=> (and guards (not e)) fail)
-            // Rewrite: we need to negate the concrete expression
-            // But the guard already contains the original guards
-            // We emit: (rule (=> (and ...guards (not e)) fail))
-            // This was already handled by putting (not e) in the guard
-            // Actually, we need a different approach for queries
-            write!(f, "fail")?;
-            // The guard should include (not e) - but we put the negation separately
-            // Let me reconsider: emit as (rule (=> (and guards (not e)) fail))
-        }
-        Head::Fail => {
-            write!(f, "fail")?;
-        }
     }
     writeln!(f, "))")
 }
@@ -355,11 +241,6 @@ impl<'a, T: Types> HornClause<'a, T> {
                 }
                 writeln!(f, " fail))")
             }
-            Head::Fail => {
-                write!(f, "(rule (=> ")?;
-                self.fmt_guards(f)?;
-                writeln!(f, " fail))")
-            }
         }
     }
 
@@ -431,7 +312,7 @@ pub(crate) fn fmt_datalog_task<T: Types>(
     }
 
     // Check if we need a fail relation
-    let has_query = clauses.iter().any(|c| matches!(c.head, Head::Query(_) | Head::Fail));
+    let has_query = clauses.iter().any(|c| matches!(c.head, Head::Query(_)));
     if has_query {
         writeln!(f, "(declare-rel fail ())")?;
     }
@@ -728,7 +609,7 @@ fn fmt_thy_func_smt(thy_func: &ThyFunc, f: &mut fmt::Formatter<'_>) -> fmt::Resu
 
 // ---- Data type / constant / function declaration formatting ----
 
-fn fmt_data_decl_smt<T: Types>(decl: &DataDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+pub(crate) fn fmt_data_decl_smt<T: Types>(decl: &DataDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     if decl.ctors.is_empty() {
         write!(f, "(declare-sort {} {})", decl.name.display(), decl.vars)?;
         writeln!(f)
@@ -756,7 +637,7 @@ fn fmt_data_ctor_smt<T: Types>(ctor: &DataCtor<T>, f: &mut fmt::Formatter<'_>) -
     write!(f, ")")
 }
 
-fn fmt_const_decl_datalog<T: Types>(
+pub(crate) fn fmt_const_decl_datalog<T: Types>(
     decl: &ConstDecl<T>,
     f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
@@ -765,7 +646,7 @@ fn fmt_const_decl_datalog<T: Types>(
     writeln!(f, ")")
 }
 
-fn fmt_fun_def_datalog<T: Types>(fun: &FunDef<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+pub(crate) fn fmt_fun_def_datalog<T: Types>(fun: &FunDef<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     if let Some(body) = &fun.body {
         write!(f, "(define-fun {} (", fun.name.display())?;
         for (i, (name, sort)) in body.args.iter().zip(&fun.sort.inputs).enumerate() {

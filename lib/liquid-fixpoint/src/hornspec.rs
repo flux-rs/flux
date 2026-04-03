@@ -16,7 +16,6 @@
 use std::{
     io::{self, BufWriter, Write},
     process::{Command, Stdio},
-    str::FromStr,
 };
 
 use crate::{
