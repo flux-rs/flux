@@ -597,6 +597,7 @@ where
         constraint: fixpoint::Constraint,
         scrape_quals: bool,
         solver: SmtSolver,
+        constraint_backend: liquid_fixpoint::Backend,
     ) -> QueryResult<fixpoint::Task> {
         let kvars = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
 
@@ -650,6 +651,7 @@ where
             qualifiers,
             scrape_quals,
             solver,
+            backend: constraint_backend,
             data_decls: self.scx.encode_data_decls(self.genv)?,
         };
 

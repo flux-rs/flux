@@ -225,10 +225,16 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
+        let constraint_backend = match self.opts.backend {
+            flux_config::Backend::Fixpoint => liquid_fixpoint::Backend::Fixpoint,
+            flux_config::Backend::HornDatalog => liquid_fixpoint::Backend::HornDatalog,
+            flux_config::Backend::HornSmt => liquid_fixpoint::Backend::HornSmt,
+        };
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
         let cstr_variable_sorts = cstr.variable_sorts();
-        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
+        let task =
+            fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver, constraint_backend)?;
 
         log_proof(self.genv, def_id)?;
         // Skip re-generation if task is already cached (same hash → same lean files on disk).
@@ -283,6 +289,11 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
+        let constraint_backend = match self.opts.backend {
+            flux_config::Backend::Fixpoint => liquid_fixpoint::Backend::Fixpoint,
+            flux_config::Backend::HornDatalog => liquid_fixpoint::Backend::HornDatalog,
+            flux_config::Backend::HornSmt => liquid_fixpoint::Backend::HornSmt,
+        };
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
@@ -295,7 +306,8 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             return Ok(Answer::trivial());
         }
 
-        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
+        let task =
+            fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend, constraint_backend)?;
         let result = fcx.run_task(cache, def_id, kind, &task)?;
         Ok(fcx.result_to_answer(result))
     }

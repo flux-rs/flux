@@ -19,8 +19,11 @@ mod constraint_with_env;
 #[cfg(feature = "rust-fixpoint")]
 mod cstr2smt2;
 mod format;
+mod format_datalog;
+mod format_smt;
 #[cfg(feature = "rust-fixpoint")]
 mod graph;
+mod hornspec;
 pub mod parser;
 pub mod sexp;
 
@@ -35,6 +38,7 @@ use std::{
 use std::{
     io::{BufWriter, Write as IOWrite},
     process::{Command, Stdio},
+};
 };
 
 pub use constraint::{
@@ -184,6 +188,7 @@ pub struct Task<T: Types> {
     pub qualifiers: Vec<Qualifier<T>>,
     pub scrape_quals: bool,
     pub solver: SmtSolver,
+    pub backend: Backend,
 }
 
 #[derive(Clone, Copy, Hash)]
@@ -199,6 +204,17 @@ impl fmt::Display for SmtSolver {
             SmtSolver::CVC5 => write!(f, "cvc5"),
         }
     }
+}
+
+/// Backend to use for constraint solving.
+#[derive(Clone, Copy, Hash)]
+pub enum Backend {
+    /// Use the liquid-fixpoint binary
+    Fixpoint,
+    /// Use hornspec with the Datalog-style CHC format (declare-rel/rule/query)
+    HornDatalog,
+    /// Use hornspec with the SMT-LIB HORN CHC format (set-logic HORN/assert/check-sat)
+    HornSmt,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -324,6 +340,22 @@ impl<T: Types> Task<T> {
 
     #[cfg(feature = "rust-fixpoint")]
     pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
+        match self.backend {
+            Backend::Fixpoint => self.run_fixpoint(),
+            Backend::HornDatalog | Backend::HornSmt => self.run_hornspec(),
+        }
+    }
+
+    #[cfg(not(feature = "rust-fixpoint"))]
+    pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
+        match self.backend {
+            Backend::Fixpoint => self.run_fixpoint(),
+            Backend::HornDatalog | Backend::HornSmt => self.run_hornspec(),
+        }
+    }
+
+    #[cfg(feature = "rust-fixpoint")]
+    fn run_fixpoint(&self) -> io::Result<VerificationResult<T::Tag>> {
         let mut cstr_with_env = ConstraintWithEnv::new(
             self.data_decls.clone(),
             self.kvars.clone(),
@@ -339,7 +371,7 @@ impl<T: Types> Task<T> {
     }
 
     #[cfg(not(feature = "rust-fixpoint"))]
-    pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
+    fn run_fixpoint(&self) -> io::Result<VerificationResult<T::Tag>> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
@@ -371,6 +403,10 @@ impl<T: Types> Task<T> {
                 err.into()
             }
         })
+    }
+
+    fn run_hornspec(&self) -> io::Result<VerificationResult<T::Tag>> {
+        hornspec::run_hornspec(self)
     }
 }
 
