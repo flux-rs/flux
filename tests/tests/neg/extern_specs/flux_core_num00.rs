@@ -1,6 +1,17 @@
 extern crate flux_core;
 use flux_rs::assert;
 
+pub fn test_saturating_i32(x: i32, y: i32) {
+    // saturating_sub saturates rather than wrapping: not equal to unchecked sub
+    assert(x.saturating_sub(y) == x - y); //~ ERROR refinement type error
+    // saturating_add saturates rather than wrapping: not equal to unchecked add
+    assert(x.saturating_add(y) == x + y); //~ ERROR refinement type error
+}
+
+pub fn test_abs_i32_neg(x: i32) {
+    // Fails: x might equal i32::MIN, violating the precondition
+    let _y = x.abs(); //~ ERROR refinement type
+}
 
 pub fn test_saturating_usize(x: usize, y: usize, z: usize) {
     // Not true if x < y, as it saturates
