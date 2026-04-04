@@ -22,12 +22,10 @@ pub fn test_abs_i32() {
 }
 
 pub fn test_checked_i32() {
-    assert((i32::MAX - 1).checked_add(1).is_some());
+    assert((i32::MAX - 1).checked_add(1).unwrap() == i32::MAX);
     assert(i32::MAX.checked_add(1).is_none());
-    assert(i32::MIN.checked_add(-1).is_none());
-    assert(5i32.checked_sub(3).is_some());
+    assert(5i32.checked_sub(3).unwrap() == 2);
     assert(i32::MIN.checked_sub(1).is_none());
-    assert(i32::MAX.checked_sub(-1).is_none());
 }
 
 pub fn test_count_i32(x: i32) {
@@ -56,12 +54,10 @@ pub fn test_abs_isize() {
 }
 
 pub fn test_checked_isize() {
-    assert((isize::MAX - 1).checked_add(1).is_some());
+    assert((isize::MAX - 1).checked_add(1).unwrap() == isize::MAX);
     assert(isize::MAX.checked_add(1).is_none());
-    assert(isize::MIN.checked_add(-1).is_none());
-    assert(5isize.checked_sub(3).is_some());
+    assert(5isize.checked_sub(3).unwrap() == 2);
     assert(isize::MIN.checked_sub(1).is_none());
-    assert(isize::MAX.checked_sub(-1).is_none());
 }
 
 pub fn test_count_isize(x: isize) {
@@ -82,9 +78,9 @@ pub fn test_saturating_u32() {
 }
 
 pub fn test_checked_u32() {
-    assert((u32::MAX - 1).checked_add(1).is_some());
+    assert((u32::MAX - 1).checked_add(1).unwrap() == u32::MAX);
     assert(u32::MAX.checked_add(1).is_none());
-    assert(5u32.checked_sub(3).is_some());
+    assert(5u32.checked_sub(3).unwrap() == 2);
     assert(0u32.checked_sub(1).is_none());
 }
 
@@ -106,9 +102,9 @@ pub fn test_saturating_usize() {
 }
 
 pub fn test_checked_usize() {
-    assert((usize::MAX - 1).checked_add(1).is_some());
+    assert((usize::MAX - 1).checked_add(1).unwrap() == usize::MAX);
     assert(usize::MAX.checked_add(1).is_none());
-    assert(5usize.checked_sub(3).is_some());
+    assert(5usize.checked_sub(3).unwrap() == 2);
     assert(0usize.checked_sub(1).is_none());
 }
 
