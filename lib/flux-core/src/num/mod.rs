@@ -18,6 +18,30 @@ macro_rules! int_spec {
             /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L3599-L3608
             #[spec(fn(num: $T{num > $T::MIN}) -> $T[if num >= 0 { num } else if num > $T::MIN { -num } else { num }])]
             fn abs(self) -> $T;
+
+            /// # Incomplete: does not constrain the value inside Some.
+            /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L496-L499
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> Option<$T>[num + rhs >= $T::MIN && num + rhs <= $T::MAX])]
+            fn checked_add(self, rhs: $T) -> Option<$T>;
+
+            /// # Incomplete: does not constrain the value inside Some.
+            /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L646-L649
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> Option<$T>[num - rhs >= $T::MIN && num - rhs <= $T::MAX])]
+            fn checked_sub(self, rhs: $T) -> Option<$T>;
+
+            /// # Incomplete: result is bounded but not precisely determined by the input value.
+            /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L82
+            #[no_panic]
+            #[spec(fn(num: $T) -> u32{v: 0 <= v && v <= $T::BITS})]
+            fn count_ones(self) -> u32;
+
+            /// # Incomplete: result is bounded but not precisely determined by the input value.
+            /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L98-L100
+            #[no_panic]
+            #[spec(fn(num: $T) -> u32{v: 0 <= v && v <= $T::BITS})]
+            fn count_zeros(self) -> u32;
         }
     };
 }
@@ -35,6 +59,30 @@ macro_rules! uint_spec {
             #[no_panic]
             #[spec(fn(num: $T, rhs: $T) -> $T[if num + rhs > $T::MAX { $T::MAX } else { num + rhs }])]
             fn saturating_add(self, rhs: $T) -> $T;
+
+            /// # Incomplete: does not constrain the value inside Some.
+            /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/uint_macros.rs#L531-L545
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> Option<$T>[num + rhs <= $T::MAX])]
+            fn checked_add(self, rhs: $T) -> Option<$T>;
+
+            /// # Incomplete: does not constrain the value inside Some.
+            /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/uint_macros.rs#L698-L709
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> Option<$T>[num >= rhs])]
+            fn checked_sub(self, rhs: $T) -> Option<$T>;
+
+            /// # Incomplete: result is bounded but not precisely determined by the input value.
+            /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/uint_macros.rs#L84-L86
+            #[no_panic]
+            #[spec(fn(num: $T) -> u32{v: 0 <= v && v <= $T::BITS})]
+            fn count_ones(self) -> u32;
+
+            /// # Incomplete: result is bounded but not precisely determined by the input value.
+            /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/uint_macros.rs#L106-L108
+            #[no_panic]
+            #[spec(fn(num: $T) -> u32{v: 0 <= v && v <= $T::BITS})]
+            fn count_zeros(self) -> u32;
         }
     };
 }
