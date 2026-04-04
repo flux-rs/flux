@@ -14,7 +14,7 @@ macro_rules! int_spec {
             #[spec(fn(num: $T, rhs: $T) -> $T[if num - rhs < $T::MIN { $T::MIN } else if num - rhs > $T::MAX { $T::MAX } else { num - rhs }])]
             fn saturating_sub(self, rhs: $T) -> $T;
 
-            /// Panics if `self == T::MIN` (overflow when negating in debug mode).
+            /// Panics if `self == T::MIN` (overflow when negating in debug mode). If in release mode, returns `T::MIN` on overflow.
             /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L3599-L3608
             #[spec(fn(num: $T) -> $T[if num >= 0 { num } else if num > $T::MIN { -num } else { num }])]
             fn abs(self) -> $T;
