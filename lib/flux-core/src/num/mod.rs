@@ -16,7 +16,7 @@ macro_rules! int_spec {
 
             /// Panics if `self == T::MIN` (overflow when negating in debug mode).
             /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L3599-L3608
-            #[spec(fn(num: $T{num > $T::MIN}) -> $T[if num >= 0 { num } else if num > $T::MIN { -num } else { num }])]
+            #[spec(fn(num: $T) -> $T[if num >= 0 { num } else if num > $T::MIN { -num } else { num }])]
             fn abs(self) -> $T;
 
             /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L496-L499

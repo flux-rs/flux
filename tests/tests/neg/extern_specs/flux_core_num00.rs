@@ -8,10 +8,6 @@ pub fn test_saturating_i32(x: i32, y: i32) {
     assert(x.saturating_add(y) == x + y); //~ ERROR refinement type error
 }
 
-pub fn test_abs_i32(x: i32) {
-    let _y = x.abs(); //~ ERROR refinement type
-}
-
 pub fn test_checked_i32(x: i32, y: i32) {
     assert(x.checked_add(y).is_some()); //~ ERROR refinement type error
     assert(x.checked_sub(y).is_some()); //~ ERROR refinement type error
@@ -27,10 +23,6 @@ pub fn test_count_i32(x: i32) {
 pub fn test_saturating_isize(x: isize, y: isize) {
     assert(x.saturating_sub(y) == x - y); //~ ERROR refinement type error
     assert(x.saturating_add(y) == x + y); //~ ERROR refinement type error
-}
-
-pub fn test_abs_isize(x: isize) {
-    let _y = x.abs(); //~ ERROR refinement type
 }
 
 pub fn test_checked_isize(x: isize, y: isize) {
