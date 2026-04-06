@@ -21,17 +21,15 @@ use std::{
 use crate::{
     Backend, Error, FixpointStatus, KVarBind, LeanStatus, Stats, Task, Types,
     VerificationResult,
-    format_datalog::{collect_tagged_heads, task_to_datalog_string},
-    format_smt::task_to_smt_string,
+    format_smt::{collect_tagged_heads, task_to_smt_string},
     sexp,
 };
 
 /// Run hornspec on the given task and parse the output.
 pub(crate) fn run_hornspec<T: Types>(task: &Task<T>) -> io::Result<VerificationResult<T::Tag>> {
-    // Format the task in the appropriate CHC format
+    // Format the task in the SMT-LIB HORN CHC format
     let input = match task.backend {
-        Backend::HornDatalog => task_to_datalog_string(task),
-        Backend::HornSmt => task_to_smt_string(task),
+        Backend::Hornspec => task_to_smt_string(task),
         Backend::Fixpoint => unreachable!("run_hornspec called with Fixpoint backend"),
     };
 

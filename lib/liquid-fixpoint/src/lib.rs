@@ -19,7 +19,6 @@ mod constraint_with_env;
 #[cfg(feature = "rust-fixpoint")]
 mod cstr2smt2;
 mod format;
-mod format_datalog;
 mod format_smt;
 #[cfg(feature = "rust-fixpoint")]
 mod graph;
@@ -210,10 +209,8 @@ impl fmt::Display for SmtSolver {
 pub enum Backend {
     /// Use the liquid-fixpoint binary
     Fixpoint,
-    /// Use hornspec with the Datalog-style CHC format (declare-rel/rule/query)
-    HornDatalog,
-    /// Use hornspec with the SMT-LIB HORN CHC format (set-logic HORN/assert/check-sat)
-    HornSmt,
+    /// Use hornspec with the SMT-LIB HORN CHC format
+    Hornspec,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -341,7 +338,7 @@ impl<T: Types> Task<T> {
     pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
         match self.backend {
             Backend::Fixpoint => self.run_fixpoint(),
-            Backend::HornDatalog | Backend::HornSmt => self.run_hornspec(),
+            Backend::Hornspec => self.run_hornspec(),
         }
     }
 
@@ -349,7 +346,7 @@ impl<T: Types> Task<T> {
     pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
         match self.backend {
             Backend::Fixpoint => self.run_fixpoint(),
-            Backend::HornDatalog | Backend::HornSmt => self.run_hornspec(),
+            Backend::Hornspec => self.run_hornspec(),
         }
     }
 

@@ -227,8 +227,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         };
         let constraint_backend = match self.opts.backend {
             flux_config::Backend::Fixpoint => liquid_fixpoint::Backend::Fixpoint,
-            flux_config::Backend::HornDatalog => liquid_fixpoint::Backend::HornDatalog,
-            flux_config::Backend::HornSmt => liquid_fixpoint::Backend::HornSmt,
+            flux_config::Backend::Hornspec => liquid_fixpoint::Backend::Hornspec,
         };
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
@@ -291,8 +290,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         };
         let constraint_backend = match self.opts.backend {
             flux_config::Backend::Fixpoint => liquid_fixpoint::Backend::Fixpoint,
-            flux_config::Backend::HornDatalog => liquid_fixpoint::Backend::HornDatalog,
-            flux_config::Backend::HornSmt => liquid_fixpoint::Backend::HornSmt,
+            flux_config::Backend::Hornspec => liquid_fixpoint::Backend::Hornspec,
         };
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);

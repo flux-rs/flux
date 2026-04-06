@@ -37,7 +37,7 @@ pub struct Flags {
     pub summary: bool,
     /// Default solver. Either `z3` or `cvc5`.
     pub solver: SmtSolver,
-    /// Backend to use for constraint solving. One of `fixpoint`, `horn-datalog`, or `horn-smt`.
+    /// Backend to use for constraint solving. One of `fixpoint` or `hornspec`.
     pub backend: Backend,
     /// Enables qualifier scrapping in fixpoint
     pub scrape_quals: bool,

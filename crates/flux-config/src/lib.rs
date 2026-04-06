@@ -429,14 +429,12 @@ pub enum Backend {
     /// Use the liquid-fixpoint binary
     #[default]
     Fixpoint,
-    /// Use hornspec with the Datalog-style CHC format (declare-rel/rule/query)
-    HornDatalog,
-    /// Use hornspec with the SMT-LIB HORN CHC format (set-logic HORN/assert/check-sat)
-    HornSmt,
+    /// Use hornspec with the SMT-LIB HORN CHC format
+    Hornspec,
 }
 
 impl Backend {
-    const ERROR: &'static str = "expected one of `fixpoint`, `horn-datalog`, or `horn-smt`";
+    const ERROR: &'static str = "expected one of `fixpoint` or `hornspec`";
 }
 
 impl FromStr for Backend {
@@ -446,8 +444,7 @@ impl FromStr for Backend {
         let s = s.to_ascii_lowercase();
         match s.as_str() {
             "fixpoint" => Ok(Backend::Fixpoint),
-            "horn-datalog" => Ok(Backend::HornDatalog),
-            "horn-smt" => Ok(Backend::HornSmt),
+            "hornspec" => Ok(Backend::Hornspec),
             _ => Err(Self::ERROR),
         }
     }
@@ -465,8 +462,7 @@ impl fmt::Display for Backend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Backend::Fixpoint => write!(f, "fixpoint"),
-            Backend::HornDatalog => write!(f, "horn-datalog"),
-            Backend::HornSmt => write!(f, "horn-smt"),
+            Backend::Hornspec => write!(f, "hornspec"),
         }
     }
 }
