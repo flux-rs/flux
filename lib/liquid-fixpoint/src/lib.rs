@@ -334,15 +334,6 @@ impl<T: Types> Task<T> {
         hasher.finish()
     }
 
-    #[cfg(feature = "rust-fixpoint")]
-    pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
-        match self.backend {
-            Backend::Fixpoint => self.run_fixpoint(),
-            Backend::Hornspec => self.run_hornspec(),
-        }
-    }
-
-    #[cfg(not(feature = "rust-fixpoint"))]
     pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
         match self.backend {
             Backend::Fixpoint => self.run_fixpoint(),

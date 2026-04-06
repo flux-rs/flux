@@ -142,9 +142,11 @@ fn flatten_pred_head<'a, T: Types>(
 fn clone_guards<'a, T: Types>(guards: &[Guard<'a, T>]) -> Vec<Guard<'a, T>> {
     guards
         .iter()
-        .map(|g| match *g {
-            Guard::KVar(k, args) => Guard::KVar(k, args),
-            Guard::Expr(e) => Guard::Expr(e),
+        .map(|g| {
+            match *g {
+                Guard::KVar(k, args) => Guard::KVar(k, args),
+                Guard::Expr(e) => Guard::Expr(e),
+            }
         })
         .collect()
 }
@@ -159,23 +161,14 @@ pub(crate) fn collect_tagged_heads<T: Types>(constraint: &Constraint<T>) -> Vec<
     let mut tagged_heads = Vec::new();
     let mut vars = Vec::new();
     let mut guards = Vec::new();
-    flatten_constraint(
-        constraint,
-        &mut vars,
-        &mut guards,
-        &mut clauses,
-        &mut tagged_heads,
-    );
+    flatten_constraint(constraint, &mut vars, &mut guards, &mut clauses, &mut tagged_heads);
     tagged_heads.into_iter().cloned().collect()
 }
 
 // ---- SMT-LIB HORN CHC task formatting ----
 
 /// Format a task in the SMT-LIB HORN CHC format
-pub(crate) fn fmt_smt_task<T: Types>(
-    task: &Task<T>,
-    f: &mut fmt::Formatter<'_>,
-) -> fmt::Result {
+pub(crate) fn fmt_smt_task<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     // Set logic
     writeln!(f, "(set-logic HORN)")?;
     writeln!(f)?;
@@ -215,13 +208,7 @@ pub(crate) fn fmt_smt_task<T: Types>(
     let mut tagged_heads = Vec::new();
     let mut vars = Vec::new();
     let mut guards = Vec::new();
-    flatten_constraint(
-        &task.constraint,
-        &mut vars,
-        &mut guards,
-        &mut clauses,
-        &mut tagged_heads,
-    );
+    flatten_constraint(&task.constraint, &mut vars, &mut guards, &mut clauses, &mut tagged_heads);
 
     // Write assertions
     for clause in &clauses {
@@ -331,17 +318,12 @@ fn fmt_guard<T: Types>(guard: &Guard<'_, T>, f: &mut fmt::Formatter<'_>) -> fmt:
     }
 }
 
-/// Write a task to a string in SMT-LIB HORN CHC format
-pub(crate) fn task_to_smt_string<T: Types>(task: &Task<T>) -> String {
-    struct SmtFormatter<'a, T: Types>(&'a Task<T>);
+pub(crate) struct SmtFormatter<'a, T: Types>(pub &'a Task<T>);
 
-    impl<T: Types> fmt::Display for SmtFormatter<'_, T> {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            fmt_smt_task(self.0, f)
-        }
+impl<T: Types> fmt::Display for SmtFormatter<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_smt_task(self.0, f)
     }
-
-    format!("{}", SmtFormatter(task))
 }
 
 // ---- SMT-LIB sort formatting ----
@@ -648,10 +630,7 @@ fn fmt_data_ctor_smt<T: Types>(ctor: &DataCtor<T>, f: &mut fmt::Formatter<'_>) -
     write!(f, ")")
 }
 
-fn fmt_const_decl<T: Types>(
-    decl: &ConstDecl<T>,
-    f: &mut fmt::Formatter<'_>,
-) -> fmt::Result {
+fn fmt_const_decl<T: Types>(decl: &ConstDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "(declare-const {} ", decl.name.display())?;
     fmt_sort_smt(&decl.sort, f)?;
     writeln!(f, ")")

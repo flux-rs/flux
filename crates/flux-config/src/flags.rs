@@ -3,7 +3,9 @@ use std::{env, path::PathBuf, process, str::FromStr, sync::LazyLock};
 pub use toml::Value;
 use tracing::Level;
 
-use crate::{Backend, IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver};
+use crate::{
+    Backend, IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver,
+};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 

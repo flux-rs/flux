@@ -19,22 +19,16 @@ use std::{
 };
 
 use crate::{
-    Backend, Error, FixpointStatus, KVarBind, LeanStatus, Stats, Task, Types,
-    VerificationResult,
-    format_smt::{collect_tagged_heads, task_to_smt_string},
+    Error, FixpointStatus, KVarBind, LeanStatus, Stats, Task, Types, VerificationResult,
+    format_smt::{SmtFormatter, collect_tagged_heads},
     sexp,
 };
 
 /// Run hornspec on the given task and parse the output.
 pub(crate) fn run_hornspec<T: Types>(task: &Task<T>) -> io::Result<VerificationResult<T::Tag>> {
-    // Format the task in the SMT-LIB HORN CHC format
-    let input = match task.backend {
-        Backend::Hornspec => task_to_smt_string(task),
-        Backend::Fixpoint => unreachable!("run_hornspec called with Fixpoint backend"),
-    };
-
     // Spawn hornspec binary, piping input via stdin
     let mut child = Command::new("hornspec")
+        .arg("-")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -44,7 +38,7 @@ pub(crate) fn run_hornspec<T: Types>(task: &Task<T>) -> io::Result<VerificationR
     std::mem::swap(&mut stdin, &mut child.stdin);
     {
         let mut w = BufWriter::new(stdin.unwrap());
-        w.write_all(input.as_bytes())?;
+        writeln!(&mut w, "{}", SmtFormatter(task))?;
     }
 
     let output = child.wait_with_output()?;
@@ -114,19 +108,15 @@ fn parse_hornspec_output<T: Types>(
         }
         "unknown" => {
             Ok(VerificationResult {
-                status: FixpointStatus::Crash(crate::CrashInfo(vec![
-                    serde_json::Value::String("hornspec returned unknown".to_string()),
-                ])),
+                status: FixpointStatus::Crash(crate::CrashInfo(vec![serde_json::Value::String(
+                    "hornspec returned unknown".to_string(),
+                )])),
                 solution: vec![],
                 non_cuts_solution: vec![],
                 lean_status: LeanStatus::default(),
             })
         }
-        _ => {
-            Err(io::Error::other(format!(
-                "unexpected hornspec output status: {status_str}"
-            )))
-        }
+        _ => Err(io::Error::other(format!("unexpected hornspec output status: {status_str}"))),
     }
 }
 
@@ -175,10 +165,7 @@ fn parse_single_define_fun(sexpr: &sexp::Sexp) -> Option<KVarBind> {
     let body = &items[items.len() - 1];
     let body_str = format_sexp(body);
 
-    Some(KVarBind {
-        kvar: name.clone(),
-        val: body_str,
-    })
+    Some(KVarBind { kvar: name.clone(), val: body_str })
 }
 
 /// Format an S-expression back to a string representation.
