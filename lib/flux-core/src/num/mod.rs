@@ -1,3 +1,7 @@
+#![flux::defs {
+    fn clamp(v: int, lo: int, hi: int) -> int { if v < lo { lo } else if v > hi { hi } else { v } }
+}]
+
 use flux_attrs::*;
 
 macro_rules! int_spec {
@@ -6,12 +10,12 @@ macro_rules! int_spec {
         impl $T {
             /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L1818-L1820
             #[no_panic]
-            #[spec(fn(num: $T, rhs: $T) -> $T[if num + rhs < $T::MIN { $T::MIN } else if num + rhs > $T::MAX { $T::MAX } else { num + rhs }])]
+            #[spec(fn(num: $T, rhs: $T) -> $T[clamp(num + rhs, $T::MIN, $T::MAX)])]
             fn saturating_add(self, rhs: $T) -> $T;
 
             /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L1864-L1866
             #[no_panic]
-            #[spec(fn(num: $T, rhs: $T) -> $T[if num - rhs < $T::MIN { $T::MIN } else if num - rhs > $T::MAX { $T::MAX } else { num - rhs }])]
+            #[spec(fn(num: $T, rhs: $T) -> $T[clamp(num - rhs, $T::MIN, $T::MAX)])]
             fn saturating_sub(self, rhs: $T) -> $T;
 
             /// Panics if `self == T::MIN` (overflow when negating in debug mode). If in release mode, returns `T::MIN` on overflow.
@@ -50,12 +54,12 @@ macro_rules! uint_spec {
         impl $T {
             /// Core impl: https://github.com/rust-lang/rust/blob/0e95a0f4c677002a5d4ac5bc59d97885e6f51f71/library/core/src/num/uint_macros.rs#L2384-L2400
             #[no_panic]
-            #[spec(fn(num: $T, rhs: $T) -> $T[if num < rhs { 0 } else { num - rhs }])]
+            #[spec(fn(num: $T, rhs: $T) -> $T[clamp(num - rhs, 0, $T::MAX)])]
             fn saturating_sub(self, rhs: $T) -> $T;
 
             /// Core impl: https://github.com/rust-lang/rust/blob/0e95a0f4c677002a5d4ac5bc59d97885e6f51f71/library/core/src/num/uint_macros.rs#L2340-L2356
             #[no_panic]
-            #[spec(fn(num: $T, rhs: $T) -> $T[if num + rhs > $T::MAX { $T::MAX } else { num + rhs }])]
+            #[spec(fn(num: $T, rhs: $T) -> $T[clamp(num + rhs, 0, $T::MAX)])]
             fn saturating_add(self, rhs: $T) -> $T;
 
             /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/uint_macros.rs#L531-L545
