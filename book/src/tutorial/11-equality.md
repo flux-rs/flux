@@ -101,7 +101,7 @@ comparisons.
 
 **A Refined PartialEq Trait** The Flux standard library refines `std`‘s
 `PartialEq` trait with two *associated refinements* (see
-[this chapter](ch09_traits).md) `is_eq` and `is_ne` that respectively specify when two
+[this chapter](08-traits.md)) `is_eq` and `is_ne` that respectively specify when two
 values of the type implementing `PartialEq` are equal or not. The
 *methods* `eq` and `ne` return boolean values `v` such that the
 predicate `is_eq(r1, r2, v)` and `is_ne(r1, r2, v)` hold. By default,
