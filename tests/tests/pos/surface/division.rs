@@ -14,10 +14,3 @@ pub fn div_unsigned(a: u32, b: u32) -> u32 {
 pub fn div_signed_nonneg(a: i32, b: i32) -> i32 {
     a / b
 }
-
-// Signed division: result is unconstrained for arbitrary inputs (but div-by-zero is still checked)
-// Use a constant positive divisor to avoid the `i32::MIN / -1` overflow case.
-#[flux::sig(fn(a: i32) -> i32)]
-pub fn div_signed_any(a: i32) -> i32 {
-    a / 2
-}

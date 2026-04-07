@@ -32,7 +32,7 @@ use flux_macros::primop_rules;
 use flux_middle::rty::{self, BaseTy, Expr, Sort};
 use flux_rustc_bridge::mir;
 use rty::{
-    BinOp::{BitAnd, BitOr, BitShl, BitShr, BitXor, Div, Mod},
+    BinOp::{BitAnd, BitOr, BitShl, BitShr, BitXor, Mod},
     Expr as E,
 };
 use rustc_data_structures::unord::UnordMap;
@@ -408,7 +408,7 @@ fn mk_div_rules() -> RuleMatcher<2> {
 
         fn(a: T, b: T) -> T{v: E::implies(
                                    E::and(E::ge(a, 0), E::ge(b, 0)),
-                                   E::eq(v, E::binary_op(Div(Sort::Int), a, b))) }
+                                   E::eq(v, a/b)) }
         requires E::ne(b, 0) => ConstrReason::Div
         if T.is_signed()
 
