@@ -303,7 +303,7 @@ hence, that upon return `x: i32[11]`.
 ```rust, editable
 fn test_incr() {
   let mut z = 10;
-  incr_inv(&mut z);
+  incr(&mut z);
   assert(z == 11);
 }
 ```
