@@ -2071,7 +2071,7 @@ fn test_also_ok(x: Option&lt;i32&gt;) -&gt; Option&lt;i32&gt; {
 }</code></pre>
 <pre><code class="language-rust noplayground">use flux_rs::*;
 
-#[sig(fn(x: i32{x != 0}) -&gt; i32[1/x])]
+#[sig(fn(x: i32{x &gt; 0}) -&gt; i32[1/x])]
 fn div(x: i32) -&gt; i32 {
     1 / x
 }
