@@ -13,64 +13,64 @@ enum Result<T, E> {
 impl<T, E> Result<T, E> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L584
     #[no_panic]
-    #[sig(fn(&Self[@b]) -> bool[b])]
+    #[spec(fn(&Self[@b]) -> bool[b])]
     const fn is_ok(&self) -> bool;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L631
     #[no_panic]
-    #[sig(fn(&Self[@b]) -> bool[!b])]
+    #[spec(fn(&Self[@b]) -> bool[!b])]
     const fn is_err(&self) -> bool;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L686
     #[no_panic]
-    #[sig(fn(Result<T, E>[@b]) -> Option<T>[b])]
+    #[spec(fn(Result<T, E>[@b]) -> Option<T>[b])]
     fn ok(self) -> Option<T>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L709
     #[no_panic]
-    #[sig(fn(Result<T, E>[@b]) -> Option<E>[!b])]
+    #[spec(fn(Result<T, E>[@b]) -> Option<E>[!b])]
     fn err(self) -> Option<E>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L737
     #[no_panic]
-    #[sig(fn(&Result<T, E>[@b]) -> Result<&T, &E>[b])]
+    #[spec(fn(&Result<T, E>[@b]) -> Result<&T, &E>[b])]
     const fn as_ref(&self) -> Result<&T, &E>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L767
     #[no_panic]
-    #[sig(fn(&mut Result<T, E>[@b]) -> Result<&mut T, &mut E>[b])]
+    #[spec(fn(&mut Result<T, E>[@b]) -> Result<&mut T, &mut E>[b])]
     fn as_mut(&mut self) -> Result<&mut T, &mut E>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L799
     #[flux_rs::no_panic_if(F::no_panic())]
-    #[sig(fn(Result<T, E>[@b], F) -> Result<U, E>[b] where F: FnOnce(T) -> U)]
+    #[spec(fn(Result<T, E>[@b], F) -> Result<U, E>[b] where F: FnOnce(T) -> U)]
     fn map<U, F: FnOnce(T) -> U>(self, op: F) -> Result<U, E>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L911
     #[flux_rs::no_panic_if(O::no_panic())]
-    #[sig(fn(Result<T, E>[@b], O) -> Result<T, F>[b] where O: FnOnce(E) -> F)]
+    #[spec(fn(Result<T, E>[@b], O) -> Result<T, F>[b] where O: FnOnce(E) -> F)]
     fn map_err<F, O: FnOnce(E) -> F>(self, op: O) -> Result<T, F>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L1113
-    #[sig(fn(Result<T, E>[true], &str) -> T)]
+    #[spec(fn(Result<T, E>[true], &str) -> T)]
     fn expect(self, msg: &str) -> T
     where
         E: core::fmt::Debug;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L1161
-    #[sig(fn(Result<T, E>[true]) -> T)]
+    #[spec(fn(Result<T, E>[true]) -> T)]
     fn unwrap(self) -> T
     where
         E: core::fmt::Debug;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L1256
-    #[sig(fn(Result<T, E>[false]) -> E)]
+    #[spec(fn(Result<T, E>[false]) -> E)]
     fn unwrap_err(self) -> E
     where
         T: core::fmt::Debug;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L1225
-    #[sig(fn(Result<T, E>[false], &str) -> E)]
+    #[spec(fn(Result<T, E>[false], &str) -> E)]
     fn expect_err(self, msg: &str) -> E
     where
         T: core::fmt::Debug;
