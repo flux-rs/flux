@@ -39,12 +39,12 @@ macro_rules! int_spec {
 
             /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L496-L499
             #[no_panic]
-            #[spec(fn(num: $T, rhs: $T) -> Option<$T[num + rhs]>[num + rhs <= $T::MAX])]
+            #[spec(fn(num: $T, rhs: $T) -> Option<$T[num + rhs]>[num + rhs >= $T::MIN && num + rhs <= $T::MAX])]
             fn checked_add(self, rhs: $T) -> Option<$T>;
 
             /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L646-L649
             #[no_panic]
-            #[spec(fn(num: $T, rhs: $T) -> Option<$T[num - rhs]>[num - rhs >= $T::MIN])]
+            #[spec(fn(num: $T, rhs: $T) -> Option<$T[num - rhs]>[num - rhs >= $T::MIN && num - rhs <= $T::MAX])]
             fn checked_sub(self, rhs: $T) -> Option<$T>;
 
             /// # Incomplete: result is bounded but not precisely determined by the input value.
@@ -90,7 +90,7 @@ macro_rules! int_spec {
 
             /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L730-L733
             #[no_panic]
-            #[spec(fn(num: $T, rhs: $T) -> Option<$T[num * rhs]>[num * rhs <= $T::MAX])]
+            #[spec(fn(num: $T, rhs: $T) -> Option<$T[num * rhs]>[num * rhs >= $T::MIN && num * rhs <= $T::MAX])]
             fn checked_mul(self, rhs: $T) -> Option<$T>;
 
             /// Flux's `/` follows SMT-LIB's Euclidean `div` (floor for positive divisors, ceiling

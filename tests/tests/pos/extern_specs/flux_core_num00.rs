@@ -24,8 +24,10 @@ pub fn test_abs_i32() {
 pub fn test_checked_i32() {
     assert((i32::MAX - 1).checked_add(1).unwrap() == i32::MAX);
     assert(i32::MAX.checked_add(1).is_none());
+    assert(i32::MIN.checked_add(-1).is_none());
     assert(5i32.checked_sub(3).unwrap() == 2);
     assert(i32::MIN.checked_sub(1).is_none());
+    assert(i32::MAX.checked_sub(-1).is_none());
 }
 
 pub fn test_count_i32(x: i32) {
@@ -46,6 +48,7 @@ pub fn test_checked_neg_i32() {
 pub fn test_checked_mul_i32() {
     assert(3i32.checked_mul(4).unwrap() == 12);
     assert(i32::MAX.checked_mul(2).is_none());
+    assert(i32::MIN.checked_mul(2).is_none());
 }
 
 pub fn test_checked_div_i32() {
@@ -85,8 +88,10 @@ pub fn test_abs_isize() {
 pub fn test_checked_isize() {
     assert((isize::MAX - 1).checked_add(1).unwrap() == isize::MAX);
     assert(isize::MAX.checked_add(1).is_none());
+    assert(isize::MIN.checked_add(-1).is_none());
     assert(5isize.checked_sub(3).unwrap() == 2);
     assert(isize::MIN.checked_sub(1).is_none());
+    assert(isize::MAX.checked_sub(-1).is_none());
 }
 
 pub fn test_count_isize(x: isize) {
@@ -107,6 +112,7 @@ pub fn test_checked_neg_isize() {
 pub fn test_checked_mul_isize() {
     assert(3isize.checked_mul(4).unwrap() == 12);
     assert(isize::MAX.checked_mul(2).is_none());
+    assert(isize::MIN.checked_mul(2).is_none());
 }
 
 pub fn test_checked_div_isize() {
