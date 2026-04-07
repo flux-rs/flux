@@ -37,7 +37,7 @@ using a Rust `enum`:
 ```rust, editable
 #[reflect]
 #[derive(Debug, Clone)]
-pub enum Roles {
+pub enum Role {
     Admin,
     Member,
     Guest,
@@ -130,15 +130,15 @@ not.
 
 ```rust, editable
 #[assoc(
-    fn is_eq(x: Self, y: Rhs, res: bool) -> bool { res <=> (r1 == r2) }
-    fn is_ne(x: Self, y: Rhs, res: bool) -> bool { true }
+    fn is_eq(x: Self, y: Self, res: bool) -> bool { res <=> (x == y) }
+    fn is_ne(x: Self, y: Self, res: bool) -> bool { true }
 )]
 impl PartialEq for Role {
-    #[spec(fn(&Self[@r1], &Self[@r2]) -> bool[r1 == r2]))]
+    #[spec(fn(&Self[@r1], &Self[@r2]) -> bool[r1 == r2])]
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Role::Admin, Role::Admin) => true,
-            (Role::User, Role::User) => true,
+            (Role::Member, Role::Member) => true,
             (Role::Guest, Role::Guest) => true,
             _ => false,
         }
@@ -246,7 +246,17 @@ pub struct User {
 impl User {
     // fill in the spec
     pub fn new(name: String, role: Role) -> Self {
-        User { name, role  }
+        User { name, role }
+    }
+
+    #[spec(fn(&User[@u]) -> bool[u == Role::Admin])]
+    pub fn is_admin(&self) -> bool {
+        is_admin(&self.role);
+    }
+
+    #[spec(fn(&User[@u]) -> bool[u == Role::Guest])]
+    pub fn is_guest(&self) -> bool {
+        is_guest(&self.role);
     }
 }
 
@@ -296,6 +306,10 @@ impl User {
   fn read(&self) { /* ... */ }
   #[spec(fn(&Self[@u]) requires permitted(u.role, Permissions::Write))]
   fn write(&self) { /* ... */ }
+  #[spec(fn(&Self[@u]) requires permitted(u.role, Permissions::Configure))]
+  fn configure(&self) { /* ... */ }
+  #[spec(fn(&Self[@u]) requires permitted(u.role, Permissions::Delete))]
+  fn delete(&self) { /* ... */ }
 }
 ```
 
@@ -325,7 +339,7 @@ fn test_access_bad() {
 
 To recap, in this chapter we saw how to use
 
-- *Reflect* `enum`s, *e.g.* to refer to variants like `Role::User` in
+- *Reflect* `enum`s, *e.g.* to refer to variants like `Role::Member` in
   refinements,
 
 - *Detached* specifications for (derived) code *e.g.* `PartialEq`
