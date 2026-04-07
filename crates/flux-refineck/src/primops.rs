@@ -32,7 +32,7 @@ use flux_macros::primop_rules;
 use flux_middle::rty::{self, BaseTy, Expr, Sort};
 use flux_rustc_bridge::mir;
 use rty::{
-    BinOp::{BitAnd, BitOr, BitShl, BitShr, BitXor, Mod},
+    BinOp::{BitAnd, BitOr, BitShl, BitShr, BitXor, Div, Mod},
     Expr as E,
 };
 use rustc_data_structures::unord::UnordMap;
@@ -393,11 +393,24 @@ fn mk_sub_rules(overflow_mode: OverflowMode) -> RuleMatcher<2> {
 }
 
 /// `a/b`
+///
+/// For unsigned integers, Rust's truncating division agrees with SMT-LIB's Euclidean `div`
+/// because both operands are non-negative, so we can emit the exact value `T[a/b]`.
+///
+/// For signed integers, Rust truncates toward zero while SMT-LIB's `div` floors (for
+/// positive divisors). They only agree when both operands are non-negative, so we use a
+/// conditional constraint (same approach as `mk_rem_rules` for signed integers).
 fn mk_div_rules() -> RuleMatcher<2> {
     primop_rules! {
         fn(a: T, b: T) -> T[a/b]
         requires E::ne(b, 0) => ConstrReason::Div
-        if T.is_integral()
+        if T.is_unsigned()
+
+        fn(a: T, b: T) -> T{v: E::implies(
+                                   E::and(E::ge(a, 0), E::ge(b, 0)),
+                                   E::eq(v, E::binary_op(Div(Sort::Int), a, b))) }
+        requires E::ne(b, 0) => ConstrReason::Div
+        if T.is_signed()
 
         fn(a: T, b: T) -> T
         if T.is_float()
