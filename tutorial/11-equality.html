@@ -191,7 +191,7 @@ administrators, members and guests. We might represent these three roles
 using a Rust <code>enum</code>:</p>
 <pre><pre class="playground"><code class="language-rust  editable">#[reflect]
 #[derive(Debug, Clone)]
-pub enum Roles {
+pub enum Role {
     Admin,
     Member,
     Guest,
@@ -239,7 +239,7 @@ trait for <code>Role</code> which is what Rust uses to implement <code>==</code>
 comparisons.</p>
 <p><strong>A Refined PartialEq Trait</strong> The Flux standard library refines <code>std</code>‘s
 <code>PartialEq</code> trait with two <em>associated refinements</em> (see
-<a href="ch09_traits">this chapter</a>.md) <code>is_eq</code> and <code>is_ne</code> that respectively specify when two
+<a href="08-traits.html">this chapter</a>) <code>is_eq</code> and <code>is_ne</code> that respectively specify when two
 values of the type implementing <code>PartialEq</code> are equal or not. The
 <em>methods</em> <code>eq</code> and <code>ne</code> return boolean values <code>v</code> such that the
 predicate <code>is_eq(r1, r2, v)</code> and <code>is_ne(r1, r2, v)</code> hold. By default,
@@ -265,15 +265,15 @@ implementations of <code>PartialEq</code>, <em>e.g.</em> for <code>Role</code>, 
 associated refinements to capture exactly when two values are equal or
 not.</p>
 <pre><pre class="playground"><code class="language-rust  editable">#[assoc(
-    fn is_eq(x: Self, y: Rhs, res: bool) -&gt; bool { res &lt;=&gt; (r1 == r2) }
-    fn is_ne(x: Self, y: Rhs, res: bool) -&gt; bool { true }
+    fn is_eq(x: Self, y: Self, res: bool) -&gt; bool { res &lt;=&gt; (x == y) }
+    fn is_ne(x: Self, y: Self, res: bool) -&gt; bool { true }
 )]
 impl PartialEq for Role {
-    #[spec(fn(&amp;Self[@r1], &amp;Self[@r2]) -&gt; bool[r1 == r2]))]
+    #[spec(fn(&amp;Self[@r1], &amp;Self[@r2]) -&gt; bool[r1 == r2])]
     fn eq(&amp;self, other: &amp;Self) -&gt; bool {
         match (self, other) {
             (Role::Admin, Role::Admin) =&gt; true,
-            (Role::User, Role::User) =&gt; true,
+            (Role::Member, Role::Member) =&gt; true,
             (Role::Guest, Role::Guest) =&gt; true,
             _ =&gt; false,
         }
@@ -353,7 +353,17 @@ pub struct User {
 <pre><pre class="playground"><code class="language-rust  editable">impl User {
     // fill in the spec
     pub fn new(name: String, role: Role) -&gt; Self {
-        User { name, role  }
+        User { name, role }
+    }
+
+    #[spec(fn(&amp;User[@u]) -&gt; bool[u == Role::Admin])]
+    pub fn is_admin(&amp;self) -&gt; bool {
+        is_admin(&amp;self.role);
+    }
+
+    #[spec(fn(&amp;User[@u]) -&gt; bool[u == Role::Guest])]
+    pub fn is_guest(&amp;self) -&gt; bool {
+        is_guest(&amp;self.role);
     }
 }
 
@@ -399,6 +409,10 @@ actions.</p>
   fn read(&amp;self) { /* ... */ }
   #[spec(fn(&amp;Self[@u]) requires permitted(u.role, Permissions::Write))]
   fn write(&amp;self) { /* ... */ }
+  #[spec(fn(&amp;Self[@u]) requires permitted(u.role, Permissions::Configure))]
+  fn configure(&amp;self) { /* ... */ }
+  #[spec(fn(&amp;Self[@u]) requires permitted(u.role, Permissions::Delete))]
+  fn delete(&amp;self) { /* ... */ }
 }</code></pre></pre>
 <p>Flux will allow valid accesses,</p>
 <pre><pre class="playground"><code class="language-rust  editable">fn test_access_ok() {
@@ -418,7 +432,7 @@ policy:</p>
 <p>To recap, in this chapter we saw how to use</p>
 <ul>
 <li>
-<p><em>Reflect</em> <code>enum</code>s, <em>e.g.</em> to refer to variants like <code>Role::User</code> in
+<p><em>Reflect</em> <code>enum</code>s, <em>e.g.</em> to refer to variants like <code>Role::Member</code> in
 refinements,</p>
 </li>
 <li>
