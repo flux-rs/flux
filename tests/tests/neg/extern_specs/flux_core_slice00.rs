@@ -29,6 +29,28 @@ pub fn test_get_unchecked_index(xs: &[i32], i: usize) {
     assert(xs.get(i).is_some()); //~ ERROR refinement type error
 }
 
+// --- first_mut / last_mut ---
+
+pub fn test_first_mut(xs: &mut [i32]) {
+    assert(xs.first_mut().is_some()); //~ ERROR refinement type error
+}
+
+pub fn test_last_mut(xs: &mut [i32]) {
+    assert(xs.last_mut().is_some()); //~ ERROR refinement type error
+}
+
+// --- get_mut ---
+
+pub fn test_get_mut(xs: &mut [i32], i: usize) {
+    assert(xs.get_mut(i).is_some()); //~ ERROR refinement type error
+}
+
+// --- split_at_mut_checked ---
+
+pub fn test_split_at_mut_checked(xs: &mut [i32], mid: usize) {
+    assert(xs.split_at_mut_checked(mid).is_some()); //~ ERROR refinement type error
+}
+
 // --- split_first ---
 
 pub fn test_split_first(xs: &[i32]) {

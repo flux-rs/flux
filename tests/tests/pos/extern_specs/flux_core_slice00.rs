@@ -34,6 +34,34 @@ pub fn test_iter_as_slice_len(xs: &[i32]) {
     assert(xs.len() == ys.len());
 }
 
+// --- first_mut / last_mut ---
+
+pub fn test_first_mut_empty() {
+    let mut w: [i32; 0] = [];
+    assert(w.first_mut().is_none());
+}
+
+pub fn test_first_mut_nonempty() {
+    let mut v = [1, 2, 3];
+    assert(v.first_mut().is_some());
+}
+
+pub fn test_first_mut_branch(xs: &mut [i32]) {
+    if xs.is_empty() {
+        assert(xs.first_mut().is_none());
+    } else {
+        assert(xs.first_mut().is_some());
+    }
+}
+
+pub fn test_last_mut_branch(xs: &mut [i32]) {
+    if xs.is_empty() {
+        assert(xs.last_mut().is_none());
+    } else {
+        assert(xs.last_mut().is_some());
+    }
+}
+
 // --- last ---
 
 pub fn test_last_concrete() {
@@ -126,6 +154,47 @@ pub fn test_split_last_init_len(xs: &[i32]) {
     let n = xs.len();
     if let Some((_, init)) = xs.split_last() {
         assert(init.len() == n - 1);
+    }
+}
+
+// --- get_mut ---
+
+pub fn test_get_mut_in_bounds(xs: &mut [i32], i: usize) {
+    if i < xs.len() {
+        assert(xs.get_mut(i).is_some());
+    }
+}
+
+pub fn test_get_mut_out_of_bounds(xs: &mut [i32], i: usize) {
+    if i >= xs.len() {
+        assert(xs.get_mut(i).is_none());
+    }
+}
+
+// --- split_at_mut ---
+
+pub fn test_split_at_mut_lengths(xs: &mut [i32], mid: usize) {
+    let n = xs.len();
+    if mid <= n {
+        let (left, right) = xs.split_at_mut(mid);
+        assert(left.len() == mid);
+        assert(right.len() == n - mid);
+    }
+}
+
+// --- split_at_mut_checked ---
+
+pub fn test_split_at_mut_checked_in_bounds(xs: &mut [i32], mid: usize) {
+    if mid <= xs.len() {
+        assert(xs.split_at_mut_checked(mid).is_some());
+    }
+}
+
+pub fn test_split_at_mut_checked_lengths(xs: &mut [i32], mid: usize) {
+    let n = xs.len();
+    if let Some((left, right)) = xs.split_at_mut_checked(mid) {
+        assert(left.len() == mid);
+        assert(right.len() == n - mid);
     }
 }
 
