@@ -9,10 +9,12 @@ impl<T> [T] {
     #[spec(fn(&Self[@n]) -> usize[n])]
     fn len(&self) -> usize;
 
+    #[no_panic]
     #[spec(fn(&Self[@n]) -> bool[n == 0])]
     fn is_empty(&self) -> bool;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L154
+    #[no_panic]
     #[spec(fn(&Self[@n]) -> Option<&T>[n != 0])]
     fn first(&self) -> Option<&T>;
 
@@ -51,6 +53,7 @@ impl<T> [T] {
     #[spec(fn(&Self[@n]) -> Option<(&T, &[T][n - 1])>[n != 0])]
     fn split_last(&self) -> Option<(&T, &[T])>;
 
+    #[no_panic]
     #[spec(fn(&Self[@n]) -> Iter<T>[0, n])]
     fn iter(&self) -> Iter<'_, T>;
 
@@ -73,9 +76,11 @@ impl<T> [T] {
     #[spec(fn(&mut Self[@n], usize[@mid]) -> Option<(&mut [T][mid], &mut [T][n - mid])>[mid <= n])]
     fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut [T], &mut [T])>;
 
+    #[no_panic]
     #[spec(fn(&Self[@n]) -> *const{p: ptr_size(p) == n} T)]
     fn as_ptr(&self) -> *const T;
 
+    #[no_panic]
     #[spec(fn(&mut Self[@n]) -> *mut{p: ptr_size(p) == n} T)]
     fn as_mut_ptr(&mut self) -> *mut T;
 }
