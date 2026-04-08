@@ -251,12 +251,12 @@ impl User {
 
     #[spec(fn(&User[@u]) -> bool[u == Role::Admin])]
     pub fn is_admin(&self) -> bool {
-        is_admin(&self.role);
+        is_admin(&self.role)
     }
 
     #[spec(fn(&User[@u]) -> bool[u == Role::Guest])]
     pub fn is_guest(&self) -> bool {
-        is_guest(&self.role);
+        is_guest(&self.role)
     }
 }
 
