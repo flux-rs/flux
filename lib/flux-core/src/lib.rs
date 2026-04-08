@@ -1,6 +1,9 @@
 #![no_std]
 #![cfg_attr(flux, feature(step_trait))]
 #![cfg_attr(flux, feature(sized_hierarchy))]
+#![feature(const_trait_impl)] // required for const trait impls in option.rs
+#![feature(const_option_ops)] // required for const Option::map_or in option.rs
+#![feature(const_destruct)] // required to specify `[const] Destruct`
 
 mod iter;
 mod ops;

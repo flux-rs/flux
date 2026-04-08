@@ -1,3 +1,5 @@
+use core::marker::Destruct;
+
 use flux_attrs::*;
 
 #[extern_spec]
@@ -32,4 +34,23 @@ impl<T> Option<T> {
 
     #[sig(fn(&mut Self[@b]) -> &mut [T][if b { 1 } else { 0 }])]
     fn as_mut_slice(&mut self) -> &mut [T];
+
+    #[sig(fn(Self[@b], F) -> Option<U>)]
+    #[flux_rs::no_panic_if(F::no_panic())]
+    const fn map<U, F>(self, f: F) -> Option<U>
+    where
+        F: [const] FnOnce(T) -> U + [const] Destruct;
+
+    #[sig(fn(Self, U, F) -> U)]
+    #[flux_rs::no_panic_if(F::no_panic())]
+    const fn map_or<U, F>(self, default: U, f: F) -> U
+    where
+        F: [const] FnOnce(T) -> U + [const] Destruct,
+        U: [const] Destruct;
+
+    #[sig(fn(Self[@b], F) -> Self)]
+    #[flux_rs::no_panic_if(F::no_panic())]
+    const fn inspect<F>(self, f: F) -> Self
+    where
+        F: [const] FnOnce(&T) + [const] Destruct;
 }
