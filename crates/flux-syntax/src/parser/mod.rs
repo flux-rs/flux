@@ -4,7 +4,7 @@ use std::{collections::HashSet, str::FromStr, vec};
 
 use lookahead::{AnyLit, LAngle, NonReserved, RAngle};
 use rustc_ast::token::Lit;
-use rustc_span::{Symbol, sym::Output};
+use rustc_span::{Span, Symbol, sym::Output};
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
     punctuated_with_trailing, repeat_while, sep1, until,
@@ -1153,52 +1153,125 @@ fn parse_indices(cx: &mut ParseCtxt) -> ParseResult<Indices> {
     Ok(Indices { indices, span: cx.mk_span(lo, hi) })
 }
 
-fn parse_fn_bound_input(cx: &mut ParseCtxt) -> ParseResult<GenericArg> {
-    let lo = cx.lo();
-    let tys = parens(cx, Comma, parse_type)?;
-    let hi = cx.hi();
-    let kind = TyKind::Tuple(tys);
-    let span = cx.mk_span(lo, hi);
-    let in_ty = Ty { kind, node_id: cx.next_node_id(), span };
-    Ok(GenericArg { kind: GenericArgKind::Type(in_ty), node_id: cx.next_node_id() })
-}
-
-fn parse_fn_bound_output(cx: &mut ParseCtxt) -> ParseResult<GenericArg> {
-    let lo = cx.lo();
-
-    let ty = if cx.advance_if(token::RArrow) {
-        parse_type(cx)?
-    } else {
-        Ty { kind: TyKind::Tuple(vec![]), node_id: cx.next_node_id(), span: cx.mk_span(lo, lo) }
-    };
-    let hi = cx.hi();
+fn parse_fn_bound_output(cx: &mut ParseCtxt, ty: Ty) -> GenericArg {
+    let lo = ty.span.lo();
+    let hi = ty.span.hi();
     let ident = Ident { name: Output, span: cx.mk_span(lo, hi) };
-    Ok(GenericArg { kind: GenericArgKind::Constraint(ident, ty), node_id: cx.next_node_id() })
+    GenericArg { kind: GenericArgKind::Constraint(ident, ty), node_id: cx.next_node_id() }
 }
 
-fn parse_fn_bound_path(cx: &mut ParseCtxt) -> ParseResult<Path> {
+fn fn_input_as_ty(input: FnInput) -> Ty {
+    match input {
+        FnInput::Constr(_bind, path, pred, node_id) => {
+            let span = pred.span;
+            Ty {
+            kind: TyKind::Constr(pred, Box::new(Ty {
+                kind: TyKind::Base(path_to_bty(path)),
+                node_id,
+                span,
+            })),
+            node_id,
+            span,
+        }
+        }
+        FnInput::StrgRef(_bind, ty, node_id) => {
+            let span = ty.span;
+            Ty {
+            kind: TyKind::Ref(Mutability::Mut, Box::new(ty)),
+            node_id,
+            span,
+        }
+        }
+        FnInput::Ty(_bind, ty, _node_id) => ty,
+    }
+}
+
+fn fn_inputs_to_tuple_ty(cx: &mut ParseCtxt, inputs: Vec<FnInput>, span: Span) -> Ty {
+    let tys = inputs.into_iter().map(fn_input_as_ty).collect();
+    Ty { kind: TyKind::Tuple(tys), node_id: cx.next_node_id(), span }
+}
+
+fn parse_opt_requires_for_bound(cx: &mut ParseCtxt) -> ParseResult<Vec<Requires>> {
+    if !cx.advance_if(kw::Requires) {
+        return Ok(vec![]);
+    }
+    punctuated_until(
+        cx,
+        Comma,
+        |t: TokenKind| t.is_keyword(kw::Ensures) || t == token::Comma || t.is_eof(),
+        parse_requires_clause,
+    )
+}
+
+fn parse_opt_ensures_for_bound(cx: &mut ParseCtxt) -> ParseResult<Vec<Ensures>> {
+    if !cx.advance_if(kw::Ensures) {
+        return Ok(vec![]);
+    }
+    punctuated_until(cx, Comma, |t: TokenKind| t == token::Comma || t.is_eof(), parse_ensures_clause)
+}
+
+fn parse_fn_bound_path(
+    cx: &mut ParseCtxt,
+) -> ParseResult<(Path, Option<surface::FnTraitBound>)> {
     let lo = cx.lo();
     let ident = parse_ident(cx)?;
-    let in_arg = parse_fn_bound_input(cx)?;
-    let out_arg = parse_fn_bound_output(cx)?;
+    let kind = surface::FnTraitKind::from_symbol(ident.name).unwrap();
+    let inputs = parens(cx, Comma, parse_fn_input)?;
+    let returns = parse_fn_ret(cx)?;
+    let requires = parse_opt_requires_for_bound(cx)?;
+    let ensures = parse_opt_ensures_for_bound(cx)?;
+    let inputs = mut_as_strg(inputs, &ensures)?;
+    let has_named_inputs = inputs.iter().any(|input| {
+        matches!(input, FnInput::Constr(..) | FnInput::StrgRef(..) | FnInput::Ty(Some(_), ..))
+    });
+    let has_fn_bound = !requires.is_empty() || !ensures.is_empty() || has_named_inputs;
+    let span = cx.mk_span(lo, cx.hi());
+    let (in_arg, out_arg, fn_bound) = if has_fn_bound {
+        let in_ty = Ty { kind: TyKind::Tuple(vec![]), node_id: cx.next_node_id(), span };
+        let in_arg = GenericArg { kind: GenericArgKind::Type(in_ty), node_id: cx.next_node_id() };
+        let span = match &returns {
+            FnRetTy::Default(span) => *span,
+            FnRetTy::Ty(ty) => ty.span,
+        };
+        let out_ty = Ty { kind: TyKind::Tuple(vec![]), node_id: cx.next_node_id(), span };
+        let out_arg = parse_fn_bound_output(cx, out_ty);
+        let output = FnOutput { returns, ensures, node_id: cx.next_node_id() };
+        let fn_bound = Some(surface::FnTraitBound {
+            kind,
+            requires,
+            inputs,
+            output,
+            node_id: cx.next_node_id(),
+            span,
+        });
+        (in_arg, out_arg, fn_bound)
+    } else {
+        let in_ty = fn_inputs_to_tuple_ty(cx, inputs, span);
+        let in_arg = GenericArg { kind: GenericArgKind::Type(in_ty), node_id: cx.next_node_id() };
+        let out_ty = match returns {
+            FnRetTy::Default(span) => {
+                Ty { kind: TyKind::Tuple(vec![]), node_id: cx.next_node_id(), span }
+            }
+            FnRetTy::Ty(ty) => *ty,
+        };
+        let out_arg = parse_fn_bound_output(cx, out_ty);
+        (in_arg, out_arg, None)
+    };
     let args = vec![in_arg, out_arg];
     let segment = PathSegment { ident, args, node_id: cx.next_node_id() };
     let hi = cx.hi();
-    Ok(Path {
-        segments: vec![segment],
-        refine: vec![],
-        node_id: cx.next_node_id(),
-        span: cx.mk_span(lo, hi),
-    })
+    let span = cx.mk_span(lo, hi);
+    let path = Path { segments: vec![segment], refine: vec![], node_id: cx.next_node_id(), span };
+    Ok((path, fn_bound))
 }
 
 fn parse_generic_bounds(cx: &mut ParseCtxt) -> ParseResult<GenericBounds> {
-    let path = if cx.peek(sym::FnOnce) || cx.peek(sym::FnMut) || cx.peek(sym::Fn) {
+    let (path, fn_bound) = if cx.peek(sym::FnOnce) || cx.peek(sym::FnMut) || cx.peek(sym::Fn) {
         parse_fn_bound_path(cx)?
     } else {
-        parse_path(cx)?
+        (parse_path(cx)?, None)
     };
-    Ok(vec![TraitRef { path, node_id: cx.next_node_id() }])
+    Ok(vec![TraitRef { path, fn_bound, node_id: cx.next_node_id() }])
 }
 
 fn parse_const_arg(cx: &mut ParseCtxt) -> ParseResult<ConstArg> {

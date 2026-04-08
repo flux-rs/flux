@@ -412,7 +412,36 @@ pub type GenericBounds = Vec<TraitRef>;
 #[derive(Debug)]
 pub struct TraitRef {
     pub path: Path,
+    pub fn_bound: Option<FnTraitBound>,
     pub node_id: NodeId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FnTraitKind {
+    Fn,
+    FnMut,
+    FnOnce,
+}
+
+impl FnTraitKind {
+    pub fn from_symbol(sym: Symbol) -> Option<Self> {
+        match sym {
+            sym::Fn => Some(Self::Fn),
+            sym::FnMut => Some(Self::FnMut),
+            sym::FnOnce => Some(Self::FnOnce),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct FnTraitBound {
+    pub kind: FnTraitKind,
+    pub requires: Vec<Requires>,
+    pub inputs: Vec<FnInput>,
+    pub output: FnOutput,
+    pub node_id: NodeId,
+    pub span: Span,
 }
 
 impl TraitRef {

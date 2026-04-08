@@ -10,9 +10,9 @@ use rustc_span::symbol::Ident;
 use super::{
     Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg, Ensures, EnumDef,
     Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig,
-    GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, ItemKind,
-    Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef,
-    Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
+    FnTraitBound, GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices,
+    ItemKind, Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc,
+    StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
     WhereBoundPredicate,
 };
 use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn};
@@ -92,6 +92,10 @@ pub trait Visitor: Sized {
 
     fn visit_trait_ref(&mut self, trait_ref: &TraitRef) {
         walk_trait_ref(self, trait_ref);
+    }
+
+    fn visit_fn_trait_bound(&mut self, bound: &FnTraitBound) {
+        walk_fn_trait_bound(self, bound);
     }
 
     fn visit_base_sort(&mut self, bsort: &BaseSort) {
@@ -328,6 +332,18 @@ pub fn walk_impl_assoc_reft<V: Visitor>(vis: &mut V, assoc_reft: &ImplAssocReft)
 
 pub fn walk_trait_ref<V: Visitor>(vis: &mut V, trait_ref: &TraitRef) {
     vis.visit_path(&trait_ref.path);
+    if let Some(bound) = &trait_ref.fn_bound {
+        vis.visit_fn_trait_bound(bound);
+    }
+}
+
+pub fn walk_fn_trait_bound<V: Visitor>(vis: &mut V, bound: &FnTraitBound) {
+    for requires in &bound.requires {
+        walk_list!(vis, visit_refine_param, &requires.params);
+        vis.visit_expr(&requires.pred);
+    }
+    walk_list!(vis, visit_fn_input, &bound.inputs);
+    vis.visit_fn_output(&bound.output);
 }
 
 pub fn walk_base_sort<V: Visitor>(vis: &mut V, bsort: &BaseSort) {

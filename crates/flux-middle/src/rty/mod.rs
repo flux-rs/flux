@@ -356,11 +356,14 @@ impl Clause {
         genv: GlobalEnv,
         clauses: &Clauses,
     ) -> (Vec<Clause>, Vec<Binder<FnTraitPredicate>>) {
+        let mut custom_fn_trait_clauses = vec![];
         let mut fn_trait_clauses = vec![];
         let mut fn_trait_output_clauses = vec![];
         let mut rest = vec![];
         for clause in clauses {
-            if let Some(trait_clause) = clause.as_trait_clause()
+            if let ClauseKind::FnTrait(fn_trait_pred) = clause.kind.skip_binder_ref() {
+                custom_fn_trait_clauses.push(clause.kind.rebind(fn_trait_pred.clone()));
+            } else if let Some(trait_clause) = clause.as_trait_clause()
                 && let Some(kind) = genv.tcx().fn_trait_kind_from_def_id(trait_clause.def_id())
             {
                 fn_trait_clauses.push((kind, trait_clause));
@@ -372,7 +375,7 @@ impl Clause {
                 rest.push(clause.clone());
             }
         }
-        let fn_trait_clauses = fn_trait_clauses
+        let mut fn_trait_clauses = fn_trait_clauses
             .into_iter()
             .map(|(kind, fn_trait_clause)| {
                 let mut candidates = vec![];
@@ -387,12 +390,26 @@ impl Clause {
                     FnTraitPredicate {
                         kind,
                         self_ty: fn_trait_clause.self_ty().to_ty(),
-                        tupled_args: fn_trait_clause.trait_ref.args[1].expect_base().to_ty(),
-                        output: proj_pred.term.to_ty(),
+                        sig: FnTraitPredicateSig::Tupled {
+                            tupled_args: fn_trait_clause.trait_ref.args[1].expect_base().to_ty(),
+                            output: proj_pred.term.to_ty(),
+                        },
                     }
                 })
             })
             .collect_vec();
+        let tcx = genv.tcx();
+        for custom in custom_fn_trait_clauses {
+            let Some(pos) = fn_trait_clauses.iter().position(|it| {
+                let a = it.skip_binder_ref();
+                let b = custom.skip_binder_ref();
+                a.kind == b.kind && a.self_ty.to_rustc(tcx) == b.self_ty.to_rustc(tcx)
+            }) else {
+                fn_trait_clauses.push(custom);
+                continue;
+            };
+            fn_trait_clauses[pos] = custom;
+        }
         (rest, fn_trait_clauses)
     }
 }
@@ -421,6 +438,7 @@ pub enum ClauseKind {
     Projection(ProjectionPredicate),
     RegionOutlives(RegionOutlivesPredicate),
     TypeOutlives(TypeOutlivesPredicate),
+    FnTrait(FnTraitPredicate),
     ConstArgHasType(Const, Ty),
     UnstableFeature(Symbol),
 }
@@ -441,6 +459,9 @@ impl<'tcx> ToRustc<'tcx> for ClauseKind {
             }
             ClauseKind::TypeOutlives(outlives_predicate) => {
                 rustc_middle::ty::ClauseKind::TypeOutlives(outlives_predicate.to_rustc(tcx))
+            }
+            ClauseKind::FnTrait(_) => {
+                bug!("unexpected custom FnTrait clause in rustc conversion")
             }
             ClauseKind::ConstArgHasType(constant, ty) => {
                 rustc_middle::ty::ClauseKind::ConstArgHasType(
@@ -675,35 +696,43 @@ impl PolyProjectionPredicate {
 )]
 pub struct FnTraitPredicate {
     pub self_ty: Ty,
-    pub tupled_args: Ty,
-    pub output: Ty,
+    pub sig: FnTraitPredicateSig,
     pub kind: ClosureKind,
+}
+
+#[derive(
+    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
+pub enum FnTraitPredicateSig {
+    Tupled { tupled_args: Ty, output: Ty },
+    Full(FnSig),
 }
 
 impl Pretty for FnTraitPredicate {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "self = {:?}, args = {:?}, output = {:?}, kind = {}",
-            self.self_ty, self.tupled_args, self.output, self.kind
-        )
+        write!(f, "self = {:?}, sig = {:?}, kind = {}", self.self_ty, self.sig, self.kind)
     }
 }
 
 impl FnTraitPredicate {
     pub fn fndef_sig(&self) -> FnSig {
-        let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
-        let ret = self.output.clone().shift_in_escaping(1);
-        let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
-        FnSig::new(
-            Safety::Safe,
-            rustc_abi::ExternAbi::Rust,
-            List::empty(),
-            inputs,
-            output,
-            Expr::ff(),
-            false,
-        )
+        match &self.sig {
+            FnTraitPredicateSig::Tupled { tupled_args, output } => {
+                let inputs = tupled_args.expect_tuple().iter().cloned().collect();
+                let ret = output.clone().shift_in_escaping(1);
+                let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
+                FnSig::new(
+                    Safety::Safe,
+                    rustc_abi::ExternAbi::Rust,
+                    List::empty(),
+                    inputs,
+                    output,
+                    Expr::ff(),
+                    false,
+                )
+            }
+            FnTraitPredicateSig::Full(sig) => sig.clone(),
+        }
     }
 }
 

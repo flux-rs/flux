@@ -270,11 +270,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         bounds: &[surface::TraitRef],
     ) -> fhir::GenericBounds<'genv> {
-        self.genv().alloc_slice_fill_iter(
-            bounds
-                .iter()
-                .map(|bound| fhir::GenericBound::Trait(self.desugar_trait_ref(bound))),
-        )
+        self.genv().alloc_slice_fill_iter(bounds.iter().map(|bound| {
+            let trait_ref = self.desugar_trait_ref(bound);
+            if let Some(fn_bound) = &bound.fn_bound {
+                fhir::GenericBound::FnTrait(trait_ref, self.desugar_fn_trait_bound(fn_bound))
+            } else {
+                fhir::GenericBound::Trait(trait_ref)
+            }
+        }))
     }
 
     fn desugar_trait_ref(&mut self, trait_ref: &surface::TraitRef) -> fhir::PolyTraitRef<'genv> {
@@ -294,6 +297,45 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             trait_ref: path,
             span,
         }
+    }
+
+    fn desugar_fn_trait_bound(
+        &mut self,
+        bound: &surface::FnTraitBound,
+    ) -> fhir::FnTraitBound<'genv> {
+        let mut requires = vec![];
+        for surface_requires in &bound.requires {
+            let params = self.desugar_refine_params(&surface_requires.params);
+            let pred = self.desugar_expr(&surface_requires.pred);
+            requires.push(fhir::Requires { params, pred });
+        }
+
+        let inputs = self
+            .genv()
+            .alloc_slice_fill_iter(bound.inputs.iter().map(|input| self.desugar_fn_input(input)));
+        let output = self
+            .desugar_fn_output(surface::Async::No, &bound.output)
+            .unwrap_or_else(|err| fhir::FnOutput {
+                params: &[],
+                ret: fhir::Ty { kind: fhir::TyKind::Err(err), span: bound.span },
+                ensures: &[],
+            });
+        let decl = fhir::FnDecl {
+            requires: self.genv.alloc_slice(&requires),
+            inputs,
+            output,
+            span: bound.span,
+            lifted: false,
+        };
+        let refine_params = self
+            .genv
+            .alloc_slice_fill_iter(self.implicit_params_to_params(bound.node_id));
+        let kind = match bound.kind {
+            surface::FnTraitKind::Fn => fhir::FnTraitKind::Fn,
+            surface::FnTraitKind::FnMut => fhir::FnTraitKind::FnMut,
+            surface::FnTraitKind::FnOnce => fhir::FnTraitKind::FnOnce,
+        };
+        fhir::FnTraitBound { kind, decl, refine_params, span: bound.span }
     }
 
     fn desugar_refined_by(&mut self, refined_by: &surface::RefineParams) -> fhir::RefinedBy<'genv> {

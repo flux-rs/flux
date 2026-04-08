@@ -54,7 +54,7 @@ use rustc_span::{
     symbol::{Ident, kw},
 };
 use rustc_trait_selection::traits;
-use rustc_type_ir::DebruijnIndex;
+use rustc_type_ir::{ClosureKind, DebruijnIndex};
 
 /// Wrapper over a type implementing [`ConvPhase`]. We have this to implement most functionality as
 /// inherent methods instead of defining them as default implementation in the trait definition.
@@ -732,7 +732,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         // For each *refined clause* at index `j` find a corresponding *unrefined clause* at index
         // `i` and save a mapping `i -> j`.
         let mut map = UnordMap::default();
+        let mut extra_clauses = vec![];
         for (j, clause) in refined_clauses.iter().enumerate() {
+            if matches!(clause.kind_skipping_binder(), rty::ClauseKind::FnTrait(_)) {
+                extra_clauses.push(clause.clone());
+                continue;
+            }
             let clause = clause.to_rustc(tcx);
             let Some((i, _)) = unrefined_clauses.iter().find_position(|it| it.0 == clause) else {
                 self.emit_fail_to_match_predicates(def_id)?;
@@ -760,6 +765,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             };
             clauses.push(clause);
         }
+        clauses.extend(extra_clauses);
 
         Ok(rty::GenericPredicates {
             parent: predicates.parent,
@@ -1109,6 +1115,39 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         }
                     }
                 }
+                fhir::GenericBound::FnTrait(poly_trait_ref, fn_bound) => {
+                    let _ = poly_trait_ref;
+                    let layer = Layer::list(
+                        self.results(),
+                        0,
+                        fn_bound.refine_params,
+                    );
+                    env.push_layer(layer);
+                    let fn_sig = self.conv_fn_decl(
+                        env,
+                        Safety::Safe,
+                        rustc_abi::ExternAbi::Rust,
+                        &fn_bound.decl,
+                        None,
+                        Expr::ff(),
+                    )?;
+                    let vars = env.pop_layer().into_bound_vars(self.genv())?;
+                    let kind = match fn_bound.kind {
+                        fhir::FnTraitKind::Fn => ClosureKind::Fn,
+                        fhir::FnTraitKind::FnMut => ClosureKind::FnMut,
+                        fhir::FnTraitKind::FnOnce => ClosureKind::FnOnce,
+                    };
+                    clauses.push(
+                        rty::Clause::from(rty::Binder::bind_with_vars(
+                            rty::ClauseKind::FnTrait(rty::FnTraitPredicate {
+                                self_ty: bounded_ty.clone(),
+                                kind,
+                                sig: rty::FnTraitPredicateSig::Full(fn_sig),
+                            }),
+                            vars,
+                        )),
+                    );
+                }
                 fhir::GenericBound::Outlives(lft) => {
                     let re = self.conv_lifetime(env, *lft, bounded_ty_span);
                     clauses.push(rty::Clause::new(
@@ -1386,7 +1425,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
                 rty::ClauseKind::RegionOutlives(_)
                 | rty::ClauseKind::TypeOutlives(_)
-                | rty::ClauseKind::UnstableFeature(_) => {}
+                | rty::ClauseKind::UnstableFeature(_)
+                | rty::ClauseKind::FnTrait(_) => {}
                 rty::ClauseKind::ConstArgHasType(..) => {
                     bug!("did not expect {pred:?} clause in object bounds");
                 }

@@ -69,7 +69,7 @@ pub(crate) trait ScopedVisitor: Sized {
     fn on_generic_param(&mut self, _param: &surface::GenericParam) {}
     fn on_refine_param(&mut self, _param: &surface::RefineParam) {}
     fn on_enum_variant(&mut self, _variant: &surface::VariantDef) {}
-    fn on_fn_trait_input(&mut self, _in_arg: &surface::GenericArg, _node_id: NodeId) {}
+    fn on_fn_trait_bound(&mut self, _bound: &surface::FnTraitBound, _node_id: NodeId) {}
     fn on_fn_sig(&mut self, _fn_sig: &surface::FnSig) {}
     fn on_fn_output(&mut self, _output: &surface::FnOutput) {}
     fn on_loc(&mut self, _loc: Ident, _node_id: NodeId) {}
@@ -169,22 +169,46 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 
     fn visit_trait_ref(&mut self, trait_ref: &surface::TraitRef) {
-        match trait_ref.as_fn_trait_ref() {
-            Some((in_arg, out_arg)) => {
-                self.with_scope(ScopeKind::FnTraitInput, |this| {
-                    this.on_fn_trait_input(in_arg, trait_ref.node_id);
-                    surface::visit::walk_generic_arg(this, in_arg);
-                    this.with_scope(ScopeKind::Misc, |this| {
-                        surface::visit::walk_generic_arg(this, out_arg);
-                    });
-                });
-            }
-            None => {
+        match &trait_ref.fn_bound {
+            Some(bound) => {
                 self.with_scope(ScopeKind::Misc, |this| {
-                    surface::visit::walk_trait_ref(this, trait_ref);
+                    this.visit_path(&trait_ref.path);
+                });
+                self.with_scope(ScopeKind::FnTraitInput, |this| {
+                    this.on_fn_trait_bound(bound, bound.node_id);
+                    surface::visit::walk_fn_trait_bound(this, bound);
                 });
             }
+            None => match trait_ref.as_fn_trait_ref() {
+                Some((in_arg, out_arg)) => {
+                    self.with_scope(ScopeKind::FnTraitInput, |this| {
+                        surface::visit::walk_generic_arg(this, in_arg);
+                        this.with_scope(ScopeKind::Misc, |this| {
+                            surface::visit::walk_generic_arg(this, out_arg);
+                        });
+                    });
+                }
+                None => {
+                    self.with_scope(ScopeKind::Misc, |this| {
+                        surface::visit::walk_trait_ref(this, trait_ref);
+                    });
+                }
+            },
         }
+    }
+
+    fn visit_fn_trait_bound(&mut self, bound: &surface::FnTraitBound) {
+        self.with_scope(ScopeKind::FnTraitInput, |this| {
+            for requires in &bound.requires {
+                walk_list!(this, visit_refine_param, &requires.params);
+                this.visit_expr(&requires.pred);
+            }
+            walk_list!(this, visit_fn_input, &bound.inputs);
+            this.with_scope(ScopeKind::FnOutput, |this| {
+                this.on_fn_output(&bound.output);
+                surface::visit::walk_fn_output(this, &bound.output);
+            });
+        });
     }
 
     fn visit_variant_ret(&mut self, ret: &surface::VariantRet) {
@@ -202,7 +226,19 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     fn visit_fn_sig(&mut self, fn_sig: &surface::FnSig) {
         self.with_scope(ScopeKind::FnInput, |this| {
             this.on_fn_sig(fn_sig);
-            surface::visit::walk_fn_sig(this, fn_sig);
+            this.visit_async(&fn_sig.asyncness);
+            // Make function refinement params available to where-bound refinement expressions.
+            walk_list!(this, visit_refine_param, &fn_sig.params);
+            this.visit_generics(&fn_sig.generics);
+            for requires in &fn_sig.requires {
+                walk_list!(this, visit_refine_param, &requires.params);
+                this.visit_expr(&requires.pred);
+            }
+            walk_list!(this, visit_fn_input, &fn_sig.inputs);
+            if let Some(no_panic_expr) = &fn_sig.no_panic {
+                this.visit_expr(no_panic_expr);
+            }
+            this.visit_fn_output(&fn_sig.output);
         });
     }
 
@@ -712,13 +748,13 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
         self.scopes.pop();
     }
 
-    fn on_fn_trait_input(&mut self, in_arg: &surface::GenericArg, trait_node_id: NodeId) {
+    fn on_fn_trait_bound(&mut self, bound: &surface::FnTraitBound, trait_node_id: NodeId) {
         let params = ImplicitParamCollector::new(
             self.resolver.genv.tcx(),
             &self.resolver.output.path_res_map,
             ScopeKind::FnTraitInput,
         )
-        .run(|vis| vis.visit_generic_arg(in_arg));
+        .run(|vis| vis.visit_fn_trait_bound(bound));
         for (ident, kind, node_id) in params {
             self.define_param(ident, kind, node_id, Some(trait_node_id));
         }

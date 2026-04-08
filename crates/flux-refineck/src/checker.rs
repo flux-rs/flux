@@ -19,8 +19,8 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, Constant, CoroutineObligPredicate, EarlyBinder,
-        Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy,
-        Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        Expr, FnOutput, FnSig, FnTraitPredicate, FnTraitPredicateSig, GenericArg,
+        GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReErased,
         Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -891,10 +891,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<ResolvedCall> {
         let genv = self.genv;
         let tcx = genv.tcx();
-
-        let actuals =
-            unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
-        let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());
+        let actuals = actuals.to_vec();
         infcx.push_evar_scope();
 
         // Replace holes in generic arguments with fresh inference variables
@@ -932,12 +929,51 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Instantiate function signature and normalize it
         let late_refine_args = vec![];
-        let fn_sig = fn_sig
-            .instantiate(tcx, &generic_args, &early_refine_args)
-            .replace_bound_vars(
-                |_| rty::ReErased,
-                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
-            );
+        let param_self_ty = generic_args.first().and_then(|self_arg| match self_arg {
+            rty::GenericArg::Base(self_ty)
+                if matches!(self_ty.as_bty_skipping_binder(), BaseTy::Param(_)) =>
+            {
+                Some(self_ty.to_ty().to_rustc(tcx))
+            }
+            rty::GenericArg::Ty(self_ty)
+                if matches!(self_ty.as_bty_skipping_existentials(), Some(BaseTy::Param(_))) =>
+            {
+                Some(self_ty.to_rustc(tcx))
+            }
+            _ => None,
+        });
+
+        let fn_trait_kind = callee_def_id.and_then(|did| {
+            tcx.fn_trait_kind_from_def_id(did).or_else(|| {
+                tcx.opt_associated_item(did)
+                    .and_then(|assoc| assoc.trait_container(tcx))
+                    .and_then(|trait_id| tcx.fn_trait_kind_from_def_id(trait_id))
+            })
+        });
+
+        let mut call_actuals_storage = vec![];
+        let mut raw_call_actuals = &actuals[..];
+        let poly_fn_sig = if let Some(kind) = fn_trait_kind && let Some(self_ty) = param_self_ty {
+            let sig = self.find_self_ty_fn_sig(self_ty, kind, span)?;
+            if let Some(tupled) = actuals.get(1) {
+                call_actuals_storage.extend(tupled.expect_tuple().iter().cloned());
+                raw_call_actuals = &call_actuals_storage;
+            } else {
+                raw_call_actuals = &[];
+            }
+            sig
+        } else {
+            fn_sig.instantiate(tcx, &generic_args, &early_refine_args)
+        };
+
+        let call_actuals =
+            unfold_local_ptrs(infcx, env, &poly_fn_sig, raw_call_actuals).with_span(span)?;
+        let call_actuals = infer_under_mut_ref_hack(infcx, &call_actuals, &poly_fn_sig);
+
+        let fn_sig = poly_fn_sig.replace_bound_vars(
+            |_| rty::ReErased,
+            |sort, mode, _| infcx.fresh_infer_var(sort, mode),
+        );
 
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))
@@ -956,15 +992,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             );
         }
 
-        // Check requires predicates
-        for requires in fn_sig.requires() {
-            at.check_pred(requires, ConstrReason::Call);
-        }
-
         // Check arguments
-        for (actual, formal) in iter::zip(actuals, fn_sig.inputs()) {
+        for (actual, formal) in iter::zip(&call_actuals, fn_sig.inputs()) {
             at.subtyping_with_env(env, &actual, formal, ConstrReason::Call)
                 .with_span(span)?;
+        }
+        // Check requires predicates after argument subtyping so input-dependent refinement vars
+        // are constrained by the call arguments.
+        for requires in fn_sig.requires() {
+            at.check_pred(requires, ConstrReason::Call);
         }
 
         infcx.pop_evar_scope().with_span(span)?;
@@ -1018,10 +1054,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn find_self_ty_fn_sig(
         &self,
         self_ty: rustc_middle::ty::Ty<'tcx>,
+        kind: rustc_middle::ty::ClosureKind,
         span: Span,
     ) -> Result<PolyFnSig> {
         let tcx = self.genv.tcx();
         let mut def_id = Some(self.checker_id.root_id().to_def_id());
+        let mut fallback = None;
         while let Some(did) = def_id {
             let generic_predicates = self
                 .genv
@@ -1031,12 +1069,29 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let predicates = generic_predicates.predicates;
 
             for poly_fn_trait_pred in Clause::split_off_fn_trait_clauses(self.genv, &predicates).1 {
-                if poly_fn_trait_pred.skip_binder_ref().self_ty.to_rustc(tcx) == self_ty {
-                    return Ok(poly_fn_trait_pred.map(|fn_trait_pred| fn_trait_pred.fndef_sig()));
+                let (is_match, is_full) = {
+                    let pred = poly_fn_trait_pred.skip_binder_ref();
+                    (
+                        pred.kind == kind && pred.self_ty.to_rustc(tcx) == self_ty,
+                        matches!(pred.sig, FnTraitPredicateSig::Full(_)),
+                    )
+                };
+                if is_match {
+                    let sig = poly_fn_trait_pred.map(|fn_trait_pred| fn_trait_pred.fndef_sig());
+                    if is_full {
+                        return Ok(sig);
+                    }
+                    if fallback.is_none() {
+                        fallback = Some(sig);
+                    }
                 }
             }
             // Continue to the parent if we didn't find a match
             def_id = generic_predicates.parent;
+        }
+
+        if let Some(sig) = fallback {
+            return Ok(sig);
         }
 
         span_bug!(
@@ -1088,7 +1143,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Step 1. Find matching clause and turn it into a FnSig
                 let tcx = self.genv.tcx();
                 let self_ty = self_ty.to_rustc(tcx);
-                let sub_sig = self.find_self_ty_fn_sig(self_ty, span)?;
+                let kind = poly_fn_trait_pred.skip_binder_ref().kind;
+                let sub_sig = self.find_self_ty_fn_sig(self_ty, kind, span)?;
                 // Step 2. Issue the subtyping
                 check_fn_subtyping(infcx, SubFn::Mono(sub_sig), &oblig_sig, span)
                     .with_span(span)?;

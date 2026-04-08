@@ -339,7 +339,23 @@ pub type GenericBounds<'fhir> = &'fhir [GenericBound<'fhir>];
 #[derive(Debug, Clone, Copy)]
 pub enum GenericBound<'fhir> {
     Trait(PolyTraitRef<'fhir>),
+    FnTrait(PolyTraitRef<'fhir>, FnTraitBound<'fhir>),
     Outlives(Lifetime),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FnTraitKind {
+    Fn,
+    FnMut,
+    FnOnce,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FnTraitBound<'fhir> {
+    pub kind: FnTraitKind,
+    pub decl: FnDecl<'fhir>,
+    pub refine_params: &'fhir [RefineParam<'fhir>],
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Copy)]

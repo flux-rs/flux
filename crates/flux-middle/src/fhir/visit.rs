@@ -1,11 +1,11 @@
 use super::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
-    Expr, ExprKind, FieldDef, FieldExpr, FluxItem, FnDecl, FnOutput, FnSig, ForeignItem,
-    ForeignItemKind, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
-    ImplItemKind, Item, ItemKind, Lifetime, Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment,
-    PolyFuncSort, PolyTraitRef, QPath, Qualifier, RefineParam, Requires, Sort, SortPath, SpecFunc,
-    StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef,
-    VariantRet, WhereBoundPredicate,
+    Expr, ExprKind, FieldDef, FieldExpr, FluxItem, FnDecl, FnOutput, FnSig, FnTraitBound,
+    ForeignItem, ForeignItemKind, FuncSort, GenericArg, GenericBound, Generics, Impl,
+    ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime, Lit, OpaqueTy, OwnerNode,
+    Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath, Qualifier, RefineParam,
+    Requires, Sort, SortPath, SpecFunc, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty,
+    TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 use crate::fhir::{PrimOpProp, QPathExpr, SortDecl, StructKind};
 
@@ -112,6 +112,10 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_generic_bound(&mut self, bound: &GenericBound<'v>) {
         walk_generic_bound(self, bound);
+    }
+
+    fn visit_fn_trait_bound(&mut self, bound: &FnTraitBound<'v>) {
+        walk_fn_trait_bound(self, bound);
     }
 
     fn visit_poly_trait_ref(&mut self, trait_ref: &PolyTraitRef<'v>) {
@@ -290,8 +294,17 @@ pub fn walk_opaque_ty<'v, V: Visitor<'v>>(vis: &mut V, opaque_ty: &OpaqueTy<'v>)
 pub fn walk_generic_bound<'v, V: Visitor<'v>>(vis: &mut V, bound: &GenericBound<'v>) {
     match bound {
         GenericBound::Trait(trait_ref) => vis.visit_poly_trait_ref(trait_ref),
+        GenericBound::FnTrait(trait_ref, fn_bound) => {
+            vis.visit_poly_trait_ref(trait_ref);
+            vis.visit_fn_trait_bound(fn_bound);
+        }
         GenericBound::Outlives(_) => {}
     }
+}
+
+pub fn walk_fn_trait_bound<'v, V: Visitor<'v>>(vis: &mut V, bound: &FnTraitBound<'v>) {
+    walk_list!(vis, visit_refine_param, bound.refine_params);
+    vis.visit_fn_decl(&bound.decl);
 }
 
 pub fn walk_poly_trait_ref<'v, V: Visitor<'v>>(vis: &mut V, trait_ref: &PolyTraitRef<'v>) {
