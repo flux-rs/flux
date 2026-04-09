@@ -1113,12 +1113,27 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .as_bty_skipping_existentials();
         let oblig_sig = poly_fn_trait_pred.map_ref(|fn_trait_pred| fn_trait_pred.fndef_sig());
         match self_ty {
-            Some(BaseTy::Closure(def_id, _, _, _)) => {
-                let Some(poly_sig) = self.inherited.closures.get(def_id).cloned() else {
+            Some(BaseTy::Closure(def_id, upvar_tys, args, no_panic)) => {
+                let Some(_poly_sig) = self.inherited.closures.get(def_id).cloned() else {
                     span_bug!(span, "missing template for closure {def_id:?}");
                 };
-                check_fn_subtyping(infcx, SubFn::Mono(poly_sig.clone()), &oblig_sig, span)
-                    .with_span(span)?;
+                #[expect(clippy::disallowed_methods, reason = "closure def ids are local")]
+                let closure_id = def_id.expect_local();
+                let body = self.genv.mir(closure_id).with_span(span)?;
+                let closure_sig = rty::to_closure_sig(
+                    self.genv.tcx(),
+                    closure_id,
+                    upvar_tys,
+                    args,
+                    &oblig_sig,
+                    *no_panic,
+                );
+                Checker::run(
+                    infcx.change_item(closure_id, &body.infcx),
+                    closure_id,
+                    self.inherited.reborrow(),
+                    closure_sig,
+                )?;
             }
             Some(BaseTy::FnDef(def_id, args)) => {
                 // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`

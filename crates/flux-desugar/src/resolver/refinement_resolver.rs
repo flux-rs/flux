@@ -69,6 +69,7 @@ pub(crate) trait ScopedVisitor: Sized {
     fn on_generic_param(&mut self, _param: &surface::GenericParam) {}
     fn on_refine_param(&mut self, _param: &surface::RefineParam) {}
     fn on_enum_variant(&mut self, _variant: &surface::VariantDef) {}
+    fn on_fn_trait_input(&mut self, _in_arg: &surface::GenericArg, _node_id: NodeId) {}
     fn on_fn_trait_bound(&mut self, _bound: &surface::FnTraitBound, _node_id: NodeId) {}
     fn on_fn_sig(&mut self, _fn_sig: &surface::FnSig) {}
     fn on_fn_output(&mut self, _output: &surface::FnOutput) {}
@@ -182,6 +183,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
             None => match trait_ref.as_fn_trait_ref() {
                 Some((in_arg, out_arg)) => {
                     self.with_scope(ScopeKind::FnTraitInput, |this| {
+                        this.on_fn_trait_input(in_arg, trait_ref.node_id);
                         surface::visit::walk_generic_arg(this, in_arg);
                         this.with_scope(ScopeKind::Misc, |this| {
                             surface::visit::walk_generic_arg(this, out_arg);
@@ -746,6 +748,18 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
 
     fn exit_scope(&mut self) {
         self.scopes.pop();
+    }
+
+    fn on_fn_trait_input(&mut self, in_arg: &surface::GenericArg, trait_node_id: NodeId) {
+        let params = ImplicitParamCollector::new(
+            self.resolver.genv.tcx(),
+            &self.resolver.output.path_res_map,
+            ScopeKind::FnTraitInput,
+        )
+        .run(|vis| vis.visit_generic_arg(in_arg));
+        for (ident, kind, node_id) in params {
+            self.define_param(ident, kind, node_id, Some(trait_node_id));
+        }
     }
 
     fn on_fn_trait_bound(&mut self, bound: &surface::FnTraitBound, trait_node_id: NodeId) {

@@ -5,8 +5,7 @@ fn apply_fn_once<F>(f: F) -> i32
 where
     F: FnOnce(i32) -> i32,
 {
-    let _ = f;
-    unimplemented!()
+    f(99)
 }
 
 #[flux::sig(fn() -> i32[100])]

@@ -872,6 +872,17 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 )?;
                 Ok(())
             }
+            (
+                TyKind::StrgRef(_, path, ty),
+                TyKind::Indexed(BaseTy::Ref(_, bound, Mutability::Mut), idx),
+            ) => {
+                // Allow a strong reference to be used where an `&mut` is expected by
+                // unfolding the strong ref and checking the unfolded inner type.
+                self.idxs_eq(infcx, &Expr::unit(), idx);
+                self.env.unfold_strg_ref(infcx, path, ty)?;
+                let ty = self.env.get(path);
+                self.tys(infcx, &ty, bound)
+            }
 
             (TyKind::Indexed(bty_a, idx_a), TyKind::Indexed(bty_b, idx_b)) => {
                 self.btys(infcx, bty_a, bty_b)?;

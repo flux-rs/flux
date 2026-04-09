@@ -44,3 +44,11 @@ fn inc2(x: i32) -> i32{
 fn client02() -> i32 {
     test02(inc2)
 }
+
+#[flux_rs::spec(fn(f : F) -> i32[3]
+    where F : Fn(i32[@old]) -> i32[old + 3]
+)]
+fn test03<F>(f: F) -> i32
+where F : Fn(i32) -> i32 {
+    f(0)
+}
