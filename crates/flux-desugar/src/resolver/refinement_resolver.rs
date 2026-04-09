@@ -180,22 +180,24 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                     surface::visit::walk_fn_trait_bound(this, bound);
                 });
             }
-            None => match trait_ref.as_fn_trait_ref() {
-                Some((in_arg, out_arg)) => {
-                    self.with_scope(ScopeKind::FnTraitInput, |this| {
-                        this.on_fn_trait_input(in_arg, trait_ref.node_id);
-                        surface::visit::walk_generic_arg(this, in_arg);
-                        this.with_scope(ScopeKind::Misc, |this| {
-                            surface::visit::walk_generic_arg(this, out_arg);
+            None => {
+                match trait_ref.as_fn_trait_ref() {
+                    Some((in_arg, out_arg)) => {
+                        self.with_scope(ScopeKind::FnTraitInput, |this| {
+                            this.on_fn_trait_input(in_arg, trait_ref.node_id);
+                            surface::visit::walk_generic_arg(this, in_arg);
+                            this.with_scope(ScopeKind::Misc, |this| {
+                                surface::visit::walk_generic_arg(this, out_arg);
+                            });
                         });
-                    });
+                    }
+                    None => {
+                        self.with_scope(ScopeKind::Misc, |this| {
+                            surface::visit::walk_trait_ref(this, trait_ref);
+                        });
+                    }
                 }
-                None => {
-                    self.with_scope(ScopeKind::Misc, |this| {
-                        surface::visit::walk_trait_ref(this, trait_ref);
-                    });
-                }
-            },
+            }
         }
     }
 

@@ -270,14 +270,15 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         bounds: &[surface::TraitRef],
     ) -> fhir::GenericBounds<'genv> {
-        self.genv().alloc_slice_fill_iter(bounds.iter().map(|bound| {
-            let trait_ref = self.desugar_trait_ref(bound);
-            if let Some(fn_bound) = &bound.fn_bound {
-                fhir::GenericBound::FnTrait(trait_ref, self.desugar_fn_trait_bound(fn_bound))
-            } else {
-                fhir::GenericBound::Trait(trait_ref)
-            }
-        }))
+        self.genv()
+            .alloc_slice_fill_iter(bounds.iter().map(|bound| {
+                let trait_ref = self.desugar_trait_ref(bound);
+                if let Some(fn_bound) = &bound.fn_bound {
+                    fhir::GenericBound::FnTrait(trait_ref, self.desugar_fn_trait_bound(fn_bound))
+                } else {
+                    fhir::GenericBound::Trait(trait_ref)
+                }
+            }))
     }
 
     fn desugar_trait_ref(&mut self, trait_ref: &surface::TraitRef) -> fhir::PolyTraitRef<'genv> {
@@ -310,15 +311,20 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             requires.push(fhir::Requires { params, pred });
         }
 
-        let inputs = self
-            .genv()
-            .alloc_slice_fill_iter(bound.inputs.iter().map(|input| self.desugar_fn_input(input)));
+        let inputs = self.genv().alloc_slice_fill_iter(
+            bound
+                .inputs
+                .iter()
+                .map(|input| self.desugar_fn_input(input)),
+        );
         let output = self
             .desugar_fn_output(surface::Async::No, &bound.output)
-            .unwrap_or_else(|err| fhir::FnOutput {
-                params: &[],
-                ret: fhir::Ty { kind: fhir::TyKind::Err(err), span: bound.span },
-                ensures: &[],
+            .unwrap_or_else(|err| {
+                fhir::FnOutput {
+                    params: &[],
+                    ret: fhir::Ty { kind: fhir::TyKind::Err(err), span: bound.span },
+                    ensures: &[],
+                }
             });
         let decl = fhir::FnDecl {
             requires: self.genv.alloc_slice(&requires),

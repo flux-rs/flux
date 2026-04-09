@@ -20,7 +20,8 @@ use flux_middle::{
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, Constant, CoroutineObligPredicate, EarlyBinder,
         Expr, FnOutput, FnSig, FnTraitPredicate, FnTraitPredicateSig, GenericArg,
-        GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, RefineArgs,
+        RefineArgsExt,
         Region::ReErased,
         Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -929,18 +930,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Instantiate function signature and normalize it
         let late_refine_args = vec![];
-        let param_self_ty = generic_args.first().and_then(|self_arg| match self_arg {
-            rty::GenericArg::Base(self_ty)
-                if matches!(self_ty.as_bty_skipping_binder(), BaseTy::Param(_)) =>
-            {
-                Some(self_ty.to_ty().to_rustc(tcx))
+        let param_self_ty = generic_args.first().and_then(|self_arg| {
+            match self_arg {
+                rty::GenericArg::Base(self_ty)
+                    if matches!(self_ty.as_bty_skipping_binder(), BaseTy::Param(_)) =>
+                {
+                    Some(self_ty.to_ty().to_rustc(tcx))
+                }
+                rty::GenericArg::Ty(self_ty)
+                    if matches!(self_ty.as_bty_skipping_existentials(), Some(BaseTy::Param(_))) =>
+                {
+                    Some(self_ty.to_rustc(tcx))
+                }
+                _ => None,
             }
-            rty::GenericArg::Ty(self_ty)
-                if matches!(self_ty.as_bty_skipping_existentials(), Some(BaseTy::Param(_))) =>
-            {
-                Some(self_ty.to_rustc(tcx))
-            }
-            _ => None,
         });
 
         let fn_trait_kind = callee_def_id.and_then(|did| {
@@ -953,7 +956,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut call_actuals_storage = vec![];
         let mut raw_call_actuals = &actuals[..];
-        let poly_fn_sig = if let Some(kind) = fn_trait_kind && let Some(self_ty) = param_self_ty {
+        let poly_fn_sig = if let Some(kind) = fn_trait_kind
+            && let Some(self_ty) = param_self_ty
+        {
             let sig = self.find_self_ty_fn_sig(self_ty, kind, span)?;
             if let Some(tupled) = actuals.get(1) {
                 call_actuals_storage.extend(tupled.expect_tuple().iter().cloned());

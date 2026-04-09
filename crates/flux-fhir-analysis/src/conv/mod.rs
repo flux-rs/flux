@@ -1117,11 +1117,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
                 fhir::GenericBound::FnTrait(poly_trait_ref, fn_bound) => {
                     let _ = poly_trait_ref;
-                    let layer = Layer::list(
-                        self.results(),
-                        0,
-                        fn_bound.refine_params,
-                    );
+                    let layer = Layer::list(self.results(), 0, fn_bound.refine_params);
                     env.push_layer(layer);
                     let fn_sig = self.conv_fn_decl(
                         env,
@@ -1137,16 +1133,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         fhir::FnTraitKind::FnMut => ClosureKind::FnMut,
                         fhir::FnTraitKind::FnOnce => ClosureKind::FnOnce,
                     };
-                    clauses.push(
-                        rty::Clause::from(rty::Binder::bind_with_vars(
-                            rty::ClauseKind::FnTrait(rty::FnTraitPredicate {
-                                self_ty: bounded_ty.clone(),
-                                kind,
-                                sig: rty::FnTraitPredicateSig::Full(fn_sig),
-                            }),
-                            vars,
-                        )),
-                    );
+                    clauses.push(rty::Clause::from(rty::Binder::bind_with_vars(
+                        rty::ClauseKind::FnTrait(rty::FnTraitPredicate {
+                            self_ty: bounded_ty.clone(),
+                            kind,
+                            sig: rty::FnTraitPredicateSig::Full(fn_sig),
+                        }),
+                        vars,
+                    )));
                 }
                 fhir::GenericBound::Outlives(lft) => {
                     let re = self.conv_lifetime(env, *lft, bounded_ty_span);

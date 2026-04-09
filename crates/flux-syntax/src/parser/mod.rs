@@ -1165,22 +1165,17 @@ fn fn_input_as_ty(input: FnInput) -> Ty {
         FnInput::Constr(_bind, path, pred, node_id) => {
             let span = pred.span;
             Ty {
-            kind: TyKind::Constr(pred, Box::new(Ty {
-                kind: TyKind::Base(path_to_bty(path)),
+                kind: TyKind::Constr(
+                    pred,
+                    Box::new(Ty { kind: TyKind::Base(path_to_bty(path)), node_id, span }),
+                ),
                 node_id,
                 span,
-            })),
-            node_id,
-            span,
-        }
+            }
         }
         FnInput::StrgRef(_bind, ty, node_id) => {
             let span = ty.span;
-            Ty {
-            kind: TyKind::Ref(Mutability::Mut, Box::new(ty)),
-            node_id,
-            span,
-        }
+            Ty { kind: TyKind::Ref(Mutability::Mut, Box::new(ty)), node_id, span }
         }
         FnInput::Ty(_bind, ty, _node_id) => ty,
     }
@@ -1207,12 +1202,15 @@ fn parse_opt_ensures_for_bound(cx: &mut ParseCtxt) -> ParseResult<Vec<Ensures>> 
     if !cx.advance_if(kw::Ensures) {
         return Ok(vec![]);
     }
-    punctuated_until(cx, Comma, |t: TokenKind| t == token::Comma || t.is_eof(), parse_ensures_clause)
+    punctuated_until(
+        cx,
+        Comma,
+        |t: TokenKind| t == token::Comma || t.is_eof(),
+        parse_ensures_clause,
+    )
 }
 
-fn parse_fn_bound_path(
-    cx: &mut ParseCtxt,
-) -> ParseResult<(Path, Option<surface::FnTraitBound>)> {
+fn parse_fn_bound_path(cx: &mut ParseCtxt) -> ParseResult<(Path, Option<surface::FnTraitBound>)> {
     let lo = cx.lo();
     let ident = parse_ident(cx)?;
     let kind = surface::FnTraitKind::from_symbol(ident.name).unwrap();
