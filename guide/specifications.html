@@ -2752,6 +2752,21 @@ impl&lt;T&gt; Option&lt;T&gt; {
     #[sig(fn(Option&lt;T&gt;[true]) -&gt; T)]
     const fn unwrap(self) -&gt; T;
 
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L957
+    #[no_panic]
+    #[spec(fn(Option&lt;T&gt;[true], &amp;str) -&gt; T)]
+    const fn expect(self, msg: &amp;str) -&gt; T;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1025
+    #[no_panic]
+    #[spec(fn(Option&lt;T&gt;[@b], T) -&gt; T)]
+    fn unwrap_or(self, default: T) -&gt; T;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1044
+    #[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(fn(Option&lt;T&gt;[@b], F) -&gt; T where F: FnOnce() -&gt; T)]
+    fn unwrap_or_else&lt;F: FnOnce() -&gt; T&gt;(self, f: F) -&gt; T;
+
     #[sig(fn(&amp;Self[@b]) -&gt; Option&lt;&amp;T&gt;[b])]
     fn as_ref(&amp;self) -&gt; Option&lt;&amp;T&gt;;
 
@@ -2763,6 +2778,53 @@ impl&lt;T&gt; Option&lt;T&gt; {
 
     #[sig(fn(&amp;mut Self[@b]) -&gt; &amp;mut [T][if b { 1 } else { 0 }])]
     fn as_mut_slice(&amp;mut self) -&gt; &amp;mut [T];
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1465
+    #[no_panic]
+    #[spec(fn(Option&lt;T&gt;[@a], Option&lt;U&gt;[@b]) -&gt; Option&lt;U&gt;[a &amp;&amp; b])]
+    fn and&lt;U&gt;(self, optb: Option&lt;U&gt;) -&gt; Option&lt;U&gt;;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1581
+    #[no_panic]
+    #[spec(fn(Option&lt;T&gt;[@a], Option&lt;T&gt;[@b]) -&gt; Option&lt;T&gt;[a || b])]
+    fn or(self, optb: Option&lt;T&gt;) -&gt; Option&lt;T&gt;;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1309
+    #[no_panic]
+    #[spec(fn(Option&lt;T&gt;[@b], E) -&gt; Result&lt;T, E&gt;[b])]
+    fn ok_or&lt;E&gt;(self, err: E) -&gt; Result&lt;T, E&gt;;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1334
+    #[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(fn(Option&lt;T&gt;[@b], F) -&gt; Result&lt;T, E&gt;[b] where F: FnOnce() -&gt; E)]
+    fn ok_or_else&lt;E, F: FnOnce() -&gt; E&gt;(self, err: F) -&gt; Result&lt;T, E&gt;;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1504
+    #[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(fn(Option&lt;T&gt;[@b], F) -&gt; Option&lt;U&gt;{s: s =&gt; b} where F: FnOnce(T) -&gt; Option&lt;U&gt;)]
+    fn and_then&lt;U, F: FnOnce(T) -&gt; Option&lt;U&gt;&gt;(self, f: F) -&gt; Option&lt;U&gt;;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1783
+    #[no_panic]
+    #[spec(fn(self: &amp;mut Option&lt;T&gt;[@b]) -&gt; Option&lt;T&gt;[b]
+           ensures self: Option&lt;T&gt;[false])]
+    const fn take(&amp;mut self) -&gt; Option&lt;T&gt;;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1841
+    #[no_panic]
+    #[spec(fn(self: &amp;mut Option&lt;T&gt;[@b], T) -&gt; Option&lt;T&gt;[b]
+           ensures self: Option&lt;T&gt;[true])]
+    const fn replace(&amp;mut self, value: T) -&gt; Option&lt;T&gt;;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1160
+    #[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(fn(Option&lt;T&gt;[@b], F) -&gt; Option&lt;U&gt;[b] where F: FnOnce(T) -&gt; U)]
+    fn map&lt;U, F: FnOnce(T) -&gt; U&gt;(self, f: F) -&gt; Option&lt;U&gt;;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1224
+    #[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(fn(Option&lt;T&gt;[@b], U, F) -&gt; U where F: FnOnce(T) -&gt; U)]
+    fn map_or&lt;U, F: FnOnce(T) -&gt; U&gt;(self, default: U, f: F) -&gt; U;
 }</code></pre>
 <pre><code class="language-rust noplayground">use flux_rs::{assert, attrs::*};
 
