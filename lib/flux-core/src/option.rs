@@ -58,6 +58,33 @@ impl<T> Option<T> {
     #[spec(fn(Option<T>[@a], Option<T>[@b]) -> Option<T>[a || b])]
     fn or(self, optb: Option<T>) -> Option<T>;
 
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1309
+    #[no_panic]
+    #[spec(fn(Option<T>[@b], E) -> Result<T, E>[b])]
+    fn ok_or<E>(self, err: E) -> Result<T, E>;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1334
+    #[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(fn(Option<T>[@b], F) -> Result<T, E>[b] where F: FnOnce() -> E)]
+    fn ok_or_else<E, F: FnOnce() -> E>(self, err: F) -> Result<T, E>;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1504
+    #[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(fn(Option<T>[@b], F) -> Option<U>{s: s => b} where F: FnOnce(T) -> Option<U>)]
+    fn and_then<U, F: FnOnce(T) -> Option<U>>(self, f: F) -> Option<U>;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1783
+    #[no_panic]
+    #[spec(fn(self: &mut Option<T>[@b]) -> Option<T>[b]
+           ensures self: Option<T>[false])]
+    const fn take(&mut self) -> Option<T>;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1841
+    #[no_panic]
+    #[spec(fn(self: &mut Option<T>[@b], T) -> Option<T>[b]
+           ensures self: Option<T>[true])]
+    const fn replace(&mut self, value: T) -> Option<T>;
+
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1160
     #[flux_rs::no_panic_if(F::no_panic())]
     #[spec(fn(Option<T>[@b], F) -> Option<U>[b] where F: FnOnce(T) -> U)]
