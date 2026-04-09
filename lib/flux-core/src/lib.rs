@@ -12,6 +12,9 @@ mod mem;
 mod option;
 
 #[cfg(flux)]
+mod result;
+
+#[cfg(flux)]
 mod cmp;
 
 #[cfg(flux)]

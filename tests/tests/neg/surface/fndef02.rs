@@ -1,6 +1,6 @@
 use flux_rs::*;
 
-#[sig(fn(x: i32{x != 0}) -> i32[1/x])]
+#[sig(fn(x: i32{x > 0}) -> i32[1/x])]
 fn div(x: i32) -> i32 {
     1 / x
 }

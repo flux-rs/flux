@@ -1201,9 +1201,10 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                             dcx.struct_span_err(cx_span, fluent::middle_query_not_included_at);
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
-                        if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
-                            diag.span_help(def_ident_span, fluent::_subdiag::help);
-                        }
+                        let span = tcx
+                            .def_ident_span(def_id)
+                            .unwrap_or_else(|| tcx.def_span(def_id));
+                        diag.span_help(span, fluent::_subdiag::help);
                         diag
                     }
                     QueryErr::MissingAssocReft { name, .. } => {

@@ -5,7 +5,7 @@ pub fn test_neg01() {
     test_neg00(1, -1);
 }
 
-#[flux::sig(fn(x: i32) -> i32[x/2])]
+#[flux::sig(fn(x: i32{x >= 0}) -> i32[x/2])]
 pub fn test_div(x: i32) -> i32 {
     x / 2
 }

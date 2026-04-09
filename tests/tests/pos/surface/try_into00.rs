@@ -14,7 +14,7 @@ pub struct MyNumber(#[field(i32[val])] i32);
 impl TryInto<i32> for MyNumber {
     type Error = ();
 
-    #[spec(fn(self: MyNumber[@s]) -> Result<i32[s.val], Self::Error>)]
+    #[spec(fn(self: MyNumber[@s]) -> Result<i32[s.val], Self::Error>[true])]
     fn try_into(self) -> Result<i32, Self::Error> {
         Ok(self.0)
     }
@@ -25,8 +25,10 @@ fn foo<T: TryInto<i32>>(thing: T) -> i32
 where
     <T as TryInto<i32>>::Error: std::fmt::Debug,
 {
-    let res = thing.try_into().unwrap();
-    res
+    match thing.try_into() {
+        Ok(v) => v,
+        Err(e) => panic!("{:?}", e),
+    }
 }
 
 fn bar() {

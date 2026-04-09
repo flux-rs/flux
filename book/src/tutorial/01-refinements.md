@@ -161,7 +161,7 @@ non-negative.
 
 | **Type**         | **Meaning**                                          |
 | :--------------- | :--------------------------------------------------- |
-| `i32{v: 0 <  v}` | The set of `i32` values that positive                |
+| `i32{v: 0 <  v}` | The set of `i32` values that are positive            |
 | `i32{v: n <= v}` | The set of `i32` values greater than or equal to `n` |
 
 Flux allows such specifications by pairing plain Rust types

@@ -71,7 +71,7 @@ then `i32[2]` and finally, the returned type `i32[3]`.
 ## Exclusive Ownership and Loops
 
 This exclusive ownership mechanism is at work in the `factorial` example
-we signed off with [previously](./01-introducing-flux.md)
+we signed off with [previously](./01-refinements.md#example-factorial)
 
 ```rust, editable
 #[flux_rs::spec(fn (n:i32{0 <= n}) -> i32{v:n <= v})]
@@ -303,7 +303,7 @@ hence, that upon return `x: i32[11]`.
 ```rust, editable
 fn test_incr() {
   let mut z = 10;
-  incr_inv(&mut z);
+  incr(&mut z);
   assert(z == 11);
 }
 ```

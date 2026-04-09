@@ -19,6 +19,10 @@ pub struct Flags {
     pub lean_project: String,
     /// If present, only check files matching the [`IncludePattern`] a glob pattern.
     pub include: Option<IncludePattern>,
+    /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
+    pub include_trusted: Option<IncludePattern>,
+    /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
+    pub include_trusted_impl: Option<IncludePattern>,
     /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
     /// (default `64`).
     pub pointer_width: PointerWidth,
@@ -85,6 +89,8 @@ impl Default for Flags {
             catch_bugs: false,
             pointer_width: PointerWidth::default(),
             include: None,
+            include_trusted: None,
+            include_trusted_impl: None,
             cache: None,
             check_overflow: OverflowMode::default(),
             allow_raw_deref: RawDerefMode::default(),
@@ -108,6 +114,8 @@ impl Default for Flags {
 pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
     let mut flags = Flags::default();
     let mut includes: Vec<String> = Vec::new();
+    let mut trusteds: Vec<String> = Vec::new();
+    let mut trusted_impls: Vec<String> = Vec::new();
     for arg in env::args() {
         let Some((key, value)) = parse_flux_arg(&arg) else { continue };
 
@@ -132,6 +140,8 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "summary" => parse_bool(&mut flags.summary, value),
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "include" => parse_opt_include(&mut includes, value),
+            "include-trusted" => parse_opt_include(&mut trusteds, value),
+            "include-trusted-impl" => parse_opt_include(&mut trusted_impls, value),
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
@@ -154,6 +164,20 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             process::exit(1);
         });
         flags.include = Some(include);
+    }
+    if !trusteds.is_empty() {
+        let trusted = IncludePattern::new(trusteds).unwrap_or_else(|err| {
+            eprintln!("error: invalid trusted pattern: {err}");
+            process::exit(1);
+        });
+        flags.include_trusted = Some(trusted);
+    }
+    if !trusted_impls.is_empty() {
+        let trusted_impl = IncludePattern::new(trusted_impls).unwrap_or_else(|err| {
+            eprintln!("error: invalid trusted-impl pattern: {err}");
+            process::exit(1);
+        });
+        flags.include_trusted_impl = Some(trusted_impl);
     }
     flags
 });

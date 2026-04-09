@@ -23,25 +23,12 @@ use crate::fixpoint_encoding::{
     },
 };
 
-#[derive(Debug, Clone, Copy)]
-pub enum BoolMode {
-    Bool,
-    Prop,
-}
-
 pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub pretty_var_map: &'a PrettyMap<LocalVar>,
     pub adt_map: &'a FxIndexSet<DefId>,
     pub opaque_adt_map: &'a [(FluxDefId, SortDecl)],
     pub kvar_solutions: &'a KVarSolutions,
-    pub bool_mode: BoolMode,
-}
-
-impl<'a, 'genv, 'tcx> LeanCtxt<'a, 'genv, 'tcx> {
-    pub(crate) fn with_bool_mode(&self, bool_mode: BoolMode) -> Self {
-        LeanCtxt { bool_mode, ..*self }
-    }
 }
 
 pub struct WithLeanCtxt<'a, 'b, 'genv, 'tcx, T> {
@@ -320,12 +307,7 @@ impl LeanFmt for Sort {
     fn lean_fmt(&self, f: &mut std::fmt::Formatter, cx: &LeanCtxt) -> std::fmt::Result {
         match self {
             Sort::Int => write!(f, "Int"),
-            Sort::Bool => {
-                match cx.bool_mode {
-                    BoolMode::Bool => write!(f, "Bool"),
-                    BoolMode::Prop => write!(f, "Prop"),
-                }
-            }
+            Sort::Bool => write!(f, "Prop"),
             Sort::Real => write!(f, "Real"),
             Sort::Str => write!(f, "String"),
             Sort::Func(f_sort) => {
@@ -394,12 +376,7 @@ impl LeanFmt for Expr {
             Expr::Constant(c) => {
                 match c {
                     Constant::Numeral(n) => write!(f, "{n}",),
-                    Constant::Boolean(b) => {
-                        match cx.bool_mode {
-                            BoolMode::Bool => write!(f, "{}", if *b { "true" } else { "false" }),
-                            BoolMode::Prop => write!(f, "{}", if *b { "True" } else { "False" }),
-                        }
-                    }
+                    Constant::Boolean(b) => write!(f, "{}", if *b { "True" } else { "False" }),
                     Constant::String(s) => write!(f, "{}", s.display()),
                     Constant::Real(n) => write!(f, "{n}.0"),
                     Constant::BitVec(bv, size) => write!(f, "{}#{}", bv, size),
@@ -452,8 +429,7 @@ impl LeanFmt for Expr {
                 write!(f, ")")?;
                 if let Some(out_sort) = out_sort {
                     write!(f, " : (")?;
-                    let sort_cx = cx.with_bool_mode(BoolMode::Bool);
-                    out_sort.lean_fmt(f, &sort_cx)?;
+                    out_sort.lean_fmt(f, &cx)?;
                     write!(f, "))")?;
                 }
                 Ok(())
@@ -462,10 +438,7 @@ impl LeanFmt for Expr {
                 write!(f, "(")?;
                 for (i, expr) in exprs.iter().enumerate() {
                     if i > 0 {
-                        match cx.bool_mode {
-                            BoolMode::Bool => write!(f, " && ")?,
-                            BoolMode::Prop => write!(f, " ∧ ")?,
-                        };
+                        write!(f, " ∧ ")?;
                     }
                     expr.lean_fmt(f, cx)?;
                 }
@@ -475,10 +448,7 @@ impl LeanFmt for Expr {
                 write!(f, "(")?;
                 for (i, expr) in exprs.iter().enumerate() {
                     if i > 0 {
-                        match cx.bool_mode {
-                            BoolMode::Bool => write!(f, " || ")?,
-                            BoolMode::Prop => write!(f, " ∨ ")?,
-                        };
+                        write!(f, " ∨ ")?;
                     }
                     expr.lean_fmt(f, cx)?;
                 }
@@ -501,10 +471,7 @@ impl LeanFmt for Expr {
             }
             Expr::Not(inner) => {
                 write!(f, "(")?;
-                match cx.bool_mode {
-                    BoolMode::Bool => write!(f, "!")?,
-                    BoolMode::Prop => write!(f, "¬")?,
-                };
+                write!(f, "¬")?;
                 inner.as_ref().lean_fmt(f, cx)?;
                 write!(f, ")")
             }
@@ -559,7 +526,7 @@ impl LeanFmt for Expr {
 impl LeanFmt for FunDef {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         let FunDef { name, sort, comment: _, body } = self;
-        write!(f, "def ")?;
+        write!(f, "noncomputable def ")?;
         name.lean_fmt(f, cx)?;
         if let Some(body) = body {
             for (arg, arg_sort) in iter::zip(&body.args, &sort.inputs) {
@@ -674,8 +641,6 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
         let namespace = format!("{}KVarSolutions", snake_case_to_pascal_case(&theorem_name));
         if !cx.kvar_solutions.is_empty() {
             writeln!(f, "namespace {namespace}\n")?;
-
-            let cx = cx.with_bool_mode(BoolMode::Prop);
 
             if !cx.kvar_solutions.cut_solutions.is_empty() {
                 writeln!(f, "-- cyclic (cut) kvars")?;

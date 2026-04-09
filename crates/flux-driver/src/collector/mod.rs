@@ -497,6 +497,23 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             .map(|attr_item| self.parse_flux_attr(attr_item, def_kind))
             .try_collect_exhaust()?;
 
+        // if there is a `no_panic_if` attribute, there must be a `sig` attribute as well.
+        if attrs
+            .iter()
+            .any(|attr| matches!(attr.kind, FluxAttrKind::NoPanicIf(_)))
+            && !attrs
+                .iter()
+                .any(|attr| matches!(attr.kind, FluxAttrKind::FnSig(_)))
+        {
+            let span = attrs
+                .iter()
+                .find_map(|attr| {
+                    if let FluxAttrKind::NoPanicIf(_) = attr.kind { Some(attr.span) } else { None }
+                })
+                .unwrap();
+            return Err(self.errors.emit(errors::NoPanicIfWithoutSig { span }));
+        }
+
         Ok(FluxAttrs::new(attrs))
     }
 
@@ -1071,6 +1088,13 @@ mod errors {
     use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
     use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
+
+    #[derive(Diagnostic)]
+    #[diag(driver_no_panic_if_without_sig, code = E0999)]
+    pub(super) struct NoPanicIfWithoutSig {
+        #[primary_span]
+        pub span: Span,
+    }
 
     #[derive(Diagnostic)]
     #[diag(driver_duplicated_attr, code = E0999)]
