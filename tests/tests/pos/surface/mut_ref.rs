@@ -15,14 +15,6 @@ impl Wrapper {
     {
         f(&mut self.inner);
     }
-
-    #[flux_rs::trusted]
-    #[flux_rs::spec(fn(s: &mut Self[@slf]) -> &mut i32[slf]
-        ensures s : Self[slf]
-    )]
-    fn borrow_mut(&mut self) -> &mut i32 {
-        &mut self.inner
-    }
 }
 
 #[flux_rs::spec(fn(x: &mut i32[@old]) ensures x: i32[old + 1])]
@@ -46,8 +38,7 @@ fn test01() -> i32 {
 
 #[flux_rs::spec(fn() -> i32[100])]
 fn test02() -> i32 {
-    let mut w = Wrapper { inner : 99 };
-    let x = w.borrow_mut();
-    *x += 1;
+    let mut w = Wrapper { inner: 99 };
+    w.with_mut(|x| inc(x))
     w.inner
 }
