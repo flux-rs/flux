@@ -82,3 +82,92 @@ pub fn test_map_branch(x: Option<i32>) {
 pub fn test_map_or_branch(x: Option<i32>) {
     let _ = x.map_or(0, |v| v + 1);
 }
+
+// --- take ---
+
+pub fn test_take_some() {
+    let mut x: Option<i32> = Some(1);
+    assert(x.take().is_some());
+    assert(x.is_none());
+}
+
+pub fn test_take_none() {
+    let mut x: Option<i32> = None;
+    assert(x.take().is_none());
+    assert(x.is_none());
+}
+
+pub fn test_take_return_matches_original(x: Option<i32>) {
+    let mut x = x;
+    let was_some = x.is_some();
+    let result = x.take();
+    assert(result.is_some() == was_some);
+    assert(x.is_none());
+}
+
+// --- replace ---
+
+pub fn test_replace_leaves_some() {
+    let mut x: Option<i32> = None;
+    let _ = x.replace(1);
+    assert(x.is_some());
+}
+
+pub fn test_replace_returns_old_none() {
+    let mut x: Option<i32> = None;
+    assert(x.replace(1).is_none());
+}
+
+pub fn test_replace_returns_old_some() {
+    let mut x: Option<i32> = Some(0);
+    assert(x.replace(1).is_some());
+}
+
+pub fn test_replace_return_matches_original(x: Option<i32>) {
+    let mut x = x;
+    let was_some = x.is_some();
+    let result = x.replace(42);
+    assert(result.is_some() == was_some);
+    assert(x.is_some());
+}
+
+// --- ok_or ---
+
+pub fn test_ok_or_some() {
+    let x: Option<i32> = Some(1);
+    assert(x.ok_or("err").is_ok());
+}
+
+pub fn test_ok_or_none() {
+    let x: Option<i32> = None;
+    assert(x.ok_or("err").is_err());
+}
+
+pub fn test_ok_or_branch(x: Option<i32>) {
+    assert(x.ok_or("err").is_ok() == x.is_some());
+}
+
+// --- ok_or_else ---
+
+pub fn test_ok_or_else_some() {
+    let x: Option<i32> = Some(1);
+    assert(x.ok_or_else(|| "err").is_ok());
+}
+
+pub fn test_ok_or_else_branch(x: Option<i32>) {
+    assert(x.ok_or_else(|| "err").is_ok() == x.is_some());
+}
+
+// --- and_then ---
+
+pub fn test_and_then_none_propagates(x: Option<i32>) {
+    let result = x.and_then(|v| if v > 0 { Some(v) } else { None });
+    if x.is_none() {
+        assert(result.is_none());
+    }
+}
+
+pub fn test_and_then_none_input() {
+    let x: Option<i32> = None;
+    assert(x.and_then(|v| Some(v + 1)).is_none());
+}

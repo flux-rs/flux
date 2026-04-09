@@ -24,3 +24,45 @@ pub fn test_or(x: Option<i32>, y: Option<i32>) {
 pub fn test_map(x: Option<i32>) {
     assert(x.map(|v| v + 1).is_some()); //~ ERROR refinement type error
 }
+
+// --- take ---
+
+pub fn test_take_result_always_some(x: Option<i32>) {
+    let mut x = x;
+    assert(x.take().is_some()); //~ ERROR refinement type error
+}
+
+pub fn test_take_self_still_some(mut x: Option<i32>) {
+    let _ = x.take();
+    assert(x.is_some()); //~ ERROR refinement type error
+}
+
+// --- replace ---
+
+pub fn test_replace_result_always_some(x: Option<i32>) {
+    let mut x = x;
+    assert(x.replace(1).is_some()); //~ ERROR refinement type error
+}
+
+pub fn test_replace_self_still_none(mut x: Option<i32>) {
+    let _ = x.replace(1);
+    assert(x.is_none()); //~ ERROR refinement type error
+}
+
+// --- ok_or ---
+
+pub fn test_ok_or(x: Option<i32>) {
+    assert(x.ok_or("err").is_ok()); //~ ERROR refinement type error
+}
+
+// --- ok_or_else ---
+
+pub fn test_ok_or_else(x: Option<i32>) {
+    assert(x.ok_or_else(|| "err").is_ok()); //~ ERROR refinement type error
+}
+
+// --- and_then ---
+
+pub fn test_and_then(x: Option<i32>) {
+    assert(x.and_then(|v| Some(v + 1)).is_some()); //~ ERROR refinement type error
+}
