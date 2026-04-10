@@ -1,3 +1,13 @@
+//! Extern specs for [`core::slice`].
+//!
+//! # Soundness of `SliceIndex`-based annotations
+//!
+//! Several annotations rely on [`SliceIndex`] being a sealed trait: it
+//! requires `private_slice_index::Sealed`, which has no public path outside of
+//! `core`, so its set of implementations is fixed and exhaustive. The sealed implementations
+//! were inspected to ensure these specs are sound.
+// Perhaps one day we can properly verify them with Flux.
+
 mod index;
 mod iter;
 
@@ -33,22 +43,26 @@ impl<T> [T] {
     #[spec(fn(&mut Self[@n]) -> Option<&mut T>[n != 0])]
     fn last_mut(&mut self) -> Option<&mut T>;
 
+    /// Delegates to `SliceIndex::get`. All sealed impls return `None` out of
+    /// bounds (never panic), and `Some` iff `in_bounds` holds.
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L570
     #[no_panic]
     #[spec(fn(&Self[@n], I[@idx]) -> Option<&I::Output>[<I as SliceIndex<[T]>>::in_bounds(idx, n)])]
     fn get<I: SliceIndex<[T]>>(&self, index: I) -> Option<&I::Output>;
 
-    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L596
+    /// See `get`. Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L596
     #[no_panic]
     #[spec(fn(&mut Self[@n], I[@idx]) -> Option<&mut I::Output>[<I as SliceIndex<[T]>>::in_bounds(idx, n)])]
     fn get_mut<I: SliceIndex<[T]>>(&mut self, index: I) -> Option<&mut I::Output>;
 
+    /// Delegates to `SliceIndex::get_unchecked`. `SliceIndex` documents calling
+    /// with an out-of-bounds index as UB; `in_bounds` encodes that contract.
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L635
     #[no_panic]
     #[spec(fn(&Self[@n], {I[@idx] | <I as SliceIndex<[T]>>::in_bounds(idx, n)}) -> &I::Output)]
     unsafe fn get_unchecked<I: SliceIndex<[T]>>(&self, index: I) -> &I::Output;
 
-    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L679
+    /// See `get_unchecked`. Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L679
     #[no_panic]
     #[spec(fn(&mut Self[@n], {I[@idx] | <I as SliceIndex<[T]>>::in_bounds(idx, n)}) -> &mut I::Output)]
     unsafe fn get_unchecked_mut<I: SliceIndex<[T]>>(&mut self, index: I) -> &mut I::Output;

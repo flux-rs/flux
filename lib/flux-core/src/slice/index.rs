@@ -11,6 +11,9 @@ impl<T, I: SliceIndex<[T]>> ops::Index<I> for [T] {
         }
     )]
 
+    /// Delegates to `SliceIndex::index`, documented as panicking iff out of
+    /// bounds, so `#[no_panic]` is sound under the `in_bounds` precondition.
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/slice/index.rs#L15
     #[no_panic]
     #[sig(fn(&Self[@len], {I[@idx] | <Self as ops::Index<I>>::in_bounds(len, idx)}) -> &I::Output)]
     fn index(&self, index: I) -> &I::Output;
@@ -18,7 +21,7 @@ impl<T, I: SliceIndex<[T]>> ops::Index<I> for [T] {
 
 #[extern_spec(core::slice)]
 impl<T, I: SliceIndex<[T]>> ops::IndexMut<I> for [T] {
-    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/slice/index.rs#L26
+    /// See `index`. Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/slice/index.rs#L26
     #[no_panic]
     #[sig(fn(&mut Self[@len], {I[@idx] | <Self as ops::Index<I>>::in_bounds(len, idx)}) -> &mut I::Output)]
     fn index_mut(&mut self, index: I) -> &mut I::Output;
