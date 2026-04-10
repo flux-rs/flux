@@ -1,6 +1,6 @@
 use std::iter;
 
-use flux_common::{bug, iter::IterExt, tracked_span_bug};
+use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -22,6 +22,7 @@ use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{TyCtxt, Variance},
 };
+use rustc_span::Span;
 use rustc_trait_selection::{
     solve::deeply_normalize,
     traits::{FulfillmentError, SelectionContext},
@@ -95,7 +96,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         let mut candidates = vec![];
         self.assemble_candidates_from_param_env(obligation, &mut candidates);
         self.assemble_candidates_from_trait_def(obligation, &mut candidates)
-            .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
+            .unwrap_or_else(|err| span_bug!(self.infcx.span, "{err:?}"));
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
         if candidates.is_empty() {
             // TODO: This is a temporary hack that uses rustc's trait selection when FLUX fails;
@@ -189,7 +190,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 if tcx.is_fn_trait(parent_id) {
                     let res = self
                         .fn_subtype_projection_ty(pred, obligation)
-                        .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
+                        .unwrap_or_else(|err| span_bug!(self.infcx.span, "{err:?}"));
                     Ok(res)
                 } else {
                     Ok(pred.skip_binder().term)
@@ -210,7 +211,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
                 let generics = self.tcx().generics_of(impl_def_id);
 
-                let mut subst = TVarSubst::new(generics);
+                let mut subst = TVarSubst::new(generics, self.infcx.span);
                 for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
                     subst.generic_args(a, b);
                 }
@@ -232,7 +233,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 Ok(self
                     .genv()
                     .type_of(assoc_type_id)?
-                    .instantiate(tcx, &args, &[])
+                    .instantiate(tcx, &args, &[], self.infcx.span)
                     .expect_subset_ty_ctor())
             }
         }
@@ -352,6 +353,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 self.tcx(),
                 &alias_ty.args,
                 &alias_ty.refine_args,
+                self.infcx.span,
             );
             self.assemble_candidates_from_predicates(
                 &bounds,
@@ -379,7 +381,10 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         // FIXME(nilehmann) This is a patch to not panic inside rustc so we are
         // able to catch the bug
         if trait_pred.has_escaping_bound_vars() {
-            tracked_span_bug!();
+            span_bug!(
+                self.infcx.span,
+                "unexpected escaping bound vars in trait predicate {trait_pred:?}"
+            )
         }
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => {
@@ -438,7 +443,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
                 Ok(self
                     .genv()
                     .type_of(alias_ty.def_id)?
-                    .instantiate(self.tcx(), &alias_ty.args, &alias_ty.refine_args)
+                    .instantiate(self.tcx(), &alias_ty.args, &alias_ty.refine_args, self.infcx.span)
                     .expect_ctor()
                     .replace_bound_reft(idx))
             }
@@ -458,7 +463,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
                 // them here but we don't guaranatee that type aliases expand to a subset ty. If we
                 // ever stop expanding aliases during conv we would need to guarantee that aliases
                 // used as a generic base expand to a subset type.
-                tracked_span_bug!()
+                span_bug!(self.infcx.span, "unexpected alias in subset type: {:?}", _alias_ty)
             }
             BaseTy::Alias(AliasKind::Projection, alias_ty) => {
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
@@ -477,6 +482,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
                 self.selcx.infcx,
                 alias_pred,
                 refine_args,
+                self.infcx.span,
             )?;
             if changed { e.try_fold_with(self) } else { Ok(e) }
         } else {
@@ -502,6 +508,7 @@ pub enum Candidate {
 #[derive(Debug)]
 struct TVarSubst {
     args: Vec<Option<GenericArg>>,
+    span: Span,
 }
 
 impl GenericsSubstDelegate for &TVarSubst {
@@ -511,7 +518,7 @@ impl GenericsSubstDelegate for &TVarSubst {
         match self.args.get(param_ty.index as usize) {
             Some(Some(GenericArg::Ty(ty))) => Ok(ty.clone()),
             Some(None) => Err(()),
-            arg => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
+            arg => span_bug!(self.span, "expected type for generic parameter, found `{arg:?}`"),
         }
     }
 
@@ -519,7 +526,7 @@ impl GenericsSubstDelegate for &TVarSubst {
         match self.args.get(param_ty.index as usize) {
             Some(Some(GenericArg::Base(ctor))) => Ok(ctor.sort()),
             Some(None) => Err(()),
-            arg => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
+            arg => span_bug!(self.span, "expected type for generic parameter, found `{arg:?}`"),
         }
     }
 
@@ -530,7 +537,7 @@ impl GenericsSubstDelegate for &TVarSubst {
         match self.args.get(param_ty.index as usize) {
             Some(Some(GenericArg::Base(ctor))) => Ok(ctor.clone()),
             Some(None) => Err(()),
-            arg => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
+            arg => span_bug!(self.span, "expected type for generic parameter, found `{arg:?}`"),
         }
     }
 
@@ -541,16 +548,16 @@ impl GenericsSubstDelegate for &TVarSubst {
         match self.args.get(ebr.index as usize) {
             Some(Some(GenericArg::Lifetime(region))) => Ok(*region),
             Some(None) => Err(()),
-            arg => tracked_span_bug!("expected region for generic parameter, found `{arg:?}`"),
+            arg => span_bug!(self.span, "expected region for generic parameter, found `{arg:?}`"),
         }
     }
 
     fn expr_for_param_const(&self, _param_const: rustc_middle::ty::ParamConst) -> Expr {
-        tracked_span_bug!()
+        span_bug!(self.span, "unexpected param_const `{_param_const:?}`")
     }
 
     fn const_for_param(&mut self, _param: &Const) -> Const {
-        tracked_span_bug!()
+        span_bug!(self.span, "unexpected const `{_param:?}`")
     }
 }
 
@@ -595,8 +602,8 @@ impl FallibleTypeFolder for SortNormalizer<'_, '_, '_> {
 }
 
 impl TVarSubst {
-    fn new(generics: &rustc_middle::ty::Generics) -> Self {
-        Self { args: vec![None; generics.count()] }
+    fn new(generics: &rustc_middle::ty::Generics, span: Span) -> Self {
+        Self { args: vec![None; generics.count()], span }
     }
 
     fn instantiate_partial<T: TypeFoldable>(&mut self, pred: EarlyBinder<T>) -> Option<T> {
@@ -715,7 +722,7 @@ impl TVarSubst {
         if let Some(old) = &self.args[idx as usize]
             && old != &arg
         {
-            tracked_span_bug!("ambiguous substitution: old=`{old:?}`, new: `{arg:?}`");
+            span_bug!(self.span, "ambiguous substitution: old=`{old:?}`, new: `{arg:?}`");
         }
         self.args[idx as usize].replace(arg);
     }
@@ -766,8 +773,9 @@ pub fn structurally_normalize_expr<'tcx>(
     infcx: &rustc_infer::infer::InferCtxt<'tcx>,
     expr: &Expr,
 ) -> QueryResult<Expr> {
+    let span = genv.tcx().def_span(def_id);
     if let ExprKind::Alias(alias_pred, refine_args) = expr.kind() {
-        let (_, e) = normalize_alias_reft(genv, def_id, infcx, alias_pred, refine_args)?;
+        let (_, e) = normalize_alias_reft(genv, def_id, infcx, alias_pred, refine_args, span)?;
         Ok(e)
     } else {
         Ok(expr.clone())
@@ -783,6 +791,7 @@ fn normalize_alias_reft<'tcx>(
     infcx: &rustc_infer::infer::InferCtxt<'tcx>,
     alias_reft: &AliasReft,
     refine_args: &RefineArgs,
+    span: Span,
 ) -> QueryResult<(bool, Expr)> {
     let tcx = genv.tcx();
 
@@ -793,7 +802,7 @@ fn normalize_alias_reft<'tcx>(
             .unwrap_or_else(|| {
                 bug!("final associated refinement without body - should be caught in desugar")
             })
-            .instantiate(genv.tcx(), &alias_reft.args, &[])
+            .instantiate(genv.tcx(), &alias_reft.args, &[], span)
             .apply(refine_args);
         return Ok((true, e));
     }
@@ -821,7 +830,7 @@ fn normalize_alias_reft<'tcx>(
             )?;
             let e = genv
                 .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
-                .instantiate(tcx, &args, &[])
+                .instantiate(tcx, &args, &[], span)
                 .apply(refine_args);
             Ok((true, e))
         }

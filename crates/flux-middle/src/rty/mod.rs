@@ -1981,9 +1981,11 @@ impl BaseTy {
             BaseTy::Slice(_) => (slice_invariants(overflow_mode), &[][..]),
             _ => (&[][..], &[][..]),
         };
+        let span =
+            if let BaseTy::Adt(adt_def, _) = self { tcx.def_span(adt_def.did()) } else { DUMMY_SP };
         invariants
             .iter()
-            .map(move |inv| EarlyBinder(inv).instantiate_ref(tcx, args, &[]))
+            .map(move |inv| EarlyBinder(inv).instantiate_ref(tcx, args, &[], span))
     }
 
     pub fn to_ty(&self) -> Ty {
