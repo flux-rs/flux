@@ -199,7 +199,13 @@ where
             }
             Sexp::Atom(Atom::Q(s)) => Ok(Expr::Constant(Constant::String(self.parser.string(s)?))),
             Sexp::Atom(Atom::B(b)) => Ok(Expr::Constant(Constant::Boolean(*b))),
-            Sexp::Atom(Atom::I(i)) => Ok(Expr::Constant(Constant::Numeral(*i))),
+            Sexp::Atom(Atom::I(i)) => {
+                if *i >= 0 {
+                    Ok(Expr::Constant(Constant::Numeral(*i as u128)))
+                } else {
+                    Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral(-i as u128)))))
+                }
+            }
             Sexp::Atom(Atom::F(_f)) => {
                 unimplemented!("Float parsing not supported in fixpoint (see Constant::Real)")
             }
