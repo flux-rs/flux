@@ -415,6 +415,9 @@ pub enum Constant<T: Types> {
     Numeral(u128),
     // Currently we only support parsing integers as decimals. We should extend this to allow
     // rational numbers as a numer/denom.
+    //
+    // NOTE: If this type is updated, then update parse_expr in the parser
+    // (see the unimplemented!() related to float parsing).
     Real(u128),
     Boolean(bool),
     String(T::String),
