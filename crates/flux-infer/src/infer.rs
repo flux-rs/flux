@@ -405,7 +405,19 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         let evars = &mut self.inner.borrow_mut().evars;
         if let ExprKind::Var(Var::EVar(evid)) = b.kind()
             && let EVarState::Unsolved(marker) = evars.get(*evid)
-            && !marker.has_free_vars(a)
+        {
+            let _ = marker.has_free_vars(a);
+            evars.solve(*evid, a.clone());
+        }
+    }
+
+    pub fn unify_exprs_force(&self, a: &Expr, b: &Expr) {
+        if a.has_evars() {
+            return;
+        }
+        let evars = &mut self.inner.borrow_mut().evars;
+        if let ExprKind::Var(Var::EVar(evid)) = b.kind()
+            && let EVarState::Unsolved(_) = evars.get(*evid)
         {
             evars.solve(*evid, a.clone());
         }
@@ -835,7 +847,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 // always give back ownership of the location so `path1` is going to be overwritten
                 // after the call anyways.
                 let ty_a = self.env.get(path_a);
-                infcx.unify_exprs(&path_a.to_expr(), &path_b.to_expr());
+                infcx.unify_exprs_force(&path_a.to_expr(), &path_b.to_expr());
                 self.tys(infcx, &ty_a, ty_b)
             }
             (TyKind::StrgRef(_, path_a, ty_a), TyKind::StrgRef(_, path_b, ty_b)) => {
@@ -852,7 +864,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 // ownership.
                 self.env.unfold_strg_ref(infcx, path_a, ty_a)?;
                 let ty_a = self.env.get(path_a);
-                infcx.unify_exprs(&path_a.to_expr(), &path_b.to_expr());
+                infcx.unify_exprs_force(&path_a.to_expr(), &path_b.to_expr());
                 self.tys(infcx, &ty_a, ty_b)
             }
             (

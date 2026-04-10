@@ -289,7 +289,6 @@ fn check_fn_subtyping(
 
     let mut env = TypeEnv::empty();
     let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals)?;
-    let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
     let output = infcx.ensure_resolved_evars(|infcx| {
         // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
@@ -308,6 +307,7 @@ fn check_fn_subtyping(
                 |sort, mode, _| infcx.fresh_infer_var(sort, mode),
             )
             .deeply_normalize(infcx)?;
+        let actuals = infer_under_mut_ref_hack(infcx, &actuals, sub_sig.inputs());
 
         // 3. INPUT subtyping (g-input <: f-input)
         for requires in super_sig.requires() {
@@ -956,6 +956,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut call_actuals_storage = vec![];
         let mut raw_call_actuals = &actuals[..];
+        let canonical_poly_fn_sig = fn_sig.instantiate(tcx, &generic_args, &early_refine_args);
         let poly_fn_sig = if let Some(kind) = fn_trait_kind
             && let Some(self_ty) = param_self_ty
         {
@@ -968,13 +969,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             sig
         } else {
-            fn_sig.instantiate(tcx, &generic_args, &early_refine_args)
+            canonical_poly_fn_sig.clone()
         };
 
         let call_actuals =
             unfold_local_ptrs(infcx, env, &poly_fn_sig, raw_call_actuals).with_span(span)?;
-        let call_actuals = infer_under_mut_ref_hack(infcx, &call_actuals, &poly_fn_sig);
-
         let fn_sig = poly_fn_sig.replace_bound_vars(
             |_| rty::ReErased,
             |sort, mode, _| infcx.fresh_infer_var(sort, mode),
@@ -983,16 +982,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
+        let call_actuals = infer_under_mut_ref_hack(infcx, &call_actuals, fn_sig.inputs());
+
+        let callee_no_panic = fn_trait_kind
+            .is_some()
+            .then(|| canonical_poly_fn_sig.skip_binder_ref().no_panic());
 
         let mut at = infcx.at(span);
 
         if let Some(callee_def_id) = callee_def_id
             && genv.def_kind(callee_def_id).is_fn_like()
         {
-            let callee_no_panic = fn_sig.no_panic();
-
             at.check_pred(
-                Expr::implies(self.fn_sig.no_panic(), callee_no_panic),
+                Expr::implies(
+                    self.fn_sig.no_panic(),
+                    callee_no_panic.unwrap_or_else(|| fn_sig.no_panic()),
+                ),
                 ConstrReason::NoPanic(callee_def_id),
             );
         }
@@ -1065,6 +1070,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let tcx = self.genv.tcx();
         let mut def_id = Some(self.checker_id.root_id().to_def_id());
         let mut fallback = None;
+        let mut kind_only_fallback = None;
         while let Some(did) = def_id {
             let generic_predicates = self
                 .genv
@@ -1076,18 +1082,67 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             for poly_fn_trait_pred in Clause::split_off_fn_trait_clauses(self.genv, &predicates).1 {
                 let (is_match, is_full) = {
                     let pred = poly_fn_trait_pred.skip_binder_ref();
+                    let same_param = {
+                        if let Some(BaseTy::Param(pred_param)) =
+                            pred.self_ty.as_bty_skipping_existentials()
+                            && let rustc_middle::ty::TyKind::Param(self_param) = self_ty.kind()
+                        {
+                            pred_param.index == self_param.index
+                                || pred_param.name == self_param.name
+                        } else {
+                            false
+                        }
+                    };
+                    let kind_compatible = match (pred.kind, kind) {
+                        (
+                            rustc_middle::ty::ClosureKind::Fn,
+                            rustc_middle::ty::ClosureKind::Fn
+                            | rustc_middle::ty::ClosureKind::FnMut
+                            | rustc_middle::ty::ClosureKind::FnOnce,
+                        )
+                        | (
+                            rustc_middle::ty::ClosureKind::FnMut,
+                            rustc_middle::ty::ClosureKind::FnMut
+                            | rustc_middle::ty::ClosureKind::FnOnce,
+                        )
+                        | (
+                            rustc_middle::ty::ClosureKind::FnOnce,
+                            rustc_middle::ty::ClosureKind::FnOnce,
+                        ) => true,
+                        _ => false,
+                    };
                     (
-                        pred.kind == kind && pred.self_ty.to_rustc(tcx) == self_ty,
+                        kind_compatible && (pred.self_ty.to_rustc(tcx) == self_ty || same_param),
                         matches!(pred.sig, FnTraitPredicateSig::Full(_)),
                     )
                 };
-                if is_match {
+                if is_match || {
+                    let pred_kind = poly_fn_trait_pred.skip_binder_ref().kind;
+                    matches!(
+                        (pred_kind, kind),
+                        (rustc_middle::ty::ClosureKind::Fn, _)
+                            | (
+                                rustc_middle::ty::ClosureKind::FnMut,
+                                rustc_middle::ty::ClosureKind::FnMut
+                                    | rustc_middle::ty::ClosureKind::FnOnce
+                            )
+                            | (
+                                rustc_middle::ty::ClosureKind::FnOnce,
+                                rustc_middle::ty::ClosureKind::FnOnce
+                            )
+                    )
+                } {
                     let sig = poly_fn_trait_pred.map(|fn_trait_pred| fn_trait_pred.fndef_sig());
-                    if is_full {
-                        return Ok(sig);
+                    if kind_only_fallback.is_none() || is_full {
+                        kind_only_fallback = Some(sig.clone());
                     }
-                    if fallback.is_none() {
-                        fallback = Some(sig);
+                    if is_match {
+                        if is_full {
+                            return Ok(sig);
+                        }
+                        if fallback.is_none() {
+                            fallback = Some(sig);
+                        }
                     }
                 }
             }
@@ -1096,6 +1151,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
 
         if let Some(sig) = fallback {
+            return Ok(sig);
+        }
+        if matches!(self_ty.kind(), rustc_middle::ty::TyKind::Param(_))
+            && let Some(sig) = kind_only_fallback
+        {
             return Ok(sig);
         }
 
@@ -2202,14 +2262,18 @@ impl TypeFolder for SkipConstr {
     }
 }
 
-fn is_indexed_mut_skipping_constr(ty: &Ty) -> bool {
+fn indexed_mut_pointee_idx_skipping_constr(ty: &Ty) -> Option<Expr> {
     let ty = SkipConstr.fold_ty(ty);
     if let rty::Ref!(_, inner_ty, Mutability::Mut) = ty.kind()
         && let TyKind::Indexed(..) = inner_ty.kind()
     {
-        true
+        if let TyKind::Indexed(_, idx) = inner_ty.kind() { Some(idx.clone()) } else { None }
+    } else if let TyKind::StrgRef(_, _, inner_ty) = ty.kind()
+        && let TyKind::Indexed(_, idx) = inner_ty.kind()
+    {
+        Some(idx.clone())
     } else {
-        false
+        None
     }
 }
 
@@ -2217,11 +2281,12 @@ fn is_indexed_mut_skipping_constr(ty: &Ty) -> bool {
 /// where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
 /// to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
 /// mutable references.
-fn infer_under_mut_ref_hack(rcx: &mut InferCtxt, actuals: &[Ty], fn_sig: &PolyFnSig) -> Vec<Ty> {
-    iter::zip(actuals, fn_sig.skip_binder_ref().inputs())
+fn infer_under_mut_ref_hack(rcx: &mut InferCtxt, actuals: &[Ty], formals: &[Ty]) -> Vec<Ty> {
+    iter::zip(actuals, formals)
         .map(|(actual, formal)| {
+            let formal = SkipConstr.fold_ty(formal);
             if let rty::Ref!(re, deref_ty, Mutability::Mut) = actual.kind()
-                && is_indexed_mut_skipping_constr(formal)
+                && indexed_mut_pointee_idx_skipping_constr(&formal).is_some()
             {
                 rty::Ty::mk_ref(*re, rcx.unpack(deref_ty), Mutability::Mut)
             } else {

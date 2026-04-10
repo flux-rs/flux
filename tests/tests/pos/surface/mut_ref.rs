@@ -39,6 +39,6 @@ fn test01() -> i32 {
 #[flux_rs::spec(fn() -> i32[100])]
 fn test02() -> i32 {
     let mut w = Wrapper { inner: 99 };
-    w.with_mut(|x| inc(x))
+    w.with_mut(|x| inc(x));
     w.inner
 }
