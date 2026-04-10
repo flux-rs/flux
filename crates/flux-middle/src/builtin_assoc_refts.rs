@@ -118,7 +118,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
             let body = match alias_reft.assoc_id.name() {
                 sym::size_of => rty::Expr::constant(rty::Constant::from(layout.size.bytes())),
                 sym::align_of => rty::Expr::constant(rty::Constant::from(layout.align.abi.bytes())),
-                _ => bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id)
+                _ => bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id),
             };
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
         } else if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
