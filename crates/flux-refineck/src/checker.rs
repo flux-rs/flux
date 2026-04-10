@@ -23,7 +23,7 @@ use flux_middle::{
         Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReErased,
         Ty, TyKind, Uint, UintTy, VariantIdx,
-        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
         refining::{Refine, Refiner},
     },
 };
@@ -41,6 +41,7 @@ use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
     LangItem,
+    def::DefKind,
     def_id::{DefId, LocalDefId},
 };
 use rustc_index::{IndexSlice, bit_set::DenseBitSet};
@@ -1335,7 +1336,26 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let closure_id = did.expect_local();
         let span = tcx.def_span(closure_id);
         let body = genv.mir(closure_id).with_span(span)?;
-        let no_panic = self.genv.no_panic(*did);
+
+        let my_id = self.checker_id.root_id().to_def_id();
+        let parent_id = if matches!(tcx.def_kind(my_id), DefKind::Closure) {
+            self.genv.parent_of_closure(my_id)
+        } else {
+            my_id
+        };
+
+        let Ok(parent_sig) = self.genv.fn_sig(parent_id) else {
+            bug!("missing parent fn_sig for {closure_id:?}");
+        };
+        assert!(
+            !parent_sig
+                .skip_binder_ref()
+                .skip_binder_ref()
+                .no_panic()
+                .has_escaping_bvars()
+        );
+        let no_panic = parent_sig.skip_binder().skip_binder().no_panic();
+
         let closure_sig = rty::to_closure_sig(tcx, closure_id, upvar_tys, args, poly_sig, no_panic);
         Checker::run(
             infcx.change_item(closure_id, &body.infcx),
@@ -1363,7 +1383,27 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (3) "Save" the closure type in the `closures` map
         self.inherited.closures.insert(*did, poly_sig);
         // (4) Return the closure type
-        let no_panic = self.genv.no_panic(*did);
+
+        let tcx = self.genv.tcx();
+        let my_id = self.checker_id.root_id().to_def_id();
+        let parent_id = if matches!(tcx.def_kind(my_id), DefKind::Closure) {
+            self.genv.parent_of_closure(my_id)
+        } else {
+            my_id
+        };
+
+        let Ok(parent_sig) = self.genv.fn_sig(parent_id) else {
+            bug!("missing parent fn_sig for {did:?}");
+        };
+        assert!(
+            !parent_sig
+                .skip_binder_ref()
+                .skip_binder_ref()
+                .no_panic()
+                .has_escaping_bvars()
+        );
+        let no_panic = parent_sig.skip_binder().skip_binder().no_panic();
+
         Ok(Ty::closure(*did, upvar_tys, args, no_panic))
     }
 

@@ -713,7 +713,7 @@ pub fn to_closure_sig(
     tys: &[Ty],
     args: &flux_rustc_bridge::ty::GenericArgs,
     poly_sig: &PolyFnSig,
-    no_panic: bool,
+    no_panic: Expr,
 ) -> PolyFnSig {
     let closure_args = args.as_closure();
     let kind_ty = closure_args.kind_ty().to_rustc(tcx);
@@ -723,7 +723,7 @@ pub fn to_closure_sig(
 
     let mut vars = poly_sig.vars().clone().to_vec();
     let fn_sig = poly_sig.clone().skip_binder();
-    let closure_ty = Ty::closure(closure_id.into(), tys, args, no_panic);
+    let closure_ty = Ty::closure(closure_id.into(), tys, args, no_panic.clone());
     let env_ty = match kind {
         ClosureKind::Fn => {
             vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
@@ -755,7 +755,7 @@ pub fn to_closure_sig(
         fn_sig.requires.clone(),
         inputs.into(),
         output,
-        if no_panic { crate::rty::Expr::tt() } else { crate::rty::Expr::ff() },
+        no_panic,
         false,
     );
 
@@ -1616,7 +1616,7 @@ impl Ty {
         did: DefId,
         tys: impl Into<List<Ty>>,
         args: &flux_rustc_bridge::ty::GenericArgs,
-        no_panic: bool,
+        no_panic: Expr,
     ) -> Ty {
         BaseTy::Closure(did, tys.into(), args.clone(), no_panic).to_ty()
     }
@@ -1830,7 +1830,7 @@ pub enum BaseTy {
     Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
-    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs, bool),
+    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs, Expr),
     Coroutine(
         DefId,
         /*resume_ty: */ Ty,

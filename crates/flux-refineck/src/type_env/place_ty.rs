@@ -525,7 +525,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                 let mut upvar_tys = upvar_tys.to_vec();
                 upvar_tys[f.as_usize()] = upvar_tys[f.as_usize()].try_fold_with(self)?;
                 Ty::indexed(
-                    BaseTy::Closure(*def_id, upvar_tys.into(), args.clone(), *no_panic),
+                    BaseTy::Closure(*def_id, upvar_tys.into(), args.clone(), no_panic.clone()),
                     idx.clone(),
                 )
             }
@@ -677,7 +677,7 @@ where
             TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args, no_panic), idx) => {
                 let upvar_tys = self.fold_field_at(upvar_tys, f);
                 Ty::indexed(
-                    BaseTy::Closure(*def_id, upvar_tys, args.clone(), *no_panic),
+                    BaseTy::Closure(*def_id, upvar_tys, args.clone(), no_panic.clone()),
                     idx.clone(),
                 )
             }

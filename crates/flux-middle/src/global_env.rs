@@ -445,6 +445,23 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .variants_of(self, def_id.into_query_param())
     }
 
+    pub fn parent_of_closure(self, def_id: DefId) -> DefId {
+        let tcx = self.tcx();
+
+        let mut current = def_id;
+
+        loop {
+            let kind = tcx.def_kind(current);
+
+            if kind != DefKind::Closure && kind.is_fn_like() {
+                return current;
+            }
+
+            // This `bug!`s out if we reach the top of the parent chain without finding a function item.
+            current = tcx.parent(current);
+        }
+    }
+
     pub fn variant_sig(
         self,
         def_id: DefId,
