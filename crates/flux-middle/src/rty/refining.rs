@@ -499,12 +499,6 @@ pub fn refine_bound_variables(vars: &[ty::BoundVariableKind]) -> List<rty::Bound
 
 impl rty::PolyFnSig {
     pub fn add_weak_kvars(self, genv: GlobalEnv, def_id: DefId) -> QueryResult<Self> {
-        // TODO:
-        //   1. Make a hoister or something similar that traverses the args and
-        //      adds weak kvars to nested arguments (for both input and output
-        //      args --- the output args just also get to access the output
-        //      params).
-        let late_vars = make_vars_and_sorts_from_bound_vars(self.vars());
         let refinement_generics = genv.refinement_generics_of(def_id)?;
         let early_param_sorts: FxHashMap<Symbol, rty::Sort> = refinement_generics.0.own_params.iter().map(|param| {
             (param.name, param.sort.clone())
@@ -522,7 +516,6 @@ impl rty::PolyFnSig {
             })
             .collect_vec();
         Ok(self.map(|fn_sig| {
-            // We add a weak kvar to the requires and output (only).
             let mut params = late_vars
                 .into_iter()
                 .chain(early_vars.into_iter())
@@ -568,7 +561,7 @@ impl rty::PolyFnSig {
                 abi: fn_sig.abi,
                 safety: fn_sig.safety,
                 inputs,
-                // FIXME: why do we need to clone?
+                // NOTE(CK): Not sure whether we can avoid the clone.
                 requires: fn_sig
                     .requires
                     .iter()
@@ -694,14 +687,13 @@ impl TypeFolder for WeakKVarInserter {
     }
 }
 
-/// FIXME: Skips params currently
-///
-/// We need to handle polymorphism (in fixpoint or by monomorphizing).
-///
-/// NOTE: Skips locs because we can't encode those.
-///       Skips unit + unit adts because they otherwise get encoded as a 0 tuple
-///       to fixpoint because we use them in the args to a weak kvar, which
-///       we don't want to do.
+/// NOTE(CK):
+///   * Skips params (we don't presently handle polymorphism, though even if we did,
+///     I'm not sure that we need to pass params to the weak kvars).
+///   * Skips locs because we can't encode those.
+///   * Skips unit + unit adts because they otherwise get encoded as a 0 tuple
+///     to fixpoint because we use them in the args to a weak kvar, which
+///     we don't want to do.
 fn make_vars_and_sorts_from_bound_vars<'a, I, II>(vars: I) -> Vec<(rty::Var, rty::Sort)>
 where
     I: IntoIterator<IntoIter = II>,
@@ -720,6 +712,8 @@ where
         .collect_vec()
 }
 
+// FIXME: Use a Vec<Vec<_>> solution, per Nico.
+// This is a sort of annoying rearchitecture, but nothing impossible.
 fn shift_in_vars(vars: &mut [(rty::Var, rty::Sort)]) {
     for (var, _) in vars.iter_mut() {
         *var = var.shift_in(1);
