@@ -114,6 +114,10 @@ fn solver() -> SmtSolver {
     FLAGS.solver
 }
 
+fn backend() -> Backend {
+    FLAGS.backend
+}
+
 pub fn catch_bugs() -> bool {
     FLAGS.catch_bugs
 }
@@ -418,6 +422,51 @@ impl fmt::Display for SmtSolver {
     }
 }
 
+/// Backend to use for constraint solving.
+#[derive(Clone, Copy, Debug, Deserialize, Default, Hash)]
+#[serde(try_from = "String")]
+pub enum Backend {
+    /// Use the liquid-fixpoint binary
+    #[default]
+    Fixpoint,
+    /// Use hornspec with the SMT-LIB HORN CHC format
+    Hornspec,
+}
+
+impl Backend {
+    const ERROR: &'static str = "expected one of `fixpoint` or `hornspec`";
+}
+
+impl FromStr for Backend {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_ascii_lowercase();
+        match s.as_str() {
+            "fixpoint" => Ok(Backend::Fixpoint),
+            "hornspec" => Ok(Backend::Hornspec),
+            _ => Err(Self::ERROR),
+        }
+    }
+}
+
+impl TryFrom<String> for Backend {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl fmt::Display for Backend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Backend::Fixpoint => write!(f, "fixpoint"),
+            Backend::Hornspec => write!(f, "hornspec"),
+        }
+    }
+}
+
 /// Options that change the behavior of refinement type inference locally
 #[derive(Clone, Copy, Debug)]
 pub struct InferOpts {
@@ -427,6 +476,8 @@ pub struct InferOpts {
     /// Whether qualifiers should be scraped from the constraint.
     pub scrape_quals: bool,
     pub solver: SmtSolver,
+    /// Backend to use for constraint solving.
+    pub backend: Backend,
     /// Whether to allow uninterpreted casts (e.g., from some random `S` to `int`).
     pub allow_uninterpreted_cast: bool,
     /// Whether to allow raw pointer dereferences.
@@ -439,6 +490,7 @@ impl From<PartialInferOpts> for InferOpts {
             check_overflow: opts.check_overflow.unwrap_or_else(check_overflow),
             scrape_quals: opts.scrape_quals.unwrap_or_else(scrape_quals),
             solver: opts.solver.unwrap_or_else(solver),
+            backend: opts.backend.unwrap_or_else(backend),
             allow_uninterpreted_cast: opts
                 .allow_uninterpreted_cast
                 .unwrap_or_else(allow_uninterpreted_cast),
@@ -452,6 +504,7 @@ pub struct PartialInferOpts {
     pub check_overflow: Option<OverflowMode>,
     pub scrape_quals: Option<bool>,
     pub solver: Option<SmtSolver>,
+    pub backend: Option<Backend>,
     pub allow_uninterpreted_cast: Option<bool>,
     pub allow_raw_deref: Option<RawDerefMode>,
 }
@@ -464,6 +517,7 @@ impl PartialInferOpts {
             .or(other.allow_uninterpreted_cast);
         self.scrape_quals = self.scrape_quals.or(other.scrape_quals);
         self.solver = self.solver.or(other.solver);
+        self.backend = self.backend.or(other.backend);
         self.allow_raw_deref = self.allow_raw_deref.or(other.allow_raw_deref);
     }
 }

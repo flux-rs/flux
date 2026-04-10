@@ -545,7 +545,7 @@ enum ConstKey<'tcx> {
 
 #[derive(Clone)]
 pub enum Backend {
-    Fixpoint,
+    Horn(liquid_fixpoint::Backend),
     Lean,
 }
 
@@ -597,6 +597,7 @@ where
         constraint: fixpoint::Constraint,
         scrape_quals: bool,
         solver: SmtSolver,
+        horn_backend: liquid_fixpoint::Backend,
     ) -> QueryResult<fixpoint::Task> {
         let kvars = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
 
@@ -621,22 +622,27 @@ where
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
         #[cfg(not(feature = "rust-fixpoint"))]
-        let constants = if matches!(self.ecx.backend, Backend::Fixpoint) {
-            constants
-                .into_iter()
-                .chain(fixpoint::BinRel::INEQUALITIES.into_iter().map(|rel| {
-                    // ∀a. a -> a -> bool
-                    let sort = fixpoint::Sort::mk_func(
-                        1,
-                        [fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
-                        fixpoint::Sort::Bool,
-                    );
-                    fixpoint::ConstDecl { name: fixpoint::Var::UIFRel(rel), sort, comment: None }
-                }))
-                .collect()
-        } else {
-            constants
-        };
+        let constants =
+            if matches!(self.ecx.backend, Backend::Horn(liquid_fixpoint::Backend::Fixpoint)) {
+                constants
+                    .into_iter()
+                    .chain(fixpoint::BinRel::INEQUALITIES.into_iter().map(|rel| {
+                        // ∀a. a -> a -> bool
+                        let sort = fixpoint::Sort::mk_func(
+                            1,
+                            [fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
+                            fixpoint::Sort::Bool,
+                        );
+                        fixpoint::ConstDecl {
+                            name: fixpoint::Var::UIFRel(rel),
+                            sort,
+                            comment: None,
+                        }
+                    }))
+                    .collect()
+            } else {
+                constants
+            };
 
         // We are done encoding expressions. Check if there are any errors.
         self.ecx.errors.to_result()?;
@@ -650,6 +656,7 @@ where
             qualifiers,
             scrape_quals,
             solver,
+            backend: horn_backend,
             data_decls: self.scx.encode_data_decls(self.genv)?,
         };
 
@@ -2260,7 +2267,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                             let pred = fixpoint::Pred::Expr(e1.eq(e2));
 
                             let bind = match self.backend {
-                                Backend::Fixpoint => {
+                                Backend::Horn(..) => {
                                     fixpoint::Bind {
                                         name: fixpoint::Var::Underscore,
                                         sort: fixpoint::Sort::Int,
