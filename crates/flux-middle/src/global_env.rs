@@ -13,6 +13,7 @@ use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordSet;
+use rustc_hash::FxHashMap;
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -27,6 +28,7 @@ pub use rustc_span::{Symbol, symbol::Ident};
 use tempfile::TempDir;
 
 use crate::{
+    PanicSpec,
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},
@@ -173,6 +175,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
             slice::from_raw_parts(dst.as_ptr(), len)
         }
+    }
+
+    pub fn inferred_no_panic_crate(self, krate: CrateNum) -> FxHashMap<DefId, PanicSpec> {
+        self.inner.queries.inferred_no_panic_crate(self, krate)
     }
 
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
@@ -460,6 +466,18 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         def_id: LocalDefId,
     ) -> QueryResult<List<ty::BoundVariableKind>> {
         self.inner.queries.lower_late_bound_vars(self, def_id)
+    }
+
+    /// Whether we have inferred that the function cannot panic.
+    pub fn inferred_no_panic(self, def_id: impl IntoQueryParam<DefId>) -> PanicSpec {
+        self.inner
+            .queries
+            .inferred_no_panic(self, def_id.into_query_param())
+    }
+
+    /// Whether the crate has Flux metadata in the cratestore.
+    pub fn cstore_has_crate(self, krate: CrateNum) -> bool {
+        self.cstore().has_crate(krate)
     }
 
     /// Whether the function is marked with `#[flux::no_panic]`

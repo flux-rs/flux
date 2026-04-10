@@ -4,7 +4,7 @@ use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_sp
 use flux_config::{self as config, InferOpts, OverflowMode, RawDerefMode};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
-    FixpointQueryKind,
+    FixpointQueryKind, PanicSpec,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric},
@@ -82,7 +82,7 @@ pub enum ConstrReason {
     Overflow,
     Underflow,
     Subtype(SubtypeReason),
-    NoPanic(DefId),
+    NoPanic(DefId, PanicSpec),
     Other,
 }
 

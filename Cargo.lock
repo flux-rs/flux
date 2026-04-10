@@ -533,6 +533,7 @@ dependencies = [
  "flux-macros",
  "flux-metadata",
  "flux-middle",
+ "flux-opt",
  "flux-refineck",
  "flux-rustc-bridge",
  "flux-syntax",
@@ -577,6 +578,7 @@ dependencies = [
  "flux-errors",
  "flux-macros",
  "flux-middle",
+ "flux-opt",
  "flux-rustc-bridge",
  "itertools 0.14.0",
  "liquid-fixpoint",
@@ -613,6 +615,7 @@ dependencies = [
  "flux-errors",
  "flux-macros",
  "flux-middle",
+ "flux-opt",
  "itertools 0.14.0",
  "rustc-hash",
 ]
@@ -646,6 +649,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-opt"
+version = "0.1.0"
+dependencies = [
+ "flux-common",
+ "flux-config",
+ "flux-errors",
+ "flux-macros",
+ "flux-middle",
+ "flux-rustc-bridge",
+ "itertools 0.14.0",
+ "liquid-fixpoint",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "flux-refineck"
 version = "0.1.0"
 dependencies = [
@@ -655,6 +676,7 @@ dependencies = [
  "flux-infer",
  "flux-macros",
  "flux-middle",
+ "flux-opt",
  "flux-rustc-bridge",
  "itertools 0.14.0",
  "liquid-fixpoint",

@@ -17,6 +17,7 @@ use flux_syntax::symbols::sym;
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_errors::Diagnostic;
+use rustc_hash::FxHashMap;
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -27,6 +28,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
+    PanicReason, PanicSpec,
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
@@ -202,6 +204,7 @@ pub struct Providers {
     pub item_bounds:
         fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
     pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
+    pub inferred_no_panic: fn(GlobalEnv) -> FxHashMap<DefId, PanicSpec>,
 }
 
 macro_rules! empty_query {
@@ -240,6 +243,7 @@ impl Default for Providers {
             constant_info: |_, _| empty_query!(),
             static_info: |_, _| empty_query!(),
             sort_decl_param_count: |_, _| empty_query!(),
+            inferred_no_panic: |_| empty_query!(),
         }
     }
 }
@@ -287,6 +291,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
+    inferred_no_panic: Cache<CrateNum, FxHashMap<DefId, PanicSpec>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -328,6 +333,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_late_bound_vars: Default::default(),
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
+            inferred_no_panic: Default::default(),
         }
     }
 
@@ -611,6 +617,39 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 },
             )
         })
+    }
+
+    pub fn inferred_no_panic_crate(
+        &self,
+        genv: GlobalEnv,
+        krate: CrateNum,
+    ) -> FxHashMap<DefId, PanicSpec> {
+        // We can just make this `core` if we only care about that.
+        fn is_stdlib_crate(tcx: rustc_middle::ty::TyCtxt<'_>, krate: CrateNum) -> bool {
+            matches!(tcx.crate_name(krate).as_str(), "core" | "alloc" | "std")
+        }
+
+        run_with_cache(&self.inferred_no_panic, krate, || {
+            if krate == LOCAL_CRATE
+                || is_stdlib_crate(genv.tcx(), krate)
+                || !genv.cstore_has_crate(krate)
+            {
+                (self.providers.inferred_no_panic)(genv)
+            } else {
+                genv.cstore().inferred_no_panic(krate)
+            }
+        })
+    }
+
+    pub(crate) fn inferred_no_panic(&self, genv: GlobalEnv, def_id: DefId) -> PanicSpec {
+        // This just dispatches to the appropriate provider.
+        let map = self.inferred_no_panic_crate(genv, def_id.krate);
+        let Some(spec) = map.get(&def_id) else {
+            bug!(
+                "inferred no_panic spec for {def_id:?} not found in the map of its crate, even though it should be there according to the provider"
+            )
+        };
+        *spec
     }
 
     pub(crate) fn static_info(
