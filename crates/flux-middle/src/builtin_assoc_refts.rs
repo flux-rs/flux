@@ -45,11 +45,18 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 map.insert(
                     sized_id,
                     AssocRefinements {
-                        items: List::from_arr([AssocReft::new(
-                            FluxDefId::new(def_id, sym::size_of),
-                            false,
-                            tcx.def_span(sized_id),
-                        )]),
+                        items: List::from_arr([
+                            AssocReft::new(
+                                FluxDefId::new(def_id, sym::size_of),
+                                false,
+                                tcx.def_span(sized_id),
+                            ),
+                            AssocReft::new(
+                                FluxDefId::new(def_id, sym::align_of),
+                                false,
+                                tcx.def_span(sized_id),
+                            ),
+                        ]),
                     },
                 );
                 map
@@ -87,6 +94,10 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                     FluxDefId::new(sized_id, sym::size_of),
                     rty::FuncSort::new(vec![], rty::Sort::Int),
                 );
+                map.insert(
+                    FluxDefId::new(sized_id, sym::align_of),
+                    rty::FuncSort::new(vec![], rty::Sort::Int),
+                );
                 map
             })
             .get(&assoc_id)
@@ -101,16 +112,14 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
     ) -> rty::Lambda {
         let tcx = self.tcx();
 
-        if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::Sized)
-            && alias_reft.assoc_id.name() == sym::size_of
-        {
+        if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::Sized) {
             let self_ty = alias_reft.to_rustc_trait_ref(tcx).self_ty();
-            let size = tcx
-                .layout_of(typing_env.as_query_input(self_ty))
-                .unwrap()
-                .size
-                .bytes();
-            let body = rty::Expr::constant(rty::Constant::from(size));
+            let layout = tcx.layout_of(typing_env.as_query_input(self_ty)).unwrap();
+            let body = match alias_reft.assoc_id.name() {
+                sym::size_of => rty::Expr::constant(rty::Constant::from(layout.size.bytes())),
+                sym::align_of => rty::Expr::constant(rty::Constant::from(layout.align.abi.bytes())),
+                _ => bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id),
+            };
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
         } else if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
             && alias_reft.assoc_id.name() == sym::no_panic
