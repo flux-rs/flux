@@ -358,12 +358,12 @@ pub struct User {
 
     #[spec(fn(&amp;User[@u]) -&gt; bool[u == Role::Admin])]
     pub fn is_admin(&amp;self) -&gt; bool {
-        is_admin(&amp;self.role);
+        is_admin(&amp;self.role)
     }
 
     #[spec(fn(&amp;User[@u]) -&gt; bool[u == Role::Guest])]
     pub fn is_guest(&amp;self) -&gt; bool {
-        is_guest(&amp;self.role);
+        is_guest(&amp;self.role)
     }
 }
 
