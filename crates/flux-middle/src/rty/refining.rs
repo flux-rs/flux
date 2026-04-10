@@ -741,7 +741,7 @@ fn make_weak_kvar(wkvar_map: &mut WeakKvarMap, def_id: DefId, kvid: &mut rty::KV
     // We don't have any solutions because these weak kvars are being generated
     // (solutions only come from user annotations).
     wkvar_map.insert(kvid.as_u32(), WeakKvarInfo { solutions: vec![], sorts });
-    let ret = rty::WKVar { wkvid: (def_id, *kvid), self_args: num_self_args, args: arg_exprs };
+    let ret = rty::WKVar { wkvid: rty::WKVid::new(def_id, *kvid), self_args: num_self_args, args: arg_exprs };
     *kvid += 1;
     ret
 }

@@ -88,14 +88,14 @@ impl RefineTree {
             &mut |assumed| {
                 assumed.flatten_conjs().into_iter().for_each(|conj| {
                     if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
-                        lhs_wkvars.insert(wkvar.wkvid);
+                        lhs_wkvars.insert(wkvar.wkvid.clone());
                     }
                 })
             },
             &mut |head| {
                 head.flatten_conjs().into_iter().for_each(|conj| {
                     if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
-                        rhs_wkvars.insert(wkvar.wkvid);
+                        rhs_wkvars.insert(wkvar.wkvid.clone());
                     }
                 })
             },

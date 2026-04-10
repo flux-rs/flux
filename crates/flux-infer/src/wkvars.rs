@@ -187,7 +187,7 @@ impl TypeFolder for WKVarSubst {
                 // The bound expression has bound vars that need to be replaced
                 // by the args given to the wkvar (in order).
                 let instantiated_e = bound_e.replace_bound_refts(&wkvar.args);
-                self.subst_instantiations.entry(*wkvid)
+                self.subst_instantiations.entry(wkvid.clone())
                     .and_modify(|insts| insts.push(instantiated_e.clone()))
                     .or_insert_with(|| vec![instantiated_e.clone()]);
                 if self.keep_wkvars {
@@ -300,8 +300,8 @@ pub struct WKVarSolution {
 impl WKVarSolution {
     pub fn empty(genv: GlobalEnv, wkvid: rty::WKVid) -> Self {
         let actual_exprs;
-        if let Some(solutions_map) = &genv.weak_kvars_for(wkvid.0) {
-            if let Some(wkvar_info) = solutions_map.get(&wkvid.1.as_u32()) {
+        if let Some(solutions_map) = &genv.weak_kvars_for(wkvid.parent_fn) {
+            if let Some(wkvar_info) = solutions_map.get(&wkvid.id.as_u32()) {
                 actual_exprs = wkvar_info.solutions.clone();
             } else {
                 actual_exprs = vec![];
@@ -553,7 +553,7 @@ impl WKVarSolutions {
             .iter()
             .chain(internal_wkvars.iter())
             .map(|wkvid| {
-                (*wkvid, WKVarSolution::empty(genv, *wkvid))
+                (wkvid.clone(), WKVarSolution::empty(genv, wkvid.clone()))
             })
             .collect();
         Self { solutions, num_nontrivial_head_cstrs, wkvars, internal_wkvars }
@@ -569,7 +569,7 @@ impl WKVarSolutions {
             .iter()
             .map(|(wkvid, solution)| {
                 let wkvar_key =
-                    format!("{}::$wk{}", genv.tcx().def_path_str(wkvid.0), wkvid.1.as_u32());
+                    format!("{}::$wk{}", genv.tcx().def_path_str(wkvid.parent_fn), wkvid.id.as_u32());
                 (wkvar_key, solution.to_summary(genv))
             })
             .collect();
@@ -591,15 +591,15 @@ impl WKVarSolutions {
                     num_nontrivial_real_wkvars += 1;
                 }
             }
-            let wkvar_fn_name = genv.tcx().def_path_str(wkvid.0);
+            let wkvar_fn_name = genv.tcx().def_path_str(wkvid.parent_fn);
             if let Some(solved_exprs) = &solution.solved_exprs {
                 let sol = solved_exprs.map_ref(|exprs| rty::Expr::and_from_iter(exprs.iter().cloned()));
-                solutions_by_fn.entry(wkvid.0)
+                solutions_by_fn.entry(wkvid.parent_fn)
                                .or_default()
-                               .insert(*wkvid, sol);
+                               .insert(wkvid.clone(), sol);
             }
             stats_by_fn
-                .entry((wkvid.0, wkvar_fn_name))
+                .entry((wkvid.parent_fn, wkvar_fn_name))
                 .and_modify(|stats| {
                     *stats = stats.combine(&solution.to_summary(genv).to_stats());
                 })
@@ -772,12 +772,12 @@ impl WKVarSolutions {
         }
         // Step 1: Group wkvars into functions
         let mut wkvars_by_fn_name: FxIndexMap<(String, DefId), Vec<rty::KVid>> = FxIndexMap::default();
-        let mut fn_names_and_wkvars = self.solutions.keys().map(|wkvid| (genv.tcx().def_path_str(wkvid.0), wkvid)).collect_vec();
+        let mut fn_names_and_wkvars = self.solutions.keys().map(|wkvid| (genv.tcx().def_path_str(wkvid.parent_fn), wkvid)).collect_vec();
         fn_names_and_wkvars.sort_by(|(name1, _), (name2, _)| name1.cmp(name2));
         for (fn_name, wkvid) in fn_names_and_wkvars {
-            wkvars_by_fn_name.entry((fn_name, wkvid.0))
-                .and_modify(|kvids| kvids.push(wkvid.1))
-                .or_insert_with(|| vec![wkvid.1]);
+            wkvars_by_fn_name.entry((fn_name, wkvid.parent_fn))
+                .and_modify(|kvids| kvids.push(wkvid.id))
+                .or_insert_with(|| vec![wkvid.id]);
         }
         for kvids in wkvars_by_fn_name.values_mut() {
             kvids.sort_by_key(|kvid| kvid.as_u32());
@@ -805,7 +805,7 @@ impl WKVarSolutions {
                 println!("sig {:?}", pretty::with_cx!(&fn_pretty_cx, &solved_fn_sig));
             }
             for kvid in kvids {
-                let wkvid = (*fn_def_id, *kvid);
+                let wkvid = rty::WKVid::new(*fn_def_id, *kvid);
                 if file_read_user_interactions.is_none() {
                     println!("  $wk{}", kvid.as_u32());
                 }
@@ -830,7 +830,7 @@ impl WKVarSolutions {
                             println!("    [{}] {:?}", id, &expr);
                         }
                         let interaction = UserInteraction {
-                            wkvid: (*fn_def_id, *kvid),
+                            wkvid: wkvid.clone(),
                             kind: InteractionKind::AddGroundTruth(expr),
                         };
                         interactions.insert(id, interaction);
@@ -850,7 +850,7 @@ impl WKVarSolutions {
                             println!("    [{}] {:?}", id, expr);
                         }
                         let interaction = UserInteraction {
-                            wkvid: (*fn_def_id, *kvid),
+                            wkvid: rty::WKVid::new(*fn_def_id, *kvid),
                             kind: InteractionKind::RemoveSolution(expr.clone()),
                         };
                         interactions.insert(id, interaction);

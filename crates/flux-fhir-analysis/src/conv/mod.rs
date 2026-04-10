@@ -2271,7 +2271,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     return Err(query_bug!("weak kvars can only be used inside rust items"));
                 };
                 let wk = rty::WKVar {
-                    wkvid: (owner_id.to_def_id(), rty::KVid::from_u32(num)),
+                    wkvid: rty::WKVid::new(owner_id.to_def_id(), rty::KVid::from_u32(num)),
                     self_args: fhir_self_args,
                     args: List::from_vec(args),
                 };

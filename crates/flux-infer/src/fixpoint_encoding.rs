@@ -504,7 +504,7 @@ enum ConstKey<'tcx> {
     Lambda(Lambda),
     PrimOp(rty::BinOp),
     Cast(rty::Sort, rty::Sort),
-    WKVar((DefId, rty::KVid), usize),
+    WKVar(rty::WKVid, usize),
 }
 
 // #[derive(Debug, Clone)]
@@ -755,7 +755,7 @@ where
                                     else {
                                         panic!()
                                     };
-                                    let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.0).to_filename_friendly_no_crate(), wkvid.1.as_u32());
+                                    let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.parent_fn).to_filename_friendly_no_crate(), wkvid.id.as_u32());
                                     println!("Trying {}({}) to solve", wkvid_string, wkvar.args.iter().map(|arg| format!("{}", arg)).join(", "));
                                     let fvars: HashSet<fixpoint::Var> = wkvar
                                         .args
@@ -805,26 +805,26 @@ where
                                                         if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &e) {
                                                             // println!("recording solution: {:?}", binder_e);
                                                             if fe.total_num_disjuncts() > 3 {
-                                                                // println!("WARN: skipping answer with too many disjuncts");
-                                                                // Try the regular expression
-                                                                if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
-                                                                    possible_solutions.entry(*wkvid)
-                                                                        .or_default()
-                                                                        .push(binder_e);
-                                                                }
-                                                            } else {
-                                                                possible_solutions.entry(*wkvid)
-                                                                    .or_default()
-                                                                    .push(binder_e);
-                                                            }
-                                                        } else {
-                                                            // println!("got nontrivial solution {} but couldn't unify it with args {:?}", fe, wkvar.args);
-                                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
-                                                                possible_solutions.entry(*wkvid)
-                                                                    .or_default()
-                                                                    .push(binder_e);
-                                                            }
-                                                        }
+                                                                 // println!("WARN: skipping answer with too many disjuncts");
+                                                                 // Try the regular expression
+                                                                 if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
+                                                                     possible_solutions.entry(wkvid.clone())
+                                                                         .or_default()
+                                                                         .push(binder_e);
+                                                                 }
+                                                             } else {
+                                                                 possible_solutions.entry(wkvid.clone())
+                                                                     .or_default()
+                                                                     .push(binder_e);
+                                                             }
+                                                         } else {
+                                                             // println!("got nontrivial solution {} but couldn't unify it with args {:?}", fe, wkvar.args);
+                                                             if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
+                                                                 possible_solutions.entry(wkvid.clone())
+                                                                     .or_default()
+                                                                     .push(binder_e);
+                                                             }
+                                                         }
                                                     } else {
                                                         // println!("skipped trivial solution");
                                                     }
@@ -835,7 +835,7 @@ where
                                         Err(err) => {
                                             println!("failed to decode z3 expr because of {:?}", err);
                                             if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
-                                                possible_solutions.entry(*wkvid)
+                                                possible_solutions.entry(wkvid.clone())
                                                     .or_default()
                                                     .push(binder_e);
                                             }
@@ -2330,15 +2330,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self_args: usize,
         scx: &mut SortEncodingCtxt,
     ) -> Option<fixpoint::Var> {
-        if !wkvid.0.is_local() {
-            let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.0).to_filename_friendly_no_crate(), wkvid.1.as_u32());
+        if !wkvid.parent_fn.is_local() {
+            let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.parent_fn).to_filename_friendly_no_crate(), wkvid.id.as_u32());
             // println!("INFO: skipping encoding {} because it is not local", wkvid_string);
             return None;
         }
-        let key = ConstKey::WKVar(*wkvid, self_args);
-        let arg_sorts = self.genv.weak_kvars_for(wkvid.0)
+        let key = ConstKey::WKVar(wkvid.clone(), self_args);
+        let arg_sorts = self.genv.weak_kvars_for(wkvid.parent_fn)
                              .and_then(|wkvars_map|
-                                       wkvars_map.get(&wkvid.1.as_u32())
+                                       wkvars_map.get(&wkvid.id.as_u32())
                                                  .map(|wkvars| wkvars.sorts.clone())
                              );
         arg_sorts.map(|arg_sorts|
@@ -2347,7 +2347,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .entry(key.clone())
                 .or_insert_with(|| {
                     let comment = Some(format!("weak kvar: {:?}", wkvid));
-                    let def_name = self.genv.tcx().def_path_str(wkvid.0);
+                    let def_name = self.genv.tcx().def_path_str(wkvid.parent_fn);
                     let sanitized_name: String = def_name.chars().map(|c| {
                         if !c.is_alphanumeric() {
                             '_'
@@ -2355,7 +2355,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                             c
                         }
                     }).collect();
-                    let name = fixpoint::Var::WKVar(Symbol::intern(&sanitized_name), wkvid.1.as_u32());
+                    let name = fixpoint::Var::WKVar(Symbol::intern(&sanitized_name), wkvid.id.as_u32());
                     let func_sort = rty::FuncSort::new(arg_sorts.to_vec(), rty::Sort::Bool).to_poly();
                     let sort = scx.func_sort_to_fixpoint(&func_sort);
                     self.const_env.wkvar_map_rev.insert(name, key);

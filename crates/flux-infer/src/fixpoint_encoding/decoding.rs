@@ -4,13 +4,10 @@ use flux_middle::{
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
-use rustc_hir::{
-    def::DefKind,
-    def_id::DefId,
-};
+use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_type_ir::BoundVar;
 
-use super::{ConstKey, FixpointCtxt, fixpoint};
+use super::{fixpoint, ConstKey, FixpointCtxt};
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
@@ -146,7 +143,9 @@ where
                         Ok(rty::Expr::const_generic(*const_generic))
                     }
                     fixpoint::Var::WKVar(..) => {
-                        unreachable!("Weak kvar ids should be converted as part of fixpoint::Expr::WKVar");
+                        unreachable!(
+                            "Weak kvar ids should be converted as part of fixpoint::Expr::WKVar"
+                        );
                     }
                 }
             }
@@ -195,16 +194,12 @@ where
                             .try_collect()?;
                         let def_id = self.scx.adt_sorts[adt_id.as_usize()];
                         match self.genv.tcx().def_kind(def_id) {
-                            DefKind::Struct => {
-                                Ok(rty::Expr::ctor_struct(def_id, eargs))
-                            }
+                            DefKind::Struct => Ok(rty::Expr::ctor_struct(def_id, eargs)),
                             DefKind::Enum => {
                                 let ctor = rty::Ctor::Enum(def_id, *field);
                                 Ok(rty::Expr::ctor(ctor, eargs))
                             }
-                            _ => {
-                                Err(FixpointParseError::InvalidDefKindForCtor)
-                            }
+                            _ => Err(FixpointParseError::InvalidDefKindForCtor),
                         }
                     }
                     fixpoint::Expr::Var(fixpoint::Var::UIFRel(fbinrel)) => {
@@ -416,7 +411,11 @@ where
                                 .iter()
                                 .map(|fexpr| self.fixpoint_to_expr(fexpr))
                                 .try_collect()?;
-                            Ok(rty::Expr::wkvar(rty::WKVar { wkvid: *wkvid, self_args: *self_args, args: List::from_vec(e_args)}))
+                            Ok(rty::Expr::wkvar(rty::WKVar {
+                                wkvid: wkvid.clone(),
+                                self_args: *self_args,
+                                args: List::from_vec(e_args),
+                            }))
                         }
                         _ => {
                             unreachable!("Weak KVar has a const_key that is not a wkvid");

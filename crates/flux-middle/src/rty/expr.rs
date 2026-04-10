@@ -1066,7 +1066,22 @@ pub struct KVar {
     pub args: List<Expr>,
 }
 
-pub type WKVid = (DefId, KVid);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
+pub struct WKVid {
+    /// Weak KVars right now are always associated with a function definition.
+    /// Weak KVars can in theory be put wherever we can validly add a refinement
+    pub parent_fn: DefId,
+    /// There's no reason why this has to be KVid, and in principle it may be
+    /// better served as just a number or a new index unto itself.
+    pub id: KVid,
+
+}
+
+impl WKVid {
+    pub fn new(parent_fn: DefId, id: KVid) -> Self {
+        Self { parent_fn, id }
+    }
+}
 
 /// A weak kvar is like a kvar with the exception that it infers the weakest
 /// condition necessary instead of the strongest condition. Due to the way we
@@ -1886,7 +1901,7 @@ pub(crate) mod pretty {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             // Since we reuse KVId, we need to make the serialization custom.
             // Also we will not serialize the parameters for now.
-            w!(cx, f, "$wk{}_{}", ^self.wkvid.1.index(), ^cx.tcx().def_path_str(self.wkvid.0))?;
+            w!(cx, f, "$wk{}_{}", ^self.wkvid.id.index(), ^cx.tcx().def_path_str(self.wkvid.parent_fn))?;
             w!(
                 cx,
                 f,

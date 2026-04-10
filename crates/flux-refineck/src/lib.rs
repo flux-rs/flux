@@ -338,7 +338,7 @@ fn report_errors(
             //     constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_ctx.expr)),
             // });
             for (wkvid, solution) in wkvar_solutions {
-                add_fn_fix_diagnostic(genv, &mut err_diag, *wkvid, solution);
+                add_fn_fix_diagnostic(genv, &mut err_diag, wkvid.clone(), solution);
             }
             // for blamed_binder in blamed_binders {
             //     add_blame_var_diagnostic(genv, &mut err_diag, blamed_binder);
@@ -490,13 +490,13 @@ fn add_fn_fix_diagnostic<'a>(
     solution: &rty::Binder<rty::Expr>,
 ) {
     let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()).prettify());
-    let fn_name = genv.tcx().def_path_str(wkvid.0);
+    let fn_name = genv.tcx().def_path_str(wkvid.parent_fn);
     let fn_span = genv
         .tcx()
-        .def_ident_span(wkvid.0)
-        .unwrap_or_else(|| genv.tcx().def_span(wkvid.0));
-    let fn_sig = genv.fn_sig(wkvid.0).unwrap();
-    let mut wkvar_subst = WKVarSubst::new([(wkvid, pretty_solution)].into(), false);
+        .def_ident_span(wkvid.parent_fn)
+        .unwrap_or_else(|| genv.tcx().def_span(wkvid.parent_fn));
+    let fn_sig = genv.fn_sig(wkvid.parent_fn).unwrap();
+    let mut wkvar_subst = WKVarSubst::new([(wkvid.clone(), pretty_solution)].into(), false);
     let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
     let fixed_fn_sig_snippet =
         format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig));
@@ -518,7 +518,7 @@ fn add_fn_fix_diagnostic<'a>(
     //                 Applicability::MaybeIncorrect,
     //             );
     //         } else {
-                let fn_first_line = fn_first_line(genv, wkvid.0);
+                let fn_first_line = fn_first_line(genv, wkvid.parent_fn);
                 let fn_first_line_snippet = genv
                     .tcx()
                     .sess
