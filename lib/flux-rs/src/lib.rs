@@ -1,12 +1,15 @@
 #![no_std]
+#[cfg_attr(flux, flux::no_suggestions)]
 pub mod bitvec;
 
 pub use attrs::*;
 pub use flux_attrs as attrs;
 
+#[no_suggestions]
 #[sig(fn(bool[true]) )]
 pub fn assert(_: bool) {}
 
+#[no_suggestions]
 #[sig (fn() -> _ requires false)]
 pub fn unreachable() -> ! {
     unreachable!("impossible case")

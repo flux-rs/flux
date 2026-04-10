@@ -49,6 +49,7 @@ pub enum TokenKind {
     Percent,
     PathSep,
     DotDot,
+    Dollar,
     Eof,
 }
 
@@ -127,6 +128,7 @@ impl TokenKind {
             TokenKind::Percent => "%",
             TokenKind::PathSep => "::",
             TokenKind::DotDot => "..",
+            TokenKind::Dollar => "$",
             TokenKind::Eof => "<eof>",
             TokenKind::Invalid => "<invalid>",
         }

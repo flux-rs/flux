@@ -864,11 +864,19 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| (self.providers.fn_sig)(genv, def_id),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
-                    let fn_sig = genv
+                    let mut fn_sig = genv
                         .lower_fn_sig(def_id)?
                         .skip_binder()
                         .refine(&Refiner::default_for_item(genv, def_id)?)?
                         .hoist_input_binders();
+                    // We only will add weak kvars if
+                    //   1. There are no weak kvars already
+                    //   2. The function does NOT have a `#[no_suggestions]` annotation
+                    //      in its parent.
+                    if genv.weak_kvars_for(def_id).is_none()
+                        && def_id.as_local().map(|local_id| !genv.no_suggestions(local_id)).unwrap_or(false) {
+                        fn_sig = fn_sig.add_weak_kvars(genv, def_id)?;
+                    }
                     Ok(rty::EarlyBinder(fn_sig))
                 },
             )

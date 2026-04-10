@@ -13,14 +13,14 @@ mod pretty;
 pub mod refining;
 pub mod region_matching;
 pub mod subst;
-use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
+use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, ops::ControlFlow, sync::LazyLock};
 
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 use bitflags::bitflags;
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
     ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, Lambda, Loc, Name, Path, Real,
-    SpecFuncKind, UnOp, Var,
+    SpecFuncKind, UnOp, Var, WKVar, WKVid,
 };
 pub use flux_arc_interner::List;
 use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
@@ -43,7 +43,11 @@ pub use normalize::{NormalizeInfo, NormalizedDefns, local_deps};
 use refining::{Refine as _, Refiner};
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
-use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};
+use rustc_data_structures::{
+    fx::{FxHashMap, FxIndexMap},
+    snapshot_map::SnapshotMap,
+    unord::UnordMap,
+};
 use rustc_hir::{LangItem, Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
@@ -1132,6 +1136,10 @@ impl Sort {
         }
         go(self, &mut f, &mut vec![]);
     }
+
+    pub fn is_param(&self) -> bool {
+        matches!(self, Self::Param(_))
+    }
 }
 
 /// The size of a [bit-vector]
@@ -2144,6 +2152,17 @@ impl<'tcx> ToRustc<'tcx> for AliasTy {
     }
 }
 
+pub fn for_refine_arg<F, T>(genv: GlobalEnv, def_id: DefId, mut mk: F) -> QueryResult<Vec<T>>
+where
+    F: FnMut(EarlyBinder<RefineParam>, usize) -> QueryResult<T>,
+{
+    let reft_generics = genv.refinement_generics_of(def_id)?;
+    let count = reft_generics.count();
+    let mut args = Vec::with_capacity(count);
+    reft_generics.fill_item(genv, &mut args, &mut mk)?;
+    Ok(args)
+}
+
 pub type RefineArgs = List<Expr>;
 
 #[extension(pub trait RefineArgsExt)]
@@ -2157,15 +2176,11 @@ impl RefineArgs {
         })
     }
 
-    fn for_item<F>(genv: GlobalEnv, def_id: DefId, mut mk: F) -> QueryResult<RefineArgs>
+    fn for_item<F>(genv: GlobalEnv, def_id: DefId, mk: F) -> QueryResult<RefineArgs>
     where
         F: FnMut(EarlyBinder<RefineParam>, usize) -> QueryResult<Expr>,
     {
-        let reft_generics = genv.refinement_generics_of(def_id)?;
-        let count = reft_generics.count();
-        let mut args = Vec::with_capacity(count);
-        reft_generics.fill_item(genv, &mut args, &mut mk)?;
-        Ok(List::from_vec(args))
+        Ok(List::from(for_refine_arg(genv, def_id, mk)?))
     }
 }
 
@@ -3066,5 +3081,152 @@ impl<'a, T> LocalTableInContext<'a, T> {
     pub fn get(&self, fhir_id: FhirId) -> Option<&'a T> {
         tracked_span_assert_eq!(self.owner, fhir_id.owner);
         self.data.get(&fhir_id.local_id)
+    }
+}
+
+/// Finds the minimum antiunifier between expr and other.
+///
+/// Examples:
+///
+///     self
+///     other
+///     -----
+///     unifier
+///
+///     x + y
+///     a + y
+///     -----
+///     x |-> a
+///
+///     x + y < z
+///     a + b < z
+///     ---------
+///     x |-> a
+///     y |-> b
+///
+///     x + x < y
+///     a + b < y
+///     ---------
+///     x + x |-> a + b
+///
+///     x < y
+///     y > x
+///     -----
+///     x < y |-> y > x
+pub fn anti_unify(expr: &Expr, other: &Expr) -> FxHashMap<Expr, Expr> {
+    /// Adds self_e |-> other_e to the antiunifier_map, raising
+    /// ControlFlow::Break(()) if self_e is mapped to another value
+    /// already.
+    fn record_antiunifier(
+        antiunifier_map: &mut FxHashMap<Expr, Expr>,
+        self_e: &Expr,
+        other_e: &Expr,
+    ) -> ControlFlow<()> {
+        if let Some(curr_match) = antiunifier_map.get(self_e) {
+            if curr_match != other_e {
+                return ControlFlow::Break(());
+            } else {
+                // optimization: don't add the element if it's already there.
+                return ControlFlow::Continue(());
+            }
+        }
+        antiunifier_map.insert(self_e.clone(), other_e.clone());
+        ControlFlow::Continue(())
+    }
+
+    fn try_antiunify_subexprs<'a, 'b, I>(
+        antiunifier_map: &mut FxHashMap<Expr, Expr>,
+        expr: &Expr,
+        other: &Expr,
+        subexprs: I,
+    ) -> ControlFlow<()>
+    where
+        I: IntoIterator<Item = (&'a Expr, &'b Expr)>,
+    {
+        let curr_map = antiunifier_map.clone();
+        for (e, o) in subexprs {
+            match antiunify_helper(e, o, antiunifier_map) {
+                ControlFlow::Break(()) => {
+                    *antiunifier_map = curr_map;
+                    record_antiunifier(antiunifier_map, expr, other)?;
+                    return ControlFlow::Continue(());
+                }
+                ControlFlow::Continue(()) => {}
+            }
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn antiunify_helper(
+        expr: &Expr,
+        other: &Expr,
+        antiunifier_map: &mut FxHashMap<Expr, Expr>,
+    ) -> ControlFlow<()> {
+        use ExprKind::*;
+        if expr == other {
+            return ControlFlow::Continue(());
+        }
+        match (expr.kind(), other.kind()) {
+            (BinaryOp(e_bop, e_e1, e_e2), BinaryOp(o_bop, o_e1, o_e2)) if e_bop == o_bop => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1), (e_e2, o_e2)])
+            }
+            (UnaryOp(e_uop, e_e1), UnaryOp(o_uop, o_e1)) if e_uop == o_uop => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1)])
+            }
+            // (FieldProj(e_e1, e_proj), FieldProj(o_e1, o_proj)) if e_proj == o_proj => {
+            //     try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1)])
+            // }
+            (Ctor(e_ctor, es), Ctor(o_ctor, os)) if e_ctor == o_ctor => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, std::iter::zip(es, os))
+            }
+            (Tuple(es), Tuple(os)) => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, std::iter::zip(es, os))
+            }
+            (PathProj(e_e1, e_proj), PathProj(o_e1, o_proj)) if e_proj == o_proj => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1)])
+            }
+            (IfThenElse(e_e1, e_e2, e_e3), IfThenElse(o_e1, o_e2, o_e3)) => {
+                try_antiunify_subexprs(
+                    antiunifier_map,
+                    expr,
+                    other,
+                    [(e_e1, o_e1), (e_e2, o_e2), (e_e3, o_e3)],
+                )
+            }
+            (Alias(e_alias, es), Alias(o_alias, os)) if e_alias == o_alias => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, std::iter::zip(es, os))
+            }
+            (App(e_f, _esorts, es), App(o_f, _osorts, os)) => {
+                try_antiunify_subexprs(
+                    antiunifier_map,
+                    expr,
+                    other,
+                    [(e_f, o_f)].into_iter().chain(std::iter::zip(es, os)),
+                )
+            }
+            // Notable exceptions to things we try to antiunify:
+            // * Forall
+            // * Abs
+            // * BoundedQuant
+            // * Let
+            //
+            // Most of these are here because to reconcile them we would need to
+            // have another map that track binder equalities (in case of named
+            // binders).
+            //
+            // This is the fallthrough for terms that we can't further anti-unify
+            _ => record_antiunifier(antiunifier_map, expr, other),
+        }
+    }
+
+    let mut au_map = FxHashMap::default();
+
+    match antiunify_helper(expr, other, &mut au_map) {
+        ControlFlow::Break(()) => {
+            let mut trivial_map = FxHashMap::default();
+            trivial_map.insert(expr.clone(), other.clone());
+            trivial_map
+        }
+        ControlFlow::Continue(()) => au_map,
     }
 }

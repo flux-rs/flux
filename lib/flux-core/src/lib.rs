@@ -1,6 +1,7 @@
 #![no_std]
 #![cfg_attr(flux, feature(step_trait))]
 #![cfg_attr(flux, feature(sized_hierarchy))]
+#![cfg_attr(flux, flux::no_suggestions)]
 
 mod iter;
 mod ops;

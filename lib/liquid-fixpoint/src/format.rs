@@ -1,7 +1,9 @@
 use std::fmt::{self, Write};
+use std::str::FromStr;
 
 use itertools::Itertools;
 
+use crate::constraint::WKVar;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
@@ -336,6 +338,9 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::BoundVar(BoundVar { level, idx }) => {
                 write!(f, "bv{level}_{idx}")
             }
+            Expr::WKVar(WKVar { wkvid, args }) => {
+                write!(f, "({} {})", wkvid.display(), args.iter().format(" "))
+            }
         }
     }
 }
@@ -403,6 +408,20 @@ impl fmt::Display for BinOp {
     }
 }
 
+impl FromStr for BinOp {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "+" => Ok(BinOp::Add),
+            "-" => Ok(BinOp::Sub),
+            "*" => Ok(BinOp::Mul),
+            "/" | "div" => Ok(BinOp::Div),
+            "mod" => Ok(BinOp::Mod),
+            _ => Err(format!("Unexpected BinOp {}", s)),
+        }
+    }
+}
+
 impl fmt::Display for BinRel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -412,6 +431,21 @@ impl fmt::Display for BinRel {
             BinRel::Ge => write!(f, ">="),
             BinRel::Lt => write!(f, "<"),
             BinRel::Le => write!(f, "<="),
+        }
+    }
+}
+
+impl FromStr for BinRel {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "=" =>  Ok(BinRel::Eq),
+            "!=" => Ok(BinRel::Ne),
+            ">" =>  Ok(BinRel::Gt),
+            ">=" => Ok(BinRel::Ge),
+            "<" =>  Ok(BinRel::Lt),
+            "<=" => Ok(BinRel::Le),
+            _ => Err(format!("Unexpected BinRel {}", s)),
         }
     }
 }

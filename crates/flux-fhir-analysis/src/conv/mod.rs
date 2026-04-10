@@ -22,7 +22,7 @@ use flux_middle::{
     THEORY_FUNCS,
     def_id::{FluxDefId, MaybeExternId},
     fhir::{self, FhirId, FluxOwnerId, QPathExpr},
-    global_env::GlobalEnv,
+    global_env::{GlobalEnv, WeakKvarInfo, WeakKvarMap},
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
@@ -659,9 +659,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &mut self,
         fn_id: MaybeExternId,
         fn_sig: &fhir::FnSig,
-    ) -> QueryResult<rty::PolyFnSig> {
+    ) -> QueryResult<(rty::PolyFnSig, WeakKvarMap)> {
         let decl = &fn_sig.decl;
         let header = fn_sig.header;
+
+        let mut weak_kvars = WeakKvarMap::default();
+        for wk in fn_sig.weak_kvars {
+            weak_kvars.insert(wk.num, self.conv_weak_kvar(wk)?);
+        }
 
         let late_bound_regions =
             refining::refine_bound_variables(&self.genv().lower_late_bound_vars(fn_id.local_id())?);
@@ -679,7 +684,22 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .cloned()
             .collect();
 
-        Ok(rty::PolyFnSig::bind_with_vars(fn_sig, vars))
+        Ok((rty::PolyFnSig::bind_with_vars(fn_sig, vars), weak_kvars))
+    }
+
+    fn conv_weak_kvar(&mut self, wk: &fhir::WeakKvar) -> QueryResult<WeakKvarInfo> {
+        let mut solutions = vec![];
+        for solution in wk.solutions {
+            let mut env = Env::new(&[]);
+            env.push_layer(Layer::list(self.results(), 0, wk.params));
+            let e = self.conv_expr(&mut env, solution)?;
+            let vars = env.pop_layer().into_bound_vars(self.genv())?;
+            solutions.push(rty::Binder::bind_with_vars(e, vars));
+        }
+        Ok(WeakKvarInfo {
+            solutions,
+            sorts: wk.params.iter().map(|param| self.results().param_sort(param.id)).collect(),
+        })
     }
 
     pub(crate) fn conv_generic_predicates(
@@ -2227,6 +2247,35 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 };
                 let assns = self.conv_constructor_exprs(def_id, env, exprs, &spread)?;
                 rty::Expr::ctor_struct(def_id, assns)
+            }
+            fhir::ExprKind::WeakKvar(num, fhir_self_args, fhir_args) => {
+                let mut params = vec![];
+                let mut args = vec![];
+                for fhir_arg in fhir_args {
+                    let arg = match fhir_arg {
+                        QPathExpr::Resolved(path, _) => self.conv_path_expr(env, *path)?,
+                        QPathExpr::TypeRelative(qself, assoc) => {
+                            let qself = self.conv_ty(env, qself)?;
+                            self.conv_type_relative_const_path(expr, &qself, *assoc)?
+                        }
+                    };
+                    let rty::ExprKind::Var(var) = *arg.kind() else {
+                        return Err(query_bug!(
+                            "arguments to weak kvars must resolve to parameters"
+                        ));
+                    };
+                    params.push(var);
+                    args.push(arg);
+                }
+                let Some(owner_id) = self.owner().def_id() else {
+                    return Err(query_bug!("weak kvars can only be used inside rust items"));
+                };
+                let wk = rty::WKVar {
+                    wkvid: (owner_id.to_def_id(), rty::KVid::from_u32(num)),
+                    self_args: fhir_self_args,
+                    args: List::from_vec(args),
+                };
+                rty::Expr::wkvar(wk)
             }
             fhir::ExprKind::Err(err) => Err(QueryErr::Emitted(err))?,
         };

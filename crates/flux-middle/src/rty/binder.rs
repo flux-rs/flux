@@ -12,9 +12,10 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{BoundRegionKind, TyCtxt};
 use rustc_span::Symbol;
+use rustc_type_ir::DebruijnIndex;
 
 use super::{
-    Expr, GenericArg, InferMode, RefineParam, Sort,
+    BoundReft, Expr, GenericArg, InferMode, RefineParam, Sort,
     fold::TypeFoldable,
     subst::{self, BoundVarReplacer, FnMutDelegate},
 };
@@ -119,8 +120,13 @@ impl<T> Binder<T> {
         self.value
     }
 
+    // NOTE: if we use .as_ref() there is an unnecessary clone done
     pub fn skip_binder_ref(&self) -> &T {
-        self.as_ref().skip_binder()
+        &self.value
+    }
+
+    pub fn skip_binder_ref_mut(&mut self) -> &mut T {
+        &mut self.value
     }
 
     pub fn rebind<U>(&self, value: U) -> Binder<U> {
@@ -167,17 +173,17 @@ where
     pub fn replace_bound_vars(
         &self,
         mut replace_region: impl FnMut(BoundRegion) -> Region,
-        mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
+        mut replace_expr: impl FnMut(DebruijnIndex, BoundReft, &Sort, InferMode) -> Expr,
     ) -> T {
         let mut exprs = UnordMap::default();
         let mut regions = UnordMap::default();
         let delegate = FnMutDelegate::new(
-            |breft| {
+            |idx, breft| {
                 exprs
                     .entry(breft.var)
                     .or_insert_with(|| {
                         let (sort, mode, _) = self.vars[breft.var.as_usize()].expect_refine();
-                        replace_expr(sort, mode)
+                        replace_expr(idx, breft, sort, mode)
                     })
                     .clone()
             },
@@ -189,7 +195,7 @@ where
 
     pub fn replace_bound_refts(&self, exprs: &[Expr]) -> T {
         let delegate = FnMutDelegate::new(
-            |breft| exprs[breft.var.as_usize()].clone(),
+            |_, breft| exprs[breft.var.as_usize()].clone(),
             |br| tracked_span_bug!("unexpected escaping region {br:?}"),
         );
         self.value.fold_with(&mut BoundVarReplacer::new(delegate))

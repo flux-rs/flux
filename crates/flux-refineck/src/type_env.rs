@@ -10,7 +10,7 @@ use flux_common::{
 use flux_infer::{
     fixpoint_encoding::KVarEncoding,
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, InferResult},
-    refine_tree::Scope,
+    refine_tree::{AssumptionType, BinderOriginator, BinderProvenance, Scope},
 };
 use flux_macros::DebugAsJson;
 use flux_middle::{
@@ -70,11 +70,17 @@ impl<'a> TypeEnv<'a> {
         let mut env = TypeEnv { bindings: PlacesTree::default(), local_decls: &body.local_decls };
 
         for requires in fn_sig.requires() {
-            infcx.assume_pred(requires);
+            infcx.assume_pred(requires, AssumptionType::Assumption);
         }
 
         for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
-            let ty = infcx.unpack(ty);
+            let local_decl = &body.local_decls[local];
+            let local_name = body.local_names.get(&local);
+            let ty = infcx.unpack(
+                ty,
+                BinderProvenance::new(BinderOriginator::FnArg(local_name.copied()))
+                    .with_span(local_decl.source_info.span),
+            );
             infcx.assume_invariants(&ty);
             env.alloc_with_ty(local, ty);
         }
@@ -279,7 +285,8 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn unpack(&mut self, infcx: &mut InferCtxt) {
-        self.bindings.fmap_mut(|ty| infcx.hoister(true).hoist(ty));
+        self.bindings
+            .fmap_mut(|ty| infcx.hoister(true, None).hoist(ty));
     }
 
     pub(crate) fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place) {
@@ -322,9 +329,11 @@ impl<'a> TypeEnv<'a> {
         &mut self,
         infcx: &mut InferCtxt,
         bound: &Ty,
+        span: Span,
     ) -> InferResult<Loc> {
         let loc = Loc::from(infcx.define_var(&Sort::Loc));
-        let ty = infcx.unpack(bound);
+        let ty =
+            infcx.unpack(bound, BinderProvenance::new(BinderOriginator::UnfoldPtr).with_span(span));
         self.bindings
             .insert(loc, LocKind::LocalPtr(bound.clone()), ty);
         Ok(loc)
@@ -341,7 +350,8 @@ impl<'a> TypeEnv<'a> {
         ty: &Ty,
     ) -> InferResult<Loc> {
         if let Some(loc) = path.to_loc() {
-            let ty = infcx.unpack(ty);
+            // TODO(ck): Add span info
+            let ty = infcx.unpack(ty, BinderProvenance::new(BinderOriginator::UnfoldStrgRef));
             self.bindings.insert(loc, LocKind::Universal, ty);
             Ok(loc)
         } else {
@@ -386,11 +396,14 @@ impl<'a> TypeEnv<'a> {
         for ensure in ensures {
             match ensure {
                 Ensures::Type(path, updated_ty) => {
-                    let updated_ty = infcx.unpack(updated_ty);
+                    let updated_ty = infcx.unpack(
+                        updated_ty,
+                        BinderProvenance::new(BinderOriginator::AssumeEnsures).with_span(span),
+                    );
                     infcx.assume_invariants(&updated_ty);
                     self.update_path(path, updated_ty, span);
                 }
-                Ensures::Pred(e) => infcx.assume_pred(e),
+                Ensures::Pred(e) => infcx.assume_pred(e, AssumptionType::Assumption),
             }
         }
     }
@@ -807,7 +820,7 @@ impl BasicBlockEnv {
             .data
             .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
         for constr in &data.constrs {
-            infcx.assume_pred(constr);
+            infcx.assume_pred(constr, AssumptionType::Assumption);
         }
         TypeEnv { bindings: data.bindings, local_decls }
     }

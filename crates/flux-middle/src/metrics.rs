@@ -1,8 +1,5 @@
 use std::{
-    fs,
-    io::{self, Write as _},
-    sync::{Mutex, atomic::AtomicU32},
-    time::{Duration, Instant},
+    collections::HashMap, fs, io::{self, Write as _}, sync::{Mutex, atomic::AtomicU32}, time::{Duration, Instant}
 };
 
 use flux_config as config;
@@ -100,6 +97,8 @@ pub enum TimingKind {
     CheckFn(LocalDefId),
     /// Time taken to run a single fixpoint query
     FixpointQuery(DefId, FixpointQueryKind),
+    /// Time taken to generate fixes for a query
+    RefinementHint(LocalDefId),
 }
 
 #[derive(Serialize)]
@@ -128,6 +127,41 @@ fn snd<A, B: Copy>(&(_, b): &(A, B)) -> B {
     b
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct FnTiming {
+    pub query: Duration,
+    pub reft_hint: Duration,
+    pub iters: usize,
+}
+
+pub fn refinement_hint_timings() -> (HashMap<DefId, FnTiming>, Duration) {
+    let mut total = Duration::from_secs(0);
+    let mut timings_by_fn: HashMap<_, FnTiming> = HashMap::default();
+    for timing in TIMINGS.lock().unwrap().iter() {
+        match timing.kind {
+            TimingKind::RefinementHint(fn_def_id) => {
+                let timings = timings_by_fn
+                    .entry(fn_def_id.to_def_id())
+                    .or_default();
+                timings.reft_hint += timing.duration;
+                timings.iters += 1;
+            }
+            TimingKind::FixpointQuery(def_id, _) => {
+                timings_by_fn
+                    .entry(def_id)
+                    .or_default()
+                    .query += timing.duration;
+            }
+            TimingKind::Total => {
+                // This should only appear once
+                total = timing.duration;
+            }
+            _ => {}
+        }
+    }
+    (timings_by_fn, total)
+}
+
 pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     if !config::timings() {
         return Ok(());
@@ -137,6 +171,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     let mut functions = vec![];
     let mut queries = vec![];
     let mut total = Duration::from_secs(0);
+    let mut total_reft_hint = Duration::from_secs(0);
     for timing in timings {
         match timing.kind {
             TimingKind::CheckFn(local_def_id) => {
@@ -151,6 +186,9 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
                 // This should only appear once
                 total = timing.duration;
             }
+            TimingKind::RefinementHint(_) => {
+                total_reft_hint += timing.duration;
+            }
         }
     }
     functions.sort_by_key(snd);
@@ -159,7 +197,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     queries.sort_by_key(snd);
     queries.reverse();
 
-    print_report(&functions, total);
+    print_report(&functions, total, total_reft_hint);
     dump_timings(
         tcx,
         TimingsDump {
@@ -176,11 +214,12 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     )
 }
 
-fn print_report(functions: &[(String, Duration)], total: Duration) {
+fn print_report(functions: &[(String, Duration)], total: Duration, total_reft_hint: Duration) {
     let stats = stats(&functions.iter().map(snd).collect_vec());
     eprintln!();
     eprintln!("───────────────────── Timing Report ────────────────────────");
     eprintln!("Total running time: {:>40}", fmt_duration(total));
+    eprintln!("Total wick time:    {:>40}", fmt_duration(total_reft_hint));
     eprintln!("Functions checked:  {:>40}", stats.count);
     eprintln!("Min:                {:>40}", fmt_duration(stats.min));
     eprintln!("Max:                {:>40}", fmt_duration(stats.max));

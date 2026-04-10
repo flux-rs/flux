@@ -3,7 +3,7 @@ use std::{clone::Clone, fmt, ops::ControlFlow};
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_infer::{
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
-    projections::NormalizeExt as _,
+    projections::NormalizeExt as _, refine_tree::AssumptionType,
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -92,7 +92,7 @@ impl LookupMode for Unfold<'_, '_, '_, '_> {
     type Error = InferErr;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.0.hoister(false).shallow().hoist(ty)
+        self.0.hoister(false, None).shallow().hoist(ty)
     }
 
     fn downcast_struct(
@@ -159,7 +159,7 @@ impl PlacesTree {
         cursor.reset();
         Updater::update(self, cursor, |_, ty| {
             let unblocked = ty.unblocked();
-            infcx.hoister(true).hoist(&unblocked)
+            infcx.hoister(true, None).hoist(&unblocked)
         });
     }
 
@@ -496,7 +496,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             Loc::Local(_) => LocKind::Local,
             Loc::Var(_) => LocKind::Universal,
         };
-        let ty = self.infcx.hoister(true).hoist(ty);
+        let ty = self.infcx.hoister(true, None).hoist(ty);
         self.insertions.push((loc, Binding { kind, ty }));
     }
 
@@ -579,13 +579,13 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     }
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.infcx.hoister(true).shallow().hoist(ty)
+        self.infcx.hoister(true, None).shallow().hoist(ty)
     }
 
     fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
         let ty = self
             .infcx
-            .hoister(false)
+            .hoister(false, None)
             .hoist_existentials(self.in_ref != Some(Mutability::Mut))
             .hoist(ty);
         self.infcx.assume_invariants(&ty);
@@ -844,7 +844,7 @@ fn downcast_enum(
         .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)))
         .deeply_normalize(&mut infcx.at(span))?;
 
-    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));
+    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx), AssumptionType::Assumption);
 
     Ok(variant_sig.fields.to_vec())
 }

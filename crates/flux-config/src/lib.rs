@@ -118,6 +118,18 @@ pub fn full_compilation() -> bool {
     FLAGS.full_compilation
 }
 
+pub fn save_user_interactions() -> bool {
+    FLAGS.save_user_interactions
+}
+
+pub fn user_interactions_file() -> Option<&'static PathBuf> {
+    FLAGS.user_interactions_file.as_ref()
+}
+
+pub fn no_suggestions_default() -> bool {
+    FLAGS.no_suggestions_default
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Pos {
@@ -254,6 +266,10 @@ impl fmt::Display for OverflowMode {
             OverflowMode::StrictUnder => write!(f, "strict-under"),
         }
     }
+}
+
+pub fn debug_binder_output() -> bool {
+    FLAGS.debug_binder_output
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Default)]

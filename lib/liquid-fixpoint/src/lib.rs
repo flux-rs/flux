@@ -9,6 +9,8 @@ extern crate rustc_macros;
 extern crate rustc_serialize;
 #[cfg(feature = "nightly")]
 extern crate rustc_span;
+#[cfg(feature = "nightly")]
+extern crate rustc_data_structures;
 
 mod constraint;
 #[cfg(feature = "rust-fixpoint")]
@@ -16,16 +18,16 @@ mod constraint_fragments;
 #[cfg(feature = "rust-fixpoint")]
 mod constraint_solving;
 mod constraint_with_env;
-#[cfg(feature = "rust-fixpoint")]
+// #[cfg(feature = "rust-fixpoint")]
 mod cstr2smt2;
 mod format;
-#[cfg(feature = "rust-fixpoint")]
+// #[cfg(feature = "rust-fixpoint")]
 mod graph;
 pub mod parser;
 pub mod sexp;
 
 use std::{
-    collections::{HashMap, hash_map::DefaultHasher},
+    collections::{HashMap, HashSet, hash_map::DefaultHasher},
     fmt::{self, Debug},
     hash::{Hash, Hasher},
     io,
@@ -38,9 +40,11 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
-    Qualifier, Sort, SortCtor, SortDecl,
+    BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField,
+    Expr, FlatConstraint, Pred, Qualifier, Sort, SortCtor, SortDecl, WKVar,
 };
+use constraint_with_env::{topo_sort_data_declarations, ConstraintWithEnv};
+use cstr2smt2::Z3DecodeError;
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
@@ -56,7 +60,7 @@ pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
     type KVar: Identifier + Hash + Clone + Debug + Eq;
     type Var: Identifier + Hash + Clone + Debug + Eq;
-    type String: FixpointFmt + Hash + Clone + Debug;
+    type String: FixpointFmt + Hash + Clone + Debug + Eq;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
 }
 
@@ -121,6 +125,7 @@ macro_rules! declare_types {
             pub type Expr = $crate::Expr<FixpointTypes>;
             pub type Pred = $crate::Pred<FixpointTypes>;
             pub type Constraint = $crate::Constraint<FixpointTypes>;
+            pub type FlatConstraint = $crate::FlatConstraint<FixpointTypes>;
             pub type KVarDecl = $crate::KVarDecl<FixpointTypes>;
             pub type ConstDecl = $crate::ConstDecl<FixpointTypes>;
             pub type FunDef = $crate::FunDef<FixpointTypes>;
@@ -134,7 +139,7 @@ macro_rules! declare_types {
             pub type DataField = $crate::DataField<FixpointTypes>;
             pub type Bind = $crate::Bind<FixpointTypes>;
             pub type Constant = $crate::Constant<FixpointTypes>;
-            pub use $crate::{BinOp, BinRel, BoundVar, ThyFunc};
+            pub use $crate::{BinOp, BinRel, BoundVar, ThyFunc, WKVar};
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {
@@ -146,6 +151,19 @@ macro_rules! declare_types {
         }
     };
 }
+
+pub fn qe_and_simplify<T: Types>(constraint: &FlatConstraint<T>, binder_consts: &Vec<ConstDecl<T>>, global_consts: &Vec<ConstDecl<T>>, datatype_decls: Vec<DataDecl<T>>) -> Result<Expr<T>, Z3DecodeError> {
+    // let mut consts = self.constants.clone();
+    // consts.extend(free_vars.clone());
+    let datatype_decls = topo_sort_data_declarations(datatype_decls);
+    cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
+}
+
+pub fn check_validity<T: Types>(constraint: &FlatConstraint<T>, binder_consts: &Vec<ConstDecl<T>>, global_consts: &Vec<ConstDecl<T>>, datatype_decls: Vec<DataDecl<T>>) -> bool {
+    let datatype_decls = topo_sort_data_declarations(datatype_decls);
+    cstr2smt2::check_validity(constraint, binder_consts, global_consts, &datatype_decls)
+}
+
 
 #[derive_where(Hash, Clone, Debug)]
 pub struct ConstDecl<T: Types> {
@@ -556,6 +574,56 @@ impl fmt::Display for ThyFunc {
             ThyFunc::MapDefault => write!(f, "Map_default"),
             ThyFunc::MapSelect => write!(f, "Map_select"),
             ThyFunc::MapStore => write!(f, "Map_store"),
+        }
+    }
+}
+
+impl FromStr for ThyFunc {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "strLen" => Ok(ThyFunc::StrLen),
+            "int_to_bv32" => Ok(ThyFunc::IntToBv32),
+            "bv32_to_int" => Ok(ThyFunc::Bv32ToInt),
+            "int_to_bv8" => Ok(ThyFunc::IntToBv8),
+            "bv8_to_int" => Ok(ThyFunc::Bv8ToInt),
+            "int_to_bv64" => Ok(ThyFunc::IntToBv64),
+            "bv64_to_int" => Ok(ThyFunc::Bv64ToInt),
+            "bvule" => Ok(ThyFunc::BvUle),
+            "bvsle" => Ok(ThyFunc::BvSle),
+            "bvuge" => Ok(ThyFunc::BvUge),
+            "bvsge" => Ok(ThyFunc::BvSge),
+            "bvudiv" => Ok(ThyFunc::BvUdiv),
+            "bvsdiv" => Ok(ThyFunc::BvSdiv),
+            "bvurem" => Ok(ThyFunc::BvUrem),
+            "bvsrem" => Ok(ThyFunc::BvSrem),
+            "bvlshr" => Ok(ThyFunc::BvLshr),
+            "bvashr" => Ok(ThyFunc::BvAshr),
+            "bvand" => Ok(ThyFunc::BvAnd),
+            "bvor" => Ok(ThyFunc::BvOr),
+            "bvxor" => Ok(ThyFunc::BvXor),
+            "bvnot" => Ok(ThyFunc::BvNot),
+            "bvadd" => Ok(ThyFunc::BvAdd),
+            "bvneg" => Ok(ThyFunc::BvNeg),
+            "bvsub" => Ok(ThyFunc::BvSub),
+            "bvmul" => Ok(ThyFunc::BvMul),
+            "bvshl" => Ok(ThyFunc::BvShl),
+            "bvugt" => Ok(ThyFunc::BvUgt),
+            "bvsgt" => Ok(ThyFunc::BvSgt),
+            "bvult" => Ok(ThyFunc::BvUlt),
+            "bvslt" => Ok(ThyFunc::BvSlt),
+            "Set_empty" => Ok(ThyFunc::SetEmpty),
+            "Set_sng" => Ok(ThyFunc::SetSng),
+            "Set_cup" => Ok(ThyFunc::SetCup),
+            "Set_mem" => Ok(ThyFunc::SetMem),
+            "Map_default" => Ok(ThyFunc::MapDefault),
+            "Map_select" => Ok(ThyFunc::MapSelect),
+            "Map_store" => Ok(ThyFunc::MapStore),
+            // TODO: (ck) Fix this?
+            // NOTE: (ck) There isn't a straightforward way to translate
+            // the name of a Z3 node to the BvZeroExtend and BvSignExtend,
+            // so this is a partial parse.
+            _ => Err(format!("Unexpected ThyFunc {}", s)),
         }
     }
 }

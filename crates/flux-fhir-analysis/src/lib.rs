@@ -593,11 +593,25 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             kind: ForeignItemKind::Fn(fhir_fn_sig, ..), ..
         }) => {
             let wfckresults = genv.check_wf(def_id.local_id())?;
-            let fn_sig = AfterSortck::new(genv, &wfckresults)
+            let (fn_sig, weak_kvars) = AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_fn_sig(def_id, fhir_fn_sig)?;
-            let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-            let fn_sig = fn_sig.hoist_input_binders();
+            let weak_kvars_empty = weak_kvars.is_empty();
+            genv.feed_weak_kvars(def_id.resolved_id(), weak_kvars);
+
+            let mut fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
+            if fn_sig.vars().is_empty() {
+                fn_sig = fn_sig.hoist_input_binders();
+            }
+            if weak_kvars_empty && !genv.no_suggestions(def_id.local_id()) {
+                // println!("adding wkvars for {:?}", def_id);
+                fn_sig = fn_sig.hoist_input_binders();
+                let id = match def_id {
+                    MaybeExternId::Extern(_local_id, def_id) => def_id,
+                    MaybeExternId::Local(local_id) => local_id.into(),
+                };
+                fn_sig = fn_sig.add_weak_kvars(genv, id)?;
+            }
 
             if config::dump_rty() {
                 let generics = genv.generics_of(def_id)?;
@@ -627,6 +641,8 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 }
                 _ => return Err(query_bug!("invalid `DefKind` for ctor node")),
             };
+            // NOTE: we don't add weak kvars to these functions because they are
+            // accessor functions automatically generated for tuple constructors
             genv.variant_sig(adt_id, variant_idx)?
                 .map(|sig| sig.to_poly_fn_sig(None))
                 .ok_or_query_err(adt_id)

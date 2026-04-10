@@ -1,7 +1,7 @@
 //! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in `rustc_type_ir::fold`.
 
-use std::ops::ControlFlow;
+use std::{collections::HashSet, ops::ControlFlow};
 
 use flux_arc_interner::{Internable, List};
 use flux_common::bug;
@@ -11,9 +11,9 @@ use rustc_hash::FxHashSet;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind,
-    GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort,
-    SubsetTy, Ty, TyKind, TyOrBase, normalize::Normalizer,
+    BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures,
+    Expr, ExprKind, GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased,
+    Region, Sort, SubsetTy, Ty, TyKind, TyOrBase, WKVid, normalize::Normalizer,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -235,6 +235,23 @@ pub trait TypeVisitable: Sized {
         }
 
         let mut collector = CollectEarlyParams(FxHashSet::default());
+        let _ = self.visit_with(&mut collector);
+        collector.0
+    }
+
+    fn wkvars(&self) -> HashSet<WKVid> {
+        struct CollectWKVids(HashSet<WKVid>);
+
+        impl TypeVisitor for CollectWKVids {
+            fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
+                if let ExprKind::WKVar(wkvar) = e.kind() {
+                    self.0.insert(wkvar.wkvid.clone());
+                }
+                e.super_visit_with(self)
+            }
+        }
+
+        let mut collector = CollectWKVids(HashSet::default());
         let _ = self.visit_with(&mut collector);
         collector.0
     }
@@ -555,6 +572,21 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         self.fold_with(&mut RegionEraser)
+    }
+
+    fn replace_free_vars(&self, f: &mut impl FnMut(Name) -> Option<Expr>) -> Self {
+        struct Folder<F>(F);
+        impl<F: FnMut(Name) -> Option<Expr>> TypeFolder for Folder<F> {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::Var(Var::Free(name)) = expr.kind() {
+                    if let Some(sol) = (self.0)(*name) { sol.clone() } else { expr.clone() }
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+
+        self.fold_with(&mut Folder(f))
     }
 }
 
@@ -1047,6 +1079,7 @@ impl TypeSuperVisitable for Expr {
                 e2.visit_with(visitor)
             }
             ExprKind::KVar(kvar) => kvar.visit_with(visitor),
+            ExprKind::WKVar(wkvar) => wkvar.visit_with(visitor),
             ExprKind::Alias(alias, args) => {
                 alias.visit_with(visitor)?;
                 args.visit_with(visitor)
@@ -1114,6 +1147,7 @@ impl TypeSuperFoldable for Expr {
             }
             ExprKind::Hole(kind) => Expr::hole(kind.try_fold_with(folder)?),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
+            ExprKind::WKVar(wkvar) => Expr::wkvar(wkvar.try_fold_with(folder)?),
             ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
             ExprKind::BoundedQuant(kind, rng, body) => {
                 Expr::bounded_quant(*kind, *rng, body.try_fold_with(folder)?)
@@ -1143,6 +1177,26 @@ where
     }
 }
 
+impl<T> TypeVisitable for FxHashSet<T>
+where
+    T: TypeVisitable + std::hash::Hash,
+{
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.iter().try_for_each(|t| t.visit_with(visitor))
+    }
+}
+
+impl<S, T> TypeVisitable for (S, T)
+where
+    S: TypeVisitable,
+    T: TypeVisitable,
+{
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.0.visit_with(visitor)?;
+        self.1.visit_with(visitor)
+    }
+}
+
 impl<T> TypeFoldable for List<T>
 where
     T: TypeFoldable,
@@ -1150,6 +1204,25 @@ where
 {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         self.iter().map(|t| t.try_fold_with(folder)).try_collect()
+    }
+}
+
+impl<T> TypeFoldable for FxHashSet<T>
+where
+    T: TypeFoldable + std::hash::Hash + std::cmp::Eq,
+{
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        self.iter().map(|t| t.try_fold_with(folder)).try_collect()
+    }
+}
+
+impl<S, T> TypeFoldable for (S, T)
+where
+    S: TypeFoldable,
+    T: TypeFoldable,
+{
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok((self.0.try_fold_with(folder)?, self.1.try_fold_with(folder)?))
     }
 }
 

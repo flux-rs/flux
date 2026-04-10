@@ -52,6 +52,79 @@ impl BigInt {
     pub fn uint_max(bit_width: u32) -> BigInt {
         (u128::MAX >> (128 - bit_width)).into()
     }
+
+    pub fn neg(&self) -> Self {
+        if self.val == 0 {
+            Self::ZERO // Avoid negative zero
+        } else {
+            Self {
+                sign: match self.sign {
+                    Sign::Negative => Sign::NonNegative,
+                    Sign::NonNegative => Sign::Negative,
+                },
+                val: self.val,
+            }
+        }
+    }
+
+    pub fn checked_add(&self, other: &Self) -> Option<Self> {
+        if self.sign == other.sign {
+            Some(Self {
+                sign: self.sign,
+                val: self.val.checked_add(other.val)?,
+            })
+        } else {
+            if self.val >= other.val {
+                let val = self.val - other.val;
+                if val == 0 {
+                    Some(Self::ZERO)
+                } else {
+                    Some(Self { sign: self.sign, val })
+                }
+            } else {
+                Some(Self {
+                    sign: other.sign,
+                    val: other.val - self.val,
+                })
+            }
+        }
+    }
+
+    pub fn checked_sub(&self, other: &Self) -> Option<Self> {
+        self.checked_add(&other.neg())
+    }
+
+    pub fn checked_mul(&self, other: &Self) -> Option<Self> {
+        let val = self.val.checked_mul(other.val)?;
+        if val == 0 {
+            Some(Self::ZERO)
+        } else {
+            let sign = if self.sign == other.sign { Sign::NonNegative } else { Sign::Negative };
+            Some(Self { sign, val })
+        }
+    }
+
+    pub fn checked_div(&self, other: &Self) -> Option<Self> {
+        if other.val == 0 { return None; } // Divide by zero
+        let val = self.val / other.val;
+        if val == 0 {
+            Some(Self::ZERO)
+        } else {
+            let sign = if self.sign == other.sign { Sign::NonNegative } else { Sign::Negative };
+            Some(Self { sign, val })
+        }
+    }
+
+    pub fn checked_rem(&self, other: &Self) -> Option<Self> {
+        if other.val == 0 { return None; } // Divide by zero
+        let val = self.val % other.val;
+        if val == 0 {
+            Some(Self::ZERO)
+        } else {
+            // In Rust modulo, the remainder takes the sign of the dividend (self)
+            Some(Self { sign: self.sign, val })
+        }
+    }
 }
 
 impl From<usize> for BigInt {

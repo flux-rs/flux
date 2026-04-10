@@ -64,6 +64,19 @@ pub struct Flags {
     pub emit_lean_defs: bool,
     /// If `true`, every function is implicitly labeled with a `no_panic` by default.
     pub no_panic: bool,
+    /// Output debug information about the binders in each failing constraint. The intent
+    /// is for this to only be used by automated tools for evaluating error message quality.
+    /// When enabled, it suppresses the regular error notes about failing constraints and
+    /// related binders.
+    pub debug_binder_output: bool,
+    /// Save the user inputs given for this run in a file named "{crate}-{timestamp}.userinputs"
+    pub save_user_interactions: bool,
+    /// Read the user inputs given for this run from the given file (instead from stdin).
+    pub user_interactions_file: Option<PathBuf>,
+    /// If `true`, all code will have suggestions disabled. This is manifest by
+    /// no weak kvars being added to any signature. If you explicitly add a weak
+    /// kvar, it will still have suggestions given.
+    pub no_suggestions_default: bool,
 }
 
 impl Default for Flags {
@@ -92,6 +105,10 @@ impl Default for Flags {
             ignore_default: false,
             emit_lean_defs: false,
             no_panic: false,
+            debug_binder_output: false,
+            save_user_interactions: false,
+            user_interactions_file: None,
+            no_suggestions_default: false,
         }
     }
 }
@@ -126,10 +143,14 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "ignore" => parse_bool(&mut flags.ignore_default, value),
             "emit_lean_defs" => parse_bool(&mut flags.emit_lean_defs, value),
             "no-panic" => parse_bool(&mut flags.no_panic, value),
+            "debug-binder-output" => parse_bool(&mut flags.debug_binder_output, value),
+            "save-user-interactions" => parse_bool(&mut flags.save_user_interactions, value),
+            "user-interactions-file" => parse_opt_path_buf(&mut flags.user_interactions_file, value),
+            "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
             _ => {
-                eprintln!("error: unknown flux option: `{key}`");
-                process::exit(EXIT_FAILURE);
-            }
+        eprintln!("error: unknown flux option: `{key}`");
+        process::exit(EXIT_FAILURE);
+        }
         };
         if let Err(reason) = result {
             eprintln!("error: incorrect value for flux option `{key}` - `{reason}`");

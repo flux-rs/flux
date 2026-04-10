@@ -7,7 +7,7 @@ use super::{
     StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef,
     VariantRet, WhereBoundPredicate,
 };
-use crate::fhir::{PrimOpProp, QPathExpr, SortDecl, StructKind};
+use crate::fhir::{PrimOpProp, QPathExpr, SortDecl, StructKind, WeakKvar};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -122,6 +122,10 @@ pub trait Visitor<'v>: Sized {
         walk_fn_sig(self, sig);
     }
 
+    fn visit_weak_kvar(&mut self, wk: &WeakKvar<'v>) {
+        walk_weak_kvar(self, wk);
+    }
+
     fn visit_fn_decl(&mut self, decl: &FnDecl<'v>) {
         walk_fn_decl(self, decl);
     }
@@ -203,6 +207,8 @@ pub trait Visitor<'v>: Sized {
     fn visit_literal(&mut self, _lit: &Lit) {}
 
     fn visit_path_expr(&mut self, _path: &PathExpr<'v>) {}
+
+    fn declare_weak_kvar(&mut self, _wk: &WeakKvar<'v>) {}
 }
 
 fn walk_sort_decl<'v, V: Visitor<'v>>(_vis: &mut V, _sort_decl: &SortDecl) {}
@@ -309,6 +315,11 @@ pub fn walk_node<'v, V: Visitor<'v>>(vis: &mut V, node: &OwnerNode<'v>) {
 }
 
 pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
+    if let ItemKind::Fn(fn_sig) = &item.kind {
+        for wk in fn_sig.weak_kvars {
+            vis.declare_weak_kvar(wk);
+        }
+    }
     vis.visit_generics(&item.generics);
     match &item.kind {
         ItemKind::Enum(enum_def) => vis.visit_enum_def(enum_def),
@@ -328,6 +339,11 @@ pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
 }
 
 pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, trait_item: &TraitItem<'v>) {
+    if let TraitItemKind::Fn(fn_sig) = &trait_item.kind {
+        for wk in fn_sig.weak_kvars {
+            vis.declare_weak_kvar(wk);
+        }
+    }
     vis.visit_generics(&trait_item.generics);
     match &trait_item.kind {
         TraitItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
@@ -337,6 +353,11 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, trait_item: &TraitItem<'
 }
 
 pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>) {
+    if let ImplItemKind::Fn(fn_sig) = &impl_item.kind {
+        for wk in fn_sig.weak_kvars {
+            vis.declare_weak_kvar(wk);
+        }
+    }
     vis.visit_generics(&impl_item.generics);
     match &impl_item.kind {
         ImplItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
@@ -348,6 +369,9 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>)
 pub fn walk_foreign_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ForeignItem<'v>) {
     match &impl_item.kind {
         ForeignItemKind::Fn(fn_sig, generics) => {
+            for wk in fn_sig.weak_kvars {
+                vis.declare_weak_kvar(wk);
+            }
             vis.visit_generics(generics);
             vis.visit_fn_sig(fn_sig);
         }
@@ -382,6 +406,12 @@ pub fn walk_where_predicate<'v, V: Visitor<'v>>(vis: &mut V, predicate: &WhereBo
 
 pub fn walk_fn_sig<'v, V: Visitor<'v>>(vis: &mut V, sig: &FnSig<'v>) {
     vis.visit_fn_decl(sig.decl);
+    walk_list!(vis, visit_weak_kvar, sig.weak_kvars);
+}
+
+pub fn walk_weak_kvar<'v, V: Visitor<'v>>(vis: &mut V, wk: &WeakKvar<'v>) {
+    walk_list!(vis, visit_refine_param, wk.params);
+    walk_list!(vis, visit_expr, wk.solutions);
 }
 
 pub fn walk_fn_decl<'v, V: Visitor<'v>>(vis: &mut V, decl: &FnDecl<'v>) {
@@ -606,6 +636,11 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
                 vis.visit_refine_param(&decl.param);
             }
             vis.visit_expr(body);
+        }
+        ExprKind::WeakKvar(_, _, args) => {
+            for arg in args {
+                walk_qpath_expr(vis, *arg);
+            }
         }
         ExprKind::Err(_) => {}
     }

@@ -31,7 +31,7 @@ use rustc_type_ir::TypeVisitableExt;
 use crate::{
     fixpoint_encoding::KVarEncoding,
     infer::{InferCtxtAt, InferResult},
-    refine_tree::Scope,
+    refine_tree::{BinderOriginator, BinderProvenance, Scope},
 };
 
 pub trait NormalizeExt: TypeFoldable {
@@ -242,20 +242,29 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         actual: Binder<ProjectionPredicate>,
         oblig: &AliasTy,
     ) -> InferResult<SubsetTyCtor> {
+        let span = self.infcx.span;
+
         // Step 1: bs <- unpack(b1...)
         let obligs: Vec<_> = oblig
             .args
             .iter()
             .map(|arg| {
                 match arg {
-                    GenericArg::Ty(ty) => GenericArg::Ty(self.infcx.unpack(ty)),
-                    GenericArg::Base(ctor) => GenericArg::Ty(self.infcx.unpack(&ctor.to_ty())),
+                    GenericArg::Ty(ty) => {
+                        let bp =
+                            BinderProvenance::new(BinderOriginator::SubtypeProjTy).with_span(span);
+                        GenericArg::Ty(self.infcx.unpack(ty, bp))
+                    }
+                    GenericArg::Base(ctor) => {
+                        let bp = BinderProvenance::new(BinderOriginator::SubtypeProjBase)
+                            .with_span(span);
+                        GenericArg::Ty(self.infcx.unpack(&ctor.to_ty(), bp))
+                    }
                     _ => arg.clone(),
                 }
             })
             .collect();
 
-        let span = self.infcx.span;
         let mut infcx = self.infcx.at(span);
 
         let actual = infcx.ensure_resolved_evars(|infcx| {
@@ -263,7 +272,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             let actual = actual
                 .replace_bound_vars(
                     |_| rty::ReErased,
-                    |sort, mode| infcx.fresh_infer_var(sort, mode),
+                    |_, _, sort, mode| infcx.fresh_infer_var(sort, mode),
                 )
                 .deeply_normalize(infcx)?;
 

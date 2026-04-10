@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    collections::{HashMap, HashSet},
     ops::ControlFlow,
     rc::{Rc, Weak},
 };
@@ -12,21 +13,28 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
-        fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
+        self, BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
+        fold::{
+            FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable,
+            TypeVisitor,
+        },
     },
 };
 use itertools::Itertools;
-use rustc_data_structures::snapshot_map::SnapshotMap;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_data_structures::{
+    fx::{FxHashMap, FxHashSet},
+    snapshot_map::SnapshotMap,
+};
+use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::{Span, Symbol};
 use serde::Serialize;
 
 use crate::{
     evars::EVarStore,
     fixpoint_encoding::{FixpointCtxt, fixpoint},
-    infer::{Tag, TypeTrace},
+    infer::{ConstrReason, Tag, TypeTrace},
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
@@ -46,6 +54,7 @@ use crate::{
 ///
 /// [`UnsafeCell`]: std::cell::UnsafeCell
 /// [`GhostCell`]: https://docs.rs/ghost-cell/0.2.3/ghost_cell/ghost_cell/struct.GhostCell.html
+#[derive(Clone)]
 pub struct RefineTree {
     root: NodePtr,
 }
@@ -66,6 +75,34 @@ impl RefineTree {
         self.root.borrow_mut().simplify_top();
     }
 
+    pub(crate) fn fold_with(&self, folder: &mut impl TypeFolder) -> Self {
+        let new_root = self.root.borrow().fold_with(folder);
+        RefineTree { root: NodePtr(Rc::new(RefCell::new(new_root))) }
+    }
+
+    /// Returns wkvars appearing in (assumptive position, head position)
+    pub(crate) fn wkvars(&self) -> (HashSet<rty::WKVid>, HashSet<rty::WKVid>) {
+        let mut lhs_wkvars = HashSet::default();
+        let mut rhs_wkvars = HashSet::default();
+        self.root.borrow().visit_expr(
+            &mut |assumed| {
+                assumed.flatten_conjs().into_iter().for_each(|conj| {
+                    if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
+                        lhs_wkvars.insert(wkvar.wkvid);
+                    }
+                })
+            },
+            &mut |head| {
+                head.flatten_conjs().into_iter().for_each(|conj| {
+                    if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
+                        rhs_wkvars.insert(wkvar.wkvid);
+                    }
+                })
+            },
+        );
+        (lhs_wkvars, rhs_wkvars)
+    }
+
     pub(crate) fn into_fixpoint(
         self,
         cx: &mut FixpointCtxt<Tag>,
@@ -73,7 +110,7 @@ impl RefineTree {
         Ok(self
             .root
             .borrow()
-            .to_fixpoint(cx)?
+            .to_fixpoint(cx, BlameAnalysis::new(), 0)?
             .unwrap_or(fixpoint::Constraint::TRUE))
     }
 
@@ -82,7 +119,11 @@ impl RefineTree {
     }
 
     pub(crate) fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
-        self.root.borrow_mut().replace_evars(evars)
+        self.root.borrow_mut().replace_evars_ref_tree(evars)
+    }
+
+    pub(crate) fn num_nontrivial_head_cstrs(&self) -> usize {
+        self.root.borrow().num_nontrivial_head_cstrs()
     }
 }
 
@@ -132,19 +173,25 @@ impl Cursor<'_> {
 
     /// Defines a fresh refinement variable with the given `sort` and advance the cursor to the new
     /// node. It returns the freshly generated name for the variable.
-    pub(crate) fn define_var(&mut self, sort: &Sort) -> Name {
+    pub(crate) fn define_var(
+        &mut self,
+        sort: &Sort,
+        binder_provenance: Option<BinderProvenance>,
+    ) -> Name {
         let fresh = Name::from_usize(self.ptr.next_name_idx());
-        self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
+        self.ptr = self
+            .ptr
+            .push_node(NodeKind::ForAll(fresh, sort.clone(), binder_provenance));
         fresh
     }
 
     /// Pushes an [assumption] and moves the cursor into the new node.
     ///
     /// [assumption]: NodeKind::Assumption
-    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {
+    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>, assumption_type: AssumptionType) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
-            self.ptr = self.ptr.push_node(NodeKind::Assumption(pred));
+            self.ptr = self.ptr.push_node(NodeKind::Assumption(pred, assumption_type));
         }
     }
 
@@ -161,7 +208,7 @@ impl Cursor<'_> {
     /// This method does not advance the cursor.
     pub(crate) fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
         self.ptr
-            .push_node(NodeKind::Assumption(pred1.into()))
+            .push_node(NodeKind::Assumption(pred1.into(), AssumptionType::Assumption))
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
@@ -192,7 +239,7 @@ impl Cursor<'_> {
                 {
                     for invariant in bty.invariants(self.tcx, self.overflow_mode) {
                         let invariant = invariant.apply(idx);
-                        self.cursor.assume_pred(&invariant);
+                        self.cursor.assume_pred(&invariant, AssumptionType::Invariant);
                     }
                 }
                 ty.super_visit_with(self)
@@ -318,7 +365,7 @@ impl NodePtr {
                         params = Some(p.clone());
                         None
                     }
-                    NodeKind::ForAll(_, sort) => Some(sort.clone()),
+                    NodeKind::ForAll(_, sort, _) => Some(sort.clone()),
                     _ => None,
                 }
             })
@@ -338,15 +385,27 @@ impl WeakNodePtr {
     }
 }
 
+#[derive(Clone)]
 enum NodeKind {
     /// List of const and refinement generics
     Root(Vec<(Var, Sort)>),
-    ForAll(Name, Sort),
-    Assumption(Expr),
+    ForAll(Name, Sort, Option<BinderProvenance>),
+    Assumption(Expr, AssumptionType),
     Head(Expr, Tag),
     True,
     /// Used for debugging. See [`TypeTrace`]
     Trace(TypeTrace),
+}
+
+#[derive(Clone, Debug)]
+pub enum AssumptionType {
+    /// Right now we only distinguish between "normal" assumptions (this case)
+    /// and invariants
+    ///
+    /// TODO: add constr, ensures, requires...
+    Assumption,
+    /// Comes from an invariant
+    Invariant,
 }
 
 impl std::ops::Index<Name> for Scope {
@@ -372,6 +431,56 @@ enum SimplifyPhase<'genv, 'tcx> {
     /// Only propagate `true` (TOP) and `false` (BOT)
     Partial,
 }
+type BinderDepth = usize;
+pub type BinderDeps = HashMap<Name, (Option<BinderProvenance>, BinderDepth, HashSet<Name>)>;
+
+#[derive(Clone, Debug)]
+pub struct BlameAnalysis {
+    pub binder_deps: BinderDeps,
+    pub wkvars: Vec<rty::WKVar>,
+    pub assumed_preds: FxHashSet<rty::Expr>,
+}
+impl BlameAnalysis {
+    fn new() -> Self {
+        Self {
+            binder_deps: HashMap::new(),
+            wkvars: Vec::new(),
+            assumed_preds: FxHashSet::default(),
+        }
+    }
+}
+
+impl TypeVisitable for Node {
+    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        unimplemented!()
+    }
+}
+
+impl TypeFoldable for Node {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let children = &self
+            .children
+            .iter()
+            .map(|child| {
+                let new_child: Node = child.borrow().try_fold_with(folder)?;
+                Ok(NodePtr(Rc::new(RefCell::new(new_child))))
+            })
+            .collect::<Result<Vec<NodePtr>, F::Error>>()?;
+        let kind = match &self.kind {
+            NodeKind::Assumption(pred, assumption_type) => NodeKind::Assumption(pred.try_fold_with(folder)?, assumption_type.clone()),
+            NodeKind::Head(pred, tag) => NodeKind::Head(pred.try_fold_with(folder)?, *tag),
+            NodeKind::Trace(trace) => NodeKind::Trace(trace.try_fold_with(folder)?),
+            NodeKind::Root(_) | NodeKind::ForAll(..) | NodeKind::True => self.kind.clone(),
+        };
+        Ok(Self {
+            nbindings: self.nbindings,
+            children: children.to_vec(),
+            kind,
+            // NOTE: zeroes out the parent
+            parent: None,
+        })
+    }
+}
 
 impl Node {
     fn simplify(&mut self, phase: SimplifyPhase, assumed_preds: &mut SnapshotMap<Expr, ()>) {
@@ -388,9 +497,9 @@ impl Node {
                     self.kind = NodeKind::Head(pred, *tag);
                 }
             }
-            NodeKind::Assumption(pred) => {
+            NodeKind::Assumption(pred, _assumption_type) => {
                 if let SimplifyPhase::Full(genv) = phase {
-                    *pred = pred.normalize(genv).simplify(assumed_preds);
+                        *pred = pred.normalize(genv).simplify(assumed_preds);
                 }
                 pred.visit_conj(|conjunct| {
                     assumed_preds.insert(conjunct.erase_spans(), ());
@@ -399,7 +508,7 @@ impl Node {
             _ => {}
         }
         let is_false_asm =
-            matches!(&self.kind, NodeKind::Assumption(pred) if pred.is_trivially_false());
+            matches!(&self.kind, NodeKind::Assumption(pred, _) if pred.is_trivially_false());
 
         // Then simplify the children
         // (the order matters here because we need to collect assumed preds first)
@@ -412,7 +521,7 @@ impl Node {
         // Then remove any unnecessary children
         match &mut self.kind {
             NodeKind::Head(..) | NodeKind::True => {}
-            NodeKind::Assumption(_)
+            NodeKind::Assumption(_, _)
             | NodeKind::Trace(_)
             | NodeKind::Root(_)
             | NodeKind::ForAll(..) => {
@@ -432,12 +541,12 @@ impl Node {
         matches!(self.kind, NodeKind::Head(..) | NodeKind::True)
     }
 
-    fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
+    fn replace_evars_ref_tree(&mut self, evars: &EVarStore) -> Result<(), EVid> {
         for child in &self.children {
-            child.borrow_mut().replace_evars(evars)?;
+            child.borrow_mut().replace_evars_ref_tree(evars)?;
         }
         match &mut self.kind {
-            NodeKind::Assumption(pred) => *pred = evars.replace_evars(pred)?,
+            NodeKind::Assumption(pred, _assumption_type) => *pred = evars.replace_evars(pred)?,
             NodeKind::Head(pred, _) => {
                 *pred = evars.replace_evars(pred)?;
             }
@@ -449,14 +558,21 @@ impl Node {
         Ok(())
     }
 
-    fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {
+    fn to_fixpoint(
+        &self,
+        cx: &mut FixpointCtxt<Tag>,
+        mut blame_analysis: BlameAnalysis,
+        binder_depth: BinderDepth,
+    ) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
-            NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc) => {
-                children_to_fixpoint(cx, &self.children)?
+            NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc, _) => {
+                children_to_fixpoint(cx, &self.children, blame_analysis, binder_depth)?
             }
 
             NodeKind::Root(params) => {
-                let Some(children) = children_to_fixpoint(cx, &self.children)? else {
+                let Some(children) =
+                    children_to_fixpoint(cx, &self.children, blame_analysis, binder_depth)?
+                else {
                     return Ok(None);
                 };
                 let mut constr = children;
@@ -475,9 +591,14 @@ impl Node {
                 }
                 Some(constr)
             }
-            NodeKind::ForAll(name, sort) => {
+            NodeKind::ForAll(name, sort, bp) => {
+                blame_analysis
+                    .binder_deps
+                    .insert(*name, (bp.clone(), binder_depth, HashSet::new()));
                 cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
-                    let Some(children) = children_to_fixpoint(cx, &self.children)? else {
+                    let Some(children) =
+                        children_to_fixpoint(cx, &self.children, blame_analysis, binder_depth + 1)?
+                    else {
                         return Ok(None);
                     };
                     Ok(Some(fixpoint::Constraint::ForAll(
@@ -490,20 +611,29 @@ impl Node {
                     )))
                 })?
             }
-            NodeKind::Assumption(pred) => {
-                let (mut bindings, pred) = cx.assumption_to_fixpoint(pred)?;
-                let Some(cstr) = children_to_fixpoint(cx, &self.children)? else {
+            NodeKind::Assumption(pred, assumption_type) => {
+                // TODO: do we need to track relations between variables whenever
+                // cx.assumption_to_fixpoint is called (i.e. do we also need to track
+                // for assumptions inside of NodeKind::Head expressions) or is doing it
+                // only for NodeKind::Assumption sufficient?
+                let (mut bindings, pred) = cx.assumption_to_fixpoint(pred, &mut blame_analysis)?;
+                let Some(cstr) =
+                    children_to_fixpoint(cx, &self.children, blame_analysis, binder_depth)?
+                else {
                     return Ok(None);
                 };
                 bindings.push(fixpoint::Bind {
-                    name: fixpoint::Var::Underscore,
+                    name: match assumption_type {
+                        AssumptionType::Assumption => fixpoint::Var::Underscore,
+                        AssumptionType::Invariant => fixpoint::Var::UnderscoreInvariant,
+                    },
                     sort: fixpoint::Sort::Int,
                     pred,
                 });
                 Some(fixpoint::Constraint::foralls(bindings, cstr))
             }
             NodeKind::Head(pred, tag) => {
-                Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span))?)
+                Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span), blame_analysis)?)
             }
             NodeKind::True => None,
         };
@@ -523,15 +653,56 @@ impl Node {
     fn is_head(&self) -> bool {
         matches!(self.kind, NodeKind::Head(..))
     }
+
+    fn visit_expr(
+        &self,
+        visit_assumed: &mut impl FnMut(&Expr),
+        visit_head: &mut impl FnMut(&Expr),
+    ) {
+        match &self.kind {
+            NodeKind::Assumption(expr, _assumption_type) => {
+                visit_assumed(&expr);
+            }
+            NodeKind::Head(expr, _) => {
+                let (impls, rhs) = expr.flatten_impls();
+                impls.into_iter().for_each(|imp| visit_assumed(imp));
+                visit_head(rhs);
+            }
+            NodeKind::Trace(..) | NodeKind::Root(..) | NodeKind::True | NodeKind::ForAll(..) => {}
+        }
+        for child in &self.children {
+            child.borrow().visit_expr(visit_assumed, visit_head);
+        }
+    }
+
+    fn num_nontrivial_head_cstrs(&self) -> usize {
+        let mut count = 0;
+        if let NodeKind::Head(e, t) = &self.kind
+            && !e.is_trivially_true()
+            && !e.is_trivially_false()
+        {
+            count += 1;
+        }
+        for child in &self.children {
+            count += child.borrow().num_nontrivial_head_cstrs();
+        }
+        count
+    }
 }
 
 fn children_to_fixpoint(
     cx: &mut FixpointCtxt<Tag>,
     children: &[NodePtr],
+    blame_analysis: BlameAnalysis,
+    binder_depth: BinderDepth,
 ) -> QueryResult<Option<fixpoint::Constraint>> {
     let mut children = children
         .iter()
-        .filter_map(|node| node.borrow().to_fixpoint(cx).transpose())
+        .filter_map(|node| {
+            node.borrow()
+                .to_fixpoint(cx, blame_analysis.clone(), binder_depth)
+                .transpose()
+        })
         .try_collect_vec()?;
     let cstr = match children.len() {
         0 => None,
@@ -572,11 +743,13 @@ mod pretty {
 
     use super::*;
 
-    fn bindings_chain(ptr: &NodePtr) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {
-        fn go(ptr: &NodePtr, mut bindings: Vec<(Name, Sort)>) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {
+    type Binding = (Name, Sort, Option<BinderProvenance>);
+
+    fn bindings_chain(ptr: &NodePtr) -> (Vec<Binding>, Vec<NodePtr>) {
+        fn go(ptr: &NodePtr, mut bindings: Vec<Binding>) -> (Vec<Binding>, Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::ForAll(name, sort) = &node.kind {
-                bindings.push((*name, sort.clone()));
+            if let NodeKind::ForAll(name, sort, bp) = &node.kind {
+                bindings.push((*name, sort.clone(), bp.clone()));
                 if let [child] = &node.children[..] {
                     go(child, bindings)
                 } else {
@@ -592,7 +765,7 @@ mod pretty {
     fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
         fn go(ptr: &NodePtr, mut preds: Vec<Expr>) -> (Vec<Expr>, Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::Assumption(pred) = &node.kind {
+            if let NodeKind::Assumption(pred, _assumption_type) = &node.kind {
                 preds.push(pred.clone());
                 if let [child] = &node.children[..] {
                     go(child, preds)
@@ -604,6 +777,12 @@ mod pretty {
             }
         }
         go(ptr, vec![])
+    }
+
+    impl Pretty for AssumptionType {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            w!(cx, f, "{:?}", self)
+        }
     }
 
     impl Pretty for RefineTree {
@@ -631,24 +810,28 @@ mod pretty {
                     )?;
                     fmt_children(&node.children, cx, f)
                 }
-                NodeKind::ForAll(name, sort) => {
+                NodeKind::ForAll(name, sort, bp) => {
                     let (bindings, children) = if cx.bindings_chain {
                         bindings_chain(self)
                     } else {
-                        (vec![(*name, sort.clone())], node.children.clone())
+                        (vec![(*name, sort.clone(), bp.clone())], node.children.clone())
                     };
 
                     w!(cx, f,
                         "∀ {}.",
                         ^bindings
                             .into_iter()
-                            .format_with(", ", |(name, sort), f| {
-                                f(&format_args_cx!(cx, "{:?}: {:?}", ^name, sort))
+                            .format_with(", ", |(name, sort, bp), f| {
+                                if cx.tags && let Some(bp) = bp {
+                                    f(&format_args_cx!(cx, "{:?}: {:?} ~ {:?}", ^name, sort, bp))
+                                } else {
+                                    f(&format_args_cx!(cx, "{:?}: {:?}", ^name, sort))
+                                }
                             })
                     )?;
                     fmt_children(&children, cx, f)
                 }
-                NodeKind::Assumption(pred) => {
+                NodeKind::Assumption(pred, _assumption_type) => {
                     let (preds, children) = if cx.preds_chain {
                         preds_chain(self)
                     } else {
@@ -695,6 +878,25 @@ mod pretty {
         }
     }
 
+    impl Pretty for BinderProvenance {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self.span {
+                Some(s) => {
+                    w!(cx, f, "{:?} at {:?}", &self.originator, &s)
+                }
+                None => {
+                    w!(cx, f, "{:?} (span unknown)", &self.originator)
+                }
+            }
+        }
+    }
+
+    impl Pretty for BinderOriginator {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            w!(cx, f, "{:?}", ^self)
+        }
+    }
+
     impl Pretty for Cursor<'_> {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let mut elements = vec![];
@@ -707,11 +909,11 @@ mod pretty {
                             elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                         }
                     }
-                    NodeKind::ForAll(name, sort) => {
+                    NodeKind::ForAll(name, sort, _) => {
                         elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                     }
-                    NodeKind::Assumption(pred) => {
-                        elements.push(format_cx!(cx, "{:?}", pred));
+                    NodeKind::Assumption(pred, assumption_type) => {
+                        elements.push(format_cx!(cx, "{:?} ({:?})", pred, assumption_type));
                     }
                     _ => {}
                 }
@@ -773,14 +975,14 @@ impl RefineCtxtTrace {
         parents.into_iter().rev().for_each(|ptr| {
             let node = ptr.borrow();
             match &node.kind {
-                NodeKind::ForAll(name, sort) => {
+                NodeKind::ForAll(name, sort, _) => {
                     let bind = RcxBind {
                         name: format_cx!(cx, "{:?}", ^name),
                         sort: format_cx!(cx, "{:?}", sort),
                     };
                     bindings.push(bind);
                 }
-                NodeKind::Assumption(e)
+                NodeKind::Assumption(e, _assumption_type)
                     if !e.simplify(&SnapshotMap::default()).is_trivially_true() =>
                 {
                     e.visit_conj(|e| {
@@ -828,9 +1030,12 @@ impl Node {
                 let pred = assignment.simplify(pred);
                 self.kind = NodeKind::Head(pred, *tag);
             }
-            NodeKind::Assumption(pred) => {
+            // We used to skip invariants in case we remove them.
+            //
+            // Now we don't but we could again.
+            NodeKind::Assumption(pred, assumption_type) => {
                 let pred = assignment.simplify(pred);
-                self.kind = NodeKind::Assumption(pred);
+                self.kind = NodeKind::Assumption(pred, assumption_type.clone());
             }
             _ => {}
         }
@@ -872,7 +1077,7 @@ impl ConstraintDeps {
                     }
                 });
             }
-            NodeKind::Assumption(expr) => {
+            NodeKind::Assumption(expr, _assumption_type) => {
                 expr.visit_conj(|e| {
                     if let ExprKind::KVar(kvar) = e.kind() {
                         assumptions.push(kvar.kvid);
@@ -1047,4 +1252,97 @@ impl Assignment {
         }
         Expr::and_from_iter(preds)
     }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct BinderProvenance {
+    /// Whence?
+    pub span: Option<Span>,
+    /// Why?
+    pub originator: BinderOriginator,
+}
+
+impl BinderProvenance {
+    pub fn new(originator: BinderOriginator) -> Self {
+        BinderProvenance { span: None, originator }
+    }
+
+    pub fn with_span(self, span: Span) -> Self {
+        BinderProvenance { span: Some(span), originator: self.originator }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RefineParams {
+    /// The early parameters as vars
+    ///
+    /// Technically the type is more specific (it's always a Var::EarlyParam)
+    pub early_params: Vec<Var>,
+    /// The refine arguments given to the call
+    pub early_args: Vec<Expr>,
+    /// The late parameters as vars
+    ///
+    /// Technically the type is more specific (it's always a Var::Bound)
+    pub late_params: Vec<Var>,
+    /// The refine arguments given to the call
+    pub late_args: Vec<Expr>,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct CallReturn {
+    // The name of the user variable that the function call is being assigned to,
+    // e.g. in
+    //
+    // ```
+    // let x = foo();
+    // ```
+    //
+    // This is `x`.
+    //
+    // Not all CallReturns are assigned to a variable.
+    pub destination_name: Option<Symbol>,
+    // The def_id of the function being called, if we can get it
+    // (right now we can't for CallKind::FnPtr)
+    pub def_id: Option<DefId>,
+    /// The refinement arguments passed in this invocation
+    pub refine_params: RefineParams,
+}
+
+impl CallReturn {
+    pub fn new(
+        destination_name: Option<Symbol>,
+        def_id: Option<DefId>,
+        refine_params: RefineParams,
+    ) -> CallReturn {
+        CallReturn { destination_name, def_id, refine_params }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum BinderOriginator {
+    /// Subtyping check
+    Sub(ConstrReason),
+    /// Function subtyping check
+    FnSub,
+    /// Function call
+    Call,
+    /// The return of a function call
+    CallReturn(CallReturn),
+    /// Argument from the definition of a function
+    FnArg(Option<Symbol>),
+    /// Unfold a local pointer
+    UnfoldPtr,
+    /// Unfold a strong ref
+    UnfoldStrgRef,
+    /// Assume an ensures
+    AssumeEnsures,
+    /// Check an invariant
+    CheckInvariant,
+    /// For use applying the mut ref hack
+    MutRefHack,
+    /// Subtyping projection types
+    /// (NOTE: not differentiating between generic arg tys)
+    SubProjTy,
+    SubtypeProjTy,
+    SubtypeProjBase,
 }

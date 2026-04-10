@@ -1,22 +1,24 @@
-use std::{io, path::Path};
+use std::{fs::create_dir_all, io::{self, Write}, path::Path};
 
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::{
     fixpoint_encoding::{ExprEncodingCtxt, FixQueryCache, SortEncodingCtxt},
-    lean_encoding::LeanEncoder,
+lean_encoding::LeanEncoder,
+    wkvars::Constraints,
 };
 use flux_metadata::CStore;
 use flux_middle::{
-    Specs,
     def_id::MaybeExternId,
     fhir::{self, FluxItem},
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
+    Specs,
+    pretty,
 };
-use flux_refineck as refineck;
+use flux_refineck::{self as refineck, report_fixpoint_errors};
 use itertools::Itertools;
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
@@ -102,9 +104,87 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         if !dups.is_empty() {
             bug!("TODO: {dups:#?}");
         }
+
         let result = crate_items
             .definitions()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
+
+        println!("-----------------------");
+        println!("Starting solution loop.");
+
+        let (solution, errors, user_interactions, iters) =
+            match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 100, |local_id, errors| {let _ = report_fixpoint_errors(genv, local_id, errors);}) {
+                Ok(outputs) => outputs,
+                Err(e) => panic!("Encountered error {:?}", e),
+            };
+
+        // println!("Solution loop finished.");
+        let crate_name = genv.tcx().crate_name(LOCAL_CRATE);
+        // println!("writing to {:?}", config::log_dir());
+        create_dir_all(config::log_dir()).unwrap();
+        solution.write_summary_file(
+            genv,
+            &config::log_dir().join(format!("{}-wkvar-solve-summary.json", crate_name)),
+        ).unwrap();
+        solution.write_stats_file(
+            genv,
+            &config::log_dir().join(format!("{}-wkvar-solve-stats.csv", crate_name)),
+            iters,
+        ).unwrap();
+        if config::save_user_interactions() {
+            let current_timestamp = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap().as_millis();
+            let filename = format!("{}-{}.userinputs", crate_name, current_timestamp);
+            let file = std::fs::File::create(config::log_dir().join(filename).as_path()).unwrap();
+            let mut writer = std::io::BufWriter::new(file);
+            writer.write_all(user_interactions.into_iter().join("\n").as_bytes()).unwrap();
+            writer.write("\n".as_bytes()).unwrap();
+            writer.flush().unwrap();
+        }
+        // println!("Solutions:");
+        // let mut total_solved = 0;
+        // let mut total_assumed = 0;
+        // let mut total_removed = 0;
+        // let mut total_wkvars = 0;
+        // for (wkvid, solution) in &solution.solutions {
+        //     total_wkvars += 1;
+        //     let fn_name = genv.tcx().def_path_str(wkvid.0);
+        //     println!("wkvar {} for {}:", wkvid.1.as_usize(), fn_name);
+        //
+        //     let fn_sig = genv.fn_sig(wkvid.0).unwrap();
+        //     let solution_subst = solution.into_wkvar_subst();
+        //     let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(*wkvid, solution_subst.clone())].into() };
+        //     let solved_fn_sig = wkvar_subst.fold_binder(fn_sig.skip_binder_ref());
+        //     println!(" (found)  {:?}", solution_subst);
+        //     if let Some(solution_map) = genv.weak_kvars_for(wkvid.0) {
+        //         if let Some(sols) = solution_map.get(&wkvid.1.as_u32()) {
+        //             println!(" (actual) {:?}", sols.iter().map(|expr| format!("{:?}", expr)).join(" && "));
+        //         } else {
+        //             println!(" (actual) None");
+        //         }
+        //     }
+        //     let num_solved = solution.solved_exprs.as_ref().map_or(0, |es| es.skip_binder_ref().len());
+        //     let num_assumed = solution.assumed_exprs.as_ref().map_or(0, |es| es.skip_binder_ref().len());
+        //     let num_removed = solution.removed_solved_exprs.len();
+        //     total_solved += num_solved;
+        //     total_assumed += num_assumed;
+        //     total_removed += num_removed;
+        //     println!(" (stats) solved_exprs: {:?}, assumed_exprs: {:?}, removed_solved_exprs: {:?}",
+        //              num_solved,
+        //              num_assumed,
+        //              num_removed,
+        //     );
+        //     println!(" fn_sig: {}", format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig)));
+        // }
+        // println!("Total solved: {}, total assumed: {}, total removed: {}, total wkvars: {}", total_solved, total_assumed, total_removed, total_wkvars);
+        if let Some((local_id, _)) = errors.last() {
+            let local_id = *local_id;
+            let errs = errors
+                .into_iter()
+                .flat_map(|(_, errs)| errs.into_iter())
+                .collect_vec();
+            println!("{} Remaining errors:", errs.len());
+            report_fixpoint_errors(genv, local_id, errs)?;
+        }
 
         ck.cache.save().unwrap_or(());
 
@@ -151,11 +231,12 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     cache: FixQueryCache,
+    constraints: Constraints,
 }
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        Self { genv, cache: QueryCache::load() }
+        Self { genv, cache: QueryCache::load(), constraints: Vec::new() }
     }
 
     pub(crate) fn encode_flux_items_in_lean(&self) -> Result<(), io::Error> {
@@ -321,7 +402,8 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 force_conv(self.genv, def_id.resolved_id()).emit(&self.genv)?;
                 let Some(local_id) = def_id.as_local() else { return Ok(()) };
                 if is_fn_with_body {
-                    refineck::check_fn(self.genv, &mut self.cache, local_id)?;
+                    
+                refineck::check_fn(self.genv, &mut self.cache, &mut self.constraints, local_id)?;
                 }
                 Ok(())
             }
@@ -337,6 +419,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 refineck::invariants::check_invariants(
                     self.genv,
                     &mut self.cache,
+                    &mut self.constraints,
                     def_id,
                     enum_def.invariants,
                     &adt_def,
