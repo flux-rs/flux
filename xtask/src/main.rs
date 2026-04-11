@@ -473,6 +473,19 @@ fn copy_artifacts(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<()> 
         }
 
         for filename in &artifact.filenames {
+            // For proc-macro crates, cargo emits two separate artifacts: a `.so` (the
+            // proc-macro binary compiled for the host) and a `.rmeta` (a metadata-only
+            // build for dependency tracking). These two artifacts have *different* hashes
+            // because they come from distinct compilations.
+            //
+            // The `flux` binary resolves extern crates by name via `-L <sysroot>` rather
+            // than by explicit path. With both files present, rustc reports E0464 
+            // "multiple candidates for `rmeta` dependency". Keeping only the `.so`
+            // avoids the ambiguity: rustc finds exactly one candidate and correctly
+            // identifies it as a proc-macro crate.
+            if artifact.target.is_kind(TargetKind::ProcMacro) && filename.extension() == Some("rmeta") {
+                continue;
+            }
             copy_artifact(filename, sysroot)?;
         }
     }
