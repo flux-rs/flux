@@ -1,6 +1,6 @@
 use core::slice::{Iter, SliceIndex};
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 pub trait Queue<T> {
     /// Returns true if the queue is full, false otherwise.

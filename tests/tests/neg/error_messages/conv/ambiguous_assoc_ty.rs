@@ -1,6 +1,5 @@
-extern crate flux_rs;
 
-use flux_rs::*;
+use flux_attrs::*;
 
 pub trait MyTrait {
     type A;

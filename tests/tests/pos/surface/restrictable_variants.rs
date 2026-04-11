@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[reflect]
 enum ExprLbl {

@@ -1,7 +1,7 @@
 // Test support for const generic parameters used in argument position inside refinements. These
 // are parsed as types and disambiguated during name resolution.
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 struct S1<const N: usize> {}
 

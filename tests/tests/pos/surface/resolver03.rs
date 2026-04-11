@@ -1,7 +1,7 @@
 // Allow paths in sorts
 
 mod mod_a {
-    use flux_rs::*;
+    use flux_attrs::*;
 
     defs! {
         fn add1(x: crate::mod_b::S) -> int {
@@ -11,7 +11,7 @@ mod mod_a {
 }
 
 mod mod_b {
-    use flux_rs::*;
+    use flux_attrs::*;
 
     #[opaque]
     #[refined_by(n: int)]

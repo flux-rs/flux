@@ -1,7 +1,7 @@
 // test that we correctly instantiate generics in the InferCtxt when checking
 // trait subtyping
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 trait Trait {
     #[sig(fn(x: T, y: T) -> T[x])]

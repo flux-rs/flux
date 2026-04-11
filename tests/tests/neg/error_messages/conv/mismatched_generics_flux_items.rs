@@ -1,6 +1,6 @@
 #![feature(extern_types)]
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[refined_by(n: int)]
 struct S {

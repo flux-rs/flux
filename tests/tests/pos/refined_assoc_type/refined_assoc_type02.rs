@@ -1,6 +1,6 @@
 // Test that we accept nested qualified paths
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 trait Trait1 {
     type Assoc1: Trait2;

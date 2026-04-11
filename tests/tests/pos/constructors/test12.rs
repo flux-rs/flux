@@ -1,4 +1,4 @@
-use flux_rs::*;
+use flux_attrs::*;
 
 #[flux::refined_by(start: T, end: T)]
 struct Range<T> {

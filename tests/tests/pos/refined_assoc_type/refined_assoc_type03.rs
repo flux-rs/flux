@@ -1,6 +1,6 @@
 // test that we can use associated type as sorts
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 trait Trait1 {
     type Assoc1: Trait2;

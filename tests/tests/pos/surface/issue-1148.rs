@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 extern crate flux_core;
 #[refined_by(size: int, init: int)]
 struct Uninit<'a, T> {

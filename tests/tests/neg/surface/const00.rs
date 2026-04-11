@@ -1,4 +1,4 @@
-use flux_rs::*;
+use flux_attrs::*;
 
 const FORTY_TWO: usize = 21 + 21;
 

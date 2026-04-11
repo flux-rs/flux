@@ -2,7 +2,7 @@
 //
 // see https://github.com/flux-rs/flux/issues/1036
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 trait Trait {
     type Assoc;

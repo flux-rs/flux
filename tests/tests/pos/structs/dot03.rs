@@ -1,6 +1,6 @@
 // test nested field projections
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[refined_by(x: int)]
 struct S1 {

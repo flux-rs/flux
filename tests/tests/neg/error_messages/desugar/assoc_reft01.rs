@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 pub trait MyTrait {
     #![assoc(fn f(self: Self) -> bool)]

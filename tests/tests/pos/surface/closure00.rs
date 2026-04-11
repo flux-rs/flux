@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[trusted]
 #[spec(fn(c: Option<bool>) -> Option<i32{v:0 <= v}>)]

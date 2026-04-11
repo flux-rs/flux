@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 // Step 1 : declare -------------------------------
 pub trait MyTrait {

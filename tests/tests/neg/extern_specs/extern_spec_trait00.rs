@@ -3,7 +3,7 @@
 extern crate extern_spec_trait00_aux;
 
 use extern_spec_trait00_aux::MyTrait;
-use flux_rs::extern_spec;
+use flux_attrs::extern_spec;
 
 #[extern_spec]
 #[flux::assoc(fn f(self: Self) -> bool)]

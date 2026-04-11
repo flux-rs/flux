@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[spec(fn(x: i32 { x == i32::BAD }))] //~ ERROR associated constant not found
 fn test00(x: i32) {}

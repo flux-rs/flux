@@ -1,6 +1,6 @@
 // Test we resolve flux defs inside their parent module
 mod my_module {
-    use flux_rs::*;
+    use flux_attrs::*;
 
     defs! {
         fn is_pos_1(x: MyStruct) -> bool {
@@ -22,7 +22,7 @@ mod my_module {
 
 // Test the same but where the parent is an item with a block
 const _: () = {
-    use flux_rs::*;
+    use flux_attrs::*;
 
     defs! {
         fn is_pos_2(x: MyStruct) -> bool {

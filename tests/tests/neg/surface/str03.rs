@@ -5,7 +5,7 @@
     }
 }]
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[spec(fn(&str[@x], &str[@y]) requires eq_len(x, y))]
 pub fn require_equal(_x: &str, _y: &str) {}

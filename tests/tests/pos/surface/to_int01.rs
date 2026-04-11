@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[spec(fn (x:u8) -> u32[cast(x)])]
 pub fn test_int_to_int(x: u8) -> u32 {

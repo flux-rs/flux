@@ -1,4 +1,4 @@
-use flux_rs::*;
+use flux_attrs::*;
 
 #[assoc(fn can_fit(self: Self, animal: Self::Animal) -> bool)]
 trait Barn {

@@ -1,6 +1,6 @@
 // Check that we fallback to `int` for unconstrained integer literals
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 defs! {
     fn test() -> bool {

@@ -1,6 +1,6 @@
 // Test using let-bindings inside primop props
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[spec(fn() -> u8[4])]
 pub const fn foo() -> u8 {

@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 // This should fail because Rust is async but Flux signature is not
 #[flux::sig(fn(x: i32) -> i32)] //~ ERROR function has an incompatible refinement annotation
 async fn missing_async(x: i32) -> i32 {

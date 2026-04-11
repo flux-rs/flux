@@ -1,4 +1,4 @@
-use flux_rs::*;
+use flux_attrs::*;
 
 #[sig(fn(x: i32{x > 0}) -> i32[1/x])]
 fn div(x: i32) -> i32 {

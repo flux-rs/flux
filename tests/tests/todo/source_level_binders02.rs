@@ -1,5 +1,5 @@
 extern crate flux_alloc;
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[refined_by(fruits: int, nuts: int)]
 #[invariant(nuts < fruits)]

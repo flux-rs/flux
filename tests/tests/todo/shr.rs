@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use flux_rs::extern_spec;
+use flux_attrs::extern_spec;
 
 #[path = "../../tests/lib/rrange.rs"]
 mod range;
