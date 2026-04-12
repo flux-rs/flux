@@ -1,5 +1,5 @@
 // extern crate flux_core;
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 /*  These tests motivate the `bot-elim` optimization. Before the optimization,
     `let2` produces the constraint

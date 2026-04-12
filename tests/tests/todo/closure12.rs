@@ -3,7 +3,7 @@
 #![feature(step_trait, allocator_api)]
 #![allow(unused)]
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[path = "../lib/iterator.rs"]
 mod iterator;

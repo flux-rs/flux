@@ -1,6 +1,6 @@
 // Test we normalize the sorts of associated refinements during sort checking
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[assoc(fn foo(x: Self::Assoc) -> bool)]
 trait MyTrait {

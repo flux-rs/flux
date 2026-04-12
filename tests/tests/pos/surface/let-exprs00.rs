@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 defs! {
     fn times2(x: int) -> int {

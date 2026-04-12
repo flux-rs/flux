@@ -2,7 +2,7 @@
 extern crate flux_rs;
 use std::marker::PhantomData;
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 trait Role {
     type Message;

@@ -10,7 +10,7 @@ use std::{
     hash::{BuildHasher, Hash},
 };
 
-use flux_rs::extern_spec;
+use flux_attrs::extern_spec;
 
 // REFINE THE STRUCT
 

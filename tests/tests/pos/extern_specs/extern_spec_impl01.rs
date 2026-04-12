@@ -3,7 +3,7 @@
 extern crate extern_spec_impl01_aux;
 
 use extern_spec_impl01_aux::MyTrait;
-use flux_rs::extern_spec;
+use flux_attrs::extern_spec;
 
 #[extern_spec]
 impl<T> MyTrait for Vec<T> {

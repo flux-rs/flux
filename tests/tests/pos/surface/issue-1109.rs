@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[assoc(
     fn f(x: int) -> bool;

@@ -2,7 +2,7 @@
 // lifting. So we want to ensure lifting upholds the extern specs invariants
 // the same as desugaring.
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[extern_spec(core::ops)]
 trait RangeBounds<T> {

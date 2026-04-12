@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 
 #[spec(fn() -> i32{v:0<=v})]

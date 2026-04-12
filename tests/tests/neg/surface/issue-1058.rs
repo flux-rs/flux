@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[opaque]
 #[refined_by(x: T)]

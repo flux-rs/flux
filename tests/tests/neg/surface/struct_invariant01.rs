@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[refined_by(n: int)]
 #[invariant(n > 0)]

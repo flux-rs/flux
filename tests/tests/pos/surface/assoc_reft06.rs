@@ -1,6 +1,6 @@
 // Check that associated refinements in invariants are unfolded
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[assoc(fn p(x: T) -> bool)]
 trait Prop<T> {}

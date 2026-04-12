@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[spec(fn () -> usize{v: 10 <= v})]
 fn random() -> usize {

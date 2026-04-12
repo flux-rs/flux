@@ -1,4 +1,4 @@
-use flux_rs::*;
+use flux_attrs::*;
 
 #[refined_by(val: int)]
 enum Color {

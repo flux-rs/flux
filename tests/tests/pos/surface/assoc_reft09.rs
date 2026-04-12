@@ -1,6 +1,6 @@
 // See <https://github.com/flux-rs/flux/issues/1510#issuecomment-3953871782>
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[assoc(fn assoc1() -> bool)]
 trait Trait1 {

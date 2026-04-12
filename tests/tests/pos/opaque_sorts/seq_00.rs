@@ -1,4 +1,4 @@
-use flux_rs::*;
+use flux_attrs::*;
 
 defs! {
     opaque sort Seq<T>;

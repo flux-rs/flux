@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 enum Nat {
     Zero,

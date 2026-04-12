@@ -1,4 +1,4 @@
-use flux_rs::*;
+use flux_attrs::*;
 
 #[extern_spec(std::cmp)]
 #[assoc(fn eq_rel(lhs: Self, rhs: Rhs) -> bool)]

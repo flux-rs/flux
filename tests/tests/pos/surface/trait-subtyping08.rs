@@ -1,6 +1,6 @@
 // test that implementations with extra const generics work as expected
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[reft(fn p(x: int) -> bool)]
 trait MyTrait {

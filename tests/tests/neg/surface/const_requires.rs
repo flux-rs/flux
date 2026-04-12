@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[spec(fn (&[usize;_]) -> usize requires N > 0)]
 pub fn test<const N: usize>(chunk: &[usize; N]) -> usize {

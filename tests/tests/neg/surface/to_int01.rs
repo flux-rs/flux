@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[spec(fn (x:bool) -> u32[cast(x)])]
 pub fn test_bool_to_int(_x: bool) -> u32 {

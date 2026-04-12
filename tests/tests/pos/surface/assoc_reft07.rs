@@ -1,6 +1,6 @@
 // Test we correctly resolve type-relative associated refinements
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[assoc(fn pre(x: int) -> bool)]
 trait MyTrait {

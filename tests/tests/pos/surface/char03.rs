@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 pub fn cast_to_u32(x: char) -> u32 {
     let x = x as u32;

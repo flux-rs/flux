@@ -25,7 +25,7 @@ fn main() -> Result<()> {
         .args(env::args().skip(1))
         .arg("-L")
         .arg(flux_sysroot)
-        .args(["--extern", "flux_rs", "-Fverify=on"])
+        .args(["--extern", "flux_rs", "--extern", "flux_attrs", "-Fverify=on"])
         .env(LIB_PATH, extended_lib_path)
         .status()?
         .exit_ok()?;

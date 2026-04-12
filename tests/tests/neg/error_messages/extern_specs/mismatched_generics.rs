@@ -4,7 +4,7 @@ use std::iter::Step;
 
 extern crate mismatched_generics_aux;
 
-use flux_rs::*;
+use flux_attrs::*;
 use mismatched_generics_aux::S;
 
 #[extern_spec]

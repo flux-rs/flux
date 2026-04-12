@@ -1,6 +1,6 @@
 use std::slice::from_ref;
 
-use flux_rs::extern_spec;
+use flux_attrs::extern_spec;
 
 #[extern_spec]
 #[flux::sig(fn(&T) -> &[T][1])]

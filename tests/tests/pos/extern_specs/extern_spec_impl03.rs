@@ -2,7 +2,7 @@
 
 use std::slice::Iter;
 
-use flux_rs::*;
+use flux_attrs::*;
 
 #[extern_spec]
 #[refined_by(len: int)]

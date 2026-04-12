@@ -1,7 +1,7 @@
 // Testing that we properly map generics in trait's default associated refinement
 // body into the impl.
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 trait MyTrait {
     #![reft(fn p(x: Self) -> bool { true })]

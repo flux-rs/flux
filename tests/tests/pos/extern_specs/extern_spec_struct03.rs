@@ -1,6 +1,6 @@
 // Testing we can add external specs to "transparent" structs.
 
-use flux_rs::extern_spec;
+use flux_attrs::extern_spec;
 
 #[extern_spec(std::ops)]
 #[refined_by(start: Idx, end: Idx)]

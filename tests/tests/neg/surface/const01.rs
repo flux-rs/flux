@@ -1,5 +1,5 @@
 // Test use of constant in fn-signature
-use flux_rs::*;
+use flux_attrs::*;
 
 pub const FORTY_TWO: usize = 21 + 21;
 

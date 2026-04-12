@@ -2,7 +2,7 @@
 
 extern crate extern_spec_self_type_aux;
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[extern_spec(extern_spec_self_type_aux)]
 #[refined_by(x: int)]

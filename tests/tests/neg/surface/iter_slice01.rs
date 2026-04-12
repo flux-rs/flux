@@ -7,7 +7,7 @@ use std::{
     slice::{Iter, SliceIndex},
 };
 
-use flux_rs::extern_spec;
+use flux_attrs::extern_spec;
 
 extern crate flux_alloc;
 extern crate flux_core;

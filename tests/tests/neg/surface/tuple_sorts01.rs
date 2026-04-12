@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 defs! {
   fn foo(a: (int, int)) -> int { a.0 + a.1 }

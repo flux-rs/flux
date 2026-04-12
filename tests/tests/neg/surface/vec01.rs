@@ -5,7 +5,7 @@ use std::{
     slice::SliceIndex,
 };
 
-use flux_rs::extern_spec;
+use flux_attrs::extern_spec;
 
 #[extern_spec]
 #[flux::refined_by(len: int)]

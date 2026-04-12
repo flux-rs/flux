@@ -3,7 +3,7 @@
 extern crate dup_extern_spec_aux;
 
 use dup_extern_spec_aux::test01;
-use flux_rs::*;
+use flux_attrs::*;
 
 #[extern_spec]
 fn test01();

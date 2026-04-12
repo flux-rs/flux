@@ -12,7 +12,7 @@
 // We consider this an *exit basic block* because the only relevant statement is a return and we
 // treat it specially. However we must be sure we execute all ghost statements.
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 struct S {
     f: usize,

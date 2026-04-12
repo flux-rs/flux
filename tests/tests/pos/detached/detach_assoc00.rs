@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 trait MyTrait {
     fn baz(&self) -> usize;

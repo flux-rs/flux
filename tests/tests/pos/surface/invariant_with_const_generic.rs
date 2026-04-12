@@ -1,6 +1,6 @@
 // Test that const generics in invariants are properly instantiated
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[invariant(N > 0)]
 struct S<const N: usize> {}
