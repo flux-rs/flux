@@ -5136,7 +5136,7 @@ pub struct S {
 <p>with <code>const</code> generics</p>
 <pre><code class="language-rust noplayground">// Test that const generics in invariants are properly instantiated
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[invariant(N &gt; 0)]
 struct S&lt;const N: usize&gt; {}
@@ -5384,7 +5384,7 @@ pub fn is_zero(_: E, x: i32) -&gt; i32 {
     x + 1
 }</code></pre>
 <h3 id="reflecting-enums"><a class="header" href="#reflecting-enums">Reflecting Enums</a></h3>
-<pre><code class="language-rust noplayground">use flux_rs::attrs::*;
+<pre><code class="language-rust noplayground">use flux_attrs::*;
 
 #[reflect]
 pub enum State {
@@ -5509,7 +5509,7 @@ impl S {
         self.x = 1;
     }
 }</code></pre>
-<pre><code class="language-rust noplayground">use flux_rs::*;
+<pre><code class="language-rust noplayground">use flux_attrs::*;
 
 #[refined_by(start: T, end: T)]
 pub struct Range&lt;T&gt; {
@@ -5868,7 +5868,7 @@ pub fn mk_date(day: usize, month: usize, year: usize) -&gt; Option&lt;Date&gt; {
     return None;
 }</code></pre>
 <h3 id="let-binders"><a class="header" href="#let-binders"><code>let</code> binders</a></h3>
-<pre><code class="language-rust noplayground">use flux_rs::attrs::*;
+<pre><code class="language-rust noplayground">use flux_attrs::*;
 
 defs! {
     fn times2(x: int) -&gt; int {
@@ -6100,7 +6100,7 @@ pub struct S3&lt;const M: usize&gt; {
     pub s1: S1&lt;M&gt;,
 }</code></pre>
 <h2 id="closures"><a class="header" href="#closures">Closures</a></h2>
-<pre><code class="language-rust noplayground">use flux_rs::attrs::*;
+<pre><code class="language-rust noplayground">use flux_attrs::*;
 
 #[trusted]
 #[spec(fn(c: Option&lt;bool&gt;) -&gt; Option&lt;i32{v:0 &lt;= v}&gt;)]
@@ -6218,7 +6218,7 @@ fn test_also_ok(x: Option&lt;i32&gt;) -&gt; Option&lt;i32&gt; {
     let f = id;
     x.map(f)
 }</code></pre>
-<pre><code class="language-rust noplayground">use flux_rs::*;
+<pre><code class="language-rust noplayground">use flux_attrs::*;
 
 #[sig(fn(x: i32{x &gt; 0}) -&gt; i32[1/x])]
 fn div(x: i32) -&gt; i32 {
@@ -6867,7 +6867,7 @@ above type.</p>
 }</code></pre>
 <pre><code class="language-rust noplayground">use std::slice::from_ref;
 
-use flux_rs::extern_spec;
+use flux_attrs::extern_spec;
 
 #[extern_spec]
 #[flux::sig(fn(&amp;T) -&gt; &amp;[T][1])]
@@ -7092,7 +7092,7 @@ impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
 impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
 <h3 id="extern-structs"><a class="header" href="#extern-structs">Extern Structs</a></h3>
 <p>Here is an example of refining an extern struct</p>
-<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
+<pre><code class="language-rust noplayground">use flux_attrs::extern_spec;
 
 #[extern_spec(std::string)]
 #[flux::refined_by(len: int)]
@@ -7106,7 +7106,7 @@ fn test_string_len_2(s: String) {
     expect_string_len_3(s); //~ ERROR refinement type
 }</code></pre>
 <p>Here's a longer example of refining an extern <code>struct</code> as well as an <code>impl</code></p>
-<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
+<pre><code class="language-rust noplayground">use flux_attrs::extern_spec;
 
 #[extern_spec]
 #[flux::refined_by(len: int)]
@@ -7204,7 +7204,7 @@ of writing <code>fn len(&amp;self) -&gt; usize;</code>, you need to write <code>
 they were refined.</p>
 <pre><code class="language-rust noplayground">// Testing we can add external specs to "transparent" structs.
 
-use flux_rs::extern_spec;
+use flux_attrs::extern_spec;
 
 #[extern_spec(std::ops)]
 #[refined_by(start: Idx, end: Idx)]
@@ -7234,7 +7234,7 @@ fn test00() {
 
 use std::slice::Iter;
 
-use flux_rs::*;
+use flux_attrs::*;
 
 #[extern_spec]
 #[refined_by(len: int)]
@@ -7257,7 +7257,7 @@ fn test00(x: &amp;[i32]) -&gt; &amp;[i32] {
     x.iter().as_slice()
 }</code></pre>
 <h3 id="extern-impls"><a class="header" href="#extern-impls">Extern Impls</a></h3>
-<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
+<pre><code class="language-rust noplayground">use flux_attrs::extern_spec;
 
 #[extern_spec]
 #[flux::refined_by(len: int)]
@@ -7316,7 +7316,7 @@ pub fn test_string() {
 extern crate extern_spec_impl01_aux;
 
 use extern_spec_impl01_aux::MyTrait;
-use flux_rs::extern_spec;
+use flux_attrs::extern_spec;
 
 #[extern_spec]
 impl&lt;T&gt; MyTrait for Vec&lt;T&gt; {
@@ -7329,7 +7329,7 @@ pub fn test_ok() -&gt; i32 {
     &lt;Vec&lt;i32&gt; as MyTrait&gt;::foo()
 }</code></pre>
 <h3 id="extern-traits"><a class="header" href="#extern-traits">Extern Traits</a></h3>
-<pre><code class="language-rust noplayground">use flux_rs::*;
+<pre><code class="language-rust noplayground">use flux_attrs::*;
 
 #[extern_spec(std::cmp)]
 #[assoc(fn eq_rel(lhs: Self, rhs: Rhs) -&gt; bool)]
@@ -7419,7 +7419,7 @@ fn test(len: i32) {
 <h3 id="basic"><a class="header" href="#basic">Basic</a></h3>
 <pre><code class="language-rust noplayground">#![allow(dead_code)]
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 trait MyTrait {
     #![reft(fn f(x: int) -&gt; int)]
@@ -7442,7 +7442,7 @@ fn test01() {
 <h3 id="check-subtyping-at-impl"><a class="header" href="#check-subtyping-at-impl">Check Subtyping at Impl</a></h3>
 <pre><code class="language-rust noplayground">// test that implementations with extra const generics work as expected
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 #[reft(fn p(x: int) -&gt; bool)]
 trait MyTrait {
@@ -7461,7 +7461,7 @@ impl&lt;const N: i32&gt; MyTrait for MyStruct&lt;N&gt; {
     }
 }</code></pre>
 <h3 id="default"><a class="header" href="#default">Default</a></h3>
-<pre><code class="language-rust noplayground">use flux_rs::attrs::*;
+<pre><code class="language-rust noplayground">use flux_attrs::*;
 
 pub trait MyTrait {
     #![reft(fn f(x: int) -&gt; int { x + 1 })]
@@ -7500,7 +7500,7 @@ pub fn test2() -&gt; i32 {
     2
 }</code></pre>
 <h3 id="use-in-extern-spec"><a class="header" href="#use-in-extern-spec">Use in Extern Spec</a></h3>
-<pre><code class="language-rust noplayground">use flux_rs::*;
+<pre><code class="language-rust noplayground">use flux_attrs::*;
 
 #[extern_spec(std::cmp)]
 #[assoc(fn eq_rel(lhs: Self, rhs: Rhs) -&gt; bool)]
@@ -7656,7 +7656,7 @@ pub fn test_enumer4(slice: &amp;[usize]) {
     }
 }</code></pre>
 <h3 id="associated-types"><a class="header" href="#associated-types">Associated Types</a></h3>
-<pre><code class="language-rust noplayground">use flux_rs::attrs::*;
+<pre><code class="language-rust noplayground">use flux_attrs::*;
 
 trait MyTrait {
     #![reft(fn f(x: int) -&gt; int)]
@@ -7677,7 +7677,7 @@ fn test01() {
 <pre><code class="language-rust noplayground">// Testing that we properly map generics in trait's default associated refinement
 // body into the impl.
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 trait MyTrait {
     #![reft(fn p(x: Self) -&gt; bool { true })]
@@ -7700,7 +7700,7 @@ struct S&lt;T&gt; {
     f: T,
 }</code></pre>
 <h3 id="refined-associated-types-1"><a class="header" href="#refined-associated-types-1">Refined Associated Types</a></h3>
-<pre><code class="language-rust noplayground">use flux_rs::*;
+<pre><code class="language-rust noplayground">use flux_attrs::*;
 
 #[assoc(fn can_fit(self: Self, animal: Self::Animal) -&gt; bool)]
 trait Barn {
@@ -8016,7 +8016,7 @@ const _: () = ();</code></pre>
 <p><strong>Traits</strong></p>
 <pre><code class="language-rust noplayground">#![allow(dead_code)]
 
-use flux_rs::attrs::*;
+use flux_attrs::*;
 
 trait MyTrait {
     fn baz(&amp;self) -&gt; usize;
@@ -8058,7 +8058,7 @@ fn test01() {
 }]
 const _: () = ();</code></pre>
 <p><strong>Inherent Impls</strong></p>
-<pre><code class="language-rust noplayground">use flux_rs::attrs::*;
+<pre><code class="language-rust noplayground">use flux_attrs::*;
 
 pub enum Nat {
     Zero,
