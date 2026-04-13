@@ -10,7 +10,9 @@ use flux_infer::{
         ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
     projections::NormalizeExt as _,
-    refine_tree::{Marker, RefineCtxtTrace},
+    refine_tree::{
+        BinderOriginator, BinderProvenance, CallReturn, Marker, RefineCtxtTrace, RefineParams,
+    },
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -99,10 +101,7 @@ struct Inherited<'ck, M> {
 #[derive(Debug)]
 struct ResolvedCall {
     output: Ty,
-    /// The refine arguments given to the call
-    _early_args: Vec<Expr>,
-    /// The refine arguments given to the call
-    _late_args: Vec<Expr>,
+    refine_params: RefineParams,
 }
 
 impl<'ck, M: Mode> Inherited<'ck, M> {
@@ -282,11 +281,11 @@ fn check_fn_subtyping(
     let actuals = super_sig
         .inputs()
         .iter()
-        .map(|ty| infcx.unpack(ty))
+        .map(|ty| infcx.unpack(ty, BinderProvenance::new(BinderOriginator::FnSub).with_span(span)))
         .collect_vec();
 
     let mut env = TypeEnv::empty();
-    let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals)?;
+    let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals, span)?;
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
     let output = infcx.ensure_resolved_evars(|infcx| {
@@ -425,6 +424,7 @@ fn unfold_local_ptrs(
     env: &mut TypeEnv,
     fn_sig: &PolyFnSig,
     actuals: &[Ty],
+    span: Span,
 ) -> InferResult<Vec<Ty>> {
     // We *only* need to know whether each input is a &strg or not
     let fn_sig = fn_sig.skip_binder_ref();
@@ -435,7 +435,7 @@ fn unfold_local_ptrs(
             TyKind::StrgRef(_, _, _),
         ) = (actual.kind(), input.kind())
         {
-            let loc = env.unfold_local_ptr(infcx, bound)?;
+            let loc = env.unfold_local_ptr(infcx, bound, span)?;
             let path1 = Path::new(loc, rty::List::empty());
             Ty::ptr(PtrKind::Mut(*re), path1)
         } else {
@@ -666,7 +666,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         ty: Ty,
         span: Span,
     ) -> InferResult {
-        let ty = infcx.hoister(true).hoist(&ty);
+        let ty = infcx.hoister(true, None).hoist(&ty);
         env.assign(&mut infcx.at(span), place, ty)
     }
 
@@ -764,8 +764,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let actuals = self
                     .check_operands(infcx, env, terminator_span, args)
                     .with_span(terminator_span)?;
+                let destination_name = self.body.local_names.get(&destination.local).copied();
+                let mut fn_def_id: Option<DefId> = None;
                 let ret = match kind {
                     mir::CallKind::FnDef { resolved_id, resolved_args, .. } => {
+                        fn_def_id = Some(*resolved_id);
                         let fn_sig = self.genv.fn_sig(*resolved_id).with_span(terminator_span)?;
                         let generic_args = instantiate_args_for_fun_call(
                             self.genv,
@@ -783,13 +786,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &generic_args,
                             &actuals,
                         )?
-                        .output
                     }
                     mir::CallKind::FnPtr { operand, .. } => {
                         let ty = self
                             .check_operand(infcx, env, terminator_span, operand)
                             .with_span(terminator_span)?;
-                        if let TyKind::Indexed(BaseTy::FnPtr(fn_sig), _) = infcx.unpack(&ty).kind()
+                        if let TyKind::Indexed(BaseTy::FnPtr(fn_sig), _) = infcx
+                            .unpack(
+                                &ty,
+                                BinderProvenance::new(BinderOriginator::Call)
+                                    .with_span(terminator_span),
+                            )
+                            .kind()
                         {
                             self.check_call(
                                 infcx,
@@ -800,14 +808,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                                 &[],
                                 &actuals,
                             )?
-                            .output
                         } else {
                             bug!("TODO: fnptr call {ty:?}")
                         }
                     }
                 };
 
-                let ret = infcx.unpack(&ret);
+                // Possible HACK: get the string corresponding to the source
+                // let terminator_source_snippet = infcx.tcx().sess.source_map().span_to_snippet(terminator.source_info.span).ok();
+                //
+                let call_return = CallReturn::new(destination_name, fn_def_id, ret.refine_params);
+
+                let ret = infcx.unpack(
+                    &ret.output,
+                    BinderProvenance::new(BinderOriginator::CallReturn(call_return))
+                        .with_span(terminator_span),
+                );
                 infcx.assume_invariants(&ret);
 
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
@@ -892,8 +908,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
 
-        let actuals =
-            unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
+        let actuals = unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals, span)
+            .with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());
         infcx.push_evar_scope();
 
@@ -965,14 +981,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         Ok(ResolvedCall {
             output: output.ret,
-            _early_args: early_refine_args
+            refine_params: RefineParams {
+                early_args: early_refine_args
                 .into_iter()
                 .map(|arg| infcx.fully_resolve_evars(arg))
                 .collect(),
-            _late_args: late_refine_args
+                late_args: late_refine_args
                 .into_iter()
                 .map(|arg| infcx.fully_resolve_evars(&arg))
                 .collect(),
+            },
         })
     }
 
@@ -1233,7 +1251,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         target: BasicBlock,
     ) -> Result {
         if self.is_exit_block(target) {
-            let location = self.body.terminator_loc(target);
+            // We inline *exit basic blocks* (i.e., that just return) because this typically
+            // gives us better a better error span.
+            let mut location = Location { block: target, statement_index: 0 };
+            for _ in &self.body.basic_blocks[target].statements {
+                self.check_ghost_statements_at(
+                    &mut infcx,
+                    &mut env,
+                    Point::BeforeLocation(location),
+                    span,
+                )?;
+                location = location.successor_within_block();
+            }
             self.check_ghost_statements_at(
                 &mut infcx,
                 &mut env,
@@ -1737,7 +1766,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Operand::Move(p) => env.move_place(&mut infcx.at(span), p)?,
             Operand::Constant(c) => self.check_constant(infcx, c)?,
         };
-        Ok(infcx.hoister(true).hoist(&ty))
+        Ok(infcx.hoister(true, None).hoist(&ty))
     }
 
     fn check_constant(
@@ -2114,7 +2143,11 @@ fn infer_under_mut_ref_hack(rcx: &mut InferCtxt, actuals: &[Ty], fn_sig: &PolyFn
             if let rty::Ref!(re, deref_ty, Mutability::Mut) = actual.kind()
                 && is_indexed_mut_skipping_constr(formal)
             {
-                rty::Ty::mk_ref(*re, rcx.unpack(deref_ty), Mutability::Mut)
+                rty::Ty::mk_ref(
+                    *re,
+                    rcx.unpack(deref_ty, BinderProvenance::new(BinderOriginator::MutRefHack)),
+                    Mutability::Mut,
+                )
             } else {
                 actual.clone()
             }

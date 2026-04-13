@@ -34,7 +34,7 @@ use crate::{
         Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen,
     },
     projections::NormalizeExt as _,
-    refine_tree::{Cursor, Marker, RefineTree, Scope},
+    refine_tree::{BinderOriginator, BinderProvenance, Cursor, Marker, RefineTree, Scope},
     wkvars::{Constraint, Constraints},
 };
 
@@ -463,7 +463,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn define_var(&mut self, sort: &Sort) -> Name {
-        self.cursor.define_var(sort)
+        self.cursor.define_var(sort, None)
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
@@ -474,8 +474,8 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.cursor.assume_pred(pred);
     }
 
-    pub fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.hoister(false).hoist(ty)
+    pub fn unpack(&mut self, ty: &Ty, binder_provenance: BinderProvenance) -> Ty {
+        self.hoister(false, Some(binder_provenance)).hoist(ty)
     }
 
     pub fn marker(&self) -> Marker {
@@ -485,8 +485,10 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     pub fn hoister(
         &mut self,
         assume_invariants: bool,
+        binder_provenance: Option<BinderProvenance>,
     ) -> Hoister<Unpacker<'_, 'infcx, 'genv, 'tcx>> {
-        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants }).transparent()
+        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants, binder_provenance })
+            .transparent()
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
@@ -502,12 +504,18 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 pub struct Unpacker<'a, 'infcx, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
     assume_invariants: bool,
+    binder_provenance: Option<BinderProvenance>,
 }
 
 impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        let ty =
-            ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.infcx.define_var(sort)));
+        let ty = ty_ctor.replace_bound_refts_with(|sort, _, _| {
+            Expr::fvar(
+                self.infcx
+                    .cursor
+                    .define_var(sort, self.binder_provenance.clone()),
+            )
+        });
         if self.assume_invariants {
             self.infcx.assume_invariants(&ty);
         }
@@ -662,7 +670,7 @@ impl std::ops::DerefMut for InferCtxtAt<'_, '_, '_, '_> {
 /// Used for debugging to attach a "trace" to the [`RefineTree`] that can be used to print information
 /// to recover the derivation when relating types via subtyping. The code that attaches the trace is
 /// currently commented out because the output is too verbose.
-#[derive(TypeVisitable, TypeFoldable)]
+#[derive(TypeVisitable, TypeFoldable, Clone)]
 pub(crate) enum TypeTrace {
     Types(Ty, Ty),
     BaseTys(BaseTy, BaseTy),
@@ -754,7 +762,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         // We *fully* unpack the lhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
-        let a = infcx.unpack(a);
+        let a = infcx.unpack(
+            a,
+            BinderProvenance::new(BinderOriginator::Sub(self.reason)).with_span(self.span),
+        );
 
         match (a.kind(), b.kind()) {
             (TyKind::Exists(..), _) => {
