@@ -184,10 +184,10 @@ impl Cursor<'_> {
     /// Pushes an [assumption] and moves the cursor into the new node.
     ///
     /// [assumption]: NodeKind::Assumption
-    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {
+    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>, assumption_type: AssumptionType) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
-            self.ptr = self.ptr.push_node(NodeKind::Assumption(pred));
+            self.ptr = self.ptr.push_node(NodeKind::Assumption(pred, assumption_type));
         }
     }
 
@@ -204,7 +204,7 @@ impl Cursor<'_> {
     /// This method does not advance the cursor.
     pub(crate) fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
         self.ptr
-            .push_node(NodeKind::Assumption(pred1.into()))
+            .push_node(NodeKind::Assumption(pred1.into(), AssumptionType::Assumption))
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
@@ -235,7 +235,7 @@ impl Cursor<'_> {
                 {
                     for invariant in bty.invariants(self.tcx, self.overflow_mode) {
                         let invariant = invariant.apply(idx);
-                        self.cursor.assume_pred(&invariant);
+                        self.cursor.assume_pred(&invariant, AssumptionType::Invariant);
                     }
                 }
                 ty.super_visit_with(self)
@@ -386,7 +386,7 @@ enum NodeKind {
     /// List of const and refinement generics
     Root(Vec<(Var, Sort)>),
     ForAll(Name, Sort, Option<BinderProvenance>),
-    Assumption(Expr),
+    Assumption(Expr, AssumptionType),
     Head(Expr, Tag),
     True,
     /// Used for debugging. See [`TypeTrace`]
@@ -475,9 +475,9 @@ impl Node {
                     self.kind = NodeKind::Head(pred, *tag);
                 }
             }
-            NodeKind::Assumption(pred) => {
+            NodeKind::Assumption(pred, _assumption_type) => {
                 if let SimplifyPhase::Full(genv) = phase {
-                    *pred = pred.normalize(genv).simplify(assumed_preds);
+                        *pred = pred.normalize(genv).simplify(assumed_preds);
                 }
                 pred.visit_conj(|conjunct| {
                     assumed_preds.insert(conjunct.erase_spans(), ());
@@ -486,7 +486,7 @@ impl Node {
             _ => {}
         }
         let is_false_asm =
-            matches!(&self.kind, NodeKind::Assumption(pred) if pred.is_trivially_false());
+            matches!(&self.kind, NodeKind::Assumption(pred, _) if pred.is_trivially_false());
 
         // Then simplify the children
         // (the order matters here because we need to collect assumed preds first)
@@ -499,7 +499,7 @@ impl Node {
         // Then remove any unnecessary children
         match &mut self.kind {
             NodeKind::Head(..) | NodeKind::True => {}
-            NodeKind::Assumption(_)
+            NodeKind::Assumption(_, _)
             | NodeKind::Trace(_)
             | NodeKind::Root(_)
             | NodeKind::ForAll(..) => {
@@ -524,7 +524,7 @@ impl Node {
             child.borrow_mut().replace_evars_ref_tree(evars)?;
         }
         match &mut self.kind {
-            NodeKind::Assumption(pred) => *pred = evars.replace_evars(pred)?,
+            NodeKind::Assumption(pred, _assumption_type) => *pred = evars.replace_evars(pred)?,
             NodeKind::Head(pred, _) => {
                 *pred = evars.replace_evars(pred)?;
             }
@@ -576,13 +576,22 @@ impl Node {
                     )))
                 })?
             }
-            NodeKind::Assumption(pred) => {
+            NodeKind::Assumption(pred, assumption_type) => {
+                // TODO: do we need to track relations between variables whenever
+                // cx.assumption_to_fixpoint is called (i.e. do we also need to track
+                // for assumptions inside of NodeKind::Head expressions) or is doing it
+                // only for NodeKind::Assumption sufficient?
                 let (mut bindings, pred) = cx.assumption_to_fixpoint(pred)?;
-                let Some(cstr) = children_to_fixpoint(cx, &self.children)? else {
+                let Some(cstr) =
+                    children_to_fixpoint(cx, &self.children)?
+                else {
                     return Ok(None);
                 };
                 bindings.push(fixpoint::Bind {
-                    name: fixpoint::Var::Underscore,
+                    name: match assumption_type {
+                        AssumptionType::Assumption => fixpoint::Var::Underscore,
+                        AssumptionType::Invariant => fixpoint::Var::UnderscoreInvariant,
+                    },
                     sort: fixpoint::Sort::Int,
                     pred,
                 });
@@ -715,7 +724,7 @@ mod pretty {
     fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
         fn go(ptr: &NodePtr, mut preds: Vec<Expr>) -> (Vec<Expr>, Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::Assumption(pred) = &node.kind {
+            if let NodeKind::Assumption(pred, _assumption_type) = &node.kind {
                 preds.push(pred.clone());
                 if let [child] = &node.children[..] {
                     go(child, preds)
@@ -727,6 +736,12 @@ mod pretty {
             }
         }
         go(ptr, vec![])
+    }
+
+    impl Pretty for AssumptionType {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            w!(cx, f, "{:?}", self)
+        }
     }
 
     impl Pretty for RefineTree {
@@ -775,7 +790,7 @@ mod pretty {
                     )?;
                     fmt_children(&children, cx, f)
                 }
-                NodeKind::Assumption(pred) => {
+                NodeKind::Assumption(pred, _assumption_type) => {
                     let (preds, children) = if cx.preds_chain {
                         preds_chain(self)
                     } else {
@@ -856,8 +871,8 @@ mod pretty {
                     NodeKind::ForAll(name, sort, _) => {
                         elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                     }
-                    NodeKind::Assumption(pred) => {
-                        elements.push(format_cx!(cx, "{:?}", pred));
+                    NodeKind::Assumption(pred, assumption_type) => {
+                        elements.push(format_cx!(cx, "{:?} ({:?})", pred, assumption_type));
                     }
                     _ => {}
                 }
@@ -926,7 +941,7 @@ impl RefineCtxtTrace {
                     };
                     bindings.push(bind);
                 }
-                NodeKind::Assumption(e)
+                NodeKind::Assumption(e, _assumption_type)
                     if !e.simplify(&SnapshotMap::default()).is_trivially_true() =>
                 {
                     e.visit_conj(|e| {
@@ -974,9 +989,12 @@ impl Node {
                 let pred = assignment.simplify(pred);
                 self.kind = NodeKind::Head(pred, *tag);
             }
-            NodeKind::Assumption(pred) => {
+            // We used to skip invariants in case we remove them.
+            //
+            // Now we don't but we could again.
+            NodeKind::Assumption(pred, assumption_type) => {
                 let pred = assignment.simplify(pred);
-                self.kind = NodeKind::Assumption(pred);
+                self.kind = NodeKind::Assumption(pred, assumption_type.clone());
             }
             _ => {}
         }
@@ -1018,7 +1036,7 @@ impl ConstraintDeps {
                     }
                 });
             }
-            NodeKind::Assumption(expr) => {
+            NodeKind::Assumption(expr, _assumption_type) => {
                 expr.visit_conj(|e| {
                     if let ExprKind::KVar(kvar) = e.kind() {
                         assumptions.push(kvar.kvid);

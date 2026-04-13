@@ -98,6 +98,7 @@ pub mod fixpoint {
         Underscore,
         Global(GlobalVar, Option<Symbol>),
         WKVar(Symbol, u32),
+        UnderscoreInvariant,
         Local(LocalVar),
         DataCtor(AdtId, VariantIdx),
         TupleCtor { arity: usize },
@@ -141,6 +142,7 @@ pub mod fixpoint {
                 Var::UIFRel(BinRel::Eq) => write!(f, "eq"),
                 Var::UIFRel(BinRel::Ne) => write!(f, "ne"),
                 Var::Underscore => write!(f, "_$"), // To avoid clashing with `_` used for `app (_ bv_op n)` for parametric SMT ops
+                Var::UnderscoreInvariant => write!(f, "_invariant$"), // Not sure what kind of names can appear, but probably doesn't hurt to put a $ for uniqueness
                 Var::ConstGeneric(param) => {
                     write!(f, "constgen${}${}", param.name, param.index)
                 }

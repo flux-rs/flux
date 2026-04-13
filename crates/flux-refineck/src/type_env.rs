@@ -10,7 +10,7 @@ use flux_common::{
 use flux_infer::{
     fixpoint_encoding::KVarEncoding,
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, InferResult},
-    refine_tree::{BinderOriginator, BinderProvenance, Scope},
+    refine_tree::{AssumptionType, BinderOriginator, BinderProvenance, Scope},
 };
 use flux_macros::DebugAsJson;
 use flux_middle::{
@@ -70,7 +70,7 @@ impl<'a> TypeEnv<'a> {
         let mut env = TypeEnv { bindings: PlacesTree::default(), local_decls: &body.local_decls };
 
         for requires in fn_sig.requires() {
-            infcx.assume_pred(requires);
+            infcx.assume_pred(requires, AssumptionType::Assumption);
         }
 
         for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
@@ -403,7 +403,7 @@ impl<'a> TypeEnv<'a> {
                     infcx.assume_invariants(&updated_ty);
                     self.update_path(path, updated_ty, span);
                 }
-                Ensures::Pred(e) => infcx.assume_pred(e),
+                Ensures::Pred(e) => infcx.assume_pred(e, AssumptionType::Assumption),
             }
         }
     }
@@ -820,7 +820,7 @@ impl BasicBlockEnv {
             .data
             .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
         for constr in &data.constrs {
-            infcx.assume_pred(constr);
+            infcx.assume_pred(constr, AssumptionType::Assumption);
         }
         TypeEnv { bindings: data.bindings, local_decls }
     }
