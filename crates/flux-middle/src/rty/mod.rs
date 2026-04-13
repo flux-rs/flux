@@ -2152,6 +2152,17 @@ impl<'tcx> ToRustc<'tcx> for AliasTy {
     }
 }
 
+pub fn for_refine_arg<F, T>(genv: GlobalEnv, def_id: DefId, mut mk: F) -> QueryResult<Vec<T>>
+where
+    F: FnMut(EarlyBinder<RefineParam>, usize) -> QueryResult<T>,
+{
+    let reft_generics = genv.refinement_generics_of(def_id)?;
+    let count = reft_generics.count();
+    let mut args = Vec::with_capacity(count);
+    reft_generics.fill_item(genv, &mut args, &mut mk)?;
+    Ok(args)
+}
+
 pub type RefineArgs = List<Expr>;
 
 #[extension(pub trait RefineArgsExt)]

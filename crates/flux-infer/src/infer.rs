@@ -11,11 +11,12 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
-        Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
-        Region, Sort, Ty, TyCtor, TyKind, Var,
+        Ctor, ESpan, EVid, EarlyBinder, EarlyReftParam, Expr, ExprKind, FieldProj, GenericArg,
+        HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind,
+        RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::TypeFoldable,
+        for_refine_arg,
     },
 };
 use itertools::{Itertools, izip};
@@ -304,6 +305,13 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         Ok(RefineArgs::for_item(self.genv, callee_def_id, |param, _| {
             let param = param.instantiate(self.genv.tcx(), args, &[]);
             Ok(self.fresh_infer_var(&param.sort, param.mode))
+        })?)
+    }
+
+    pub fn params_for_refine_args(&mut self, callee_def_id: DefId) -> InferResult<Vec<Var>> {
+        Ok(for_refine_arg(self.genv, callee_def_id, |param, index| {
+            let var = Var::EarlyParam(EarlyReftParam { index: index as u32, name: param.name() });
+            Ok(var)
         })?)
     }
 

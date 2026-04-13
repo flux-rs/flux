@@ -106,7 +106,7 @@ impl RefineTree {
         Ok(self
             .root
             .borrow()
-            .to_fixpoint(cx)?
+            .to_fixpoint(cx, BlameAnalysis::new(), 0)?
             .unwrap_or(fixpoint::Constraint::TRUE))
     }
 
@@ -427,6 +427,24 @@ enum SimplifyPhase<'genv, 'tcx> {
     /// Only propagate `true` (TOP) and `false` (BOT)
     Partial,
 }
+type BinderDepth = usize;
+pub type BinderDeps = HashMap<Name, (Option<BinderProvenance>, BinderDepth, HashSet<Name>)>;
+
+#[derive(Clone, Debug)]
+pub struct BlameAnalysis {
+    pub binder_deps: BinderDeps,
+    pub wkvars: Vec<rty::WKVar>,
+    pub assumed_preds: FxHashSet<rty::Expr>,
+}
+impl BlameAnalysis {
+    fn new() -> Self {
+        Self {
+            binder_deps: HashMap::new(),
+            wkvars: Vec::new(),
+            assumed_preds: FxHashSet::default(),
+        }
+    }
+}
 
 impl TypeVisitable for Node {
     fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy> {
@@ -536,13 +554,20 @@ impl Node {
         Ok(())
     }
 
-    fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {
+    fn to_fixpoint(
+        &self,
+        cx: &mut FixpointCtxt<Tag>,
+        mut blame_analysis: BlameAnalysis,
+        binder_depth: BinderDepth,
+    ) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
             NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc, _) => {
-                children_to_fixpoint(cx, &self.children)?
+                children_to_fixpoint(cx, &self.children, blame_analysis, binder_depth)?
             }
             NodeKind::Root(params) => {
-                let Some(children) = children_to_fixpoint(cx, &self.children)? else {
+                let Some(children) =
+                    children_to_fixpoint(cx, &self.children, blame_analysis, binder_depth)?
+                else {
                     return Ok(None);
                 };
                 let mut constr = children;
@@ -561,9 +586,14 @@ impl Node {
                 }
                 Some(constr)
             }
-            NodeKind::ForAll(name, sort, _) => {
+            NodeKind::ForAll(name, sort, bp) => {
+                blame_analysis
+                    .binder_deps
+                    .insert(*name, (bp.clone(), binder_depth, HashSet::new()));
                 cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
-                    let Some(children) = children_to_fixpoint(cx, &self.children)? else {
+                    let Some(children) =
+                        children_to_fixpoint(cx, &self.children, blame_analysis, binder_depth + 1)?
+                    else {
                         return Ok(None);
                     };
                     Ok(Some(fixpoint::Constraint::ForAll(
@@ -581,9 +611,9 @@ impl Node {
                 // cx.assumption_to_fixpoint is called (i.e. do we also need to track
                 // for assumptions inside of NodeKind::Head expressions) or is doing it
                 // only for NodeKind::Assumption sufficient?
-                let (mut bindings, pred) = cx.assumption_to_fixpoint(pred)?;
+                let (mut bindings, pred) = cx.assumption_to_fixpoint(pred, &mut blame_analysis)?;
                 let Some(cstr) =
-                    children_to_fixpoint(cx, &self.children)?
+                    children_to_fixpoint(cx, &self.children, blame_analysis.clone(), binder_depth)?
                 else {
                     return Ok(None);
                 };
@@ -598,7 +628,7 @@ impl Node {
                 Some(fixpoint::Constraint::foralls(bindings, cstr))
             }
             NodeKind::Head(pred, tag) => {
-                Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span))?)
+                Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span), blame_analysis)?)
             }
             NodeKind::True => None,
         };
@@ -1237,6 +1267,8 @@ pub struct RefineParams {
     pub early_args: Vec<Expr>,
     /// The refine arguments given to the call
     pub late_args: Vec<Expr>,
+    pub early_params: Vec<Var>,
+    pub late_params: Vec<Var>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]

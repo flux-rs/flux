@@ -20,10 +20,12 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, Constant, CoroutineObligPredicate, EarlyBinder,
-        Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy,
-        Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        Expr,
+        FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy,
+        Mutability, Path,
+        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReErased,
-        Ty, TyKind, Uint, UintTy, VariantIdx,
+        Ty, TyKind, Uint, UintTy, Var, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine, Refiner},
     },
@@ -274,7 +276,7 @@ fn check_fn_subtyping(
     let tcx = infcx.genv.tcx();
 
     let super_sig = super_sig
-        .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
+        .replace_bound_vars(|_| rty::ReErased, |_, _, sort, _| Expr::fvar(infcx.define_var(sort)))
         .deeply_normalize(&mut infcx)?;
 
     // 1. Unpack `T_g` input types
@@ -300,7 +302,10 @@ fn check_fn_subtyping(
         };
         // ... jump right here.
         let sub_sig = sub_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |_, _, sort, mode| infcx.fresh_infer_var(sort, mode),
+            )
             .deeply_normalize(infcx)?;
 
         // 3. INPUT subtyping (g-input <: f-input)
@@ -516,7 +521,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let span = body.span();
 
         let fn_sig = poly_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |_, _, sort, _| Expr::fvar(infcx.define_var(sort)),
+            )
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
 
@@ -917,13 +925,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let generic_args = infcx.instantiate_generic_args(generic_args);
 
         // Generate fresh inference variables for refinement arguments
-        let early_refine_args = match callee_def_id {
+        let (early_refine_args, early_refine_params) = match callee_def_id {
             Some(callee_def_id) => {
-                infcx
+                let early_refine_args = infcx
                     .instantiate_refine_args(callee_def_id, &generic_args)
-                    .with_span(span)?
+                    .with_span(span)?;
+                let early_refine_params = infcx
+                    .params_for_refine_args(callee_def_id)
+                    .with_span(span)?;
+                (early_refine_args, early_refine_params)
             }
-            None => rty::List::empty(),
+            None => (rty::List::empty(), vec![]),
         };
 
         let clauses = match callee_def_id {
@@ -947,12 +959,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
 
         // Instantiate function signature and normalize it
-        let late_refine_args = vec![];
+        let mut late_refine_params = vec![];
+        let mut late_refine_args = vec![];
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &early_refine_args)
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
-
-        let fn_sig = fn_sig
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |idx, breft, sort, mode| {
+                    let var = infcx.fresh_infer_var(sort, mode);
+                    late_refine_params.push(Var::Bound(idx, breft));
+                    late_refine_args.push(var.clone());
+                    var
+                },
+            )
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
 
@@ -990,6 +1009,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 .into_iter()
                 .map(|arg| infcx.fully_resolve_evars(&arg))
                 .collect(),
+                early_params: early_refine_params,
+                late_params: late_refine_params,
             },
         })
     }
