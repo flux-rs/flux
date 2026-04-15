@@ -20,7 +20,7 @@ use bitflags::bitflags;
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
     ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, Lambda, Loc, Name, Path, Real,
-    SpecFuncKind, UnOp, Var,
+    SpecFuncKind, UnOp, Var, WKVar, WKVid,
 };
 pub use flux_arc_interner::List;
 use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};

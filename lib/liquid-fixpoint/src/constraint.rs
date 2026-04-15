@@ -204,6 +204,12 @@ impl BoundVar {
     }
 }
 
+#[derive_where(Hash, Debug, Clone)]
+pub struct WKVar<T: Types> {
+    pub wkvid: T::Var,
+    pub args: Vec<Expr<T>>,
+}
+
 #[derive_where(Hash, Clone, Debug)]
 pub enum Expr<T: Types> {
     Constant(Constant<T>),
@@ -226,6 +232,12 @@ pub enum Expr<T: Types> {
     ThyFunc(ThyFunc),
     IsCtor(T::Var, Box<Self>),
     Exists(Vec<Sort<T>>, Box<Self>),
+    /// NOTE: WKVars are for internal use and we serialize them as UIFs using
+    /// the var argument. We also don't emit WKVars that are in head position
+    /// when translating to fixpoint.
+    ///
+    /// In an ideal world fixpoint would deal with weak kvars itself.
+    WKVar(WKVar<T>),
 }
 
 impl<T: Types> From<Constant<T>> for Expr<T> {
@@ -299,6 +311,11 @@ impl<T: Types> Expr<T> {
             Expr::Exists(_sorts, expr) => {
                 // NOTE: (ck) No variable names here so it seems this is nameless.
                 vars.extend(expr.free_vars());
+            }
+            Expr::WKVar(WKVar { wkvid: _, args }) => {
+                for e in args {
+                    vars.extend(e.free_vars());
+                }
             }
         };
         vars
@@ -405,6 +422,15 @@ impl<T: Types> Expr<T> {
                     sorts.clone(),
                     Box::new(expr.substitute_bvar(subst_layer, current_level + 1)),
                 )
+            }
+            Expr::WKVar(WKVar { wkvid, args }) => {
+                Expr::WKVar(WKVar {
+                    wkvid: wkvid.clone(),
+                    args: args
+                        .iter()
+                        .map(|e| e.substitute_bvar(subst_layer, current_level))
+                        .collect_vec(),
+                })
             }
         }
     }

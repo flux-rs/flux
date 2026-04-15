@@ -2,6 +2,7 @@ use std::fmt::{self, Write};
 
 use itertools::Itertools;
 
+use crate::constraint::WKVar;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
@@ -335,6 +336,9 @@ impl<T: Types> fmt::Display for Expr<T> {
             }
             Expr::BoundVar(BoundVar { level, idx }) => {
                 write!(f, "bv{level}_{idx}")
+            }
+            Expr::WKVar(WKVar { wkvid, args }) => {
+                write!(f, "({} {})", wkvid.display(), args.iter().format(" "))
             }
         }
     }
