@@ -40,7 +40,7 @@ use liquid_fixpoint::{
 #[cfg(feature = "wick")]
 use liquid_fixpoint::{check_validity, qe_and_simplify};
 use rustc_data_structures::{
-    fx::{FxIndexMap, FxIndexSet},
+    fx::{FxIndexMap, FxHashMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -57,6 +57,7 @@ use crate::{
 };
 
 pub mod decoding;
+use crate::refine_tree::BlameAnalysis;
 
 pub mod fixpoint {
     use std::fmt;
@@ -525,6 +526,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
+    pub blame_ctx_map: FxHashMap<TagIdx, BlameCtxt>,
 }
 
 pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
@@ -560,6 +562,7 @@ where
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
+            blame_ctx_map: FxHashMap::default(),
         }
     }
 
@@ -1014,6 +1017,7 @@ where
         &mut self,
         expr: &rty::Expr,
         mk_tag: impl Fn(Option<ESpan>) -> Tag + Copy,
+        mut blame_analysis: BlameAnalysis,
     ) -> QueryResult<fixpoint::Constraint>
     where
         Tag: std::fmt::Debug,
@@ -1024,7 +1028,7 @@ where
                 let cstrs = expr
                     .flatten_conjs()
                     .into_iter()
-                    .map(|e| self.head_to_fixpoint(e, mk_tag))
+                    .map(|e| self.head_to_fixpoint(e, mk_tag, blame_analysis.clone()))
                     .try_collect()?;
                 Ok(fixpoint::Constraint::conj(cstrs))
             }
@@ -1060,7 +1064,8 @@ where
                 self.ecx
                     .local_var_env
                     .push_layer_with_fresh_names(pred.vars().len());
-                let cstr = self.head_to_fixpoint(pred.as_ref().skip_binder(), mk_tag)?;
+                let cstr =
+                    self.head_to_fixpoint(pred.as_ref().skip_binder(), mk_tag, blame_analysis)?;
                 let vars = self.ecx.local_var_env.pop_layer();
 
                 let bindings = iter::zip(vars, pred.vars())
@@ -1077,6 +1082,11 @@ where
             }
             _ => {
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
+                // Extract the spans from all of the vars related to the expression
+                // (including the vars in the expression).
+                self.blame_ctx_map
+                    .insert(tag_idx, BlameCtxt { blame_analysis, expr: expr.clone() });
+
                 let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
             }
@@ -1090,10 +1100,16 @@ where
     pub(crate) fn assumption_to_fixpoint(
         &mut self,
         pred: &rty::Expr,
+        blame_analysis: &mut BlameAnalysis,
     ) -> QueryResult<(Vec<fixpoint::Bind>, fixpoint::Pred)> {
+        // Convert assumption
         let mut bindings = vec![];
         let mut preds = vec![];
-        self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds)?;
+
+        self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds, blame_analysis)?;
+        blame_analysis
+            .assumed_preds
+            .extend(pred.flatten_conjs().into_iter().cloned());
         Ok((bindings, fixpoint::Pred::and(preds)))
     }
 
@@ -1103,11 +1119,12 @@ where
         expr: &rty::Expr,
         bindings: &mut Vec<fixpoint::Bind>,
         preds: &mut Vec<fixpoint::Pred>,
+        blame_analysis: &mut BlameAnalysis,
     ) -> QueryResult {
         match expr.kind() {
             rty::ExprKind::BinaryOp(rty::BinOp::And, e1, e2) => {
-                self.assumption_to_fixpoint_aux(e1, bindings, preds)?;
-                self.assumption_to_fixpoint_aux(e2, bindings, preds)?;
+                self.assumption_to_fixpoint_aux(e1, bindings, preds, blame_analysis)?;
+                self.assumption_to_fixpoint_aux(e2, bindings, preds, blame_analysis)?;
             }
             rty::ExprKind::KVar(kvar) => {
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
@@ -1125,6 +1142,38 @@ where
                 preds.push(fixpoint::Pred::TRUE);
             }
             _ => {
+                // NOTE: We might need to figure out how to skip weak kvars if they
+                // appear in the expression here because they may have free vars
+                // that will screw with this analysis.
+                //
+                // Add binder deps.
+                //
+                // We assume that for each predicate in the conjunction of the
+                // assumption, all of the variables in that predicate depend on
+                // each other. Hence why we compute the relation in this part of
+                // the assumption helper.
+                //
+                // E.g. for the predicate
+                //
+                // (a0 = Foo a1 a2) /\ (b0 > b1) /\ (b0 < a1)
+                //
+                // The first clause tells us {a0, a1, a2} are all interrelated.
+                // The second clause tells us {b0, b1} are all interrelated.
+                // The third clause tells us {b0, a1} are all interrelated.
+                let fvars = expr.fvars();
+                for fvar in &fvars {
+                    // In the unlikely (and perhaps impossible) case that names
+                    // are reused for binders, we ensure that we don't
+                    // initialize the dependencies if a name is missing. Perhaps
+                    // it would be better to panic/error here.
+                    if let Some((_bp, _depth, deps)) = blame_analysis.binder_deps.get_mut(fvar) {
+                        for fvar2 in &fvars {
+                            if fvar != fvar2 {
+                                deps.insert(*fvar2);
+                            }
+                        }
+                    }
+                }
                 preds.push(fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?));
             }
         }

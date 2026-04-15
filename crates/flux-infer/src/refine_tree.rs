@@ -12,8 +12,9 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
+        self, BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
+        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor,
+        },
     },
 };
 use itertools::Itertools;
@@ -428,7 +429,7 @@ enum SimplifyPhase<'genv, 'tcx> {
     Partial,
 }
 type BinderDepth = usize;
-pub type BinderDeps = HashMap<Name, (Option<BinderProvenance>, BinderDepth, HashSet<Name>)>;
+pub type BinderDeps = FxHashMap<Name, (Option<BinderProvenance>, BinderDepth, FxHashSet<Name>)>;
 
 #[derive(Clone, Debug)]
 pub struct BlameAnalysis {
@@ -439,7 +440,7 @@ pub struct BlameAnalysis {
 impl BlameAnalysis {
     fn new() -> Self {
         Self {
-            binder_deps: HashMap::new(),
+            binder_deps: FxHashMap::default(),
             wkvars: Vec::new(),
             assumed_preds: FxHashSet::default(),
         }
@@ -589,7 +590,7 @@ impl Node {
             NodeKind::ForAll(name, sort, bp) => {
                 blame_analysis
                     .binder_deps
-                    .insert(*name, (bp.clone(), binder_depth, HashSet::new()));
+                    .insert(*name, (bp.clone(), binder_depth, FxHashSet::default()));
                 cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
                     let Some(children) =
                         children_to_fixpoint(cx, &self.children, blame_analysis, binder_depth + 1)?
@@ -688,10 +689,16 @@ impl Node {
 fn children_to_fixpoint(
     cx: &mut FixpointCtxt<Tag>,
     children: &[NodePtr],
+    blame_analysis: BlameAnalysis,
+    binder_depth: BinderDepth,
 ) -> QueryResult<Option<fixpoint::Constraint>> {
     let mut children = children
         .iter()
-        .filter_map(|node| node.borrow().to_fixpoint(cx).transpose())
+        .filter_map(|node| {
+            node.borrow()
+                .to_fixpoint(cx, blame_analysis.clone(), binder_depth)
+                .transpose()
+        })
         .try_collect_vec()?;
     let cstr = match children.len() {
         0 => None,
