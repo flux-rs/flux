@@ -1,6 +1,7 @@
 use std::{
     fmt::{self, Write},
     iter,
+    str::FromStr,
 };
 
 use itertools::Itertools;
@@ -8,7 +9,7 @@ use itertools::Itertools;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task,
-    Types,
+    Types, constraint::WKVar,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -416,6 +417,20 @@ impl fmt::Display for BinOp {
     }
 }
 
+impl FromStr for BinOp {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "+" => Ok(BinOp::Add),
+            "-" => Ok(BinOp::Sub),
+            "*" => Ok(BinOp::Mul),
+            "/" | "div" => Ok(BinOp::Div),
+            "mod" => Ok(BinOp::Mod),
+            _ => Err(format!("Unexpected BinOp {}", s)),
+        }
+    }
+}
+
 impl fmt::Display for BinRel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -425,6 +440,21 @@ impl fmt::Display for BinRel {
             BinRel::Ge => write!(f, ">="),
             BinRel::Lt => write!(f, "<"),
             BinRel::Le => write!(f, "<="),
+        }
+    }
+}
+
+impl FromStr for BinRel {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "=" => Ok(BinRel::Eq),
+            "!=" => Ok(BinRel::Ne),
+            ">" => Ok(BinRel::Gt),
+            ">=" => Ok(BinRel::Ge),
+            "<" => Ok(BinRel::Lt),
+            "<=" => Ok(BinRel::Le),
+            _ => Err(format!("Unexpected BinRel {}", s)),
         }
     }
 }

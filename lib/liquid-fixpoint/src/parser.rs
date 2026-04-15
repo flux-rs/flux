@@ -1,7 +1,7 @@
 use std::fmt;
 
-use indexmap::IndexMap;
 use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
     BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
@@ -44,7 +44,7 @@ pub trait FromSexp<T: Types> {
 pub struct FromSexpWrapper<T: Types, Parser> {
     pub parser: Parser,
     pub _phantom: std::marker::PhantomData<T>,
-    scopes: Vec<IndexMap<String, T::Var>>,
+    scopes: Vec<FxIndexMap<String, T::Var>>,
 }
 
 type KvarSolution<T> = (Vec<(<T as Types>::Var, Sort<T>)>, Expr<T>);
@@ -153,6 +153,15 @@ where
         Ok(Expr::IsCtor(ctor, Box::new(arg)))
     }
 
+    fn parse_wkvar(&mut self, wkvar_name: &str, args: &[Sexp]) -> Result<Expr<T>, ParseError> {
+        let wkvid = self.parser.var(wkvar_name)?;
+        let args = args
+            .into_iter()
+            .map(|arg| self.parse_expr(arg))
+            .try_collect()?;
+        Ok(Expr::WKVar(WKVar { wkvid, args }))
+    }
+
     pub fn parse_expr(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
@@ -172,6 +181,7 @@ where
                         "=>" => self.parse_imp(sexp),
                         "cast_as_int" => self.parse_expr(&items[1]), // some odd thing that fixpoint-hs seems to add for sets...
                         _ if s.starts_with("is$") => self.parse_is_ctor(&s[3..], &items[1]),
+                        _ if s.starts_with("wk$") => self.parse_wkvar(s, &items[1..]),
                         _ => self.parse_app(sexp),
                     }
                 } else {
@@ -518,7 +528,7 @@ where
                 .try_collect()?;
             self.push_scope(&kvar_args);
 
-            let expr = self.parse_expr(body)?;
+            let expr = self.parse_expr(body)?.uncurry();
 
             let mut scope = self.pop_scope().unwrap();
             let bound = kvar_args
@@ -542,7 +552,7 @@ where
         );
     }
 
-    fn pop_scope(&mut self) -> Option<IndexMap<String, T::Var>> {
+    fn pop_scope(&mut self) -> Option<FxIndexMap<String, T::Var>> {
         self.scopes.pop()
     }
 
