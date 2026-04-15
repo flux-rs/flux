@@ -1,12 +1,15 @@
 use std::{
-    collections::{HashMap, HashSet},
     hash::Hash,
+};
+
+use rustc_data_structures::{
+    fx::{FxIndexMap, FxIndexSet},
 };
 
 fn dfs_finish_order<'a, T: Hash + Eq + Clone>(
     node: &'a T,
-    graph: &'a HashMap<T, Vec<T>>,
-    visited: &mut HashSet<T>,
+    graph: &'a FxIndexMap<T, Vec<T>>,
+    visited: &mut FxIndexSet<T>,
     order: &mut Vec<T>,
 ) {
     if visited.contains(node) {
@@ -24,8 +27,8 @@ fn dfs_finish_order<'a, T: Hash + Eq + Clone>(
     order.push(node.clone());
 }
 
-fn reverse_graph<T: Hash + Eq + Clone>(graph: &HashMap<T, Vec<T>>) -> HashMap<T, Vec<T>> {
-    let mut reversed = HashMap::new();
+fn reverse_graph<T: Hash + Eq + Clone>(graph: &FxIndexMap<T, Vec<T>>) -> FxIndexMap<T, Vec<T>> {
+    let mut reversed = FxIndexMap::default();
 
     for (node, neighbors) in graph {
         for neighbor in neighbors {
@@ -45,8 +48,8 @@ fn reverse_graph<T: Hash + Eq + Clone>(graph: &HashMap<T, Vec<T>>) -> HashMap<T,
 
 fn dfs_collect_scc<'a, T: Hash + Eq + Clone>(
     node: &'a T,
-    graph: &'a HashMap<T, Vec<T>>,
-    visited: &mut HashSet<T>,
+    graph: &'a FxIndexMap<T, Vec<T>>,
+    visited: &mut FxIndexSet<T>,
     scc: &mut Vec<T>,
 ) {
     if visited.contains(node) {
@@ -63,8 +66,8 @@ fn dfs_collect_scc<'a, T: Hash + Eq + Clone>(
     }
 }
 
-fn find_sccs<T: Hash + Eq + Clone>(graph: &HashMap<T, Vec<T>>) -> Vec<Vec<T>> {
-    let mut visited = HashSet::new();
+fn find_sccs<T: Hash + Eq + Clone>(graph: &FxIndexMap<T, Vec<T>>) -> Vec<Vec<T>> {
+    let mut visited = FxIndexSet::default();
     let mut order = Vec::new();
 
     // First pass: original graph
@@ -90,11 +93,11 @@ fn find_sccs<T: Hash + Eq + Clone>(graph: &HashMap<T, Vec<T>>) -> Vec<Vec<T>> {
     sccs
 }
 
-pub fn topological_sort_sccs<T: Hash + Eq + Clone>(graph: &HashMap<T, Vec<T>>) -> Vec<Vec<T>> {
+pub fn topological_sort_sccs<T: Hash + Eq + Clone>(graph: &FxIndexMap<T, Vec<T>>) -> Vec<Vec<T>> {
     let sccs = find_sccs::<T>(graph);
 
     // Map each node to its SCC index
-    let mut node_to_scc = HashMap::new();
+    let mut node_to_scc = FxIndexMap::default();
     for (i, scc) in sccs.iter().enumerate() {
         for node in scc {
             node_to_scc.insert(node.clone(), i);
@@ -102,7 +105,7 @@ pub fn topological_sort_sccs<T: Hash + Eq + Clone>(graph: &HashMap<T, Vec<T>>) -
     }
 
     // Build condensed graph (DAG of SCCs)
-    let mut condensed_graph: HashMap<usize, HashSet<usize>> = HashMap::new();
+    let mut condensed_graph: FxIndexMap<usize, FxIndexSet<usize>> = FxIndexMap::default();
     for (node, neighbors) in graph {
         let &from = node_to_scc.get(node).unwrap();
         for neighbor in neighbors {
@@ -116,8 +119,8 @@ pub fn topological_sort_sccs<T: Hash + Eq + Clone>(graph: &HashMap<T, Vec<T>>) -
     // Perform topological sort on SCC graph using DFS
     fn dfs_topo(
         node: usize,
-        graph: &HashMap<usize, HashSet<usize>>,
-        visited: &mut HashSet<usize>,
+        graph: &FxIndexMap<usize, FxIndexSet<usize>>,
+        visited: &mut FxIndexSet<usize>,
         result: &mut Vec<usize>,
     ) {
         if visited.contains(&node) {
@@ -135,7 +138,7 @@ pub fn topological_sort_sccs<T: Hash + Eq + Clone>(graph: &HashMap<T, Vec<T>>) -
         result.push(node);
     }
 
-    let mut visited = HashSet::new();
+    let mut visited = FxIndexSet::default();
     let mut result = Vec::new();
 
     for i in 0..sccs.len() {
