@@ -74,6 +74,10 @@ pub struct Flags {
     pub lean: LeanMode,
     /// If `true`, every function is implicitly labeled with a `no_panic` by default.
     pub no_panic: bool,
+    /// If `true`, all code will have suggestions disabled. This is manifest by
+    /// no weak kvars being added to any signature. If you explicitly add a weak
+    /// kvar, it will still have suggestions given.
+    pub no_suggestions_default: bool,
 }
 
 impl Default for Flags {
@@ -107,6 +111,7 @@ impl Default for Flags {
             ignore_default: false,
             lean: LeanMode::default(),
             no_panic: false,
+            no_suggestions_default: false,
         }
     }
 }
@@ -148,6 +153,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "ignore" => parse_bool(&mut flags.ignore_default, value),
             "lean" => parse_lean_mode(&mut flags.lean, value),
             "no-panic" => parse_bool(&mut flags.no_panic, value),
+            "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
