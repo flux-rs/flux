@@ -548,6 +548,20 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .unwrap_or(false)
     }
 
+    /// Same behavior as [`trusted`], but for the `#[no_suggestions]` attribute.
+    pub fn no_suggestions(self, def_id: LocalDefId) -> bool {
+        self.traverse_parents(def_id, |did| {
+            // A parent has no_suggestions, we inherit it
+            if self.fhir_attr_map(did).no_suggestions() {
+                Some(true)
+            // It doesn't have it, keep trying
+            } else {
+                None
+            }
+        })
+            .unwrap_or_else(config::no_suggestions_default)
+    }
+
     /// Whether the item is a dummy item created by the extern spec macro.
     ///
     /// See [`crate::Specs::dummy_extern`]

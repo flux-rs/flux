@@ -599,13 +599,15 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             if fn_sig.vars().is_empty() {
                 fn_sig = fn_sig.hoist_input_binders();
             }
-            // println!("adding wkvars for {:?}", def_id);
-            fn_sig = fn_sig.hoist_input_binders();
-            let id = match def_id {
-                MaybeExternId::Extern(_local_id, def_id) => def_id,
-                MaybeExternId::Local(local_id) => local_id.into(),
-            };
-            fn_sig = fn_sig.add_weak_kvars(genv, id)?;
+            if !genv.no_suggestions(def_id.local_id()) {
+                // println!("adding wkvars for {:?}", def_id);
+                fn_sig = fn_sig.hoist_input_binders();
+                let id = match def_id {
+                    MaybeExternId::Extern(_local_id, def_id) => def_id,
+                    MaybeExternId::Local(local_id) => local_id.into(),
+                };
+                fn_sig = fn_sig.add_weak_kvars(genv, id)?;
+            }
 
             if config::dump_rty() {
                 let generics = genv.generics_of(def_id)?;
