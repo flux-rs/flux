@@ -1,3 +1,5 @@
+use flux_attrs::*;
+
 // Test for `[T; N]` repeat array syntax (issue #1566)
 
 // Basic: write to element of a repeat array (the original bug report)
@@ -7,15 +9,18 @@ pub fn test_repeat_array_assignment() {
 }
 
 // Read from a repeat array
-pub fn test_repeat_array_index_read() {
+#[spec(fn() -> i32{v: v == 0})]
+pub fn test_repeat_array_index_read() -> i32 {
     let arr = [0i32; 8];
-    let _x = arr[0];
+    arr[0]
 }
 
 // Write a different value to a repeat array initialised with a non-zero constant
-pub fn test_repeat_with_nonzero() {
+#[spec(fn() -> usize{v: v >= 42})]
+pub fn test_repeat_write_then_read() -> usize {
     let mut arr = [42usize; 16];
     arr[5] = 100;
+    arr[0]
 }
 
 // The element type must satisfy the annotated return refinement.
