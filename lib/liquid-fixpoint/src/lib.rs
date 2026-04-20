@@ -17,11 +17,12 @@ mod constraint;
 mod constraint_fragments;
 #[cfg(feature = "rust-fixpoint")]
 mod constraint_solving;
+#[cfg(any(feature = "rust-fixpoint", feature = "wick"))]
 mod constraint_with_env;
-// #[cfg(feature = "rust-fixpoint")]
+#[cfg(any(feature = "rust-fixpoint", feature = "wick"))]
 mod cstr2smt2;
 mod format;
-// #[cfg(feature = "rust-fixpoint")]
+#[cfg(any(feature = "rust-fixpoint", feature = "wick"))]
 mod graph;
 pub mod parser;
 pub mod sexp;
@@ -40,11 +41,9 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField,
-    FunSort, Expr, FlatConstraint, Pred, Qualifier, Sort, SortCtor, SortDecl, WKVar,
+    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, FlatConstraint,
+    FunSort, Pred, Qualifier, Sort, SortCtor, SortDecl, WKVar,
 };
-use constraint_with_env::{topo_sort_data_declarations, ConstraintWithEnv};
-use cstr2smt2::Z3DecodeError;
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
@@ -57,6 +56,8 @@ pub type Assignments<'a, T> = HashMap<<T as Types>::KVar, Vec<(&'a Qualifier<T>,
 
 #[cfg(feature = "rust-fixpoint")]
 use crate::constraint_with_env::ConstraintWithEnv;
+#[cfg(feature = "wick")]
+use crate::constraint_with_env::topo_sort_data_declarations;
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
@@ -156,14 +157,26 @@ macro_rules! declare_types {
     };
 }
 
-pub fn qe_and_simplify<T: Types>(constraint: &FlatConstraint<T>, binder_consts: &Vec<ConstDecl<T>>, global_consts: &Vec<ConstDecl<T>>, datatype_decls: Vec<DataDecl<T>>) -> Result<Expr<T>, Z3DecodeError> {
+#[cfg(feature = "wick")]
+pub fn qe_and_simplify<T: Types>(
+    constraint: &FlatConstraint<T>,
+    binder_consts: &Vec<ConstDecl<T>>,
+    global_consts: &Vec<ConstDecl<T>>,
+    datatype_decls: Vec<DataDecl<T>>,
+) -> Result<Expr<T>, cstr2smt2::Z3DecodeError> {
     // let mut consts = self.constants.clone();
     // consts.extend(free_vars.clone());
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
     cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
 }
 
-pub fn check_validity<T: Types>(constraint: &FlatConstraint<T>, binder_consts: &Vec<ConstDecl<T>>, global_consts: &Vec<ConstDecl<T>>, datatype_decls: Vec<DataDecl<T>>) -> bool {
+#[cfg(feature = "wick")]
+pub fn check_validity<T: Types>(
+    constraint: &FlatConstraint<T>,
+    binder_consts: &Vec<ConstDecl<T>>,
+    global_consts: &Vec<ConstDecl<T>>,
+    datatype_decls: Vec<DataDecl<T>>,
+) -> bool {
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
     cstr2smt2::check_validity(constraint, binder_consts, global_consts, &datatype_decls)
 }
