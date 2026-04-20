@@ -652,6 +652,184 @@ impl Expr {
         }
         self.fold_with(&mut SpanEraser)
     }
+
+    /// Replaces [`BoundReftKind::Named(..)`] in [`Var::Bound(..)`] with
+    /// [`BoundReftKind::Anon`]. This is to ensure that expr equality works
+    /// properly --- the names are just annotations that do not change the
+    /// expressions themselves.
+    ///
+    /// If you think you need this function, you may be looking for
+    /// [`Expr::erase_metadata()`].
+    pub fn erase_bound_reft_kind(&self) -> Expr {
+        struct BoundReftKindEraser;
+        impl TypeFolder for BoundReftKindEraser {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::Var(Var::Bound(
+                    db_index,
+                    BoundReft { var, kind: BoundReftKind::Named(_) },
+                )) = expr.kind()
+                {
+                    Expr::bvar(*db_index, *var, BoundReftKind::Anon)
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+        self.fold_with(&mut BoundReftKindEraser)
+    }
+
+    pub fn erase_metadata(&self) -> Expr {
+        self.erase_spans().erase_bound_reft_kind()
+    }
+
+    /// Binary relations are lifted to tuples and ADTs, so e.g.
+    ///
+    ///     (1, false) > (0, true)
+    ///
+    /// is treated as
+    ///
+    ///     1 > 0 && false > true
+    ///
+    /// This "expands" the binary relations on tuples and ADTs to the second
+    /// form where their elements are individually compared.
+    ///
+    /// Only some binary relations are lifted in this manner, see
+    /// `bin_op_to_fixpoint` in `fixpoint_encoding.rs`.
+    pub fn expand_bin_rels(&self) -> Expr {
+        struct BinRelExpander;
+        impl BinRelExpander {
+            fn expand_bin_rel(&mut self, sort: &Sort, rel: &BinOp, e1: &Expr, e2: &Expr) -> Expr {
+                match sort {
+                    Sort::Tuple(sorts) => {
+                        let arity = sorts.len();
+                        self.apply_bin_rel_rec(sorts, rel, e1, e2, |field| {
+                            FieldProj::Tuple { arity, field }
+                        })
+                    }
+                    Sort::App(SortCtor::Adt(sort_def), args)
+                        if let Some(variant) = sort_def.opt_struct_variant() =>
+                    {
+                        let def_id = sort_def.did();
+                        let sorts = variant.field_sorts(args);
+                        self.apply_bin_rel_rec(&sorts, rel, e1, e2, |field| {
+                            FieldProj::Adt { def_id, field }
+                        })
+                    }
+                    _ => {
+                        Expr::binary_op(
+                            rel.clone(),
+                            e1.super_fold_with(self),
+                            e2.super_fold_with(self),
+                        )
+                    }
+                }
+            }
+            /// Apply binary relation recursively over aggregate expressions
+            fn apply_bin_rel_rec(
+                &mut self,
+                sorts: &[Sort],
+                rel: &BinOp,
+                e1: &Expr,
+                e2: &Expr,
+                mk_proj: impl Fn(u32) -> FieldProj,
+            ) -> Expr {
+                Expr::and_from_iter(sorts.iter().enumerate().map(|(idx, s)| {
+                    let proj = mk_proj(idx as u32);
+                    let e1 = e1.proj_and_reduce(proj);
+                    let e2 = e2.proj_and_reduce(proj);
+                    self.expand_bin_rel(s, rel, &e1, &e2)
+                }))
+            }
+        }
+        impl TypeFolder for BinRelExpander {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::BinaryOp(
+                    rel @ (BinOp::Le(sort) | BinOp::Lt(sort) | BinOp::Ge(sort) | BinOp::Gt(sort)),
+                    e1,
+                    e2,
+                ) = expr.kind()
+                {
+                    self.expand_bin_rel(sort, rel, e1, e2)
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+
+        let mut expander = BinRelExpander {};
+        self.fold_with(&mut expander)
+    }
+
+    /// This is really dumb but we sometimes have the following:
+    ///     Vec { k.0 }
+    /// And we want to really have it rendered as
+    ///     k
+    /// So what we do is look for Tuple or Ctor exprs whose subfields are all
+    /// projections of the same expr, and reduce them if so. Note that we
+    /// **also** require that these are in the same order.
+    pub fn eta_reduce_projs(&self) -> Self {
+        struct EtaReducer;
+        impl TypeFolder for EtaReducer {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                match expr.kind() {
+                    ExprKind::Tuple(subexprs) => {
+                        let new_subexprs = subexprs
+                            .iter()
+                            .map(|subexpr| subexpr.fold_with(self))
+                            .collect_vec();
+                        if let Some(ExprKind::FieldProj(
+                            e_inner,
+                            FieldProj::Tuple { arity: _, field: 0 },
+                        )) = subexprs.first().map(|e| e.kind())
+                            && new_subexprs[1..].iter().zip(1..).all(|(other_e, i)| {
+                                if let ExprKind::FieldProj(
+                                    other_e_inner,
+                                    FieldProj::Tuple { arity: _, field },
+                                ) = other_e.kind()
+                                {
+                                    field == &i && &e_inner.erase_metadata() == other_e_inner
+                                } else {
+                                    false
+                                }
+                            })
+                        {
+                            e_inner.clone()
+                        } else {
+                            expr.clone()
+                        }
+                    }
+                    ExprKind::Ctor(_ctor, subexprs) => {
+                        let new_subexprs = subexprs
+                            .iter()
+                            .map(|subexpr| subexpr.fold_with(self))
+                            .collect_vec();
+                        if let Some(ExprKind::FieldProj(
+                            e_inner,
+                            FieldProj::Adt { def_id: _, field: 0 },
+                        )) = subexprs.first().map(|e| e.kind())
+                            && new_subexprs[1..].iter().zip(1..).all(|(other_e, i)| {
+                                if let ExprKind::FieldProj(
+                                    other_e_inner,
+                                    FieldProj::Adt { def_id: _, field },
+                                ) = other_e.kind()
+                                {
+                                    field == &i && &e_inner.erase_metadata() == other_e_inner
+                                } else {
+                                    false
+                                }
+                            })
+                        {
+                            e_inner.clone()
+                        } else {
+                            expr.clone()
+                        }
+                    }
+                    _ => expr.super_fold_with(self),
+                }
+            }
+        }
+        self.fold_with(&mut EtaReducer)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]

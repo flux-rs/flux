@@ -19,3 +19,6 @@ pub mod lean_encoding;
 pub mod lean_format;
 pub mod projections;
 pub mod refine_tree;
+#[cfg(feature = "wick")]
+pub mod suggestions;
+pub mod wkvars;
