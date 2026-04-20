@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter};
+use std::iter;
 
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -40,8 +40,8 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub(crate) fn kvar_mappings(&self) -> HashMap<T::KVar, Vec<Constraint<T>>> {
-        let mut kvar_to_fragments: HashMap<T::KVar, Vec<Constraint<T>>> = HashMap::new();
+    pub(crate) fn kvar_mappings(&self) -> FxIndexMap<T::KVar, Vec<Constraint<T>>> {
+        let mut kvar_to_fragments: FxIndexMap<T::KVar, Vec<Constraint<T>>> = FxIndexMap::default();
         for frag in self.depth_first_fragments() {
             if let Some(kvar) = frag.fragment_kvar_head() {
                 kvar_to_fragments
@@ -56,11 +56,11 @@ impl<T: Types> Constraint<T> {
     /// Computes the kvar dependency graph as an adjacency list.
     ///
     /// There's an edge $k0 -> $k1, if $k1 appears as an assumption when $k0 is a head.
-    pub(crate) fn kvar_dep_graph(&self) -> HashMap<T::KVar, Vec<T::KVar>> {
+    pub(crate) fn kvar_dep_graph(&self) -> FxIndexMap<T::KVar, Vec<T::KVar>> {
         fn go<T: Types>(
             cstr: &Constraint<T>,
             deps: &mut Vec<T::KVar>,
-            graph: &mut HashMap<T::KVar, Vec<T::KVar>>,
+            graph: &mut FxIndexMap<T::KVar, Vec<T::KVar>>,
         ) {
             match cstr {
                 Constraint::Pred(pred, _) => {

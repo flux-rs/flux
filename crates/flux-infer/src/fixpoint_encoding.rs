@@ -37,8 +37,6 @@ use liquid_fixpoint::{
     FixpointStatus, KVarBind, SmtSolver, VerificationResult,
     parser::{FromSexp, ParseError},
     sexp::Parser,
-    check_validity,
-    qe_and_simplify,
 };
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
@@ -635,22 +633,8 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
-        let mut flat_constraint_map: HashMap<TagIdx, fixpoint::FlatConstraint> = constraint
-            .flatten(|var| matches!(var, fixpoint::Var::Underscore), |var| false)
-            .into_iter()
-            .flat_map(|flat_constraint| {
-                // We can't send a kvar to the SMT. If there's a kvar on the LHS we
-                // can underapproximate it with TRUE, but if it's in head position
-                // we don't know what to do.
-                if let Some(tag) = flat_constraint.tag
-                    && !flat_constraint.head.has_kvar()
-                {
-                    Some((tag.clone(), flat_constraint))
-                } else {
-                    None
-                }
-            })
-            .collect();
+        #[cfg(feature = "wick")]
+        let flat_constraint_map = make_flat_constraint_map(&constraint);
 
         let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
         // Encode function bodies after qualifiers/assumptions so any functions referenced there
@@ -756,29 +740,12 @@ where
                 tags.into_iter()
                     .map(|tag_idx| {
                         let tag = self.tags[tag_idx];
-                        #[cfg(not(feature = "wick"))]
-                        let possible_solutions = FxIndexMap::default();
-                        #[cfg(feature = "wick")]
-                        let mut possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = FxIndexMap::default();
-                        if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
-                            let head_expr = match &flat_constraint.head {
-                                fixpoint::Pred::Expr(e) => Some(e.clone()),
-                                _ => None,
-                            };
-                            // FIXME: this should be a better source of fresh names, but 100000
-                            // should be safe.
-                            let mut fresh_rty_name: usize = 100_000;
-                            let mut fresh_var = || {
-                                let local_var = self.ecx.local_var_env.fresh_name();
-                                let rty_var = rty::Expr::fvar(rty::Name::from_usize(fresh_rty_name));
-                                self.ecx.local_var_env.reverse_map.insert(local_var, rty_var);
-                                fresh_rty_name += 1;
-                                fixpoint::Var::Local(local_var)
-                            };
-                        FixpointCheckError::new(
-                            tag,
-                            possible_solutions,
-                        )
+                        let possible_solutions = if let Some(suggestion_ctx) = &suggestion_ctx {
+                            find_possible_solutions(self, tag_idx, &suggestion_ctx)
+                        } else {
+                            Default::default()
+                        };
+                        FixpointCheckError::new(tag, possible_solutions)
                     })
                     .collect_vec()
             }

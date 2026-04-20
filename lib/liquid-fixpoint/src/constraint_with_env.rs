@@ -7,10 +7,10 @@ use rustc_data_structures::fx::FxIndexMap;
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
-        FixpointStatus, Sort, SortCtor, cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype}, graph,
+        FixpointStatus, Identifier,
+        cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype},
     },
-    itertools::Itertools,
-    std::collections::{HashMap, VecDeque},
+    std::collections::VecDeque,
     z3::Solver,
 };
 
