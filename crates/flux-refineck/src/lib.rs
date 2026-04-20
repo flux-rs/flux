@@ -33,7 +33,7 @@ use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, SolutionTrace},
+    fixpoint_encoding::{FixQueryCache, FixpointCheckError, SolutionTrace},
     infer::{ConstrReason, SubtypeReason, Tag},
 };
 use flux_macros::fluent_messages;
@@ -53,10 +53,10 @@ use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_sta
 
 fluent_messages! { "../locales/en-US.ftl" }
 
-fn report_fixpoint_errors(
+pub fn report_fixpoint_errors(
     genv: GlobalEnv,
     local_id: LocalDefId,
-    errors: Vec<Tag>,
+    errors: Vec<FixpointCheckError<Tag>>,
 ) -> Result<(), ErrorGuaranteed> {
     #[expect(clippy::collapsible_else_if, reason = "it looks better")]
     if genv.should_fail(local_id) {
@@ -205,19 +205,22 @@ fn ret_error(genv: GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuara
         .emit_err(errors::RefineError::ret(span, dst_span))
 }
 
-fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuaranteed> {
+fn report_errors(
+    genv: GlobalEnv,
+    errors: Vec<FixpointCheckError<Tag>>,
+) -> Result<(), ErrorGuaranteed> {
     let mut e = None;
     for err in errors {
-        let span = err.src_span;
-        e = Some(match err.reason {
+        let span = err.tag.src_span;
+        e = Some(match err.tag.reason {
             ConstrReason::Call
             | ConstrReason::Subtype(SubtypeReason::Input)
             | ConstrReason::Subtype(SubtypeReason::Requires)
-            | ConstrReason::Predicate => call_error(genv, span, err.dst_span),
+            | ConstrReason::Predicate => call_error(genv, span, err.tag.dst_span),
             ConstrReason::Assign => genv.sess().emit_err(errors::AssignError { span }),
             ConstrReason::Ret
             | ConstrReason::Subtype(SubtypeReason::Output)
-            | ConstrReason::Subtype(SubtypeReason::Ensures) => ret_error(genv, span, err.dst_span),
+            | ConstrReason::Subtype(SubtypeReason::Ensures) => ret_error(genv, span, err.tag.dst_span),
             ConstrReason::Div => genv.sess().emit_err(errors::DivError { span }),
             ConstrReason::Rem => genv.sess().emit_err(errors::RemError { span }),
             ConstrReason::Goto(_) => genv.sess().emit_err(errors::GotoError { span }),
