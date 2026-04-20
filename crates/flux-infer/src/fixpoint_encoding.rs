@@ -36,9 +36,9 @@ use liquid_fixpoint::{
     FixpointResult, FixpointStatus, SmtSolver,
     parser::{FromSexp, ParseError},
     sexp::Parser,
-    check_validity,
-    qe_and_simplify,
 };
+#[cfg(feature = "wick")]
+use liquid_fixpoint::{check_validity, qe_and_simplify};
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
@@ -580,6 +580,7 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
+        #[cfg(feature = "wick")]
         let mut flat_constraint_map: HashMap<TagIdx, fixpoint::FlatConstraint> = constraint
             .flatten(
                 |var| matches!(var, fixpoint::Var::Underscore),
@@ -650,6 +651,7 @@ where
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
         let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
 
+        #[cfg(feature = "wick")]
         for constraint in flat_constraint_map.values_mut() {
             constraint.assumptions = constraint.assumptions.iter().flat_map(|pred| {
                 // Remove all trivially true assumptions
@@ -688,6 +690,7 @@ where
                     .map(|tag_idx| {
                         let tag = self.tags[tag_idx];
                         let mut possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = FxIndexMap::default();
+                        #[cfg(feature = "wick")]
                         if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
                             println!(
                                 "Looking for weak kvars that might solve {}",

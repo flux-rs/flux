@@ -8,10 +8,9 @@ use rustc_data_structures::{
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
-        FixpointStatus, Sort, SortCtor, cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype}, graph,
+        Identifier, FixpointStatus, cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype}
     },
-    itertools::Itertools,
-    std::collections::{HashMap, VecDeque},
+    std::collections::VecDeque,
     z3::Solver,
 };
 
