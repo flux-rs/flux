@@ -685,9 +685,13 @@ impl BasicBlockEnvShape {
     }
 
     fn join_idx_as_exact_choice(&self, bty: &BaseTy, idx1: &Expr, idx2: &Expr) -> Option<Ty> {
-        if !matches!(bty, BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Char) {
+        if !Self::is_finite_scalar_join_type(bty) {
             return None;
         }
+        // We only synthesize an exact two-choice join when both alternatives are closed terms in
+        // the current join scope. `idx2` may come from the incoming edge, so we reject free vars in
+        // it; we also reject escaping binders on both sides to avoid leaking bound variables out of
+        // their binder.
         if idx1 == idx2
             || self.scope.has_free_vars(idx2)
             || idx1.has_escaping_bvars()
@@ -699,6 +703,10 @@ impl BasicBlockEnvShape {
         let pred = Expr::or(Expr::eq(Expr::nu(), idx1.clone()), Expr::eq(Expr::nu(), idx2.clone()));
         let ty = Ty::constr(pred, Ty::indexed(bty.clone(), Expr::nu()));
         Some(Ty::exists(Binder::bind_with_sort(ty, bty.sort())))
+    }
+
+    fn is_finite_scalar_join_type(bty: &BaseTy) -> bool {
+        matches!(bty, BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Char)
     }
 
     fn exact_choice_contains(&self, ty1: &Ty, ty2: &Ty) -> bool {
