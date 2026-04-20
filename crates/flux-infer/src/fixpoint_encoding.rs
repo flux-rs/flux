@@ -53,7 +53,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
     fixpoint_encoding::fixpoint::FixpointTypes, fixpoint_qualifiers::FIXPOINT_QUALIFIERS,
-    lean_encoding::LeanEncoder, projections::structurally_normalize_expr,
+    lean_encoding::LeanEncoder, projections::structurally_normalize_expr, wkvars::WKVarInstantiator,
 };
 
 pub mod decoding;
