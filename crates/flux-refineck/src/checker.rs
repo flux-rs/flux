@@ -1387,10 +1387,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let arr_ty = ty
                     .with_holes()
                     .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
-                let (arr_ty, pred) = arr_ty.unconstr();
-                let mut at = infcx.at(stmt_span);
-                at.check_pred(&pred, ConstrReason::Other);
-                at.subtyping_with_env(env, &ty, &arr_ty, ConstrReason::Other)
+                infcx
+                    .at(stmt_span)
+                    .subtyping_with_env(env, &ty, &arr_ty, ConstrReason::Other)
                     .with_span(stmt_span)?;
                 Ok(Ty::array(arr_ty, c.clone()))
             }
