@@ -35,6 +35,7 @@ use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{FixQueryCache, SolutionTrace, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
+    wkvars::{WKVarInstantiator, WKVarSubst},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -42,12 +43,16 @@ use flux_middle::{
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
-    rty::{self, ESpan},
+    pretty,
+    rty::{
+        self, ESpan, EarlyBinder, Name,
+        fold::{TypeFoldable, TypeFolder, TypeVisitable},
+    },
 };
 use rustc_data_structures::unord::UnordMap;
-use rustc_errors::ErrorGuaranteed;
-use rustc_hir::def_id::LocalDefId;
 use rustc_span::Span;
+use rustc_errors::{Applicability, Diag, ErrorGuaranteed};
+use rustc_hir::def_id::{DefId, LocalDefId};
 
 use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_statements};
 
@@ -158,14 +163,18 @@ pub fn check_fn(
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| Ok(()))
 }
 
-fn call_error(genv: GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
+fn call_error<'a>(genv: GlobalEnv<'a, '_>, span: Span, dst_span: Option<ESpan>) -> Diag<'a> {
     genv.sess()
-        .emit_err(errors::RefineError::call(span, dst_span))
+        .dcx()
+        .handle()
+        .create_err(errors::RefineError::call(span, dst_span))
 }
 
-fn ret_error(genv: GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
+fn ret_error<'a>(genv: GlobalEnv<'a, '_>, span: Span, dst_span: Option<ESpan>) -> Diag<'a> {
     genv.sess()
-        .emit_err(errors::RefineError::ret(span, dst_span))
+        .dcx()
+        .handle()
+        .create_err(errors::RefineError::ret(span, dst_span))
 }
 
 fn report_errors(
@@ -175,26 +184,86 @@ fn report_errors(
     let mut e = None;
     for err in errors {
         let span = err.tag.src_span;
-        e = Some(match err.tag.reason {
+        let mut err_diag = match err.tag.reason {
             ConstrReason::Call
             | ConstrReason::Subtype(SubtypeReason::Input)
             | ConstrReason::Subtype(SubtypeReason::Requires)
             | ConstrReason::Predicate => call_error(genv, span, err.tag.dst_span),
-            ConstrReason::Assign => genv.sess().emit_err(errors::AssignError { span }),
+            ConstrReason::Assign => {
+                genv.sess()
+                    .dcx()
+                    .handle()
+                    .create_err(errors::AssignError { span })
+            }
             ConstrReason::Ret
             | ConstrReason::Subtype(SubtypeReason::Output)
-            | ConstrReason::Subtype(SubtypeReason::Ensures) => ret_error(genv, span, err.tag.dst_span),
-            ConstrReason::Div => genv.sess().emit_err(errors::DivError { span }),
-            ConstrReason::Rem => genv.sess().emit_err(errors::RemError { span }),
-            ConstrReason::Goto(_) => genv.sess().emit_err(errors::GotoError { span }),
-            ConstrReason::Assert(msg) => genv.sess().emit_err(errors::AssertError { span, msg }),
-            ConstrReason::Fold | ConstrReason::FoldLocal => {
-                genv.sess().emit_err(errors::FoldError { span })
+            | ConstrReason::Subtype(SubtypeReason::Ensures) => {
+                ret_error(genv, span, err.tag.dst_span)
             }
-            ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
-            ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
-            ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
-        });
+            ConstrReason::Div => {
+                genv.sess()
+                    .dcx()
+                    .handle()
+                    .create_err(errors::DivError { span })
+            }
+            ConstrReason::Rem => {
+                genv.sess()
+                    .dcx()
+                    .handle()
+                    .create_err(errors::RemError { span })
+            }
+            ConstrReason::Goto(_) => {
+                genv.sess()
+                    .dcx()
+                    .handle()
+                    .create_err(errors::GotoError { span })
+            }
+            ConstrReason::Assert(msg) => {
+                genv.sess()
+                    .dcx()
+                    .handle()
+                    .create_err(errors::AssertError { span, msg })
+            }
+            ConstrReason::Fold | ConstrReason::FoldLocal => {
+                genv.sess()
+                    .dcx()
+                    .handle()
+                    .create_err(errors::FoldError { span })
+            }
+            ConstrReason::Overflow => {
+                genv.sess()
+                    .dcx()
+                    .handle()
+                    .create_err(errors::OverflowError { span })
+            }
+            ConstrReason::Other => {
+                genv.sess()
+                    .dcx()
+                    .handle()
+                    .create_err(errors::UnknownError { span })
+            }
+            ConstrReason::Underflow => {
+                genv.sess()
+                    .dcx()
+                    .handle()
+                    .create_err(errors::UnderflowError { span })
+            }
+        };
+        let wkvar_solutions =
+            err
+            .possible_solutions
+            .iter()
+            .flat_map(|(wkvid, solutions)|
+                 solutions
+                      .iter()
+                      .map(move |solution| (wkvid, solution))
+        );
+
+        for (wkvid, solution) in wkvar_solutions {
+            add_fn_fix_diagnostic(genv, &mut err_diag, *wkvid, solution);
+        }
+
+        e = Some(err_diag.emit());
     }
 
     if let Some(e) = e { Err(e) } else { Ok(()) }
@@ -205,6 +274,86 @@ fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorG
         span: genv.tcx().def_span(def_id),
         def_descr: genv.tcx().def_descr(def_id.to_def_id()),
     }))
+}
+
+fn add_fn_fix_diagnostic<'a>(
+    genv: GlobalEnv<'a, '_>,
+    diag: &mut Diag<'a>,
+    wkvid: rty::WKVid,
+    solution: &rty::Binder<rty::Expr>,
+) {
+    let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()));
+    let fn_name = genv.tcx().def_path_str(wkvid.0);
+    let fn_span = genv
+        .tcx()
+        .def_ident_span(wkvid.parent_fn)
+        .unwrap_or_else(|| genv.tcx().def_span(wkvid.parent_fn));
+    let fn_sig = genv.fn_sig(wkvid.parent_fn).unwrap();
+    let mut wkvar_subst = WKVarSubst::new([(wkvid.clone(), pretty_solution)].into(), false);
+    let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
+    let fixed_fn_sig_snippet =
+        format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig));
+    // match genv.resolve_id(wkvid.0) {
+    //     ResolvedDefId::Local(local_id) | ResolvedDefId::ExternSpec(local_id, _) => {
+    //         if let Ok(fn_sig) = genv.fhir_expect_fn_sig(local_id) {
+    //             let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
+    //             assert!(subst_solutions.len() == 1);
+    //             // TODO: better info about fix types
+    //             // let fix_type = match wkvid.1.as_u32() {
+    //             //     0 => "precondition",
+    //             //     1 => "postcondition",
+    //             //     _ => unreachable!("invalid wkvid {:?}", wkvid),
+    //             // };
+    //             diag.span_suggestion(
+    //                 fn_sig.decl.span,
+    //                 format!("try adding the refinement {:?}", subst_solutions[0]),
+    //                 fixed_fn_sig_snippet,
+    //                 Applicability::MaybeIncorrect,
+    //             );
+    //         } else {
+                let fn_first_line = fn_first_line(genv, wkvid.parent_fn);
+                let fn_first_line_snippet = genv
+                    .tcx()
+                    .sess
+                    .source_map()
+                    .span_to_snippet(fn_first_line)
+                    .unwrap_or_else(|_| panic!("No snippet for span {:?}", fn_first_line));
+                let prefix_spaces = &fn_first_line_snippet[..fn_first_line_snippet
+                    .find(|c: char| !c.is_whitespace())
+                    .unwrap_or(fn_first_line_snippet.len())];
+                let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
+                assert!(subst_solutions.len() == 1);
+                diag.span_suggestion(
+                    fn_first_line,
+                    "try adding the refinement",
+                    format!(
+                        "{}#[sig({})]\n{}",
+                        prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet
+                    ),
+                    Applicability::MaybeIncorrect,
+                );
+        //     }
+        // }
+    //     ResolvedDefId::Extern(def_id) => {
+    //         diag.subdiagnostic(errors::WKVarFnFix {
+    //             span: fn_span,
+    //             fn_name,
+    //             fix: fixed_fn_sig_snippet,
+    //         });
+    //     }
+    // }
+}
+
+fn fn_first_line<'a>(genv: GlobalEnv<'a, '_>, def_id: DefId) -> Span {
+    let span = genv.tcx().def_span(def_id);
+    let first_line = genv
+        .tcx()
+        .sess
+        .source_map()
+        .lookup_line(span.lo())
+        .unwrap_or_else(|_| panic!("span for {:?} doesn't have a first line", def_id));
+    let first_line_range = first_line.sf.line_bounds(first_line.line);
+    Span::new(first_line_range.start, first_line_range.end, span.ctxt(), None)
 }
 
 mod errors {
