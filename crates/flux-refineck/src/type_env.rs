@@ -19,9 +19,9 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
-        BaseTy, Binder, BoundReftKind, Ctor, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
-        INNERMOST, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty,
-        TyKind, VariantIdx,
+        BaseTy, BinOp, Binder, BoundReftKind, Ctor, Ensures, Expr, ExprKind, FnSig, GenericArg,
+        HoleKind, INNERMOST, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor,
+        SubsetTy, Ty, TyKind, VariantIdx,
         canonicalize::{Hoister, LocalHoister},
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
@@ -586,12 +586,20 @@ impl BasicBlockEnvShape {
             (TyKind::Blocked(ty1), _) => Ty::blocked(self.join_ty(ty1, &ty2.unblocked())),
             (_, TyKind::Blocked(ty2)) => Ty::blocked(self.join_ty(&ty1.unblocked(), ty2)),
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
+            (TyKind::Exists(ty1), _)
+                if self.exact_choice_contains(ty1.as_ref().skip_binder(), ty2) =>
+            {
+                Ty::exists(ty1.clone())
+            }
             (TyKind::Exists(ty1), _) => self.join_ty(ty1.as_ref().skip_binder(), ty2),
             (_, TyKind::Exists(ty2)) => self.join_ty(ty1, ty2.as_ref().skip_binder()),
             (TyKind::Constr(_, ty1), _) => self.join_ty(ty1, ty2),
             (_, TyKind::Constr(_, ty2)) => self.join_ty(ty1, ty2),
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let bty = self.join_bty(bty1, bty2);
+                if let Some(ty) = self.join_idx_as_exact_choice(&bty, idx1, idx2) {
+                    return ty;
+                }
                 let mut sorts = vec![];
                 let idx = self.join_idx(idx1, idx2, &bty.sort(), &mut sorts);
                 if sorts.is_empty() {
@@ -673,6 +681,65 @@ impl BasicBlockEnvShape {
                     )
                 }
             }
+        }
+    }
+
+    fn join_idx_as_exact_choice(&self, bty: &BaseTy, idx1: &Expr, idx2: &Expr) -> Option<Ty> {
+        if !matches!(bty, BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Bool | BaseTy::Char) {
+            return None;
+        }
+        if idx1 == idx2
+            || self.scope.has_free_vars(idx2)
+            || idx1.has_escaping_bvars()
+            || idx2.has_escaping_bvars()
+            || bty.sort().is_pred()
+        {
+            return None;
+        }
+        let pred = Expr::or(Expr::eq(Expr::nu(), idx1.clone()), Expr::eq(Expr::nu(), idx2.clone()));
+        let ty = Ty::constr(pred, Ty::indexed(bty.clone(), Expr::nu()));
+        Some(Ty::exists(Binder::bind_with_sort(ty, bty.sort())))
+    }
+
+    fn exact_choice_contains(&self, ty1: &Ty, ty2: &Ty) -> bool {
+        let Some((choices, bty1)) = self.exact_choice_from_ty(ty1) else {
+            return false;
+        };
+        let ty2 = if let TyKind::Constr(_, ty2) = ty2.kind() { ty2 } else { ty2 };
+        let TyKind::Indexed(bty2, idx2) = ty2.kind() else {
+            return false;
+        };
+        bty1 == *bty2 && choices.iter().any(|idx| idx == idx2)
+    }
+
+    fn exact_choice_from_ty(&self, ty: &Ty) -> Option<([Expr; 2], BaseTy)> {
+        let TyKind::Constr(pred, ty) = ty.kind() else {
+            return None;
+        };
+        let TyKind::Indexed(bty, idx) = ty.kind() else {
+            return None;
+        };
+        if !idx.is_nu() {
+            return None;
+        }
+        let ExprKind::BinaryOp(BinOp::Or, pred1, pred2) = pred.kind() else {
+            return None;
+        };
+        let choice1 = Self::eq_nu_choice(pred1)?;
+        let choice2 = Self::eq_nu_choice(pred2)?;
+        Some(([choice1, choice2], bty.clone()))
+    }
+
+    fn eq_nu_choice(pred: &Expr) -> Option<Expr> {
+        let ExprKind::BinaryOp(BinOp::Eq, e1, e2) = pred.kind() else {
+            return None;
+        };
+        if e1.is_nu() {
+            Some(e2.clone())
+        } else if e2.is_nu() {
+            Some(e1.clone())
+        } else {
+            None
         }
     }
 
