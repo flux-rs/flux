@@ -23,7 +23,7 @@ use crate::{
         ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
         RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
         TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
-        WhereBoundPredicate,
+        WeakKvar, WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
@@ -731,6 +731,30 @@ fn mut_as_strg(inputs: Vec<FnInput>, ensures: &[Ensures]) -> ParseResult<Vec<FnI
     Ok(res)
 }
 
+pub(crate) fn parse_weak_kvars(cx: &mut ParseCtxt) -> ParseResult<Vec<WeakKvar>> {
+    until(cx, token::Eof, parse_weak_kvar)
+}
+
+fn parse_weak_kvar(cx: &mut ParseCtxt) -> ParseResult<WeakKvar> {
+    cx.expect(token::Dollar)?;
+    let num = parse_weak_kvar_name(cx)?;
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::No))?;
+    cx.expect(token::Eq)?;
+    let solutions = brackets(cx, Comma, |cx| parse_expr(cx, true))?;
+    cx.expect(token::Semi)?;
+    Ok(WeakKvar { num, params, solutions })
+}
+
+fn parse_weak_kvar_name(cx: &mut ParseCtxt) -> ParseResult<u32> {
+    let ident = parse_ident(cx)?;
+    let name = ident.name.as_str();
+    let Some(name) = name.strip_prefix("wk") else {
+        return Err(cx.unexpected_token(vec![Expected::Str("wk{%d}")]));
+    };
+    name.parse()
+        .map_err(|_| cx.unexpected_token(vec![Expected::Str("wk{%d}")]))
+}
+
 /// ```text
 /// ⟨fn_sig⟩ := ⟨asyncness⟩ fn ⟨ident⟩?
 ///             ⟨ [ ⟨refine_param⟩,* ] ⟩?
@@ -1323,8 +1347,22 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
 ///                 |  ⟨trailer_expr⟩ ( ⟨expr⟩,* )
 ///                 |  ⟨atom⟩
 /// ```
+///
+/// NOTE: wkvar parsing is $wkNUM[self_args*](args*)
+/// Not sure how to update the above.
 fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     let lo = cx.lo();
+    if cx.advance_if(token::Dollar) {
+        let num = parse_weak_kvar_name(cx)?;
+        let mut self_args = parens(cx, Comma, parse_expr_path)?;
+        let args = brackets(cx, Comma, parse_expr_path)?;
+        let num_self_args = self_args.len();
+        self_args.extend(args);
+        let kind = ExprKind::WeakKvar(num, num_self_args, self_args);
+        let hi = cx.hi();
+        return Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) });
+    }
+
     let mut e = parse_atom(cx, allow_struct)?;
     loop {
         let kind = if cx.advance_if(token::Dot) {

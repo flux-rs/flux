@@ -13,12 +13,14 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
-        fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
+        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 use itertools::Itertools;
-use rustc_data_structures::snapshot_map::SnapshotMap;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_data_structures::{
+    fx::{FxHashMap, FxHashSet},
+    snapshot_map::SnapshotMap,
+};
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
@@ -46,6 +48,7 @@ use crate::{
 ///
 /// [`UnsafeCell`]: std::cell::UnsafeCell
 /// [`GhostCell`]: https://docs.rs/ghost-cell/0.2.3/ghost_cell/ghost_cell/struct.GhostCell.html
+#[derive(Clone)]
 pub struct RefineTree {
     root: NodePtr,
 }
@@ -66,6 +69,34 @@ impl RefineTree {
         self.root.borrow_mut().simplify_top();
     }
 
+    pub(crate) fn fold_with(&self, folder: &mut impl TypeFolder) -> Self {
+        let new_root = self.root.borrow().fold_with(folder);
+        RefineTree { root: NodePtr(Rc::new(RefCell::new(new_root))) }
+    }
+
+    /// Returns wkvars appearing in (assumptive position, head position)
+    pub(crate) fn wkvars(&self) -> (FxHashSet<rty::WKVid>, FxHashSet<rty::WKVid>) {
+        let mut lhs_wkvars = FxHashSet::default();
+        let mut rhs_wkvars = FxHashSet::default();
+        self.root.borrow().visit_expr(
+            &mut |assumed| {
+                assumed.flatten_conjs().into_iter().for_each(|conj| {
+                    if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
+                        lhs_wkvars.insert(wkvar.wkvid.clone());
+                    }
+                })
+            },
+            &mut |head| {
+                head.flatten_conjs().into_iter().for_each(|conj| {
+                    if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
+                        rhs_wkvars.insert(wkvar.wkvid.clone());
+                    }
+                })
+            },
+        );
+        (lhs_wkvars, rhs_wkvars)
+    }
+
     pub(crate) fn into_fixpoint(
         self,
         cx: &mut FixpointCtxt<Tag>,
@@ -82,7 +113,11 @@ impl RefineTree {
     }
 
     pub(crate) fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
-        self.root.borrow_mut().replace_evars(evars)
+        self.root.borrow_mut().replace_evars_ref_tree(evars)
+    }
+
+    pub(crate) fn num_nontrivial_head_cstrs(&self) -> usize {
+        self.root.borrow().num_nontrivial_head_cstrs()
     }
 }
 
@@ -373,6 +408,38 @@ enum SimplifyPhase<'genv, 'tcx> {
     Partial,
 }
 
+impl TypeVisitable for Node {
+    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        unimplemented!()
+    }
+}
+
+impl TypeFoldable for Node {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let children = &self
+            .children
+            .iter()
+            .map(|child| {
+                let new_child: Node = child.borrow().try_fold_with(folder)?;
+                Ok(NodePtr(Rc::new(RefCell::new(new_child))))
+            })
+            .collect::<Result<Vec<NodePtr>, F::Error>>()?;
+        let kind = match &self.kind {
+            NodeKind::Assumption(pred, assumption_type) => NodeKind::Assumption(pred.try_fold_with(folder)?, assumption_type.clone()),
+            NodeKind::Head(pred, tag) => NodeKind::Head(pred.try_fold_with(folder)?, *tag),
+            NodeKind::Trace(trace) => NodeKind::Trace(trace.try_fold_with(folder)?),
+            NodeKind::Root(_) | NodeKind::ForAll(..) | NodeKind::True => self.kind.clone(),
+        };
+        Ok(Self {
+            nbindings: self.nbindings,
+            children: children.to_vec(),
+            kind,
+            // NOTE: zeroes out the parent
+            parent: None,
+        })
+    }
+}
+
 impl Node {
     fn simplify(&mut self, phase: SimplifyPhase, assumed_preds: &mut SnapshotMap<Expr, ()>) {
         // First, simplify the node itself
@@ -432,9 +499,9 @@ impl Node {
         matches!(self.kind, NodeKind::Head(..) | NodeKind::True)
     }
 
-    fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
+    fn replace_evars_ref_tree(&mut self, evars: &EVarStore) -> Result<(), EVid> {
         for child in &self.children {
-            child.borrow_mut().replace_evars(evars)?;
+            child.borrow_mut().replace_evars_ref_tree(evars)?;
         }
         match &mut self.kind {
             NodeKind::Assumption(pred) => *pred = evars.replace_evars(pred)?,
@@ -522,6 +589,41 @@ impl Node {
     /// [`Head`]: NodeKind::Head
     fn is_head(&self) -> bool {
         matches!(self.kind, NodeKind::Head(..))
+    }
+
+    fn visit_expr(
+        &self,
+        visit_assumed: &mut impl FnMut(&Expr),
+        visit_head: &mut impl FnMut(&Expr),
+    ) {
+        match &self.kind {
+            NodeKind::Assumption(expr, _assumption_type) => {
+                visit_assumed(&expr);
+            }
+            NodeKind::Head(expr, _) => {
+                let (impls, rhs) = expr.flatten_impls();
+                impls.into_iter().for_each(|imp| visit_assumed(imp));
+                visit_head(rhs);
+            }
+            NodeKind::Trace(..) | NodeKind::Root(..) | NodeKind::True | NodeKind::ForAll(..) => {}
+        }
+        for child in &self.children {
+            child.borrow().visit_expr(visit_assumed, visit_head);
+        }
+    }
+
+    fn num_nontrivial_head_cstrs(&self) -> usize {
+        let mut count = 0;
+        if let NodeKind::Head(e, t) = &self.kind
+            && !e.is_trivially_true()
+            && !e.is_trivially_false()
+        {
+            count += 1;
+        }
+        for child in &self.children {
+            count += child.borrow().num_nontrivial_head_cstrs();
+        }
+        count
     }
 }
 

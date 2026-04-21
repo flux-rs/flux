@@ -143,6 +143,7 @@ impl<'t> Cursor<'t> {
             rustc_ast::token::Bang => TokenKind::Bang,
             rustc_ast::token::PathSep => TokenKind::PathSep,
             rustc_ast::token::DotDot => TokenKind::DotDot,
+            rustc_ast::token::Dollar => TokenKind::Dollar,
             _ => TokenKind::Invalid,
         };
         self.tokens

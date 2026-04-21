@@ -30,9 +30,12 @@ use rustc_type_ir::Variance::Invariant;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
+    fixpoint_encoding::{
+        Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen,
+    },
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
+    wkvars::{Constraint, Constraints},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
@@ -216,9 +219,10 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         fcx.generate_and_check_lean_lemmas(cstr)
     }
 
-    pub fn execute_fixpoint_query(
+    pub fn execute_fixpoint_query_collecting_constraints(
         self,
         cache: &mut FixQueryCache,
+        constraints: &mut Constraints,
         def_id: MaybeExternId,
         kind: FixpointQueryKind,
     ) -> QueryResult<Answer<Tag>> {
@@ -242,15 +246,24 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
-        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
-
         let backend = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
+        constraints.push(Constraint {
+            def_id,
+            refine_tree: refine_tree.clone(),
+            kvgen: kvars.clone(),
+            query_kind: kind,
+            scrape_quals: self.opts.scrape_quals,
+            backend,
+        });
 
-        fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
+        // let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
+        // let cstr = refine_tree.into_fixpoint(&mut fcx)?;
+
+        // fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
+        QueryResult::Ok(Answer::trivial())
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
@@ -369,7 +382,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         f: impl FnOnce(&mut InferCtxt<'_, 'genv, 'tcx>, T) -> U,
     ) -> U
     where
-        T: TypeFoldable,
+        T: TypeFoldable + flux_middle::pretty::Pretty + std::fmt::Debug,
     {
         self.ensure_resolved_evars(|infcx| {
             let t = t.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));

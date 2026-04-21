@@ -146,6 +146,22 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                 }
                 self.check_func_params_uses(body, false);
             }
+            fhir::ExprKind::WeakKvar(_, _, args) => {
+                for arg in args {
+                    match arg {
+                        fhir::QPathExpr::Resolved(path, _) => {
+                            if let fhir::Res::Param(_, id) = path.res
+                                && let sort @ rty::Sort::Func(_) = self.infcx.param_sort(id)
+                            {
+                                self.errors.emit(InvalidParamPos::new(path.span, &sort));
+                            }
+                        }
+                        _ => {
+                            // TODO: see var case
+                        }
+                    }
+                }
+            }
             fhir::ExprKind::Err(_) => {
                 // an error has already been reported so we can just skip
             }

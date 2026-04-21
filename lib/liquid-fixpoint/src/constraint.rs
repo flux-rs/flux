@@ -73,6 +73,7 @@ impl<T: Types> Constraint<T> {
                 vec![FlatConstraint {
                     binders: vec![],
                     assumptions: Default::default(),
+                    invariants: Default::default(),
                     head: pred.clone(),
                     tag: tag.clone(),
                 }]
@@ -109,6 +110,8 @@ pub struct FlatConstraint<T: Types> {
     /// All of the assumptions (i.e. a flattened conjunction of predicates from
     /// all of the binders)
     pub assumptions: FxIndexSet<Pred<T>>,
+    /// All of the invariants (special kind of assumptions)
+    pub invariants: FxIndexSet<Pred<T>>,
     pub head: Pred<T>,
     #[derive_where(skip)]
     pub tag: Option<T::Tag>,
@@ -132,10 +135,30 @@ impl<T: Types> FlatConstraint<T> {
         let new_constraint = FlatConstraint {
             binders: new_binders,
             assumptions: self.assumptions.clone(),
+            invariants: self.invariants.clone(),
             head: self.head.clone(),
             tag: self.tag.clone(),
         };
         (removed_binders, new_constraint)
+    }
+
+    /// Turn this back into a constraint
+    pub fn into_constraint(&self, underscore_var: T::Var) -> Constraint<T> {
+        let head_constr = Constraint::Pred(self.head.clone(), self.tag.clone());
+        let mut constr = Constraint::ForAll(Bind {
+            name: underscore_var.clone(),
+            sort: Sort::Int,
+            pred: Pred::And(self.preconditions().into_iter().collect_vec()),
+        }, Box::new(head_constr));
+
+        for (var, sort) in &self.binders {
+            constr = Constraint::ForAll(Bind {
+                name: var.clone(),
+                sort: sort.clone(),
+                pred: Pred::TRUE,
+            }, Box::new(constr));
+        }
+        constr
     }
 
     pub fn add_assumption(&mut self, assumption: Pred<T>) {
@@ -154,6 +177,7 @@ impl<T: Types> FlatConstraint<T> {
 
     pub fn preconditions(&self) -> FxIndexSet<Pred<T>> {
         let mut preconditions = self.assumptions.clone();
+        preconditions.extend(self.invariants.clone());
         preconditions
     }
 
@@ -422,6 +446,18 @@ impl<T: Types> Pred<T> {
         match self {
             Pred::And(conjs) => conjs.iter().flat_map(|conj| conj.as_conjunction()).collect(),
             _ => vec![self.clone()],
+        }
+    }
+
+    pub fn free_vars(&self) -> HashSet<T::Var> {
+        match self {
+            Pred::KVar(..) => HashSet::new(),
+            Pred::And(preds) => {
+                preds.iter().flat_map(|pred| pred.free_vars()).collect()
+            }
+            Pred::Expr(expr) => {
+                expr.free_vars()
+            }
         }
     }
 
@@ -713,6 +749,20 @@ impl<T: Types> Expr<T> {
         }
     }
 
+    pub fn disjunctions(&self) -> Vec<Expr<T>> {
+        match self {
+            Expr::Or(disjuncts) => disjuncts.clone(),
+            _ => vec![self.clone()]
+        }
+    }
+
+    pub fn conjunctions(&self) -> Vec<Expr<T>> {
+        match self {
+            Expr::And(conjuncts) => conjuncts.clone(),
+            _ => vec![self.clone()]
+        }
+    }
+
     // Give all the weak kvars that appear as part of a top-level conjunction.
     // This is a syntactic analysis.
     pub fn wkvars_in_conj(&self) -> Vec<WKVar<T>> {
@@ -877,6 +927,13 @@ impl<T: Types> Expr<T> {
         }
     }
 
+    pub fn skip_exists(&self) -> &Self {
+        match self {
+            Expr::Exists(_, e) => e.skip_exists(),
+            e => e,
+        }
+    }
+
     pub fn hoist_exists<F>(&self, fresh_var: &mut F) -> (Vec<(T::Var, Sort<T>)>, Expr<T>)
         where F: FnMut() -> T::Var
     {
@@ -1016,6 +1073,66 @@ impl<T: Types> Expr<T> {
         }
     }
 
+    /// Assumes that the formula is in negation normal form already (i.e.
+    /// negations are pushed through all logical connectives).
+    ///
+    /// Also assumes that we only have And/Or as connectives.
+    ///
+    /// Both assumptions aren't impossible to fix, but if we're already getting
+    /// formulas that satisfy these it's easier to do less.
+    ///
+    /// This is a naive encoding that creates a combinatorial explosion with
+    /// the hope/assumption that we can significantly prune the result.
+    pub fn to_dnf(&self) -> DNF<T> {
+        match self {
+            Expr::Or(disjuncts) => {
+                let dnf_disjuncts = disjuncts.iter().flat_map(|disjunct| disjunct.to_dnf().disjuncts).collect_vec();
+                DNF {
+                    disjuncts: dnf_disjuncts,
+                }
+            }
+            // Combinatorial explosion time
+            Expr::And(conjuncts) => {
+                let dnf_disjuncts = conjuncts
+                    .iter()
+                    .map(|conjunct| conjunct.to_dnf().disjuncts)
+                    .multi_cartesian_product()
+                    .map(|vec_of_conjuncts| {
+                        vec_of_conjuncts.into_iter().flatten().collect_vec()
+                    })
+                    .collect_vec();
+                DNF {
+                    disjuncts: dnf_disjuncts,
+                }
+            }
+            _ => {
+                DNF {
+                    disjuncts: vec![vec![self.clone()]],
+                }
+            }
+        }
+    }
+
+    /// Counts the number of connectives (AND and OR) assuming the formula is in
+    /// negation normal form (negation pushed all the way in) + only expressed
+    /// in terms of AND and OR.
+    pub fn num_connectives(&self) -> usize {
+        match self {
+            Expr::Or(disjuncts) => disjuncts.len() + disjuncts.iter().map(|disjunct| disjunct.num_connectives()).sum::<usize>(),
+            Expr::And(conjuncts) => conjuncts.len() + conjuncts.iter().map(|conjunct| conjunct.num_connectives()).sum::<usize>(),
+            _ => 0,
+        }
+    }
+
+    pub fn max_num_disjuncts(&self) -> usize {
+        match self {
+            // Can pick 0 for the default value since there will always be at least one disjunct.
+            Expr::Or(disjuncts) => std::cmp::max(disjuncts.iter().map(|disjunct| disjunct.max_num_disjuncts()).max().unwrap_or(0), disjuncts.len()),
+            Expr::And(conjuncts) => conjuncts.iter().map(|conjunct| conjunct.max_num_disjuncts()).max().unwrap_or(1),
+            _ => 1,
+        }
+    }
+
     pub fn total_num_disjuncts(&self) -> usize {
         match self {
             // Can pick 0 for the default value since there will always be at least one disjunct.
@@ -1024,6 +1141,11 @@ impl<T: Types> Expr<T> {
             _ => 0,
         }
     }
+}
+
+pub struct DNF<T: Types> {
+    /// Each disjunct contains a conjunction ([`Vec<Expr<T>>`]).
+    pub disjuncts: Vec<Vec<Expr<T>>>,
 }
 
 #[derive_where(PartialEq, Eq, Hash, Clone, Debug)]
