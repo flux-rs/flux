@@ -35,6 +35,9 @@ mod convert;
 #[cfg(flux)]
 mod alloc;
 
+#[cfg(flux)]
+mod array;
+
 // -------------------------------------------------------------------
 
 #[macro_export]

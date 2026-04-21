@@ -541,6 +541,10 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
             dummy_prefix.push_str("Slice");
             create_dummy_ident(dummy_prefix, ty_slice.elem.as_ref())
         }
+        Array(ty_array) => {
+            dummy_prefix.push_str("Array");
+            create_dummy_ident(dummy_prefix, ty_array.elem.as_ref())
+        }
         Path(ty_path) => create_dummy_ident_from_path(dummy_prefix, &ty_path.path),
         Ptr(ty_ptr) => {
             if ty_ptr.mutability.is_some() {
