@@ -1,3 +1,4 @@
+#[cfg(feature = "rust-fixpoint")]
 use std::collections::HashMap;
 
 use derive_where::derive_where;

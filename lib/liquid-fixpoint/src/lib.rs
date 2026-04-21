@@ -28,7 +28,7 @@ pub mod parser;
 pub mod sexp;
 
 use std::{
-    collections::{HashMap, HashSet, hash_map::DefaultHasher},
+    collections::{HashMap, hash_map::DefaultHasher},
     fmt::{self, Debug},
     hash::{Hash, Hasher},
     io,

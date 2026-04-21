@@ -100,7 +100,7 @@ impl<T: Types> Constraint<T> {
             .into_iter()
             .rev()
             .flatten()
-            .flat_map(|kvid| kvar_to_fragments.remove(&kvid).unwrap())
+            .flat_map(|kvid| kvar_to_fragments.shift_remove(&kvid).unwrap())
             .collect()
     }
 
@@ -470,7 +470,7 @@ impl<T: Types> Expr<T> {
             Expr::Exists(..) => {
                 todo!("unexpected! exists")
             }
-            Expr::WKVar(WKVar{wkvid, args}) => {
+            Expr::WKVar(WKVar{wkvid: _, args}) => {
                 args.iter_mut()
                     .for_each(|expr| expr.substitute_in_place(v_from, v_to));
             }

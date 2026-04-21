@@ -222,7 +222,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
     pub fn execute_fixpoint_query_collecting_constraints(
         self,
-        cache: &mut FixQueryCache,
+        _cache: &mut FixQueryCache,
         constraints: &mut Constraints,
         def_id: MaybeExternId,
         kind: FixpointQueryKind,

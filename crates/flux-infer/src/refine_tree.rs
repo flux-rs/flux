@@ -673,7 +673,7 @@ impl Node {
 
     fn num_nontrivial_head_cstrs(&self) -> usize {
         let mut count = 0;
-        if let NodeKind::Head(e, t) = &self.kind
+        if let NodeKind::Head(e, _t) = &self.kind
             && !e.is_trivially_true()
             && !e.is_trivially_false()
         {

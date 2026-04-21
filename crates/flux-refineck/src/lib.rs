@@ -29,30 +29,29 @@ mod primops;
 mod queue;
 mod type_env;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, SolutionTrace, FixpointCheckError},
+    fixpoint_encoding::{FixQueryCache, FixpointCheckError, SolutionTrace},
     infer::{ConstrReason, SubtypeReason, Tag},
     refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
-    wkvars::{Constraints, WKVarInstantiator, WKVarSubst, _find_solution_candidates},
+    wkvars::{Constraints, WKVarSubst},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
     FixpointQueryKind,
-    def_id::{MaybeExternId, ResolvedDefId},
+    def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     pretty,
     rty::{
         self, ESpan, EarlyBinder, Name,
-        fold::{TypeFoldable, TypeFolder, TypeVisitable},
+        fold::{TypeFoldable, TypeVisitable},
     },
 };
-use itertools::Itertools;
 use rustc_data_structures::{fx::FxHashSet, unord::UnordMap};
 use rustc_errors::{Applicability, Diag, ErrorGuaranteed};
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -264,7 +263,6 @@ fn report_errors(
 
         let subst = make_binder_subst(genv, &err.blame_ctx.blame_analysis.binder_deps);
         let binders = binders_from_expr(
-            &subst,
             &err.blame_ctx.expr,
             &err.blame_ctx.blame_analysis.binder_deps,
         );
@@ -276,7 +274,7 @@ fn report_errors(
         //     - It comes from a function (and has a function we can show a span for)
         //     - It is a function argument
         //   * The rest are related (we reverse the sort to emit them most-to-least useful)
-        let (blamed_binders, related_binders) = split_binders(binders);
+        let (blamed_binders, _related_binders) = split_binders(binders);
 
         // // Find predicates which imply the failing constraint
         // let solution_candidates = _find_solution_candidates(&err.blame_ctx);
@@ -340,12 +338,7 @@ fn report_errors(
             for (wkvid, solution) in wkvar_solutions {
                 add_fn_fix_diagnostic(genv, &mut err_diag, wkvid.clone(), solution);
             }
-            // for blamed_binder in blamed_binders {
-            //     add_blame_var_diagnostic(genv, &mut err_diag, blamed_binder);
-            // }
-            // for related_binder in related_binders {
-            //     add_related_var_diagnostic(genv, &mut err_diag, related_binder);
-            // }
+            // (previous helpers for blame/related var diagnostics removed; not used)
         }
 
         e = Some(err_diag.emit());
@@ -416,7 +409,6 @@ fn add_substitution_for_binder_var(
 // Right now the heuristic for ordering binders is just to prefer the one defined
 // latest, but it will be improved eventually.
 fn binders_from_expr(
-    subst: &HashMap<Name, String>,
     expr: &rty::Expr,
     binder_deps: &BinderDeps,
 ) -> Vec<BinderInfo> {
@@ -428,19 +420,12 @@ fn binders_from_expr(
             // 1. We have information for (this should be all variables...)
             binder_deps
                 .get(name)
-                .and_then(|(bp_opt, depth, related_vars)| {
+                .and_then(|(bp_opt, depth, _related_vars)| {
                     // 2. Have a provenance.
                     bp_opt.as_ref().and_then(|bp| {
                         // 3. Have a span
                         bp.span.map(|span| {
-                            BinderInfo {
-                                name: *name,
-                                pretty_name: subst.get(name).cloned(),
-                                span,
-                                originator: bp.originator.clone(),
-                                depth: *depth,
-                                related_vars: related_vars.clone(),
-                            }
+                            BinderInfo { name: *name, span, originator: bp.originator.clone(), depth: *depth }
                         })
                     })
                 })
@@ -490,65 +475,32 @@ fn add_fn_fix_diagnostic<'a>(
     solution: &rty::Binder<rty::Expr>,
 ) {
     let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()).prettify());
-    let fn_name = genv.tcx().def_path_str(wkvid.parent_fn);
-    let fn_span = genv
-        .tcx()
-        .def_ident_span(wkvid.parent_fn)
-        .unwrap_or_else(|| genv.tcx().def_span(wkvid.parent_fn));
     let fn_sig = genv.fn_sig(wkvid.parent_fn).unwrap();
     let mut wkvar_subst = WKVarSubst::new([(wkvid.clone(), pretty_solution)].into(), false);
     let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
     let fixed_fn_sig_snippet =
         format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig));
-    // match genv.resolve_id(wkvid.0) {
-    //     ResolvedDefId::Local(local_id) | ResolvedDefId::ExternSpec(local_id, _) => {
-    //         if let Ok(fn_sig) = genv.fhir_expect_fn_sig(local_id) {
-    //             let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
-    //             assert!(subst_solutions.len() == 1);
-    //             // TODO: better info about fix types
-    //             // let fix_type = match wkvid.1.as_u32() {
-    //             //     0 => "precondition",
-    //             //     1 => "postcondition",
-    //             //     _ => unreachable!("invalid wkvid {:?}", wkvid),
-    //             // };
-    //             diag.span_suggestion(
-    //                 fn_sig.decl.span,
-    //                 format!("try adding the refinement {:?}", subst_solutions[0]),
-    //                 fixed_fn_sig_snippet,
-    //                 Applicability::MaybeIncorrect,
-    //             );
-    //         } else {
-                let fn_first_line = fn_first_line(genv, wkvid.parent_fn);
-                let fn_first_line_snippet = genv
-                    .tcx()
-                    .sess
-                    .source_map()
-                    .span_to_snippet(fn_first_line)
-                    .unwrap_or_else(|_| panic!("No snippet for span {:?}", fn_first_line));
-                let prefix_spaces = &fn_first_line_snippet[..fn_first_line_snippet
-                    .find(|c: char| !c.is_whitespace())
-                    .unwrap_or(fn_first_line_snippet.len())];
-                let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
-                assert!(subst_solutions.len() == 1);
-                diag.span_suggestion(
-                    fn_first_line,
-                    "try adding the refinement",
-                    format!(
-                        "{}#[sig({})]\n{}",
-                        prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet
-                    ),
-                    Applicability::MaybeIncorrect,
-                );
-        //     }
-        // }
-    //     ResolvedDefId::Extern(def_id) => {
-    //         diag.subdiagnostic(errors::WKVarFnFix {
-    //             span: fn_span,
-    //             fn_name,
-    //             fix: fixed_fn_sig_snippet,
-    //         });
-    //     }
-    // }
+    let fn_first_line = fn_first_line(genv, wkvid.parent_fn);
+    let fn_first_line_snippet = genv
+        .tcx()
+        .sess
+        .source_map()
+        .span_to_snippet(fn_first_line)
+        .unwrap_or_else(|_| panic!("No snippet for span {:?}", fn_first_line));
+    let prefix_spaces = &fn_first_line_snippet[..fn_first_line_snippet
+        .find(|c: char| !c.is_whitespace())
+        .unwrap_or(fn_first_line_snippet.len())];
+    let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
+    assert!(subst_solutions.len() == 1);
+    diag.span_suggestion(
+        fn_first_line,
+        "try adding the refinement",
+        format!(
+            "{}#[sig({})]\n{}",
+            prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet
+        ),
+        Applicability::MaybeIncorrect,
+    );
 }
 
 fn fn_first_line<'a>(genv: GlobalEnv<'a, '_>, def_id: DefId) -> Span {
@@ -563,77 +515,14 @@ fn fn_first_line<'a>(genv: GlobalEnv<'a, '_>, def_id: DefId) -> Span {
     Span::new(first_line_range.start, first_line_range.end, span.ctxt(), None)
 }
 
-fn add_blame_var_diagnostic<'a>(
-    genv: GlobalEnv<'a, '_>,
-    diag: &mut Diag<'a>,
-    binder_info: BinderInfo,
-) {
-    match binder_info.originator {
-        // If our blamed variable comes from a function return, suggest modifying
-        // the function instead of the variable.
-        BinderOriginator::CallReturn(CallReturn { def_id: Some(def_id), .. }) => {
-            let fn_name = genv.tcx().def_path_str(def_id);
-            let fn_span = genv
-                .tcx()
-                .def_ident_span(def_id)
-                .unwrap_or_else(|| genv.tcx().def_span(def_id));
-            diag.subdiagnostic(errors::BlamedFn { span: fn_span, fn_name });
-            // Show where the var is defined too.
-            add_var_span_diagnostic(diag, binder_info);
-        }
-        // As a fallback, suggest modifying the variable.
-        _ => {
-            diag.subdiagnostic(errors::BlamedVar {
-                span: binder_info.span,
-                var: binder_info
-                    .pretty_name
-                    .unwrap_or(format!("{:?}", binder_info.name)),
-            });
-        }
-    }
-}
-
-// Don't use this at a top level, it's code meant to be shared between add_blame_var and add_related_var
-fn add_var_span_diagnostic(diag: &mut Diag<'_>, binder_info: BinderInfo) {
-    diag.subdiagnostic(errors::VarSpan {
-        span: binder_info.span,
-        var: binder_info
-            .pretty_name
-            .unwrap_or(format!("{:?}", binder_info.name)),
-    });
-}
-
-fn add_related_var_diagnostic<'a>(
-    genv: GlobalEnv<'a, '_>,
-    diag: &mut Diag<'a>,
-    binder_info: BinderInfo,
-) {
-    diag.subdiagnostic(errors::VarSpan {
-        span: binder_info.span,
-        var: binder_info
-            .pretty_name
-            .unwrap_or(format!("{:?}", binder_info.name)),
-    });
-    if let BinderOriginator::CallReturn(CallReturn { def_id: Some(def_id), .. }) =
-        binder_info.originator
-    {
-        let fn_name = genv.tcx().def_path_str(def_id);
-        let fn_span = genv
-            .tcx()
-            .def_ident_span(def_id)
-            .unwrap_or_else(|| genv.tcx().def_span(def_id));
-        diag.subdiagnostic(errors::RelatedFn { span: fn_span, fn_name });
-    }
-}
+// Note: helper diagnostics for blaming variables were removed because they were never used.
 
 #[derive(Debug, Clone)]
 struct BinderInfo {
     name: Name,
-    pretty_name: Option<String>,
     span: Span,
     originator: BinderOriginator,
     depth: usize,
-    related_vars: FxHashSet<Name>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -923,54 +812,10 @@ mod errors {
         pub def_descr: &'static str,
     }
 
-    #[derive(Subdiagnostic)]
-    #[note(refineck_failing_constraint_note)]
-    pub struct FailingConstraint {
-        pub constraint: String,
-    }
-
-    #[derive(Subdiagnostic)]
-    #[note(refineck_blamed_fn_note)]
-    pub struct BlamedFn {
-        #[primary_span]
-        pub span: Span,
-        pub fn_name: String,
-    }
-
-    #[derive(Subdiagnostic)]
-    #[note(refineck_blamed_var_note)]
-    pub struct BlamedVar {
-        #[primary_span]
-        pub span: Span,
-        pub var: String,
-    }
-
-    #[derive(Subdiagnostic)]
-    #[note(refineck_var_span_note)]
-    pub struct VarSpan {
-        #[primary_span]
-        pub span: Span,
-        pub var: String,
-        // pub originator: String,
-    }
-
-    #[derive(Subdiagnostic)]
-    #[note(refineck_related_fn_note)]
-    pub struct RelatedFn {
-        #[primary_span]
-        pub span: Span,
-        pub fn_name: String,
-    }
-
-    #[derive(Subdiagnostic)]
-    #[note(refineck_wkvar_fn_fix_note)]
-    pub struct WKVarFnFix {
-        #[primary_span]
-        pub span: Span,
-        pub fn_name: String,
-        // FIXME: Render a proper fix rather than this hacky info.
-        pub fix: String,
-    }
+    // Several subdiagnostic helpers and notes were removed because they are
+    // never constructed or referenced in the current codepath. Keeping the
+    // set of diagnostics minimal avoids dead-code warnings; if these are
+    // needed in the future they can be reintroduced with proper usage.
 
     // refineck_err_with_blame_spans =
     // failed to verify predicate: {$pred}

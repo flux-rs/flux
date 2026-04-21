@@ -1,11 +1,11 @@
 use std::{
-    collections::{ HashMap, HashSet, hash_map::Entry },
-    ops::ControlFlow, time::Duration,
+    collections::{ HashMap, HashSet },
+    ops::ControlFlow,
 };
 
 use flux_common::cache::QueryCache;
 use flux_middle::{
-    FixpointQueryKind, def_id::{self, MaybeExternId}, global_env::GlobalEnv, metrics::refinement_hint_timings, pretty, queries::QueryResult, rty::{
+    FixpointQueryKind, def_id::MaybeExternId, global_env::GlobalEnv, metrics::refinement_hint_timings, pretty, queries::QueryResult, rty::{
         self,
         fold::{
             FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable,
@@ -350,27 +350,6 @@ impl WKVarSolution {
             }
         }
     }
-    fn has_solved_expr(&self, expr: &rty::Expr) -> bool {
-        let in_solved_exprs = self
-            .solved_exprs
-            .as_ref()
-            .map(|solved_exprs| {
-                solved_exprs
-                    .skip_binder_ref()
-                    .contains(&expr.erase_metadata())
-            })
-            .unwrap_or(false);
-        let in_assumed_exprs = self
-            .assumed_exprs
-            .as_ref()
-            .map(|assumed_exprs| {
-                assumed_exprs
-                    .skip_binder_ref()
-                    .contains(&expr.erase_metadata())
-            })
-            .unwrap_or(false);
-        in_solved_exprs || in_assumed_exprs
-    }
     fn add_expr(
         opt_exprs: &mut Option<rty::Binder<FxIndexSet<rty::Expr>>>,
         expr: &rty::Binder<rty::Expr>,
@@ -414,35 +393,7 @@ impl WKVarSolution {
         }
         Self::add_expr(&mut self.assumed_exprs, assumed_expr)
     }
-    fn add_actual_exprs(&mut self, actual_exprs: &Vec<rty::Binder<rty::Expr>>) {
-        self.actual_exprs = actual_exprs.clone();
-    }
-    fn remove_solved_expr(
-        &mut self,
-        annotated_solution: &Option<&Vec<rty::Binder<rty::Expr>>>,
-    ) -> bool {
-        if let Some(solved_exprs) = &self.solved_exprs {
-            let mut exprs_to_remove = solved_exprs.skip_binder_ref().iter().filter(|solved_expr| {
-                // Is the solved_expr in any of the annotated solutions?
-                // If so, don't remove it.
-                if let Some(annotated_solution) = annotated_solution {
-                    !annotated_solution.iter().any(|annotated_expr| {
-                        annotated_expr.skip_binder_ref().erase_metadata().kind()
-                            == solved_expr.kind()
-                    })
-                } else {
-                    true
-                }
-            });
-            for expr_to_remove in exprs_to_remove {
-                // Make sure we haven't added it already
-                if self.removed_solved_exprs.insert(expr_to_remove.clone()) {
-                    return true;
-                }
-            }
-        }
-        false
-    }
+    // Removed unused helpers: has_solved_expr, add_actual_exprs, remove_solved_expr
     pub fn to_summary(&self, genv: GlobalEnv) -> WKVarSolutionSummary {
         let pretty_cx = flux_middle::pretty::PrettyCx::default(genv);
         let summary_solved_exprs = if let Some(solved_exprs) = &self.solved_exprs {
@@ -565,7 +516,7 @@ impl WKVarSolutions {
             })
             .collect();
         let file = std::fs::File::create(path.as_path())?;
-        let mut writer = std::io::BufWriter::new(file);
+        let writer = std::io::BufWriter::new(file);
         Ok(serde_json::to_writer_pretty(writer, &solutions_by_wkvar)?)
     }
     fn stats_by_fn(&self, genv: GlobalEnv) -> (FxIndexMap<(DefId, String), WKVarSolutionStats>, usize, usize) {
@@ -629,7 +580,7 @@ impl WKVarSolutions {
         }
         let (stats_by_fn, num_nontrivial_real_wkvars, num_nontrivial_internal_wkvars) = self.stats_by_fn(genv);
         let mut writer = csv::Writer::from_path(path.as_path())?;
-        let (fn_timings, total_time) = refinement_hint_timings();
+        let (fn_timings, _total_time) = refinement_hint_timings();
         let mut total_hint_time: f32 = 0.0;
         let mut total_query_time: f32 = 0.0;
         let mut total_num_iters = 0;
@@ -753,7 +704,7 @@ impl WKVarSolutions {
         enum InteractionKind {
             AddGroundTruth(rty::Binder<rty::Expr>),
             RemoveSolution(rty::Expr),
-        };
+        }
         struct UserInteraction {
             wkvid: rty::WKVid,
             kind: InteractionKind,

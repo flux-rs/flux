@@ -1,10 +1,11 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     hash::Hash,
     iter, ops::Range, };
-
+#[cfg(feature = "wick")]
+use std::collections::HashSet;
 use fixpoint::AdtId;
 use flux_common::{
     bug,
@@ -53,8 +54,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
     fixpoint_encoding::fixpoint::FixpointTypes, fixpoint_qualifiers::FIXPOINT_QUALIFIERS,
-    lean_encoding::LeanEncoder, projections::structurally_normalize_expr, wkvars::WKVarInstantiator,
+    lean_encoding::LeanEncoder, projections::structurally_normalize_expr,
 };
+#[cfg(feature = "wick")]
+use crate::wkvars::WKVarInstantiator;
 
 pub mod decoding;
 use crate::refine_tree::BlameAnalysis;
@@ -62,7 +65,7 @@ use crate::refine_tree::BlameAnalysis;
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::{def_id::FluxDefId, rty::{self, EarlyReftParam}, self};
+    use flux_middle::{def_id::FluxDefId, rty::EarlyReftParam, self};
     use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
     use rustc_index::newtype_index;
@@ -525,7 +528,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     kcx: KVarEncodingCtxt,
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
-    tags_inv: UnordMap<T, TagIdx>,
+    _tags_inv: UnordMap<T, TagIdx>,
     pub blame_ctx_map: FxHashMap<TagIdx, BlameCtxt>,
 }
 
@@ -561,7 +564,7 @@ where
             ecx: ExprEncodingCtxt::new(genv, Some(def_id)),
             kcx: Default::default(),
             tags: IndexVec::new(),
-            tags_inv: Default::default(),
+            _tags_inv: Default::default(),
             blame_ctx_map: FxHashMap::default(),
         }
     }
@@ -621,6 +624,7 @@ where
         let mut constants =  self.ecx.const_env.const_map.values().cloned().collect_vec();
         constants.extend(define_constants);
 
+        #[cfg(feature = "wick")]
         let constants_without_inequalities = constants.clone();
 
         // The rust fixpoint implementation does not yet support polymorphic functions.
@@ -658,15 +662,15 @@ where
             data_decls: data_decls.clone(),
         };
         let id = def_id.resolved_id();
-        let crate_name = self.genv.tcx().crate_name(id.krate);
-        let item_name = self.genv.tcx().def_path(id).to_filename_friendly_no_crate();
-        println!("checking {} in {}", item_name, crate_name);
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
+        #[cfg(feature = "wick")]
         let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
+        #[cfg(not(feature = "wick"))]
+        let (_fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
 
         time_it::<QueryResult<Answer<Tag>>>(TimingKind::RefinementHint(def_id.as_local().unwrap()), || {
             #[cfg(feature = "wick")]
@@ -708,6 +712,9 @@ where
                         .map(|tag_idx| {
                             let tag = self.tags[tag_idx];
                             let blame_ctx = self.blame_ctx_map[&tag_idx].clone();
+                            #[cfg(not(feature = "wick"))]
+                            let possible_solutions = FxIndexMap::default();
+                            #[cfg(feature = "wick")]
                             let mut possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = FxIndexMap::default();
                             #[cfg(feature = "wick")]
                             if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
@@ -740,27 +747,17 @@ where
                                                 comment: None,
                                             }
                                         }).collect_vec();
-                                        // println!("Checking validity of {} => {}", constraint.assumptions.iter().map(|a| format!("{}", a)).join(" && "), constraint.head);
                                         println!("checking validity in split");
                                         check_validity(&other_constr, &binder_consts, &constants_without_inequalities, data_decls.clone())
 
                                     }) {
                                         // println!("WARN: There is at least one non-valid constraint among {} other constraints, skipping solving...", other_constrs.len());
-                                        // for constraint in other_constrs {
-                                        //     for assumption in constraint.assumptions.iter() {
-                                        //         println!("  {}", assumption);
-                                        //     }
-                                        //     println!(" ==>");
-                                        //     println!("  {}", constraint.head);
-                                        // }
                                         continue;
                                     }
                                     let ConstKey::WKVar(wkvid, self_args) = self.ecx.const_env.wkvar_map_rev.get(&wkvar.wkvid).unwrap()
                                     else {
                                         panic!()
                                     };
-                                    let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.parent_fn).to_filename_friendly_no_crate(), wkvid.id.as_u32());
-                                    println!("Trying {}({}) to solve", wkvid_string, wkvar.args.iter().map(|arg| format!("{}", arg)).join(", "));
                                     let fvars: HashSet<fixpoint::Var> = wkvar
                                         .args
                                         .iter()
@@ -790,16 +787,6 @@ where
                                             None
                                         }
                                     }).collect();
-                                    // println!("checking validity normally");
-                                    // if check_validity(&new_flat_constraint, &binder_consts, &constants_without_inequalities, data_decls.clone()) {
-                                    //     panic!("a constraint is valid when it shouldn't be");
-                                    // }
-                                    // for assumption in new_flat_constraint.assumptions.iter() {
-                                    //     println!("  {}", assumption);
-                                    // }
-                                    // println!(" ==>");
-                                    // println!("  {}", new_flat_constraint.head);
-                                    println!("qe and simplify {}", wkvid_string);
                                     match qe_and_simplify(&new_flat_constraint, &binder_consts, &constants_without_inequalities, data_decls.clone()) {
                                         Ok(fe) => {
                                             match self.fixpoint_to_expr(&fe) {
@@ -807,9 +794,7 @@ where
                                                     if !e.is_trivially_false()
                                                         && !e.is_trivially_true() {
                                                         if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &e) {
-                                                            // println!("recording solution: {:?}", binder_e);
                                                             if fe.total_num_disjuncts() > 3 {
-                                                                // println!("WARN: skipping answer with too many disjuncts");
                                                                 // Try the regular expression
                                                                 // NOTE: previously used blame_ctx.expr
                                                                 if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &self.fixpoint_to_expr(head_expr.as_ref().unwrap()).unwrap()) {
@@ -823,7 +808,6 @@ where
                                                                     .push(binder_e);
                                                             }
                                                         } else {
-                                                            // println!("got nontrivial solution {} but couldn't unify it with args {:?}", fe, wkvar.args);
                                                             // NOTE: previously used blame_ctx.expr
                                                             if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &self.fixpoint_to_expr(head_expr.as_ref().unwrap()).unwrap()) {
                                                                 possible_solutions.entry(wkvid.clone())
@@ -832,14 +816,13 @@ where
                                                             }
                                                         }
                                                     } else {
-                                                        // println!("skipped trivial solution");
+                                                        // Skipped trivial solution
                                                     }
                                                 }
-                                                Err(err) => {}, // println!("failed to decode fixpoint expr because of {:?}", err),
+                                                Err(_err) => {},
                                         }
                                         }
-                                        Err(err) => {
-                                            println!("failed to decode z3 expr because of {:?}", err);
+                                        Err(_err) => {
                                             // NOTE: previously used blame_ctx.expr
                                             if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &self.fixpoint_to_expr(head_expr.as_ref().unwrap()).unwrap()) {
                                                 possible_solutions.entry(wkvid.clone())
@@ -1017,7 +1000,7 @@ where
         &mut self,
         expr: &rty::Expr,
         mk_tag: impl Fn(Option<ESpan>) -> Tag + Copy,
-        mut blame_analysis: BlameAnalysis,
+        blame_analysis: BlameAnalysis,
     ) -> QueryResult<fixpoint::Constraint>
     where
         Tag: std::fmt::Debug,
@@ -2345,8 +2328,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> Option<fixpoint::Var> {
         if !wkvid.parent_fn.is_local() {
-            let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.parent_fn).to_filename_friendly_no_crate(), wkvid.id.as_u32());
-            // println!("INFO: skipping encoding {} because it is not local", wkvid_string);
+            let _wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.parent_fn).to_filename_friendly_no_crate(), wkvid.id.as_u32());
+            // println!("INFO: skipping encoding {} because it is not local", _wkvid_string);
             return None;
         }
         let key = ConstKey::WKVar(wkvid.clone(), self_args);
@@ -2518,17 +2501,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let name = qualifier.def_id.name().to_string();
         Ok(fixpoint::Qualifier { name, args, body })
     }
-}
-
-fn mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -> fixpoint::Constraint {
-    fixpoint::Constraint::ForAll(
-        fixpoint::Bind {
-            name: fixpoint::Var::Underscore,
-            sort: fixpoint::Sort::Int,
-            pred: assumption,
-        },
-        Box::new(cstr),
-    )
 }
 
 fn parse_kvid(kvid: &str) -> fixpoint::KVid {

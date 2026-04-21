@@ -16,7 +16,6 @@ use flux_middle::{
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
     Specs,
-    pretty,
 };
 use flux_refineck::{self as refineck, report_fixpoint_errors};
 use itertools::Itertools;
