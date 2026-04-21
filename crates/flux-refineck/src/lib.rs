@@ -262,10 +262,8 @@ fn report_errors(
         };
 
         let subst = make_binder_subst(genv, &err.blame_ctx.blame_analysis.binder_deps);
-        let binders = binders_from_expr(
-            &err.blame_ctx.expr,
-            &err.blame_ctx.blame_analysis.binder_deps,
-        );
+        let binders =
+            binders_from_expr(&err.blame_ctx.expr, &err.blame_ctx.blame_analysis.binder_deps);
         // Current heuristic:
         //   * We examine each binder from the expression
         //   * Binders are sorted in order of how useful they are (most-to-least)
@@ -279,15 +277,10 @@ fn report_errors(
         // // Find predicates which imply the failing constraint
         // let solution_candidates = _find_solution_candidates(&err.blame_ctx);
 
-        let wkvar_solutions =
-            err
+        let wkvar_solutions = err
             .possible_solutions
             .iter()
-            .flat_map(|(wkvid, solutions)|
-                 solutions
-                      .iter()
-                      .map(move |solution| (wkvid, solution))
-        );
+            .flat_map(|(wkvid, solutions)| solutions.iter().map(move |solution| (wkvid, solution)));
 
         if config::debug_binder_output() {
             // FIXME: We don't render the wk kvar suggestions in the debug output.
@@ -408,10 +401,7 @@ fn add_substitution_for_binder_var(
 // Sorting is done with the best given last.
 // Right now the heuristic for ordering binders is just to prefer the one defined
 // latest, but it will be improved eventually.
-fn binders_from_expr(
-    expr: &rty::Expr,
-    binder_deps: &BinderDeps,
-) -> Vec<BinderInfo> {
+fn binders_from_expr(expr: &rty::Expr, binder_deps: &BinderDeps) -> Vec<BinderInfo> {
     let mut binders: Vec<BinderInfo> = expr
         .fvars()
         .iter()
@@ -425,7 +415,12 @@ fn binders_from_expr(
                     bp_opt.as_ref().and_then(|bp| {
                         // 3. Have a span
                         bp.span.map(|span| {
-                            BinderInfo { name: *name, span, originator: bp.originator.clone(), depth: *depth }
+                            BinderInfo {
+                                name: *name,
+                                span,
+                                originator: bp.originator.clone(),
+                                depth: *depth,
+                            }
                         })
                     })
                 })
@@ -478,8 +473,10 @@ fn add_fn_fix_diagnostic<'a>(
     let fn_sig = genv.fn_sig(wkvid.parent_fn).unwrap();
     let mut wkvar_subst = WKVarSubst::new([(wkvid.clone(), pretty_solution)].into(), false);
     let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
-    let fixed_fn_sig_snippet =
-        format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig));
+    let fixed_fn_sig_snippet = format!(
+        "{:?}",
+        pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig)
+    );
     let fn_first_line = fn_first_line(genv, wkvid.parent_fn);
     let fn_first_line_snippet = genv
         .tcx()
@@ -495,10 +492,7 @@ fn add_fn_fix_diagnostic<'a>(
     diag.span_suggestion(
         fn_first_line,
         "try adding the refinement",
-        format!(
-            "{}#[sig({})]\n{}",
-            prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet
-        ),
+        format!("{}#[sig({})]\n{}", prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
         Applicability::MaybeIncorrect,
     );
 }

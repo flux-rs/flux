@@ -398,9 +398,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 for (arg, expected) in iter::zip(args, &inputs) {
                     let found = match arg {
                         QPathExpr::Resolved(path, _) => self.synth_path(&path),
-                        QPathExpr::TypeRelative(..) => {
-                            self.synth_type_relative_path(expr)
-                        }
+                        QPathExpr::TypeRelative(..) => self.synth_type_relative_path(expr),
                     };
                     let found = self.resolve_vars_if_possible(&found);
                     let expected = self.resolve_vars_if_possible(expected);

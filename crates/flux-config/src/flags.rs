@@ -145,12 +145,14 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "no-panic" => parse_bool(&mut flags.no_panic, value),
             "debug-binder-output" => parse_bool(&mut flags.debug_binder_output, value),
             "save-user-interactions" => parse_bool(&mut flags.save_user_interactions, value),
-            "user-interactions-file" => parse_opt_path_buf(&mut flags.user_interactions_file, value),
+            "user-interactions-file" => {
+                parse_opt_path_buf(&mut flags.user_interactions_file, value)
+            }
             "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
             _ => {
-        eprintln!("error: unknown flux option: `{key}`");
-        process::exit(EXIT_FAILURE);
-        }
+                eprintln!("error: unknown flux option: `{key}`");
+                process::exit(EXIT_FAILURE);
+            }
         };
         if let Err(reason) = result {
             eprintln!("error: incorrect value for flux option `{key}` - `{reason}`");

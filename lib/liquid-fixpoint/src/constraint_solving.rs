@@ -1,7 +1,7 @@
 use std::iter;
-use rustc_data_structures::fx::FxIndexMap;
 
 use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
     Assignments, BinRel, Types,
@@ -470,7 +470,7 @@ impl<T: Types> Expr<T> {
             Expr::Exists(..) => {
                 todo!("unexpected! exists")
             }
-            Expr::WKVar(WKVar{wkvid: _, args}) => {
+            Expr::WKVar(WKVar { wkvid: _, args }) => {
                 args.iter_mut()
                     .for_each(|expr| expr.substitute_in_place(v_from, v_to));
             }

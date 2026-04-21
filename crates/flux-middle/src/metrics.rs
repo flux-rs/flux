@@ -1,5 +1,9 @@
 use std::{
-    collections::HashMap, fs, io::{self, Write as _}, sync::{Mutex, atomic::AtomicU32}, time::{Duration, Instant}
+    collections::HashMap,
+    fs,
+    io::{self, Write as _},
+    sync::{Mutex, atomic::AtomicU32},
+    time::{Duration, Instant},
 };
 
 use flux_config as config;
@@ -140,17 +144,12 @@ pub fn refinement_hint_timings() -> (HashMap<DefId, FnTiming>, Duration) {
     for timing in TIMINGS.lock().unwrap().iter() {
         match timing.kind {
             TimingKind::RefinementHint(fn_def_id) => {
-                let timings = timings_by_fn
-                    .entry(fn_def_id.to_def_id())
-                    .or_default();
+                let timings = timings_by_fn.entry(fn_def_id.to_def_id()).or_default();
                 timings.reft_hint += timing.duration;
                 timings.iters += 1;
             }
             TimingKind::FixpointQuery(def_id, _) => {
-                timings_by_fn
-                    .entry(def_id)
-                    .or_default()
-                    .query += timing.duration;
+                timings_by_fn.entry(def_id).or_default().query += timing.duration;
             }
             TimingKind::Total => {
                 // This should only appear once

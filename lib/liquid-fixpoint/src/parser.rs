@@ -1,9 +1,7 @@
 use std::fmt;
 
-use rustc_data_structures::{
-    fx::FxIndexSet,
-};
 use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexSet;
 
 use crate::{
     BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
@@ -155,8 +153,11 @@ where
 
     fn parse_wkvar(&mut self, wkvar_name: &str, args: &[Sexp]) -> Result<Expr<T>, ParseError> {
         let wkvid = self.parser.var(wkvar_name)?;
-        let args = args.into_iter().map(|arg| self.parse_expr(arg)).try_collect()?;
-        Ok(Expr::WKVar(WKVar{wkvid, args}))
+        let args = args
+            .into_iter()
+            .map(|arg| self.parse_expr(arg))
+            .try_collect()?;
+        Ok(Expr::WKVar(WKVar { wkvid, args }))
     }
 
     pub fn parse_expr(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
@@ -404,7 +405,12 @@ where
         }
     }
 
-    fn parse_ite(&mut self, cond_e: &Sexp, then_e: &Sexp, else_e: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_ite(
+        &mut self,
+        cond_e: &Sexp,
+        then_e: &Sexp,
+        else_e: &Sexp,
+    ) -> Result<Expr<T>, ParseError> {
         let c = self.parse_expr(cond_e)?;
         let t = self.parse_expr(then_e)?;
         let e = self.parse_expr(else_e)?;

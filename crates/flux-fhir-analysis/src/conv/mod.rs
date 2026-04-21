@@ -698,7 +698,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         }
         Ok(WeakKvarInfo {
             solutions,
-            sorts: wk.params.iter().map(|param| self.results().param_sort(param.id)).collect(),
+            sorts: wk
+                .params
+                .iter()
+                .map(|param| self.results().param_sort(param.id))
+                .collect(),
         })
     }
 

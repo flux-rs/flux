@@ -1,22 +1,28 @@
 use std::{
-    collections::{ HashMap, HashSet },
+    collections::{HashMap, HashSet},
     ops::ControlFlow,
 };
 
 use flux_common::cache::QueryCache;
 use flux_middle::{
-    FixpointQueryKind, def_id::MaybeExternId, global_env::GlobalEnv, metrics::refinement_hint_timings, pretty, queries::QueryResult, rty::{
+    FixpointQueryKind,
+    def_id::MaybeExternId,
+    global_env::GlobalEnv,
+    metrics::refinement_hint_timings,
+    pretty,
+    queries::QueryResult,
+    rty::{
         self,
         fold::{
             FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable,
             TypeVisitor,
         },
-    }
+    },
 };
 use itertools::{Itertools, iproduct};
 use liquid_fixpoint::SmtSolver;
 use rustc_data_structures::{
-    fx::{FxIndexMap, FxIndexSet, FxHashSet},
+    fx::{FxHashSet, FxIndexMap, FxIndexSet},
     snapshot_map::SnapshotMap,
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -49,10 +55,7 @@ impl FallibleTypeFolder for WKVarInstantiator<'_> {
     /// return the name of the first unreplaceable free variable found.
     type Error = rty::Var;
 
-    fn try_enter_binder(
-        &mut self,
-        _vars: &rty::BoundVariableKinds,
-    ) {
+    fn try_enter_binder(&mut self, _vars: &rty::BoundVariableKinds) {
         self.current_index.shift_in(1);
     }
 
@@ -100,7 +103,7 @@ impl WKVarInstantiator<'_> {
     ///
     /// There are a lot of patches we put in this algorithm to get around the fact
     /// that it is purely syntactic. We currently try to eagerly eta reduce any
-    /// Ctor/Tuples + eta expand any args which aren't of that form 
+    /// Ctor/Tuples + eta expand any args which aren't of that form
     ///
     /// FIXME: This does not properly deal with expressions that have bound variables:
     /// if the expression has a bound variable, we might fail the instantiation
@@ -116,7 +119,9 @@ impl WKVarInstantiator<'_> {
         let mut args_to_param = HashMap::new();
         std::iter::zip(
             // Eta reduce and erase metadata.
-            wkvar_args.iter().map(|arg| arg.eta_reduce_projs().erase_metadata()),
+            wkvar_args
+                .iter()
+                .map(|arg| arg.eta_reduce_projs().erase_metadata()),
             // We'll make an instantiator that is generic because this instatiation
             // may (and probably will) be used in multiple places
             (0..wkvar_args.len()).into_iter().map(|var_num| {
@@ -146,10 +151,10 @@ impl WKVarInstantiator<'_> {
                     // println!("Dropping instantiation {:?} because no self args were used", instantiated_e);
                     None
                 } else {
-                Some(rty::Binder::bind_with_sorts(
-                    instantiated_e,
-                    &std::iter::repeat_n(rty::Sort::Err, wkvar_args.len()).collect_vec(),
-                ))
+                    Some(rty::Binder::bind_with_sorts(
+                        instantiated_e,
+                        &std::iter::repeat_n(rty::Sort::Err, wkvar_args.len()).collect_vec(),
+                    ))
                 }
             })
     }
@@ -167,12 +172,11 @@ pub struct WKVarSubst {
 }
 
 impl WKVarSubst {
-    pub fn new(wkvar_instantiations: HashMap<rty::WKVid, rty::Binder<rty::Expr>>, keep_wkvars: bool) -> Self {
-        WKVarSubst {
-            subst_instantiations: Default::default(),
-            wkvar_instantiations,
-            keep_wkvars,
-        }
+    pub fn new(
+        wkvar_instantiations: HashMap<rty::WKVid, rty::Binder<rty::Expr>>,
+        keep_wkvars: bool,
+    ) -> Self {
+        WKVarSubst { subst_instantiations: Default::default(), wkvar_instantiations, keep_wkvars }
     }
 }
 
@@ -185,7 +189,8 @@ impl TypeFolder for WKVarSubst {
                 // The bound expression has bound vars that need to be replaced
                 // by the args given to the wkvar (in order).
                 let instantiated_e = bound_e.replace_bound_refts(&wkvar.args);
-                self.subst_instantiations.entry(wkvid.clone())
+                self.subst_instantiations
+                    .entry(wkvid.clone())
                     .and_modify(|insts| insts.push(instantiated_e.clone()))
                     .or_insert_with(|| vec![instantiated_e.clone()]);
                 if self.keep_wkvars {
@@ -195,10 +200,7 @@ impl TypeFolder for WKVarSubst {
                 }
             }
             // Replace wkvars with true (i.e. eliminate them) if we aren't keeping them
-            rty::ExprKind::WKVar(_)
-                if !self.keep_wkvars => {
-                rty::Expr::tt()
-            }
+            rty::ExprKind::WKVar(_) if !self.keep_wkvars => rty::Expr::tt(),
             _ => e.super_fold_with(self),
         }
     }
@@ -372,8 +374,7 @@ impl WKVarSolution {
         if self
             .removed_solved_exprs
             .contains(&solved_expr.skip_binder_ref().erase_metadata())
-
-{
+        {
             return false;
         }
         Self::add_expr(&mut self.solved_exprs, solved_expr)
@@ -495,9 +496,7 @@ impl WKVarSolutions {
         let solutions = wkvars
             .iter()
             .chain(internal_wkvars.iter())
-            .map(|wkvid| {
-                (wkvid.clone(), WKVarSolution::empty(genv, wkvid.clone()))
-            })
+            .map(|wkvid| (wkvid.clone(), WKVarSolution::empty(genv, wkvid.clone())))
             .collect();
         Self { solutions, num_nontrivial_head_cstrs, wkvars, internal_wkvars }
     }
@@ -510,8 +509,11 @@ impl WKVarSolutions {
             .solutions
             .iter()
             .map(|(wkvid, solution)| {
-                let wkvar_key =
-                    format!("{}::$wk{}", genv.tcx().def_path_str(wkvid.parent_fn), wkvid.id.as_u32());
+                let wkvar_key = format!(
+                    "{}::$wk{}",
+                    genv.tcx().def_path_str(wkvid.parent_fn),
+                    wkvid.id.as_u32()
+                );
                 (wkvar_key, solution.to_summary(genv))
             })
             .collect();
@@ -519,9 +521,13 @@ impl WKVarSolutions {
         let writer = std::io::BufWriter::new(file);
         Ok(serde_json::to_writer_pretty(writer, &solutions_by_wkvar)?)
     }
-    fn stats_by_fn(&self, genv: GlobalEnv) -> (FxIndexMap<(DefId, String), WKVarSolutionStats>, usize, usize) {
+    fn stats_by_fn(
+        &self,
+        genv: GlobalEnv,
+    ) -> (FxIndexMap<(DefId, String), WKVarSolutionStats>, usize, usize) {
         let mut stats_by_fn: FxIndexMap<(DefId, String), WKVarSolutionStats> = Default::default();
-        let mut solutions_by_fn: FxIndexMap<_, HashMap<rty::WKVid, rty::Binder<rty::Expr>>> = Default::default();
+        let mut solutions_by_fn: FxIndexMap<_, HashMap<rty::WKVid, rty::Binder<rty::Expr>>> =
+            Default::default();
         let mut num_nontrivial_real_wkvars = 0;
         let mut num_nontrivial_internal_wkvars = 0;
         self.solutions.iter().for_each(|(wkvid, solution)| {
@@ -534,10 +540,12 @@ impl WKVarSolutions {
             }
             let wkvar_fn_name = genv.tcx().def_path_str(wkvid.parent_fn);
             if let Some(solved_exprs) = &solution.solved_exprs {
-                let sol = solved_exprs.map_ref(|exprs| rty::Expr::and_from_iter(exprs.iter().cloned()));
-                solutions_by_fn.entry(wkvid.parent_fn)
-                               .or_default()
-                               .insert(wkvid.clone(), sol);
+                let sol =
+                    solved_exprs.map_ref(|exprs| rty::Expr::and_from_iter(exprs.iter().cloned()));
+                solutions_by_fn
+                    .entry(wkvid.parent_fn)
+                    .or_default()
+                    .insert(wkvid.clone(), sol);
             }
             stats_by_fn
                 .entry((wkvid.parent_fn, wkvar_fn_name))
@@ -551,7 +559,8 @@ impl WKVarSolutions {
             let wkvar_fn_name = genv.tcx().def_path_str(def_id);
             let fn_sig = genv.fn_sig(def_id).unwrap();
             let mut wkvar_subst = WKVarSubst::new(wkvar_instantiations, false);
-            let solved_fn_sig = rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
+            let solved_fn_sig =
+                rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
             let fixed_fn_sig_snippet =
                 format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
             println!("Solution: fn {}", wkvar_fn_name);
@@ -578,7 +587,8 @@ impl WKVarSolutions {
             total_time: f32,
             iters: usize,
         }
-        let (stats_by_fn, num_nontrivial_real_wkvars, num_nontrivial_internal_wkvars) = self.stats_by_fn(genv);
+        let (stats_by_fn, num_nontrivial_real_wkvars, num_nontrivial_internal_wkvars) =
+            self.stats_by_fn(genv);
         let mut writer = csv::Writer::from_path(path.as_path())?;
         let (fn_timings, _total_time) = refinement_hint_timings();
         let mut total_hint_time: f32 = 0.0;
@@ -588,52 +598,56 @@ impl WKVarSolutions {
         let num_fns = stats_by_fn.len();
         let mut latex_table = String::new();
         latex_table.push_str("Function name & Inferences & Guided Assumptions & Guided Removals & Ground Truth Expressions & VC check time & Reft hint time & Total time & Iters \\\\\n");
-        stats_by_fn.into_iter().try_for_each(|((fn_def_id, fn_name), stats)| {
-            let timings = fn_timings.get(&fn_def_id).cloned().unwrap_or_default();
-            total = total.combine(&stats);
-            let row = CsvRow {
-                fn_name,
-                num_solved_exprs: stats.num_solved_exprs,
-                num_assumed_exprs: stats.num_assumed_exprs,
-                num_removed_solved_exprs: stats.num_removed_solved_exprs,
-                num_actual_exprs: stats.num_actual_exprs,
-                time_to_check: timings.query.as_secs_f32(),
-                time_to_hint: timings.reft_hint.as_secs_f32(),
-                total_time: (timings.query + timings.reft_hint).as_secs_f32(),
-                iters: timings.iters,
-            };
-            total_hint_time += timings.reft_hint.as_secs_f32();
-            total_query_time += timings.query.as_secs_f32();
-            total_num_iters = std::cmp::max(total_num_iters, timings.iters);
-            // println!("fn {}", row.fn_name);
-            // println!("  num solved:  {}", row.num_solved_exprs);
-            // println!("  num assumed: {}", row.num_assumed_exprs);
-            // println!("  num removed: {}", row.num_removed_solved_exprs);
-            // println!("  num actual:  {}", row.num_actual_exprs);
-            latex_table.push_str(&format!("{} & {} & {} & {} & {} & {} & {} & {} & {}\\\\\n",
-                                            row.fn_name,
-                                            row.num_solved_exprs,
-                                            row.num_assumed_exprs,
-                                            row.num_removed_solved_exprs,
-                                            row.num_actual_exprs,
-                                            row.time_to_check,
-                                            row.time_to_hint,
-                                            row.total_time,
-                                            row.iters,
-            ));
-            writer.serialize(row)
-        })?;
+        stats_by_fn
+            .into_iter()
+            .try_for_each(|((fn_def_id, fn_name), stats)| {
+                let timings = fn_timings.get(&fn_def_id).cloned().unwrap_or_default();
+                total = total.combine(&stats);
+                let row = CsvRow {
+                    fn_name,
+                    num_solved_exprs: stats.num_solved_exprs,
+                    num_assumed_exprs: stats.num_assumed_exprs,
+                    num_removed_solved_exprs: stats.num_removed_solved_exprs,
+                    num_actual_exprs: stats.num_actual_exprs,
+                    time_to_check: timings.query.as_secs_f32(),
+                    time_to_hint: timings.reft_hint.as_secs_f32(),
+                    total_time: (timings.query + timings.reft_hint).as_secs_f32(),
+                    iters: timings.iters,
+                };
+                total_hint_time += timings.reft_hint.as_secs_f32();
+                total_query_time += timings.query.as_secs_f32();
+                total_num_iters = std::cmp::max(total_num_iters, timings.iters);
+                // println!("fn {}", row.fn_name);
+                // println!("  num solved:  {}", row.num_solved_exprs);
+                // println!("  num assumed: {}", row.num_assumed_exprs);
+                // println!("  num removed: {}", row.num_removed_solved_exprs);
+                // println!("  num actual:  {}", row.num_actual_exprs);
+                latex_table.push_str(&format!(
+                    "{} & {} & {} & {} & {} & {} & {} & {} & {}\\\\\n",
+                    row.fn_name,
+                    row.num_solved_exprs,
+                    row.num_assumed_exprs,
+                    row.num_removed_solved_exprs,
+                    row.num_actual_exprs,
+                    row.time_to_check,
+                    row.time_to_hint,
+                    row.total_time,
+                    row.iters,
+                ));
+                writer.serialize(row)
+            })?;
         let num_wkvars = self.wkvars.len();
         let num_internal_wkvars = self.internal_wkvars.len();
-        latex_table.push_str(&format!("TOTAL & {} & {} & {} & {} & {} & {} & {} & {}",
-                                      total.num_solved_exprs,
-                                      total.num_assumed_exprs,
-                                      total.num_removed_solved_exprs,
-                                      total.num_actual_exprs,
-                                      total_query_time,
-                                      total_hint_time,
-                                      total_query_time + total_hint_time,
-                                      total_num_iters,
+        latex_table.push_str(&format!(
+            "TOTAL & {} & {} & {} & {} & {} & {} & {} & {}",
+            total.num_solved_exprs,
+            total.num_assumed_exprs,
+            total.num_removed_solved_exprs,
+            total.num_actual_exprs,
+            total_query_time,
+            total_hint_time,
+            total_query_time + total_hint_time,
+            total_num_iters,
         ));
         println!("SUMMARY");
         println!("  num fns:                    {}", num_fns);
@@ -687,20 +701,28 @@ impl WKVarSolutions {
         writer.serialize(total_row)?;
         writer.flush()?;
         println!();
-        println!("CRATE & {} & {} & {} & {} & {:.0}\\% & {:.0}\\% & {:.2} & {:.2} & {} & LoC",
-                 total.num_solved_exprs,
-                 total.num_assumed_exprs,
-                 total.num_removed_solved_exprs,
-                 total.num_assumed_exprs + total.num_removed_solved_exprs,
-                 100.0 * total.num_solved_exprs as f64 / ((total.num_assumed_exprs + total.num_solved_exprs) as f64),
-                 100.0 * ((total.num_solved_exprs + total.num_assumed_exprs) as f64) / total.num_actual_exprs as f64,
-                 total_query_time + total_hint_time,
-                 total_hint_time,
-                 total_num_iters,
+        println!(
+            "CRATE & {} & {} & {} & {} & {:.0}\\% & {:.0}\\% & {:.2} & {:.2} & {} & LoC",
+            total.num_solved_exprs,
+            total.num_assumed_exprs,
+            total.num_removed_solved_exprs,
+            total.num_assumed_exprs + total.num_removed_solved_exprs,
+            100.0 * total.num_solved_exprs as f64
+                / ((total.num_assumed_exprs + total.num_solved_exprs) as f64),
+            100.0 * ((total.num_solved_exprs + total.num_assumed_exprs) as f64)
+                / total.num_actual_exprs as f64,
+            total_query_time + total_hint_time,
+            total_hint_time,
+            total_num_iters,
         );
         Ok(())
     }
-    fn prompt_user(&mut self, genv: GlobalEnv, prev_interactions: &mut Vec<String>, file_read_user_interactions: &mut Option<Vec<String>>) -> bool {
+    fn prompt_user(
+        &mut self,
+        genv: GlobalEnv,
+        prev_interactions: &mut Vec<String>,
+        file_read_user_interactions: &mut Option<Vec<String>>,
+    ) -> bool {
         enum InteractionKind {
             AddGroundTruth(rty::Binder<rty::Expr>),
             RemoveSolution(rty::Expr),
@@ -710,11 +732,17 @@ impl WKVarSolutions {
             kind: InteractionKind,
         }
         // Step 1: Group wkvars into functions
-        let mut wkvars_by_fn_name: FxIndexMap<(String, DefId), Vec<rty::KVid>> = FxIndexMap::default();
-        let mut fn_names_and_wkvars = self.solutions.keys().map(|wkvid| (genv.tcx().def_path_str(wkvid.parent_fn), wkvid)).collect_vec();
+        let mut wkvars_by_fn_name: FxIndexMap<(String, DefId), Vec<rty::KVid>> =
+            FxIndexMap::default();
+        let mut fn_names_and_wkvars = self
+            .solutions
+            .keys()
+            .map(|wkvid| (genv.tcx().def_path_str(wkvid.parent_fn), wkvid))
+            .collect_vec();
         fn_names_and_wkvars.sort_by(|(name1, _), (name2, _)| name1.cmp(name2));
         for (fn_name, wkvid) in fn_names_and_wkvars {
-            wkvars_by_fn_name.entry((fn_name, wkvid.parent_fn))
+            wkvars_by_fn_name
+                .entry((fn_name, wkvid.parent_fn))
                 .and_modify(|kvids| kvids.push(wkvid.id))
                 .or_insert_with(|| vec![wkvid.id]);
         }
@@ -724,14 +752,18 @@ impl WKVarSolutions {
         // Step 2: Assign each user interaction an id
         let alphas = 'a'..='z';
         let single_alpha_ids = alphas.clone().map(|a| a.to_string());
-        let double_alpha_ids = iproduct!(alphas.clone(), alphas).map(|(a1, a2)| format!("{}{}", a1, a2));
+        let double_alpha_ids =
+            iproduct!(alphas.clone(), alphas).map(|(a1, a2)| format!("{}{}", a1, a2));
         let mut id_prefix = single_alpha_ids.chain(double_alpha_ids);
         let mut interactions: FxIndexMap<String, UserInteraction> = FxIndexMap::default();
         let mut wkvar_subst = WKVarSubst::new(
-            self
-                .solutions
+            self.solutions
                 .iter()
-                .filter_map(|(wkvid, solution)| solution.into_wkvar_subst().map(|subst| (wkvid.clone(), subst.map(|e| e.simplify(&Default::default()).prettify()))))
+                .filter_map(|(wkvid, solution)| {
+                    solution.into_wkvar_subst().map(|subst| {
+                        (wkvid.clone(), subst.map(|e| e.simplify(&Default::default()).prettify()))
+                    })
+                })
                 .collect(),
             true,
         );
@@ -740,7 +772,8 @@ impl WKVarSolutions {
             if file_read_user_interactions.is_none() {
                 println!("fn {}", fn_name);
                 let fn_sig = genv.fn_sig(fn_def_id).unwrap();
-                let solved_fn_sig = rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
+                let solved_fn_sig =
+                    rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
                 println!("sig {:?}", pretty::with_cx!(&fn_pretty_cx, &solved_fn_sig));
             }
             for kvid in kvids {
@@ -749,16 +782,23 @@ impl WKVarSolutions {
                     println!("  $wk{}", kvid.as_u32());
                 }
                 let solution = &self.solutions[&wkvid];
-                let ground_truth_exprs = solution.actual_exprs.iter()
-                                                        .filter(|expr| !expr.skip_binder_ref().is_trivially_true()
-                                                                && !solution.assumed_exprs
-                                                                            .as_ref()
-                                                                            .map(|assumed_exprs| assumed_exprs.skip_binder_ref()
-                                                                                 .contains(expr.skip_binder_ref()))
-                                                                            .unwrap_or(false)
-                                                        )
-                                                        .cloned()
-                                                        .collect_vec();
+                let ground_truth_exprs = solution
+                    .actual_exprs
+                    .iter()
+                    .filter(|expr| {
+                        !expr.skip_binder_ref().is_trivially_true()
+                            && !solution
+                                .assumed_exprs
+                                .as_ref()
+                                .map(|assumed_exprs| {
+                                    assumed_exprs
+                                        .skip_binder_ref()
+                                        .contains(expr.skip_binder_ref())
+                                })
+                                .unwrap_or(false)
+                    })
+                    .cloned()
+                    .collect_vec();
                 if !ground_truth_exprs.is_empty() {
                     if file_read_user_interactions.is_none() {
                         println!("    Add a ground truth solution?");
@@ -775,7 +815,9 @@ impl WKVarSolutions {
                         interactions.insert(id, interaction);
                     }
                 }
-                if let Some(solved_exprs) = &solution.solved_exprs && !solved_exprs.skip_binder_ref().is_empty() {
+                if let Some(solved_exprs) = &solution.solved_exprs
+                    && !solved_exprs.skip_binder_ref().is_empty()
+                {
                     if file_read_user_interactions.is_none() {
                         println!("    Remove an assumed solution?");
                     }
@@ -819,9 +861,16 @@ impl WKVarSolutions {
                 user_inputs = vec![];
                 break;
             }
-            match input.trim_end_matches("\n").split(",").map(|id| {
-                interactions.get(id).ok_or_else(|| format!("Invalid ID: {}", id))
-            }).try_collect() {
+            match input
+                .trim_end_matches("\n")
+                .split(",")
+                .map(|id| {
+                    interactions
+                        .get(id)
+                        .ok_or_else(|| format!("Invalid ID: {}", id))
+                })
+                .try_collect()
+            {
                 Ok(inputs) => {
                     user_inputs = inputs;
                     input_ok = true;
@@ -841,7 +890,8 @@ impl WKVarSolutions {
                 }
                 InteractionKind::RemoveSolution(expr) => {
                     println!("Removing {:?} from {:?}", expr, interaction.wkvid);
-                    any_interaction = solution.removed_solved_exprs.insert(expr.clone()) || any_interaction;
+                    any_interaction =
+                        solution.removed_solved_exprs.insert(expr.clone()) || any_interaction;
                 }
             }
         }
@@ -865,8 +915,14 @@ pub fn iterative_solve<F>(
     cstrs: Constraints,
     max_iters: usize,
     report_errors: F,
-) -> QueryResult<(WKVarSolutions, Vec<(LocalDefId, Vec<FixpointCheckError<Tag>>)>, Vec<String>, usize)>
-    where F: Fn(LocalDefId, Vec<FixpointCheckError<Tag>>)
+) -> QueryResult<(
+    WKVarSolutions,
+    Vec<(LocalDefId, Vec<FixpointCheckError<Tag>>)>,
+    Vec<String>,
+    usize,
+)>
+where
+    F: Fn(LocalDefId, Vec<FixpointCheckError<Tag>>),
 {
     let mut constraint_lhs_wkvars: FxIndexMap<LocalDefId, FxIndexSet<rty::WKVid>> =
         FxIndexMap::default();
@@ -892,19 +948,25 @@ pub fn iterative_solve<F>(
     // It is more stable to go "breadth-first" and collect the wkvar solutions
     // for all separate constraints, rather than accumulating them as we go
     // through each constraint.
-    let mut curr_solutions = WKVarSolutions::new(genv, num_nontrivial_head_cstrs, wkvars, rhs_wkvars);
+    let mut curr_solutions =
+        WKVarSolutions::new(genv, num_nontrivial_head_cstrs, wkvars, rhs_wkvars);
     let mut new_solutions = curr_solutions.clone();
     let mut any_wkvar_change = true;
     let mut i = 1;
     let mut all_errors = Vec::new();
     let mut user_interactions = Vec::new();
-    let mut file_read_user_interactions = if let Some(interactions_file) = flux_config::user_interactions_file() {
-        let interactions = std::fs::read_to_string(interactions_file.as_path()).unwrap().lines().map(|line| line.to_string()).collect_vec();
-        // println!("Read user interactions from file:\n  {:?}", interactions);
-        Some(interactions)
-    } else {
-        None
-    };
+    let mut file_read_user_interactions =
+        if let Some(interactions_file) = flux_config::user_interactions_file() {
+            let interactions = std::fs::read_to_string(interactions_file.as_path())
+                .unwrap()
+                .lines()
+                .map(|line| line.to_string())
+                .collect_vec();
+            // println!("Read user interactions from file:\n  {:?}", interactions);
+            Some(interactions)
+        } else {
+            None
+        };
     let mut cache = QueryCache::new();
     while any_wkvar_change && i <= max_iters {
         // println!("iteration {} of {}", i, max_iters);
@@ -924,7 +986,11 @@ pub fn iterative_solve<F>(
                 curr_solutions
                     .solutions
                     .iter()
-                    .filter_map(|(wkvid, solution)| solution.into_wkvar_subst().map(|subst| (wkvid.clone(), subst)))
+                    .filter_map(|(wkvid, solution)| {
+                        solution
+                            .into_wkvar_subst()
+                            .map(|subst| (wkvid.clone(), subst))
+                    })
                     .collect(),
                 true,
             );
@@ -938,7 +1004,7 @@ pub fn iterative_solve<F>(
             solved_refine_tree.simplify(genv);
             let fcstr = solved_refine_tree.into_fixpoint(&mut fcx)?;
             // println!("converted to fixpoint");
-             
+
             let fixpoint_answer = fcx.check(
                 &mut cache,
                 cstr.def_id,
@@ -963,14 +1029,13 @@ pub fn iterative_solve<F>(
                         //         vec![]
                         //     }
                         // };
-                        instantiations_message.push_str(&format!("Adding an instantiation for wkvar {:?}:\n", wkvid));
+                        instantiations_message
+                            .push_str(&format!("Adding an instantiation for wkvar {:?}:\n", wkvid));
                         instantiations_message.push_str(&format!("  {:?}\n", instantiation));
                         // Record the solution in the NEW solutions, so that
                         // subsequent constraints aren't checked against it.
-                        let solution = &mut new_solutions
-                            .solutions.get_mut(wkvid)
-                            .unwrap();
-                            // .or_insert_with(|| WKVarSolution::empty(genv, *wkvid));
+                        let solution = &mut new_solutions.solutions.get_mut(wkvid).unwrap();
+                        // .or_insert_with(|| WKVarSolution::empty(genv, *wkvid));
                         // // HACK: so that we don't waste time running around in circles, we
                         // // will not attempt to add a wkvar instantiation if:
                         // //   1. All of the ground truth solutions are
@@ -989,7 +1054,8 @@ pub fn iterative_solve<F>(
                         //     println!("skipping adding an expr because of reasons");
                         //     continue;
                         // }
-                        any_wkvar_change = solution.add_solved_expr(instantiation) || any_wkvar_change;
+                        any_wkvar_change =
+                            solution.add_solved_expr(instantiation) || any_wkvar_change;
                     }
                 }
             }
@@ -1017,7 +1083,12 @@ pub fn iterative_solve<F>(
             for (local_id, err) in &all_errors {
                 report_errors(*local_id, err.clone());
             }
-            any_wkvar_change = any_wkvar_change || new_solutions.prompt_user(genv, &mut user_interactions, &mut file_read_user_interactions);
+            any_wkvar_change = any_wkvar_change
+                || new_solutions.prompt_user(
+                    genv,
+                    &mut user_interactions,
+                    &mut file_read_user_interactions,
+                );
         }
 
         let _ = new_solutions.stats_by_fn(genv);
@@ -1169,9 +1240,8 @@ pub fn _find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
         let conjs = au_map.into_iter().flat_map(|(e1, e2)| {
             match (e1.kind(), e2.kind()) {
                 (rty::ExprKind::Constant(..), _) | (_, rty::ExprKind::Constant(..)) => return None,
-                _ => {}
-                // (rty::ExprKind::Var(..), rty::ExprKind::Var(..)) => {},
-                // _ => return None,
+                _ => {} // (rty::ExprKind::Var(..), rty::ExprKind::Var(..)) => {},
+                        // _ => return None,
             }
             Some(rty::Expr::eq(e1, e2))
         });

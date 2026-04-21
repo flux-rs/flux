@@ -13,7 +13,9 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         self, BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor,
+        fold::{
+            FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable,
+            TypeVisitor,
         },
     },
 };
@@ -188,7 +190,9 @@ impl Cursor<'_> {
     pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>, assumption_type: AssumptionType) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
-            self.ptr = self.ptr.push_node(NodeKind::Assumption(pred, assumption_type));
+            self.ptr = self
+                .ptr
+                .push_node(NodeKind::Assumption(pred, assumption_type));
         }
     }
 
@@ -236,7 +240,8 @@ impl Cursor<'_> {
                 {
                     for invariant in bty.invariants(self.tcx, self.overflow_mode) {
                         let invariant = invariant.apply(idx);
-                        self.cursor.assume_pred(&invariant, AssumptionType::Invariant);
+                        self.cursor
+                            .assume_pred(&invariant, AssumptionType::Invariant);
                     }
                 }
                 ty.super_visit_with(self)
@@ -464,7 +469,9 @@ impl TypeFoldable for Node {
             })
             .collect::<Result<Vec<NodePtr>, F::Error>>()?;
         let kind = match &self.kind {
-            NodeKind::Assumption(pred, assumption_type) => NodeKind::Assumption(pred.try_fold_with(folder)?, assumption_type.clone()),
+            NodeKind::Assumption(pred, assumption_type) => {
+                NodeKind::Assumption(pred.try_fold_with(folder)?, assumption_type.clone())
+            }
             NodeKind::Head(pred, tag) => NodeKind::Head(pred.try_fold_with(folder)?, *tag),
             NodeKind::Trace(trace) => NodeKind::Trace(trace.try_fold_with(folder)?),
             NodeKind::Root(_) | NodeKind::ForAll(..) | NodeKind::True => self.kind.clone(),
@@ -496,7 +503,7 @@ impl Node {
             }
             NodeKind::Assumption(pred, _assumption_type) => {
                 if let SimplifyPhase::Full(genv) = phase {
-                        *pred = pred.normalize(genv).simplify(assumed_preds);
+                    *pred = pred.normalize(genv).simplify(assumed_preds);
                 }
                 pred.visit_conj(|conjunct| {
                     assumed_preds.insert(conjunct.erase_spans(), ());

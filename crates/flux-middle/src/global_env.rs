@@ -559,7 +559,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                 None
             }
         })
-            .unwrap_or_else(config::no_suggestions_default)
+        .unwrap_or_else(config::no_suggestions_default)
     }
 
     /// Whether the item is a dummy item created by the extern spec macro.

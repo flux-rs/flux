@@ -105,7 +105,9 @@ impl AttrMap<'_> {
     }
 
     pub(crate) fn no_suggestions(&self) -> bool {
-        self.attrs.iter().any(|attr| matches!(attr, Attr::NoSuggestions))
+        self.attrs
+            .iter()
+            .any(|attr| matches!(attr, Attr::NoSuggestions))
     }
 }
 
@@ -1611,12 +1613,14 @@ impl fmt::Debug for Expr<'_> {
                 }
                 write!(f, "{body:?}")
             }
-            ExprKind::WeakKvar(num, self_args, args) => write!(
-                f,
-                "$wk{num}({:?})[{:?}]",
-                args[..self_args].iter().format(", "),
-                args[self_args..].iter().format(", ")
-            ),
+            ExprKind::WeakKvar(num, self_args, args) => {
+                write!(
+                    f,
+                    "$wk{num}({:?})[{:?}]",
+                    args[..self_args].iter().format(", "),
+                    args[self_args..].iter().format(", ")
+                )
+            }
         }
     }
 }

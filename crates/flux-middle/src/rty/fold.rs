@@ -11,9 +11,9 @@ use rustc_hash::FxHashSet;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures,
-    Expr, ExprKind, GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased,
-    Region, Sort, SubsetTy, Ty, TyKind, TyOrBase, WKVid, normalize::Normalizer,
+    BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind,
+    GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort,
+    SubsetTy, Ty, TyKind, TyOrBase, WKVid, normalize::Normalizer,
 };
 use crate::{
     global_env::GlobalEnv,

@@ -1,13 +1,14 @@
-use std::fmt::{self, Write};
-use std::str::FromStr;
+use std::{
+    fmt::{self, Write},
+    str::FromStr,
+};
 
 use itertools::Itertools;
 
-use crate::constraint::WKVar;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
-    constraint::BoundVar,
+    constraint::{BoundVar, WKVar},
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -439,11 +440,11 @@ impl FromStr for BinRel {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "=" =>  Ok(BinRel::Eq),
+            "=" => Ok(BinRel::Eq),
             "!=" => Ok(BinRel::Ne),
-            ">" =>  Ok(BinRel::Gt),
+            ">" => Ok(BinRel::Gt),
             ">=" => Ok(BinRel::Ge),
-            "<" =>  Ok(BinRel::Lt),
+            "<" => Ok(BinRel::Lt),
             "<=" => Ok(BinRel::Le),
             _ => Err(format!("Unexpected BinRel {}", s)),
         }

@@ -4,8 +4,8 @@ use flux_errors::ErrorGuaranteed;
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
     infer::{ConstrReason, GlobalEnvExt, Tag},
-    wkvars::Constraints,
     refine_tree::{BinderOriginator, BinderProvenance},
+    wkvars::Constraints,
 };
 use flux_middle::{
     FixpointQueryKind, def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty,

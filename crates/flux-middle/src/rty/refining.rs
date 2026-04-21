@@ -21,7 +21,8 @@ use super::{
 use crate::{
     global_env::{GlobalEnv, WeakKvarInfo, WeakKvarMap},
     queries::{QueryErr, QueryResult},
-    query_bug, rty::{self, fold::TypeSuperFoldable},
+    query_bug,
+    rty::{self, fold::TypeSuperFoldable},
 };
 
 pub fn refine_generics(genv: GlobalEnv, def_id: DefId, generics: &ty::Generics) -> rty::Generics {
@@ -500,9 +501,12 @@ pub fn refine_bound_variables(vars: &[ty::BoundVariableKind]) -> List<rty::Bound
 impl rty::PolyFnSig {
     pub fn add_weak_kvars(self, genv: GlobalEnv, def_id: DefId) -> QueryResult<Self> {
         let refinement_generics = genv.refinement_generics_of(def_id)?;
-        let early_param_sorts: FxHashMap<Symbol, rty::Sort> = refinement_generics.0.own_params.iter().map(|param| {
-            (param.name, param.sort.clone())
-        }).collect();
+        let early_param_sorts: FxHashMap<Symbol, rty::Sort> = refinement_generics
+            .0
+            .own_params
+            .iter()
+            .map(|param| (param.name, param.sort.clone()))
+            .collect();
         let early_vars = self
             .early_params()
             .into_iter()
@@ -528,7 +532,13 @@ impl rty::PolyFnSig {
                 existential_params: Vec::new(),
                 params: params.clone(),
             };
-            let requires_wkvar = make_weak_kvar(&mut wkvar_inserter.wkvar_map, def_id, &mut wkvar_inserter.kvid, Vec::new(), params.clone());
+            let requires_wkvar = make_weak_kvar(
+                &mut wkvar_inserter.wkvar_map,
+                def_id,
+                &mut wkvar_inserter.kvid,
+                Vec::new(),
+                params.clone(),
+            );
             let inputs = fn_sig
                 .inputs
                 .iter()
@@ -538,25 +548,28 @@ impl rty::PolyFnSig {
             let output_binder_params = make_vars_and_sorts_from_bound_vars(fn_sig.output.vars());
             params.extend(output_binder_params);
             wkvar_inserter.params = params.clone();
-            let ensures =
-                if !fn_sig.output.vars().is_empty() {
-                    let ensures_wkvar = make_weak_kvar(&mut wkvar_inserter.wkvar_map, def_id, &mut wkvar_inserter.kvid, make_vars_and_sorts_from_bound_vars(fn_sig.output.vars()), params.clone());
-                    fn_sig.output
-                          .skip_binder_ref()
-                          .ensures
-                          .iter()
-                          .cloned()
-                          .chain(std::iter::once(rty::Ensures::Pred(rty::Expr::wkvar(ensures_wkvar))))
-                          .collect()
-                } else {
-                    fn_sig.output.skip_binder_ref().ensures.clone()
-                };
-            let output = fn_sig.output.map(|output| {
-                rty::FnOutput {
-                    ret: wkvar_inserter.fold_ty(&output.ret),
-                    ensures,
-                }
-            });
+            let ensures = if !fn_sig.output.vars().is_empty() {
+                let ensures_wkvar = make_weak_kvar(
+                    &mut wkvar_inserter.wkvar_map,
+                    def_id,
+                    &mut wkvar_inserter.kvid,
+                    make_vars_and_sorts_from_bound_vars(fn_sig.output.vars()),
+                    params.clone(),
+                );
+                fn_sig
+                    .output
+                    .skip_binder_ref()
+                    .ensures
+                    .iter()
+                    .cloned()
+                    .chain(std::iter::once(rty::Ensures::Pred(rty::Expr::wkvar(ensures_wkvar))))
+                    .collect()
+            } else {
+                fn_sig.output.skip_binder_ref().ensures.clone()
+            };
+            let output = fn_sig
+                .output
+                .map(|output| rty::FnOutput { ret: wkvar_inserter.fold_ty(&output.ret), ensures });
             genv.feed_weak_kvars(def_id, wkvar_inserter.wkvar_map);
             let sig = rty::FnSig {
                 abi: fn_sig.abi,
@@ -602,12 +615,13 @@ impl TypeFolder for WeakKVarInserter {
                 let exist_params = make_vars_and_sorts_from_bound_vars(bound_ty.vars());
                 // Take all of the current existential params + the current params,
                 // AFTER shifting in.
-                let params = self.existential_params
-                                 .iter()
-                                 .flatten()
-                                 .chain(self.params.iter())
-                                 .cloned()
-                                 .collect();
+                let params = self
+                    .existential_params
+                    .iter()
+                    .flatten()
+                    .chain(self.params.iter())
+                    .cloned()
+                    .collect();
                 // We pass the params immediately under this binder as the self args.
                 //
                 // The purpose of self args is to ensure that we don't have duplication
@@ -622,7 +636,13 @@ impl TypeFolder for WeakKVarInserter {
                 // in both $wk0 and $wk1. But the self arg ensures that we don't
                 // put it in $wk1, since it requires the expression contain one
                 // of its self args (in this case, just `v0`).
-                let wkvar = make_weak_kvar(&mut self.wkvar_map, self.def_id, &mut self.kvid, exist_params.clone(), params);
+                let wkvar = make_weak_kvar(
+                    &mut self.wkvar_map,
+                    self.def_id,
+                    &mut self.kvid,
+                    exist_params.clone(),
+                    params,
+                );
                 // Now we add the params for future weak kvars.
                 self.existential_params.push(exist_params);
                 let new_ty = bound_ty.skip_binder_ref().super_fold_with(self);
@@ -631,59 +651,69 @@ impl TypeFolder for WeakKVarInserter {
                     shift_out_vars(v);
                 }
                 shift_out_vars(&mut self.params);
-                Ty::exists(
-                    rty::Binder::bind_with_vars(
-                        Ty::constr(Expr::wkvar(wkvar), new_ty),
-                        bound_ty.vars().clone())
-                )
+                Ty::exists(rty::Binder::bind_with_vars(
+                    Ty::constr(Expr::wkvar(wkvar), new_ty),
+                    bound_ty.vars().clone(),
+                ))
             }
-            _ => {
-                ty.super_fold_with(self)
-            }
+            _ => ty.super_fold_with(self),
         }
     }
 
     fn fold_bty(&mut self, bty: &rty::BaseTy) -> rty::BaseTy {
-        use {rty::BaseTy, rty::GenericArg, rty::Expr};
+        use rty::{BaseTy, Expr, GenericArg};
         match bty {
             BaseTy::Adt(adt_def, args) => {
-                let new_args = args.iter().map(|arg| {
-                    match arg {
-                        GenericArg::Base(subset_ty) => {
-                            for v in self.existential_params.iter_mut() {
-                                shift_in_vars(v);
+                let new_args = args
+                    .iter()
+                    .map(|arg| {
+                        match arg {
+                            GenericArg::Base(subset_ty) => {
+                                for v in self.existential_params.iter_mut() {
+                                    shift_in_vars(v);
+                                }
+                                shift_in_vars(&mut self.params);
+                                let exist_params =
+                                    make_vars_and_sorts_from_bound_vars(subset_ty.vars());
+                                // Take all of the current existential params + the current params,
+                                // AFTER shifting in.
+                                let params = self
+                                    .existential_params
+                                    .iter()
+                                    .flatten()
+                                    .chain(self.params.iter())
+                                    .cloned()
+                                    .collect();
+                                // We pass the params immediately under this binder as the self args.
+                                // see the TyKind::Exists case.
+                                let wkvar = make_weak_kvar(
+                                    &mut self.wkvar_map,
+                                    self.def_id,
+                                    &mut self.kvid,
+                                    exist_params.clone(),
+                                    params,
+                                );
+                                // Now we add the params for future weak kvars.
+                                self.existential_params.push(exist_params);
+                                let new_ty = subset_ty.skip_binder_ref().super_fold_with(self);
+                                let new_ty_with_wkvar = new_ty.strengthen(Expr::wkvar(wkvar));
+                                self.existential_params.pop();
+                                for v in self.existential_params.iter_mut() {
+                                    shift_out_vars(v);
+                                }
+                                shift_out_vars(&mut self.params);
+                                GenericArg::Base(rty::Binder::bind_with_vars(
+                                    new_ty_with_wkvar,
+                                    subset_ty.vars().clone(),
+                                ))
                             }
-                            shift_in_vars(&mut self.params);
-                            let exist_params = make_vars_and_sorts_from_bound_vars(subset_ty.vars());
-                            // Take all of the current existential params + the current params,
-                            // AFTER shifting in.
-                            let params = self.existential_params
-                                            .iter()
-                                            .flatten()
-                                            .chain(self.params.iter())
-                                            .cloned()
-                                            .collect();
-                            // We pass the params immediately under this binder as the self args.
-                            // see the TyKind::Exists case.
-                            let wkvar = make_weak_kvar(&mut self.wkvar_map, self.def_id, &mut self.kvid, exist_params.clone(), params);
-                            // Now we add the params for future weak kvars.
-                            self.existential_params.push(exist_params);
-                            let new_ty = subset_ty.skip_binder_ref().super_fold_with(self);
-                            let new_ty_with_wkvar = new_ty.strengthen(Expr::wkvar(wkvar));
-                            self.existential_params.pop();
-                            for v in self.existential_params.iter_mut() {
-                                shift_out_vars(v);
-                            }
-                            shift_out_vars(&mut self.params);
-                            GenericArg::Base(rty::Binder::bind_with_vars(
-                                new_ty_with_wkvar,
-                                subset_ty.vars().clone()))
+                            _ => arg.fold_with(self),
                         }
-                        _ => arg.fold_with(self)
-                    }}).collect();
+                    })
+                    .collect();
                 BaseTy::Adt(adt_def.clone(), new_args)
             }
-            _ => bty.super_fold_with(self)
+            _ => bty.super_fold_with(self),
         }
     }
 }
@@ -703,7 +733,12 @@ where
     vars.into_iter()
         .enumerate()
         .filter_map(|(i, var_kind)| {
-            if let rty::BoundVariableKind::Refine(sort, _, reft_kind) = var_kind && !sort.is_param() && !sort.is_loc() && !sort.is_unit() && !sort.is_unit_adt().is_some() {
+            if let rty::BoundVariableKind::Refine(sort, _, reft_kind) = var_kind
+                && !sort.is_param()
+                && !sort.is_loc()
+                && !sort.is_unit()
+                && !sort.is_unit_adt().is_some()
+            {
                 let bound_reft = rty::BoundReft { var: rty::BoundVar::from(i), kind: *reft_kind };
                 Some((rty::Var::Bound(INNERMOST, bound_reft), sort.clone()))
             } else {
@@ -729,14 +764,25 @@ fn shift_out_vars(vars: &mut [(rty::Var, rty::Sort)]) {
 
 // FIXME: Don't make a weak kvar if the self_args is empty if there's a weak kvar
 //        that's been created before it with a superset of its params.
-fn make_weak_kvar(wkvar_map: &mut WeakKvarMap, def_id: DefId, kvid: &mut rty::KVid, self_args: Vec<(rty::Var, rty::Sort)>, params: Vec<(rty::Var, rty::Sort)>) -> rty::WKVar {
+fn make_weak_kvar(
+    wkvar_map: &mut WeakKvarMap,
+    def_id: DefId,
+    kvid: &mut rty::KVid,
+    self_args: Vec<(rty::Var, rty::Sort)>,
+    params: Vec<(rty::Var, rty::Sort)>,
+) -> rty::WKVar {
     let num_self_args = self_args.len();
-    let (args, sorts): (Vec<rty::Var>, Vec<rty::Sort>) = self_args.into_iter().chain(params.into_iter()).unzip();
+    let (args, sorts): (Vec<rty::Var>, Vec<rty::Sort>) =
+        self_args.into_iter().chain(params.into_iter()).unzip();
     let arg_exprs = args.into_iter().map(|var| rty::Expr::var(var)).collect();
     // We don't have any solutions because these weak kvars are being generated
     // (solutions only come from user annotations).
     wkvar_map.insert(kvid.as_u32(), WeakKvarInfo { solutions: vec![], sorts });
-    let ret = rty::WKVar { wkvid: rty::WKVid::new(def_id, *kvid), self_args: num_self_args, args: arg_exprs };
+    let ret = rty::WKVar {
+        wkvid: rty::WKVid::new(def_id, *kvid),
+        self_args: num_self_args,
+        args: arg_exprs,
+    };
     *kvid += 1;
     ret
 }

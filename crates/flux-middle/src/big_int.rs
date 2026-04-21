@@ -69,23 +69,13 @@ impl BigInt {
 
     pub fn checked_add(&self, other: &Self) -> Option<Self> {
         if self.sign == other.sign {
-            Some(Self {
-                sign: self.sign,
-                val: self.val.checked_add(other.val)?,
-            })
+            Some(Self { sign: self.sign, val: self.val.checked_add(other.val)? })
         } else {
             if self.val >= other.val {
                 let val = self.val - other.val;
-                if val == 0 {
-                    Some(Self::ZERO)
-                } else {
-                    Some(Self { sign: self.sign, val })
-                }
+                if val == 0 { Some(Self::ZERO) } else { Some(Self { sign: self.sign, val }) }
             } else {
-                Some(Self {
-                    sign: other.sign,
-                    val: other.val - self.val,
-                })
+                Some(Self { sign: other.sign, val: other.val - self.val })
             }
         }
     }
@@ -105,7 +95,9 @@ impl BigInt {
     }
 
     pub fn checked_div(&self, other: &Self) -> Option<Self> {
-        if other.val == 0 { return None; } // Divide by zero
+        if other.val == 0 {
+            return None;
+        } // Divide by zero
         let val = self.val / other.val;
         if val == 0 {
             Some(Self::ZERO)
@@ -116,7 +108,9 @@ impl BigInt {
     }
 
     pub fn checked_rem(&self, other: &Self) -> Option<Self> {
-        if other.val == 0 { return None; } // Divide by zero
+        if other.val == 0 {
+            return None;
+        } // Divide by zero
         let val = self.val % other.val;
         if val == 0 {
             Some(Self::ZERO)

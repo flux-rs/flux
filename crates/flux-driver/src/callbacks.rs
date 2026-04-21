@@ -1,21 +1,25 @@
-use std::{fs::create_dir_all, io::{self, Write}, path::Path};
+use std::{
+    fs::create_dir_all,
+    io::{self, Write},
+    path::Path,
+};
 
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::{
     fixpoint_encoding::{ExprEncodingCtxt, FixQueryCache, SortEncodingCtxt},
-lean_encoding::LeanEncoder,
+    lean_encoding::LeanEncoder,
     wkvars::Constraints,
 };
 use flux_metadata::CStore;
 use flux_middle::{
+    Specs,
     def_id::MaybeExternId,
     fhir::{self, FluxItem},
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
-    Specs,
 };
 use flux_refineck::{self as refineck, report_fixpoint_errors};
 use itertools::Itertools;
@@ -401,8 +405,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 force_conv(self.genv, def_id.resolved_id()).emit(&self.genv)?;
                 let Some(local_id) = def_id.as_local() else { return Ok(()) };
                 if is_fn_with_body {
-                    
-                refineck::check_fn(self.genv, &mut self.cache, &mut self.constraints, local_id)?;
+                    refineck::check_fn(
+                        self.genv,
+                        &mut self.cache,
+                        &mut self.constraints,
+                        local_id,
+                    )?;
                 }
                 Ok(())
             }

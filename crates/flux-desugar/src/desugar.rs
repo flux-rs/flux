@@ -522,11 +522,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", decl).unwrap();
         }
-        Ok((generics, fhir::FnSig {
-            header,
-            decl: self.genv.alloc(decl),
-            weak_kvars: self.desugar_weak_kvars(weak_kvars),
-        }))
+        Ok((
+            generics,
+            fhir::FnSig {
+                header,
+                decl: self.genv.alloc(decl),
+                weak_kvars: self.desugar_weak_kvars(weak_kvars),
+            },
+        ))
     }
 
     fn desugar_weak_kvars(&mut self, wks: &[surface::WeakKvar]) -> &'genv [fhir::WeakKvar<'genv>] {

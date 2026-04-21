@@ -34,10 +34,11 @@ use crate::{
     pretty::*,
     queries::QueryResult,
     rty::{
+        BoundVariableKind, SortArg, SortCtor,
         fold::{
             FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable,
             TypeVisitable, TypeVisitor,
-        }, BoundVariableKind, SortArg, SortCtor
+        },
     },
 };
 
@@ -707,13 +708,7 @@ impl Expr {
     pub fn expand_bin_rels(&self) -> Expr {
         struct BinRelExpander;
         impl BinRelExpander {
-            fn expand_bin_rel(
-                &mut self,
-                sort: &Sort,
-                rel: &BinOp,
-                e1: &Expr,
-                e2: &Expr,
-            ) -> Expr {
+            fn expand_bin_rel(&mut self, sort: &Sort, rel: &BinOp, e1: &Expr, e2: &Expr) -> Expr {
                 match sort {
                     Sort::Tuple(sorts) => {
                         let arity = sorts.len();
@@ -722,7 +717,8 @@ impl Expr {
                         })
                     }
                     Sort::App(SortCtor::Adt(sort_def), args)
-                        if let Some(variant) = sort_def.opt_struct_variant() => {
+                        if let Some(variant) = sort_def.opt_struct_variant() =>
+                    {
                         let def_id = sort_def.did();
                         let sorts = variant.field_sorts(args);
                         self.apply_bin_rel_rec(&sorts, rel, e1, e2, |field| {
@@ -730,10 +726,13 @@ impl Expr {
                         })
                     }
                     _ => {
-                        Expr::binary_op(rel.clone(), e1.super_fold_with(self), e2.super_fold_with(self))
+                        Expr::binary_op(
+                            rel.clone(),
+                            e1.super_fold_with(self),
+                            e2.super_fold_with(self),
+                        )
                     }
                 }
-
             }
             /// Apply binary relation recursively over aggregate expressions
             fn apply_bin_rel_rec(
@@ -744,22 +743,22 @@ impl Expr {
                 e2: &Expr,
                 mk_proj: impl Fn(u32) -> FieldProj,
             ) -> Expr {
-                Expr::and_from_iter(
-                    sorts
-                        .iter()
-                        .enumerate()
-                        .map(|(idx, s)| {
-                            let proj = mk_proj(idx as u32);
-                            let e1 = e1.proj_and_reduce(proj);
-                            let e2 = e2.proj_and_reduce(proj);
-                            self.expand_bin_rel(s, rel, &e1, &e2)
-                        })
-                )
+                Expr::and_from_iter(sorts.iter().enumerate().map(|(idx, s)| {
+                    let proj = mk_proj(idx as u32);
+                    let e1 = e1.proj_and_reduce(proj);
+                    let e2 = e2.proj_and_reduce(proj);
+                    self.expand_bin_rel(s, rel, &e1, &e2)
+                }))
             }
         }
         impl TypeFolder for BinRelExpander {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::BinaryOp(rel@(BinOp::Le(sort) | BinOp::Lt(sort) | BinOp::Ge(sort) | BinOp::Gt(sort)), e1, e2) = expr.kind() {
+                if let ExprKind::BinaryOp(
+                    rel @ (BinOp::Le(sort) | BinOp::Lt(sort) | BinOp::Ge(sort) | BinOp::Gt(sort)),
+                    e1,
+                    e2,
+                ) = expr.kind()
+                {
                     self.expand_bin_rel(sort, rel, e1, e2)
                 } else {
                     expr.super_fold_with(self)
@@ -784,10 +783,20 @@ impl Expr {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
                 match expr.kind() {
                     ExprKind::Tuple(subexprs) => {
-                        let new_subexprs = subexprs.iter().map(|subexpr| subexpr.fold_with(self)).collect_vec();
-                        if let Some(ExprKind::FieldProj(e_inner, FieldProj::Tuple { arity: _, field: 0 })) = subexprs.first().map(|e| e.kind())
+                        let new_subexprs = subexprs
+                            .iter()
+                            .map(|subexpr| subexpr.fold_with(self))
+                            .collect_vec();
+                        if let Some(ExprKind::FieldProj(
+                            e_inner,
+                            FieldProj::Tuple { arity: _, field: 0 },
+                        )) = subexprs.first().map(|e| e.kind())
                             && new_subexprs[1..].iter().zip(1..).all(|(other_e, i)| {
-                                if let ExprKind::FieldProj(other_e_inner, FieldProj::Tuple { arity: _, field }) = other_e.kind() {
+                                if let ExprKind::FieldProj(
+                                    other_e_inner,
+                                    FieldProj::Tuple { arity: _, field },
+                                ) = other_e.kind()
+                                {
                                     field == &i && &e_inner.erase_metadata() == other_e_inner
                                 } else {
                                     false
@@ -800,10 +809,20 @@ impl Expr {
                         }
                     }
                     ExprKind::Ctor(_ctor, subexprs) => {
-                        let new_subexprs = subexprs.iter().map(|subexpr| subexpr.fold_with(self)).collect_vec();
-                        if let Some(ExprKind::FieldProj(e_inner, FieldProj::Adt { def_id: _, field: 0 })) = subexprs.first().map(|e| e.kind())
+                        let new_subexprs = subexprs
+                            .iter()
+                            .map(|subexpr| subexpr.fold_with(self))
+                            .collect_vec();
+                        if let Some(ExprKind::FieldProj(
+                            e_inner,
+                            FieldProj::Adt { def_id: _, field: 0 },
+                        )) = subexprs.first().map(|e| e.kind())
                             && new_subexprs[1..].iter().zip(1..).all(|(other_e, i)| {
-                                if let ExprKind::FieldProj(other_e_inner, FieldProj::Adt { def_id: _, field }) = other_e.kind() {
+                                if let ExprKind::FieldProj(
+                                    other_e_inner,
+                                    FieldProj::Adt { def_id: _, field },
+                                ) = other_e.kind()
+                                {
                                     field == &i && &e_inner.erase_metadata() == other_e_inner
                                 } else {
                                     false
@@ -1066,7 +1085,9 @@ pub struct KVar {
     pub args: List<Expr>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct WKVid {
     /// Weak KVars right now are always associated with a function definition.
     /// Weak KVars can in theory be put wherever we can validly add a refinement
@@ -1074,7 +1095,6 @@ pub struct WKVid {
     /// There's no reason why this has to be KVid, and in principle it may be
     /// better served as just a number or a new index unto itself.
     pub id: KVid,
-
 }
 
 impl WKVid {
@@ -1222,7 +1242,6 @@ impl WKVar {
     fn scope(&self) -> &[Expr] {
         &self.args[self.self_args..]
     }
-
 }
 
 impl Var {
@@ -1902,13 +1921,7 @@ pub(crate) mod pretty {
             // Since we reuse KVId, we need to make the serialization custom.
             // Also we will not serialize the parameters for now.
             w!(cx, f, "$wk{}_{}", ^self.wkvid.id.index(), ^cx.tcx().def_path_str(self.wkvid.parent_fn))?;
-            w!(
-                cx,
-                f,
-                "({:?})[{:?}]",
-                join!(", ", self.self_args()),
-                join!(", ", self.scope())
-            )?;
+            w!(cx, f, "({:?})[{:?}]", join!(", ", self.self_args()), join!(", ", self.scope()))?;
             Ok(())
         }
     }
@@ -2233,7 +2246,9 @@ impl Expr {
                 let a_fold = a.fold_constants();
                 let b_fold = b.fold_constants();
 
-                if let (ExprKind::Constant(c1), ExprKind::Constant(c2)) = (a_fold.kind(), b_fold.kind()) {
+                if let (ExprKind::Constant(c1), ExprKind::Constant(c2)) =
+                    (a_fold.kind(), b_fold.kind())
+                {
                     // 1. Leverage existing const_op logic (handles Bools, Eq, Ne, and Int comparisons)
                     if let Some(c3) = Expr::const_op(op, c1, c2) {
                         return Expr::constant(c3).at_opt(span);
@@ -2290,26 +2305,78 @@ impl Expr {
                     ExprKind::UnaryOp(UnOp::Not, a) => a.push_negations().at_opt(span),
 
                     // Flipped Inequalities
-                    ExprKind::BinaryOp(BinOp::Le(s), a, b) => Expr::binary_op(BinOp::Gt(s.clone()), a.push_negations(), b.push_negations()).at_opt(span),
-                    ExprKind::BinaryOp(BinOp::Lt(s), a, b) => Expr::binary_op(BinOp::Ge(s.clone()), a.push_negations(), b.push_negations()).at_opt(span),
-                    ExprKind::BinaryOp(BinOp::Ge(s), a, b) => Expr::binary_op(BinOp::Lt(s.clone()), a.push_negations(), b.push_negations()).at_opt(span),
-                    ExprKind::BinaryOp(BinOp::Gt(s), a, b) => Expr::binary_op(BinOp::Le(s.clone()), a.push_negations(), b.push_negations()).at_opt(span),
+                    ExprKind::BinaryOp(BinOp::Le(s), a, b) => {
+                        Expr::binary_op(
+                            BinOp::Gt(s.clone()),
+                            a.push_negations(),
+                            b.push_negations(),
+                        )
+                        .at_opt(span)
+                    }
+                    ExprKind::BinaryOp(BinOp::Lt(s), a, b) => {
+                        Expr::binary_op(
+                            BinOp::Ge(s.clone()),
+                            a.push_negations(),
+                            b.push_negations(),
+                        )
+                        .at_opt(span)
+                    }
+                    ExprKind::BinaryOp(BinOp::Ge(s), a, b) => {
+                        Expr::binary_op(
+                            BinOp::Lt(s.clone()),
+                            a.push_negations(),
+                            b.push_negations(),
+                        )
+                        .at_opt(span)
+                    }
+                    ExprKind::BinaryOp(BinOp::Gt(s), a, b) => {
+                        Expr::binary_op(
+                            BinOp::Le(s.clone()),
+                            a.push_negations(),
+                            b.push_negations(),
+                        )
+                        .at_opt(span)
+                    }
 
                     // Equalities
-                    ExprKind::BinaryOp(BinOp::Eq, a, b) => Expr::binary_op(BinOp::Ne, a.push_negations(), b.push_negations()).at_opt(span),
-                    ExprKind::BinaryOp(BinOp::Ne, a, b) => Expr::binary_op(BinOp::Eq, a.push_negations(), b.push_negations()).at_opt(span),
+                    ExprKind::BinaryOp(BinOp::Eq, a, b) => {
+                        Expr::binary_op(BinOp::Ne, a.push_negations(), b.push_negations())
+                            .at_opt(span)
+                    }
+                    ExprKind::BinaryOp(BinOp::Ne, a, b) => {
+                        Expr::binary_op(BinOp::Eq, a.push_negations(), b.push_negations())
+                            .at_opt(span)
+                    }
 
                     // De Morgan's
-                    ExprKind::BinaryOp(BinOp::Or, a, b) => Expr::binary_op(BinOp::And, a.not().push_negations(), b.not().push_negations()).at_opt(span),
-                    ExprKind::BinaryOp(BinOp::And, a, b) => Expr::binary_op(BinOp::Or, a.not().push_negations(), b.not().push_negations()).at_opt(span),
+                    ExprKind::BinaryOp(BinOp::Or, a, b) => {
+                        Expr::binary_op(
+                            BinOp::And,
+                            a.not().push_negations(),
+                            b.not().push_negations(),
+                        )
+                        .at_opt(span)
+                    }
+                    ExprKind::BinaryOp(BinOp::And, a, b) => {
+                        Expr::binary_op(
+                            BinOp::Or,
+                            a.not().push_negations(),
+                            b.not().push_negations(),
+                        )
+                        .at_opt(span)
+                    }
 
                     // Otherwise just wrap and stop
                     _ => Expr::unary_op(UnOp::Not, inner.push_negations()).at_opt(span),
                 }
             }
-            ExprKind::BinaryOp(op, a, b) => Expr::binary_op(op.clone(), a.push_negations(), b.push_negations()).at_opt(span),
+            ExprKind::BinaryOp(op, a, b) => {
+                Expr::binary_op(op.clone(), a.push_negations(), b.push_negations()).at_opt(span)
+            }
             ExprKind::UnaryOp(op, a) => Expr::unary_op(*op, a.push_negations()).at_opt(span),
-            ExprKind::IfThenElse(p, e1, e2) => Expr::ite(p.push_negations(), e1.push_negations(), e2.push_negations()).at_opt(span),
+            ExprKind::IfThenElse(p, e1, e2) => {
+                Expr::ite(p.push_negations(), e1.push_negations(), e2.push_negations()).at_opt(span)
+            }
             _ => self.clone(),
         }
     }
@@ -2346,9 +2413,19 @@ impl Expr {
 
                 Expr::binary_op(BinOp::Add(s.clone()), a_simp, b_simp).at_opt(span)
             }
-            ExprKind::BinaryOp(op, a, b) => Expr::binary_op(op.clone(), a.simplify_arithmetic(), b.simplify_arithmetic()).at_opt(span),
+            ExprKind::BinaryOp(op, a, b) => {
+                Expr::binary_op(op.clone(), a.simplify_arithmetic(), b.simplify_arithmetic())
+                    .at_opt(span)
+            }
             ExprKind::UnaryOp(op, a) => Expr::unary_op(*op, a.simplify_arithmetic()).at_opt(span),
-            ExprKind::IfThenElse(p, e1, e2) => Expr::ite(p.simplify_arithmetic(), e1.simplify_arithmetic(), e2.simplify_arithmetic()).at_opt(span),
+            ExprKind::IfThenElse(p, e1, e2) => {
+                Expr::ite(
+                    p.simplify_arithmetic(),
+                    e1.simplify_arithmetic(),
+                    e2.simplify_arithmetic(),
+                )
+                .at_opt(span)
+            }
             _ => self.clone(),
         }
     }
@@ -2362,19 +2439,27 @@ impl Expr {
                 let b_simp = b.simplify_bounds();
 
                 let is_minus_one = |e: &Expr| matches!(e.kind(), ExprKind::Constant(c) if *c == Constant::from(-1));
-                let is_zero = |e: &Expr| matches!(e.kind(), ExprKind::Constant(c) if *c == Constant::from(0));
+                let is_zero =
+                    |e: &Expr| matches!(e.kind(), ExprKind::Constant(c) if *c == Constant::from(0));
 
                 // Important: this logic only applies if the operators are specifically typed for integers
                 match op {
                     BinOp::Gt(Sort::Int) => {
                         // X > -1  ==>  X >= 0
                         if is_minus_one(&b_simp) {
-                            return Expr::binary_op(BinOp::Ge(Sort::Int), a_simp, Expr::zero()).at_opt(span).simplify_bounds();
+                            return Expr::binary_op(BinOp::Ge(Sort::Int), a_simp, Expr::zero())
+                                .at_opt(span)
+                                .simplify_bounds();
                         }
                         // X - Y > 0  ==>  X > Y
                         if is_zero(&b_simp) {
                             if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
-                                return Expr::binary_op(BinOp::Gt(s_sub.clone()), x.clone(), y.clone()).at_opt(span);
+                                return Expr::binary_op(
+                                    BinOp::Gt(s_sub.clone()),
+                                    x.clone(),
+                                    y.clone(),
+                                )
+                                .at_opt(span);
                             }
                         }
                     }
@@ -2382,7 +2467,12 @@ impl Expr {
                         // X - Y >= 0  ==>  X >= Y
                         if is_zero(&b_simp) {
                             if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
-                                return Expr::binary_op(BinOp::Ge(s_sub.clone()), x.clone(), y.clone()).at_opt(span);
+                                return Expr::binary_op(
+                                    BinOp::Ge(s_sub.clone()),
+                                    x.clone(),
+                                    y.clone(),
+                                )
+                                .at_opt(span);
                             }
                         }
                     }
@@ -2390,19 +2480,31 @@ impl Expr {
                         // X - Y < 0  ==>  X < Y
                         if is_zero(&b_simp) {
                             if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
-                                return Expr::binary_op(BinOp::Lt(s_sub.clone()), x.clone(), y.clone()).at_opt(span);
+                                return Expr::binary_op(
+                                    BinOp::Lt(s_sub.clone()),
+                                    x.clone(),
+                                    y.clone(),
+                                )
+                                .at_opt(span);
                             }
                         }
                     }
                     BinOp::Le(Sort::Int) => {
                         // X <= -1  ==>  X < 0
                         if is_minus_one(&b_simp) {
-                            return Expr::binary_op(BinOp::Lt(Sort::Int), a_simp, Expr::zero()).at_opt(span).simplify_bounds();
+                            return Expr::binary_op(BinOp::Lt(Sort::Int), a_simp, Expr::zero())
+                                .at_opt(span)
+                                .simplify_bounds();
                         }
                         // X - Y <= 0  ==>  X <= Y
                         if is_zero(&b_simp) {
                             if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
-                                return Expr::binary_op(BinOp::Le(s_sub.clone()), x.clone(), y.clone()).at_opt(span);
+                                return Expr::binary_op(
+                                    BinOp::Le(s_sub.clone()),
+                                    x.clone(),
+                                    y.clone(),
+                                )
+                                .at_opt(span);
                             }
                         }
                     }
@@ -2412,7 +2514,10 @@ impl Expr {
                 Expr::binary_op(op.clone(), a_simp, b_simp).at_opt(span)
             }
             ExprKind::UnaryOp(op, a) => Expr::unary_op(*op, a.simplify_bounds()).at_opt(span),
-            ExprKind::IfThenElse(p, e1, e2) => Expr::ite(p.simplify_bounds(), e1.simplify_bounds(), e2.simplify_bounds()).at_opt(span),
+            ExprKind::IfThenElse(p, e1, e2) => {
+                Expr::ite(p.simplify_bounds(), e1.simplify_bounds(), e2.simplify_bounds())
+                    .at_opt(span)
+            }
             _ => self.clone(),
         }
     }

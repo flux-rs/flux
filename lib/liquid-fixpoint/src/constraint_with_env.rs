@@ -2,23 +2,23 @@
 use std::collections::HashMap;
 
 use derive_where::derive_where;
-
-use rustc_data_structures::{
-    fx::FxIndexMap,
-};
+use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexMap;
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
-        Identifier, FixpointStatus, cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype}
+        FixpointStatus, Identifier,
+        cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype},
     },
     std::collections::VecDeque,
     z3::Solver,
 };
 
 use crate::{
-    constraint::{Constraint, Qualifier}, ConstDecl, DataDecl, KVarDecl, Sort, SortCtor, Types, graph,
+    ConstDecl, DataDecl, KVarDecl, Sort, SortCtor, Types,
+    constraint::{Constraint, Qualifier},
+    graph,
 };
-use itertools::Itertools;
 
 #[derive_where(Hash)]
 pub struct ConstraintWithEnv<T: Types> {
@@ -187,7 +187,11 @@ pub fn topo_sort_data_declarations<T: Types>(datatype_decls: Vec<DataDecl<T>>) -
         .into_iter()
         .flatten()
         .rev()
-        .map(|datatype_decl_name| data_decls_by_name.shift_remove(&datatype_decl_name).unwrap())
+        .map(|datatype_decl_name| {
+            data_decls_by_name
+                .shift_remove(&datatype_decl_name)
+                .unwrap()
+        })
         .collect_vec()
 }
 

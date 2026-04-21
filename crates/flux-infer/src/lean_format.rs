@@ -164,7 +164,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanVar<'a, 'genv, 'tcx> {
                 // } else {
                 //     write!(f, "{path}_{}", name)
                 // }
-                // 
+                //
             }
             Var::DataCtor(adt_id, _) | Var::DataProj { adt_id, field: _ } => {
                 write!(

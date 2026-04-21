@@ -874,7 +874,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     //   2. The function does NOT have a `#[no_suggestions]` annotation
                     //      in its parent.
                     if genv.weak_kvars_for(def_id).is_none()
-                        && def_id.as_local().map(|local_id| !genv.no_suggestions(local_id)).unwrap_or(false) {
+                        && def_id
+                            .as_local()
+                            .map(|local_id| !genv.no_suggestions(local_id))
+                            .unwrap_or(false)
+                    {
                         fn_sig = fn_sig.add_weak_kvars(genv, def_id)?;
                     }
                     Ok(rty::EarlyBinder(fn_sig))

@@ -1,32 +1,25 @@
 use core::panic;
-use std::{ iter, str::FromStr, vec};
 #[cfg(feature = "wick")]
 use std::collections::HashSet;
+use std::{iter, str::FromStr, vec};
 
-use rustc_data_structures::{
-    fx::FxIndexMap,
-};
 use itertools::Itertools;
-use z3::{
-    FuncDecl, SatResult, Solver, SortKind, ast::{self, Ast},
-};
-
+use rustc_data_structures::fx::FxIndexMap;
 #[cfg(feature = "wick")]
+use z3::{AstKind, Goal, Tactic};
 use z3::{
-    AstKind, Goal, Tactic,
+    FuncDecl, SatResult, Solver, SortKind,
+    ast::{self, Ast},
 };
 
 use crate::{
-    BoundVar, DataDecl, FixpointFmt, Identifier, SortCtor, ThyFunc, Types, constraint::{BinOp, BinRel, Constant, Expr, Pred, Sort}
+    BoundVar, DataDecl, FixpointFmt, Identifier, SortCtor, ThyFunc, Types,
+    constraint::{BinOp, BinRel, Constant, Expr, Pred, Sort},
 };
+#[cfg(feature = "wick")]
+use crate::{ConstDecl, FlatConstraint};
 #[cfg(feature = "rust-fixpoint")]
-use crate::{
-    Error, FixpointStatus, Stats, Constraint,
-};
-#[cfg(feature = "wick")]
-use crate::{
-    ConstDecl, FlatConstraint,
-};
+use crate::{Constraint, Error, FixpointStatus, Stats};
 
 #[derive(Debug)]
 pub(crate) enum Binding {
@@ -59,7 +52,13 @@ pub(crate) struct Env<T: Types> {
 
 impl<T: Types> Env<T> {
     pub(crate) fn new() -> Self {
-        Self { bindings: FxIndexMap::default(), data_types: FxIndexMap::default(), rev_bindings: FxIndexMap::default(), bound_vars: vec![], fresh_var_counter: 0 }
+        Self {
+            bindings: FxIndexMap::default(),
+            data_types: FxIndexMap::default(),
+            rev_bindings: FxIndexMap::default(),
+            bound_vars: vec![],
+            fresh_var_counter: 0,
+        }
     }
 
     pub(crate) fn insert<B: Into<Binding>>(&mut self, name: T::Var, value: B) {
@@ -116,11 +115,9 @@ impl<T: Types> Env<T> {
     }
 
     fn lookup_bvar(&self, bvar: BoundVar) -> Option<&ast::Dynamic> {
-        self.bound_vars.get((self.bound_vars.len() - bvar.level) - 1).and_then(|layer| {
-            layer.get(bvar.idx).map(|(_name, binding)| {
-                binding.to_var()
-            })
-        })
+        self.bound_vars
+            .get((self.bound_vars.len() - bvar.level) - 1)
+            .and_then(|layer| layer.get(bvar.idx).map(|(_name, binding)| binding.to_var()))
     }
 
     fn pop_layer(&mut self) -> Option<Vec<(String, Binding)>> {
@@ -568,13 +565,18 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
             unreachable!("Should not encounter theory func outside of an application")
         }
         Expr::Exists(sorts, e) => {
-            let bindings = sorts.iter().map(|sort| {
-                let fresh_name = env.fresh_var(sort);
-                let binding = new_binding(&fresh_name, sort, env);
-                (fresh_name, binding)
-            }).collect();
+            let bindings = sorts
+                .iter()
+                .map(|sort| {
+                    let fresh_name = env.fresh_var(sort);
+                    let binding = new_binding(&fresh_name, sort, env);
+                    (fresh_name, binding)
+                })
+                .collect();
             env.push_bvar_layer(bindings);
-            let mut body = expr_to_z3(e, env).as_bool().expect("expecting boolean expression");
+            let mut body = expr_to_z3(e, env)
+                .as_bool()
+                .expect("expecting boolean expression");
             let bindings: Vec<_> = env.pop_layer().expect("no layer of bound variables to pop");
             // It shouldn't matter, but the order we expect to see the binders is
             // actually the reverse order.
@@ -594,13 +596,13 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
             body.into()
         }
         Expr::BoundVar(bvar) => {
-            env.lookup_bvar(*bvar).cloned().expect(&format!("bound var {:?} not present", bvar))
+            env.lookup_bvar(*bvar)
+                .cloned()
+                .expect(&format!("bound var {:?} not present", bvar))
         }
         // UIFs are hard to deal with in QE and we don't need weak kvars in it
         // anyway, so we'll just elide them here.
-        Expr::WKVar(_wkvar) => {
-           ast::Bool::from_bool(true).into()
-        }
+        Expr::WKVar(_wkvar) => ast::Bool::from_bool(true).into(),
     }
 }
 
@@ -674,7 +676,7 @@ pub(crate) fn new_datatype<T: Types>(
 
 pub(crate) fn new_binding<T: Types>(name: &str, sort: &Sort<T>, env: &Env<T>) -> Binding {
     match &sort {
-        Sort::Int => Binding::Variable(ast::Int::new_const(name).into()) ,
+        Sort::Int => Binding::Variable(ast::Int::new_const(name).into()),
         Sort::Real => Binding::Variable(ast::Real::new_const(name).into()),
         Sort::Bool => Binding::Variable(ast::Bool::new_const(name).into()),
         Sort::Str => Binding::Variable(ast::String::new_const(name).into()),
@@ -688,25 +690,19 @@ pub(crate) fn new_binding<T: Types>(name: &str, sort: &Sort<T>, env: &Env<T>) ->
                 current = sorts.as_ref();
             }
             let domain_refs = domain.iter().collect_vec();
-            let fun_decl =
-                FuncDecl::new(name, &domain_refs, &z3_sort(range, env));
+            let fun_decl = FuncDecl::new(name, &domain_refs, &z3_sort(range, env));
             Binding::Function(fun_decl, ast::Int::new_const(name).into())
         }
         Sort::BitVec(bv_size) => {
             match **bv_size {
-                Sort::BvSize(size) => {
-                    Binding::Variable(ast::BV::new_const(name, size).into())
-                }
+                Sort::BvSize(size) => Binding::Variable(ast::BV::new_const(name, size).into()),
                 _ => panic!("incorrect bitvector size specification"),
             }
         }
         Sort::App(sort_ctor, args) => {
             match sort_ctor {
                 SortCtor::Set => {
-                    Binding::Variable(
-                        ast::Set::new_const(name, &z3_sort(&args[0], env))
-                            .into(),
-                    )
+                    Binding::Variable(ast::Set::new_const(name, &z3_sort(&args[0], env)).into())
                 }
                 SortCtor::Map => {
                     Binding::Variable(
@@ -720,11 +716,8 @@ pub(crate) fn new_binding<T: Types>(name: &str, sort: &Sort<T>, env: &Env<T>) ->
                 }
                 SortCtor::Data(data_ctor) => {
                     Binding::Variable(
-                        ast::Datatype::new_const(
-                            name,
-                            env.datatype_lookup(data_ctor).unwrap(),
-                        )
-                        .into(),
+                        ast::Datatype::new_const(name, env.datatype_lookup(data_ctor).unwrap())
+                            .into(),
                     )
                 }
             }
@@ -786,7 +779,10 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
         }
 
         Constraint::ForAll(bind, inner) => {
-            env.insert(bind.name.clone(), new_binding(&bind.name.display().to_string(), &bind.sort, env));
+            env.insert(
+                bind.name.clone(),
+                new_binding(&bind.name.display().to_string(), &bind.sort, env),
+            );
             solver.assert(pred_to_z3(&bind.pred, env, AllowKVars::NoKVars));
             let inner_soln = is_constraint_satisfiable(inner, solver, env);
             env.pop(&bind.name);
@@ -815,10 +811,16 @@ pub fn check_validity<T: Types>(
         vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
     });
     binder_consts.iter().for_each(|const_decl| {
-        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars))
+        vars.insert(
+            const_decl.name.clone(),
+            new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars),
+        )
     });
     global_consts.iter().for_each(|const_decl| {
-        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars))
+        vars.insert(
+            const_decl.name.clone(),
+            new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars),
+        )
     });
     for (var, sort) in &cstr.binders {
         vars.insert(var.clone(), new_binding(&var.display().to_string(), sort, &vars));
@@ -842,7 +844,7 @@ pub fn qe_and_simplify<T: Types>(
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
     datatype_decls: &Vec<DataDecl<T>>,
-) -> Result<Expr<T>, Z3DecodeError>{
+) -> Result<Expr<T>, Z3DecodeError> {
     let solver = Solver::new();
     let goal = Goal::new(true, true, false);
     let mut vars = Env::new();
@@ -851,12 +853,18 @@ pub fn qe_and_simplify<T: Types>(
         vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
     });
     binder_consts.iter().for_each(|const_decl| {
-        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars));
+        vars.insert(
+            const_decl.name.clone(),
+            new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars),
+        );
     });
     let mut const_vars: HashSet<T::Var> = HashSet::new();
     global_consts.iter().for_each(|const_decl| {
         const_vars.insert(const_decl.name.clone());
-        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars));
+        vars.insert(
+            const_decl.name.clone(),
+            new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars),
+        );
     });
     // These are going to be the bound vars, so we declare the free vars above them.
     for (var, sort) in &cstr.binders {
@@ -864,12 +872,18 @@ pub fn qe_and_simplify<T: Types>(
         vars.insert(var.clone(), new_binding(&var.display().to_string(), sort, &vars));
     }
     solver.push();
-    let lhs = z3::ast::Bool::and(&cstr.preconditions().into_iter().filter_map(|pred| {
-        let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
-            // just be asserted.
-        // println!("assumption:\n{:?}", pred_ast);
-        Some(pred_ast)
-        }).collect_vec());
+    let lhs = z3::ast::Bool::and(
+        &cstr
+            .preconditions()
+            .into_iter()
+            .filter_map(|pred| {
+                let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
+                // just be asserted.
+                // println!("assumption:\n{:?}", pred_ast);
+                Some(pred_ast)
+            })
+            .collect_vec(),
+    );
     let rhs = pred_to_z3(&cstr.head, &mut vars, AllowKVars::NoKVars);
     let mut body = z3::ast::Bool::implies(&lhs, &rhs);
     for (var, _sort) in &cstr.binders {
@@ -890,15 +904,24 @@ pub fn qe_and_simplify<T: Types>(
     }
     goal.assert(&body);
     let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("nnf"));
-    match qe_and_simplify.try_for(std::time::Duration::from_secs(10)).apply(&goal, None) {
+    match qe_and_simplify
+        .try_for(std::time::Duration::from_secs(10))
+        .apply(&goal, None)
+    {
         Ok(apply_result) => {
             let new_goals = apply_result.list_subgoals().last();
             if let Some(new_goal) = new_goals {
-                let new_formulae: Vec<_> = new_goal.iter_formulas::<ast::Dynamic>().map(|f| {
-                    let fixpoint_expr = z3_to_expr(&vars, &f)?;
-                    Ok((fixpoint_expr.total_num_disjuncts(), fixpoint_expr))
-                }).try_collect()?;
-                if let Some((_min_size, mut min_size_formula)) = new_formulae.into_iter().min_by_key(|(num_disjuncts, _)| *num_disjuncts) {
+                let new_formulae: Vec<_> = new_goal
+                    .iter_formulas::<ast::Dynamic>()
+                    .map(|f| {
+                        let fixpoint_expr = z3_to_expr(&vars, &f)?;
+                        Ok((fixpoint_expr.total_num_disjuncts(), fixpoint_expr))
+                    })
+                    .try_collect()?;
+                if let Some((_min_size, mut min_size_formula)) = new_formulae
+                    .into_iter()
+                    .min_by_key(|(num_disjuncts, _)| *num_disjuncts)
+                {
                     solver.pop(1);
                     solver.push();
                     for pred in &cstr.preconditions() {
@@ -911,7 +934,10 @@ pub fn qe_and_simplify<T: Types>(
                     } else {
                         solver.pop(1);
                         let pred_ast = expr_to_z3(&min_size_formula, &mut vars);
-                        solver.assert(z3::ast::Bool::not(&z3::ast::Bool::implies(&pred_ast.as_bool().unwrap(), z3::ast::Bool::implies(&lhs, &rhs))));
+                        solver.assert(z3::ast::Bool::not(&z3::ast::Bool::implies(
+                            &pred_ast.as_bool().unwrap(),
+                            z3::ast::Bool::implies(&lhs, &rhs),
+                        )));
                         match solver.check() {
                             SatResult::Unsat => Ok(min_size_formula),
                             _ => {
@@ -972,9 +998,7 @@ fn prune_vacuous<T: Types>(e: &mut Expr<T>, env: &mut Env<T>, solver: &Solver) -
         }
         Expr::Or(disjuncts) => {
             // Drop vacuous parts of this disjunction
-            disjuncts.retain_mut(|disjunct| {
-                !prune_vacuous(disjunct, env, solver)
-            });
+            disjuncts.retain_mut(|disjunct| !prune_vacuous(disjunct, env, solver));
             if disjuncts.is_empty() {
                 *e = Expr::FALSE;
                 true
@@ -998,7 +1022,6 @@ fn prune_vacuous<T: Types>(e: &mut Expr<T>, env: &mut Env<T>, solver: &Solver) -
         }
     }
 }
-
 
 #[derive(Debug)]
 #[cfg(feature = "wick")]
@@ -1046,7 +1069,9 @@ fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3De
                         if int > 0 {
                             Ok(Expr::Constant(Constant::Numeral(int as u128)))
                         } else {
-                            Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral((-1 * int) as u128)))))
+                            Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral(
+                                (-1 * int) as u128,
+                            )))))
                         }
                     } else {
                         Err(Z3DecodeError::InvalidIntConstant)
@@ -1067,20 +1092,14 @@ fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3De
             assert!(z3.num_children() == 0);
             z3_const_to_expr(env, z3.decl())
         }
-        AstKind::App if z3.is_app() => {
-            z3_app_to_expr(env, z3.decl(), &z3.children())
-        }
+        AstKind::App if z3.is_app() => z3_app_to_expr(env, z3.decl(), &z3.children()),
         AstKind::App => {
             unreachable!()
         }
         // NOTE: if we add support for quantifiers, we will want to change the
         // return type to Pred<T>.
-        AstKind::Quantifier => {
-            Err(Z3DecodeError::ContainsQuantifier)
-        }
-        AstKind::Var => {
-            Err(Z3DecodeError::ContainsVar)
-        }
+        AstKind::Quantifier => Err(Z3DecodeError::ContainsQuantifier),
+        AstKind::Var => Err(Z3DecodeError::ContainsVar),
         AstKind::FuncDecl | AstKind::Unknown | AstKind::Sort => {
             Err(Z3DecodeError::UnexpectedAstKind(z3.kind()))
         }
@@ -1088,26 +1107,30 @@ fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3De
 }
 
 #[cfg(feature = "wick")]
-fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynamic>) -> Result<Expr<T>, Z3DecodeError> {
+fn z3_app_to_expr<T: Types>(
+    env: &Env<T>,
+    head: FuncDecl,
+    args: &Vec<ast::Dynamic>,
+) -> Result<Expr<T>, Z3DecodeError> {
     // let args: Vec<Expr<T>> = args.iter().map(|arg| z3_to_expr::<T>(arg)).collect::<Result<Vec<_>,_>>()?;
     let head_name = head.name();
     if &head_name == "-" {
         match args.len() {
-            1 => {
-                Ok(Expr::Neg(Box::new(z3_to_expr(env, &args[0])?)))
-            }
+            1 => Ok(Expr::Neg(Box::new(z3_to_expr(env, &args[0])?))),
             2 => {
-                Ok(Expr::BinaryOp(BinOp::Sub, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+                Ok(Expr::BinaryOp(
+                    BinOp::Sub,
+                    Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?]),
+                ))
             }
-            _ => {
-                Err(Z3DecodeError::ArgNumMismatch("-", args.len()))
-            }
+            _ => Err(Z3DecodeError::ArgNumMismatch("-", args.len())),
         }
     } else if &head_name == "if" {
         if args.len() == 3 {
-            Ok(Expr::IfThenElse(Box::new([z3_to_expr(env, &args[0])?,
-                                          z3_to_expr(env, &args[1])?,
-                                          z3_to_expr(env, &args[2])?,
+            Ok(Expr::IfThenElse(Box::new([
+                z3_to_expr(env, &args[0])?,
+                z3_to_expr(env, &args[1])?,
+                z3_to_expr(env, &args[2])?,
             ])))
         } else {
             Err(Z3DecodeError::ArgNumMismatch("if", args.len()))
@@ -1115,7 +1138,7 @@ fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynami
     } else if &head_name == "let" {
         if args.len() == 3 {
             let var: Expr<T> = z3_to_expr(env, &args[0])?;
-            let e    = z3_to_expr(env, &args[1])?;
+            let e = z3_to_expr(env, &args[1])?;
             let body = z3_to_expr(env, &args[2])?;
             if let Expr::Var(v) = var {
                 Ok(Expr::Let(v, Box::new([e, body])))
@@ -1126,9 +1149,17 @@ fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynami
             Err(Z3DecodeError::ArgNumMismatch("let", args.len()))
         }
     } else if &head_name == "and" {
-        Ok(Expr::And(args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?))
+        Ok(Expr::And(
+            args.iter()
+                .map(|arg| z3_to_expr::<T>(env, arg))
+                .collect::<Result<Vec<_>, _>>()?,
+        ))
     } else if &head_name == "or" {
-        Ok(Expr::Or(args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?))
+        Ok(Expr::Or(
+            args.iter()
+                .map(|arg| z3_to_expr::<T>(env, arg))
+                .collect::<Result<Vec<_>, _>>()?,
+        ))
     } else if &head_name == "not" {
         if args.len() == 1 {
             Ok(Expr::Not(Box::new(z3_to_expr(env, &args[0])?)))
@@ -1152,7 +1183,10 @@ fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynami
         // assuming it'll only do this with commutative things, but I did try to
         // ensure left-to-right ordering just in case.
         if args.len() >= 2 {
-            let mut exprs: Vec<_> = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).try_collect()?;
+            let mut exprs: Vec<_> = args
+                .iter()
+                .map(|arg| z3_to_expr::<T>(env, arg))
+                .try_collect()?;
             let e1 = exprs.pop().unwrap();
             let e2 = exprs.pop().unwrap();
             let mut bin_op_e = Expr::BinaryOp(binop, Box::new([e1, e2]));
@@ -1165,16 +1199,25 @@ fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynami
         }
     } else if let Ok(binrel) = head_name.parse::<BinRel>() {
         if args.len() == 2 {
-            Ok(Expr::Atom(binrel, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+            Ok(Expr::Atom(
+                binrel,
+                Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?]),
+            ))
         } else {
             Err(Z3DecodeError::ArgNumMismatch("binrel", args.len()))
         }
     } else if let Ok(thyfunc) = head_name.parse::<ThyFunc>() {
-        let expr_args = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?;
+        let expr_args = args
+            .iter()
+            .map(|arg| z3_to_expr::<T>(env, arg))
+            .collect::<Result<Vec<_>, _>>()?;
         // TODO: parse sorts
         Ok(Expr::App(Box::new(Expr::ThyFunc(thyfunc)), None, expr_args))
     } else if let Some(var) = env.rev_lookup(&head_name) {
-        let expr_args = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?;
+        let expr_args = args
+            .iter()
+            .map(|arg| z3_to_expr::<T>(env, arg))
+            .collect::<Result<Vec<_>, _>>()?;
         // TODO: parse sorts
         Ok(Expr::App(Box::new(Expr::Var(var.clone())), None, expr_args))
     } else {

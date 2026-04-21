@@ -11,7 +11,8 @@ use flux_infer::{
     },
     projections::NormalizeExt as _,
     refine_tree::{
-        AssumptionType, BinderOriginator, BinderProvenance, CallReturn, Marker, RefineCtxtTrace, RefineParams
+        AssumptionType, BinderOriginator, BinderProvenance, CallReturn, Marker, RefineCtxtTrace,
+        RefineParams,
     },
 };
 use flux_middle::{
@@ -20,10 +21,8 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, Constant, CoroutineObligPredicate, EarlyBinder,
-        Expr,
-        FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy,
-        Mutability, Path,
-        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy,
+        Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReErased,
         Ty, TyKind, Uint, UintTy, Var, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -1002,13 +1001,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             output: output.ret,
             refine_params: RefineParams {
                 early_args: early_refine_args
-                .into_iter()
-                .map(|arg| infcx.fully_resolve_evars(arg))
-                .collect(),
+                    .into_iter()
+                    .map(|arg| infcx.fully_resolve_evars(arg))
+                    .collect(),
                 late_args: late_refine_args
-                .into_iter()
-                .map(|arg| infcx.fully_resolve_evars(&arg))
-                .collect(),
+                    .into_iter()
+                    .map(|arg| infcx.fully_resolve_evars(&arg))
+                    .collect(),
                 early_params: early_refine_params,
                 late_params: late_refine_params,
             },

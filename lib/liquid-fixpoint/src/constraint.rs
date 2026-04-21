@@ -2,10 +2,7 @@ use std::{collections::HashSet, hash::Hash};
 
 use derive_where::derive_where;
 use itertools::Itertools;
-
-use rustc_data_structures::{
-    fx::FxIndexSet,
-};
+use rustc_data_structures::fx::FxIndexSet;
 
 use crate::{ConstDecl, ThyFunc, Types};
 
@@ -79,7 +76,10 @@ impl<T: Types> Constraint<T> {
                 }]
             }
             Constraint::Conj(constrs) => {
-                constrs.iter().flat_map(|constr| constr.flatten(is_underscore, is_invariant)).collect_vec()
+                constrs
+                    .iter()
+                    .flat_map(|constr| constr.flatten(is_underscore, is_invariant))
+                    .collect_vec()
             }
             Constraint::ForAll(bind, constr) => {
                 let mut flat_constrs = constr.flatten(is_underscore, is_invariant);
@@ -125,13 +125,10 @@ impl<T: Types> FlatConstraint<T> {
     /// name clashes.
     pub fn remove_binders(&self, vars: &HashSet<T::Var>) -> (Vec<ConstDecl<T>>, FlatConstraint<T>) {
         let mut new_binders = self.binders.clone();
-        let removed_binders = new_binders.extract_if(.., |(var, _sort)| vars.contains(var)).map(|(var, sort)| {
-            ConstDecl {
-                name: var,
-                sort,
-                comment: None,
-            }
-        }).collect_vec();
+        let removed_binders = new_binders
+            .extract_if(.., |(var, _sort)| vars.contains(var))
+            .map(|(var, sort)| ConstDecl { name: var, sort, comment: None })
+            .collect_vec();
         let new_constraint = FlatConstraint {
             binders: new_binders,
             assumptions: self.assumptions.clone(),
@@ -145,18 +142,20 @@ impl<T: Types> FlatConstraint<T> {
     /// Turn this back into a constraint
     pub fn into_constraint(&self, underscore_var: T::Var) -> Constraint<T> {
         let head_constr = Constraint::Pred(self.head.clone(), self.tag.clone());
-        let mut constr = Constraint::ForAll(Bind {
-            name: underscore_var.clone(),
-            sort: Sort::Int,
-            pred: Pred::And(self.preconditions().into_iter().collect_vec()),
-        }, Box::new(head_constr));
+        let mut constr = Constraint::ForAll(
+            Bind {
+                name: underscore_var.clone(),
+                sort: Sort::Int,
+                pred: Pred::And(self.preconditions().into_iter().collect_vec()),
+            },
+            Box::new(head_constr),
+        );
 
         for (var, sort) in &self.binders {
-            constr = Constraint::ForAll(Bind {
-                name: var.clone(),
-                sort: sort.clone(),
-                pred: Pred::TRUE,
-            }, Box::new(constr));
+            constr = Constraint::ForAll(
+                Bind { name: var.clone(), sort: sort.clone(), pred: Pred::TRUE },
+                Box::new(constr),
+            );
         }
         constr
     }
@@ -164,13 +163,15 @@ impl<T: Types> FlatConstraint<T> {
     pub fn add_assumption(&mut self, assumption: Pred<T>) {
         match assumption {
             Pred::And(conjs) => {
-                self.assumptions.extend(conjs.iter().flat_map(|conj| conj.as_conjunction()));
+                self.assumptions
+                    .extend(conjs.iter().flat_map(|conj| conj.as_conjunction()));
             }
-            a@Pred::KVar(_, _) => {
+            a @ Pred::KVar(_, _) => {
                 self.assumptions.insert(a);
             }
             Pred::Expr(e) => {
-                self.assumptions.extend(e.as_conjunction().into_iter().map(|e| Pred::Expr(e)))
+                self.assumptions
+                    .extend(e.as_conjunction().into_iter().map(|e| Pred::Expr(e)))
             }
         }
     }
@@ -198,51 +199,60 @@ impl<T: Types> FlatConstraint<T> {
     ///    ((wkvar, constr, other_constrs) outputs generating (all_constrs)
     ///    outputs and letting consumers choose which wkvars to solve in each
     ///    constr.
-    /// 
+    ///
     /// ```
     /// (p || q) => c
     /// ==
     /// (p => c) && (q => c)
     /// ```
-    pub fn wkvars_and_constrs<F>(&self, fresh_var: &mut F) -> Vec<(WKVar<T>, FlatConstraint<T>, Vec<FlatConstraint<T>>)>
-        where F: FnMut() -> T::Var
+    pub fn wkvars_and_constrs<F>(
+        &self,
+        fresh_var: &mut F,
+    ) -> Vec<(WKVar<T>, FlatConstraint<T>, Vec<FlatConstraint<T>>)>
+    where
+        F: FnMut() -> T::Var,
     {
-        let mut wkvars_and_constraints = self.assumptions
-                                             .iter()
-                                             .flat_map(|assumption|
-                                                       assumption
-                                                       .wkvars_in_conj()
-                                                       .into_iter()
-                                                       .map(|wkvar| (wkvar, self.clone(), vec![]))
-                                             )
-                                             .collect_vec();
+        let mut wkvars_and_constraints = self
+            .assumptions
+            .iter()
+            .flat_map(|assumption| {
+                assumption
+                    .wkvars_in_conj()
+                    .into_iter()
+                    .map(|wkvar| (wkvar, self.clone(), vec![]))
+            })
+            .collect_vec();
         // Frontier elements:
         //   (current assumption, current constraint, other constraints)
-        let mut frontier: Vec<(Expr<T>, FlatConstraint<T>, Vec<FlatConstraint<T>>)> = self.assumptions
-                           .iter()
-                           .enumerate()
-                           .filter_map(|(i, assumption)| {
-                               if let Pred::Expr(assumption_expr) = assumption && assumption_expr.has_wkvar_reachable_by_split() {
-                                   let mut flat_constraint = self.clone();
-                                   flat_constraint.assumptions.shift_remove_index(i);
-                                   Some((assumption_expr.clone(), flat_constraint, vec![]))
-                               } else {
-                                   None
-                               }
-                           }).collect_vec();
+        let mut frontier: Vec<(Expr<T>, FlatConstraint<T>, Vec<FlatConstraint<T>>)> = self
+            .assumptions
+            .iter()
+            .enumerate()
+            .filter_map(|(i, assumption)| {
+                if let Pred::Expr(assumption_expr) = assumption
+                    && assumption_expr.has_wkvar_reachable_by_split()
+                {
+                    let mut flat_constraint = self.clone();
+                    flat_constraint.assumptions.shift_remove_index(i);
+                    Some((assumption_expr.clone(), flat_constraint, vec![]))
+                } else {
+                    None
+                }
+            })
+            .collect_vec();
         while let Some((e, mut constr, other_constrs)) = frontier.pop() {
             match e {
                 // Base case: we reached a wkvar.
                 //   Record it alongside the constraint it is associated with
                 //   and the other constraints.
-                //   
+                //
                 // NOTE: we don't need wkvars_in_conj because we explicitly
                 //       handle the And.
                 Expr::WKVar(wkvar) => {
                     // NOTE: Technically this isn't necessary, so we don't add
                     // the wkvar back to the assumptions. But for completeness
                     // we might want to.
-                    // 
+                    //
                     // constr.add_assumption(Pred::Expr(e));
                     wkvars_and_constraints.push((wkvar, constr, other_constrs));
                 }
@@ -255,7 +265,9 @@ impl<T: Types> FlatConstraint<T> {
                 // everything because it prevents us from cloning a bunch.
                 Expr::And(conjs) => {
                     for (i, new_assumption) in conjs.iter().enumerate() {
-                        if !(matches!(new_assumption, Expr::WKVar(..)) || new_assumption.has_wkvar_reachable_by_split()) {
+                        if !(matches!(new_assumption, Expr::WKVar(..))
+                            || new_assumption.has_wkvar_reachable_by_split())
+                        {
                             continue;
                         }
                         let mut new_constr = constr.clone();
@@ -269,7 +281,7 @@ impl<T: Types> FlatConstraint<T> {
                     }
                 }
                 // Hoist the exists and add it to the frontier.
-                // 
+                //
                 // We assume that there is a wkvar reachable here, so we don't check.
                 Expr::Exists(_, _) => {
                     let (new_vars, hoisted_e) = e.hoist_exists(fresh_var);
@@ -292,7 +304,9 @@ impl<T: Types> FlatConstraint<T> {
                 // has no wkvars in it.
                 Expr::Or(disjuncts) => {
                     for (i, disjunct) in disjuncts.iter().enumerate() {
-                        if !(matches!(disjunct, Expr::WKVar(..)) || disjunct.has_wkvar_reachable_by_split()) {
+                        if !(matches!(disjunct, Expr::WKVar(..))
+                            || disjunct.has_wkvar_reachable_by_split())
+                        {
                             continue;
                         }
                         let mut new_other_constrs = other_constrs.clone();
@@ -444,7 +458,12 @@ impl<T: Types> Pred<T> {
     /// i.e. Preds are always converted to Pred::And if possible.
     pub fn as_conjunction(&self) -> Vec<Self> {
         match self {
-            Pred::And(conjs) => conjs.iter().flat_map(|conj| conj.as_conjunction()).collect(),
+            Pred::And(conjs) => {
+                conjs
+                    .iter()
+                    .flat_map(|conj| conj.as_conjunction())
+                    .collect()
+            }
             _ => vec![self.clone()],
         }
     }
@@ -452,12 +471,8 @@ impl<T: Types> Pred<T> {
     pub fn free_vars(&self) -> HashSet<T::Var> {
         match self {
             Pred::KVar(..) => HashSet::new(),
-            Pred::And(preds) => {
-                preds.iter().flat_map(|pred| pred.free_vars()).collect()
-            }
-            Pred::Expr(expr) => {
-                expr.free_vars()
-            }
+            Pred::And(preds) => preds.iter().flat_map(|pred| pred.free_vars()).collect(),
+            Pred::Expr(expr) => expr.free_vars(),
         }
     }
 
@@ -473,7 +488,12 @@ impl<T: Types> Pred<T> {
     // This is a syntactic analysis.
     pub fn wkvars_in_conj(&self) -> Vec<WKVar<T>> {
         match self {
-            Pred::And(preds) => preds.iter().flat_map(|pred| pred.wkvars_in_conj()).collect(),
+            Pred::And(preds) => {
+                preds
+                    .iter()
+                    .flat_map(|pred| pred.wkvars_in_conj())
+                    .collect()
+            }
             Pred::Expr(e) => e.wkvars_in_conj(),
             Pred::KVar(..) => vec![],
         }
@@ -752,14 +772,14 @@ impl<T: Types> Expr<T> {
     pub fn disjunctions(&self) -> Vec<Expr<T>> {
         match self {
             Expr::Or(disjuncts) => disjuncts.clone(),
-            _ => vec![self.clone()]
+            _ => vec![self.clone()],
         }
     }
 
     pub fn conjunctions(&self) -> Vec<Expr<T>> {
         match self {
             Expr::And(conjuncts) => conjuncts.clone(),
-            _ => vec![self.clone()]
+            _ => vec![self.clone()],
         }
     }
 
@@ -768,56 +788,39 @@ impl<T: Types> Expr<T> {
     pub fn wkvars_in_conj(&self) -> Vec<WKVar<T>> {
         match self {
             Expr::WKVar(wkvar) => vec![wkvar.clone()],
-            Expr::And(conj) => {
-                conj.iter().flat_map(|e| {
-                    e.wkvars_in_conj()
-                }).collect()
-            }
-            _ => vec![]
+            Expr::And(conj) => conj.iter().flat_map(|e| e.wkvars_in_conj()).collect(),
+            _ => vec![],
         }
     }
 
     pub fn uncurry(&self) -> Self {
         match self {
             Expr::App(head, sort_args, args) => {
-                        let uncurried_head = head.uncurry();
-                        let uncurried_args = args.iter().map(|arg| arg.uncurry()).collect_vec();
-                        match uncurried_head {
-                            Expr::App(head_head, head_sort_args, mut head_args) => {
-                                head_args.extend(uncurried_args);
-                                let new_sort_args = match (head_sort_args, sort_args) {
-                                    (Some(mut head_sort_args), Some(sort_args)) => {
-                                        head_sort_args.extend(sort_args.clone());
-                                        Some(head_sort_args)
-                                    }
-                                    _ => {
-                                        None
-                                    }
-                                };
-                                Expr::App(head_head, new_sort_args, head_args)
+                let uncurried_head = head.uncurry();
+                let uncurried_args = args.iter().map(|arg| arg.uncurry()).collect_vec();
+                match uncurried_head {
+                    Expr::App(head_head, head_sort_args, mut head_args) => {
+                        head_args.extend(uncurried_args);
+                        let new_sort_args = match (head_sort_args, sort_args) {
+                            (Some(mut head_sort_args), Some(sort_args)) => {
+                                head_sort_args.extend(sort_args.clone());
+                                Some(head_sort_args)
                             }
-                            Expr::WKVar(WKVar {wkvid, args: mut wkvar_args}) => {
-                                wkvar_args.extend(uncurried_args);
-                                Expr::WKVar(WKVar {wkvid, args: wkvar_args})
-                            }
-                            _ => {
-                                Expr::App(Box::new(uncurried_head), sort_args.clone(), uncurried_args)
-                            }
-                        }
+                            _ => None,
+                        };
+                        Expr::App(head_head, new_sort_args, head_args)
                     }
-            Expr::Constant(_) | Expr::Var(_) | Expr::BoundVar(_)
-                | Expr::ThyFunc(_) => self.clone(),
-            Expr::Neg(expr) => {
-                Expr::Neg(Box::new(expr.uncurry()))
+                    Expr::WKVar(WKVar { wkvid, args: mut wkvar_args }) => {
+                        wkvar_args.extend(uncurried_args);
+                        Expr::WKVar(WKVar { wkvid, args: wkvar_args })
+                    }
+                    _ => Expr::App(Box::new(uncurried_head), sort_args.clone(), uncurried_args),
+                }
             }
+            Expr::Constant(_) | Expr::Var(_) | Expr::BoundVar(_) | Expr::ThyFunc(_) => self.clone(),
+            Expr::Neg(expr) => Expr::Neg(Box::new(expr.uncurry())),
             Expr::BinaryOp(bin_op, args) => {
-                Expr::BinaryOp(
-                    *bin_op,
-                    Box::new([
-                        args[0].uncurry(),
-                        args[1].uncurry(),
-                    ]),
-                )
+                Expr::BinaryOp(*bin_op, Box::new([args[0].uncurry(), args[1].uncurry()]))
             }
             Expr::IfThenElse(args) => {
                 Expr::IfThenElse(Box::new([
@@ -826,74 +829,23 @@ impl<T: Types> Expr<T> {
                     args[2].uncurry(),
                 ]))
             }
-            Expr::And(exprs) => {
-                Expr::And(
-                    exprs
-                        .iter()
-                        .map(|e| e.uncurry())
-                        .collect_vec(),
-                )
-            }
-            Expr::Or(exprs) => {
-                Expr::Or(
-                    exprs
-                        .iter()
-                        .map(|e| e.uncurry())
-                        .collect_vec(),
-                )
-            }
-            Expr::Not(expr) => {
-                Expr::Not(Box::new(expr.uncurry()))
-            }
-            Expr::Imp(args) => {
-                Expr::Imp(Box::new([
-                    args[0].uncurry(),
-                    args[1].uncurry(),
-                ]))
-            }
-            Expr::Iff(args) => {
-                Expr::Iff(Box::new([
-                    args[0].uncurry(),
-                    args[1].uncurry(),
-                ]))
-            }
+            Expr::And(exprs) => Expr::And(exprs.iter().map(|e| e.uncurry()).collect_vec()),
+            Expr::Or(exprs) => Expr::Or(exprs.iter().map(|e| e.uncurry()).collect_vec()),
+            Expr::Not(expr) => Expr::Not(Box::new(expr.uncurry())),
+            Expr::Imp(args) => Expr::Imp(Box::new([args[0].uncurry(), args[1].uncurry()])),
+            Expr::Iff(args) => Expr::Iff(Box::new([args[0].uncurry(), args[1].uncurry()])),
             Expr::Atom(bin_rel, args) => {
-                Expr::Atom(
-                    *bin_rel,
-                    Box::new([
-                        args[0].uncurry(),
-                        args[1].uncurry(),
-                    ]),
-                )
+                Expr::Atom(*bin_rel, Box::new([args[0].uncurry(), args[1].uncurry()]))
             }
             Expr::Let(var, args) => {
-                Expr::Let(
-                    var.clone(),
-                    Box::new([
-                        args[0].uncurry(),
-                        args[1].uncurry(),
-                    ]),
-                )
+                Expr::Let(var.clone(), Box::new([args[0].uncurry(), args[1].uncurry()]))
             }
-            Expr::IsCtor(var, expr) => {
-                Expr::IsCtor(
-                    var.clone(),
-                    Box::new(expr.uncurry()),
-                )
-            }
-            Expr::Exists(sorts, expr) => {
-                Expr::Exists(
-                    sorts.clone(),
-                    Box::new(expr.uncurry()),
-                )
-            }
+            Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.uncurry())),
+            Expr::Exists(sorts, expr) => Expr::Exists(sorts.clone(), Box::new(expr.uncurry())),
             Expr::WKVar(WKVar { wkvid, args }) => {
                 Expr::WKVar(WKVar {
                     wkvid: wkvid.clone(),
-                    args: args
-                        .iter()
-                        .map(|e| e.uncurry())
-                        .collect_vec(),
+                    args: args.iter().map(|e| e.uncurry()).collect_vec(),
                 })
             }
         }
@@ -915,14 +867,14 @@ impl<T: Types> Expr<T> {
         }
         match self {
             Expr::Or(exprs) => {
-                exprs.iter().any(|expr| matches!(expr, Expr::WKVar(..)) || expr.has_wkvar_reachable_by_split())
+                exprs.iter().any(|expr| {
+                    matches!(expr, Expr::WKVar(..)) || expr.has_wkvar_reachable_by_split()
+                })
             }
             Expr::Exists(_sorts, expr) => {
                 !expr.wkvars_in_conj().is_empty() || expr.has_wkvar_reachable_by_split()
             }
-            Expr::And(exprs) => {
-                exprs.iter().any(|expr| expr.has_wkvar_reachable_by_split())
-            }
+            Expr::And(exprs) => exprs.iter().any(|expr| expr.has_wkvar_reachable_by_split()),
             _ => false,
         }
     }
@@ -935,7 +887,8 @@ impl<T: Types> Expr<T> {
     }
 
     pub fn hoist_exists<F>(&self, fresh_var: &mut F) -> (Vec<(T::Var, Sort<T>)>, Expr<T>)
-        where F: FnMut() -> T::Var
+    where
+        F: FnMut() -> T::Var,
     {
         match self {
             Expr::Exists(sorts, inner_e) => {
@@ -957,50 +910,46 @@ impl<T: Types> Expr<T> {
             Expr::And(exprs) => {
                 let mut vars = vec![];
                 let hoisted_e = Expr::And(
-                    exprs.iter().flat_map(|expr| {
-                        let (new_vars, hoisted_e) = expr.hoist_exists(fresh_var);
-                        vars.extend(new_vars);
-                        // Flatten any conjunctions
-                        match hoisted_e {
-                            Expr::And(exprs) => exprs,
-                            hoisted_e => vec![hoisted_e],
-                        }
-                    }).collect()
+                    exprs
+                        .iter()
+                        .flat_map(|expr| {
+                            let (new_vars, hoisted_e) = expr.hoist_exists(fresh_var);
+                            vars.extend(new_vars);
+                            // Flatten any conjunctions
+                            match hoisted_e {
+                                Expr::And(exprs) => exprs,
+                                hoisted_e => vec![hoisted_e],
+                            }
+                        })
+                        .collect(),
                 );
                 (vars, hoisted_e)
             }
-            _ => (vec![], self.clone())
+            _ => (vec![], self.clone()),
         }
     }
 
     pub fn as_conjunction(self) -> Vec<Self> {
         match self {
             Expr::And(exprs) => exprs,
-            _ => vec![self]
+            _ => vec![self],
         }
     }
 
     pub fn strip_wkvars(&self) -> Self {
         match self {
-            Expr::Constant(_) | Expr::Var(_) | Expr::BoundVar(_)
-                | Expr::ThyFunc(_) => self.clone(),
-            Expr::WKVar(..) => {
-                Expr::Constant(Constant::Boolean(true))
-            }
+            Expr::Constant(_) | Expr::Var(_) | Expr::BoundVar(_) | Expr::ThyFunc(_) => self.clone(),
+            Expr::WKVar(..) => Expr::Constant(Constant::Boolean(true)),
             Expr::App(head, sort_args, args) => {
-                Expr::App(Box::new(head.strip_wkvars()), sort_args.clone(), args.iter().map(|arg| arg.strip_wkvars()).collect())
-            }
-            Expr::Neg(expr) => {
-                Expr::Neg(Box::new(expr.strip_wkvars()))
-            }
-            Expr::BinaryOp(bin_op, args) => {
-                Expr::BinaryOp(
-                    *bin_op,
-                    Box::new([
-                        args[0].strip_wkvars(),
-                        args[1].strip_wkvars(),
-                    ]),
+                Expr::App(
+                    Box::new(head.strip_wkvars()),
+                    sort_args.clone(),
+                    args.iter().map(|arg| arg.strip_wkvars()).collect(),
                 )
+            }
+            Expr::Neg(expr) => Expr::Neg(Box::new(expr.strip_wkvars())),
+            Expr::BinaryOp(bin_op, args) => {
+                Expr::BinaryOp(*bin_op, Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]))
             }
             Expr::IfThenElse(args) => {
                 Expr::IfThenElse(Box::new([
@@ -1009,67 +958,23 @@ impl<T: Types> Expr<T> {
                     args[2].strip_wkvars(),
                 ]))
             }
-            Expr::And(exprs) => {
-                Expr::And(
-                    exprs
-                        .iter()
-                        .map(|e| e.strip_wkvars())
-                        .collect_vec(),
-                )
-            }
-            Expr::Or(exprs) => {
-                Expr::Or(
-                    exprs
-                        .iter()
-                        .map(|e| e.strip_wkvars())
-                        .collect_vec(),
-                )
-            }
-            Expr::Not(expr) => {
-                Expr::Not(Box::new(expr.strip_wkvars()))
-            }
+            Expr::And(exprs) => Expr::And(exprs.iter().map(|e| e.strip_wkvars()).collect_vec()),
+            Expr::Or(exprs) => Expr::Or(exprs.iter().map(|e| e.strip_wkvars()).collect_vec()),
+            Expr::Not(expr) => Expr::Not(Box::new(expr.strip_wkvars())),
             Expr::Imp(args) => {
-                Expr::Imp(Box::new([
-                    args[0].strip_wkvars(),
-                    args[1].strip_wkvars(),
-                ]))
+                Expr::Imp(Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]))
             }
             Expr::Iff(args) => {
-                Expr::Iff(Box::new([
-                    args[0].strip_wkvars(),
-                    args[1].strip_wkvars(),
-                ]))
+                Expr::Iff(Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]))
             }
             Expr::Atom(bin_rel, args) => {
-                Expr::Atom(
-                    *bin_rel,
-                    Box::new([
-                        args[0].strip_wkvars(),
-                        args[1].strip_wkvars(),
-                    ]),
-                )
+                Expr::Atom(*bin_rel, Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]))
             }
             Expr::Let(var, args) => {
-                Expr::Let(
-                    var.clone(),
-                    Box::new([
-                        args[0].strip_wkvars(),
-                        args[1].strip_wkvars(),
-                    ]),
-                )
+                Expr::Let(var.clone(), Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]))
             }
-            Expr::IsCtor(var, expr) => {
-                Expr::IsCtor(
-                    var.clone(),
-                    Box::new(expr.strip_wkvars()),
-                )
-            }
-            Expr::Exists(sorts, expr) => {
-                Expr::Exists(
-                    sorts.clone(),
-                    Box::new(expr.strip_wkvars()),
-                )
-            }
+            Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.strip_wkvars())),
+            Expr::Exists(sorts, expr) => Expr::Exists(sorts.clone(), Box::new(expr.strip_wkvars())),
         }
     }
 
@@ -1086,10 +991,11 @@ impl<T: Types> Expr<T> {
     pub fn to_dnf(&self) -> DNF<T> {
         match self {
             Expr::Or(disjuncts) => {
-                let dnf_disjuncts = disjuncts.iter().flat_map(|disjunct| disjunct.to_dnf().disjuncts).collect_vec();
-                DNF {
-                    disjuncts: dnf_disjuncts,
-                }
+                let dnf_disjuncts = disjuncts
+                    .iter()
+                    .flat_map(|disjunct| disjunct.to_dnf().disjuncts)
+                    .collect_vec();
+                DNF { disjuncts: dnf_disjuncts }
             }
             // Combinatorial explosion time
             Expr::And(conjuncts) => {
@@ -1097,19 +1003,11 @@ impl<T: Types> Expr<T> {
                     .iter()
                     .map(|conjunct| conjunct.to_dnf().disjuncts)
                     .multi_cartesian_product()
-                    .map(|vec_of_conjuncts| {
-                        vec_of_conjuncts.into_iter().flatten().collect_vec()
-                    })
+                    .map(|vec_of_conjuncts| vec_of_conjuncts.into_iter().flatten().collect_vec())
                     .collect_vec();
-                DNF {
-                    disjuncts: dnf_disjuncts,
-                }
+                DNF { disjuncts: dnf_disjuncts }
             }
-            _ => {
-                DNF {
-                    disjuncts: vec![vec![self.clone()]],
-                }
-            }
+            _ => DNF { disjuncts: vec![vec![self.clone()]] },
         }
     }
 
@@ -1118,8 +1016,20 @@ impl<T: Types> Expr<T> {
     /// in terms of AND and OR.
     pub fn num_connectives(&self) -> usize {
         match self {
-            Expr::Or(disjuncts) => disjuncts.len() + disjuncts.iter().map(|disjunct| disjunct.num_connectives()).sum::<usize>(),
-            Expr::And(conjuncts) => conjuncts.len() + conjuncts.iter().map(|conjunct| conjunct.num_connectives()).sum::<usize>(),
+            Expr::Or(disjuncts) => {
+                disjuncts.len()
+                    + disjuncts
+                        .iter()
+                        .map(|disjunct| disjunct.num_connectives())
+                        .sum::<usize>()
+            }
+            Expr::And(conjuncts) => {
+                conjuncts.len()
+                    + conjuncts
+                        .iter()
+                        .map(|conjunct| conjunct.num_connectives())
+                        .sum::<usize>()
+            }
             _ => 0,
         }
     }
@@ -1127,8 +1037,23 @@ impl<T: Types> Expr<T> {
     pub fn max_num_disjuncts(&self) -> usize {
         match self {
             // Can pick 0 for the default value since there will always be at least one disjunct.
-            Expr::Or(disjuncts) => std::cmp::max(disjuncts.iter().map(|disjunct| disjunct.max_num_disjuncts()).max().unwrap_or(0), disjuncts.len()),
-            Expr::And(conjuncts) => conjuncts.iter().map(|conjunct| conjunct.max_num_disjuncts()).max().unwrap_or(1),
+            Expr::Or(disjuncts) => {
+                std::cmp::max(
+                    disjuncts
+                        .iter()
+                        .map(|disjunct| disjunct.max_num_disjuncts())
+                        .max()
+                        .unwrap_or(0),
+                    disjuncts.len(),
+                )
+            }
+            Expr::And(conjuncts) => {
+                conjuncts
+                    .iter()
+                    .map(|conjunct| conjunct.max_num_disjuncts())
+                    .max()
+                    .unwrap_or(1)
+            }
             _ => 1,
         }
     }
@@ -1136,8 +1061,19 @@ impl<T: Types> Expr<T> {
     pub fn total_num_disjuncts(&self) -> usize {
         match self {
             // Can pick 0 for the default value since there will always be at least one disjunct.
-            Expr::Or(disjuncts) => disjuncts.len() + disjuncts.iter().map(|disjunct| disjunct.total_num_disjuncts()).sum::<usize>(),
-            Expr::And(conjuncts) => conjuncts.iter().map(|conjunct| conjunct.total_num_disjuncts()).sum::<usize>(),
+            Expr::Or(disjuncts) => {
+                disjuncts.len()
+                    + disjuncts
+                        .iter()
+                        .map(|disjunct| disjunct.total_num_disjuncts())
+                        .sum::<usize>()
+            }
+            Expr::And(conjuncts) => {
+                conjuncts
+                    .iter()
+                    .map(|conjunct| conjunct.total_num_disjuncts())
+                    .sum::<usize>()
+            }
             _ => 0,
         }
     }

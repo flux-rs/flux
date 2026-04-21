@@ -31,11 +31,11 @@ use rustc_type_ir::Variance::Invariant;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{
-        Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen,
-    },
+    fixpoint_encoding::{Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
-    refine_tree::{AssumptionType, BinderOriginator, BinderProvenance, Cursor, Marker, RefineTree, Scope},
+    refine_tree::{
+        AssumptionType, BinderOriginator, BinderProvenance, Cursor, Marker, RefineTree, Scope,
+    },
     wkvars::{Constraint, Constraints},
 };
 

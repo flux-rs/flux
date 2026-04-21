@@ -3,7 +3,8 @@ use std::{clone::Clone, fmt, ops::ControlFlow};
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_infer::{
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
-    projections::NormalizeExt as _, refine_tree::AssumptionType,
+    projections::NormalizeExt as _,
+    refine_tree::AssumptionType,
 };
 use flux_middle::{
     global_env::GlobalEnv,

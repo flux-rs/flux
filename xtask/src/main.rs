@@ -237,7 +237,12 @@ fn doc(_args: Doc) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build_binary(bin: &str, profile: Profile, rust_fixpoint: bool, wick: bool) -> anyhow::Result<Utf8PathBuf> {
+fn build_binary(
+    bin: &str,
+    profile: Profile,
+    rust_fixpoint: bool,
+    wick: bool,
+) -> anyhow::Result<Utf8PathBuf> {
     let mut args = vec!["build", "--bin", bin, "--profile", profile.as_str()];
     if rust_fixpoint {
         args.extend_from_slice(&["--features", "rust-fixpoint"]);
@@ -318,7 +323,10 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
     remove_path(&config.dst)?;
     create_dir(&config.dst)?;
 
-    copy_file(build_binary("flux-driver", config.profile, config.rust_fixpoint, config.wick)?, &config.dst)?;
+    copy_file(
+        build_binary("flux-driver", config.profile, config.rust_fixpoint, config.wick)?,
+        &config.dst,
+    )?;
 
     let cargo_flux = build_binary("cargo-flux", config.profile, config.rust_fixpoint, config.wick)?;
 

@@ -1,10 +1,6 @@
-use std::{
-    hash::Hash,
-};
+use std::hash::Hash;
 
-use rustc_data_structures::{
-    fx::{FxIndexMap, FxIndexSet},
-};
+use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 
 fn dfs_finish_order<'a, T: Hash + Eq + Clone>(
     node: &'a T,
