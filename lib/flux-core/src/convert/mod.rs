@@ -1,3 +1,5 @@
+mod num;
+
 use flux_attrs::*;
 
 #[extern_spec(core::convert)]
