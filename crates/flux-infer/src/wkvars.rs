@@ -124,7 +124,7 @@ impl WKVarInstantiator<'_> {
                 .map(|arg| arg.eta_reduce_projs().erase_metadata()),
             // We'll make an instantiator that is generic because this instatiation
             // may (and probably will) be used in multiple places
-            (0..wkvar_args.len()).into_iter().map(|var_num| {
+            (0..wkvar_args.len()).map(|var_num| {
                 rty::Expr::bvar(INNERMOST, var_num.into(), rty::BoundReftKind::Anon)
             }),
         )
@@ -503,7 +503,7 @@ impl WKVarSolutions {
     pub fn write_summary_file(
         &self,
         genv: GlobalEnv,
-        path: &std::path::PathBuf,
+        path: &std::path::Path,
     ) -> std::io::Result<()> {
         let solutions_by_wkvar: HashMap<String, WKVarSolutionSummary> = self
             .solutions
@@ -517,7 +517,7 @@ impl WKVarSolutions {
                 (wkvar_key, solution.to_summary(genv))
             })
             .collect();
-        let file = std::fs::File::create(path.as_path())?;
+        let file = std::fs::File::create(path)?;
         let writer = std::io::BufWriter::new(file);
         Ok(serde_json::to_writer_pretty(writer, &solutions_by_wkvar)?)
     }
@@ -531,8 +531,8 @@ impl WKVarSolutions {
         let mut num_nontrivial_real_wkvars = 0;
         let mut num_nontrivial_internal_wkvars = 0;
         self.solutions.iter().for_each(|(wkvid, solution)| {
-            if solution.actual_exprs.len() > 0 {
-                if self.internal_wkvars.contains(&wkvid) {
+            if !solution.actual_exprs.is_empty() {
+                if self.internal_wkvars.contains(wkvid) {
                     num_nontrivial_internal_wkvars += 1;
                 } else {
                     num_nontrivial_real_wkvars += 1;
@@ -572,7 +572,7 @@ impl WKVarSolutions {
     pub fn write_stats_file(
         &self,
         genv: GlobalEnv,
-        path: &std::path::PathBuf,
+        path: &std::path::Path,
         _num_iters: usize,
     ) -> std::io::Result<()> {
         #[derive(serde::Serialize)]
@@ -589,7 +589,7 @@ impl WKVarSolutions {
         }
         let (stats_by_fn, num_nontrivial_real_wkvars, num_nontrivial_internal_wkvars) =
             self.stats_by_fn(genv);
-        let mut writer = csv::Writer::from_path(path.as_path())?;
+        let mut writer = csv::Writer::from_path(path)?;
         let (fn_timings, _total_time) = refinement_hint_timings();
         let mut total_hint_time: f32 = 0.0;
         let mut total_query_time: f32 = 0.0;
@@ -768,7 +768,7 @@ impl WKVarSolutions {
             true,
         );
         let fn_pretty_cx = pretty::PrettyCx::default(genv).hide_regions(true);
-        for ((fn_name, fn_def_id), kvids) in wkvars_by_fn_name.iter() {
+        for ((fn_name, fn_def_id), kvids) in &wkvars_by_fn_name {
             if file_read_user_interactions.is_none() {
                 println!("fn {}", fn_name);
                 let fn_sig = genv.fn_sig(fn_def_id).unwrap();
@@ -886,7 +886,7 @@ impl WKVarSolutions {
             match &interaction.kind {
                 InteractionKind::AddGroundTruth(expr) => {
                     println!("Adding ground truth {:?} to {:?}", expr, interaction.wkvid);
-                    any_interaction = solution.add_assumed_expr(&expr) || any_interaction;
+                    any_interaction = solution.add_assumed_expr(expr) || any_interaction;
                 }
                 InteractionKind::RemoveSolution(expr) => {
                     println!("Removing {:?} from {:?}", expr, interaction.wkvid);
@@ -1016,7 +1016,7 @@ where
             for error in &fixpoint_answer.errors {
                 // println!("failing constraint {:?}", &error.blame_ctx.expr);
                 // let solution_candidates = _find_solution_candidates(&error.blame_ctx);
-                for (wkvid, instantiations) in error.possible_solutions.iter() {
+                for (wkvid, instantiations) in &error.possible_solutions {
                     for instantiation in instantiations {
                         // // Accept all solutions given
                         // let ground_truth_solutions = {
@@ -1224,10 +1224,10 @@ pub fn _find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
         let au_map = rty::anti_unify(&blame_ctx.expr, assumed_pred);
         // This checks if the antiunification is trivial, i.e.
         // blame_ctx.expr == assumed_pred
-        if au_map.get(&blame_ctx.expr).is_some() {
+        if au_map.contains_key(&blame_ctx.expr) {
             continue;
         }
-        for (e1, e2) in au_map.iter() {
+        for (e1, e2) in &au_map {
             match (e1.kind(), e2.kind()) {
                 // (rty::ExprKind::Constant(..), _) => continue,
                 // (_, rty::ExprKind::Constant(..)) => continue,
@@ -1254,5 +1254,5 @@ pub fn _find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
     // for candidate in &candidates {
     //     println!("equality candidate: {:?}", candidate);
     // }
-    return candidates;
+    candidates
 }

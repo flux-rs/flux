@@ -521,10 +521,7 @@ impl rty::PolyFnSig {
             .collect_vec();
         let late_vars = make_vars_and_sorts_from_bound_vars(self.vars());
         Ok(self.map(|fn_sig| {
-            let mut params = late_vars
-                .into_iter()
-                .chain(early_vars.into_iter())
-                .collect_vec();
+            let mut params = late_vars.into_iter().chain(early_vars).collect_vec();
             let mut wkvar_inserter = WeakKVarInserter {
                 wkvar_map: WeakKvarMap::default(),
                 def_id,
@@ -571,7 +568,8 @@ impl rty::PolyFnSig {
                 .output
                 .map(|output| rty::FnOutput { ret: wkvar_inserter.fold_ty(&output.ret), ensures });
             genv.feed_weak_kvars(def_id, wkvar_inserter.wkvar_map);
-            let sig = rty::FnSig {
+
+            rty::FnSig {
                 abi: fn_sig.abi,
                 safety: fn_sig.safety,
                 inputs,
@@ -583,8 +581,7 @@ impl rty::PolyFnSig {
                     .chain(std::iter::once(rty::Expr::wkvar(requires_wkvar)))
                     .collect(),
                 output,
-            };
-            sig
+            }
         }))
     }
 }
@@ -608,7 +605,7 @@ impl TypeFolder for WeakKVarInserter {
             // the enter_binder and exit_binder methods because we immediately
             // use the bound vars to make a weak kvar.
             Exists(bound_ty) => {
-                for v in self.existential_params.iter_mut() {
+                for v in &mut self.existential_params {
                     shift_in_vars(v);
                 }
                 shift_in_vars(&mut self.params);
@@ -647,7 +644,7 @@ impl TypeFolder for WeakKVarInserter {
                 self.existential_params.push(exist_params);
                 let new_ty = bound_ty.skip_binder_ref().super_fold_with(self);
                 self.existential_params.pop();
-                for v in self.existential_params.iter_mut() {
+                for v in &mut self.existential_params {
                     shift_out_vars(v);
                 }
                 shift_out_vars(&mut self.params);
@@ -669,7 +666,7 @@ impl TypeFolder for WeakKVarInserter {
                     .map(|arg| {
                         match arg {
                             GenericArg::Base(subset_ty) => {
-                                for v in self.existential_params.iter_mut() {
+                                for v in &mut self.existential_params {
                                     shift_in_vars(v);
                                 }
                                 shift_in_vars(&mut self.params);
@@ -698,7 +695,7 @@ impl TypeFolder for WeakKVarInserter {
                                 let new_ty = subset_ty.skip_binder_ref().super_fold_with(self);
                                 let new_ty_with_wkvar = new_ty.strengthen(Expr::wkvar(wkvar));
                                 self.existential_params.pop();
-                                for v in self.existential_params.iter_mut() {
+                                for v in &mut self.existential_params {
                                     shift_out_vars(v);
                                 }
                                 shift_out_vars(&mut self.params);
@@ -737,7 +734,7 @@ where
                 && !sort.is_param()
                 && !sort.is_loc()
                 && !sort.is_unit()
-                && !sort.is_unit_adt().is_some()
+                && sort.is_unit_adt().is_none()
             {
                 let bound_reft = rty::BoundReft { var: rty::BoundVar::from(i), kind: *reft_kind };
                 Some((rty::Var::Bound(INNERMOST, bound_reft), sort.clone()))
@@ -773,8 +770,8 @@ fn make_weak_kvar(
 ) -> rty::WKVar {
     let num_self_args = self_args.len();
     let (args, sorts): (Vec<rty::Var>, Vec<rty::Sort>) =
-        self_args.into_iter().chain(params.into_iter()).unzip();
-    let arg_exprs = args.into_iter().map(|var| rty::Expr::var(var)).collect();
+        self_args.into_iter().chain(params).unzip();
+    let arg_exprs = args.into_iter().map(rty::Expr::var).collect();
     // We don't have any solutions because these weak kvars are being generated
     // (solutions only come from user annotations).
     wkvar_map.insert(kvid.as_u32(), WeakKvarInfo { solutions: vec![], sorts });

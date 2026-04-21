@@ -915,7 +915,7 @@ where
                         tracked_span_bug!("failed to convert sorts: {err:?}");
                     });
                 let expr = self
-                    .fixpoint_to_expr(&expr)
+                    .fixpoint_to_expr(expr)
                     .unwrap_or_else(|err| tracked_span_bug!("failed to convert expr: {err:?}"));
                 let binder = rty::Binder::bind_with_sorts(expr, &sorts);
                 (*fixpoint_kvid, binder)
@@ -1381,7 +1381,7 @@ impl LocalVarEnv {
 
     fn insert_fvar_map(&mut self, name: rty::Name) -> fixpoint::LocalVar {
         let fresh = self.fresh_name();
-        self.fvars.insert(name.clone(), fresh.clone());
+        self.fvars.insert(name, fresh);
         self.reverse_map.insert(fresh, rty::Expr::fvar(name));
         fresh
     }
@@ -2347,14 +2347,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> Option<fixpoint::Var> {
         if !wkvid.parent_fn.is_local() {
-            let _wkvid_string = format!(
-                "{}_$wk{}",
-                self.genv
-                    .tcx()
-                    .def_path(wkvid.parent_fn)
-                    .to_filename_friendly_no_crate(),
-                wkvid.id.as_u32()
-            );
             // println!("INFO: skipping encoding {} because it is not local", _wkvid_string);
             return None;
         }
@@ -2380,8 +2372,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         .collect();
                     let name =
                         fixpoint::Var::WKVar(Symbol::intern(&sanitized_name), wkvid.id.as_u32());
-                    let func_sort =
-                        rty::FuncSort::new(arg_sorts.to_vec(), rty::Sort::Bool).to_poly();
+                    let func_sort = rty::FuncSort::new(arg_sorts, rty::Sort::Bool).to_poly();
                     let sort = scx.func_sort_to_fixpoint(&func_sort);
                     self.const_env.wkvar_map_rev.insert(name, key);
                     fixpoint::ConstDecl { name, comment, sort }

@@ -2452,41 +2452,29 @@ impl Expr {
                                 .simplify_bounds();
                         }
                         // X - Y > 0  ==>  X > Y
-                        if is_zero(&b_simp) {
-                            if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
-                                return Expr::binary_op(
-                                    BinOp::Gt(s_sub.clone()),
-                                    x.clone(),
-                                    y.clone(),
-                                )
+                        if is_zero(&b_simp)
+                            && let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind()
+                        {
+                            return Expr::binary_op(BinOp::Gt(s_sub.clone()), x.clone(), y.clone())
                                 .at_opt(span);
-                            }
                         }
                     }
                     BinOp::Ge(Sort::Int) => {
                         // X - Y >= 0  ==>  X >= Y
-                        if is_zero(&b_simp) {
-                            if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
-                                return Expr::binary_op(
-                                    BinOp::Ge(s_sub.clone()),
-                                    x.clone(),
-                                    y.clone(),
-                                )
+                        if is_zero(&b_simp)
+                            && let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind()
+                        {
+                            return Expr::binary_op(BinOp::Ge(s_sub.clone()), x.clone(), y.clone())
                                 .at_opt(span);
-                            }
                         }
                     }
                     BinOp::Lt(Sort::Int) => {
                         // X - Y < 0  ==>  X < Y
-                        if is_zero(&b_simp) {
-                            if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
-                                return Expr::binary_op(
-                                    BinOp::Lt(s_sub.clone()),
-                                    x.clone(),
-                                    y.clone(),
-                                )
+                        if is_zero(&b_simp)
+                            && let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind()
+                        {
+                            return Expr::binary_op(BinOp::Lt(s_sub.clone()), x.clone(), y.clone())
                                 .at_opt(span);
-                            }
                         }
                     }
                     BinOp::Le(Sort::Int) => {
@@ -2497,15 +2485,11 @@ impl Expr {
                                 .simplify_bounds();
                         }
                         // X - Y <= 0  ==>  X <= Y
-                        if is_zero(&b_simp) {
-                            if let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind() {
-                                return Expr::binary_op(
-                                    BinOp::Le(s_sub.clone()),
-                                    x.clone(),
-                                    y.clone(),
-                                )
+                        if is_zero(&b_simp)
+                            && let ExprKind::BinaryOp(BinOp::Sub(s_sub), x, y) = a_simp.kind()
+                        {
+                            return Expr::binary_op(BinOp::Le(s_sub.clone()), x.clone(), y.clone())
                                 .at_opt(span);
-                            }
                         }
                     }
                     _ => {}

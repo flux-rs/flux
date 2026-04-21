@@ -89,14 +89,14 @@ impl RefineTree {
                     if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
                         lhs_wkvars.insert(wkvar.wkvid.clone());
                     }
-                })
+                });
             },
             &mut |head| {
                 head.flatten_conjs().into_iter().for_each(|conj| {
                     if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
                         rhs_wkvars.insert(wkvar.wkvid.clone());
                     }
-                })
+                });
             },
         );
         (lhs_wkvars, rhs_wkvars)
@@ -478,7 +478,7 @@ impl TypeFoldable for Node {
         };
         Ok(Self {
             nbindings: self.nbindings,
-            children: children.to_vec(),
+            children: children.clone(),
             kind,
             // NOTE: zeroes out the parent
             parent: None,
@@ -664,7 +664,7 @@ impl Node {
     ) {
         match &self.kind {
             NodeKind::Assumption(expr, _assumption_type) => {
-                visit_assumed(&expr);
+                visit_assumed(expr);
             }
             NodeKind::Head(expr, _) => {
                 let (impls, rhs) = expr.flatten_impls();

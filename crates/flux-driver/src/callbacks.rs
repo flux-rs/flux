@@ -140,7 +140,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             let file = std::fs::File::create(config::log_dir().join(filename).as_path()).unwrap();
             let mut writer = std::io::BufWriter::new(file);
             writer.write_all(user_interactions.into_iter().join("\n").as_bytes()).unwrap();
-            writer.write("\n".as_bytes()).unwrap();
+            writer.write_all("\n".as_bytes()).unwrap();
             writer.flush().unwrap();
         }
         // println!("Solutions:");
