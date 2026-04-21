@@ -317,12 +317,7 @@ fn add_fn_fix_diagnostic<'a>(
     wkvid: rty::WKVid,
     solution: &rty::Binder<rty::Expr>,
 ) {
-    let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()));
-    let fn_name = genv.tcx().def_path_str(wkvid.0);
-    let fn_span = genv
-        .tcx()
-        .def_ident_span(wkvid.parent_fn)
-        .unwrap_or_else(|| genv.tcx().def_span(wkvid.parent_fn));
+    let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()).prettify());
     let fn_sig = genv.fn_sig(wkvid.parent_fn).unwrap();
     let mut wkvar_subst = WKVarSubst::new([(wkvid.clone(), pretty_solution)].into(), false);
     let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
