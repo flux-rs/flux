@@ -342,17 +342,18 @@ impl SortEncodingCtxt {
                 fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
             }
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
-                if let Some(variant) = sort_def.opt_struct_variant() {
-                    let sorts = variant.field_sorts(args);
-                    // do not generate 1-tuples
-                    if let [sort] = &sorts[..] {
-                        self.sort_to_fixpoint(sort)
-                    } else {
-                        let adt_id = self.declare_adt(sort_def.did());
-                        let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id));
-                        let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
-                        fixpoint::Sort::App(ctor, args)
-                    }
+                if let Some(_variant) = sort_def.opt_struct_variant() {
+                    // NOTE(ck): We previously had an optimization which didn't
+                    // emit a Ctor in cases of a 1-tuple, but this makes the
+                    // conversion back from fixpoint unfaithful (we can't
+                    // distinguish between e.g. `usize` and `(usize,)`).
+                    //
+                    // So this optimization has since been removed. Arguably
+                    // it's better-suited for fixpoint.
+                    let adt_id = self.declare_adt(sort_def.did());
+                    let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id));
+                    let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
+                    fixpoint::Sort::App(ctor, args)
                 } else {
                     debug_assert!(args.is_empty());
                     let adt_id = self.declare_adt(sort_def.did());
@@ -371,15 +372,11 @@ impl SortEncodingCtxt {
                 )
             }
             rty::Sort::Tuple(sorts) => {
-                // do not generate 1-tuples
-                if let [sort] = &sorts[..] {
-                    self.sort_to_fixpoint(sort)
-                } else {
-                    self.declare_tuple(sorts.len());
-                    let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
-                    let args = sorts.iter().map(|s| self.sort_to_fixpoint(s)).collect();
-                    fixpoint::Sort::App(ctor, args)
-                }
+                // NOTE(cK): See above note about not generating 1-tuples.
+                self.declare_tuple(sorts.len());
+                let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
+                let args = sorts.iter().map(|s| self.sort_to_fixpoint(s)).collect();
+                fixpoint::Sort::App(ctor, args)
             }
             rty::Sort::Func(sort) => self.func_sort_to_fixpoint(sort).into_sort(),
             rty::Sort::Var(k) => fixpoint::Sort::Var(k.index()),
