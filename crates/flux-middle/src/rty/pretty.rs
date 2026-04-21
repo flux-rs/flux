@@ -232,8 +232,9 @@ impl Pretty for FnSig {
             join!(", ", self.inputs.iter().map(|input| input.shallow_canonicalize())),
             &self.output
         )?;
-        if !self.requires.is_empty() {
-            w!(cx, f, " requires {:?}", join!(" ∧ ", &self.requires))?;
+        let filtered_requires = self.requires.iter().filter(|r| !r.is_trivially_true()).collect_vec();
+        if !filtered_requires.is_empty() {
+            w!(cx, f, " requires {:?}", join!(" && ", &filtered_requires))?;
         }
         Ok(())
     }
@@ -248,8 +249,14 @@ impl Pretty for Binder<FnOutput> {
 impl Pretty for FnOutput {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         w!(cx, f, "{:?}", &self.ret.shallow_canonicalize())?;
-        if !self.ensures.is_empty() {
-            w!(cx, f, " ensures {:?}", join!(" ∧ ", &self.ensures))?;
+        let filtered_ensures = self.ensures.iter().filter(|e| {
+            match e {
+                Ensures::Pred(p) => !p.is_trivially_true(),
+                _ => true,
+            }
+        }).collect_vec();
+        if !filtered_ensures.is_empty() {
+            w!(cx, f, " ensures {:?}", join!(" && ", &filtered_ensures))?;
         }
         Ok(())
     }
@@ -307,10 +314,8 @@ impl Pretty for IdxFmt {
                 if let Some(var_fields) = fields
                     .iter()
                     .map(|field| {
-                        if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) =
-                            field.value.kind()
-                        {
-                            Some((*debruijn, *var, field.value.clone()))
+                        if let ExprKind::Var(var) = field.value.kind() {
+                            Some(*var)
                         } else {
                             None
                         }
@@ -318,12 +323,21 @@ impl Pretty for IdxFmt {
                     .collect::<Option<Vec<_>>>()
                 {
                     // If they are all meant to be removed, we can elide the entire index.
-                    if var_fields.iter().all(|(debruijn, var, _e)| {
-                        cx.bvar_env
-                            .should_remove_var(*debruijn, *var)
-                            .unwrap_or(false)
+                    if var_fields.iter().all(|var| {
+                        if let Var::Bound(debruijn, BoundReft { var, .. }) = var {
+                            cx.bvar_env
+                                .should_remove_var(*debruijn, *var)
+                                .unwrap_or(false)
+                        } else {
+                            false
+                        }
                     }) {
-                        var_fields.iter().for_each(|(debruijn, var, _e)| {
+                        var_fields.iter().for_each(|var| {
+                            let Var::Bound(debruijn, BoundReft { var, .. }) = var else {
+                                // We just checked that all of the vars are bound
+                                // and meant to be removed
+                                unreachable!();
+                            };
                             cx.bvar_env.mark_var_as_removed(*debruijn, *var);
                         });
                         // We write nothing here: we can erase the index
@@ -332,21 +346,33 @@ impl Pretty for IdxFmt {
                         //
                         // NOTE: this is heavily copied from the var case below.
                     } else {
-                        let mut fields = var_fields.into_iter().map(|(debruijn, var, e)| {
-                            if let Some((seen, layer_type)) =
-                                cx.bvar_env.check_if_seen_fn_root_bvar(debruijn, var)
-                                && !seen
-                            {
-                                match layer_type {
-                                    FnRootLayerType::FnArgs => {
-                                        format_cx!(cx, "@{:?}", e)
-                                    }
-                                    FnRootLayerType::FnRet => {
-                                        format_cx!(cx, "#{:?}", e)
+                        let mut fields = var_fields.into_iter().map(|var_e| {
+                            match var_e {
+                                Var::Bound(debruijn, BoundReft { var, .. })
+                                    if let Some((seen, layer_type)) =
+                                        cx.bvar_env.check_if_seen_fn_root_bvar(debruijn, var)
+                                        && !seen =>
+                                {
+                                    match layer_type {
+                                        FnRootLayerType::FnArgs => {
+                                            format_cx!(cx, "@{:?}", var_e)
+                                        }
+                                        FnRootLayerType::FnRet => {
+                                            format_cx!(cx, "#{:?}", var_e)
+                                        }
                                     }
                                 }
-                            } else {
-                                format_cx!(cx, "{:?}", e)
+                                Var::EarlyParam(ep)
+                                    if cx
+                                        .earlyparam_env
+                                        .borrow_mut()
+                                        .as_mut()
+                                        .unwrap()
+                                        .insert(ep) =>
+                                {
+                                    format_cx!(cx, "@{:?}", var_e)
+                                }
+                                _ => format_cx!(cx, "{:?}", var_e),
                             }
                         });
                         buf.write_str(&fields.join(", "))?;
@@ -723,12 +749,12 @@ impl PrettyNested for SubsetTy {
         let bty_d = self.bty.fmt_nested(cx)?;
         let idx_d = IdxFmt(self.idx.clone()).fmt_nested(cx)?;
         if self.pred.is_trivially_true() || matches!(self.pred.kind(), ExprKind::KVar(..)) {
-            let text = format!("{}[{}]", bty_d.text, idx_d.text);
+            let text = format!("{}{}", bty_d.text, idx_d.text);
             let children = float_children(vec![bty_d.children, idx_d.children]);
             Ok(NestedString { text, children, key: None })
         } else {
             let pred_d = self.pred.fmt_nested(cx)?;
-            let text = format!("{{ {}[{}] | {} }}", bty_d.text, idx_d.text, pred_d.text);
+            let text = format!("{{ {}{} | {} }}", bty_d.text, idx_d.text, pred_d.text);
             let children = float_children(vec![bty_d.children, idx_d.children, pred_d.children]);
             Ok(NestedString { text, children, key: None })
         }
@@ -860,7 +886,7 @@ impl PrettyNested for Ty {
                 let text = if idx_d.text.is_empty() {
                     bty_d.text
                 } else {
-                    format!("{}[{}]", bty_d.text, idx_d.text)
+                    format!("{}{}", bty_d.text, idx_d.text)
                 };
                 let children = float_children(vec![bty_d.children, idx_d.children]);
                 Ok(NestedString { text, children, key: None })

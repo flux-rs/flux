@@ -282,8 +282,8 @@ fn add_fn_fix_diagnostic<'a>(
     wkvid: rty::WKVid,
     solution: &rty::Binder<rty::Expr>,
 ) {
-    let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()));
-    let fn_name = genv.tcx().def_path_str(wkvid.0);
+    let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()).prettify());
+    let fn_name = genv.tcx().def_path_str(wkvid.parent_fn);
     let fn_span = genv
         .tcx()
         .def_ident_span(wkvid.parent_fn)
