@@ -50,6 +50,10 @@ use rustc_span::{DUMMY_SP, Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
+#[cfg(feature = "wick")]
+use crate::suggestions::{
+    find_possible_solutions, make_flat_constraint_map, subst_fixpoint_solutions,
+};
 use crate::{
     fixpoint_encoding::fixpoint::FixpointTypes, fixpoint_qualifiers::FIXPOINT_QUALIFIERS,
     lean_encoding::LeanEncoder, projections::structurally_normalize_expr,
@@ -686,7 +690,16 @@ where
             dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
         }
 
-        Ok(task)
+        #[cfg(feature = "wick")]
+        let suggestion_ctx = Some(SuggestionCtxt {
+            flat_constraints: flat_constraint_map,
+            const_decls: constants_without_inequalities,
+            data_decls,
+        });
+        #[cfg(not(feature = "wick"))]
+        let suggestion_ctx = None;
+
+        Ok((task, suggestion_ctx))
     }
 
     pub(crate) fn run_task(
@@ -700,6 +713,7 @@ where
 
         if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
+            || cfg!(feature = "wick")
         {
             Ok(ParsedResult {
                 status: result.status,
@@ -740,6 +754,9 @@ where
                 tags.into_iter()
                     .map(|tag_idx| {
                         let tag = self.tags[tag_idx];
+                        #[cfg(not(feature = "wick"))]
+                        let possible_solutions = Default::default();
+                        #[cfg(feature = "wick")]
                         let possible_solutions = if let Some(suggestion_ctx) = &suggestion_ctx {
                             find_possible_solutions(self, tag_idx, &suggestion_ctx)
                         } else {
