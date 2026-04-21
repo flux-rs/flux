@@ -53,7 +53,6 @@ use serde::{Deserialize, Serialize, de};
 pub type Assignments<'a, T> = HashMap<<T as Types>::KVar, Vec<(&'a Qualifier<T>, Vec<usize>)>>;
 
 #[cfg(feature = "wick")]
-
 #[cfg(feature = "rust-fixpoint")]
 use crate::constraint_with_env::ConstraintWithEnv;
 #[cfg(feature = "wick")]
@@ -180,7 +179,6 @@ pub fn check_validity<T: Types>(
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
     cstr2smt2::check_validity(constraint, binder_consts, global_consts, &datatype_decls)
 }
-
 
 #[derive_where(Hash, Clone, Debug)]
 pub struct ConstDecl<T: Types> {
