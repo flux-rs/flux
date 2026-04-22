@@ -99,6 +99,7 @@ try_from_lower_bounded!(isize => usize);
 #[cfg(target_pointer_width = "16")]
 mod ptr_try_from_impls {
     use core::num::TryFromIntError;
+
     use flux_attrs::*;
 
     try_from_upper_bounded!(usize => u8);
@@ -122,6 +123,7 @@ mod ptr_try_from_impls {
 #[cfg(target_pointer_width = "32")]
 mod ptr_try_from_impls {
     use core::num::TryFromIntError;
+
     use flux_attrs::*;
 
     try_from_upper_bounded!(usize => u8, u16);
@@ -148,6 +150,7 @@ mod ptr_try_from_impls {
 #[cfg(target_pointer_width = "64")]
 mod ptr_try_from_impls {
     use core::num::TryFromIntError;
+
     use flux_attrs::*;
 
     try_from_upper_bounded!(usize => u8, u16, u32);
