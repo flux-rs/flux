@@ -36,3 +36,34 @@ pub fn test_lower_bounded_no_check(x: i64) {
 pub fn test_both_bounded_err_no_check(x: i64) {
     assert(i32::try_from(x).is_err()); //~ ERROR refinement type error
 }
+
+// --- try_into: same checks required ---
+
+pub fn test_into_both_bounded_no_check(x: i64) {
+    let r: Result<i32, _> = x.try_into();
+    assert(r.is_ok()); //~ ERROR refinement type error
+}
+
+pub fn test_into_both_bounded_only_lower(x: i64) {
+    if x >= i32::MIN as i64 {
+        let r: Result<i32, _> = x.try_into();
+        assert(r.is_ok()); //~ ERROR refinement type error
+    }
+}
+
+pub fn test_into_both_bounded_only_upper(x: i64) {
+    if x <= i32::MAX as i64 {
+        let r: Result<i32, _> = x.try_into();
+        assert(r.is_ok()); //~ ERROR refinement type error
+    }
+}
+
+pub fn test_into_upper_bounded_no_check(x: u64) {
+    let r: Result<u32, _> = x.try_into();
+    assert(r.is_ok()); //~ ERROR refinement type error
+}
+
+pub fn test_into_lower_bounded_no_check(x: i64) {
+    let r: Result<u64, _> = x.try_into();
+    assert(r.is_ok()); //~ ERROR refinement type error
+}

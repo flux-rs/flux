@@ -104,3 +104,69 @@ pub fn test_lower_bounded_concrete() {
     assert(u64::try_from(100i64).unwrap() == 100u64);
     assert(u64::try_from(-1i64).is_err());
 }
+
+// --- try_into mirrors ---
+
+// both bounded: i64 → i32
+pub fn test_into_both_bounded_ok(x: i64) {
+    if x >= i32::MIN as i64 && x <= i32::MAX as i64 {
+        let r: Result<i32, _> = x.try_into();
+        assert(r.is_ok());
+    }
+}
+
+pub fn test_into_both_bounded_err_low(x: i64) {
+    if x < i32::MIN as i64 {
+        let r: Result<i32, _> = x.try_into();
+        assert(r.is_err());
+    }
+}
+
+pub fn test_into_both_bounded_err_high(x: i64) {
+    if x > i32::MAX as i64 {
+        let r: Result<i32, _> = x.try_into();
+        assert(r.is_err());
+    }
+}
+
+pub fn test_into_both_bounded_concrete() {
+    let r: Result<i32, _> = 42i64.try_into();
+    assert(r.is_ok());
+    assert(r.unwrap() == 42);
+    let r: Result<i32, _> = (-42i64).try_into();
+    assert(r.unwrap() == -42);
+    let r: Result<i32, _> = ((i32::MAX as i64) + 1).try_into();
+    assert(r.is_err());
+    let r: Result<i32, _> = ((i32::MIN as i64) - 1).try_into();
+    assert(r.is_err());
+}
+
+// upper bounded: u64 → u32
+pub fn test_into_upper_bounded_ok(x: u64) {
+    if x <= u32::MAX as u64 {
+        let r: Result<u32, _> = x.try_into();
+        assert(r.is_ok());
+    }
+}
+
+pub fn test_into_upper_bounded_err(x: u64) {
+    if x > u32::MAX as u64 {
+        let r: Result<u32, _> = x.try_into();
+        assert(r.is_err());
+    }
+}
+
+// lower bounded: i64 → u64
+pub fn test_into_lower_bounded_ok(x: i64) {
+    if x >= 0 {
+        let r: Result<u64, _> = x.try_into();
+        assert(r.is_ok());
+    }
+}
+
+pub fn test_into_lower_bounded_err(x: i64) {
+    if x < 0 {
+        let r: Result<u64, _> = x.try_into();
+        assert(r.is_err());
+    }
+}
