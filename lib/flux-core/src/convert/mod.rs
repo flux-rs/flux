@@ -25,5 +25,6 @@ trait TryFrom<T>: Sized {
 #[assoc(fn succeeds(x: T) -> bool { <U as TryFrom<T>>::succeeds(x) })]
 #[assoc(fn into_val(x: T, into: U) -> bool { <U as TryFrom<T>>::from_val(x, into) })]
 impl<T, U: TryFrom<T>> TryInto<U> for T {
+    #[spec(fn(T[@x]) -> Result<U{v: <U as TryFrom<T>>::from_val(x, v)}, U::Error>[<U as TryFrom<T>>::succeeds(x)])]
     fn try_into(self) -> Result<U, U::Error>;
 }
