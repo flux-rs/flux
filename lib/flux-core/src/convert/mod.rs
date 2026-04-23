@@ -20,13 +20,10 @@ trait TryFrom<T>: Sized {
     fn try_from(value: T) -> Result<Self, Self::Error>;
 }
 
-// /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/convert/mod.rs#L740
-// #[extern_spec(core::convert)]
-// impl<T, U> TryInto<U> for T
-// where
-//     U: TryFrom<T>,
-// {
-//     #[assoc(fn succeeds(x: T) -> bool { <U as TryFrom<T>>::succeeds(x) })]
-//     #[assoc(fn into_val(x: T, into: U) -> bool { <U as TryFrom<T>>::from_val(x, into) })]
-//     fn try_into(self) -> Result<U, U::Error>;
-// }
+/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/convert/mod.rs#L740
+#[extern_spec(core::convert)]
+#[assoc(fn succeeds(x: T) -> bool { <U as TryFrom<T>>::succeeds(x) })]
+#[assoc(fn into_val(x: T, into: U) -> bool { <U as TryFrom<T>>::from_val(x, into) })]
+impl<T, U: TryFrom<T>> TryInto<U> for T {
+    fn try_into(self) -> Result<U, U::Error>;
+}
