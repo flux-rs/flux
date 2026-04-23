@@ -8,6 +8,7 @@ use flux_attrs::*;
 macro_rules! try_from_unbounded {
     ($Src:ident => $($Dst:ident),+) => {$(
         #[extern_spec(core::convert)]
+        #[assoc(fn from_val(x: int, into: int) -> bool { x == into })]
         impl TryFrom<$Src> for $Dst {
             #[no_panic]
             /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/convert/num.rs#L252
@@ -21,6 +22,7 @@ macro_rules! try_from_unbounded {
 macro_rules! try_from_lower_bounded {
     ($Src:ident => $($Dst:ident),+) => {$(
         #[extern_spec(core::convert)]
+        #[assoc(fn from_val(x: int, into: int) -> bool { x == into })]
         impl TryFrom<$Src> for $Dst {
             #[no_panic]
             /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/convert/num.rs#L271
@@ -34,6 +36,7 @@ macro_rules! try_from_lower_bounded {
 macro_rules! try_from_upper_bounded {
     ($Src:ident => $($Dst:ident),+) => {$(
         #[extern_spec(core::convert)]
+        #[assoc(fn from_val(x: int, into: int) -> bool { x == into })]
         impl TryFrom<$Src> for $Dst {
             #[no_panic]
             /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/convert/num.rs#L294
@@ -47,6 +50,7 @@ macro_rules! try_from_upper_bounded {
 macro_rules! try_from_both_bounded {
     ($Src:ident => $($Dst:ident),+) => {$(
         #[extern_spec(core::convert)]
+        #[assoc(fn from_val(x: int, into: int) -> bool { x == into })]
         impl TryFrom<$Src> for $Dst {
             #[no_panic]
             /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/convert/num.rs#L317
