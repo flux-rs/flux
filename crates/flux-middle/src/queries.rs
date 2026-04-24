@@ -981,9 +981,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     }
 
                     // We only will add weak kvars if
+                    //   0. If suggestions are enabled.
                     //   1. There are no weak kvars already
                     //   2. The function does NOT have a `#[no_suggestions]` annotation
                     //      in its parent.
+                    #[cfg(feature = "wick")]
                     if genv.weak_kvars_for(def_id).is_none()
                         && def_id
                             .as_local()
