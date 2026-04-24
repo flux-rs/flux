@@ -1,7 +1,7 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     hash::Hash,
     iter,
     ops::Range,
@@ -212,8 +212,6 @@ pub type InterpretedConst = (fixpoint::ConstDecl, fixpoint::Expr);
 /// A type to represent Solutions for KVars
 pub type Solution = FxIndexMap<rty::KVid, rty::Binder<rty::Expr>>;
 pub type FixpointSolution = (Vec<(fixpoint::Var, fixpoint::Sort)>, fixpoint::Expr);
-pub type ClosedSolution = (Vec<(fixpoint::Var, fixpoint::Sort)>, FixpointSolution);
-
 /// A very explicit representation of [`Solution`] for debugging/tracing/serialization ONLY.
 #[derive(Serialize, DebugAsJson)]
 pub struct SolutionTrace(Vec<KvarSolutionTrace>);
@@ -847,7 +845,6 @@ where
         self,
         def_id: MaybeExternId,
         task: fixpoint::Task,
-        kvar_solutions: KVarSolutions,
     ) -> QueryResult {
         // FIXME(nilehmann) opaque sorts should be part of the task.
         let opaque_sorts = self.scx.opaque_sorts_to_fixpoint(self.genv);
@@ -864,7 +861,6 @@ where
             const_deps,
             task.kvars,
             constraint,
-            kvar_solutions,
         )
         .map_err(|err| query_bug!("could not encode constraint: {err:?}"))
     }
@@ -1438,53 +1434,6 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     def_id: Option<MaybeExternId>,
     infcx: rustc_infer::infer::InferCtxt<'tcx>,
     backend: Backend,
-}
-
-pub struct KVarSolutions {
-    pub cut_solutions: FxIndexMap<fixpoint::KVid, ClosedSolution>,
-    pub non_cut_solutions: FxIndexMap<fixpoint::KVid, ClosedSolution>,
-}
-
-impl KVarSolutions {
-    pub(crate) fn closed_solutions(
-        variable_sorts: HashMap<fixpoint::Var, fixpoint::Sort>,
-        cut_solutions: FxIndexMap<fixpoint::KVid, FixpointSolution>,
-        non_cut_solutions: FxIndexMap<fixpoint::KVid, FixpointSolution>,
-    ) -> Self {
-        let closed_cut_solutions = cut_solutions
-            .into_iter()
-            .map(|(k, v)| (k, (vec![], v)))
-            .collect();
-
-        let mut closed_non_cut_solutions: FxIndexMap<fixpoint::KVid, ClosedSolution> =
-            FxIndexMap::default();
-        for (kvid, mut solution) in non_cut_solutions {
-            let bound_vars: HashSet<&_> = solution.0.iter().map(|(var, _)| var).collect();
-            let vars = solution.1.free_vars();
-            let free_vars = vars.iter().filter(|var| {
-                !bound_vars.contains(var)
-                    && !matches!(
-                        var,
-                        fixpoint::Var::DataCtor(..)
-                            | fixpoint::Var::Global(..)
-                            | fixpoint::Var::DataProj { .. }
-                    )
-            });
-            let free_var_subs = free_vars
-                .map(|fvar| (*fvar, variable_sorts.get(fvar).unwrap().clone()))
-                .collect();
-            solution.1.var_sorts_to_int();
-            closed_non_cut_solutions.insert(kvid, (free_var_subs, solution));
-        }
-        KVarSolutions {
-            cut_solutions: closed_cut_solutions,
-            non_cut_solutions: closed_non_cut_solutions,
-        }
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.cut_solutions.is_empty() && self.non_cut_solutions.is_empty()
-    }
 }
 
 #[derive(Debug)]

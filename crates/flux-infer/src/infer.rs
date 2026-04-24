@@ -31,10 +31,7 @@ use rustc_type_ir::Variance::Invariant;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{
-        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, KVarSolutions,
-        lean_task_key,
-    },
+    fixpoint_encoding::{Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key},
     lean_encoding::log_proof,
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
@@ -227,7 +224,6 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         };
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
-        let cstr_variable_sorts = cstr.variable_sorts();
         let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
 
         log_proof(self.genv, def_id)?;
@@ -240,17 +236,9 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             }
         }
 
-        let result = fcx.run_task(cache, def_id, FixpointQueryKind::Body, &task)?;
+        let _ = fcx.run_task(cache, def_id, FixpointQueryKind::Body, &task)?;
 
-        fcx.generate_lean_files(
-            def_id,
-            task,
-            KVarSolutions::closed_solutions(
-                cstr_variable_sorts,
-                result.solution,
-                result.non_cut_solution,
-            ),
-        )
+        fcx.generate_lean_files(def_id, task)
     }
 
     pub fn execute_fixpoint_query(
