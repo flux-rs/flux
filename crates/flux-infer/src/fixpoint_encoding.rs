@@ -1360,7 +1360,6 @@ impl LocalVarEnv {
     fn push_layer_with_fresh_names(&mut self, count: usize) {
         let layer = (0..count).map(|_| self.fresh_name()).collect();
         self.layers.push(layer);
-        // FIXME: (ck) what to put in reverse_map here?
     }
 
     fn push_layer(&mut self, layer: Vec<fixpoint::LocalVar>) {

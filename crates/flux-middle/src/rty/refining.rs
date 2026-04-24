@@ -762,7 +762,7 @@ where
         .collect_vec()
 }
 
-// FIXME: Use a Vec<Vec<_>> solution, per Nico.
+// TODO: Use a Vec<Vec<_>> solution, per Nico.
 // This is a sort of annoying rearchitecture, but nothing impossible.
 fn shift_in_vars(vars: &mut [(rty::Var, rty::Sort)]) {
     for (var, _) in vars.iter_mut() {
@@ -776,7 +776,7 @@ fn shift_out_vars(vars: &mut [(rty::Var, rty::Sort)]) {
     }
 }
 
-// FIXME: Don't make a weak kvar if the self_args is empty if there's a weak kvar
+// TODO: Don't make a weak kvar if the self_args is empty if there's a weak kvar
 //        that's been created before it with a superset of its params.
 fn make_weak_kvar(
     wkvar_map: &mut WeakKvarMap,
