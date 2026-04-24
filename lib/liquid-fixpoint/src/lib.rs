@@ -52,8 +52,7 @@ use serde::{Deserialize, Serialize, de};
 /// Type alias for qualifier assignments used in constraint solving
 pub type Assignments<'a, T> = HashMap<<T as Types>::KVar, Vec<(&'a Qualifier<T>, Vec<usize>)>>;
 
-#[cfg(feature = "wick")]
-#[cfg(feature = "rust-fixpoint")]
+#[cfg(any(feature = "wick", feature = "rust-fixpoint"))]
 use crate::constraint_with_env::ConstraintWithEnv;
 #[cfg(feature = "wick")]
 use crate::constraint_with_env::topo_sort_data_declarations;
