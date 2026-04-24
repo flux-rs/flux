@@ -1,7 +1,7 @@
 use std::fmt;
 
-use indexmap::IndexMap;
 use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
     BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
@@ -44,7 +44,7 @@ pub trait FromSexp<T: Types> {
 pub struct FromSexpWrapper<T: Types, Parser> {
     pub parser: Parser,
     pub _phantom: std::marker::PhantomData<T>,
-    scopes: Vec<IndexMap<String, T::Var>>,
+    scopes: Vec<FxIndexMap<String, T::Var>>,
 }
 
 type KvarSolution<T> = (Vec<(<T as Types>::Var, Sort<T>)>, Expr<T>);
@@ -171,6 +171,7 @@ where
                         "<=>" => self.parse_iff(sexp),
                         "=>" => self.parse_imp(sexp),
                         "cast_as_int" => self.parse_expr(&items[1]), // some odd thing that fixpoint-hs seems to add for sets...
+                        "if" => self.parse_ite(&items[1], &items[2], &items[3]),
                         _ if s.starts_with("is$") => self.parse_is_ctor(&s[3..], &items[1]),
                         _ => self.parse_app(sexp),
                     }
@@ -189,7 +190,13 @@ where
             }
             Sexp::Atom(Atom::Q(s)) => Ok(Expr::Constant(Constant::String(self.parser.string(s)?))),
             Sexp::Atom(Atom::B(b)) => Ok(Expr::Constant(Constant::Boolean(*b))),
-            Sexp::Atom(Atom::I(i)) => Ok(Expr::Constant(Constant::Numeral(*i))),
+            Sexp::Atom(Atom::I(i)) => {
+                if *i >= 0 {
+                    Ok(Expr::Constant(Constant::Numeral(*i as u128)))
+                } else {
+                    Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral(-i as u128)))))
+                }
+            }
             Sexp::Atom(Atom::F(_f)) => {
                 unimplemented!("Float parsing not supported in fixpoint (see Constant::Real)")
             }
@@ -412,6 +419,18 @@ where
         }
     }
 
+    fn parse_ite(
+        &mut self,
+        cond_e: &Sexp,
+        then_e: &Sexp,
+        else_e: &Sexp,
+    ) -> Result<Expr<T>, ParseError> {
+        let c = self.parse_expr(cond_e)?;
+        let t = self.parse_expr(then_e)?;
+        let e = self.parse_expr(else_e)?;
+        Ok(Expr::IfThenElse(Box::new([c, t, e])))
+    }
+
     fn parse_list_sort(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
         let Sexp::List(items) = sexp else {
             return Err(ParseError::err("Expected list for func or app sort"));
@@ -518,7 +537,7 @@ where
                 .try_collect()?;
             self.push_scope(&kvar_args);
 
-            let expr = self.parse_expr(body)?;
+            let expr = self.parse_expr(body)?.uncurry();
 
             let mut scope = self.pop_scope().unwrap();
             let bound = kvar_args
@@ -542,7 +561,7 @@ where
         );
     }
 
-    fn pop_scope(&mut self) -> Option<IndexMap<String, T::Var>> {
+    fn pop_scope(&mut self) -> Option<FxIndexMap<String, T::Var>> {
         self.scopes.pop()
     }
 

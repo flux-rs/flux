@@ -54,6 +54,7 @@ pub enum Attr {
     ShouldFail,
     InferOpts(PartialInferOpts),
     NoPanic,
+    NoSuggestions,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -102,6 +103,12 @@ impl AttrMap<'_> {
 
     pub(crate) fn no_panic(&self) -> bool {
         self.attrs.iter().any(|attr| matches!(attr, Attr::NoPanic))
+    }
+
+    pub(crate) fn no_suggestions(&self) -> bool {
+        self.attrs
+            .iter()
+            .any(|attr| matches!(attr, Attr::NoSuggestions))
     }
 }
 
