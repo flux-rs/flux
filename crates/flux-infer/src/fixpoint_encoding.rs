@@ -32,6 +32,7 @@ use flux_middle::{
         NameProvenance, PrettyMap, PrettyVar, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
     },
 };
+use indexmap::IndexMap;
 use itertools::Itertools;
 use liquid_fixpoint::{
     FixpointStatus, KVarBind, SmtSolver, VerificationResult,
@@ -1447,7 +1448,7 @@ pub struct KVarSolutions {
 
 impl KVarSolutions {
     pub(crate) fn closed_solutions(
-        variable_sorts: HashMap<fixpoint::Var, fixpoint::Sort>,
+        variable_sorts: IndexMap<fixpoint::Var, fixpoint::Sort>,
         cut_solutions: FxIndexMap<fixpoint::KVid, FixpointSolution>,
         non_cut_solutions: FxIndexMap<fixpoint::KVid, FixpointSolution>,
     ) -> Self {
