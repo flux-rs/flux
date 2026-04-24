@@ -353,7 +353,7 @@ impl<T: Types> Pred<T> {
                                     .map(|arg| &arg.0)
                                     .zip(qualifier.1.iter().map(|arg_idx| &args[*arg_idx]))
                                     .fold(qualifier.0.body.clone(), |acc, e| {
-                                        acc.substitute(e.0, e.1)
+                                        acc.substitute_var(e.0, e.1)
                                     }),
                             )
                         })
@@ -384,7 +384,7 @@ impl<T: Types> Pred<T> {
                         .iter()
                         .map(|arg| &arg.0)
                         .zip(assignment.1.iter().map(|arg_idx| &args[*arg_idx]))
-                        .fold(assignment.0.body.clone(), |acc, e| acc.substitute(e.0, e.1)),
+                        .fold(assignment.0.body.clone(), |acc, e| acc.substitute_var(e.0, e.1)),
                 )
             }
             _ => panic!("Conjunctions should not occur here"),
@@ -473,7 +473,7 @@ impl<T: Types> Expr<T> {
         }
     }
 
-    pub(crate) fn substitute(&self, v_from: &T::Var, v_to: &Expr<T>) -> Self {
+    pub(crate) fn substitute_var(&self, v_from: &T::Var, v_to: &Expr<T>) -> Self {
         let mut new_expr = self.clone();
         new_expr.substitute_in_place(v_from, v_to);
         new_expr
