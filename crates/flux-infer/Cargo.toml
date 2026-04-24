@@ -13,6 +13,7 @@ flux-middle.workspace = true
 flux-rustc-bridge.workspace = true
 
 itertools.workspace = true
+indexmap.workspace = true
 liquid-fixpoint.workspace = true
 pad-adapter.workspace = true
 regex.workspace = true
