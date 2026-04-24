@@ -1,7 +1,4 @@
-use std::{
-    collections::HashSet,
-    hash::Hash,
-};
+use std::{collections::HashSet, hash::Hash};
 
 use derive_where::derive_where;
 use indexmap::{IndexMap, IndexSet};
