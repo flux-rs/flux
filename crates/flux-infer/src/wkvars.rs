@@ -83,7 +83,7 @@ impl WKVarInstantiator<'_> {
     /// that it is purely syntactic. We currently try to eagerly eta reduce any
     /// Ctor/Tuples + eta expand any args which aren't of that form
     ///
-    /// FIXME: This does not properly deal with expressions that have bound variables:
+    /// FIXME(ck): This does not properly deal with expressions that have bound variables:
     /// if the expression has a bound variable, we might fail the instantiation
     /// when it should succeed.
     pub fn try_instantiate_wkvar_args(

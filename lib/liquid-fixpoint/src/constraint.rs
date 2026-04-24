@@ -505,7 +505,6 @@ impl<T: Types> Pred<T> {
     pub fn is_trivially_true(&self) -> bool {
         match self {
             Pred::Expr(Expr::Constant(Constant::Boolean(true))) => true,
-            // FIXME: We do substitue true for wkvars, but is this correct?
             Pred::And(ps) => ps.is_empty(),
             _ => false,
         }
