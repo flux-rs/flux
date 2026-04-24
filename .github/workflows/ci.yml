@@ -130,6 +130,7 @@ jobs:
           cd lean_proofs && lake build
 
       - name: Check proofs in flux
+        working-directory: flux-to-lean-demo
         run: |
           cargo flux
 
