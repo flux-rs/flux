@@ -153,15 +153,6 @@ where
         Ok(Expr::IsCtor(ctor, Box::new(arg)))
     }
 
-    fn parse_wkvar(&mut self, wkvar_name: &str, args: &[Sexp]) -> Result<Expr<T>, ParseError> {
-        let wkvid = self.parser.var(wkvar_name)?;
-        let args = args
-            .into_iter()
-            .map(|arg| self.parse_expr(arg))
-            .try_collect()?;
-        Ok(Expr::WKVar(WKVar { wkvid, args }))
-    }
-
     pub fn parse_expr(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
@@ -182,7 +173,6 @@ where
                         "cast_as_int" => self.parse_expr(&items[1]), // some odd thing that fixpoint-hs seems to add for sets...
                         "if" => self.parse_ite(&items[1], &items[2], &items[3]),
                         _ if s.starts_with("is$") => self.parse_is_ctor(&s[3..], &items[1]),
-                        _ if s.starts_with("wk$") => self.parse_wkvar(s, &items[1..]),
                         _ => self.parse_app(sexp),
                     }
                 } else {
