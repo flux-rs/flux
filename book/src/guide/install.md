@@ -55,9 +55,51 @@ flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
 
 This will add the procedural macros Flux uses to your project; it is not a substitute for installing Flux, which must still be done.
 
+## Running on a package: `cargo-flux`
+
+The most common way to run `flux` is on an entire package.
+To do so, you need to
+
+1. **Enable** flux for the package by adding the following to `Cargo.toml`:
+
+```toml
+[package.metadata.flux]
+enabled = true
+```
+
+2. **Run** `cargo-flux` in the package directory:
+
+```bash
+cargo flux
+```
+
+If you _skip_ step 1, then `cargo flux` will run, but won't actually do any checking.
+
+### Refinement Annotations on a Cargo Projects
+
+To add refinement annotations to cargo projects,
+add `flux-rs` as a dependency in `Cargo.toml`
+
+```toml
+[dependencies]
+flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
+```
+
+Then, import attributes from `flux_rs` and add the appropriate refinement annoations.
+
+```rust
+use flux_rs::attrs::*;
+
+#[spec(fn(x: i32) -> i32{v: x < v})]
+fn inc(x: i32) -> i32 {
+    x - 1
+}
+```
+
 ## Running on a File: `flux`
 
-You can use `flux` as you would use `rustc`.
+You can also run `flux` on a single file, as you might use `rustc`.
+
 For example, the following command checks the file `test.rs`.
 
 ```bash
@@ -79,43 +121,6 @@ For example, the refinement below will only work when running `flux` which is in
 
 ```rust
 #[flux::spec(fn(x: i32) -> i32{v: x < v})]
-fn inc(x: i32) -> i32 {
-    x - 1
-}
-```
-
-## Running on a package: `cargo-flux`
-
-See this an
-Flux is integrated with `cargo` and can be invoked in a package as follows:
-
-```bash
-cargo flux
-```
-
-By default, Flux won't verify a package unless it's explicitly enabled in the manifest.
-To do so add the following to `Cargo.toml`:
-
-```toml
-[package.metadata.flux]
-enabled = true
-```
-
-### Refinement Annotations on a Cargo Projects
-
-Adding refinement annotations to cargo projects is simple. You can add `flux-rs` as a dependency in `Cargo.toml`
-
-```toml
-[dependencies]
-flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
-```
-
-Then, import attributes from `flux_rs` and add the appropriate refinement annoations.
-
-```rust
-use flux_rs::attrs::*;
-
-#[spec(fn(x: i32) -> i32{v: x < v})]
 fn inc(x: i32) -> i32 {
     x - 1
 }
