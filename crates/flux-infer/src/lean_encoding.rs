@@ -280,6 +280,31 @@ pub struct LeanEncoder<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
+    fn ensure_lean_fixpoint_dependency(&self) -> io::Result<()> {
+        let lakefile = project_path(self.genv, FileKind::User).join("lakefile.toml");
+        if !lakefile.exists() {
+            return Ok(());
+        }
+
+        let mut contents = fs::read_to_string(&lakefile)?;
+        if contents.contains("name = \"LeanFixpoint\"") {
+            return Ok(());
+        }
+
+        if !contents.ends_with('\n') {
+            contents.push('\n');
+        }
+        contents.push_str(
+            r#"
+[[require]]
+name = "LeanFixpoint"
+git = "git@github.com:jam-khan/lean-fixpoint.git"
+rev = "main"
+"#,
+        );
+        fs::write(lakefile, contents)
+    }
+
     fn lean_cx(&self) -> LeanCtxt<'_, 'genv, 'tcx> {
         LeanCtxt {
             genv: self.genv,
@@ -401,6 +426,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 .and_then(|mut child| child.wait())
                 .map(|_| ())?;
         }
+        self.ensure_lean_fixpoint_dependency()?;
         Ok(())
     }
 
