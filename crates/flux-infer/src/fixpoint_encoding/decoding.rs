@@ -162,7 +162,17 @@ where
                             }
                         }
 
-                        Err(FixpointParseError::NoLocalVar(*fname))
+                        // HACK: this is a free var generated from an existential
+                        // we got from fixpoint. We just will add enough to it so it
+                        // is likely to not conflict with exisitng free vars, but in an
+                        // ideal world we would properly add it to the fvars map and
+                        // make a fresh name for it.
+                        //
+                        // But since we just need to be consistent about the value we
+                        // give these vars, this should suffice for now --- they won't
+                        // actually appear in any solutions because we anti-unify.
+                        Ok(rty::Expr::fvar(rty::Name::from_u32(fname.as_u32() + 100_000)))
+                        // Err(FixpointParseError::NoLocalVar(*fname))
                     }
                     fixpoint::Var::DataCtor(adt_id, variant_idx) => {
                         let def_id = self.scx.adt_sorts[adt_id.as_usize()];
@@ -496,7 +506,7 @@ pub enum FixpointParseError {
     /// Casts should only have 1 arg
     CastArityMismatch(usize),
     PrimOpArityMismatch(usize),
-    NoLocalVar(fixpoint::LocalVar),
+    // NoLocalVar(fixpoint::LocalVar),
     /// Expecting fixpoint::Var::DataCtor
     WrongVarInIsCtor(fixpoint::Var),
     /// Expecting fixpoint::Var::LocalVar
