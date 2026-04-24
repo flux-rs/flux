@@ -612,7 +612,9 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 .into_conv_ctxt()
                 .conv_fn_sig(def_id, fhir_fn_sig)?;
             let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
+            #[cfg(feature = "wick")]
             let mut fn_sig = fn_sig.hoist_input_binders();
+            #[cfg(feature = "wick")]
             if !genv.no_suggestions(def_id.local_id()) {
                 let id = match def_id {
                     MaybeExternId::Extern(_local_id, def_id) => def_id,
