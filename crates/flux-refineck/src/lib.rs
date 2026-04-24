@@ -33,7 +33,7 @@ use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, FixpointCheckError, SolutionTrace},
+    fixpoint_encoding::{FixQueryCache, FixpointCheckError, PossibleSolutions, SolutionTrace},
     infer::{ConstrReason, SubtypeReason, Tag},
     wkvars::WKVarSubst,
 };
@@ -46,7 +46,7 @@ use flux_middle::{
     pretty,
     rty::{self, ESpan, EarlyBinder, fold::TypeFoldable},
 };
-use rustc_data_structures::unord::UnordMap;
+use rustc_data_structures::{fx::FxHashMap, unord::UnordMap};
 use rustc_errors::{Applicability, Diag, ErrorGuaranteed};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_span::Span;
@@ -215,14 +215,22 @@ fn report_errors(
     genv: GlobalEnv,
     errors: Vec<FixpointCheckError<Tag>>,
 ) -> Result<(), ErrorGuaranteed> {
+    let mut solutions_by_tag: FxHashMap<Tag, PossibleSolutions> = FxHashMap::default();
+    for error in errors {
+        if let Some(val) = solutions_by_tag.get_mut(&error.tag) {
+            val.extend(error.possible_solutions);
+        } else {
+            solutions_by_tag.insert(error.tag, error.possible_solutions);
+        }
+    }
     let mut e = None;
-    for err in errors {
-        let span = err.tag.src_span;
-        let mut err_diag = match err.tag.reason {
+    for (tag, possible_solutions) in solutions_by_tag {
+        let span = tag.src_span;
+        let mut err_diag = match tag.reason {
             ConstrReason::Call
             | ConstrReason::Subtype(SubtypeReason::Input)
             | ConstrReason::Subtype(SubtypeReason::Requires)
-            | ConstrReason::Predicate => call_error(genv, span, err.tag.dst_span),
+            | ConstrReason::Predicate => call_error(genv, span, tag.dst_span),
             ConstrReason::Assign => {
                 genv.sess()
                     .dcx()
@@ -231,9 +239,7 @@ fn report_errors(
             }
             ConstrReason::Ret
             | ConstrReason::Subtype(SubtypeReason::Output)
-            | ConstrReason::Subtype(SubtypeReason::Ensures) => {
-                ret_error(genv, span, err.tag.dst_span)
-            }
+            | ConstrReason::Subtype(SubtypeReason::Ensures) => ret_error(genv, span, tag.dst_span),
             ConstrReason::Div => {
                 genv.sess()
                     .dcx()
@@ -289,8 +295,7 @@ fn report_errors(
                 })
             }
         };
-        let wkvar_solutions = err
-            .possible_solutions
+        let wkvar_solutions = possible_solutions
             .iter()
             .flat_map(|(wkvid, solutions)| solutions.iter().map(move |solution| (wkvid, solution)));
 
