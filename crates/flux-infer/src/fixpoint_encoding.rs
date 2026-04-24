@@ -561,7 +561,10 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     kcx: KVarEncodingCtxt,
     pub(crate) ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
-    tags_inv: UnordMap<T, TagIdx>,
+    // NOTE: We originally used this to dedup tags, since they were only used as
+    // a means of identifying spans. But we use them for suggestions, so, this
+    // is no longer true.
+    // tags_inv: UnordMap<T, TagIdx>,
 }
 
 pub type FixQueryCache = QueryCache<VerificationResult<TagIdx>>;
@@ -586,6 +589,7 @@ pub fn lean_task_key(tcx: rustc_middle::ty::TyCtxt, def_id: DefId) -> String {
     FixpointQueryKind::Body.task_key(tcx, def_id)
 }
 
+#[allow(unused)]
 pub(crate) struct SuggestionCtxt {
     pub(crate) flat_constraints: FxIndexMap<TagIdx, fixpoint::FlatConstraint>,
     pub(crate) const_decls: Vec<fixpoint::ConstDecl>,
@@ -610,7 +614,7 @@ where
             ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend),
             kcx: Default::default(),
             tags: IndexVec::new(),
-            tags_inv: Default::default(),
+            // tags_inv: Default::default(),
         }
     }
 
@@ -969,6 +973,9 @@ where
     where
         Tag: std::fmt::Debug,
     {
+        // Once we added refinement suggestions, we now need to have unique tags for each
+        // head, even if they correspond to the same tag.
+        //
         // *self.tags_inv.entry(tag).or_insert_with(|| {
         let idx = self.tags.push(tag);
         self.comments.push(format!("Tag {idx}: {tag:?}"));
