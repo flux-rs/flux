@@ -15,7 +15,7 @@ use flux_middle::{
     def_id::{FluxDefId, MaybeExternId},
     global_env::GlobalEnv,
     queries::QueryErr,
-    rty::{local_deps, PrettyMap},
+    rty::{PrettyMap, local_deps},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexSet;
@@ -24,8 +24,8 @@ use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
 use crate::{
-    fixpoint_encoding::{fixpoint, ConstDeps, InterpretedConst, KVarSolutions, SortDeps},
-    lean_format::{self, def_id_to_pascal_case, snake_case_to_pascal_case, LeanCtxt, WithLeanCtxt},
+    fixpoint_encoding::{ConstDeps, InterpretedConst, KVarSolutions, SortDeps, fixpoint},
+    lean_format::{self, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case},
 };
 
 /// Helper macro to create Vec<String> from string-like values
@@ -120,11 +120,7 @@ pub fn finalize(genv: GlobalEnv) -> io::Result<()> {
     let project = project();
     let src = genv.temp_dir().path().join(&project);
     let dst = final_project_path(genv);
-    if src.exists() {
-        rename_dir_contents(&src, &dst)
-    } else {
-        Ok(())
-    }
+    if src.exists() { rename_dir_contents(&src, &dst) } else { Ok(()) }
 }
 
 fn final_project_path(genv: GlobalEnv) -> PathBuf {
@@ -156,7 +152,7 @@ fn run_proof(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
     } else {
         let stderr =
             std::str::from_utf8(&out.stderr).unwrap_or("Lean exited with a non-zero return code");
-            Err(io::Error::other(stderr))
+        Err(io::Error::other(stderr))
     }
 }
 
@@ -307,7 +303,8 @@ impl LeanFile {
 
     /// All paths should be generated here
     fn path(&self, genv: GlobalEnv, force_final: bool) -> PathBuf {
-        let mut path = if force_final { final_project_path(genv) } else { project_path(genv, self.kind()) };
+        let mut path =
+            if force_final { final_project_path(genv) } else { project_path(genv, self.kind()) };
         for segment in self.segments(genv) {
             path = path.join(segment);
         }
@@ -353,11 +350,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
     fn lean_file_for_fun(&self, fun: &fixpoint::FunDef) -> LeanFile {
         let name = self.var_name(&fun.name);
-        if fun.body.is_some() {
-            LeanFile::Fun(name)
-        } else {
-            LeanFile::OpaqueFun(name)
-        }
+        if fun.body.is_some() { LeanFile::Fun(name) } else { LeanFile::OpaqueFun(name) }
     }
 
     fn lean_file_for_interpreted_const(&self, const_: &InterpretedConst) -> LeanFile {
