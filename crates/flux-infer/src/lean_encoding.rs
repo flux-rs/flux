@@ -139,32 +139,48 @@ fn project_path(genv: GlobalEnv, kind: FileKind) -> PathBuf {
     }
 }
 
-fn run_lean(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
-    let checking_path = LeanFile::Checking(def_id).path(genv, true);
+fn run_proof(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
+    let proof_path = LeanFile::Proof(def_id).path(genv, true);
     let out = Command::new("lake")
         .arg("--quiet")
         .arg("--log-level=error")
         .arg("lean")
-        .arg(checking_path)
+        .arg(proof_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .current_dir(project_path(genv, FileKind::User))
         .spawn()?
         .wait_with_output()?;
-    if out.status.success() {
+    if out.stderr.is_empty() && out.stdout.is_empty() {
         Ok(())
     } else {
-        let stderr = std::str::from_utf8(&out.stderr).unwrap_or_default().trim();
-        let stdout = std::str::from_utf8(&out.stdout).unwrap_or_default().trim();
-        let msg = if !stderr.is_empty() {
-            stderr.to_string()
-        } else if !stdout.is_empty() {
-            stdout.to_string()
-        } else {
-            "Lean exited with a non-zero return code".to_string()
-        };
-        Err(io::Error::other(msg))
+        let stderr =
+            std::str::from_utf8(&out.stderr).unwrap_or("Lean exited with a non-zero return code");
+            Err(io::Error::other(stderr))
     }
+}
+
+fn run_check(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
+    let checking_path = LeanFile::Checking(def_id).path(genv, true);
+    let status = Command::new("lake")
+        .arg("--quiet")
+        .arg("--log-level=error")
+        .arg("lean")
+        .arg(checking_path)
+        .current_dir(project_path(genv, FileKind::User))
+        .spawn()?
+        .wait()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(io::Error::other("Lean existed with a non-zero exit code"))
+    }
+}
+
+fn run_lean(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
+    run_proof(genv, def_id)?;
+    run_check(genv, def_id)?;
+    Ok(())
 }
 
 pub fn check_proof(genv: GlobalEnv, def_id: DefId) -> Result<(), ErrorGuaranteed> {
