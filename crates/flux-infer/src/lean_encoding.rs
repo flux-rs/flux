@@ -272,6 +272,7 @@ pub struct LeanEncoder<'genv, 'tcx> {
     sort_deps: SortDeps,
     fun_deps: Vec<fixpoint::FunDef>,
     constants: ConstDeps,
+    qualifiers: Vec<fixpoint::Qualifier>,
     kvar_decls: Vec<fixpoint::KVarDecl>,
     constraint: fixpoint::Constraint,
     sort_files: FxHashMap<fixpoint::DataSort, LeanFile>,
@@ -345,6 +346,7 @@ rev = "main"
         sort_deps: SortDeps,
         fun_deps: Vec<fixpoint::FunDef>,
         constants: ConstDeps,
+        qualifiers: Vec<fixpoint::Qualifier>,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> io::Result<Self> {
@@ -355,6 +357,7 @@ rev = "main"
             sort_deps,
             fun_deps,
             constants,
+            qualifiers,
             kvar_decls,
             constraint,
             fun_files: FxHashMap::default(),
@@ -712,11 +715,25 @@ rev = "main"
         let path = LeanFile::Vc(def_id).path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
             self.generate_vc_imports(&mut file)?;
+            writeln!(file, "import LeanFixpoint")?;
             writeln!(file, "{}", self.open_classical())?;
 
             let vc_name = vc_name(self.genv, def_id);
             // 3. Write the VC
             namespaced(&mut file, |f| {
+                if !self.qualifiers.is_empty() {
+                    let qualifier_namespace = format!(
+                        "{}Qualifs",
+                        snake_case_to_pascal_case(&vc_name.replace(".", "_"))
+                    );
+                    writeln!(f, "namespace {qualifier_namespace}\n")?;
+                    for qualifier in &self.qualifiers {
+                        writeln!(f, "{}", WithLeanCtxt { item: qualifier, cx: &self.lean_cx() })?;
+                        writeln!(f)?;
+                    }
+                    writeln!(f, "end {qualifier_namespace}\n")?;
+                    writeln!(f, "open {qualifier_namespace}\n")?;
+                }
                 write!(
                     f,
                     "{}",
@@ -763,6 +780,7 @@ rev = "main"
         sort_deps: SortDeps,
         fun_deps: Vec<fixpoint::FunDef>,
         constants: ConstDeps,
+        qualifiers: Vec<fixpoint::Qualifier>,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> io::Result<()> {
@@ -773,6 +791,7 @@ rev = "main"
             sort_deps,
             fun_deps,
             constants,
+            qualifiers,
             kvar_decls,
             constraint,
         )?;

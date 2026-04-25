@@ -19,7 +19,7 @@ use crate::fixpoint_encoding::{
     InterpretedConst,
     fixpoint::{
         self, AdtId, BinOp, BinRel, Constant, Constraint, DataDecl, DataField, DataSort, Expr,
-        FunDef, FunSort, KVarDecl, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+        FunDef, FunSort, KVarDecl, LocalVar, Pred, Qualifier, Sort, SortCtor, SortDecl, Var,
     },
 };
 
@@ -560,6 +560,21 @@ impl LeanFmt for FunSort {
                 WithLeanCtxt { item: &self.output, cx }
             )
         }
+    }
+}
+
+impl LeanFmt for Qualifier {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
+        writeln!(f, "@[qualif]")?;
+        write!(f, "def {}", self.name)?;
+        for (arg, sort) in &self.args {
+            write!(f, " (")?;
+            arg.lean_fmt(f, cx)?;
+            write!(f, " : {})", WithLeanCtxt { item: sort, cx })?;
+        }
+        writeln!(f, " : Prop :=")?;
+        write!(f, "  ")?;
+        self.body.lean_fmt(f, cx)
     }
 }
 

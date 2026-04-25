@@ -859,6 +859,7 @@ where
             sort_deps,
             task.define_funs,
             const_deps,
+            task.qualifiers,
             task.kvars,
             constraint,
         )
