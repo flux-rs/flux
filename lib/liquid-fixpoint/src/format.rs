@@ -8,7 +8,7 @@ use itertools::Itertools;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task,
-    Types,
+    Types, WKVar,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -335,6 +335,9 @@ impl<T: Types> fmt::Display for Expr<T> {
                     sorts.iter().map(|binder| &binder.1).format(" "),
                     body
                 )
+            }
+            Expr::WKVar(WKVar { wkvid, args }) => {
+                write!(f, "({} {})", wkvid.display(), args.iter().format(" "))
             }
         }
     }

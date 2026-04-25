@@ -14,7 +14,7 @@ use std::fmt;
 
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, Expr, FixpointFmt, FunDef,
-    Identifier, KVarDecl, Pred, Sort, SortCtor, Task, ThyFunc, Types,
+    Identifier, KVarDecl, Pred, Sort, SortCtor, Task, ThyFunc, Types, WKVar,
 };
 
 /// A flattened Horn clause extracted from the constraint tree.
@@ -485,6 +485,15 @@ fn fmt_expr_smt<T: Types>(expr: &Expr<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
             }
             write!(f, ") ")?;
             fmt_expr_smt(body, f)?;
+            write!(f, ")")
+        }
+        Expr::WKVar(WKVar { wkvid, args }) => {
+            write!(f, "(")?;
+            write!(f, "{}", wkvid.display())?;
+            for arg in args {
+                write!(f, " ")?;
+                fmt_expr_smt(arg, f)?;
+            }
             write!(f, ")")
         }
     }

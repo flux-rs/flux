@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use crate::{
     Assignments, BinRel, Types,
-    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
+    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier, WKVar},
     constraint_fragments::ConstraintFragments,
     graph::topological_sort_sccs,
 };
@@ -464,6 +464,10 @@ impl<T: Types> Expr<T> {
             Expr::Constant(_) | Expr::ThyFunc(_) => {}
             Expr::Exists(..) => {
                 todo!("unexpected! exists")
+            }
+            Expr::WKVar(WKVar { wkvid: _, args }) => {
+                args.iter_mut()
+                    .for_each(|expr| expr.substitute_in_place(v_from, v_to));
             }
         }
     }

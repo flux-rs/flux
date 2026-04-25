@@ -10,6 +10,8 @@ extern crate rustc_serialize;
 #[cfg(feature = "nightly")]
 extern crate rustc_span;
 
+extern crate rustc_data_structures;
+
 mod constraint;
 #[cfg(feature = "rust-fixpoint")]
 mod constraint_fragments;
@@ -41,7 +43,7 @@ use std::{
 
 pub use constraint::{
     BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
-    FunSort, Pred, Qualifier, Sort, SortCtor, SortDecl,
+    FunSort, Pred, Qualifier, Sort, SortCtor, SortDecl, WKVar,
 };
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
@@ -138,7 +140,7 @@ macro_rules! declare_types {
             pub type DataField = $crate::DataField<FixpointTypes>;
             pub type Bind = $crate::Bind<FixpointTypes>;
             pub type Constant = $crate::Constant<FixpointTypes>;
-            pub use $crate::{BinOp, BinRel, BoundVar, ThyFunc};
+            pub use $crate::{BinOp, BinRel, ThyFunc, WKVar};
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {
