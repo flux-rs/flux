@@ -31,7 +31,9 @@ use rustc_type_ir::Variance::Invariant;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key},
+    fixpoint_encoding::{
+        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key,
+    },
     lean_encoding::log_proof,
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},

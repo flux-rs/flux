@@ -1,11 +1,6 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::{
-    collections::HashMap,
-    hash::Hash,
-    iter,
-    ops::Range,
-};
+use std::{collections::HashMap, hash::Hash, iter, ops::Range};
 
 use fixpoint::{AdtId, OpaqueId};
 use flux_common::{
@@ -841,11 +836,7 @@ where
         (const_deps, cstr)
     }
 
-    pub fn generate_lean_files(
-        self,
-        def_id: MaybeExternId,
-        task: fixpoint::Task,
-    ) -> QueryResult {
+    pub fn generate_lean_files(self, def_id: MaybeExternId, task: fixpoint::Task) -> QueryResult {
         // FIXME(nilehmann) opaque sorts should be part of the task.
         let opaque_sorts = self.scx.opaque_sorts_to_fixpoint(self.genv);
         let (const_deps, constraint) = self.compute_const_deps(task.constants, task.constraint);

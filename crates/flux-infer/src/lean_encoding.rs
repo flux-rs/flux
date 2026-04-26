@@ -722,10 +722,8 @@ rev = "main"
             // 3. Write the VC
             namespaced(&mut file, |f| {
                 if !self.qualifiers.is_empty() {
-                    let qualifier_namespace = format!(
-                        "{}Qualifs",
-                        snake_case_to_pascal_case(&vc_name.replace(".", "_"))
-                    );
+                    let qualifier_namespace =
+                        format!("{}Qualifs", snake_case_to_pascal_case(&vc_name.replace(".", "_")));
                     writeln!(f, "namespace {qualifier_namespace}\n")?;
                     for qualifier in &self.qualifiers {
                         writeln!(f, "{}", WithLeanCtxt { item: qualifier, cx: &self.lean_cx() })?;
@@ -760,13 +758,14 @@ rev = "main"
         let path = LeanFile::Proof(def_id).path(self.genv);
 
         if let Some(mut file) = create_file_with_dirs(path)? {
+            writeln!(file, "import LeanFixpoint")?;
             writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
             writeln!(file, "{}", LeanFile::Vc(def_id).import(self.genv))?;
             writeln!(file, "{}", self.open_classical())?;
             namespaced(&mut file, |f| {
                 writeln!(f, "def {proof_name} : {vc_name} := by")?;
                 writeln!(f, "  unfold {vc_name}")?;
-                writeln!(f, "  sorry")
+                writeln!(f, "  try solve_fixpoint")
             })?;
             file.sync_all()?;
         }
