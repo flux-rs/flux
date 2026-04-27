@@ -7,7 +7,7 @@ use flux_attrs::*;
 #[assoc(fn succeeds(x: Self) -> bool { true })]
 #[assoc(fn into_val(x: Self, into: T) -> bool { true })]
 trait TryInto<T>: Sized {
-    #[spec(fn(Self[@s]) -> Result<T{v: Self::into_val(s, v)}, Self::Error>[<Self as TryInto<T>>::succeeds(s)])]
+    #[spec(fn(Self[@s]) -> Result<T{v: Self::into_val(s, v)}, Self::Error>[Self::succeeds(s)])]
     fn try_into(self) -> Result<T, Self::Error>;
 }
 
@@ -16,7 +16,7 @@ trait TryInto<T>: Sized {
 #[assoc(fn succeeds(x: T) -> bool { true })]
 #[assoc(fn from_val(x: T, into: Self) -> bool { true })]
 trait TryFrom<T>: Sized {
-    #[spec(fn(T[@x]) -> Result<Self{v: Self::from_val(x, v)}, Self::Error>[<Self as TryFrom<T>>::succeeds(x)])]
+    #[spec(fn(T[@x]) -> Result<Self{v: Self::from_val(x, v)}, Self::Error>[Self::succeeds(x)])]
     fn try_from(value: T) -> Result<Self, Self::Error>;
 }
 
