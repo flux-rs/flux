@@ -126,6 +126,7 @@ macro_rules! declare_types {
             pub type Pred = $crate::Pred<FixpointTypes>;
             pub type Constraint = $crate::Constraint<FixpointTypes>;
             pub type KVarDecl = $crate::KVarDecl<FixpointTypes>;
+            pub type WKVarDecl = $crate::WKVarDecl<FixpointTypes>;
             pub type ConstDecl = $crate::ConstDecl<FixpointTypes>;
             pub type FunDef = $crate::FunDef<FixpointTypes>;
             pub type FunSort = $crate::FunSort<FixpointTypes>;
@@ -184,6 +185,7 @@ pub struct Task<T: Types> {
     pub data_decls: Vec<DataDecl<T>>,
     pub define_funs: Vec<FunDef<T>>,
     pub kvars: Vec<KVarDecl<T>>,
+    pub wkvars: Vec<WKVarDecl<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
     pub scrape_quals: bool,
@@ -324,6 +326,14 @@ impl CrashInfo {
 #[derive_where(Debug, Clone, Hash)]
 pub struct KVarDecl<T: Types> {
     pub kvid: T::KVar,
+    pub sorts: Vec<Sort<T>>,
+    #[derive_where(skip)]
+    pub comment: String,
+}
+
+#[derive_where(Debug, Clone, Hash)]
+pub struct WKVarDecl<T: Types> {
+    pub wkvid: T::Var,
     pub sorts: Vec<Sort<T>>,
     #[derive_where(skip)]
     pub comment: String,

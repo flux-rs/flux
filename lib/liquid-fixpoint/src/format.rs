@@ -8,7 +8,7 @@ use itertools::Itertools;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task,
-    Types, WKVar,
+    Types, WKVar, WKVarDecl,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -74,6 +74,12 @@ impl<T: Types> fmt::Display for KVarDecl<T> {
             self.sorts.iter().format(" "),
             self.comment
         )
+    }
+}
+
+impl<T: Types> fmt::Display for WKVarDecl<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unimplemented!("Probably can just copy kvardecl if needed")
     }
 }
 

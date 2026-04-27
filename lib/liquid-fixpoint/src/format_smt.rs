@@ -14,7 +14,7 @@ use std::fmt;
 
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, Expr, FixpointFmt, FunDef,
-    Identifier, KVarDecl, Pred, Sort, SortCtor, Task, ThyFunc, Types, WKVar,
+    Identifier, KVarDecl, Pred, Sort, SortCtor, Task, ThyFunc, Types, WKVar, WKVarDecl,
 };
 
 /// A flattened Horn clause extracted from the constraint tree.
@@ -201,6 +201,11 @@ pub(crate) fn fmt_smt_task<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>)
         fmt_kvar_as_fun(kvar, f)?;
     }
 
+    // WKVar declarations as uninterpreted Boolean functions
+    for wkvar in &task.wkvars {
+        fmt_wkvar_as_fun(wkvar, f)?;
+    }
+
     writeln!(f)?;
 
     // Flatten constraints into Horn clauses
@@ -220,8 +225,16 @@ pub(crate) fn fmt_smt_task<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>)
 }
 
 fn fmt_kvar_as_fun<T: Types>(kvar: &KVarDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "(declare-fun {} (", kvar.kvid.display())?;
-    for (i, sort) in kvar.sorts.iter().enumerate() {
+    fmt_var_as_fun(kvar.kvid.display(), &kvar.sorts, f)
+}
+
+fn fmt_wkvar_as_fun<T: Types>(wkvar: &WKVarDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fmt_var_as_fun(wkvar.wkvid.display(), &wkvar.sorts, f)
+}
+
+fn fmt_var_as_fun<T: Types>(var_name: impl std::fmt::Display, var_sorts: &Vec<Sort<T>>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "(declare-fun {} (", var_name)?;
+    for (i, sort) in var_sorts.iter().enumerate() {
         if i > 0 {
             write!(f, " ")?;
         }

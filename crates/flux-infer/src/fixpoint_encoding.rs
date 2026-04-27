@@ -35,6 +35,7 @@ use flux_middle::{
 use itertools::Itertools;
 use liquid_fixpoint::{
     FixpointStatus, KVarBind, SmtSolver, VerificationResult,
+    Identifier,
     parser::{FromSexp, ParseError},
     sexp::Parser,
 };
@@ -200,7 +201,7 @@ pub mod fixpoint {
 
     liquid_fixpoint::declare_types! {
         type Sort = DataSort;
-        type KVar = String;
+        type KVar = KVid;
         type Var = Var;
         type String = SymStr;
         type Tag = super::TagIdx;
@@ -654,6 +655,7 @@ where
             comments: self.comments.clone(),
             constants,
             kvars,
+            wkvars: self.ecx.wkvars.values().cloned().collect_vec(),
             define_funs,
             constraint,
             qualifiers,
@@ -664,7 +666,11 @@ where
         };
 
         if config::dump_constraint() {
-            dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), "smt2", &task).unwrap();
+            let ext = match horn_backend {
+                liquid_fixpoint::Backend::Fixpoint => "smt2",
+                liquid_fixpoint::Backend::Hornspec => "horn",
+            };
+            dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), ext, &task).unwrap();
         }
 
         Ok(task)
@@ -1190,7 +1196,7 @@ impl KVarEncodingCtxt {
 
                 range.clone().enumerate().map(move |(i, kvid)| {
                     let sorts = all_sorts[i..].to_vec();
-                    fixpoint::KVarDecl::new(kvid.display(), sorts, format!("orig: {:?}", orig))
+                    fixpoint::KVarDecl::new(kvid, sorts, format!("orig: {:?}", orig))
                 })
             })
             .collect()
@@ -1469,9 +1475,8 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     local_var_env: LocalVarEnv,
     const_env: ConstEnv<'tcx>,
-    // Hacky encoding
-    wkvars: FxIndexMap<rty::WKVid, fixpoint::KVarDecl>,
     errors: Errors<'genv>,
+    wkvars: FxIndexMap<rty::WKVid, fixpoint::WKVarDecl>,
     /// Id of the item being checked. This is a [`MaybeExternId`] because we may be encoding
     /// invariants for an extern spec on an enum.
     def_id: Option<MaybeExternId>,
@@ -1555,6 +1560,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .with_next_trait_solver(true)
                 .build(TypingMode::non_body_analysis()),
             backend,
+            wkvars: Default::default(),
         }
     }
 
@@ -2311,11 +2317,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         .collect();
                     let name =
                         fixpoint::Var::WKVar(Symbol::intern(&sanitized_name), wkvid.id.as_u32());
-                    let comment = Some(format!("weak kvar: {}", name.display()));
+                    let comment = format!("weak kvar: {}", name.display());
                     let sorts = arg_sorts.iter().map(|sort| scx.sort_to_fixpoint(sort)).collect_vec();
-                    fixpoint::KVarDecl { kvid: name.display(), comment, sorts }
+                    fixpoint::WKVarDecl { wkvid: name, comment, sorts }
                 })
-                .name
+                .wkvid
         })
     }
 
