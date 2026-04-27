@@ -2352,7 +2352,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self_args: usize,
         scx: &mut SortEncodingCtxt,
     ) -> Option<fixpoint::Var> {
-        if matches!(
+        if !matches!(
             self.genv.resolve_id(wkvid.parent_fn),
             ResolvedDefId::Local(..) | ResolvedDefId::ExternSpec(..)
         ) {
