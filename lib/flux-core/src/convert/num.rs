@@ -8,7 +8,7 @@ use flux_attrs::*;
 macro_rules! try_from_unbounded {
     ($Src:ident => $($Dst:ident),+) => {$(
         #[extern_spec(core::convert)]
-        #[assoc(fn succeeds(x: int) -> bool { true })]
+        #[assoc(fn succeeds(x: int, out: Result) -> bool { true })]
         #[assoc(fn from_val(x: int, into: int) -> bool { x == into })]
         impl TryFrom<$Src> for $Dst {
             #[no_panic]
@@ -23,7 +23,7 @@ macro_rules! try_from_unbounded {
 macro_rules! try_from_lower_bounded {
     ($Src:ident => $($Dst:ident),+) => {$(
         #[extern_spec(core::convert)]
-        #[assoc(fn succeeds(x: int) -> bool { x >= 0 })]
+        #[assoc(fn succeeds(x: int, out: Result) -> bool { out.is_ok == (x >= 0) })]
         #[assoc(fn from_val(x: int, into: int) -> bool { x == into })]
         impl TryFrom<$Src> for $Dst {
             #[no_panic]
@@ -38,7 +38,7 @@ macro_rules! try_from_lower_bounded {
 macro_rules! try_from_upper_bounded {
     ($Src:ident => $($Dst:ident),+) => {$(
         #[extern_spec(core::convert)]
-        #[assoc(fn succeeds(x: int) -> bool { x <= $Dst::MAX })]
+        #[assoc(fn succeeds(x: int, out: Result) -> bool { out.is_ok == (x <= $Dst::MAX) })]
         #[assoc(fn from_val(x: int, into: int) -> bool { x == into })]
         impl TryFrom<$Src> for $Dst {
             #[no_panic]
@@ -53,7 +53,7 @@ macro_rules! try_from_upper_bounded {
 macro_rules! try_from_both_bounded {
     ($Src:ident => $($Dst:ident),+) => {$(
         #[extern_spec(core::convert)]
-        #[assoc(fn succeeds(x: int) -> bool { $Dst::MIN <= x && x <= $Dst::MAX })]
+        #[assoc(fn succeeds(x: int, out: Result) -> bool { out.is_ok == ($Dst::MIN <= x && x <= $Dst::MAX) })]
         #[assoc(fn from_val(x: int, into: int) -> bool { x == into })]
         impl TryFrom<$Src> for $Dst {
             #[no_panic]
