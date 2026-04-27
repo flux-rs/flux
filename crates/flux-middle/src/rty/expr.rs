@@ -1127,6 +1127,20 @@ impl Var {
     pub fn to_expr(&self) -> Expr {
         Expr::var(*self)
     }
+
+    pub fn shift_in(&self, amount: u32) -> Self {
+        match self {
+            Var::Bound(idx, breft) => Var::Bound(idx.shifted_in(amount), *breft),
+            _ => *self,
+        }
+    }
+
+    pub fn shift_out(&self, amount: u32) -> Self {
+        match self {
+            Var::Bound(idx, breft) => Var::Bound(idx.shifted_out(amount), *breft),
+            _ => *self,
+        }
+    }
 }
 
 impl Path {
