@@ -34,10 +34,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
-    FixpointStatus, KVarBind, SmtSolver, VerificationResult,
-    Identifier,
-    parser::{FromSexp, ParseError},
-    sexp::Parser,
+    FixpointStatus, Identifier, KVarBind, SmtFormatter, SmtSolver, VerificationResult, parser::{FromSexp, ParseError}, sexp::Parser
 };
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
@@ -666,11 +663,14 @@ where
         };
 
         if config::dump_constraint() {
-            let ext = match horn_backend {
-                liquid_fixpoint::Backend::Fixpoint => "smt2",
-                liquid_fixpoint::Backend::Hornspec => "horn",
-            };
-            dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), ext, &task).unwrap();
+            match horn_backend {
+                liquid_fixpoint::Backend::Fixpoint => {
+                    dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), "smt2", &task).unwrap();
+                }
+                liquid_fixpoint::Backend::Hornspec => {
+                    dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), "horn", SmtFormatter(&task)).unwrap();
+                }
+            }
         }
 
         Ok(task)

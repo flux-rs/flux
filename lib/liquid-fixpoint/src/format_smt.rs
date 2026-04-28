@@ -331,11 +331,17 @@ fn fmt_guard<T: Types>(guard: &Guard<'_, T>, f: &mut fmt::Formatter<'_>) -> fmt:
     }
 }
 
-pub(crate) struct SmtFormatter<'a, T: Types>(pub &'a Task<T>);
+pub struct SmtFormatter<'a, T: Types>(pub &'a Task<T>);
 
 impl<T: Types> fmt::Display for SmtFormatter<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_smt_task(self.0, f)
+    }
+}
+
+impl<T: Types> fmt::Debug for SmtFormatter<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
