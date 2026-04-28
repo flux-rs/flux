@@ -727,17 +727,6 @@ rev = "3cad50a"
             let vc_name = vc_name(self.genv, def_id);
             // 3. Write the VC
             namespaced(&mut file, |f| {
-                if !self.qualifiers.is_empty() {
-                    let qualifier_namespace =
-                        format!("{}Qualifs", snake_case_to_pascal_case(&vc_name.replace(".", "_")));
-                    writeln!(f, "namespace {qualifier_namespace}\n")?;
-                    for qualifier in &self.qualifiers {
-                        writeln!(f, "{}", WithLeanCtxt { item: qualifier, cx: &self.lean_cx() })?;
-                        writeln!(f)?;
-                    }
-                    writeln!(f, "end {qualifier_namespace}\n")?;
-                    writeln!(f, "open {qualifier_namespace}\n")?;
-                }
                 write!(
                     f,
                     "{}",
@@ -769,6 +758,17 @@ rev = "3cad50a"
             writeln!(file, "{}", LeanFile::Vc(def_id).import(self.genv))?;
             writeln!(file, "{}", self.open_classical())?;
             namespaced(&mut file, |f| {
+                if !self.qualifiers.is_empty() {
+                    let qualifier_namespace =
+                        format!("{}Qualifs", snake_case_to_pascal_case(&vc_name.replace(".", "_")));
+                    writeln!(f, "namespace {qualifier_namespace}\n")?;
+                    for qualifier in &self.qualifiers {
+                        writeln!(f, "{}", WithLeanCtxt { item: qualifier, cx: &self.lean_cx() })?;
+                        writeln!(f)?;
+                    }
+                    writeln!(f, "end {qualifier_namespace}\n")?;
+                    writeln!(f, "open {qualifier_namespace}\n")?;
+                }
                 writeln!(f, "def {proof_name} : {vc_name} := by")?;
                 writeln!(f, "  unfold {vc_name}")?;
                 writeln!(f, "  try solve_fixpoint")
