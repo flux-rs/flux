@@ -139,12 +139,18 @@ fn run_lean(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
         .current_dir(project_path(genv, FileKind::User))
         .spawn()?
         .wait_with_output()?;
-    if out.stderr.is_empty() && out.stdout.is_empty() {
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let stdout_allowed = stdout
+        .lines()
+        .all(|line| line.trim().is_empty() || line.starts_with("[solve_fixpoint]"));
+
+    if stderr.is_empty() && stdout_allowed {
         Ok(())
     } else {
-        let stderr =
-            std::str::from_utf8(&out.stderr).unwrap_or("Lean exited with a non-zero return code");
-        Err(io::Error::other(stderr))
+        Err(io::Error::other(format!(
+            "Lean proof check failed\nstdout:\n{stdout}\nstderr:\n{stderr}"
+        )))
     }
 }
 
@@ -300,7 +306,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 [[require]]
 name = "LeanFixpoint"
 git = "git@github.com:jam-khan/lean-fixpoint.git"
-rev = "main"
+rev = "3cad50a"
 "#,
         );
         fs::write(lakefile, contents)
