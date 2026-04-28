@@ -28,6 +28,7 @@ use crate::{
 pub(crate) fn run_hornspec<T: Types>(task: &Task<T>) -> io::Result<VerificationResult<T::Tag>> {
     // Spawn hornspec binary, piping input via stdin
     let mut child = Command::new("hornspec")
+        .arg("--skip-maximal")
         .arg("-")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -90,7 +91,9 @@ fn parse_hornspec_output<T: Types>(
                 lean_status: LeanStatus::default(),
             })
         }
-        "sat" => {
+        "sat" | "unknown" => {
+            // NOTE(CK): We'll treat unknown as a failure too.
+
             // sat means unsafe — the CHC system has no solution
             // Collect all tagged concrete heads as errors (conservative)
             let tagged_heads = collect_tagged_heads(&task.constraint);
@@ -106,16 +109,16 @@ fn parse_hornspec_output<T: Types>(
                 lean_status: LeanStatus::default(),
             })
         }
-        "unknown" => {
-            Ok(VerificationResult {
-                status: FixpointStatus::Crash(crate::CrashInfo(vec![serde_json::Value::String(
-                    "hornspec returned unknown".to_string(),
-                )])),
-                solution: vec![],
-                non_cuts_solution: vec![],
-                lean_status: LeanStatus::default(),
-            })
-        }
+        // "unknown" => {
+        //     Ok(VerificationResult {
+        //         status: FixpointStatus::Crash(crate::CrashInfo(vec![serde_json::Value::String(
+        //             "hornspec returned unknown".to_string(),
+        //         )])),
+        //         solution: vec![],
+        //         non_cuts_solution: vec![],
+        //         lean_status: LeanStatus::default(),
+        //     })
+        // }
         _ => Err(io::Error::other(format!("unexpected hornspec output status: {status_str}"))),
     }
 }
