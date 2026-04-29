@@ -44,9 +44,9 @@ pub enum CannotResolveReason {
     NotFnDef(DefId),
 }
 
-#[derive(Debug, Clone)]
-struct GraphBuildResult {
-    call_graph: CallGraph,
+#[derive(Debug, Clone, Default)]
+pub struct GraphBuildResult {
+    pub call_graph: CallGraph,
     pub resolution_failures: FxHashMap<DefId, CannotResolveReason>,
 }
 
@@ -237,7 +237,7 @@ fn explore(
                     .insert(root, CannotResolveReason::NoMIRAvailable(root, def_kind));
             }
             call_graph.insert(root, Vec::new());
-            return;
+            continue;
         }
 
         match get_callees(&tcx, root) {
@@ -247,7 +247,7 @@ fn explore(
             Err(reason) => {
                 call_graph.insert(root, Vec::new());
                 resolution_failures.insert(root, reason);
-                return;
+                continue;
             }
         }
     }
@@ -340,4 +340,77 @@ fn run_fixpoint(
         }
     }
     witnesses
+}
+
+/// The set of `DefId`s that should be checked when running with `#[flux::root]` scoping.
+/// `all` is the union of `roots`, transitive `callees`, and transitive `callers`.
+#[derive(Debug, Default, Clone)]
+pub struct ReachableSet {
+    pub all: FxHashSet<DefId>,
+    pub roots: FxHashSet<DefId>,
+    pub callees: FxHashSet<DefId>,
+    pub callers: FxHashSet<DefId>,
+}
+
+/// Build the call graph for the entire local crate, seeding `explore` with every
+/// fn-like local def id that has MIR. If a DefId is external (e.g., a callee
+/// lives outside of the current crate), then it's recorded as a `NoMIRAvailable`
+/// resolution failure.
+pub fn build_full_crate_call_graph(tcx: TyCtxt) -> GraphBuildResult {
+    let roots: Vec<DefId> = tcx
+        .iter_local_def_id()
+        .filter(|did| {
+            let kind = tcx.def_kind(*did);
+            matches!(kind, DefKind::Fn | DefKind::AssocFn) && tcx.is_mir_available(*did)
+        })
+        .map(|did| did.to_def_id())
+        .collect();
+    build_call_graph(tcx, &roots)
+}
+
+/// Compute the inverse adjacency of a forward call graph: an edge `f -> g` becomes
+/// `g -> f`, retaining the original call-site span on each inverted edge.
+pub fn inverse_call_graph(forward: &CallGraph) -> CallGraph {
+    let mut inverse: CallGraph = FxHashMap::default();
+    for (caller, callees) in forward {
+        for (callee, span) in callees {
+            inverse.entry(*callee).or_default().push((*caller, *span));
+        }
+    }
+    inverse
+}
+
+/// Computes everything that can reach a function in `roots`. `forward` is the set
+/// of potential callees and `inverse` is the set of potential callers.
+/// `ReachableSet::all` is `roots ∪ callees ∪ callers`. The `callees`
+/// and `callers` fields exclude the roots themselves so a root that appears in a
+/// cycle is not double-counted.
+pub fn reachable_set(
+    forward: &CallGraph,
+    inverse: &CallGraph,
+    roots: impl IntoIterator<Item = DefId>,
+) -> ReachableSet {
+    let roots: FxHashSet<DefId> = roots.into_iter().collect();
+    let callees = bfs_excluding_sources(forward, &roots);
+    let callers = bfs_excluding_sources(inverse, &roots);
+    let mut all = roots.clone();
+    all.extend(callees.iter().copied());
+    all.extend(callers.iter().copied());
+    ReachableSet { all, roots, callees, callers }
+}
+
+fn bfs_excluding_sources(graph: &CallGraph, sources: &FxHashSet<DefId>) -> FxHashSet<DefId> {
+    let mut visited: FxHashSet<DefId> = sources.clone();
+    let mut worklist: Vec<DefId> = sources.iter().copied().collect();
+    while let Some(f) = worklist.pop() {
+        if let Some(neighbors) = graph.get(&f) {
+            for (n, _span) in neighbors {
+                if visited.insert(*n) {
+                    worklist.push(*n);
+                }
+            }
+        }
+    }
+    visited.retain(|d| !sources.contains(d));
+    visited
 }
