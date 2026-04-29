@@ -171,6 +171,22 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         Self { genv, cache: QueryCache::load() }
     }
 
+    /// Returns whether `def_id` is part of the transitive closure of some
+    /// `#[flux::root]`-annotated function in this crate. Returns `false` when
+    /// no roots are present (there is no closure to be in).
+    ///
+    /// Used as an *override* in [`Self::check_def`]: defs in a root closure are
+    /// refinement-checked even when the config-level `include` glob would
+    /// otherwise filter them out. User-explicit markers like `#[flux::ignore]`
+    /// and `#[flux::trusted]` are still honored — closure inclusion never
+    /// overrides per-function user intent.
+    fn is_in_any_root_closure(&self, def_id: MaybeExternId) -> bool {
+        match self.genv.local_reachable_set() {
+            None => false,
+            Some(set) => set.all.contains(&def_id.local_id().to_def_id()),
+        }
+    }
+
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         let mut this = std::panic::AssertUnwindSafe(self);
         let msg = format!("def_id: {:?}, span: {:?}", def_id, this.genv.tcx().def_span(def_id));
@@ -208,7 +224,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             metrics::incr_metric_if(is_fn_with_body, Metric::FnIgnored);
             return Ok(());
         }
-        if !self.genv.included(def_id) {
+        // The config-level `include` glob, on the other hand, *is* overridden
+        // by closure inclusion: adding `#[flux::root]` is a deliberate signal
+        // to expand beyond the ambient default scope.
+        // `#[flux::trusted]` is honored later in `refineck::check_fn`, so
+        // trusted defs that pass these filters still skip body verification.
+        if !self.genv.included(def_id) && !self.is_in_any_root_closure(def_id) {
             metrics::incr_metric_if(is_fn_with_body, Metric::FnTrusted);
             return Ok(());
         }

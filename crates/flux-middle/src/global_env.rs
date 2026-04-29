@@ -1,5 +1,6 @@
 use std::{
     alloc,
+    cell::OnceCell,
     path::{Path, PathBuf},
     ptr,
     rc::Rc,
@@ -50,6 +51,10 @@ struct GlobalEnvInner<'genv, 'tcx> {
     cstore: Box<CrateStoreDyn>,
     queries: Queries<'genv, 'tcx>,
     tempdir: TempDir,
+    /// Lazily-computed reachable set for the local crate under `#[flux::root]`
+    /// scoping. `None` (after init) means no roots are present and the driver
+    /// falls back to today's all-or-nothing behavior. See [`GlobalEnv::local_reachable_set`].
+    local_reachable_set: OnceCell<Option<flux_opt::ReachableSet>>,
 }
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -65,7 +70,15 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         // files in it.
         let tempdir = TempDir::new_in(lean_parent_dir(tcx)).unwrap();
         let queries = Queries::new(providers);
-        let inner = GlobalEnvInner { tcx, sess, cstore, arena, queries, tempdir };
+        let inner = GlobalEnvInner {
+            tcx,
+            sess,
+            cstore,
+            arena,
+            queries,
+            tempdir,
+            local_reachable_set: OnceCell::new(),
+        };
         f(GlobalEnv { inner: &inner })
     }
 }
@@ -726,6 +739,40 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             if self.fhir_attr_map(did).is_root() { Some(()) } else { None }
         })
         .is_some()
+    }
+
+    /// Returns the reachable set induced by all `#[flux::root]` annotations in the
+    /// local crate, or `None` if the crate has no roots. Computed lazily on first
+    /// access; subsequent calls return the cached result.
+    ///
+    /// When `Some(set)`, the driver should refinement-check only the def ids in
+    /// `set.all` (transitive callees ∪ transitive callers ∪ roots). When `None`,
+    /// the driver falls back to its default behavior of checking everything.
+    pub fn local_reachable_set(self) -> Option<&'genv flux_opt::ReachableSet> {
+        self.inner
+            .local_reachable_set
+            .get_or_init(|| {
+                let tcx = self.tcx();
+                let roots: Vec<DefId> = tcx
+                    .iter_local_def_id()
+                    .filter(|did| {
+                        let kind = tcx.def_kind(*did);
+                        matches!(kind, DefKind::Fn | DefKind::AssocFn)
+                            && tcx.is_mir_available(*did)
+                            && self.is_root(*did)
+                    })
+                    .map(|did| did.to_def_id())
+                    .collect();
+
+                if roots.is_empty() {
+                    return None;
+                }
+
+                let result = flux_opt::build_full_crate_call_graph(tcx);
+                let inverse = flux_opt::inverse_call_graph(&result.call_graph);
+                Some(flux_opt::reachable_set(&result.call_graph, &inverse, roots))
+            })
+            .as_ref()
     }
 
     /// Whether the function is marked with `#[proven_externally]`
