@@ -621,6 +621,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
             ("extern_spec", hir::AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("no_panic", hir::AttrArgs::Empty) => FluxAttrKind::NoPanic,
+            ("root", hir::AttrArgs::Empty) => FluxAttrKind::Root,
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
             ("specs", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_detached_specs, FluxAttrKind::DetachedSpecs)?
@@ -745,6 +746,7 @@ enum FluxAttrKind {
     ExternSpec,
     NoPanic,
     NoPanicIf(surface::Expr),
+    Root,
     /// See `detachXX.rs`
     DetachedSpecs(surface::DetachedSpecs),
 }
@@ -902,6 +904,7 @@ impl FluxAttrs {
                 FluxAttrKind::Ignore(ignored) => surface::Attr::Ignore(ignored),
                 FluxAttrKind::ShouldFail => surface::Attr::ShouldFail,
                 FluxAttrKind::NoPanic => surface::Attr::NoPanic,
+                FluxAttrKind::Root => surface::Attr::Root,
                 FluxAttrKind::Opaque
                 | FluxAttrKind::Reflect
                 | FluxAttrKind::FnSig(_)
@@ -955,6 +958,7 @@ impl FluxAttrKind {
             FluxAttrKind::DetachedSpecs(_) => attr_name!(DetachedSpecs),
             FluxAttrKind::NoPanic => attr_name!(NoPanic),
             FluxAttrKind::NoPanicIf(_) => attr_name!(NoPanicIf),
+            FluxAttrKind::Root => attr_name!(Root),
         }
     }
 }

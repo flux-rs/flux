@@ -640,6 +640,11 @@ pub enum Attr {
     InferOpts(PartialInferOpts),
     /// A `#[no_panic]` attribute
     NoPanic,
+    /// A `#[flux::root]` attribute.
+    /// `root` is kind of like the opposite of `trusted` -- if a function
+    /// is marked as a `root`, then (1) it, (2) its transitive callers, and
+    /// (3) its transitive callees will be checked by Flux.
+    Root,
 }
 
 #[derive(Debug)]

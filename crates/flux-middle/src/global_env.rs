@@ -718,6 +718,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fhir_attr_map(def_id).should_fail()
     }
 
+    /// Whether `def_id` is marked with `#[flux::root]`, either directly or via an enclosing
+    /// item (module, impl, etc.). Roots seed the closure of functions that get refinement-checked
+    /// when the `--include`-style scoping is active.
+    pub fn is_root(self, def_id: LocalDefId) -> bool {
+        self.traverse_parents(def_id, |did| {
+            if self.fhir_attr_map(did).is_root() { Some(()) } else { None }
+        })
+        .is_some()
+    }
+
     /// Whether the function is marked with `#[proven_externally]`
     pub fn proven_externally(self, def_id: LocalDefId) -> Option<Span> {
         self.fhir_attr_map(def_id).proven_externally()
