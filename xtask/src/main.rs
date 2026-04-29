@@ -1,11 +1,7 @@
 #![feature(variant_count)]
 
 use std::{
-    ffi::OsStr,
-    fs, io,
-    mem::variant_count,
-    path::{Path, PathBuf},
-    process::{Command, ExitStatus},
+    ffi::OsStr, fs::{self, create_dir_all, exists}, io, mem::variant_count, os::unix::fs::symlink, path::{Path, PathBuf}, process::{Command, ExitStatus}
 };
 
 use anyhow::anyhow;
@@ -203,7 +199,70 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
     let mut successes = 0;
 
-    for (i, test_path) in test_files.iter().enumerate() {
+    let mut enumerated_tests = test_files.iter().enumerate();
+    let Some((i, test_path)) = enumerated_tests.next() else { return Ok(()) };
+    let first_lean_dir: PathBuf;
+    {
+        let rel_path = test_path.strip_prefix(&pos_path).unwrap();
+
+        // Create lean output dir: ./tests/lean_bench/<path>/<to>/<file>/
+        let mut lean_dir = lean_bench_dir.clone();
+        if let Some(parent) = rel_path.parent() {
+            if parent != Path::new("") {
+                lean_dir.push(parent);
+            }
+        }
+        if let Some(stem) = rel_path.file_stem() {
+            lean_dir.push(stem);
+        }
+
+        eprint!("[{}/{}] Running: {} ... ", i + 1, test_files.len(), rel_path.display());
+
+        // Create the output directory
+        if let Err(e) = fs::create_dir_all(&lean_dir) {
+            eprintln!("ERROR");
+            failures.push((test_path.clone(), format!("Failed to create directory: {}", e)));
+            return Ok(())
+        }
+
+        // Build rustc flags
+        let mut rustc_flags = tests::default_flags();
+        rustc_flags.push("-Flean=emit".to_string());
+        rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
+        first_lean_dir = std::path::absolute(lean_dir.join("lean_proofs"))?;
+
+        // Run the test
+        let result = Command::new(&flux)
+            .args(&rustc_flags)
+            .arg(test_path)
+            .env(FLUX_SYSROOT, &config.dst)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .output();
+
+        Command::new("lake")
+            .arg("build")
+            .current_dir(&first_lean_dir)
+            .output()?;
+
+        match result {
+            Ok(output) if output.status.success() => {
+                eprintln!("OK");
+                successes += 1;
+            }
+            Ok(output) => {
+                eprintln!("ERROR");
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                failures.push((test_path.clone(), stderr));
+            }
+            Err(e) => {
+                eprintln!("ERROR");
+                failures.push((test_path.clone(), e.to_string()));
+            }
+        }
+    }
+
+    for (i, test_path) in enumerated_tests {
         let rel_path = test_path.strip_prefix(&pos_path).unwrap();
 
         // Create lean output dir: ./tests/lean_bench/<path>/<to>/<file>/
@@ -255,6 +314,13 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
                 failures.push((test_path.clone(), e.to_string()));
             }
         }
+
+        let dep_path = &lean_dir.join("lean_proofs").join(".lake").join("packages");
+        if exists(&dep_path)? {
+            remove_dir_all(&dep_path)?;
+        }
+        create_dir_all(&dep_path.parent().unwrap())?;
+        symlink(first_lean_dir.join(".lake").join("packages"), dep_path)?;
     }
 
     // Print summary

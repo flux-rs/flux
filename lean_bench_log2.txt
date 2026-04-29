@@ -1,0 +1,120 @@
+Found 511 lean_proofs directories
+------------------------------------------------------------
+[1/511] Building: surface/kmp_overflow/lean_proofs ... ERROR
+    Timeout expired (5 minutes)
+[2/511] Building: surface/knuth_shuffle/lean_proofs ... OK
+[3/511] Building: surface/let-exprs00/lean_proofs ... OK
+[4/511] Building: surface/literals00/lean_proofs ... OK
+[5/511] Building: surface/local_ptr00/lean_proofs ... OK
+[6/511] Building: surface/local_qual00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:72:6: (deterministic) timeout at `elaborator`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:70:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[7/511] Building: surface/loop00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestProof.lean:66:25: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (kernel) application type mismatch
+    error: Lean exited with code 1
+[8/511] Building: surface/loop01/lean_proofs ... OK
+[9/511] Building: surface/loop_abstract_refinement/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/FooProof.lean:72:6: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/FooProof.lean:70:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[10/511] Building: surface/macro00/lean_proofs ... ERROR
+[11/511] Building: surface/macro01/lean_proofs ... ERROR
+[12/511] Building: surface/macro02/lean_proofs ... ERROR
+[13/511] Building: surface/mut-ref-array-unsize/lean_proofs ... OK
+[14/511] Building: surface/mut_as_strg00/lean_proofs ... OK
+[15/511] Building: surface/mut_hack00/lean_proofs ... OK
+[16/511] Building: surface/nested_binders_kvar/lean_proofs ... OK
+[17/511] Building: surface/no_panic00/lean_proofs ... OK
+[18/511] Building: surface/no_panic01/lean_proofs ... OK
+[19/511] Building: surface/no_panic02/lean_proofs ... OK
+[20/511] Building: surface/no_panic03/lean_proofs ... OK
+[21/511] Building: surface/no_panic04/lean_proofs ... OK
+[22/511] Building: surface/no_panic05/lean_proofs ... OK
+[23/511] Building: surface/no_panic06/lean_proofs ... OK
+[24/511] Building: surface/non_zero/lean_proofs ... OK
+[25/511] Building: surface/num_consts/lean_proofs ... ERROR
+    error: no such file or directory (error code: 4294967294)
+[26/511] Building: surface/operators/lean_proofs ... OK
+[27/511] Building: surface/opt_blowup/lean_proofs ... OK
+[28/511] Building: surface/output-exists00/lean_proofs ... OK
+[29/511] Building: surface/output-exists01/lean_proofs ... OK
+[30/511] Building: surface/pack00/lean_proofs ... OK
+[31/511] Building: surface/panic00/lean_proofs ... OK
+[32/511] Building: surface/param-under-mut-ref/lean_proofs ... OK
+[33/511] Building: surface/partially_uninit_tuple/lean_proofs ... OK
+[34/511] Building: surface/pldi23ae-reviewerb-bug/lean_proofs ... OK
+[35/511] Building: surface/polymorphic_qualifier/lean_proofs ... ERROR
+    Timeout expired (5 minutes)
+[36/511] Building: surface/primop_prop_let/lean_proofs ... ERROR
+    error: LeanProofs/Flux/VC/Foo.lean:10:33: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Foo.lean:11:4: Unknown identifier `c0`
+    error: Lean exited with code 1
+[37/511] Building: surface/primops00/lean_proofs ... ERROR
+    error: LeanProofs/Flux/VC/Test0.lean:10:3: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test0.lean:11:5: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/Test1.lean:10:3: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test1.lean:11:4: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test1.lean:11:27: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test1.lean:12:6: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/Test4.lean:12:5: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test4.lean:13:6: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/Test6.lean:13:43: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test6.lean:13:57: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test6.lean:14:8: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/Test2.lean:12:5: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test2.lean:13:6: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test2.lean:13:30: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test2.lean:14:7: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/Test3.lean:13:12: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test3.lean:14:7: Unknown identifier `c1`
+    error: LeanProofs/Flux/VC/Test3.lean:15:10: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test3.lean:16:10: Unknown identifier `c1`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/Test5.lean:12:19: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test5.lean:13:6: Unknown identifier `c0`
+    error: Lean exited with code 1
+[38/511] Building: surface/promotion00/lean_proofs ... OK
+[39/511] Building: surface/promotion01/lean_proofs ... OK
+[40/511] Building: surface/promotion02/lean_proofs ... OK
+[41/511] Building: surface/ptr00/lean_proofs ... OK
+[42/511] Building: surface/ptr01/lean_proofs ... 

@@ -1,0 +1,22 @@
+import LeanProofs.Flux.Prelude
+import LeanFixpoint
+open Classical
+
+namespace F
+
+
+
+def IncFst := ∃ k0 : (a0 : Int) -> (a1 : Int) -> Prop, 
+ ∀ (a'₀ : Int),
+  (a'₀ ≥ 0) ->
+   (∀ (v₀ : Int),
+    (v₀ > 0) ->
+     ((k0 v₀ a'₀))) ∧
+   (∀ (a'₂ : Int),
+    ((k0 a'₂ a'₀)) ->
+     (a'₂ > 0)) ∧
+   (∀ (a'₃ : Int),
+    ((k0 a'₃ a'₀)) ->
+     ((k0 (a'₃ + 1) a'₀)))
+   
+end F

@@ -1,0 +1,11 @@
+name = "lean_proofs"
+version = "0.1.0"
+defaultTargets = ["LeanProofs"]
+
+[[lean_lib]]
+name = "LeanProofs"
+
+[[require]]
+name = "LeanFixpoint"
+git = "git@github.com:jam-khan/lean-fixpoint.git"
+rev = "3cad50a"

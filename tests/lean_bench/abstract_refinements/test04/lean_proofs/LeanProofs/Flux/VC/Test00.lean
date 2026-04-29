@@ -1,0 +1,18 @@
+import LeanProofs.Flux.Prelude
+import LeanFixpoint
+open Classical
+
+namespace F
+
+
+
+def Test00 := ∃ k0 : (a0 : Int) -> Prop, 
+ (((k0 0))) ∧
+ (∀ (a'₀ : Int),
+  (((k0 a'₀)) ->
+   (a'₀ ≥ 0)) ∧
+  ((a'₀ ≥ 0) ->
+   ((k0 a'₀)))
+  )
+ 
+end F
