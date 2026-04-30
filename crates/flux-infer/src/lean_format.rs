@@ -230,7 +230,13 @@ impl LeanFmt for LeanField {
         if let Some(def_id) = cx.adt_map.get_index(adt_id.as_usize())
             && let Ok(adt_sort_def) = cx.genv.adt_sort_def_of(def_id)
         {
-            write!(f, "{}", sanitize_name(adt_sort_def.struct_variant().field_names()[self.1 as usize].as_str()))
+            write!(
+                f,
+                "{}",
+                sanitize_name(
+                    adt_sort_def.struct_variant().field_names()[self.1 as usize].as_str()
+                )
+            )
         } else {
             write!(f, "fld{}", as_subscript(self.1 as usize))
         }
@@ -358,7 +364,7 @@ impl LeanFmt for Sort {
                 )
             }
             Sort::Var(v) => write!(f, "t{v}"),
-            s => todo!("{:?}", s),
+            Sort::BvSize(size) => write!(f, "{size}"),
         }
     }
 }
@@ -413,6 +419,9 @@ impl LeanFmt for Expr {
                 function.as_ref().lean_fmt(f, cx)?;
                 if let Some(sort_args) = sort_args {
                     for (i, s_arg) in sort_args.iter().enumerate() {
+                        if matches!(s_arg, Sort::BvSize(..)) {
+                            continue;
+                        }
                         write!(f, " (t{i} := {})", WithLeanCtxt { item: s_arg, cx })?;
                     }
                 }
@@ -745,11 +754,10 @@ fn sanitize_name(name: &str) -> String {
     if is_reserved(name) {
         format!("{name}_")
     } else {
-        let res = IMPL_RE
+        IMPL_RE
             .replace_all(name, "impl_${1}")
             .replace("-", "_")
-            .replace("$", "_");
-        res
+            .replace("$", "_")
     }
 }
 
@@ -759,7 +767,9 @@ pub fn def_id_to_pascal_case(def_id: &DefId, tcx: &rustc_middle::ty::TyCtxt) -> 
         .to_filename_friendly_no_crate()
         .replace("-", "_");
     let pascal_case = snake_case_to_pascal_case(&snake);
-    IMPL_RE.replace_all(&pascal_case, "Impl__${1}__").to_string()
+    IMPL_RE
+        .replace_all(&pascal_case, "Impl__${1}__")
+        .to_string()
 }
 
 pub fn snake_case_to_pascal_case(snake: &str) -> String {
