@@ -50,6 +50,7 @@ pub struct LeanKConstraint<'a> {
     pub theorem_name: &'a str,
     pub kvars: &'a [KVarDecl],
     pub constr: &'a Constraint,
+    pub should_fail: bool,
 }
 
 struct LeanThyFunc<'a>(&'a ThyFunc);
@@ -656,6 +657,10 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
         }
 
         write!(f, "\n\ndef {theorem_name} := ")?;
+
+        if self.should_fail {
+            write!(f, "¬")?;
+        }
 
         if self.kvars.is_empty() {
             self.constr.lean_fmt(f, cx)

@@ -756,6 +756,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                             theorem_name: &vc_name,
                             kvars: &self.kvar_decls,
                             constr: &self.constraint,
+                            should_fail: self
+                                .def_id
+                                .as_local()
+                                .map(|def_id| self.genv.should_fail(def_id))
+                                .unwrap_or(false)
                         },
                         cx: &self.lean_cx()
                     }
