@@ -612,12 +612,15 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 .into_conv_ctxt()
                 .conv_fn_sig(def_id, fhir_fn_sig)?;
             let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-            let fn_sig = fn_sig.hoist_input_binders();
+            let mut fn_sig = fn_sig.hoist_input_binders();
             let id = match def_id {
                 MaybeExternId::Extern(_local_id, def_id) => def_id,
                 MaybeExternId::Local(local_id) => local_id.into(),
             };
-            let fn_sig = fn_sig.add_weak_kvars(genv, id)?;
+
+            if genv.weak_kvars_for(def_id.resolved_id()).is_none() {
+                fn_sig = fn_sig.add_weak_kvars(genv, id)?;
+            }
 
             if config::dump_rty() {
                 let generics = genv.generics_of(def_id)?;
