@@ -365,7 +365,7 @@ impl LeanFmt for Sort {
                 )
             }
             Sort::Var(v) => write!(f, "t{v}"),
-            s => todo!("{:?}", s),
+            Sort::BvSize(size) => write!(f, "{size}"),
         }
     }
 }
@@ -420,6 +420,9 @@ impl LeanFmt for Expr {
                 function.as_ref().lean_fmt(f, cx)?;
                 if let Some(sort_args) = sort_args {
                     for (i, s_arg) in sort_args.iter().enumerate() {
+                        if matches!(s_arg, Sort::BvSize(..)) {
+                            continue;
+                        }
                         write!(f, " (t{i} := {})", WithLeanCtxt { item: s_arg, cx })?;
                     }
                 }
