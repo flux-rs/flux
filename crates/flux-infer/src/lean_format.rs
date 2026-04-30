@@ -791,7 +791,7 @@ fn is_reserved(name: &str) -> bool {
 
 fn sanitize_name(name: &str) -> String {
     if is_reserved(name) {
-        format!("{name}_s")
+        format!("{name}_")
     } else {
         IMPL_RE
             .replace_all(name, "impl_${1}")
