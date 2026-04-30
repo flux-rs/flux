@@ -71,7 +71,7 @@ impl LeanFmt for InterpretedConst {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         write!(
             f,
-            "def {} : {} := {}",
+            "abbrev {} : {} := {}",
             WithLeanCtxt { item: &self.0.name, cx },
             WithLeanCtxt { item: &self.0.sort, cx },
             WithLeanCtxt { item: &self.1, cx }
