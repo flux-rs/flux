@@ -27,6 +27,7 @@ use flux_middle::{
         NameProvenance, PrettyMap, PrettyVar, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
     },
 };
+use indexmap::IndexMap;
 use itertools::Itertools;
 use liquid_fixpoint::{
     FixpointStatus, KVarBind, SmtSolver, VerificationResult,

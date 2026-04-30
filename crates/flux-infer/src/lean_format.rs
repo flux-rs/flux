@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{fmt::Write, iter};
+use std::{fmt::Write, iter, sync::LazyLock};
 
 use flux_common::{
     bug,
@@ -49,6 +49,7 @@ pub struct LeanKConstraint<'a> {
     pub theorem_name: &'a str,
     pub kvars: &'a [KVarDecl],
     pub constr: &'a Constraint,
+    pub should_fail: bool,
 }
 
 struct LeanThyFunc<'a>(&'a ThyFunc);
@@ -70,7 +71,7 @@ impl LeanFmt for InterpretedConst {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         write!(
             f,
-            "def {} : {} := {}",
+            "abbrev {} : {} := {}",
             WithLeanCtxt { item: &self.0.name, cx },
             WithLeanCtxt { item: &self.0.sort, cx },
             WithLeanCtxt { item: &self.1, cx }
@@ -84,7 +85,7 @@ impl LeanFmt for DataField {
         write!(
             f,
             "({} : {})",
-            self.name.display().to_string().replace("$", "_"),
+            sanitize_name(&self.name.display().to_string()),
             WithLeanCtxt { item: &self.sort, cx }
         )
     }
@@ -262,22 +263,16 @@ impl LeanFmt for Var {
                     .genv
                     .tcx()
                     .def_path(def_id.parent())
-                    .to_filename_friendly_no_crate()
-                    .replace("-", "_");
+                    .to_filename_friendly_no_crate();
                 if path.is_empty() {
                     write!(f, "{}", def_id.name())
                 } else {
-                    write!(f, "{path}_{}", def_id.name())
+                    write!(f, "{}_{}", sanitize_name(&path), def_id.name())
                 }
             }
             Var::Const(_, Some(did)) => {
-                let path = cx
-                    .genv
-                    .tcx()
-                    .def_path(*did)
-                    .to_filename_friendly_no_crate()
-                    .replace("-", "_");
-                write!(f, "{path}")
+                let path = cx.genv.tcx().def_path(*did).to_filename_friendly_no_crate();
+                write!(f, "{}", sanitize_name(&path))
             }
             Var::DataCtor(adt_id, idx) => {
                 write!(
@@ -296,7 +291,7 @@ impl LeanFmt for Var {
                 write!(f, "{}", cx.pretty_var_map.get(&PrettyVar::Param(*param)))
             }
             _ => {
-                write!(f, "{}", self.display().to_string().replace("$", "_"))
+                write!(f, "{}", sanitize_name(&self.display().to_string()))
             }
         }
     }
@@ -593,7 +588,7 @@ impl LeanFmt for Pred {
                 write!(f, ")")
             }
             Pred::KVar(kvid, args) => {
-                write!(f, "({}", kvid.display().to_string().replace("$", "_"))?;
+                write!(f, "({}", sanitize_name(&kvid.display().to_string()))?;
                 for arg in args {
                     write!(f, " ")?;
                     arg.lean_fmt(f, cx)?;
@@ -612,7 +607,7 @@ impl LeanFmt for KVarDecl {
             .enumerate()
             .map(|(i, sort)| format!("(a{i} : {})", WithLeanCtxt { item: sort, cx }))
             .format(" -> ");
-        write!(f, "∃ {} : {} -> Prop", self.kvid.display().to_string().replace("$", "_"), sorts)
+        write!(f, "∃ {} : {} -> Prop", sanitize_name(&self.kvid.display().to_string()), sorts)
     }
 }
 
@@ -620,6 +615,10 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         let theorem_name = self.theorem_name.replace(".", "_");
         write!(f, "\n\ndef {theorem_name} := ")?;
+
+        if self.should_fail {
+            write!(f, "¬")?;
+        }
 
         if self.kvars.is_empty() {
             self.constr.lean_fmt(f, cx)
@@ -735,14 +734,31 @@ impl ConstraintFormatter {
     }
 }
 
+static IMPL_RE: LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"\{impl#(\d+)\}").unwrap());
+
+fn is_reserved(name: &str) -> bool {
+    matches!(name, "end" | "def")
+}
+
+fn sanitize_name(name: &str) -> String {
+    if is_reserved(name) {
+        format!("{name}_s")
+    } else {
+        IMPL_RE
+            .replace_all(name, "impl_$1_")
+            .replace("-", "_")
+            .replace("$", "_")
+    }
+}
+
 pub fn def_id_to_pascal_case(def_id: &DefId, tcx: &rustc_middle::ty::TyCtxt) -> String {
     let snake = tcx
         .def_path(*def_id)
         .to_filename_friendly_no_crate()
         .replace("-", "_");
     let pascal_case = snake_case_to_pascal_case(&snake);
-    let re = regex::Regex::new(r"\{impl#(\d+)\}").unwrap();
-    re.replace_all(&pascal_case, "Impl__$1__").to_string()
+    IMPL_RE.replace_all(&pascal_case, "Impl__$1__").to_string()
 }
 
 pub fn snake_case_to_pascal_case(snake: &str) -> String {
