@@ -573,12 +573,6 @@ pub fn lean_task_key(tcx: rustc_middle::ty::TyCtxt, def_id: DefId) -> String {
     FixpointQueryKind::Body.task_key(tcx, def_id)
 }
 
-pub(crate) struct SuggestionCtxt {
-    pub(crate) flat_constraints: FxIndexMap<TagIdx, fixpoint::FlatConstraint>,
-    pub(crate) const_decls: Vec<fixpoint::ConstDecl>,
-    pub(crate) data_decls: Vec<fixpoint::DataDecl>,
-}
-
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
@@ -607,7 +601,7 @@ where
         constraint: fixpoint::Constraint,
         scrape_quals: bool,
         solver: SmtSolver,
-    ) -> QueryResult<(fixpoint::Task, Option<SuggestionCtxt>)> {
+    ) -> QueryResult<fixpoint::Task> {
         let kvars = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
 
         let qualifiers = self
@@ -2592,18 +2586,6 @@ fn parse_data_ctor(name: &str) -> Option<fixpoint::Var> {
         let adt_id = fixpoint::AdtId::from(adt_id);
         let variant_idx = VariantIdx::from(variant_idx);
         return Some(fixpoint::Var::DataCtor(adt_id, variant_idx));
-    }
-    None
-}
-
-fn parse_weak_kvar(name: &str) -> Option<fixpoint::Var> {
-    if let Some(rest) = name.strip_prefix("wk$")
-        && let parts = rest.split('$').collect::<Vec<_>>()
-        && parts.len() == 2
-        && let Ok(index) = parts[1].parse::<u32>()
-    {
-        let name = Symbol::intern(parts[0]);
-        return Some(fixpoint::Var::WKVar(name, index));
     }
     None
 }

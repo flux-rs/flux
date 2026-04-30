@@ -983,7 +983,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     // We only will add weak kvars if
                     //   1. There are no weak kvars already
                     if genv.weak_kvars_for(def_id).is_none() {
-                        fn_sig = fn_sig.add_weak_kvars(genv, def_id)?;
+                        poly_sig = poly_sig.add_weak_kvars(genv, def_id)?;
                     }
                     Ok(rty::EarlyBinder(poly_sig))
                 },

@@ -2,6 +2,7 @@ use std::{collections::HashSet, hash::Hash};
 
 use derive_where::derive_where;
 use indexmap::{IndexMap, IndexSet};
+use itertools::Itertools;
 
 use crate::{ThyFunc, Types};
 
@@ -484,7 +485,7 @@ impl<T: Types> Expr<T> {
         vars
     }
 
-    pub fn substitute(&self, subst: &FxIndexMap<T::Var, Self>) -> Self {
+    pub fn substitute(&self, subst: &IndexMap<T::Var, Self>) -> Self {
         match self {
             Expr::Var(v) => {
                 if let Some(subst_val) = subst.get(v) {

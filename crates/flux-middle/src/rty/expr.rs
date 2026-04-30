@@ -34,7 +34,7 @@ use crate::{
     pretty::*,
     queries::QueryResult,
     rty::{
-        BoundVariableKind, SortArg, SortCtor, SubsetTyCtor,
+        BoundVariableKind, SortArg, SubsetTyCtor,
         fold::{
             FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable,
             TypeVisitable, TypeVisitor,

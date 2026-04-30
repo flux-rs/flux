@@ -8,7 +8,7 @@ use itertools::Itertools;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task,
-    Types,
+    Types, WKVar,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
