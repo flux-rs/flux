@@ -230,7 +230,7 @@ impl LeanFmt for LeanField {
         if let Some(def_id) = cx.adt_map.get_index(adt_id.as_usize())
             && let Ok(adt_sort_def) = cx.genv.adt_sort_def_of(def_id)
         {
-            write!(f, "{}", adt_sort_def.struct_variant().field_names()[self.1 as usize])
+            write!(f, "{}", sanitize_name(adt_sort_def.struct_variant().field_names()[self.1 as usize].as_str()))
         } else {
             write!(f, "fld{}", as_subscript(self.1 as usize))
         }
@@ -743,12 +743,13 @@ fn is_reserved(name: &str) -> bool {
 
 fn sanitize_name(name: &str) -> String {
     if is_reserved(name) {
-        format!("{name}_s")
+        format!("{name}_")
     } else {
-        IMPL_RE
-            .replace_all(name, "impl_$1_")
+        let res = IMPL_RE
+            .replace_all(name, "impl_${1}")
             .replace("-", "_")
-            .replace("$", "_")
+            .replace("$", "_");
+        res
     }
 }
 
@@ -758,7 +759,7 @@ pub fn def_id_to_pascal_case(def_id: &DefId, tcx: &rustc_middle::ty::TyCtxt) -> 
         .to_filename_friendly_no_crate()
         .replace("-", "_");
     let pascal_case = snake_case_to_pascal_case(&snake);
-    IMPL_RE.replace_all(&pascal_case, "Impl__$1__").to_string()
+    IMPL_RE.replace_all(&pascal_case, "Impl__${1}__").to_string()
 }
 
 pub fn snake_case_to_pascal_case(snake: &str) -> String {
