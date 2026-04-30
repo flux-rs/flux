@@ -366,6 +366,9 @@ impl<T: Types> fmt::Display for Expr<T> {
                     body
                 )
             }
+            Expr::WKVar(WKVar { wkvid, args }) => {
+                write!(f, "({} {})", wkvid.display(), args.iter().format(" "))
+            }
         }
     }
 }

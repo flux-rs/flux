@@ -1,5 +1,6 @@
 use std::{
     alloc,
+    cell::RefCell,
     path::{Path, PathBuf},
     ptr,
     rc::Rc,
@@ -12,7 +13,7 @@ use flux_config::{self as config, IncludePattern};
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
-use rustc_data_structures::unord::UnordSet;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -43,6 +44,16 @@ pub struct GlobalEnv<'genv, 'tcx> {
     inner: &'genv GlobalEnvInner<'genv, 'tcx>,
 }
 
+pub struct WeakKvarInfo {
+    /// Solutions (if provided as ground truth annotations). Each soution is
+    /// part of a conjunction that constitutes the full ground truth.
+    pub solutions: Vec<rty::Binder<rty::Expr>>,
+    /// The sorts of the weak kvar in the order in which they appear in the
+    /// arguments.
+    pub sorts: Vec<rty::Sort>,
+}
+pub type WeakKvarMap = UnordMap<u32, WeakKvarInfo>;
+
 struct GlobalEnvInner<'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
@@ -50,6 +61,7 @@ struct GlobalEnvInner<'genv, 'tcx> {
     cstore: Box<CrateStoreDyn>,
     queries: Queries<'genv, 'tcx>,
     tempdir: TempDir,
+    weak_kvars: RefCell<UnordMap<DefId, Rc<WeakKvarMap>>>,
 }
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -65,7 +77,15 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         // files in it.
         let tempdir = TempDir::new_in(lean_parent_dir(tcx)).unwrap();
         let queries = Queries::new(providers);
-        let inner = GlobalEnvInner { tcx, sess, cstore, arena, queries, tempdir };
+        let inner = GlobalEnvInner {
+            tcx,
+            sess,
+            cstore,
+            arena,
+            queries,
+            tempdir,
+            weak_kvars: Default::default(),
+        };
         f(GlobalEnv { inner: &inner })
     }
 }
@@ -434,6 +454,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         def_id: impl IntoQueryParam<DefId>,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
         self.inner.queries.fn_sig(self, def_id.into_query_param())
+    }
+
+    pub fn feed_weak_kvars(self, def_id: DefId, wk: WeakKvarMap) {
+        self.inner
+            .weak_kvars
+            .borrow_mut()
+            .insert(def_id, Rc::new(wk));
+    }
+
+    pub fn weak_kvars_for(self, def_id: DefId) -> Option<Rc<WeakKvarMap>> {
+        self.inner.weak_kvars.borrow().get(&def_id).cloned()
     }
 
     pub fn variants_of(

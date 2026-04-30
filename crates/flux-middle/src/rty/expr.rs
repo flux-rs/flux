@@ -34,10 +34,10 @@ use crate::{
     pretty::*,
     queries::QueryResult,
     rty::{
-        BoundVariableKind, SortArg, SubsetTyCtor,
+        BoundVariableKind, SortArg, SortCtor, SubsetTyCtor,
         fold::{
-            TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable as _,
-            TypeVisitor,
+            FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable,
+            TypeVisitable, TypeVisitor,
         },
     },
 };
@@ -326,6 +326,10 @@ impl Expr {
 
     pub fn kvar(kvar: KVar) -> Expr {
         ExprKind::KVar(kvar).intern()
+    }
+
+    pub fn wkvar(wkvar: WKVar) -> Expr {
+        ExprKind::WKVar(wkvar).intern()
     }
 
     pub fn alias(alias: AliasReft, args: List<Expr>) -> Expr {
@@ -778,6 +782,7 @@ pub enum ExprKind {
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
+    WKVar(WKVar),
     Alias(AliasReft, List<Expr>),
     Let(Expr, Binder<Expr>),
     /// Function application. The syntax allows arbitrary expressions in function position, but in
@@ -890,6 +895,87 @@ pub struct KVar {
     /// The list of *all* arguments with the self arguments at the beginning, i.e., the
     /// list of self arguments followed by the scope.
     pub args: List<Expr>,
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
+pub struct WKVid {
+    /// Weak KVars right now are always associated with a function definition.
+    /// Weak KVars can in theory be put wherever we can validly add a refinement
+    pub parent_fn: DefId,
+    /// There's no reason why this has to be KVid, and in principle it may be
+    /// better served as just a number or a new index unto itself.
+    pub id: KVid,
+}
+
+impl WKVid {
+    pub fn new(parent_fn: DefId, id: KVid) -> Self {
+        Self { parent_fn, id }
+    }
+}
+
+/// A weak kvar is like a kvar with the exception that it infers the weakest
+/// condition necessary instead of the strongest condition. Due to the way we
+/// generate these kvars (on fn_sigs, rather than during constraint generation),
+/// they also in theory are global.
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct WKVar {
+    pub wkvid: WKVid,
+    /// Analagous to KVar self arguments except we require that instantiations
+    /// use *at least one* of the self_args (unless there are none, in which
+    /// case there is no such requirement).
+    ///
+    /// This is mostly relevant for weak kvars corresponding to function
+    /// *outputs*. Consider the signature
+    ///
+    ///     foo: fn(x: usize) -> bool{b: $wk1(b, x)}
+    ///            requires $wk0(x)
+    ///
+    /// In this case self_args would be 1 (corresponding to the bool `b`).
+    /// Consider now the snippet
+    ///
+    ///     let b = foo(x);
+    ///     assert(x > 0);
+    ///
+    /// Suppose the assertion fails. Without the self_args requirement, we
+    /// could validly instantiate
+    ///
+    ///     $wk1(b, x) := x > 0
+    ///
+    /// But this is somewhat nonsensical because only in exceptional cases
+    /// does it make sense for `foo` to somehow "add" information to its
+    /// **argument** (`x`).
+    ///
+    /// By checking for the presence of **at least one** self arg, we
+    /// ensure that the self argument is "used"; fixpoint does a similar check.
+    ///
+    /// This is a syntactic underapproximation and doesn't preclude things like
+    ///
+    ///     $wk1(b, x) := (b => true) && (x > 0)
+    ///
+    /// But we could conceive of a more sophisticated check using the self_args.
+    pub self_args: usize,
+    /// All arguments with self arguments at the beginning.
+    pub args: List<Expr>,
+}
+
+impl TypeVisitable for WKVar {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.wkvid.visit_with(visitor)?;
+        // NOTE: the params shouldn't need to be visited I think
+        self.args.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for WKVar {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(WKVar {
+            wkvid: self.wkvid.try_fold_with(folder)?,
+            self_args: self.self_args,
+            args: self.args.try_fold_with(folder)?,
+        })
+    }
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
@@ -1018,6 +1104,16 @@ impl KVar {
         KVar { kvid, self_args, args: List::from_vec(args) }
     }
 
+    fn self_args(&self) -> &[Expr] {
+        &self.args[..self.self_args]
+    }
+
+    fn scope(&self) -> &[Expr] {
+        &self.args[self.self_args..]
+    }
+}
+
+impl WKVar {
     fn self_args(&self) -> &[Expr] {
         &self.args[..self.self_args]
     }
@@ -1538,6 +1634,9 @@ pub(crate) mod pretty {
                 ExprKind::KVar(kvar) => {
                     w!(cx, f, "{:?}", kvar)
                 }
+                ExprKind::WKVar(wkvar) => {
+                    w!(cx, f, "{:?}", wkvar)
+                }
                 ExprKind::Alias(alias, args) => {
                     w!(cx, f, "{:?}({:?})", alias, join!(", ", args))
                 }
@@ -1678,6 +1777,16 @@ pub(crate) mod pretty {
         }
     }
 
+    impl Pretty for WKVar {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            // Since we reuse KVId, we need to make the serialization custom.
+            // Also we will not serialize the parameters for now.
+            w!(cx, f, "$wk{}_{}", ^self.wkvid.id.index(), ^cx.tcx().def_path_str(self.wkvid.parent_fn))?;
+            w!(cx, f, "({:?})[{:?}]", join!(", ", self.self_args()), join!(", ", self.scope()))?;
+            Ok(())
+        }
+    }
+
     impl Pretty for Path {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             w!(cx, f, "{:?}", &self.loc)?;
@@ -1733,7 +1842,7 @@ pub(crate) mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar, Lambda, AliasReft);
+    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar, WKVar, Lambda, AliasReft);
 
     impl PrettyNested for Lambda {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
@@ -1807,6 +1916,7 @@ pub(crate) mod pretty {
                 | ExprKind::Hole(..)
                 | ExprKind::GlobalFunc(..)
                 | ExprKind::InternalFunc(..) => debug_nested(cx, &e),
+                ExprKind::WKVar(..) => debug_nested(cx, &e),
                 ExprKind::KVar(kvar) => {
                     let kv = format!("{:?}", kvar.kvid);
                     let mut strs = vec![kv];

@@ -309,6 +309,12 @@ impl BoundVar {
     }
 }
 
+#[derive_where(Hash, Debug, Clone)]
+pub struct WKVar<T: Types> {
+    pub wkvid: T::Var,
+    pub args: Vec<Expr<T>>,
+}
+
 #[derive_where(Hash, Clone, Debug)]
 pub enum Expr<T: Types> {
     Constant(Constant<T>),
@@ -327,6 +333,12 @@ pub enum Expr<T: Types> {
     ThyFunc(ThyFunc),
     IsCtor(T::Var, Box<Self>),
     Exists(Vec<(T::Var, Sort<T>)>, Box<Self>),
+    /// NOTE: WKVars are for internal use and we serialize them as UIFs using
+    /// the var argument. We also don't emit WKVars that are in head position
+    /// when translating to fixpoint.
+    ///
+    /// In an ideal world fixpoint would deal with weak kvars itself.
+    WKVar(WKVar<T>),
 }
 
 impl<T: Types> From<Constant<T>> for Expr<T> {
@@ -401,6 +413,9 @@ impl<T: Types> Expr<T> {
                 }
                 expr.var_sorts_to_int();
             }
+            Expr::WKVar(_) => {
+                unimplemented!()
+            }
         }
     }
 
@@ -460,8 +475,79 @@ impl<T: Types> Expr<T> {
                 }
                 vars.extend(inner);
             }
+            Expr::WKVar(WKVar { wkvid: _, args }) => {
+                for e in args {
+                    vars.extend(e.free_vars());
+                }
+            }
         };
         vars
+    }
+
+    pub fn substitute(&self, subst: &FxIndexMap<T::Var, Self>) -> Self {
+        match self {
+            Expr::Var(v) => {
+                if let Some(subst_val) = subst.get(v) {
+                    subst_val.clone()
+                } else {
+                    self.clone()
+                }
+            }
+            Expr::Constant(_) | Expr::ThyFunc(_) => self.clone(),
+            Expr::App(expr, sort_args, exprs, out_sort) => {
+                Expr::App(
+                    Box::new(expr.substitute(subst)),
+                    sort_args.clone(),
+                    exprs.iter().map(|e| e.substitute(subst)).collect_vec(),
+                    out_sort.clone(),
+                )
+            }
+            Expr::Neg(expr) => Expr::Neg(Box::new(expr.substitute(subst))),
+            Expr::BinaryOp(bin_op, args) => {
+                Expr::BinaryOp(
+                    *bin_op,
+                    Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
+                )
+            }
+            Expr::IfThenElse(args) => {
+                Expr::IfThenElse(Box::new([
+                    args[0].substitute(subst),
+                    args[1].substitute(subst),
+                    args[2].substitute(subst),
+                ]))
+            }
+            Expr::And(exprs) => Expr::And(exprs.iter().map(|e| e.substitute(subst)).collect_vec()),
+            Expr::Or(exprs) => Expr::Or(exprs.iter().map(|e| e.substitute(subst)).collect_vec()),
+            Expr::Not(expr) => Expr::Not(Box::new(expr.substitute(subst))),
+            Expr::Imp(args) => {
+                Expr::Imp(Box::new([args[0].substitute(subst), args[1].substitute(subst)]))
+            }
+            Expr::Iff(args) => {
+                Expr::Iff(Box::new([args[0].substitute(subst), args[1].substitute(subst)]))
+            }
+            Expr::Atom(bin_rel, args) => {
+                Expr::Atom(
+                    *bin_rel,
+                    Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
+                )
+            }
+            Expr::Let(var, args) => {
+                Expr::Let(
+                    var.clone(),
+                    Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
+                )
+            }
+            Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.substitute(subst))),
+            Expr::Exists(sorts, expr) => {
+                Expr::Exists(sorts.clone(), Box::new(expr.substitute(subst)))
+            }
+            Expr::WKVar(WKVar { wkvid, args }) => {
+                Expr::WKVar(WKVar {
+                    wkvid: wkvid.clone(),
+                    args: args.iter().map(|e| e.substitute(subst)).collect_vec(),
+                })
+            }
+        }
     }
 }
 
