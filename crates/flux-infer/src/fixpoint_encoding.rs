@@ -20,7 +20,7 @@ use flux_errors::Errors;
 use flux_macros::DebugAsJson;
 use flux_middle::{
     FixpointQueryKind,
-    def_id::{FluxDefId, MaybeExternId},
+    def_id::{FluxDefId, MaybeExternId, ResolvedDefId},
     def_id_to_string,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
@@ -2292,7 +2292,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self_args: usize,
         scx: &mut SortEncodingCtxt,
     ) -> Option<fixpoint::Var> {
-        if !wkvid.parent_fn.is_local() {
+        if !matches!(
+            self.genv.resolve_id(wkvid.parent_fn),
+            ResolvedDefId::Local(..) | ResolvedDefId::ExternSpec(..)
+        ) {
             return None;
         }
         let key = ConstKey::WKVar(wkvid.clone(), self_args);
