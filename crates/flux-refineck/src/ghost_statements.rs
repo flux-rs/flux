@@ -107,7 +107,7 @@ impl GhostStatements {
                 {
                     None
                 } else {
-                    Some(genv.fn_sig(def_id)?)
+                    Some(genv.fn_sig(def_id, true)?)
                 };
 
             fold_unfold::add_ghost_statements(&mut stmts, genv, body, fn_sig.as_ref())?;

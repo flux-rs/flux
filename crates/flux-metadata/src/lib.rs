@@ -467,9 +467,10 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     key,
                     genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
                 );
-                tables
-                    .fn_sig
-                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::fn_sig));
+                tables.fn_sig.insert(
+                    key,
+                    genv.run_query_if_reached(def_id, |s, did| GlobalEnv::fn_sig(s, did, true)),
+                );
                 tables.no_panic.insert(key, genv.no_panic(def_id));
             }
             DefKind::Ctor(_, CtorKind::Fn) => {
@@ -480,9 +481,10 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     key,
                     genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
                 );
-                tables
-                    .fn_sig
-                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::fn_sig));
+                tables.fn_sig.insert(
+                    key,
+                    genv.run_query_if_reached(def_id, |s, did| GlobalEnv::fn_sig(s, did, true)),
+                );
             }
             DefKind::Enum | DefKind::Struct => {
                 tables

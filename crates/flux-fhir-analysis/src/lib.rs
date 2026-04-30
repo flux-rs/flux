@@ -599,7 +599,11 @@ fn variants_of(
     Ok(variants)
 }
 
-fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
+fn fn_sig(
+    genv: GlobalEnv,
+    def_id: MaybeExternId,
+    add_wkvars: bool,
+) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     match genv.fhir_node(def_id.local_id())? {
         fhir::Node::Item(Item { kind: ItemKind::Fn(fhir_fn_sig, ..), .. })
         | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fhir_fn_sig), .. })
@@ -618,7 +622,7 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 MaybeExternId::Local(local_id) => local_id.into(),
             };
 
-            if genv.weak_kvars_for(def_id.resolved_id()).is_none() {
+            if add_wkvars && genv.weak_kvars_for(def_id.resolved_id()).is_none() {
                 fn_sig = fn_sig.add_weak_kvars(genv, id)?;
             }
 

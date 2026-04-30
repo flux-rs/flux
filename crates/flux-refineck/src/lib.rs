@@ -183,7 +183,7 @@ pub fn check_fn(
     metrics::incr_metric(Metric::FnChecked, 1);
     metrics::time_it(TimingKind::CheckBody(def_id), || -> Result<(), ErrorGuaranteed> {
         let poly_sig = genv
-            .fn_sig(def_id)
+            .fn_sig(def_id, true)
             .with_span(span)
             .map_err(|err| err.emit(genv, def_id))?
             .instantiate_identity();

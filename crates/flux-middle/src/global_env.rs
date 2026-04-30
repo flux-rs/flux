@@ -449,11 +449,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.type_of(self, def_id.into_query_param())
     }
 
+    /// `add_wkvars` should be true unless adding wkvars is wrong or breaks something.
     pub fn fn_sig(
         self,
         def_id: impl IntoQueryParam<DefId>,
+        add_wkvars: bool,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-        self.inner.queries.fn_sig(self, def_id.into_query_param())
+        self.inner
+            .queries
+            .fn_sig(self, def_id.into_query_param(), add_wkvars)
     }
 
     pub fn feed_weak_kvars(self, def_id: DefId, wk: WeakKvarMap) {

@@ -185,7 +185,7 @@ pub struct Providers {
         GlobalEnv,
         MaybeExternId,
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>,
-    pub fn_sig: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
+    pub fn_sig: fn(GlobalEnv, MaybeExternId, bool) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
     pub generics_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::Generics>,
     pub refinement_generics_of:
         fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>,
@@ -228,7 +228,7 @@ impl Default for Providers {
             adt_def: |_, _| empty_query!(),
             type_of: |_, _| empty_query!(),
             variants_of: |_, _| empty_query!(),
-            fn_sig: |_, _| empty_query!(),
+            fn_sig: |_, _, _| empty_query!(),
             generics_of: |_, _| empty_query!(),
             refinement_generics_of: |_, _| empty_query!(),
             predicates_of: |_, _| empty_query!(),
@@ -946,12 +946,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv,
         def_id: DefId,
+        add_wkvars: bool,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
         run_with_cache(&self.fn_sig, def_id, || {
             def_id.dispatch_query(
                 genv,
                 self,
-                |def_id| (self.providers.fn_sig)(genv, def_id),
+                |def_id| (self.providers.fn_sig)(genv, def_id, add_wkvars),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
                     let tcx = genv.tcx();
@@ -981,8 +982,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     }
 
                     // We only will add weak kvars if
-                    //   1. There are no weak kvars already
-                    if genv.weak_kvars_for(def_id).is_none() {
+                    //   1. add_wkvars is true, and
+                    //   2. There are no weak kvars already
+                    if add_wkvars && genv.weak_kvars_for(def_id).is_none() {
                         poly_sig = poly_sig.add_weak_kvars(genv, def_id)?;
                     }
                     Ok(rty::EarlyBinder(poly_sig))
