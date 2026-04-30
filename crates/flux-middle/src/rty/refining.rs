@@ -718,7 +718,7 @@ impl TypeFolder for WeakKVarInserter {
                     .collect();
                 BaseTy::Adt(adt_def.clone(), new_args)
             }
-            BaseTy::Alias(_, _) => {bty.clone()},
+            BaseTy::Alias(_, _) => bty.clone(),
             _ => bty.super_fold_with(self),
         }
     }
