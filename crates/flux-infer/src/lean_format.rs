@@ -365,7 +365,9 @@ impl LeanFmt for Sort {
                 )
             }
             Sort::Var(v) => write!(f, "t{v}"),
-            Sort::BvSize(size) => write!(f, "{size}"),
+            Sort::BvSize(size) => {
+                panic!("sort BvSize({size}) should only occur as an argument to BitVec")
+            }
         }
     }
 }
