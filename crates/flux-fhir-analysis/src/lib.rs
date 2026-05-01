@@ -604,7 +604,8 @@ fn fn_sig(
     def_id: MaybeExternId,
     add_wkvars: bool,
 ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    match genv.fhir_node(def_id.local_id())? {
+    let fhir_node = genv.fhir_node(def_id.local_id())?;
+    match &fhir_node {
         fhir::Node::Item(Item { kind: ItemKind::Fn(fhir_fn_sig, ..), .. })
         | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fhir_fn_sig), .. })
         | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fhir_fn_sig), .. })
@@ -622,7 +623,12 @@ fn fn_sig(
                 MaybeExternId::Local(local_id) => local_id.into(),
             };
 
-            if add_wkvars && genv.weak_kvars_for(def_id.resolved_id()).is_none() {
+            if add_wkvars
+                // NOTE(ck): We don't support putting wkvars on traits right now; it doesn't
+                // really make sense since they're used for subtyping.
+                && !matches!(fhir_node, fhir::Node::TraitItem(..) | fhir::Node::ForeignItem(..) | fhir::Node::ImplItem(..))
+                && genv.weak_kvars_for(def_id.resolved_id()).is_none()
+            {
                 fn_sig = fn_sig.add_weak_kvars(genv, id)?;
             }
 
