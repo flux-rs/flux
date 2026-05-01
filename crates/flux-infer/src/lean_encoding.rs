@@ -661,6 +661,14 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             )?;
             writeln!(
                 file,
+                "abbrev BitVec_zeroExtend {{n : Nat}} (extra : Nat) (x : BitVec n) : BitVec (n + extra) := BitVec.zeroExtend (n + extra) x"
+            )?;
+            writeln!(
+                file,
+                "abbrev BitVec_signExtend {{n : Nat}} (extra : Nat) (x : BitVec n) : BitVec (n + extra) := BitVec.signExtend (n + extra) x"
+            )?;
+            writeln!(
+                file,
                 "abbrev SmtMap (t0 t1 : Type) [Inhabited t0] [BEq t0] [Inhabited t1] : Type := t0 -> t1"
             )?;
             writeln!(
