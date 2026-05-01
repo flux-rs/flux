@@ -21,3 +21,8 @@ For an overview, take a look at the [Flux website](https://flux-rs.github.io).
 
 Documentation, including installation and usage guides can be found on the
 [website](https://flux-rs.github.io/flux).
+
+# Sponsors
+
+### [![Zulip logo](https://static.zulipchat.com/static/images/logo/zulip-icon-128x128.png)](https://zulip.com)
+**[Zulip](https://zulip.com)** — Zulip Cloud Standard generously provided free of charge.
