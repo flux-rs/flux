@@ -191,20 +191,20 @@ each output neuron `outputs[i]` as the *weighted sum* of its input
 neurons `inputs[i]`, and return `1` if that sum plus its `bias[i]` — a
 threshold — is above zero, and `0` otherwise.
 
-$$
+\\[
 \mathbf{\text{outputs}}\lbrack i\rbrack ≔ \begin{cases}
 1\text{ if  }\mathbf{\text{weights}}\lbrack i\rbrack \cdot \mathbf{\text{inputs}} + \mathbf{\text{bias}}\lbrack i\rbrack > 0 \\\\
 0\text{ otherwise }
 \end{cases}
-$$
+\\]
 
 The discrete “step” function above discontinuously leaps from `0` to `1`
 at the threshold, which gets in the way of computing gradients during
 backpropagation. So instead we *smooth* it out using a *sigmoid*
 (logistic) function
-$$
+\\[
 \sigma(x) ≔ \frac{1}{1 + \exp( - x)}
-$$
+\\]
 which transitions gradually from `0` to `1` as shown below:
 
 <figure>
@@ -217,9 +217,9 @@ which transitions gradually from `0` to `1` as shown below:
 Thus, when we put the weighted-sum and sigmoid together, we get the
 following formula for computing the i<sup>th</sup> output neuron:
 
-$$
+\\[
 \mathbf{\text{outputs}}\lbrack i\rbrack ≔ \sigma(\mathbf{\text{weights}}\lbrack i\rbrack \cdot \mathbf{\text{inputs}} + \mathbf{\text{bias}}\lbrack i\rbrack)
-$$
+\\]
 <span id="eq:neural-output"></span>
 
 **EXERCISE:** Below is the implementation of a function that computes
