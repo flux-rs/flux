@@ -460,6 +460,8 @@ fn mk_bit_xor_rules() -> RuleMatcher<2> {
     primop_rules! {
         fn(a: T, b: T) -> { T[E::prim_val(BitXor(Sort::Int), a, b)] | E::prim_rel(BitXor(Sort::Int), a, b) }
         if T.is_integral()
+
+        fn (a: bool, b: bool) -> bool[E::xor(a, b)]
     }
 }
 
