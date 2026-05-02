@@ -30,6 +30,8 @@
         <!-- Custom theme stylesheets -->
         <link rel="stylesheet" href="../flux_theme/flux.css">
 
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
 
         <!-- Provide site root and default themes to javascript -->
         <script>
@@ -318,18 +320,20 @@ Nielsen’s book <sup class="footnote-reference" id="fr-6-1"><a href="#footnote-
 each output neuron <code>outputs[i]</code> as the <em>weighted sum</em> of its input
 neurons <code>inputs[i]</code>, and return <code>1</code> if that sum plus its <code>bias[i]</code> — a
 threshold — is above zero, and <code>0</code> otherwise.</p>
-<pre><code class="language-math">\mathbf{\text{outputs}}\lbrack i\rbrack ≔ \begin{cases}
+<p>\[
+\mathbf{\text{outputs}}\lbrack i\rbrack ≔ \begin{cases}
 1\text{ if  }\mathbf{\text{weights}}\lbrack i\rbrack \cdot \mathbf{\text{inputs}} + \mathbf{\text{bias}}\lbrack i\rbrack &gt; 0 \\
 0\text{ otherwise }
 \end{cases}
-</code></pre>
+\]</p>
 <p>The discrete “step” function above discontinuously leaps from <code>0</code> to <code>1</code>
 at the threshold, which gets in the way of computing gradients during
 backpropagation. So instead we <em>smooth</em> it out using a <em>sigmoid</em>
-(logistic) function</p>
-<pre><code class="language-math">\sigma(x) ≔ \frac{1}{1 + \exp( - x)}
-</code></pre>
-<p>which transitions gradually from <code>0</code> to <code>1</code> as shown below:</p>
+(logistic) function
+\[
+\sigma(x) ≔ \frac{1}{1 + \exp( - x)}
+\]
+which transitions gradually from <code>0</code> to <code>1</code> as shown below:</p>
 <figure>
 <p><img src="../img/sigmoid.png" style="width:61.0%" /></p>
 <figcaption><p>Sigmoid vs. Step Function</p></figcaption>
@@ -337,9 +341,10 @@ backpropagation. So instead we <em>smooth</em> it out using a <em>sigmoid</em>
 <p><span id="fig:sigmoid-step"></span></p>
 <p>Thus, when we put the weighted-sum and sigmoid together, we get the
 following formula for computing the i<sup>th</sup> output neuron:</p>
-<pre><code class="language-math">\mathbf{\text{outputs}}\lbrack i\rbrack ≔ \sigma(\mathbf{\text{weights}}\lbrack i\rbrack \cdot \mathbf{\text{inputs}} + \mathbf{\text{bias}}\lbrack i\rbrack)
-</code></pre>
-<p><span id="eq:neural-output"></span></p>
+<p>\[
+\mathbf{\text{outputs}}\lbrack i\rbrack ≔ \sigma(\mathbf{\text{weights}}\lbrack i\rbrack \cdot \mathbf{\text{inputs}} + \mathbf{\text{bias}}\lbrack i\rbrack)
+\]
+<span id="eq:neural-output"></span></p>
 <p><strong>EXERCISE:</strong> Below is the implementation of a function that computes
 the <code>dot_product</code> of two vectors. Can you figure out why Flux is
 complaining and fix the code so it verifies?</p>
