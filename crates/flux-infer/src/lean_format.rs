@@ -200,8 +200,8 @@ impl<'a> fmt::Display for LeanThyFunc<'a> {
             ThyFunc::BvAshr => write!(f, "BitVec_sshiftRight"),
             ThyFunc::BvLshr => write!(f, "BitVec_ushiftRight"),
             ThyFunc::BvShl => write!(f, "BitVec_shiftLeft"),
-            ThyFunc::BvSignExtend(size) => write!(f, "BitVec.signExtend {}", size),
-            ThyFunc::BvZeroExtend(size) => write!(f, "BitVec.zeroExtend {}", size),
+            ThyFunc::BvSignExtend(size) => write!(f, "BitVec_signExtend {}", size),
+            ThyFunc::BvZeroExtend(size) => write!(f, "BitVec_zeroExtend {}", size),
             ThyFunc::BvUrem => write!(f, "BitVec.umod"),
             ThyFunc::BvSge => write!(f, "BitVec_sge"),
             ThyFunc::BvSgt => write!(f, "BitVec_sgt"),
@@ -365,7 +365,9 @@ impl LeanFmt for Sort {
                 )
             }
             Sort::Var(v) => write!(f, "t{v}"),
-            s => todo!("{:?}", s),
+            Sort::BvSize(size) => {
+                panic!("sort BvSize({size}) should only occur as an argument to BitVec")
+            }
         }
     }
 }
@@ -420,6 +422,9 @@ impl LeanFmt for Expr {
                 function.as_ref().lean_fmt(f, cx)?;
                 if let Some(sort_args) = sort_args {
                     for (i, s_arg) in sort_args.iter().enumerate() {
+                        if matches!(s_arg, Sort::BvSize(..)) {
+                            continue;
+                        }
                         write!(f, " (t{i} := {})", WithLeanCtxt { item: s_arg, cx })?;
                     }
                 }
