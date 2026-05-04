@@ -62,7 +62,7 @@ pub fn infer_no_panics(
     let tcx = genv.tcx();
 
     // We need to use `iter_local_def_id` instead of `hir_body_owners`
-    // so that we can visit trait items with no MIR, I think.
+    // so that we can visit trait items with no MIR.
     let roots = tcx
         .iter_local_def_id()
         .filter_map(|local_id| {
@@ -100,7 +100,8 @@ pub fn infer_no_panics(
     initial_specs
 }
 
-/// Builds the call graph starting from the root function. If we encounter a call we can't resolve, we add it to the resolution_failures map and keep going.
+/// Builds the call graph starting from the root function. If we encounter a call we can't resolve,
+/// we add it to the resolution_failures map and keep going.
 fn build_call_graph(genv: GlobalEnv, crate_num: CrateNum, roots: &[DefId]) -> GraphBuildResult {
     let tcx = genv.tcx();
     let mut resolution_failures = FxHashMap::default();
@@ -158,9 +159,8 @@ fn try_resolve<'tcx>(
 }
 
 /// Returns the callees of a function as (callees, failures). `callees` are the edges to
-/// install in the call graph from `def_id`; `failures` are (def_id, reason) pairs to seed
-/// as `CannotResolve` leaves. Continues past individual resolution failures rather than
-/// short-circuiting, so all reachable callees end up in the call graph.
+/// put in the call graph from `def_id`; `failures` are (def_id, reason) pairs to seed
+/// as `CannotResolve` leaves.
 fn get_callees<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     def_id: DefId,
@@ -184,7 +184,7 @@ fn get_callees<'tcx>(
             match ty.kind() {
                 rustc_middle::ty::TyKind::FnDef(callee_id, args) => {
                     let Some(_trait_id) = tcx.trait_of_assoc(*callee_id) else {
-                        // Free function — no resolution needed.
+                        // Free function! no resolution needed.
                         callees.push(*callee_id);
                         continue;
                     };
@@ -207,8 +207,6 @@ fn get_callees<'tcx>(
                                     ),
                                 ));
                             }
-                            // Always add the edge — the worklist will skip impl_id if it
-                            // already has a leaf entry from the failure path.
                             callees.push(impl_id);
                         }
                     }
@@ -284,9 +282,9 @@ fn explore(
             }
 
             if tcx.is_mir_available(callee) {
-                let (resolved, failures) = get_callees(genv, callee);
+                let (callees, failures) = get_callees(genv, callee);
                 register_failures(call_graph, resolution_failures, failures);
-                call_graph.insert(callee, resolved);
+                call_graph.insert(callee, callees);
                 worklist.push(callee);
             } else {
                 call_graph.entry(callee).or_default();
