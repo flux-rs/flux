@@ -133,11 +133,10 @@ fn build_call_graph(genv: GlobalEnv, crate_num: CrateNum, roots: &[DefId]) -> Gr
 /// Tries to resolve a trait method call to an impl method. If successful, returns the DefId of the impl method.
 fn try_resolve<'tcx>(
     tcx: TyCtxt<'tcx>,
-    caller_id: DefId,
     callee_id: DefId,
     args: rustc_middle::ty::GenericArgsRef<'tcx>,
 ) -> Result<DefId, CannotResolveReason> {
-    let param_env = tcx.param_env(caller_id);
+    let param_env = tcx.param_env(callee_id);
     let infcx = tcx
         .infer_ctxt()
         .with_next_trait_solver(true)
@@ -158,9 +157,10 @@ fn try_resolve<'tcx>(
     Ok(impl_id)
 }
 
-/// Returns the callees of a function as (resolved, failures), where failures are
-/// (callee_def_id, reason) pairs. Continues past individual resolution failures
-/// rather than short-circuiting, so all reachable callees end up in the call graph.
+/// Returns the callees of a function as (callees, failures). `callees` are the edges to
+/// install in the call graph from `def_id`; `failures` are (def_id, reason) pairs to seed
+/// as `CannotResolve` leaves. Continues past individual resolution failures rather than
+/// short-circuiting, so all reachable callees end up in the call graph.
 fn get_callees<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     def_id: DefId,
@@ -175,7 +175,7 @@ fn get_callees<'tcx>(
         tcx.optimized_mir(def_id)
     };
 
-    let mut resolved = Vec::new();
+    let mut callees = Vec::new();
     let mut failures = Vec::new();
     for bb in body.basic_blocks.iter() {
         if let TerminatorKind::Call { func, .. } = &bb.terminator().kind {
@@ -185,13 +185,17 @@ fn get_callees<'tcx>(
                 rustc_middle::ty::TyKind::FnDef(callee_id, args) => {
                     let Some(_trait_id) = tcx.trait_of_assoc(*callee_id) else {
                         // Free function — no resolution needed.
-                        resolved.push(*callee_id);
+                        callees.push(*callee_id);
                         continue;
                     };
 
-                    match try_resolve(tcx, def_id, *callee_id, args) {
-                        Err(reason) => {
-                            failures.push((*callee_id, reason));
+                    match try_resolve(tcx, *callee_id, args) {
+                        Err(_) => {
+                            failures.push((
+                                def_id,
+                                CannotResolveReason::UnresolvedTraitMethod(*callee_id),
+                            ));
+                            callees.push(*callee_id);
                         }
                         Ok(impl_id) => {
                             if !tcx.is_mir_available(impl_id) {
@@ -202,9 +206,10 @@ fn get_callees<'tcx>(
                                         tcx.def_kind(impl_id),
                                     ),
                                 ));
-                            } else {
-                                resolved.push(impl_id);
                             }
+                            // Always add the edge — the worklist will skip impl_id if it
+                            // already has a leaf entry from the failure path.
+                            callees.push(impl_id);
                         }
                     }
                 }
@@ -215,7 +220,7 @@ fn get_callees<'tcx>(
             };
         }
     }
-    (resolved, failures)
+    (callees, failures)
 }
 
 /// Explores the call graph starting from the root function, populating the call graph and resolution failures.
@@ -256,21 +261,9 @@ fn explore(
             continue;
         }
 
-        let (resolved, failures) = get_callees(genv, root);
-        // println!("callees of {}:", tcx.def_path_str(root));
-        // println!("resolved:");
-        // for callee in &resolved {
-        //     println!("  {}", tcx.def_path_str(*callee));
-        // }
-
-        // println!("failures:");
-        // for (failed_id, reason) in &failures {
-        //     println!("  {}: {:?}", tcx.def_path_str(*failed_id), reason);
-        // }
-        // println!("MIR of root:");
-        // println!("{:#?}", tcx.optimized_mir(root));
+        let (callees, failures) = get_callees(genv, root);
         register_failures(call_graph, resolution_failures, failures);
-        call_graph.insert(root, resolved);
+        call_graph.insert(root, callees);
     }
 
     // 2. Explore reachable callees (build closed call graph)
