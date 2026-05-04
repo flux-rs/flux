@@ -642,14 +642,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     }
 
     pub(crate) fn inferred_no_panic(&self, genv: GlobalEnv, def_id: DefId) -> PanicSpec {
-        // This just dispatches to the appropriate provider.
         let map = self.inferred_no_panic_crate(genv, def_id.krate);
-        let Some(spec) = map.get(&def_id) else {
-            bug!(
-                "inferred no_panic spec for {def_id:?} not found in the map of its crate, even though it should be there according to the provider"
-            )
-        };
-        *spec
+        map.get(&def_id)
+            .copied()
+            .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
     }
 
     pub(crate) fn static_info(
