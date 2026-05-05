@@ -643,6 +643,8 @@ pub enum Attr {
     NoPanic,
     /// A `#[assume_parametric(...)]` attribute
     AssumeParametric(Vec<Ident>),
+    /// A `#[no_panic_if]` attribute
+    NoPanicIf(Expr),
 }
 
 #[derive(Debug)]

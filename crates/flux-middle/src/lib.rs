@@ -57,8 +57,8 @@ use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
 };
-use rustc_hir::OwnerId;
-use rustc_macros::extension;
+use rustc_hir::{OwnerId, def::DefKind};
+use rustc_macros::{Decodable, Encodable, extension};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{
     Symbol,
@@ -67,6 +67,28 @@ use rustc_span::{
 };
 
 fluent_messages! { "../locales/en-US.ftl" }
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Encodable, Decodable)]
+pub enum PanicSpec {
+    WillNotPanic,
+    MightPanic(PanicReason),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum PanicReason {
+    Unknown,
+    Transitive,
+    CannotResolve(CannotResolveReason),
+    NotInCallGraph,
+    NoMIRAvailable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum CannotResolveReason {
+    NoMIRAvailable(DefId, DefKind),
+    UnresolvedTraitMethod(DefId),
+    NotFnDef(DefId),
+}
 
 pub struct TheoryFunc {
     pub name: Symbol,
