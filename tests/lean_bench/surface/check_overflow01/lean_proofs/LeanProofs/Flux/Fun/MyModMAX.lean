@@ -1,9 +1,0 @@
-import LeanProofs.Flux.Prelude
-open Classical
-
-namespace F
-
---rust const: my_mod::MAX
-def my_mod_MAX : Int := 4294967295
-
-end F

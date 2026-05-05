@@ -1,1 +1,0 @@
-# lean_proofs
