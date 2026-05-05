@@ -18,6 +18,7 @@ flux-infer = { path = "./crates/flux-infer", version = "0.1.0" }
 flux-macros = { path = "./crates/flux-macros", version = "0.1.0" }
 flux-metadata = { path = "./crates/flux-metadata", version = "0.1.0" }
 flux-middle = { path = "./crates/flux-middle", version = "0.1.0" }
+flux-opt = { path = "./crates/flux-opt", version = "0.1.0" }
 flux-refineck = { path = "./crates/flux-refineck", version = "0.1.0" }
 flux-rustc-bridge = { path = "./crates/flux-rustc-bridge", version = "0.1.0" }
 flux-syntax = { path = "./crates/flux-syntax", version = "0.1.0" }

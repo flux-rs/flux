@@ -679,8 +679,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let no_panic = if let Some(e) = fn_sig.no_panic_if {
             self.conv_expr(&mut env, &e)?
+        } else if self.genv().no_panic(fn_id) {
+            Expr::tt()
         } else {
-            if self.genv().no_panic(fn_id) { Expr::tt() } else { Expr::ff() }
+            Expr::ff()
         };
 
         let fn_sig =
