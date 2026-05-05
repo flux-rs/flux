@@ -982,9 +982,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     }
 
                     // We only will add weak kvars if
-                    //   1. add_wkvars is true, and
-                    //   2. There are no weak kvars already
-                    if add_wkvars && genv.weak_kvars_for(def_id).is_none() {
+                    //   1. add_wkvars is true
+                    //   2. The sig is locally defined (i.e. the user can change it)
+                    //   3. There are no weak kvars already
+                    if add_wkvars
+                        && genv.resolve_id(def_id).as_maybe_extern().is_some()
+                        && genv.weak_kvars_for(def_id).is_none()
+                    {
                         poly_sig = poly_sig.add_weak_kvars(genv, def_id)?;
                     }
                     Ok(rty::EarlyBinder(poly_sig))
