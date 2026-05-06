@@ -1,0 +1,256 @@
+Found 511 lean_proofs directories
+------------------------------------------------------------
+[1/511] Building: surface/ptr01/lean_proofs ... OK
+[2/511] Building: surface/ptr02/lean_proofs ... OK
+[3/511] Building: surface/range/lean_proofs ... OK
+[4/511] Building: surface/raw_ptr00/lean_proofs ... ERROR
+    error: LeanProofs/Flux/VC/WriteIx.lean:12:5: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/WriteIx.lean:13:6: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/ReadIx.lean:11:4: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/ReadIx.lean:12:5: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/WriteIxI32.lean:12:5: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/WriteIxI32.lean:13:6: Unknown identifier `c0`
+    error: Lean exited with code 1
+[5/511] Building: surface/raw_ptr01/lean_proofs ... ERROR
+    error: LeanProofs/Flux/VC/TestAddEx.lean:11:4: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:15:6: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:15:17: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:16:8: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:23:10: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:23:21: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:24:11: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/TestAddIx.lean:11:4: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddIx.lean:15:6: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddIx.lean:15:17: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddIx.lean:16:8: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddIx.lean:23:10: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddIx.lean:23:21: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddIx.lean:24:11: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:11:4: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:13:6: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:13:17: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:14:8: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:16:8: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:16:19: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:17:9: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/TestAddMutIx.lean:11:4: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutIx.lean:13:6: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutIx.lean:13:17: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutIx.lean:14:8: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutIx.lean:16:8: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutIx.lean:16:19: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutIx.lean:17:9: Unknown identifier `c0`
+    error: Lean exited with code 1
+[6/511] Building: surface/raw_ptr02/lean_proofs ... ERROR
+    error: LeanProofs/Flux/VC/Test.lean:11:4: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test.lean:13:6: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test.lean:13:17: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test.lean:14:8: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test.lean:16:8: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test.lean:16:19: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test.lean:17:9: Unknown identifier `c0`
+    error: Lean exited with code 1
+[7/511] Building: surface/raw_ptr_field_mut_ref/lean_proofs ... OK
+[8/511] Building: surface/raw_ptr_rvalue/lean_proofs ... OK
+[9/511] Building: surface/rc_spec/lean_proofs ... OK
+[10/511] Building: surface/read_loop/lean_proofs ... OK
+[11/511] Building: surface/read_ref/lean_proofs ... OK
+[12/511] Building: surface/real00/lean_proofs ... ERROR
+    error: LeanProofs/Flux/VC/Test01.lean:10:9: Unknown identifier `Real`
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/Test02Proof.lean:66:29: unsolved goals
+    error: Lean exited with code 1
+[13/511] Building: surface/rebase_trait_impl_generics00/lean_proofs ... OK
+[14/511] Building: surface/ref_cell00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/TestProof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[15/511] Building: surface/ref_param/lean_proofs ... OK
+[16/511] Building: surface/refined_fn_in_trait/lean_proofs ... OK
+[17/511] Building: surface/refined_fn_in_trait_01/lean_proofs ... OK
+[18/511] Building: surface/refined_fn_in_trait_02/lean_proofs ... OK
+[19/511] Building: surface/refined_type_var00/lean_proofs ... OK
+[20/511] Building: surface/refined_type_var01/lean_proofs ... OK
+[21/511] Building: surface/reifyFnPtr00/lean_proofs ... OK
+[22/511] Building: surface/remainder/lean_proofs ... OK
+[23/511] Building: surface/resolver00/lean_proofs ... OK
+[24/511] Building: surface/resolver01/lean_proofs ... OK
+[25/511] Building: surface/resolver02/lean_proofs ... OK
+[26/511] Building: surface/resolver03/lean_proofs ... ERROR
+[27/511] Building: surface/resolver04/lean_proofs ... OK
+[28/511] Building: surface/restrictable_variants/lean_proofs ... OK
+[29/511] Building: surface/result00/lean_proofs ... OK
+[30/511] Building: surface/rmat/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Impl__NewProof.lean:66:35: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[31/511] Building: surface/rmat00/lean_proofs ... OK
+[32/511] Building: surface/rset00/lean_proofs ... OK
+[33/511] Building: surface/rset01/lean_proofs ... OK
+[34/511] Building: surface/rset04a/lean_proofs ... ERROR
+[35/511] Building: surface/rslice00/lean_proofs ... OK
+[36/511] Building: surface/rust_alias/lean_proofs ... OK
+[37/511] Building: surface/rvec00/lean_proofs ... OK
+[38/511] Building: surface/scope00/lean_proofs ... OK
+[39/511] Building: surface/scrape00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestIxProof.lean:66:29: unsolved goals
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/TestExProof.lean:66:29: unsolved goals
+    error: Lean exited with code 1
+[40/511] Building: surface/scrape01/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/RangeProof.lean:66:27: unsolved goals
+    error: Lean exited with code 1
+[41/511] Building: surface/self_ty_alias00/lean_proofs ... OK
+[42/511] Building: surface/self_ty_alias01/lean_proofs ... ERROR
+[43/511] Building: surface/self_ty_alias02/lean_proofs ... OK
+[44/511] Building: surface/set_lits00/lean_proofs ... OK
+[45/511] Building: surface/should_fail/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Test00Proof.lean:66:29: unsolved goals
+    error: Lean exited with code 1
+[46/511] Building: surface/simplex/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Unb1Proof.lean:66:25: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/Unb1Proof.lean:68:6: (kernel) application type mismatch
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/DepartVarProof.lean:66:35: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[47/511] Building: surface/slice00/lean_proofs ... OK
+[48/511] Building: surface/slice01/lean_proofs ... OK
+[49/511] Building: surface/slice_len_hack/lean_proofs ... OK
+[50/511] Building: surface/slice_loop/lean_proofs ... ERROR
+    error: LeanProofs/Flux/Struct/OpsRangeRange.lean:10:4: Missing name after `end`: Expected the current scope name `F`
+    error: LeanProofs/Flux/Struct/OpsRangeRange.lean:10:8: unexpected token ':'; expected command
+    error: Lean exited with code 1
+[51/511] Building: surface/sort_inference00/lean_proofs ... OK
+[52/511] Building: surface/static_spec00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestHogProof.lean:66:31: unsolved goals
+    error: Lean exited with code 1
+[53/511] Building: surface/static_spec01/lean_proofs ... OK
+[54/511] Building: surface/str01/lean_proofs ... OK
+[55/511] Building: surface/str02/lean_proofs ... OK
+[56/511] Building: surface/strg_to_mut/lean_proofs ... OK
+[57/511] Building: surface/string_spec/lean_proofs ... OK
+[58/511] Building: surface/struct_invariant/lean_proofs ... OK
+[59/511] Building: surface/synthetic-param/lean_proofs ... OK
+[60/511] Building: surface/test00/lean_proofs ... OK
+[61/511] Building: surface/test01/lean_proofs ... ERROR
+    Timeout expired (5 minutes)
+[62/511] Building: surface/test01_where/lean_proofs ... OK
+[63/511] Building: surface/test02/lean_proofs ... OK
+[64/511] Building: surface/test03/lean_proofs ... OK
+[65/511] Building: surface/test04/lean_proofs ... OK
+[66/511] Building: surface/test05/lean_proofs ... OK
+[67/511] Building: surface/test06/lean_proofs ... OK
+[68/511] Building: surface/to_int00/lean_proofs ... OK
+[69/511] Building: surface/to_int01/lean_proofs ... OK
+[70/511] Building: surface/too_many_linked_lists/lean_proofs ... OK
+[71/511] Building: surface/trait-subtyping01/lean_proofs ... OK
+[72/511] Building: surface/trait-subtyping02/lean_proofs ... OK
+[73/511] Building: surface/trait-subtyping03/lean_proofs ... OK
+[74/511] Building: surface/trait-subtyping04/lean_proofs ... OK
+[75/511] Building: surface/trait-subtyping06/lean_proofs ... OK
+[76/511] Building: surface/trait-subtyping07/lean_proofs ... OK
+[77/511] Building: surface/trait-subtyping08/lean_proofs ... OK
+[78/511] Building: surface/trait00/lean_proofs ... OK
+[79/511] Building: surface/trait01/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestOkProof.lean:66:29: unsolved goals
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/Test1Proof.lean:66:27: unsolved goals
+    error: Lean exited with code 1
+[80/511] Building: surface/trait01a/lean_proofs ... OK
+[81/511] Building: surface/trait02/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/BazProof.lean:66:23: unsolved goals
+    error: Lean exited with code 1
+[82/511] Building: surface/trait02_next/lean_proofs ... OK
+[83/511] Building: surface/trait03/lean_proofs ... OK
+[84/511] Building: surface/trait04/lean_proofs ... OK
+[85/511] Building: surface/trait05/lean_proofs ... OK
+[86/511] Building: surface/trait06/lean_proofs ... OK
+[87/511] Building: surface/trait07/lean_proofs ... OK
+[88/511] Building: surface/trait08/lean_proofs ... OK
+[89/511] Building: surface/trait09/lean_proofs ... OK
+[90/511] Building: surface/trait_alias00/lean_proofs ... OK
+[91/511] Building: surface/trusted_impl_trans00/lean_proofs ... OK
+[92/511] Building: surface/try_from00/lean_proofs ... OK
+[93/511] Building: surface/try_into00/lean_proofs ... OK
+[94/511] Building: surface/tuple00/lean_proofs ... OK
+[95/511] Building: surface/tuple_sorts00/lean_proofs ... OK
+[96/511] Building: surface/type-outlives/lean_proofs ... ERROR
+[97/511] Building: surface/type_holes00/lean_proofs ... OK
+[98/511] Building: surface/type_holes01/lean_proofs ... OK
+[99/511] Building: surface/type_holes02/lean_proofs ... OK
+[100/511] Building: surface/uif00/lean_proofs ... OK
+[101/511] Building: surface/uif01/lean_proofs ... OK
+[102/511] Building: surface/uif02/lean_proofs ... OK
+[103/511] Building: surface/unblock_mut_mut_ref/lean_proofs ... OK
+[104/511] Building: surface/unop_overflow/lean_proofs ... ERROR
+    error: no such file or directory (error code: 4294967294)
+[105/511] Building: surface/unpack-in-subtyping/lean_proofs ... ERROR
+[106/511] Building: surface/unsize00/lean_proofs ... OK
+[107/511] Building: trait_object/assoc_type/lean_proofs ... OK
+[108/511] Building: trait_object/dyn00/lean_proofs ... OK
+[109/511] Building: trait_object/dyn02/lean_proofs ... ERROR
+[110/511] Building: trait_object/dyn03/lean_proofs ... ERROR
+[111/511] Building: trait_object/dyn04/lean_proofs ... OK
+[112/511] Building: tuple_encoding/lean_proofs ... OK
+[113/511] Building: unconstrained_int_lit/lean_proofs ... ERROR
+[114/511] Building: user_qualifiers/const00/lean_proofs ... OK
+[115/511] Building: user_qualifiers/well_formed/lean_proofs ... OK
+[116/511] Building: vec/vec00/lean_proofs ... OK
+[117/511] Building: vec/vec_get/lean_proofs ... OK
+[118/511] Building: vec/vec_macro/lean_proofs ... OK
+
+============================================================
+SUMMARY
+============================================================
+Total directories visited: 118
+Successful builds: 94
+Failed builds: 24
+
+Directories with errors:
+  - surface/raw_ptr00/lean_proofs
+  - surface/raw_ptr01/lean_proofs
+  - surface/raw_ptr02/lean_proofs
+  - surface/real00/lean_proofs
+  - surface/ref_cell00/lean_proofs
+  - surface/resolver03/lean_proofs
+  - surface/rmat/lean_proofs
+  - surface/rset04a/lean_proofs
+  - surface/scrape00/lean_proofs
+  - surface/scrape01/lean_proofs
+  - surface/self_ty_alias01/lean_proofs
+  - surface/should_fail/lean_proofs
+  - surface/simplex/lean_proofs
+  - surface/slice_loop/lean_proofs
+  - surface/static_spec00/lean_proofs
+  - surface/test01/lean_proofs
+  - surface/trait01/lean_proofs
+  - surface/trait02/lean_proofs
+  - surface/type-outlives/lean_proofs
+  - surface/unop_overflow/lean_proofs
+  - surface/unpack-in-subtyping/lean_proofs
+  - trait_object/dyn02/lean_proofs
+  - trait_object/dyn03/lean_proofs
+  - unconstrained_int_lit/lean_proofs

@@ -1,0 +1,567 @@
+Found 511 lean_proofs directories
+------------------------------------------------------------
+[1/511] Building: abstract_refinements/test00/lean_proofs ... OK
+[2/511] Building: abstract_refinements/test01/lean_proofs ... OK
+[3/511] Building: abstract_refinements/test02/lean_proofs ... OK
+[4/511] Building: abstract_refinements/test03/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/OrProof.lean:66:21: unsolved goals
+    error: Lean exited with code 1
+[5/511] Building: abstract_refinements/test04/lean_proofs ... OK
+[6/511] Building: array/array00/lean_proofs ... OK
+[7/511] Building: array/array01/lean_proofs ... OK
+[8/511] Building: array/array02/lean_proofs ... OK
+[9/511] Building: array/array03/lean_proofs ... OK
+[10/511] Building: array/array04/lean_proofs ... OK
+[11/511] Building: builtin_assoc_refts/align_of00/lean_proofs ... OK
+[12/511] Building: builtin_assoc_refts/size_of00/lean_proofs ... OK
+[13/511] Building: casts/float_to_int/lean_proofs ... OK
+[14/511] Building: casts/int_to_float/lean_proofs ... OK
+[15/511] Building: casts/int_to_int/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Test64Proof.lean:66:29: unsolved goals
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/Test32Proof.lean:66:29: unsolved goals
+    error: Lean exited with code 1
+[16/511] Building: casts/int_to_uint/lean_proofs ... OK
+[17/511] Building: casts/pointers/lean_proofs ... OK
+[18/511] Building: casts/unsize/lean_proofs ... OK
+[19/511] Building: const_generics/const_param_arg/lean_proofs ... ERROR
+[20/511] Building: const_generics/loop/lean_proofs ... OK
+[21/511] Building: const_generics/matrix/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Impl__GetProof.lean:66:35: unsolved goals
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/Impl__SetProof.lean:66:35: unsolved goals
+    error: Lean exited with code 1
+[22/511] Building: const_generics/struct_invariant/lean_proofs ... OK
+[23/511] Building: constructors/test00/lean_proofs ... OK
+[24/511] Building: constructors/test01/lean_proofs ... OK
+[25/511] Building: constructors/test02/lean_proofs ... OK
+[26/511] Building: constructors/test03/lean_proofs ... OK
+[27/511] Building: constructors/test04/lean_proofs ... OK
+[28/511] Building: constructors/test05/lean_proofs ... OK
+[29/511] Building: constructors/test06/lean_proofs ... OK
+[30/511] Building: constructors/test07/lean_proofs ... OK
+[31/511] Building: constructors/test08/lean_proofs ... OK
+[32/511] Building: constructors/test09/lean_proofs ... OK
+[33/511] Building: constructors/test10/lean_proofs ... OK
+[34/511] Building: constructors/test11/lean_proofs ... OK
+[35/511] Building: constructors/test12/lean_proofs ... OK
+[36/511] Building: constructors/test13/lean_proofs ... OK
+[37/511] Building: detached/detach00/lean_proofs ... OK
+[38/511] Building: detached/detach01/lean_proofs ... OK
+[39/511] Building: detached/detach_assoc00/lean_proofs ... OK
+[40/511] Building: detached/detach_enum00/lean_proofs ... OK
+[41/511] Building: detached/detach_enum01/lean_proofs ... OK
+[42/511] Building: detached/detach_enum02/lean_proofs ... OK
+[43/511] Building: detached/detach_impl00/lean_proofs ... OK
+[44/511] Building: detached/detach_impl01/lean_proofs ... OK
+[45/511] Building: detached/detach_impl02/lean_proofs ... OK
+[46/511] Building: detached/detach_impl03/lean_proofs ... OK
+[47/511] Building: detached/detach_impl04/lean_proofs ... OK
+[48/511] Building: detached/detach_impl05/lean_proofs ... OK
+[49/511] Building: detached/detach_impl05_macro/lean_proofs ... OK
+[50/511] Building: detached/detach_impl06/lean_proofs ... OK
+[51/511] Building: detached/detach_macro/lean_proofs ... OK
+[52/511] Building: detached/detach_static00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/BobTest2Proof.lean:66:33: unsolved goals
+    error: Lean exited with code 1
+[53/511] Building: detached/detach_struct00/lean_proofs ... OK
+[54/511] Building: detached/detach_struct01/lean_proofs ... OK
+[55/511] Building: detached/detach_struct02/lean_proofs ... OK
+[56/511] Building: detached/detach_trusted00/lean_proofs ... ERROR
+[57/511] Building: detached/opaque00/lean_proofs ... ERROR
+[58/511] Building: enums/invariant00/lean_proofs ... OK
+[59/511] Building: enums/invariant01/lean_proofs ... OK
+[60/511] Building: enums/invariant02/lean_proofs ... OK
+[61/511] Building: enums/issue-234/lean_proofs ... OK
+[62/511] Building: enums/issue-294/lean_proofs ... OK
+[63/511] Building: enums/list00/lean_proofs ... OK
+[64/511] Building: enums/list01/lean_proofs ... OK
+[65/511] Building: enums/macro-expansion/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Test00Proof.lean:66:29: unsolved goals
+    error: Lean exited with code 1
+[66/511] Building: enums/opt00/lean_proofs ... OK
+[67/511] Building: enums/opt01/lean_proofs ... OK
+[68/511] Building: enums/option00/lean_proofs ... OK
+[69/511] Building: enums/pos00/lean_proofs ... OK
+[70/511] Building: enums/pred00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Impl__IntoNnfProof.lean:66:43: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/Impl__SimplifyProof.lean:66:45: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[71/511] Building: enums/reflect00/lean_proofs ... OK
+[72/511] Building: enums/reflect01/lean_proofs ... OK
+[73/511] Building: enums/reflect_otherwise/lean_proofs ... OK
+[74/511] Building: extern_specs/auxiliary/extern_spec_impl01_aux/lean_proofs ... OK
+[75/511] Building: extern_specs/auxiliary/extern_spec_self_type_aux/lean_proofs ... OK
+[76/511] Building: extern_specs/extern_spec_impl00/lean_proofs ... OK
+[77/511] Building: extern_specs/extern_spec_impl01/lean_proofs ... ERROR
+[78/511] Building: extern_specs/extern_spec_impl03/lean_proofs ... OK
+[79/511] Building: extern_specs/extern_spec_macro/lean_proofs ... OK
+[80/511] Building: extern_specs/extern_spec_no_annots/lean_proofs ... ERROR
+[81/511] Building: extern_specs/extern_spec_self_type/lean_proofs ... ERROR
+[82/511] Building: extern_specs/extern_spec_struct00/lean_proofs ... OK
+[83/511] Building: extern_specs/extern_spec_struct01/lean_proofs ... ERROR
+[84/511] Building: extern_specs/extern_spec_struct03/lean_proofs ... OK
+[85/511] Building: extern_specs/extern_spec_trait00/lean_proofs ... OK
+[86/511] Building: extern_specs/flux_core_alloc00/lean_proofs ... OK
+[87/511] Building: extern_specs/flux_core_mem00/lean_proofs ... OK
+[88/511] Building: extern_specs/flux_core_num00/lean_proofs ... ERROR
+    error: no such file or directory (error code: 4294967294)
+[89/511] Building: extern_specs/flux_core_num01/lean_proofs ... ERROR
+    error: no such file or directory (error code: 4294967294)
+[90/511] Building: extern_specs/flux_core_option00/lean_proofs ... OK
+[91/511] Building: extern_specs/flux_core_result00/lean_proofs ... OK
+[92/511] Building: extern_specs/flux_core_slice00/lean_proofs ... OK
+[93/511] Building: extern_specs/super_trait/lean_proofs ... ERROR
+[94/511] Building: fn_ptrs/fnptr00/lean_proofs ... OK
+[95/511] Building: fn_ptrs/fnptr01/lean_proofs ... OK
+[96/511] Building: fn_ptrs/fnptr02/lean_proofs ... OK
+[97/511] Building: fold_unfold/test00/lean_proofs ... OK
+[98/511] Building: funky_cast/lean_proofs ... OK
+[99/511] Building: impl_trait/impl_trait00/lean_proofs ... OK
+[100/511] Building: impl_trait/impl_trait01/lean_proofs ... OK
+[101/511] Building: impl_trait/impl_trait03/lean_proofs ... OK
+[102/511] Building: impl_trait/impl_trait04/lean_proofs ... OK
+[103/511] Building: impl_trait/parent_generics/lean_proofs ... OK
+[104/511] Building: lifetimes/list_mut_ref/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (deterministic) timeout at `elaborator`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/TestProof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[105/511] Building: lifetimes/struct_generic_lifetime_mut/lean_proofs ... OK
+[106/511] Building: lifetimes/struct_generic_lifetime_shr/lean_proofs ... OK
+[107/511] Building: opaque_sorts/seq_00/lean_proofs ... OK
+[108/511] Building: parse-paren-ty/lean_proofs ... OK
+[109/511] Building: refined_assoc_type/refined_assoc_type00/lean_proofs ... OK
+[110/511] Building: refined_assoc_type/refined_assoc_type01/lean_proofs ... OK
+[111/511] Building: refined_assoc_type/refined_assoc_type02/lean_proofs ... OK
+[112/511] Building: refined_assoc_type/refined_assoc_type03/lean_proofs ... ERROR
+[113/511] Building: refined_assoc_type/refined_assoc_type04/lean_proofs ... ERROR
+[114/511] Building: structs/default-option/lean_proofs ... OK
+[115/511] Building: structs/dep-field-00/lean_proofs ... OK
+[116/511] Building: structs/dot00/lean_proofs ... OK
+[117/511] Building: structs/dot01/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:72:6: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:70:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[118/511] Building: structs/dot02/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:72:6: (deterministic) timeout at `elaborator`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:70:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[119/511] Building: structs/dot03/lean_proofs ... ERROR
+[120/511] Building: structs/enum-join/lean_proofs ... OK
+[121/511] Building: structs/enum-match-00/lean_proofs ... OK
+[122/511] Building: structs/enum-match-01/lean_proofs ... OK
+[123/511] Building: structs/enum-match-02/lean_proofs ... OK
+[124/511] Building: structs/enum-match-03/lean_proofs ... OK
+[125/511] Building: structs/enum-match-04/lean_proofs ... OK
+[126/511] Building: structs/enum-match-shr-ref-00/lean_proofs ... OK
+[127/511] Building: structs/enum-wo-refined_by/lean_proofs ... OK
+[128/511] Building: structs/fold-on-drop/lean_proofs ... OK
+[129/511] Building: structs/invariant00/lean_proofs ... ERROR
+[130/511] Building: structs/issue-156/lean_proofs ... OK
+[131/511] Building: structs/issue-158/lean_proofs ... OK
+[132/511] Building: structs/issue-578/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/TestProof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[133/511] Building: structs/no-refined-by-enum/lean_proofs ... OK
+[134/511] Building: structs/opaque-range/lean_proofs ... OK
+[135/511] Building: structs/opaque-struct00/lean_proofs ... OK
+[136/511] Building: structs/opaque-struct01/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/OpaqueStruct01Proof.lean:68:6: (deterministic) timeout at `elaborator`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/OpaqueStruct01Proof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[137/511] Building: structs/opaque-struct02/lean_proofs ... ERROR
+[138/511] Building: structs/simple-enum-constructor/lean_proofs ... OK
+[139/511] Building: structs/struct-def/lean_proofs ... ERROR
+[140/511] Building: structs/struct-fold-00/lean_proofs ... OK
+[141/511] Building: structs/struct-join/lean_proofs ... OK
+[142/511] Building: structs/struct-split-00/lean_proofs ... OK
+[143/511] Building: structs/struct01/lean_proofs ... OK
+[144/511] Building: structs/struct02/lean_proofs ... OK
+[145/511] Building: structs/struct03/lean_proofs ... OK
+[146/511] Building: structs/tuple00/lean_proofs ... OK
+[147/511] Building: structs/union00/lean_proofs ... OK
+[148/511] Building: surface/alias00/lean_proofs ... OK
+[149/511] Building: surface/alias03/lean_proofs ... OK
+[150/511] Building: surface/alias04/lean_proofs ... OK
+[151/511] Building: surface/alias05/lean_proofs ... OK
+[152/511] Building: surface/arg_syntax/lean_proofs ... OK
+[153/511] Building: surface/as00/lean_proofs ... OK
+[154/511] Building: surface/assert_terminator/lean_proofs ... OK
+[155/511] Building: surface/assoc_reft00/lean_proofs ... ERROR
+[156/511] Building: surface/assoc_reft01/lean_proofs ... OK
+[157/511] Building: surface/assoc_reft04/lean_proofs ... OK
+[158/511] Building: surface/assoc_reft05/lean_proofs ... OK
+[159/511] Building: surface/assoc_reft06/lean_proofs ... OK
+[160/511] Building: surface/assoc_reft07/lean_proofs ... OK
+[161/511] Building: surface/assoc_reft08/lean_proofs ... OK
+[162/511] Building: surface/assoc_reft09/lean_proofs ... OK
+[163/511] Building: surface/assoc_reft10/lean_proofs ... OK
+[164/511] Building: surface/assoc_reft11/lean_proofs ... OK
+[165/511] Building: surface/associated_type00/lean_proofs ... OK
+[166/511] Building: surface/associated_type01/lean_proofs ... OK
+[167/511] Building: surface/associativity/lean_proofs ... OK
+[168/511] Building: surface/assume_invariant00/lean_proofs ... OK
+[169/511] Building: surface/async00/lean_proofs ... OK
+[170/511] Building: surface/async01/lean_proofs ... OK
+[171/511] Building: surface/auto_strong00/lean_proofs ... OK
+[172/511] Building: surface/auto_strong01/lean_proofs ... OK
+[173/511] Building: surface/auto_strong_trait_00/lean_proofs ... OK
+[174/511] Building: surface/bcopy/lean_proofs ... OK
+[175/511] Building: surface/bin_rels/lean_proofs ... OK
+[176/511] Building: surface/binop/lean_proofs ... OK
+[177/511] Building: surface/binop_overflow/lean_proofs ... OK
+[178/511] Building: surface/bitvec01/lean_proofs ... OK
+[179/511] Building: surface/bitvec02/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestBvExtensionsProof.lean:66:49: unsolved goals
+    error: Lean exited with code 1
+[180/511] Building: surface/bitvec03/lean_proofs ... OK
+[181/511] Building: surface/bitvec04/lean_proofs ... ERROR
+[182/511] Building: surface/bitvec05/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TheoremPow2OctetProof.lean:66:49: unsolved goals
+    error: Lean exited with code 1
+[183/511] Building: surface/bitvec06/lean_proofs ... OK
+[184/511] Building: surface/bitvec07/lean_proofs ... OK
+[185/511] Building: surface/bitvec_const00/lean_proofs ... OK
+[186/511] Building: surface/bitvec_const01/lean_proofs ... OK
+[187/511] Building: surface/bitvec_const02/lean_proofs ... OK
+[188/511] Building: surface/borrow00/lean_proofs ... OK
+[189/511] Building: surface/bounded_quant00/lean_proofs ... OK
+[190/511] Building: surface/box00/lean_proofs ... OK
+[191/511] Building: surface/box01/lean_proofs ... OK
+[192/511] Building: surface/box02/lean_proofs ... OK
+[193/511] Building: surface/box03/lean_proofs ... OK
+[194/511] Building: surface/bsearch/lean_proofs ... OK
+[195/511] Building: surface/bsearch1/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/BinarySearchProof.lean:68:6: (deterministic) timeout at `«tactic execution»`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/BinarySearchProof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[196/511] Building: surface/bv_ord/lean_proofs ... OK
+[197/511] Building: surface/char00/lean_proofs ... OK
+[198/511] Building: surface/char01/lean_proofs ... OK
+[199/511] Building: surface/char02/lean_proofs ... OK
+[200/511] Building: surface/char03/lean_proofs ... OK
+[201/511] Building: surface/check_overflow00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/AddThreeProof.lean:66:33: unsolved goals
+    error: Lean exited with code 1
+[202/511] Building: surface/check_overflow01/lean_proofs ... OK
+[203/511] Building: surface/check_overflow02/lean_proofs ... OK
+[204/511] Building: surface/check_overflow03/lean_proofs ... OK
+[205/511] Building: surface/check_overflow05/lean_proofs ... OK
+[206/511] Building: surface/clone_spec/lean_proofs ... OK
+[207/511] Building: surface/closure00/lean_proofs ... ERROR
+[208/511] Building: surface/closure02/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Test1Proof.lean:66:27: unsolved goals
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/Test2Proof.lean:66:27: unsolved goals
+    error: Lean exited with code 1
+[209/511] Building: surface/closure03/lean_proofs ... OK
+[210/511] Building: surface/closure04/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Test002Proof.lean:66:31: unsolved goals
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/Test001Proof.lean:66:31: unsolved goals
+    error: Lean exited with code 1
+[211/511] Building: surface/closure05/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Test002Proof.lean:66:31: unsolved goals
+    error: Lean exited with code 1
+[212/511] Building: surface/closure06/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Test001Proof.lean:66:31: unsolved goals
+    error: Lean exited with code 1
+[213/511] Building: surface/closure07/lean_proofs ... OK
+[214/511] Building: surface/closure08/lean_proofs ... OK
+[215/511] Building: surface/closure09/lean_proofs ... OK
+[216/511] Building: surface/closure10/lean_proofs ... OK
+[217/511] Building: surface/closure11/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Impl__ForeachProof.lean:66:43: unsolved goals
+    error: Lean exited with code 1
+[218/511] Building: surface/closure12/lean_proofs ... ERROR
+    error: LeanProofs/Flux/Struct/OpsRangeRange.lean:10:4: Missing name after `end`: Expected the current scope name `F`
+    error: LeanProofs/Flux/Struct/OpsRangeRange.lean:10:8: unexpected token ':'; expected command
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/FillVecIndexProof.lean:66:41: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/FillVecMapProof.lean:66:37: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[219/511] Building: surface/closure13/lean_proofs ... OK
+[220/511] Building: surface/closure14/lean_proofs ... OK
+[221/511] Building: surface/closure15/lean_proofs ... OK
+[222/511] Building: surface/const00/lean_proofs ... OK
+[223/511] Building: surface/const01/lean_proofs ... OK
+[224/511] Building: surface/const02/lean_proofs ... OK
+[225/511] Building: surface/const05/lean_proofs ... OK
+[226/511] Building: surface/const06/lean_proofs ... OK
+[227/511] Building: surface/const07/lean_proofs ... OK
+[228/511] Building: surface/const08/lean_proofs ... OK
+[229/511] Building: surface/const09/lean_proofs ... OK
+[230/511] Building: surface/const10/lean_proofs ... OK
+[231/511] Building: surface/const11/lean_proofs ... ERROR
+[232/511] Building: surface/constr00/lean_proofs ... OK
+[233/511] Building: surface/constr01/lean_proofs ... OK
+[234/511] Building: surface/constr02/lean_proofs ... OK
+[235/511] Building: surface/constr03/lean_proofs ... OK
+[236/511] Building: surface/date/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/MkDateProof.lean:66:29: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[237/511] Building: surface/default00/lean_proofs ... OK
+[238/511] Building: surface/division/lean_proofs ... OK
+[239/511] Building: surface/ealias00/lean_proofs ... OK
+[240/511] Building: surface/ealias01/lean_proofs ... OK
+[241/511] Building: surface/ealias02/lean_proofs ... OK
+[242/511] Building: surface/empty_exists/lean_proofs ... OK
+[243/511] Building: surface/err-res/lean_proofs ... ERROR
+[244/511] Building: surface/ex2_min_index_loop/lean_proofs ... OK
+[245/511] Building: surface/exit-basic-block-with-ghost-stmts/lean_proofs ... OK
+[246/511] Building: surface/explicit_variant_val/lean_proofs ... OK
+[247/511] Building: surface/extern_function00/lean_proofs ... OK
+[248/511] Building: surface/extern_static00/lean_proofs ... ERROR
+[249/511] Building: surface/fft/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/LoopCProof.lean:66:27: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/LoopBProof.lean:66:27: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/FftTestProof.lean:68:6: (deterministic) timeout at `simp`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/FftTestProof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/FftTestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/FftTestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/FftTestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/FftTestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/FftTestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/FftTestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/FftTestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/FftTestProof.lean:68:6: (kernel) application type mismatch
+    error: LeanProofs/User/Proof/FftTestProof.lean:68:6: (kernel) application type mismatch
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/LoopAProof.lean:68:6: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/LoopAProof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[250/511] Building: surface/fib_loop/lean_proofs ... OK
+[251/511] Building: surface/filter_unit_params/lean_proofs ... OK
+[252/511] Building: surface/final_assoc_reft00/lean_proofs ... OK
+[253/511] Building: surface/final_assoc_reft01/lean_proofs ... OK
+[254/511] Building: surface/fixpoint_eq_precedence/lean_proofs ... OK
+[255/511] Building: surface/float00/lean_proofs ... OK
+[256/511] Building: surface/float01/lean_proofs ... OK
+[257/511] Building: surface/float02/lean_proofs ... OK
+[258/511] Building: surface/float03/lean_proofs ... OK
+[259/511] Building: surface/fndef00/lean_proofs ... OK
+[260/511] Building: surface/fndef01/lean_proofs ... OK
+[261/511] Building: surface/fndef02/lean_proofs ... OK
+[262/511] Building: surface/fnptr00/lean_proofs ... OK
+[263/511] Building: surface/fnptr01/lean_proofs ... OK
+[264/511] Building: surface/fold00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/MinIndexFoldProof.lean:66:41: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[265/511] Building: surface/for_range00/lean_proofs ... ERROR
+    error: LeanProofs/Flux/Struct/OpsRangeRange.lean:10:4: Missing name after `end`: Expected the current scope name `F`
+    error: LeanProofs/Flux/Struct/OpsRangeRange.lean:10:8: unexpected token ':'; expected command
+    error: Lean exited with code 1
+[266/511] Building: surface/forall01/lean_proofs ... OK
+[267/511] Building: surface/foreign_type00/lean_proofs ... OK
+[268/511] Building: surface/gcd/lean_proofs ... OK
+[269/511] Building: surface/general_exists00/lean_proofs ... OK
+[270/511] Building: surface/generalized_join/lean_proofs ... OK
+[271/511] Building: surface/ghostcell00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestProof.lean:68:6: (deterministic) timeout at `simp`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/TestProof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[272/511] Building: surface/heapsort/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/ShiftDownProof.lean:66:35: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[273/511] Building: surface/hide00/lean_proofs ... OK
+[274/511] Building: surface/higher_rank_trait00/lean_proofs ... OK
+[275/511] Building: surface/if-then-else/lean_proofs ... OK
+[276/511] Building: surface/ignore00/lean_proofs ... ERROR
+[277/511] Building: surface/impl00/lean_proofs ... OK
+[278/511] Building: surface/impl01/lean_proofs ... OK
+[279/511] Building: surface/impl02/lean_proofs ... OK
+[280/511] Building: surface/impl03/lean_proofs ... OK
+[281/511] Building: surface/index00/lean_proofs ... OK
+[282/511] Building: surface/int_bounds_invariants/lean_proofs ... OK
+[283/511] Building: surface/intrinsic_assume00/lean_proofs ... OK
+[284/511] Building: surface/invariant-subtyping/lean_proofs ... OK
+[285/511] Building: surface/invariant_macro00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestWithQualifierProof.lean:72:6: `grind` failed
+    error: LeanProofs/User/Proof/TestWithQualifierProof.lean:72:6: `grind` failed
+    error: LeanProofs/User/Proof/TestWithQualifierProof.lean:72:6: `grind` failed
+    error: LeanProofs/User/Proof/TestWithQualifierProof.lean:72:6: `grind` failed
+    error: LeanProofs/User/Proof/TestWithQualifierProof.lean:70:51: unsolved goals
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/TestProof.lean:72:6: `grind` failed
+    error: LeanProofs/User/Proof/TestProof.lean:72:6: `grind` failed
+    error: LeanProofs/User/Proof/TestProof.lean:72:6: `grind` failed
+    error: LeanProofs/User/Proof/TestProof.lean:72:6: `grind` failed
+    error: LeanProofs/User/Proof/TestProof.lean:70:25: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[286/511] Building: surface/invariant_with_const_generic/lean_proofs ... OK
+[287/511] Building: surface/issue-1025/lean_proofs ... OK
+[288/511] Building: surface/issue-1037/lean_proofs ... OK
+[289/511] Building: surface/issue-1109/lean_proofs ... ERROR
+[290/511] Building: surface/issue-1143/lean_proofs ... OK
+[291/511] Building: surface/issue-1148/lean_proofs ... OK
+[292/511] Building: surface/issue-1359/lean_proofs ... OK
+[293/511] Building: surface/issue-141/lean_proofs ... OK
+[294/511] Building: surface/issue-1427/lean_proofs ... OK
+[295/511] Building: surface/issue-1449/lean_proofs ... OK
+[296/511] Building: surface/issue-1449-simp/lean_proofs ... OK
+[297/511] Building: surface/issue-1463/lean_proofs ... OK
+[298/511] Building: surface/issue-1505/lean_proofs ... OK
+[299/511] Building: surface/issue-1564/lean_proofs ... OK
+[300/511] Building: surface/issue-185/lean_proofs ... ERROR
+[301/511] Building: surface/issue-220/lean_proofs ... OK
+[302/511] Building: surface/issue-231/lean_proofs ... OK
+[303/511] Building: surface/issue-258/lean_proofs ... ERROR
+    Timeout expired (5 minutes)
+[304/511] Building: surface/issue-271/lean_proofs ... OK
+[305/511] Building: surface/issue-283/lean_proofs ... OK
+[306/511] Building: surface/issue-299/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Test03Proof.lean:68:6: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/Test03Proof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[307/511] Building: surface/issue-332/lean_proofs ... OK
+[308/511] Building: surface/issue-334/lean_proofs ... OK
+[309/511] Building: surface/issue-431/lean_proofs ... ERROR
+    Timeout expired (5 minutes)
+[310/511] Building: surface/issue-529/lean_proofs ... OK
+[311/511] Building: surface/issue-555/lean_proofs ... OK
+[312/511] Building: surface/issue-569/lean_proofs ... OK
+[313/511] Building: surface/issue-654/lean_proofs ... OK
+[314/511] Building: surface/issue-658/lean_proofs ... OK
+[315/511] Building: surface/issue-662/lean_proofs ... OK
+[316/511] Building: surface/issue-672/lean_proofs ... OK
+[317/511] Building: surface/issue-687/lean_proofs ... OK
+[318/511] Building: surface/issue-698/lean_proofs ... ERROR
+[319/511] Building: surface/issue-703/lean_proofs ... OK
+[320/511] Building: surface/issue-706/lean_proofs ... OK
+[321/511] Building: surface/issue-711/lean_proofs ... OK
+[322/511] Building: surface/issue-725/lean_proofs ... OK
+[323/511] Building: surface/issue-73/lean_proofs ... OK
+[324/511] Building: surface/issue-742/lean_proofs ... ERROR
+[325/511] Building: surface/issue-743/lean_proofs ... OK
+[326/511] Building: surface/issue-790/lean_proofs ... OK
+[327/511] Building: surface/issue-792/lean_proofs ... OK
+[328/511] Building: surface/issue-808/lean_proofs ... OK
+[329/511] Building: surface/issue-809/lean_proofs ... OK
+[330/511] Building: surface/issue-829/lean_proofs ... OK
+[331/511] Building: surface/issue-829b/lean_proofs ... OK
+[332/511] Building: surface/issue-837/lean_proofs ... OK
+[333/511] Building: surface/issue-841/lean_proofs ... OK
+[334/511] Building: surface/issue-899a/lean_proofs ... OK
+[335/511] Building: surface/issue-899b/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Impl__EnqueueProof.lean:66:43: unsolved goals
+    error: Lean exited with code 1
+[336/511] Building: surface/issue-923/lean_proofs ... OK
+[337/511] Building: surface/issue-938/lean_proofs ... ERROR
+[338/511] Building: surface/issue-977/lean_proofs ... OK
+[339/511] Building: surface/issue-983/lean_proofs ... ERROR
+[340/511] Building: surface/iter00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestForProof.lean:66:31: unsolved goals
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/TestNextProof.lean:66:33: unsolved goals
+    error: Lean exited with code 1
+[341/511] Building: surface/iter01/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestLoopProof.lean:66:33: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/TestIterProof.lean:68:6: (deterministic) timeout at `elaborator`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/TestIterProof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[342/511] Building: surface/iter02/lean_proofs ... ERROR
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:16:19: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:17:96: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:17:172: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:20:83: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:20:150: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:21:85: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:21:152: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:25:84: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:25:151: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:27:86: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:27:153: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:31:27: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:32:138: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:32:212: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:32:283: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:32:352: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:33:39: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:33:108: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:35:134: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:35:201: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:35:321: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:35:388: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:36:93: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:36:160: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:36:280: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:36:347: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:38:39: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:38:108: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:40:92: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:40:159: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:40:279: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:40:346: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:42:94: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:42:161: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:42:281: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumerate1.lean:42:348: failed to synthesize instance of type class
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:12:15: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:13:93: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:13:168: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:14:17: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:129: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:203: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:274: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:343: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:16:27: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:16:96: failed to synthesize instance of type class
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:15:13: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:16:69: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:16:131: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:17:19: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:126: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:195: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:266: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:330: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:19:31: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:19:95: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:24:82: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:24:149: failed to synthesize instance of type class
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:15:16: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:16:72: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:16:137: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:17:19: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:129: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:201: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:272: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:339: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:19:31: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:19:98: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:24:82: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:24:149: failed to synthesize instance of type class
+    error: Lean exited with code 1
+[343/511] Building: surface/iter_slice00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestIter2Proof.lean:66:35: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/TestIterForLoopSliceProof.lean:66:57: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[344/511] Building: surface/iter_slice01/lean_proofs ... OK
+[345/511] Building: surface/iter_vec00/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestIterForLoopVecProof.lean:66:53: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/TestIterForLoopVec2Proof.lean:66:55: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[346/511] Building: surface/join00/lean_proofs ... OK
+[347/511] Building: surface/join01/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/FooProof.lean:68:6: (deterministic) timeout at `elaborator`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/FooProof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[348/511] Building: surface/join02/lean_proofs ... OK
+[349/511] Building: surface/join03/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/Test00Proof.lean:68:6: (deterministic) timeout at `elaborator`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/Test00Proof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+[350/511] Building: surface/join04/lean_proofs ... OK
+[351/511] Building: surface/kmeans/lean_proofs ... ERROR
+    Timeout expired (5 minutes)
+[352/511] Building: surface/kmp/lean_proofs ... 

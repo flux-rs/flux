@@ -1,0 +1,3 @@
+-- Flux Basic Imports [DO NOT MODIFY] --
+import LeanProofs.User.Proof.Impl__Foo1Proof
+import LeanProofs.User.Proof.OkProof
