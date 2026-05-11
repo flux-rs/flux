@@ -14,20 +14,6 @@ use crate::{
 pub(crate) fn fmt_constraint<T: Types>(
     cstr: &Constraint<T>,
     f: &mut fmt::Formatter<'_>,
-) -> fmt::Result {
-    fmt_constraint_impl(cstr, f, true)
-}
-
-pub(crate) fn fmt_constraint_compact<T: Types>(
-    cstr: &Constraint<T>,
-    f: &mut fmt::Formatter<'_>,
-) -> fmt::Result {
-    fmt_constraint_impl(cstr, f, false)
-}
-
-fn fmt_constraint_impl<T: Types>(
-    cstr: &Constraint<T>,
-    f: &mut fmt::Formatter<'_>,
     pretty: bool,
 ) -> fmt::Result {
     let mut cx = ConstraintFormatter::new(pretty);
@@ -45,7 +31,7 @@ fn fmt_constraint_impl<T: Types>(
 
 impl<T: Types> fmt::Display for Constraint<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt_constraint(self, f)
+        fmt_constraint(self, f, true)
     }
 }
 
@@ -80,7 +66,7 @@ impl<T: Types> fmt::Display for Task<T> {
         }
 
         writeln!(f)?;
-        fmt_constraint(&self.constraint, f)
+        fmt_constraint(&self.constraint, f, true)
     }
 }
 

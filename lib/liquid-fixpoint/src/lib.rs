@@ -322,34 +322,8 @@ impl<T: Types> Task<T> {
         hasher.finish()
     }
 
-    fn fmt_compact(&self) -> String {
-        struct CompactTask<'a, T: Types>(&'a Task<T>);
-
-        impl<T: Types> fmt::Display for CompactTask<'_, T> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                if self.0.scrape_quals {
-                    writeln!(f, "(fixpoint \"--scrape=both\")")?;
-                }
-                for data_decl in &self.0.data_decls {
-                    writeln!(f, "{data_decl}")?;
-                }
-                for qualif in &self.0.qualifiers {
-                    writeln!(f, "{qualif}")?;
-                }
-                for cinfo in &self.0.constants {
-                    writeln!(f, "{cinfo}")?;
-                }
-                for fun_decl in &self.0.define_funs {
-                    writeln!(f, "{fun_decl}")?;
-                }
-                for kvar in &self.0.kvars {
-                    writeln!(f, "{kvar}")?;
-                }
-                format::fmt_constraint_compact(&self.0.constraint, f)
-            }
-        }
-
-        CompactTask(self).to_string()
+    fn compact_display(&self) -> CompactTask<'_, T> {
+        CompactTask(self)
     }
 
     #[cfg(feature = "rust-fixpoint")]
@@ -387,7 +361,7 @@ impl<T: Types> Task<T> {
         {
             let mut w = BufWriter::new(stdin.unwrap());
             // Use compact formatting when communicating with fixpoint to reduce overhead
-            writeln!(w, "{}", self.fmt_compact())?;
+            writeln!(w, "{}", self.compact_display())?;
         }
         let out = child.wait_with_output()?;
 
@@ -402,6 +376,32 @@ impl<T: Types> Task<T> {
                 err.into()
             }
         })
+    }
+}
+
+struct CompactTask<'a, T: Types>(&'a Task<T>);
+
+impl<T: Types> fmt::Display for CompactTask<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0.scrape_quals {
+            writeln!(f, "(fixpoint \"--scrape=both\")")?;
+        }
+        for data_decl in &self.0.data_decls {
+            writeln!(f, "{data_decl}")?;
+        }
+        for qualif in &self.0.qualifiers {
+            writeln!(f, "{qualif}")?;
+        }
+        for cinfo in &self.0.constants {
+            writeln!(f, "{cinfo}")?;
+        }
+        for fun_decl in &self.0.define_funs {
+            writeln!(f, "{fun_decl}")?;
+        }
+        for kvar in &self.0.kvars {
+            writeln!(f, "{kvar}")?;
+        }
+        format::fmt_constraint(&self.0.constraint, f, false)
     }
 }
 
