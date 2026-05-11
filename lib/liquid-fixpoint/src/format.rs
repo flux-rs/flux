@@ -22,11 +22,7 @@ pub(crate) fn fmt_constraint<T: Types>(
     cx.newline(f)?;
     cx.fmt_constraint(f, cstr)?;
     cx.decr();
-    if pretty {
-        writeln!(f, ")")
-    } else {
-        write!(f, ")")
-    }
+    if pretty { writeln!(f, ")") } else { write!(f, ")") }
 }
 
 impl<T: Types> fmt::Display for Constraint<T> {
