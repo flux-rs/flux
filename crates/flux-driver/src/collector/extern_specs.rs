@@ -197,6 +197,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 
         if let Some(extern_impl_id) = extern_impl_id {
             self.check_generics(impl_id, extern_impl_id)?;
+            // For trait impls, check that the self type matches the external definition
+            if let hir::ItemKind::Impl(dummy_impl) = &dummy_item.kind {
+                self.check_extern_impl_self_ty(impl_id, dummy_impl, extern_impl_id)?;
+            }
             self.insert_extern_id(impl_id.def_id, extern_impl_id)?;
         }
 
@@ -475,6 +479,34 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
+    fn check_extern_impl_self_ty(
+        &mut self,
+        local_id: OwnerId,
+        local_impl: &hir::Impl,
+        extern_impl_id: DefId,
+    ) -> Result {
+        let tcx = self.tcx();
+
+        // Get the self type from the local extern spec
+        let local_self_ty = tcx.type_of(local_id).instantiate_identity();
+
+        // Get the self type from the external impl
+        let extern_self_ty = tcx.type_of(extern_impl_id).instantiate_identity();
+
+        // They should match structurally
+        if local_self_ty != extern_self_ty {
+            let span = local_impl.self_ty.span;
+            Err(self.emit(errors::MismatchedImplSelfTy {
+                span,
+                local_self_ty: local_self_ty.to_string(),
+                extern_self_ty: extern_self_ty.to_string(),
+                extern_impl_span: tcx.def_span(extern_impl_id),
+            }))
+        } else {
+            Ok(())
+        }
+    }
+
     #[track_caller]
     fn malformed(&self) -> ErrorGuaranteed {
         self.emit(errors::MalformedExternSpec::new(self.block.span))
@@ -681,5 +713,18 @@ mod errors {
         #[label(driver_extern_def_label)]
         pub extern_def: Span,
         pub def_descr: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_mismatched_impl_self_ty, code = E0999)]
+    #[note]
+    pub(super) struct MismatchedImplSelfTy {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        pub local_self_ty: String,
+        pub extern_self_ty: String,
+        #[label(driver_extern_impl_label)]
+        pub extern_impl_span: Span,
     }
 }
