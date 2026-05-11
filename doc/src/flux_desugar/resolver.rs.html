@@ -732,7 +732,7 @@
 <a href=#732 id=732 data-nosnippet>732</a>                .path_res_map
 <a href=#733 id=733 data-nosnippet>733</a>                .insert(path.node_id, partial_res);
 <a href=#734 id=734 data-nosnippet>734</a>        } <span class="kw">else </span>{
-<a href=#735 id=735 data-nosnippet>735</a>            <span class="self">self</span>.errors.emit(errors::UnresolvedPath::new(path));
+<a href=#735 id=735 data-nosnippet>735</a>            <span class="self">self</span>.errors.emit(errors::UnresolvedPath::new(path, ns));
 <a href=#736 id=736 data-nosnippet>736</a>        }
 <a href=#737 id=737 data-nosnippet>737</a>    }
 <a href=#738 id=738 data-nosnippet>738</a>
@@ -871,54 +871,57 @@
 <a href=#871 id=871 data-nosnippet>871</a>    #[diag(desugar_unresolved_path, code = E0999)]
 <a href=#872 id=872 data-nosnippet>872</a>    </span><span class="kw">pub struct </span>UnresolvedPath {
 <a href=#873 id=873 data-nosnippet>873</a>        <span class="attr">#[primary_span]
-<a href=#874 id=874 data-nosnippet>874</a>        </span><span class="kw">pub </span>span: Span,
-<a href=#875 id=875 data-nosnippet>875</a>        <span class="kw">pub </span>path: String,
-<a href=#876 id=876 data-nosnippet>876</a>    }
-<a href=#877 id=877 data-nosnippet>877</a>
-<a href=#878 id=878 data-nosnippet>878</a>    <span class="kw">impl </span>UnresolvedPath {
-<a href=#879 id=879 data-nosnippet>879</a>        <span class="kw">pub fn </span>new(path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="self">Self </span>{
-<a href=#880 id=880 data-nosnippet>880</a>            <span class="self">Self </span>{
-<a href=#881 id=881 data-nosnippet>881</a>                span: path.span,
-<a href=#882 id=882 data-nosnippet>882</a>                path: path.segments.iter().map(|segment| segment.ident).join(<span class="string">"::"</span>),
-<a href=#883 id=883 data-nosnippet>883</a>            }
-<a href=#884 id=884 data-nosnippet>884</a>        }
-<a href=#885 id=885 data-nosnippet>885</a>    }
-<a href=#886 id=886 data-nosnippet>886</a>
-<a href=#887 id=887 data-nosnippet>887</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#888 id=888 data-nosnippet>888</a>    #[diag(desugar_unknown_qualifier, code = E0999)]
-<a href=#889 id=889 data-nosnippet>889</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownQualifier {
-<a href=#890 id=890 data-nosnippet>890</a>        <span class="attr">#[primary_span]
-<a href=#891 id=891 data-nosnippet>891</a>        </span>span: Span,
-<a href=#892 id=892 data-nosnippet>892</a>    }
-<a href=#893 id=893 data-nosnippet>893</a>
-<a href=#894 id=894 data-nosnippet>894</a>    <span class="kw">impl </span>UnknownQualifier {
-<a href=#895 id=895 data-nosnippet>895</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
-<a href=#896 id=896 data-nosnippet>896</a>            <span class="self">Self </span>{ span }
-<a href=#897 id=897 data-nosnippet>897</a>        }
-<a href=#898 id=898 data-nosnippet>898</a>    }
-<a href=#899 id=899 data-nosnippet>899</a>
-<a href=#900 id=900 data-nosnippet>900</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#901 id=901 data-nosnippet>901</a>    #[diag(desugar_unknown_reveal_definition, code = E0999)]
-<a href=#902 id=902 data-nosnippet>902</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownRevealDefinition {
-<a href=#903 id=903 data-nosnippet>903</a>        <span class="attr">#[primary_span]
-<a href=#904 id=904 data-nosnippet>904</a>        </span>span: Span,
-<a href=#905 id=905 data-nosnippet>905</a>    }
-<a href=#906 id=906 data-nosnippet>906</a>
-<a href=#907 id=907 data-nosnippet>907</a>    <span class="kw">impl </span>UnknownRevealDefinition {
-<a href=#908 id=908 data-nosnippet>908</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
-<a href=#909 id=909 data-nosnippet>909</a>            <span class="self">Self </span>{ span }
-<a href=#910 id=910 data-nosnippet>910</a>        }
-<a href=#911 id=911 data-nosnippet>911</a>    }
-<a href=#912 id=912 data-nosnippet>912</a>
-<a href=#913 id=913 data-nosnippet>913</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#914 id=914 data-nosnippet>914</a>    #[diag(desugar_duplicate_definition, code = E0999)]
-<a href=#915 id=915 data-nosnippet>915</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DuplicateDefinition {
-<a href=#916 id=916 data-nosnippet>916</a>        <span class="attr">#[primary_span]
-<a href=#917 id=917 data-nosnippet>917</a>        #[label]
-<a href=#918 id=918 data-nosnippet>918</a>        </span><span class="kw">pub </span>span: Span,
-<a href=#919 id=919 data-nosnippet>919</a>        <span class="attr">#[label(desugar_previous_definition)]
-<a href=#920 id=920 data-nosnippet>920</a>        </span><span class="kw">pub </span>previous_definition: Span,
-<a href=#921 id=921 data-nosnippet>921</a>        <span class="kw">pub </span>name: Ident,
-<a href=#922 id=922 data-nosnippet>922</a>    }
-<a href=#923 id=923 data-nosnippet>923</a>}
+<a href=#874 id=874 data-nosnippet>874</a>        #[label]
+<a href=#875 id=875 data-nosnippet>875</a>        </span><span class="kw">pub </span>span: Span,
+<a href=#876 id=876 data-nosnippet>876</a>        <span class="kw">pub </span>path: String,
+<a href=#877 id=877 data-nosnippet>877</a>        <span class="kw">pub </span>ns: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+<a href=#878 id=878 data-nosnippet>878</a>    }
+<a href=#879 id=879 data-nosnippet>879</a>
+<a href=#880 id=880 data-nosnippet>880</a>    <span class="kw">impl </span>UnresolvedPath {
+<a href=#881 id=881 data-nosnippet>881</a>        <span class="kw">pub fn </span>new(path: <span class="kw-2">&amp;</span>surface::Path, ns: rustc_hir::def::Namespace) -&gt; <span class="self">Self </span>{
+<a href=#882 id=882 data-nosnippet>882</a>            <span class="self">Self </span>{
+<a href=#883 id=883 data-nosnippet>883</a>                span: path.span,
+<a href=#884 id=884 data-nosnippet>884</a>                path: path.segments.iter().map(|segment| segment.ident).join(<span class="string">"::"</span>),
+<a href=#885 id=885 data-nosnippet>885</a>                ns: ns.descr(),
+<a href=#886 id=886 data-nosnippet>886</a>            }
+<a href=#887 id=887 data-nosnippet>887</a>        }
+<a href=#888 id=888 data-nosnippet>888</a>    }
+<a href=#889 id=889 data-nosnippet>889</a>
+<a href=#890 id=890 data-nosnippet>890</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#891 id=891 data-nosnippet>891</a>    #[diag(desugar_unknown_qualifier, code = E0999)]
+<a href=#892 id=892 data-nosnippet>892</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownQualifier {
+<a href=#893 id=893 data-nosnippet>893</a>        <span class="attr">#[primary_span]
+<a href=#894 id=894 data-nosnippet>894</a>        </span>span: Span,
+<a href=#895 id=895 data-nosnippet>895</a>    }
+<a href=#896 id=896 data-nosnippet>896</a>
+<a href=#897 id=897 data-nosnippet>897</a>    <span class="kw">impl </span>UnknownQualifier {
+<a href=#898 id=898 data-nosnippet>898</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
+<a href=#899 id=899 data-nosnippet>899</a>            <span class="self">Self </span>{ span }
+<a href=#900 id=900 data-nosnippet>900</a>        }
+<a href=#901 id=901 data-nosnippet>901</a>    }
+<a href=#902 id=902 data-nosnippet>902</a>
+<a href=#903 id=903 data-nosnippet>903</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#904 id=904 data-nosnippet>904</a>    #[diag(desugar_unknown_reveal_definition, code = E0999)]
+<a href=#905 id=905 data-nosnippet>905</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownRevealDefinition {
+<a href=#906 id=906 data-nosnippet>906</a>        <span class="attr">#[primary_span]
+<a href=#907 id=907 data-nosnippet>907</a>        </span>span: Span,
+<a href=#908 id=908 data-nosnippet>908</a>    }
+<a href=#909 id=909 data-nosnippet>909</a>
+<a href=#910 id=910 data-nosnippet>910</a>    <span class="kw">impl </span>UnknownRevealDefinition {
+<a href=#911 id=911 data-nosnippet>911</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
+<a href=#912 id=912 data-nosnippet>912</a>            <span class="self">Self </span>{ span }
+<a href=#913 id=913 data-nosnippet>913</a>        }
+<a href=#914 id=914 data-nosnippet>914</a>    }
+<a href=#915 id=915 data-nosnippet>915</a>
+<a href=#916 id=916 data-nosnippet>916</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#917 id=917 data-nosnippet>917</a>    #[diag(desugar_duplicate_definition, code = E0999)]
+<a href=#918 id=918 data-nosnippet>918</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DuplicateDefinition {
+<a href=#919 id=919 data-nosnippet>919</a>        <span class="attr">#[primary_span]
+<a href=#920 id=920 data-nosnippet>920</a>        #[label]
+<a href=#921 id=921 data-nosnippet>921</a>        </span><span class="kw">pub </span>span: Span,
+<a href=#922 id=922 data-nosnippet>922</a>        <span class="attr">#[label(desugar_previous_definition)]
+<a href=#923 id=923 data-nosnippet>923</a>        </span><span class="kw">pub </span>previous_definition: Span,
+<a href=#924 id=924 data-nosnippet>924</a>        <span class="kw">pub </span>name: Ident,
+<a href=#925 id=925 data-nosnippet>925</a>    }
+<a href=#926 id=926 data-nosnippet>926</a>}
 </code></pre></div></section></main></body></html>
