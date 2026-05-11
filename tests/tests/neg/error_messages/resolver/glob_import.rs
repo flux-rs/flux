@@ -6,5 +6,5 @@ mod a {
 
 use a::*;
 
-#[flux::sig(fn(x: S))] //~ERROR cannot resolve
+#[flux::sig(fn(x: S))] //~ERROR cannot resolve type `S` in this scope
 fn foo(x: i32) {}
