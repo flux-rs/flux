@@ -15,13 +15,32 @@ pub(crate) fn fmt_constraint<T: Types>(
     cstr: &Constraint<T>,
     f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
-    let mut cx = ConstraintFormatter::default();
+    fmt_constraint_impl(cstr, f, true)
+}
+
+pub(crate) fn fmt_constraint_compact<T: Types>(
+    cstr: &Constraint<T>,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    fmt_constraint_impl(cstr, f, false)
+}
+
+fn fmt_constraint_impl<T: Types>(
+    cstr: &Constraint<T>,
+    f: &mut fmt::Formatter<'_>,
+    pretty: bool,
+) -> fmt::Result {
+    let mut cx = ConstraintFormatter::new(pretty);
     write!(f, "(constraint")?;
     cx.incr();
     cx.newline(f)?;
     cx.fmt_constraint(f, cstr)?;
     cx.decr();
-    writeln!(f, ")")
+    if pretty {
+        writeln!(f, ")")
+    } else {
+        write!(f, ")")
+    }
 }
 
 impl<T: Types> fmt::Display for Constraint<T> {
@@ -93,12 +112,15 @@ impl<T: Types> fmt::Debug for Task<T> {
     }
 }
 
-#[derive(Default)]
 struct ConstraintFormatter {
     level: u32,
+    pretty: bool,
 }
 
 impl ConstraintFormatter {
+    fn new(pretty: bool) -> Self {
+        Self { level: 0, pretty }
+    }
     fn fmt_constraint<T: Types>(
         &mut self,
         f: &mut fmt::Formatter<'_>,
@@ -177,13 +199,19 @@ impl ConstraintFormatter {
     }
 
     fn newline(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_char('\n')?;
-        self.padding(f)
+        if self.pretty {
+            f.write_char('\n')?;
+            self.padding(f)
+        } else {
+            f.write_char(' ')
+        }
     }
 
     fn padding(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for _ in 0..self.level {
-            f.write_str(" ")?;
+        if self.pretty {
+            for _ in 0..self.level {
+                f.write_str(" ")?;
+            }
         }
         Ok(())
     }

@@ -322,6 +322,38 @@ impl<T: Types> Task<T> {
         hasher.finish()
     }
 
+    /// Format the task compactly without pretty-printing (no newlines/indentation).
+    /// Used when communicating with the fixpoint binary to reduce overhead.
+    pub fn fmt_compact(&self) -> String {
+        struct CompactTask<'a, T: Types>(&'a Task<T>);
+
+        impl<T: Types> fmt::Display for CompactTask<'_, T> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                if self.0.scrape_quals {
+                    write!(f, "(fixpoint \"--scrape=both\")")?;
+                }
+                for data_decl in &self.0.data_decls {
+                    write!(f, "{data_decl}")?;
+                }
+                for qualif in &self.0.qualifiers {
+                    write!(f, "{qualif}")?;
+                }
+                for cinfo in &self.0.constants {
+                    write!(f, "{cinfo}")?;
+                }
+                for fun_decl in &self.0.define_funs {
+                    write!(f, "{fun_decl}")?;
+                }
+                for kvar in &self.0.kvars {
+                    write!(f, "{kvar}")?;
+                }
+                format::fmt_constraint_compact(&self.0.constraint, f)
+            }
+        }
+
+        CompactTask(self).to_string()
+    }
+
     #[cfg(feature = "rust-fixpoint")]
     pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
         let mut cstr_with_env = ConstraintWithEnv::new(
@@ -356,7 +388,8 @@ impl<T: Types> Task<T> {
         std::mem::swap(&mut stdin, &mut child.stdin);
         {
             let mut w = BufWriter::new(stdin.unwrap());
-            writeln!(w, "{self}")?;
+            // Use compact formatting when communicating with fixpoint to reduce overhead
+            writeln!(w, "{}", self.fmt_compact())?;
         }
         let out = child.wait_with_output()?;
 
