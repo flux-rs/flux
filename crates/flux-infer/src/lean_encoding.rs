@@ -633,47 +633,55 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             // TODO: Can't we write this from a single `write!` call?
             writeln!(
                 file,
-                "def BitVec_shiftLeft {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.shiftLeft x (s.toNat)"
+                "abbrev BitVec_shiftLeft {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.shiftLeft x (s.toNat)"
             )?;
             writeln!(
                 file,
-                "def BitVec_ushiftRight {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.ushiftRight x (s.toNat)"
+                "abbrev BitVec_ushiftRight {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.ushiftRight x (s.toNat)"
             )?;
             writeln!(
                 file,
-                "def BitVec_sshiftRight {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.sshiftRight x (s.toNat)"
+                "abbrev BitVec_sshiftRight {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.sshiftRight x (s.toNat)"
             )?;
             writeln!(
                 file,
-                "def BitVec_uge {{ n : Nat }} (x y : BitVec n) := (BitVec.ult x y).not"
+                "abbrev BitVec_uge {{ n : Nat }} (x y : BitVec n) := (BitVec.ult x y).not"
             )?;
             writeln!(
                 file,
-                "def BitVec_sge {{ n : Nat }} (x y : BitVec n) := (BitVec.slt x y).not"
+                "abbrev BitVec_sge {{ n : Nat }} (x y : BitVec n) := (BitVec.slt x y).not"
             )?;
             writeln!(
                 file,
-                "def BitVec_ugt {{ n : Nat }} (x y : BitVec n) := (BitVec.ule x y).not"
+                "abbrev BitVec_ugt {{ n : Nat }} (x y : BitVec n) := (BitVec.ule x y).not"
             )?;
             writeln!(
                 file,
-                "def BitVec_sgt {{ n : Nat }} (x y : BitVec n) := (BitVec.sle x y).not"
+                "abbrev BitVec_sgt {{ n : Nat }} (x y : BitVec n) := (BitVec.sle x y).not"
             )?;
             writeln!(
                 file,
-                "def SmtMap (t0 t1 : Type) [Inhabited t0] [BEq t0] [Inhabited t1] : Type := t0 -> t1"
+                "abbrev BitVec_zeroExtend {{n : Nat}} (extra : Nat) (x : BitVec n) : BitVec (n + extra) := BitVec.zeroExtend (n + extra) x"
             )?;
             writeln!(
                 file,
-                "def SmtMap_default {{ t0 t1: Type }} (v : t1) [Inhabited t0] [BEq t0] [Inhabited t1] : SmtMap t0 t1 := fun _ => v"
+                "abbrev BitVec_signExtend {{n : Nat}} (extra : Nat) (x : BitVec n) : BitVec (n + extra) := BitVec.signExtend (n + extra) x"
             )?;
             writeln!(
                 file,
-                "def SmtMap_store {{ t0 t1 : Type }} [Inhabited t0] [BEq t0] [Inhabited t1] (m : SmtMap t0 t1) (k : t0) (v : t1) : SmtMap t0 t1 :=\n  fun x => if x == k then v else m x"
+                "abbrev SmtMap (t0 t1 : Type) [Inhabited t0] [BEq t0] [Inhabited t1] : Type := t0 -> t1"
             )?;
             writeln!(
                 file,
-                "def SmtMap_select {{ t0 t1 : Type }} [Inhabited t0] [BEq t0] [Inhabited t1] (m : SmtMap t0 t1) (k : t0) := m k"
+                "abbrev SmtMap_default {{ t0 t1: Type }} (v : t1) [Inhabited t0] [BEq t0] [Inhabited t1] : SmtMap t0 t1 := fun _ => v"
+            )?;
+            writeln!(
+                file,
+                "abbrev SmtMap_store {{ t0 t1 : Type }} [Inhabited t0] [BEq t0] [Inhabited t1] (m : SmtMap t0 t1) (k : t0) (v : t1) : SmtMap t0 t1 :=\n  fun x => if x == k then v else m x"
+            )?;
+            writeln!(
+                file,
+                "abbrev SmtMap_select {{ t0 t1 : Type }} [Inhabited t0] [BEq t0] [Inhabited t1] (m : SmtMap t0 t1) (k : t0) := m k"
             )?;
         }
         Ok(())
@@ -756,6 +764,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                             theorem_name: &vc_name,
                             kvars: &self.kvar_decls,
                             constr: &self.constraint,
+                            should_fail: self
+                                .def_id
+                                .as_local()
+                                .map(|def_id| self.genv.should_fail(def_id))
+                                .unwrap_or(false)
                         },
                         cx: &self.lean_cx()
                     }
