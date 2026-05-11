@@ -25,44 +25,65 @@ pub(crate) fn fmt_constraint<T: Types>(
     if pretty { writeln!(f, ")") } else { write!(f, ")") }
 }
 
+
 impl<T: Types> fmt::Display for Constraint<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_constraint(self, f, true)
     }
 }
 
-impl<T: Types> fmt::Display for Task<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.scrape_quals {
-            writeln!(f, "(fixpoint \"--scrape=both\")")?;
-        }
-        for line in &self.comments {
+pub(crate) fn fmt_task<T: Types>(
+    task: &Task<T>,
+    f: &mut fmt::Formatter<'_>,
+    pretty: bool,
+) -> fmt::Result {
+    if task.scrape_quals {
+        writeln!(f, "(fixpoint \"--scrape=both\")")?;
+    }
+    if pretty {
+        for line in &task.comments {
             writeln!(f, ";; {line}")?;
         }
         writeln!(f)?;
+    }
 
-        for data_decl in &self.data_decls {
-            writeln!(f, "{data_decl}")?;
-        }
+    for data_decl in &task.data_decls {
+        writeln!(f, "{data_decl}")?;
+    }
 
-        for qualif in &self.qualifiers {
-            writeln!(f, "{qualif}")?;
-        }
+    for qualif in &task.qualifiers {
+        writeln!(f, "{qualif}")?;
+    }
 
-        for cinfo in &self.constants {
-            writeln!(f, "{cinfo}")?;
-        }
+    for cinfo in &task.constants {
+        writeln!(f, "{cinfo}")?;
+    }
 
-        for fun_decl in &self.define_funs {
-            writeln!(f, "{fun_decl}")?;
-        }
+    for fun_decl in &task.define_funs {
+        writeln!(f, "{fun_decl}")?;
+    }
 
-        for kvar in &self.kvars {
-            writeln!(f, "{kvar}")?;
-        }
+    for kvar in &task.kvars {
+        writeln!(f, "{kvar}")?;
+    }
 
+    if pretty {
         writeln!(f)?;
-        fmt_constraint(&self.constraint, f, true)
+    }
+    fmt_constraint(&task.constraint, f, pretty)
+}
+
+impl<T: Types> fmt::Display for Task<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_task(self, f, true)
+    }
+}
+
+pub(crate) struct CompactTask<'a, T: Types>(pub &'a Task<T>);
+
+impl<T: Types> fmt::Display for CompactTask<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_task(self.0, f, false)
     }
 }
 
