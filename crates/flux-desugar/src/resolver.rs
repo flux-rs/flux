@@ -879,16 +879,10 @@ mod errors {
 
     impl UnresolvedPath {
         pub fn new(path: &surface::Path, ns: rustc_hir::def::Namespace) -> Self {
-            use rustc_hir::def::Namespace;
-            let ns = match ns {
-                Namespace::TypeNS => "type",
-                Namespace::ValueNS => "value",
-                Namespace::MacroNS => "macro",
-            };
             Self {
                 span: path.span,
                 path: path.segments.iter().map(|segment| segment.ident).join("::"),
-                ns,
+                ns: ns.descr(),
             }
         }
     }
