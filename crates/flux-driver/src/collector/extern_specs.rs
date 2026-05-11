@@ -493,7 +493,11 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         // Get the self type from the external impl
         let extern_self_ty = tcx.type_of(extern_impl_id).instantiate_identity();
 
-        // They should match structurally
+        // Compare self types. Note: this uses raw Ty equality which works after check_generics
+        // has verified param names and indices match. For generic impls where params have
+        // different DefIds across crates, this comparison may produce false mismatches —
+        // but check_generics already rejects differing param structures, so the remaining
+        // cases (concrete type mismatches like Range<usize> vs Range<A>) are caught correctly.
         if local_self_ty != extern_self_ty {
             let span = local_impl.self_ty.span;
             Err(self.emit(errors::MismatchedImplSelfTy {
