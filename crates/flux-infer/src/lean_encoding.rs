@@ -358,7 +358,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 [[require]]
 name = "LeanFixpoint"
 git = "git@github.com:jam-khan/lean-fixpoint.git"
-rev = "3cad50a"
+rev = "main"
 "#,
         );
         fs::write(lakefile, contents)
