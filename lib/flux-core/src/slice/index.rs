@@ -41,6 +41,16 @@ impl<T> SliceIndex<[T]> for usize {}
 #[flux::assoc(fn output_pred(r: Self, len: int, out: int) -> bool { out == r.end - r.start })]
 impl<T> SliceIndex<[T]> for ops::Range<usize> {}
 
+#[extern_spec(core::slice)]
+#[flux::assoc(fn in_bounds(r: Self, len: int) -> bool { r.end <= len })]
+#[flux::assoc(fn output_pred(r: Self, len: int, out: int) -> bool { out == r.end })]
+impl<T> SliceIndex<[T]> for ops::RangeTo<usize> {}
+
+#[extern_spec(core::slice)]
+#[flux::assoc(fn in_bounds(r: Self, len: int) -> bool { r.start <= len })]
+#[flux::assoc(fn output_pred(r: Self, len: int, out: int) -> bool { out == len - r.start })]
+impl<T> SliceIndex<[T]> for ops::RangeFrom<usize> {}
+
 #[cfg(flux_sysroot_test)]
 mod tests {
     #![allow(dead_code)]

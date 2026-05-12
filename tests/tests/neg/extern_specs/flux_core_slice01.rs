@@ -1,0 +1,36 @@
+#![allow(unused)]
+extern crate flux_core;
+
+
+#[flux_rs::sig(fn(&[u8]{n: n >= 4}))]
+fn create_range(arr: &[u8]) {
+    let s = &arr[2..8]; //~ ERROR refinement type error
+}
+
+#[flux_rs::sig(fn(&[u8]{n: n >= 4}))]
+fn create_range_to(arr: &[u8]) {
+    let s = &arr[..8]; //~ ERROR refinement type error
+}
+
+#[flux_rs::sig(fn(&[u8]{n: n >= 4}))]
+fn create_range_from(arr: &[u8]) {
+    let s = &arr[8..]; //~ ERROR refinement type error
+}
+
+#[flux_rs::sig(fn(&[u8]{n: n >= 4}))]
+fn access_range(arr: &[u8]) {
+    let s = &arr[2..4];
+    let _ = s[2]; //~ ERROR assertion might fail
+}
+
+#[flux_rs::sig(fn(&[u8]{n: n >= 4}))]
+fn access_range_to(arr: &[u8]) {
+    let s = &arr[..3];
+    let _ = s[3]; //~ ERROR assertion might fail
+}
+
+#[flux_rs::sig(fn(&[u8]{n: n >= 4}))]
+fn access_range_from(arr: &[u8]) {
+    let s = &arr[2..];
+    let _ = s[2]; //~ ERROR assertion might fail
+}
