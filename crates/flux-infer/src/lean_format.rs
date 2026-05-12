@@ -8,18 +8,19 @@ use flux_common::{
 use flux_middle::{
     def_id::FluxDefId,
     global_env::GlobalEnv,
-    rty::{PrettyMap, PrettyVar},
+    rty::{self, BvSize, PrettyMap, PrettyVar},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 use rustc_data_structures::fx::FxIndexSet;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
     ClosedSolution, InterpretedConst, KVarSolutions,
     fixpoint::{
         self, AdtId, BinOp, BinRel, Constant, Constraint, DataDecl, DataField, DataSort, Expr,
-        FunDef, FunSort, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+        FunDef, FunSort, GlobalVar, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
     },
 };
 
@@ -29,6 +30,8 @@ pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub adt_map: &'a FxIndexSet<DefId>,
     pub opaque_adt_map: &'a [(FluxDefId, SortDecl)],
     pub kvar_solutions: &'a KVarSolutions,
+    /// Maps the per-run `GlobalVar` index of a primop constant to its stable Lean name.
+    pub primop_var_map: &'a FxHashMap<GlobalVar, String>,
 }
 
 pub struct WithLeanCtxt<'a, 'b, 'genv, 'tcx, T> {
@@ -275,6 +278,13 @@ impl LeanFmt for Var {
                     write!(f, "{}", def_id.name())
                 } else {
                     write!(f, "{}_{}", sanitize_name(&path), def_id.name())
+                }
+            }
+            Var::Const(gvar, None) => {
+                if let Some(stable) = cx.primop_var_map.get(gvar) {
+                    write!(f, "{stable}")
+                } else {
+                    write!(f, "{}", sanitize_name(&self.display().to_string()))
                 }
             }
             Var::Const(_, Some(did)) => {

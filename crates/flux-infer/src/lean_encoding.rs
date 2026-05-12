@@ -15,7 +15,7 @@ use flux_middle::{
     def_id::{FluxDefId, MaybeExternId},
     global_env::GlobalEnv,
     queries::QueryErr,
-    rty::{PrettyMap, local_deps},
+    rty::{BinOp, BvSize, PrettyMap, Sort, local_deps},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexSet;
@@ -27,6 +27,48 @@ use crate::{
     fixpoint_encoding::{ConstDeps, InterpretedConst, KVarSolutions, SortDeps, fixpoint},
     lean_format::{self, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case},
 };
+
+fn sort_name_fragment(sort: &Sort) -> String {
+    match sort {
+        Sort::Int => "Int".to_string(),
+        Sort::Bool => "Bool".to_string(),
+        Sort::Real => "Real".to_string(),
+        Sort::BitVec(BvSize::Fixed(n)) => format!("Bv{n}"),
+        Sort::BitVec(BvSize::Param(p)) => format!("BvParam{}", p.as_u32()),
+        Sort::BitVec(BvSize::Infer(_)) => "BvInfer".to_string(),
+        _ => {
+            format!("{sort:?}")
+                .chars()
+                .filter(|c| c.is_alphanumeric())
+                .collect()
+        }
+    }
+}
+
+fn prim_op_lean_name(op: &BinOp) -> String {
+    match op {
+        BinOp::Add(s) => format!("PrimOpAdd{}", sort_name_fragment(s)),
+        BinOp::Sub(s) => format!("PrimOpSub{}", sort_name_fragment(s)),
+        BinOp::Mul(s) => format!("PrimOpMul{}", sort_name_fragment(s)),
+        BinOp::Div(s) => format!("PrimOpDiv{}", sort_name_fragment(s)),
+        BinOp::Mod(s) => format!("PrimOpMod{}", sort_name_fragment(s)),
+        BinOp::BitAnd(s) => format!("PrimOpBitAnd{}", sort_name_fragment(s)),
+        BinOp::BitOr(s) => format!("PrimOpBitOr{}", sort_name_fragment(s)),
+        BinOp::BitXor(s) => format!("PrimOpBitXor{}", sort_name_fragment(s)),
+        BinOp::BitShl(s) => format!("PrimOpBitShl{}", sort_name_fragment(s)),
+        BinOp::BitShr(s) => format!("PrimOpBitShr{}", sort_name_fragment(s)),
+        BinOp::Gt(s) => format!("PrimOpGt{}", sort_name_fragment(s)),
+        BinOp::Ge(s) => format!("PrimOpGe{}", sort_name_fragment(s)),
+        BinOp::Lt(s) => format!("PrimOpLt{}", sort_name_fragment(s)),
+        BinOp::Le(s) => format!("PrimOpLe{}", sort_name_fragment(s)),
+        BinOp::Eq => "PrimOpEq".to_string(),
+        BinOp::Ne => "PrimOpNe".to_string(),
+        BinOp::And => "PrimOpAnd".to_string(),
+        BinOp::Or => "PrimOpOr".to_string(),
+        BinOp::Iff => "PrimOpIff".to_string(),
+        BinOp::Imp => "PrimOpImp".to_string(),
+    }
+}
 
 /// Helper macro to create Vec<String> from string-like values
 macro_rules! string_vec {
@@ -240,6 +282,8 @@ pub enum LeanFile {
     OpaqueFun(String),
     /// (machine) functions generated from flux definitions
     Fun(String),
+    /// (machine) opaque constant encoded as a Lean axiom
+    OpaqueConst(String),
     /// (machine) propositions holding the flux VCs
     Vc(DefId),
     /// (human) interactively written proofs of flux VCs
@@ -256,6 +300,7 @@ impl LeanFile {
             | LeanFile::Vc(_)
             | LeanFile::Checking(_)
             | LeanFile::Fun(_)
+            | LeanFile::OpaqueConst(_)
             | LeanFile::Struct(_) => FileKind::Flux,
             LeanFile::OpaqueSort(_) | LeanFile::OpaqueFun(_) | LeanFile::Proof(_) => FileKind::User,
         }
@@ -285,6 +330,9 @@ impl LeanFile {
             LeanFile::Fun(name) => {
                 // let name = self.var_name(name);
                 string_vec![project_name, "Flux", "Fun", name]
+            }
+            LeanFile::OpaqueConst(name) => {
+                string_vec![project_name, "Flux", "Const", name]
             }
             LeanFile::Vc(def_id) => {
                 let name = vc_name(genv, *def_id);
@@ -330,6 +378,7 @@ pub struct LeanEncoder<'genv, 'tcx> {
     sort_files: FxHashMap<fixpoint::DataSort, LeanFile>,
     fun_files: FxHashMap<FluxDefId, LeanFile>,
     const_files: FxHashMap<fixpoint::Var, LeanFile>,
+    primop_var_map: FxHashMap<fixpoint::GlobalVar, String>,
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
@@ -340,6 +389,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             adt_map: &self.sort_deps.adt_map,
             opaque_adt_map: &self.sort_deps.opaque_sorts,
             kvar_solutions: &self.kvar_solutions,
+            primop_var_map: &self.primop_var_map,
         }
     }
 
@@ -378,6 +428,17 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> io::Result<Self> {
+        let primop_var_map: FxHashMap<fixpoint::GlobalVar, String> = constants
+            .opaque
+            .iter()
+            .filter_map(|(decl, op)| {
+                if let fixpoint::Var::Const(gvar, None) = decl.name {
+                    Some((gvar, prim_op_lean_name(op)))
+                } else {
+                    None
+                }
+            })
+            .collect();
         let mut encoder = Self {
             genv,
             def_id,
@@ -391,6 +452,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             fun_files: FxHashMap::default(),
             sort_files: FxHashMap::default(),
             const_files: FxHashMap::default(),
+            primop_var_map,
         };
         encoder.fun_files = encoder.fun_files();
         encoder.sort_files = encoder.sort_files();
@@ -441,6 +503,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let mut res = FxHashMap::default();
         for (decl, _) in &self.constants.interpreted {
             res.insert(decl.name, LeanFile::Fun(self.var_name(&decl.name)));
+        }
+        for (decl, op) in &self.constants.opaque {
+            res.insert(decl.name, LeanFile::OpaqueConst(prim_op_lean_name(op)));
         }
         res
     }
@@ -626,6 +691,39 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
+    fn generate_opaque_const_file(
+        &self,
+        const_decl: &fixpoint::ConstDecl,
+        op: &BinOp,
+    ) -> io::Result<()> {
+        let stable_name = prim_op_lean_name(op);
+        let file = LeanFile::OpaqueConst(stable_name.clone());
+        let path = file.path(self.genv, false);
+        let mut file = create_or_truncate_file_with_dirs(path)?;
+        writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
+
+        let mut sort_deps = vec![];
+        const_decl.sort.deps(&mut sort_deps);
+        for dep in sort_deps {
+            writeln!(file, "{}", self.sort_file(&dep).import(self.genv))?;
+        }
+
+        writeln!(file, "{}", self.open_classical())?;
+
+        namespaced(&mut file, |f| {
+            if let Some(comment) = &const_decl.comment {
+                writeln!(f, "--{comment}")?;
+            }
+            writeln!(
+                f,
+                "axiom {stable_name} : {}",
+                WithLeanCtxt { item: &const_decl.sort, cx: &self.lean_cx() }
+            )
+        })?;
+        file.sync_all()?;
+        Ok(())
+    }
+
     fn generate_lib_if_absent(&self) -> io::Result<()> {
         let path = LeanFile::Fluxlib.path(self.genv, false);
         if let Some(mut file) = create_file_with_dirs(path)? {
@@ -702,6 +800,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         for const_decl in &self.constants.interpreted {
             self.generate_interpreted_const_file_if_not_present(const_decl)?;
         }
+        // 5. Generate Opaque Const Files (primop axioms)
+        for (const_decl, op) in &self.constants.opaque {
+            self.generate_opaque_const_file(const_decl, op)?;
+        }
         Ok(())
     }
 
@@ -729,6 +831,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 self.lean_file_for_interpreted_const(const_decl)
                     .import(self.genv)
             )?;
+        }
+
+        for (_, op) in &self.constants.opaque {
+            writeln!(file, "{}", LeanFile::OpaqueConst(prim_op_lean_name(op)).import(self.genv))?;
         }
 
         Ok(())

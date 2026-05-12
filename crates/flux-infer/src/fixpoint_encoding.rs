@@ -840,7 +840,7 @@ where
                 interpreted.push((decl, gvar_eq_map.remove(&gvar).unwrap()));
             }
         }
-        let const_deps = ConstDeps { interpreted };
+        let const_deps = ConstDeps { interpreted, opaque: vec![] };
         (const_deps, cstr)
     }
 
@@ -852,7 +852,17 @@ where
     ) -> QueryResult {
         // FIXME(nilehmann) opaque sorts should be part of the task.
         let opaque_sorts = self.scx.opaque_sorts_to_fixpoint(self.genv);
-        let (const_deps, constraint) = self.compute_const_deps(task.constants, task.constraint);
+        let primop_consts: Vec<(fixpoint::ConstDecl, rty::BinOp)> = self
+            .ecx
+            .const_env
+            .const_map
+            .iter()
+            .filter_map(|(key, decl)| {
+                if let ConstKey::PrimOp(op) = key { Some((decl.clone(), op.clone())) } else { None }
+            })
+            .collect();
+        let (mut const_deps, constraint) = self.compute_const_deps(task.constants, task.constraint);
+        const_deps.opaque = primop_consts;
         let sort_deps =
             SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
 
@@ -1497,6 +1507,9 @@ pub struct SortDeps {
 
 pub struct ConstDeps {
     pub interpreted: Vec<InterpretedConst>,
+    /// Primop constants: the decl (whose `name` is the per-run `GlobalVar`) paired with
+    /// the `BinOp` that gives a stable, cross-run identity used to derive the Lean name.
+    pub opaque: Vec<(fixpoint::ConstDecl, rty::BinOp)>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
