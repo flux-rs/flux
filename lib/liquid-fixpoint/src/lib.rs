@@ -357,7 +357,7 @@ impl<T: Types> Task<T> {
         {
             let mut w = BufWriter::new(stdin.unwrap());
             // Use compact formatting to reduce overhead when communicating with fixpoint
-            write!(w, "{}", format::CompactTask(self))?;
+            writeln!(w, "{}", format::CompactTask(self))?;
         }
         let out = child.wait_with_output()?;
 
