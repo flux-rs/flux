@@ -28,29 +28,18 @@ impl<T, I: SliceIndex<[T]>> ops::IndexMut<I> for [T] {
 }
 
 #[extern_spec(core::slice)]
-trait SliceIndex<T> {
-    #![assoc(
-        fn in_bounds(idx: Self, v: T) -> bool { true }
-        fn output_pred(idx: Self, v: T, out: Self::Output) -> bool { true }
-    )]
-}
+#[flux::assoc(fn in_bounds(idx: Self, v: T) -> bool)]
+#[flux::assoc(fn output_pred(idx: Self, v: T, out: Self::Output) -> bool { true })]
+trait SliceIndex<T> {}
 
 #[extern_spec(core::slice)]
-impl<T> SliceIndex<[T]> for usize {
-    #![assoc(fn in_bounds(idx: int, len: int) -> bool { idx < len })]
-}
+#[flux::assoc(fn in_bounds(idx: int, len: int) -> bool { idx < len })]
+impl<T> SliceIndex<[T]> for usize {}
 
 #[extern_spec(core::slice)]
-impl<T> SliceIndex<[T]> for ops::Range<usize> {
-    #![assoc(
-        fn in_bounds(r: ops::Range<int>, len: int) -> bool {
-            r.start <= r.end && r.end <= len
-        }
-        fn output_pred(r: ops::Range<int>, len: int, out: int) -> bool {
-            out == r.end - r.start
-        }
-    )]
-}
+#[flux::assoc(fn in_bounds(r: Self, len: int) -> bool { r.start <= r.end && r.end <= len })]
+#[flux::assoc(fn output_pred(r: Self, len: int, out: int) -> bool { out == r.end - r.start })]
+impl<T> SliceIndex<[T]> for ops::Range<usize> {}
 
 #[cfg(flux_sysroot_test)]
 mod tests {
