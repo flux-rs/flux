@@ -1,0 +1,4 @@
+import LeanProofs.Flux.VC.TestReplaceReturnMatchesOriginal
+import LeanProofs.User.Proof.TestReplaceReturnMatchesOriginalProof
+
+#check (F.TestReplaceReturnMatchesOriginal_proof : F.TestReplaceReturnMatchesOriginal)
