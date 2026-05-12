@@ -25,7 +25,6 @@ pub(crate) fn fmt_constraint<T: Types>(
     if pretty { writeln!(f, ")") } else { write!(f, ")") }
 }
 
-
 impl<T: Types> fmt::Display for Constraint<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_constraint(self, f, true)
