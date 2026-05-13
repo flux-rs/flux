@@ -15,13 +15,13 @@ pub struct Solution<T: Types> {
 }
 
 impl<T: Types> Constraint<T> {
-    // fn contains_kvars(&self) -> bool {
-    //     match self {
-    //         Constraint::Conj(cs) => cs.iter().any(Constraint::contains_kvars),
-    //         Constraint::ForAll(_bind, inner) => inner.contains_kvars(),
-    //         Constraint::Pred(p, _tag) => p.contains_kvars(),
-    //     }
-    // }
+    pub fn contains_kvars(&self) -> bool {
+        match self {
+            Constraint::Conj(cs) => cs.iter().any(Constraint::contains_kvars),
+            Constraint::ForAll(_bind, inner) => inner.contains_kvars(),
+            Constraint::Pred(p, _tag) => p.contains_kvars(),
+        }
+    }
 
     pub fn depth_first_fragments(&self) -> ConstraintFragments<'_, T> {
         ConstraintFragments::new(self)
@@ -78,7 +78,13 @@ impl<T: Types> Constraint<T> {
                     }
                 }
                 Constraint::ForAll(bind, cstr) => {
-                    deps.extend(bind.pred.kvars());
+                    let guard_kvars = bind.pred.kvars();
+                    // Ensure guard-only KVars appear in the graph with empty deps
+                    // so they are correctly identified as acyclic and eliminated.
+                    for kvar in &guard_kvars {
+                        graph.entry(kvar.clone()).or_default();
+                    }
+                    deps.extend(guard_kvars);
                     go(cstr, deps, graph);
                 }
             }
@@ -472,5 +478,153 @@ impl<T: Types> Expr<T> {
         let mut new_expr = self.clone();
         new_expr.substitute_in_place(v_from, v_to);
         new_expr
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{fmt, str::FromStr};
+
+    use super::*;
+    use crate::{
+        Identifier,
+        constraint::{Bind, Constant, Constraint, Expr, Pred, Sort},
+    };
+
+    /// Minimal [`Types`] implementation for unit tests.
+    struct T;
+
+    #[derive(Hash, Clone, Debug, PartialEq, Eq)]
+    struct Name(String);
+
+    impl Identifier for Name {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+
+    impl crate::FixpointFmt for Name {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+
+    impl fmt::Display for Name {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+
+    impl FromStr for Name {
+        type Err = std::convert::Infallible;
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            Ok(Name(s.to_string()))
+        }
+    }
+
+    impl Types for T {
+        type Sort = Name;
+        type KVar = Name;
+        type Var = Name;
+        type String = Name;
+        type Tag = Name;
+    }
+
+    fn kv(name: &str) -> Name {
+        Name(name.to_string())
+    }
+
+    fn kvar_pred(name: &str) -> Pred<T> {
+        Pred::KVar(kv(name), vec![Expr::Constant(Constant::Boolean(true))])
+    }
+
+    fn bind_with_kvar(var: &str, kvar: &str) -> Bind<T> {
+        Bind { name: kv(var), sort: Sort::Int, pred: kvar_pred(kvar) }
+    }
+
+    fn bind_true(var: &str) -> Bind<T> {
+        Bind { name: kv(var), sort: Sort::Int, pred: Pred::TRUE }
+    }
+
+    /// Returns a constraint:
+    ///   conj([
+    ///     forall x { k_guard(x) }. k_head(x)   -- k_guard only in guard
+    ///     k_head(y)                              -- k_head in head, no guard
+    ///   ])
+    fn guard_only_kvar_constraint() -> Constraint<T> {
+        let inner_forall = Constraint::ForAll(
+            bind_with_kvar("x", "k_guard"),
+            Box::new(Constraint::Pred(kvar_pred("k_head"), None)),
+        );
+        let lone_head = Constraint::Pred(kvar_pred("k_head"), None);
+        Constraint::Conj(vec![inner_forall, lone_head])
+    }
+
+    // --- kvar_dep_graph tests ---
+
+    /// Before the fix, a KVar that appears only in a guard would NOT appear as
+    /// a key in the dep_graph, meaning dependent KVars were never identified as
+    /// acyclic.  After the fix, guard-only KVars must appear with empty deps.
+    #[test]
+    fn guard_only_kvar_is_in_dep_graph() {
+        let cstr = guard_only_kvar_constraint();
+        let graph = cstr.kvar_dep_graph();
+
+        // k_guard appears only in a guard – it must be present with empty deps
+        assert!(
+            graph.contains_key(&kv("k_guard")),
+            "k_guard (guard-only KVar) should appear in dep_graph"
+        );
+        assert!(graph[&kv("k_guard")].is_empty(), "k_guard should have no dependencies");
+    }
+
+    /// k_head depends on k_guard in the dep_graph.
+    #[test]
+    fn dep_graph_records_dependency_on_guard_kvar() {
+        let cstr = guard_only_kvar_constraint();
+        let graph = cstr.kvar_dep_graph();
+
+        assert!(graph.contains_key(&kv("k_head")), "k_head should appear in dep_graph");
+        assert!(graph[&kv("k_head")].contains(&kv("k_guard")), "k_head should depend on k_guard");
+    }
+
+    // --- elim / eliminate-acyclic tests ---
+
+    /// After full elimination, the constraint should contain no KVars: both
+    /// k_guard (guard-only) and k_head (depends on k_guard) must be eliminated.
+    #[test]
+    fn all_kvars_eliminated_when_guard_only_dep() {
+        let cstr = guard_only_kvar_constraint();
+
+        // Compute acyclic KVars and iterate as eliminate_acyclic_kvars does
+        let mut result = cstr;
+        loop {
+            let dep_graph = result.kvar_dep_graph();
+            let acyclic: Vec<Name> = dep_graph
+                .into_iter()
+                .filter(|(_, deps)| deps.is_empty())
+                .map(|(k, _)| k)
+                .collect();
+            if acyclic.is_empty() {
+                break;
+            }
+            result = result.elim(&acyclic);
+        }
+
+        assert!(
+            !result.contains_kvars(),
+            "all KVars should be eliminated; remaining constraint: {result:?}"
+        );
+    }
+
+    /// A KVar that appears in a head with no guard must be a leaf (empty deps)
+    /// and must therefore be eliminated in the first round.
+    #[test]
+    fn kvar_with_no_guard_is_acyclic() {
+        // forall x { true }. k(x)
+        let cstr =
+            Constraint::ForAll(bind_true("x"), Box::new(Constraint::Pred(kvar_pred("k"), None)));
+        let graph = cstr.kvar_dep_graph();
+        assert!(graph[&kv("k")].is_empty(), "k should have no deps");
     }
 }
