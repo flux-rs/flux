@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["fmt_constraint","fmt_func"],"struct":["ConstraintFormatter"]};
+window.SIDEBAR_ITEMS = {"fn":["fmt_constraint","fmt_func","fmt_task"],"struct":["CompactTask","ConstraintFormatter"]};
