@@ -39,3 +39,9 @@ jobs:
           # Note: Using 4.12.1 for standard tests. vtock and lean-demo tests use 4.15.3
           # to avoid hanging issues, but those run in separate CI jobs.
           version: 4.12.1
+
+      - name: Make scratch dir
+        run: mkdir -p /tmp/liquid-fixpoint
+
+      - name: Clone public repo into scratch
+        run: git clone https://github.com/ucsd-progsys/liquid-fixpoint.git /tmp/liquid-fixpoint

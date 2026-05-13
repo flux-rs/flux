@@ -9,6 +9,12 @@ Flux is a refinement type checker for Rust. This is a Rust workspace with multip
 
 **Note:** Required dependencies (fixpoint and Z3 4.12.1) are automatically installed in the Copilot coding agent environment via `.github/workflows/copilot-setup-steps.yml`. For local development, developers need to install these dependencies manually (see CI workflow for installation steps).
 
+## Information regarding kvar solving
+
+The file [KVarElimination-Implementation.md](../KVarElimination-Implementation.md) describes how KVar elimination (an important first step to the "fixpoint" algorithm) is implemented in `liquid-fixpoint`, which should be cloned into a scratch directory [/tmp/liquid-fixpoint](/tmp/liquid-fixpoint). Stop everything if it isn't and report back because it means the github actions was set up wrong.
+
+The corresponding implementations in Flux are in the [liquid-fixpoint lib](../lib/liquid-fixpoint). The top-level functions live in [`constraint_with_env.rs`](../lib/liquid-fixpoint/constraint_with_env.rs).
+
 ## Build & Test Instructions
 
 ### Test Commands
