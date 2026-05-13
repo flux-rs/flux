@@ -8,7 +8,7 @@ use flux_common::{
 use flux_middle::{
     def_id::FluxDefId,
     global_env::GlobalEnv,
-    rty::{self, BvSize, PrettyMap, PrettyVar},
+    rty::{PrettyMap, PrettyVar},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
@@ -440,7 +440,7 @@ impl LeanFmt for Expr {
                 write!(f, ")")?;
                 if let Some(out_sort) = out_sort {
                     write!(f, " : (")?;
-                    out_sort.lean_fmt(f, &cx)?;
+                    out_sort.lean_fmt(f, cx)?;
                     write!(f, "))")?;
                 }
                 Ok(())
@@ -656,7 +656,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
             if !cx.kvar_solutions.cut_solutions.is_empty() {
                 writeln!(f, "-- cyclic (cut) kvars")?;
                 for kvar_solution in &cx.kvar_solutions.cut_solutions {
-                    kvar_solution.lean_fmt(f, &cx)?;
+                    kvar_solution.lean_fmt(f, cx)?;
                     writeln!(f)?;
                 }
             }
@@ -664,7 +664,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
             if !cx.kvar_solutions.non_cut_solutions.is_empty() {
                 writeln!(f, "-- acyclic (non-cut) kvars")?;
                 for kvar_solution in &cx.kvar_solutions.non_cut_solutions {
-                    kvar_solution.lean_fmt(f, &cx)?;
+                    kvar_solution.lean_fmt(f, cx)?;
                     writeln!(f)?;
                 }
             }
