@@ -647,4 +647,16 @@ mod tests {
         let graph = cstr.kvar_dep_graph();
         assert!(graph[&kv("k")].is_empty(), "k should have no deps");
     }
+
+    /// `elim_non_cut_kvars` is a convenience wrapper; verify it eliminates all
+    /// acyclic KVars (including guard-only ones) from the test constraint.
+    #[test]
+    fn elim_non_cut_kvars_removes_all_kvars() {
+        let cstr = guard_only_kvar_constraint();
+        let result = cstr.elim_non_cut_kvars();
+        assert!(
+            !result.contains_kvars(),
+            "elim_non_cut_kvars should remove all KVars; remaining: {result:?}"
+        );
+    }
 }
