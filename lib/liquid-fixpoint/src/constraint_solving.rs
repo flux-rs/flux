@@ -267,6 +267,26 @@ impl<T: Types> Constraint<T> {
         vars.iter().fold(self.clone(), |acc, var| acc.elim1(var))
     }
 
+    /// Identifies all non-cut KVars (those not involved in any dependency cycle)
+    /// and substitutes them with their syntactic solutions, returning the simplified
+    /// constraint.  This is a pure `Constraint → Constraint` transformation that does
+    /// not require an SMT solver.
+    pub fn elim_non_cut_kvars(self) -> Self {
+        let mut result = self;
+        loop {
+            let dep_graph = result.kvar_dep_graph();
+            let acyclic_kvars: Vec<T::KVar> = dep_graph
+                .into_iter()
+                .filter(|(_, deps)| deps.is_empty())
+                .map(|(kvar, _)| kvar)
+                .collect();
+            if acyclic_kvars.is_empty() {
+                return result;
+            }
+            result = result.elim(&acyclic_kvars);
+        }
+    }
+
     fn elim1(&self, var: &T::KVar) -> Self {
         let solution = self.scope(var).sol1(var);
         self.do_elim(var, &solution)

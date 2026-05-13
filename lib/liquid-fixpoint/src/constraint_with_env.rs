@@ -112,21 +112,8 @@ impl<T: Types> ConstraintWithEnv<T> {
     }
 
     pub(crate) fn eliminate_acyclic_kvars(&mut self) {
-        let mut dep_graph = self.constraint.kvar_dep_graph();
-        let mut acyclic_kvars: Vec<T::KVar> = dep_graph
-            .into_iter()
-            .filter(|(_, dependencies)| dependencies.is_empty())
-            .map(|(kvar, _)| kvar)
-            .collect();
-        while !acyclic_kvars.is_empty() {
-            self.constraint = self.constraint.elim(&acyclic_kvars);
-            dep_graph = self.constraint.kvar_dep_graph();
-            acyclic_kvars = dep_graph
-                .into_iter()
-                .filter(|(_, dependencies)| dependencies.is_empty())
-                .map(|(kvar, _)| kvar)
-                .collect();
-        }
+        let constraint = std::mem::replace(&mut self.constraint, Constraint::TRUE);
+        self.constraint = constraint.elim_non_cut_kvars();
     }
 
     fn simplify(&mut self) {
