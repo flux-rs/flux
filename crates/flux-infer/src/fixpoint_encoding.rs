@@ -642,6 +642,20 @@ where
         // We are done encoding expressions. Check if there are any errors.
         self.ecx.errors.to_result()?;
 
+        let constraint = {
+            #[cfg(not(feature = "rust-fixpoint"))]
+            {
+                let mut constraint = constraint;
+                constraint = constraint.elim_non_cut_kvars();
+                constraint
+            }
+
+            #[cfg(feature = "rust-fixpoint")]
+            {
+                constraint
+            }
+        };
+
         let task = fixpoint::Task {
             comments: self.comments.clone(),
             constants,
