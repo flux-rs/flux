@@ -111,7 +111,14 @@ impl<T: Types> ConstraintWithEnv<T> {
         self.solve_by_fusion()
     }
 
-    pub(crate) fn eliminate_acyclic_kvars(&mut self) {
+    /// Eliminate KVars that are acyclic (have no dependencies) from the
+    /// constraint by repeatedly removing KVars with empty dependency lists.
+    /// Returns the list of KVars that were eliminated (in the order they were
+    /// discovered). Also logs the eliminated kvars to stderr for debugging.
+    pub(crate) fn eliminate_acyclic_kvars(&mut self) -> Vec<T::KVar> {
+        use crate::Identifier;
+
+        let mut removed: Vec<T::KVar> = Vec::new();
         let mut dep_graph = self.constraint.kvar_dep_graph();
         let mut acyclic_kvars: Vec<T::KVar> = dep_graph
             .into_iter()
@@ -119,7 +126,13 @@ impl<T: Types> ConstraintWithEnv<T> {
             .map(|(kvar, _)| kvar)
             .collect();
         while !acyclic_kvars.is_empty() {
+            // record
+            for k in &acyclic_kvars {
+                removed.push(k.clone());
+            }
+            // eliminate from constraint
             self.constraint = self.constraint.elim(&acyclic_kvars);
+            // recompute
             dep_graph = self.constraint.kvar_dep_graph();
             acyclic_kvars = dep_graph
                 .into_iter()
@@ -127,6 +140,13 @@ impl<T: Types> ConstraintWithEnv<T> {
                 .map(|(kvar, _)| kvar)
                 .collect();
         }
+
+        if !removed.is_empty() {
+            let names: Vec<String> = removed.iter().map(|k| format!("{}", k.display())).collect();
+            eprintln!("eliminate_acyclic_kvars removed: {}", names.join(","));
+        }
+
+        removed
     }
 
     fn simplify(&mut self) {
@@ -155,6 +175,19 @@ impl<T: Types> ConstraintWithEnv<T> {
         let kvar_assignment = self.solve_for_kvars(&solver, &mut vars);
         self.constraint = self.constraint.sub_all_kvars(&kvar_assignment);
         is_constraint_satisfiable(&self.constraint, &solver, &mut vars)
+    }
+
+    /// Compute the set of non-cut KVars according to the in-crate solver. This runs the
+    /// predicate-abstraction assignment phase (`solve_for_kvars`) and returns the list of
+    /// kvar identifiers (displayed as strings like "k42") that have a non-empty
+    /// assignment vector.
+    #[cfg(feature = "rust-fixpoint")]
+    pub fn compute_non_cuts(&mut self) -> Vec<String> {
+        use z3::Solver;
+        use crate::Identifier;
+
+        let removed = self.eliminate_acyclic_kvars();
+        removed.into_iter().map(|k| format!("{}", k.display())).collect()
     }
 
     fn topo_sort_data_declarations(datatype_decls: Vec<DataDecl<T>>) -> Vec<DataDecl<T>> {

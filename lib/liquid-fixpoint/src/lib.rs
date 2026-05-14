@@ -322,6 +322,65 @@ impl<T: Types> Task<T> {
         hasher.finish()
     }
 
+    /// Always-invokable runner that executes the external `fixpoint` binary and
+    /// parses its JSON output. This duplicates the external-run branch that used
+    /// to be gated on `not(feature = "rust-fixpoint")` so we can always obtain
+    /// the ground-truth result even when the crate is compiled with the
+    /// `rust-fixpoint` feature.
+    pub fn run_external(&self) -> io::Result<VerificationResult<T::Tag>> {
+        use std::io::{BufWriter, Write};
+        use std::process::{Command, Stdio};
+
+        let mut child = Command::new("fixpoint")
+            .arg("-q")
+            .arg("--stdin")
+            .arg("--sorted-solution")
+            .arg("--json")
+            .arg("--allowho")
+            .arg("--allowhoqs")
+            .arg(format!("--solver={}", self.solver))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        let mut stdin = None;
+        std::mem::swap(&mut stdin, &mut child.stdin);
+        {
+            let mut w = BufWriter::new(stdin.unwrap());
+            writeln!(w, "{self}")?;
+        }
+        let out = child.wait_with_output()?;
+
+        serde_json::from_slice(&out.stdout).map_err(|err| {
+            // If we fail to parse stdout fixpoint may have outputed something to stderr
+            // so use that for the error instead
+            if !out.stderr.is_empty() {
+                let stderr = std::str::from_utf8(&out.stderr)
+                    .unwrap_or("fixpoint exited with a non-zero return code");
+                io::Error::other(stderr)
+            } else {
+                err.into()
+            }
+        })
+    }
+
+    /// When compiled with `rust-fixpoint`, ask the in-crate solver which KVars it
+    /// treats as non-cut (i.e., those that have a non-empty assignment after the
+    /// predicate-abstraction phase). Returns the kvar names as strings like
+    /// "k42" so they can be compared against the external `fixpoint` output.
+    #[cfg(feature = "rust-fixpoint")]
+    pub fn rust_non_cuts(&self) -> io::Result<Vec<String>> {
+        let mut cstr_with_env = ConstraintWithEnv::new(
+            self.data_decls.clone(),
+            self.kvars.clone(),
+            self.qualifiers.clone(),
+            self.constants.clone(),
+            self.constraint.clone(),
+        );
+        Ok(cstr_with_env.compute_non_cuts())
+    }
+
     #[cfg(feature = "rust-fixpoint")]
     pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
         let mut cstr_with_env = ConstraintWithEnv::new(
@@ -335,6 +394,7 @@ impl<T: Types> Task<T> {
             status: cstr_with_env.is_satisfiable(),
             solution: vec![],
             non_cuts_solution: vec![],
+            lean_status: LeanStatus::default(),
         })
     }
 

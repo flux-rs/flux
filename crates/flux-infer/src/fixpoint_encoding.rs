@@ -888,8 +888,48 @@ where
             return result.clone();
         }
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
-            task.run()
-                .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
+            // Always run the external `fixpoint` binary to obtain the ground-truth
+            // VerificationResult (including non-cuts). When compiled with
+            // `rust-fixpoint` we will additionally query the in-crate solver and
+            // compare the sets of non-cut kvars.
+            let external = task
+                .run_external()
+                .unwrap_or_else(|err| tracked_span_bug!("failed to run external fixpoint: {err}"));
+
+            #[cfg(feature = "rust-fixpoint")]
+            {
+                // Collect external non-cuts as a set of strings like "k42"
+                use std::collections::HashSet;
+                let external_set: HashSet<String> = external
+                    .non_cuts_solution
+                    .iter()
+                    .map(|b| b.kvar.clone())
+                    .collect();
+
+                // Query the rust solver for its non-cuts
+                let rust_set_vec = task
+                    .rust_non_cuts()
+                    .unwrap_or_else(|err| tracked_span_bug!("failed to run rust solver non-cuts: {err}"));
+                let rust_set: HashSet<String> = rust_set_vec.into_iter().collect();
+
+                if external_set != rust_set {
+                    // Build a compact JSON object describing the mismatch and emit to stderr
+                    use serde_json::json;
+                    let missing_in_rust: Vec<_> = external_set.difference(&rust_set).cloned().collect();
+                    let extra_in_rust: Vec<_> = rust_set.difference(&external_set).cloned().collect();
+                    let obj = json!({
+                        "def": kind.task_key(genv.tcx(), def_id),
+                        "external": external_set.iter().cloned().collect::<Vec<_>>(),
+                        "rust": rust_set.iter().cloned().collect::<Vec<_>>(),
+                        "missing_in_rust": missing_in_rust,
+                        "extra_in_rust": extra_in_rust,
+                    });
+                    eprintln!("{}", obj.to_string());
+                    panic!("mismatch between external fixpoint non-cuts and rust-fixpoint");
+                }
+            }
+
+            external
         });
 
         if config::is_cache_enabled() {
