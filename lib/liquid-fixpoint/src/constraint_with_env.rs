@@ -2,12 +2,11 @@ use derive_where::derive_where;
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
-        FixpointStatus, Sort, SortCtor,
+        FixpointStatus, Sort, SortCtor, graph,
         cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype},
-        graph,
     },
     itertools::Itertools,
-    std::collections::{HashMap, HashSet, VecDeque},
+    std::collections::{HashMap, VecDeque},
     z3::Solver,
 };
 
@@ -85,7 +84,7 @@ impl<T: Types> ConstraintWithEnv<T> {
         let topo_order_fragments = self.constraint.topo_order_fragments();
         let mut work_list = VecDeque::from_iter(topo_order_fragments.iter());
         while let Some(fragment) = work_list.pop_front() {
-            if let Some(kvar_name) = fragment.fragment_kvar_head()
+            if let Some(kvar_name) = (*fragment).fragment_kvar_head()
                 && let subbed = fragment.sub_kvars_except_head(&assignments)
                 && let Some(assignment) = assignments.get_mut(&kvar_name)
             {
@@ -111,36 +110,13 @@ impl<T: Types> ConstraintWithEnv<T> {
         self.solve_by_fusion()
     }
 
-    pub(crate) fn eliminate_acyclic_kvars(&mut self) -> Vec<T::KVar> {
-        let mut removed: Vec<T::KVar> = Vec::new();
-        let mut dep_graph = self.constraint.kvar_dep_graph();
-        let mut acyclic_kvars: Vec<T::KVar> = dep_graph
-            .into_iter()
-            .filter(|(_, dependencies)| dependencies.is_empty())
-            .map(|(kvar, _)| kvar)
-            .collect();
-        while !acyclic_kvars.is_empty() {
-            for k in &acyclic_kvars {
-                removed.push(k.clone());
-            }
-            self.constraint = self.constraint.elim(&acyclic_kvars);
-            dep_graph = self.constraint.kvar_dep_graph();
-            acyclic_kvars = dep_graph
-                .into_iter()
-                .filter(|(_, dependencies)| dependencies.is_empty())
-                .map(|(kvar, _)| kvar)
-                .collect();
-        }
-        removed
-    }
-
     fn simplify(&mut self) {
         self.constraint.simplify();
     }
 
     pub fn solve_by_fusion(&mut self) -> FixpointStatus<T::Tag> {
         self.simplify();
-        self.eliminate_acyclic_kvars();
+        self.constraint = self.constraint.elim_non_cut_kvars();
         self.solve_by_predicate_abstraction()
     }
 
@@ -162,37 +138,8 @@ impl<T: Types> ConstraintWithEnv<T> {
         is_constraint_satisfiable(&self.constraint, &solver, &mut vars)
     }
 
-    /// Compute the set of non-cut KVars using the SCC+rank algorithm that mirrors
-    /// the Haskell fixpoint `elimVars`/`sccElims`/`edgeRankCut` logic in
-    /// `Language.Fixpoint.Graph.Deps`.
-    ///
-    /// For each SCC of the KVar dependency graph:
-    ///   - Singleton without a self-loop → non-cut (can be eliminated).
-    ///   - Singleton with self-loop, or multi-node SCC → pick the KVar with the
-    ///     minimum rank (= smallest fragment index where it appears as an LHS
-    ///     assumption) as a cut, remove it, recompute SCCs on the remaining
-    ///     sub-graph, and recurse.
-    pub fn compute_non_cuts(&self) -> Vec<T::KVar> {
-        let n_max = self.constraint.depth_first_fragments().count();
-        let rank = self.constraint.kvar_ranks(n_max);
-        let dep_graph = self.constraint.kvar_dep_graph();
-        let sccs = graph::topological_sort_sccs(&dep_graph);
-
-        let mut non_cuts: Vec<T::KVar> = Vec::new();
-        for scc in sccs {
-            scc_dep::<T>(&scc, &dep_graph, &rank, n_max, &mut non_cuts);
-        }
-        non_cuts
-    }
-
-    /// Substitute all non-cut KVars with their solutions and return the resulting
-    /// constraint. Non-cut KVars are those identified as acyclic by the SCC+rank
-    /// algorithm; they are eliminated via the same substitution (`elim`) used in
-    /// `eliminate_acyclic_kvars`.
     pub fn elim_non_cut_kvars(&mut self) -> Constraint<T> {
-        self.constraint.simplify();
-        let non_cuts = self.compute_non_cuts();
-        self.constraint.elim(&non_cuts)
+        self.constraint.elim_non_cut_kvars()
     }
 
     fn topo_sort_data_declarations(datatype_decls: Vec<DataDecl<T>>) -> Vec<DataDecl<T>> {
@@ -246,59 +193,4 @@ fn type_signature_matches<T: Types>(
     }
 
     true
-}
-
-/// Recursively apply the SCC+rank cut-selection algorithm (mirrors Haskell's
-/// `sccElims`/`edgeRankCut` in `Language.Fixpoint.Graph.Deps`).
-///
-/// `scc`       – the nodes of one SCC (from `topological_sort_sccs`).
-/// `dep_graph` – the *current* sub-graph being processed (not the original).
-/// `rank`      – pre-computed minimum fragment index per KVar (from `kvar_ranks`).
-/// `n_max`     – fallback rank for KVars not seen as assumptions (treated as ∞).
-/// `non_cuts`  – accumulator; KVars that can be eliminated are pushed here.
-#[cfg(feature = "rust-fixpoint")]
-fn scc_dep<T: Types>(
-    scc: &[T::KVar],
-    dep_graph: &HashMap<T::KVar, Vec<T::KVar>>,
-    rank: &HashMap<T::KVar, usize>,
-    n_max: usize,
-    non_cuts: &mut Vec<T::KVar>,
-) {
-    match scc {
-        [] => {}
-        [k] => {
-            // Singleton SCC: non-cut iff no self-loop.
-            let has_self_loop = dep_graph.get(k).map_or(false, |deps| deps.contains(k));
-            if !has_self_loop {
-                non_cuts.push(k.clone());
-            }
-        }
-        _ => {
-            // Multi-node SCC (cycle): pick the KVar with the minimum rank as
-            // the cut variable, remove it, recompute SCCs on the remaining
-            // sub-graph, and recurse.
-            let cut = scc
-                .iter()
-                .min_by_key(|k| rank.get(*k).copied().unwrap_or(n_max))
-                .unwrap()
-                .clone();
-
-            let remaining: HashSet<T::KVar> =
-                scc.iter().filter(|k| **k != cut).cloned().collect();
-
-            let sub_graph: HashMap<T::KVar, Vec<T::KVar>> = remaining
-                .iter()
-                .map(|k| {
-                    let deps = dep_graph.get(k).map_or(vec![], |d| {
-                        d.iter().filter(|dep| remaining.contains(*dep)).cloned().collect()
-                    });
-                    (k.clone(), deps)
-                })
-                .collect();
-
-            for sub_scc in graph::topological_sort_sccs(&sub_graph) {
-                scc_dep::<T>(&sub_scc, &sub_graph, rank, n_max, non_cuts);
-            }
-        }
-    }
 }

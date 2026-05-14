@@ -11,15 +11,12 @@ extern crate rustc_serialize;
 extern crate rustc_span;
 
 mod constraint;
-#[cfg(feature = "rust-fixpoint")]
 mod constraint_fragments;
-#[cfg(feature = "rust-fixpoint")]
 mod constraint_solving;
 mod constraint_with_env;
 #[cfg(feature = "rust-fixpoint")]
 mod cstr2smt2;
 mod format;
-#[cfg(feature = "rust-fixpoint")]
 mod graph;
 pub mod parser;
 pub mod sexp;

@@ -269,7 +269,6 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    #[cfg(feature = "rust-fixpoint")]
     pub(crate) fn simplify(&mut self) {
         if let Pred::And(conjuncts) = self {
             if conjuncts.is_empty() {
@@ -279,6 +278,46 @@ impl<T: Types> Pred<T> {
             } else {
                 conjuncts.iter_mut().for_each(|pred| pred.simplify());
             }
+        }
+    }
+
+}
+
+impl<T: Types> Constraint<T> {
+    pub(crate) fn simplify(&mut self) {
+        match self {
+            Constraint::ForAll(bind, inner) => {
+                bind.pred.simplify();
+                inner.simplify();
+            }
+            Constraint::Conj(conjuncts) => {
+                if conjuncts.is_empty() {
+                    *self = Constraint::Pred(Pred::TRUE, None);
+                } else if conjuncts.len() == 1 {
+                    conjuncts[0].simplify();
+                    *self = conjuncts[0].clone();
+                } else {
+                    conjuncts
+                        .iter_mut()
+                        .for_each(|conjunct| conjunct.simplify());
+                }
+            }
+            Constraint::Pred(p, tag) => match p {
+                Pred::And(conjuncts) => {
+                    let mut cstr_conj = Constraint::Conj(
+                        conjuncts
+                            .iter()
+                            .cloned()
+                            .map(|pred| Constraint::Pred(pred, tag.clone()))
+                            .collect(),
+                    );
+                    cstr_conj.simplify();
+                    *self = cstr_conj;
+                }
+                _ => {
+                    p.simplify();
+                }
+            },
         }
     }
 }

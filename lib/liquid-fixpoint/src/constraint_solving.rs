@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter};
+use std::{collections::{HashMap, HashSet}, iter};
 
 use itertools::Itertools;
 
@@ -197,43 +197,28 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub(crate) fn simplify(&mut self) {
-        match self {
-            Constraint::ForAll(bind, inner) => {
-                bind.pred.simplify();
-                inner.simplify();
-            }
-            Constraint::Conj(conjuncts) => {
-                if conjuncts.is_empty() {
-                    *self = Constraint::Pred(Pred::TRUE, None);
-                } else if conjuncts.len() == 1 {
-                    conjuncts[0].simplify();
-                    *self = conjuncts[0].clone();
-                } else {
-                    conjuncts
-                        .iter_mut()
-                        .for_each(|conjunct| conjunct.simplify());
-                }
-            }
-            Constraint::Pred(p, tag) => {
-                match p {
-                    Pred::And(conjuncts) => {
-                        let mut cstr_conj = Constraint::Conj(
-                            conjuncts
-                                .iter()
-                                .cloned()
-                                .map(|pred| Constraint::Pred(pred, tag.clone()))
-                                .collect(),
-                        );
-                        cstr_conj.simplify();
-                        *self = cstr_conj;
-                    }
-                    _ => {
-                        p.simplify();
-                    }
-                }
-            }
+    /// Compute the set of non-cut KVars using the SCC+rank algorithm that mirrors
+    /// the Haskell fixpoint `elimVars`/`sccElims`/`edgeRankCut` logic in
+    /// `Language.Fixpoint.Graph.Deps`.
+    pub fn compute_non_cuts(&self) -> Vec<T::KVar> {
+        let n_max = self.depth_first_fragments().count();
+        let rank = self.kvar_ranks(n_max);
+        let dep_graph = self.kvar_dep_graph();
+        let sccs = topological_sort_sccs(&dep_graph);
+
+        let mut non_cuts: Vec<T::KVar> = Vec::new();
+        for scc in sccs {
+            scc_dep::<T>(&scc, &dep_graph, &rank, n_max, &mut non_cuts);
         }
+        non_cuts
+    }
+
+    /// Substitute all non-cut KVars with their solutions and return the resulting
+    /// constraint. Non-cut KVars are those identified by the SCC+rank algorithm.
+    pub fn elim_non_cut_kvars(&mut self) -> Self {
+        self.simplify();
+        let non_cuts = self.compute_non_cuts();
+        self.elim(&non_cuts)
     }
 
     fn scope(&self, var: &T::KVar) -> Self {
@@ -345,6 +330,49 @@ impl<T: Types> Constraint<T> {
                 Constraint::Pred(Pred::TRUE, tag.clone())
             }
             cpred => cpred.clone(),
+        }
+    }
+}
+
+/// Recursively apply the SCC+rank cut-selection algorithm (mirrors Haskell's
+/// `sccElims`/`edgeRankCut` in `Language.Fixpoint.Graph.Deps`).
+fn scc_dep<T: Types>(
+    scc: &[T::KVar],
+    dep_graph: &HashMap<T::KVar, Vec<T::KVar>>,
+    rank: &HashMap<T::KVar, usize>,
+    n_max: usize,
+    non_cuts: &mut Vec<T::KVar>,
+) {
+    match scc {
+        [] => {}
+        [k] => {
+            let has_self_loop = dep_graph.get(k).map_or(false, |deps| deps.contains(k));
+            if !has_self_loop {
+                non_cuts.push(k.clone());
+            }
+        }
+        _ => {
+            let cut = scc
+                .iter()
+                .min_by_key(|k| rank.get(*k).copied().unwrap_or(n_max))
+                .unwrap()
+                .clone();
+
+            let remaining: HashSet<T::KVar> = scc.iter().filter(|k| **k != cut).cloned().collect();
+
+            let sub_graph: HashMap<T::KVar, Vec<T::KVar>> = remaining
+                .iter()
+                .map(|k| {
+                    let deps = dep_graph.get(k).map_or(vec![], |d| {
+                        d.iter().filter(|dep| remaining.contains(*dep)).cloned().collect()
+                    });
+                    (k.clone(), deps)
+                })
+                .collect();
+
+            for sub_scc in topological_sort_sccs(&sub_graph) {
+                scc_dep::<T>(&sub_scc, &sub_graph, rank, n_max, non_cuts);
+            }
         }
     }
 }
