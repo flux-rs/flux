@@ -593,7 +593,7 @@
 <a href=#593 id=593 data-nosnippet>593</a>            </span>.resolver
 <a href=#594 id=594 data-nosnippet>594</a>            .resolve_path_with_ribs(<span class="kw-2">&amp;</span>path.segments, TypeNS)<span class="question-mark">?</span>;
 <a href=#595 id=595 data-nosnippet>595</a>        <span class="kw">match </span>(partial_res.base_res(), partial_res.unresolved_segments()) {
-<a href=#596 id=596 data-nosnippet>596</a>            (fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id), <span class="number">0</span>) =&gt; {
+<a href=#596 id=596 data-nosnippet>596</a>            (fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, def_id), <span class="number">0</span>) =&gt; {
 <a href=#597 id=597 data-nosnippet>597</a>                <span class="prelude-val">Some</span>(fhir::SortRes::Adt(def_id))
 <a href=#598 id=598 data-nosnippet>598</a>            }
 <a href=#599 id=599 data-nosnippet>599</a>            (fhir::Res::Def(DefKind::TyParam, def_id), <span class="number">0</span>) =&gt; <span class="prelude-val">Some</span>(fhir::SortRes::TyParam(def_id)),
