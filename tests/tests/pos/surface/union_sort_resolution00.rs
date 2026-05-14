@@ -1,13 +1,16 @@
-#![allow(unused)]
+// Test we can correctly resolve unions as sorts
 
-use core::marker::PhantomData;
+#![allow(unused)]
 
 use flux_attrs::*;
 
 union MyUnion {
-    ptr: *const i32,
+    x: i32,
 }
 
-#[opaque]
-#[refined_by(x: crate::MyUnion)]
-struct UsesUnionSort<T>(PhantomData<T>);
+#[refined_by(x: MyUnion)]
+struct UsesUnionSort {
+    #[field(MyUnion[x])]
+    x: MyUnion,
+}
+
