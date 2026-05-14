@@ -3,7 +3,7 @@ use std::{collections::{HashMap, HashSet}, iter};
 use itertools::Itertools;
 
 use crate::{
-    Assignments, BinRel, Types,
+    Assignments, BinRel, Identifier, Types,
     constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
     constraint_fragments::ConstraintFragments,
     graph::topological_sort_sccs,
@@ -218,7 +218,34 @@ impl<T: Types> Constraint<T> {
     pub fn elim_non_cut_kvars(&mut self) -> Self {
         self.simplify();
         let non_cuts = self.compute_non_cuts();
-        self.elim(&non_cuts)
+        let mut non_cuts = non_cuts;
+        non_cuts.sort_by_key(|k| k.display().to_string());
+        if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
+            eprintln!("[noncut] vars={non_cuts:?}\n[noncut] before={:#?}", self);
+        }
+        let out = self.elim(&non_cuts);
+        if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
+            eprintln!("[noncut] after={:#?}", out);
+        }
+        out
+    }
+
+    pub fn non_cut_solution_strings(&self) -> Vec<(T::KVar, Vec<String>)> {
+        self.compute_non_cuts()
+            .into_iter()
+            .map(|var| {
+                let scoped = self.scope(&var);
+                let sols: Vec<String> = scoped
+                    .sol1(&var)
+                    .into_iter()
+                    .map(|sol| self.fmt_solution(&sol))
+                    .collect();
+                if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
+                    eprintln!("[noncut-scope] var={var:?} scoped={scoped:#?} sol_count={}", sols.len());
+                }
+                (var, sols)
+            })
+            .collect()
     }
 
     fn scope(&self, var: &T::KVar) -> Self {
@@ -244,7 +271,7 @@ impl<T: Types> Constraint<T> {
                     .collect_vec()
                     .as_slice()
                 {
-                    [] => Some(self.clone()),
+                    [] => None,
                     [cstr] => Some(cstr.clone()),
                     _ => Some(self.clone()),
                 }
@@ -259,28 +286,78 @@ impl<T: Types> Constraint<T> {
                     .sol1(var)
                     .into_iter()
                     .map(|Solution { mut binders, args }| {
-                        binders.push(bind.clone());
+                        binders.insert(0, bind.clone());
                         Solution { binders, args }
                     })
                     .collect()
             }
-            Constraint::Conj(conjuncts) => {
-                conjuncts.iter().flat_map(|cstr| cstr.sol1(var)).collect()
-            }
-            Constraint::Pred(Pred::KVar(kvid, args), _tag) if var.eq(kvid) => {
-                vec![Solution { binders: vec![], args: args.clone() }]
-            }
-            Constraint::Pred(_, _) => vec![],
+            Constraint::Conj(conjuncts) => conjuncts.iter().flat_map(|cstr| cstr.sol1(var)).collect(),
+            Constraint::Pred(pred, _) => pred.sol1(var),
         }
     }
 
     pub fn elim(&self, vars: &[T::KVar]) -> Self {
-        vars.iter().fold(self.clone(), |acc, var| acc.elim1(var))
+        vars.iter().fold(self.clone(), |mut acc, var| {
+            acc = acc.elim1(var);
+            acc.simplify();
+            acc
+        })
     }
 
     fn elim1(&self, var: &T::KVar) -> Self {
         let solution = self.scope(var).sol1(var);
+        if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
+            eprintln!("[noncut] elim solution_count={}", solution.len());
+            for (i, sol) in solution.iter().enumerate() {
+                eprintln!("[noncut] solution[{i}] {}", self.fmt_solution(sol));
+            }
+        }
         self.do_elim(var, &solution)
+    }
+
+    fn fmt_solution(&self, sol: &Solution<T>) -> String {
+        let binders = sol
+            .binders
+            .iter()
+            .map(|b| format!("({:?} {:?} {:?})", b.name, b.sort, b.pred))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let args = sol
+            .args
+            .iter()
+            .map(|a| format!("{:?}", a))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("binders=[{binders}] args=[{args}]")
+    }
+
+    fn scope_binders(&self, var: &T::KVar) -> HashSet<T::Var> {
+        fn go<T: Types>(cstr: &Constraint<T>, acc: &mut HashSet<T::Var>) {
+            match cstr {
+                Constraint::ForAll(bind, inner) => {
+                    acc.insert(bind.name.clone());
+                    go(inner, acc);
+                }
+                Constraint::Conj(conjuncts) => conjuncts.iter().for_each(|c| go(c, acc)),
+                Constraint::Pred(_, _) => {}
+            }
+        }
+
+        let mut acc = HashSet::new();
+        go(&self.scope(var), &mut acc);
+        acc
+    }
+
+    fn pred_to_expr(pred: &Pred<T>) -> Option<Expr<T>> {
+        match pred {
+            Pred::Expr(expr) => Some(expr.clone()),
+            Pred::And(preds) => preds
+                .iter()
+                .map(Self::pred_to_expr)
+                .collect::<Option<Vec<_>>>()
+                .map(Expr::and),
+            Pred::KVar(_, _) => None,
+        }
     }
 
     fn do_elim(&self, var: &T::KVar, solution: &[Solution<T>]) -> Self {
@@ -295,35 +372,56 @@ impl<T: Types> Constraint<T> {
             }
             Constraint::ForAll(Bind { name, sort, pred }, inner) => {
                 let inner_elimmed = inner.do_elim(var, solution);
-                if pred.kvars().contains(var) {
-                    let cstrs: Vec<Constraint<T>> = solution
-                        .iter()
-                        .map(|Solution { binders, args }| {
-                            let (kvar_instances, mut preds) = pred.partition_pred(var);
-                            preds.extend(kvar_instances.into_iter().flat_map(|(_, eqs)| {
-                                iter::zip(args, eqs).map(|(arg, eq)| {
-                                    Pred::Expr(Expr::Atom(BinRel::Eq, Box::new([eq, arg.clone()])))
-                                })
-                            }));
-                            let init = Constraint::ForAll(
-                                Bind {
-                                    name: name.clone(),
-                                    sort: sort.clone(),
-                                    pred: Pred::And(preds),
-                                },
-                                Box::new(inner_elimmed.clone()),
-                            );
-                            binders.iter().fold(init, |acc, binder| {
-                                Constraint::ForAll(binder.clone(), Box::new(acc))
-                            })
-                        })
-                        .collect();
-                    Constraint::conj(cstrs)
-                } else {
-                    Constraint::ForAll(
+                match pred.find_kvar_in_guard(var) {
+                    Ok(_) => Constraint::ForAll(
                         Bind { name: name.clone(), sort: sort.clone(), pred: pred.clone() },
                         Box::new(inner_elimmed),
-                    )
+                    ),
+                    Err((kvar_instances, preds)) => {
+                        let scope_binders = self.scope_binders(var);
+                        let cstrs: Vec<Constraint<T>> = solution
+                            .iter()
+                            .map(|Solution { binders, args }| {
+                                let mut preds = preds.clone();
+                                preds.extend(kvar_instances.iter().flat_map(|(_, eqs)| {
+                                    iter::zip(args, eqs).map(|(arg, eq)| {
+                                        Pred::Expr(Expr::Atom(BinRel::Eq, Box::new([eq.clone(), arg.clone()])))
+                                    })
+                                }));
+                                let body = Pred::and(preds);
+                                let pred = if let Some(body_expr) = Self::pred_to_expr(&body) {
+                                    let free_vars = body_expr.free_vars();
+                                    let exist_binders = binders
+                                        .iter()
+                                        .filter(|binder| {
+                                            free_vars.contains(&binder.name)
+                                                && !scope_binders.contains(&binder.name)
+                                        })
+                                        .map(|binder| (binder.name.clone(), binder.sort.clone()))
+                                        .collect_vec();
+                                    if exist_binders.is_empty() {
+                                        body
+                                    } else {
+                                        Pred::Expr(Expr::Exists(exist_binders, Box::new(body_expr)))
+                                    }
+                                } else {
+                                    body
+                                };
+                                let init = Constraint::ForAll(
+                                    Bind {
+                                        name: name.clone(),
+                                        sort: sort.clone(),
+                                        pred,
+                                    },
+                                    Box::new(inner_elimmed.clone()),
+                                );
+                                binders.iter().fold(init, |acc, binder| {
+                                    Constraint::ForAll((*binder).clone(), Box::new(acc))
+                                })
+                            })
+                            .collect();
+                        Constraint::conj(cstrs)
+                    }
                 }
             }
             Constraint::Pred(Pred::KVar(kvid, _args), tag) if var.eq(kvid) => {
@@ -394,6 +492,35 @@ impl<T: Types> Pred<T> {
         }
     }
 
+    fn scope_help(&self, var: &T::KVar) -> Option<Self> {
+        match self {
+            Pred::And(conjuncts) => match conjuncts
+                .iter()
+                .filter_map(|inner| inner.scope_help(var))
+                .collect_vec()
+                .as_slice()
+            {
+                [] => None,
+                [p] => Some(p.clone()),
+                _ => Some(Pred::and(conjuncts.clone())),
+            },
+            Pred::KVar(kvid, _args) if var.eq(kvid) => Some(self.clone()),
+            Pred::KVar(_, _) => None,
+            Pred::Expr(_) => None,
+        }
+    }
+
+    fn sol1(&self, var: &T::KVar) -> Vec<Solution<T>> {
+        match self {
+            Pred::And(conjuncts) => conjuncts.iter().flat_map(|p| p.sol1(var)).collect(),
+            Pred::KVar(kvid, args) if var.eq(kvid) => {
+                vec![Solution { binders: vec![], args: args.clone() }]
+            }
+            Pred::Expr(_) => vec![],
+            Pred::KVar(_, _) => vec![],
+        }
+    }
+
     pub(crate) fn sub_kvars(&self, assignment: &Assignments<'_, T>) -> Self {
         match self {
             Pred::KVar(kvid, args) => {
@@ -456,6 +583,34 @@ impl<T: Types> Pred<T> {
         let mut other_preds = vec![];
         self.partition_pred_help(var, &mut kvar_instances, &mut other_preds);
         (kvar_instances, other_preds)
+    }
+
+    fn find_kvar_in_guard(
+        &self,
+        var: &T::KVar,
+    ) -> Result<Pred<T>, (Vec<(T::KVar, Vec<Expr<T>>)>, Vec<Pred<T>>)> {
+        match self {
+            Pred::And(conjuncts) => {
+                let mut lefts = vec![];
+                let mut rights = vec![];
+                for pred in conjuncts {
+                    match pred.find_kvar_in_guard(var) {
+                        Ok(p) => rights.push(p),
+                        Err((kvars, preds)) => {
+                            lefts.extend(kvars);
+                            rights.extend(preds);
+                        }
+                    }
+                }
+                if lefts.is_empty() {
+                    Ok(Pred::and(rights))
+                } else {
+                    Err((lefts, rights))
+                }
+            }
+            Pred::KVar(kvid, args) if var.eq(kvid) => Err((vec![(kvid.clone(), args.clone())], vec![])),
+            _ => Ok(self.clone()),
+        }
     }
 
     fn partition_pred_help(

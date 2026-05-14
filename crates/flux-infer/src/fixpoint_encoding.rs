@@ -601,7 +601,7 @@ where
     ) -> QueryResult<fixpoint::Task> {
         let kvars = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
 
-        let qualifiers = self
+        let qualifiers: Vec<_> = self
             .ecx
             .qualifiers_for(def_id.local_id(), &mut self.scx)?
             .into_iter()
@@ -645,6 +645,24 @@ where
         let constraint = {
             #[cfg(not(feature = "rust-fixpoint"))]
             {
+                if std::env::var("FLUX_DEBUG_ORIG_NONCUT").is_ok() {
+                    let orig_task = fixpoint::Task {
+                        comments: self.comments.clone(),
+                        constants: constants.clone(),
+                        kvars: kvars.clone(),
+                        define_funs: Vec::new(),
+                        constraint: constraint.clone(),
+                        qualifiers: qualifiers.clone(),
+                        scrape_quals,
+                        solver,
+                        data_decls: self.scx.encode_data_decls(self.genv)?,
+                    };
+                    let orig_result = orig_task.run().expect("orig noncut probe failed");
+                    eprintln!("[orig-noncut] local={:?}", constraint.non_cut_solution_strings());
+                    eprintln!("[orig-noncut] fixpoint non_cut_count={} solution_count={}", orig_result.non_cuts_solution.len(), orig_result.solution.len());
+                    eprintln!("[orig-noncut] fixpoint non_cut={:#?}", orig_result.non_cuts_solution);
+                    eprintln!("[orig-noncut] fixpoint solution={:#?}", orig_result.solution);
+                }
                 let mut constraint = constraint;
                 constraint = constraint.elim_non_cut_kvars();
                 constraint
@@ -684,6 +702,12 @@ where
     ) -> QueryResult<ParsedResult> {
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
 
+        if std::env::var("FLUX_DEBUG_FIXPOINT_SOLUTION").is_ok() {
+            eprintln!("[fixpoint] raw solution count={} non_cut_count={}", result.solution.len(), result.non_cuts_solution.len());
+            eprintln!("[fixpoint] raw solution={:#?}", result.solution);
+            eprintln!("[fixpoint] raw non_cut_solution={:#?}", result.non_cuts_solution);
+        }
+
         if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
         {
@@ -701,8 +725,7 @@ where
         }
     }
 
-    pub(crate) fn result_to_answer(&mut self, result: ParsedResult) -> Answer<Tag> {
-        let def_span = self.ecx.def_span();
+    pub(crate) fn result_to_answer(&mut self, result: ParsedResult) -> QueryResult<Answer<Tag>> {
         let errors = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
@@ -713,7 +736,7 @@ where
                     .unique()
                     .collect_vec()
             }
-            FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
+            FixpointStatus::Crash(err) => return Err(query_bug!("fixpoint crash: {err:?}")),
         };
 
         let cut_solution = result
@@ -728,11 +751,11 @@ where
             .map(|(kvid, sol)| (kvid, self.fixpoint_to_solution(&sol)))
             .collect_vec();
 
-        Answer {
+        Ok(Answer {
             errors,
             cut_solution: self.kcx.group_kvar_solution(cut_solution),
             non_cut_solution: self.kcx.group_kvar_solution(non_cut_solution),
-        }
+        })
     }
 
     fn parse_kvar_solutions(

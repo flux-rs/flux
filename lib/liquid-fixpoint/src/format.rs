@@ -332,7 +332,9 @@ impl<T: Types> fmt::Display for Expr<T> {
                 write!(
                     f,
                     "(exists ({}) {})",
-                    sorts.iter().map(|binder| &binder.1).format(" "),
+                    sorts.iter().format_with(" ", |(name, sort), f| {
+                        f(&format_args!("({} {sort})", name.display()))
+                    }),
                     body
                 )
             }
