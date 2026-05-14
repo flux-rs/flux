@@ -205,6 +205,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 ItemKind::TyAlias(..) => DefKind::TyAlias,
                 ItemKind::Enum(..) => DefKind::Enum,
                 ItemKind::Struct(..) => DefKind::Struct,
+                ItemKind::Union(..) => DefKind::Union,
                 ItemKind::Trait(..) => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
                 ItemKind::Const(..) => DefKind::Const,
