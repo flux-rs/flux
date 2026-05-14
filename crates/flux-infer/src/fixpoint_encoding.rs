@@ -610,7 +610,7 @@ where
 
         // Assuming values should happen after all encoding is done so we are sure we've collected
         // all constants.
-        let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
+        let mut constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
         let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
 
@@ -652,6 +652,8 @@ where
                         eprintln!("[orig-noncut]   {kvar:?} => {cube_preds:?}");
                     }
                 }
+                // Temporarily disable non-cut elimination so we can compare the raw
+                // fixpoint solutions against our own non-cut solution extraction.
                 constraint
             }
 
@@ -2318,6 +2320,49 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
         }
         Ok(constraint)
+    }
+
+    fn dump_free_vars(&self, constraint: &fixpoint::Constraint) {
+        let vars = constraint.free_vars_report();
+        for var in vars {
+            if matches!(
+                var,
+                fixpoint::Var::Const(..)
+                    | fixpoint::Var::DataProj { .. }
+                    | fixpoint::Var::TupleProj { .. }
+            ) {
+                continue;
+            }
+            eprintln!("[noncut-free-var] {} => {var:?}", self.describe_var(&var));
+        }
+    }
+
+    fn describe_var(&self, var: &fixpoint::Var) -> String {
+        match var {
+            fixpoint::Var::Underscore => "underscore binder".to_string(),
+            fixpoint::Var::Global(global, def_id) => {
+                format!("global function {global:?} def_id={def_id:?}")
+            }
+            fixpoint::Var::Const(global, def_id) => {
+                format!("const {global:?} def_id={def_id:?}")
+            }
+            fixpoint::Var::Local(local) => format!("local var {local:?}"),
+            fixpoint::Var::DataCtor(adt_id, variant_idx) => {
+                format!("data ctor adt_id={adt_id:?} variant_idx={variant_idx:?}")
+            }
+            fixpoint::Var::TupleCtor { arity } => format!("tuple ctor arity={arity}"),
+            fixpoint::Var::TupleProj { arity, field } => {
+                format!("tuple proj arity={arity} field={field}")
+            }
+            fixpoint::Var::DataProj { adt_id, field } => {
+                format!("data proj adt_id={adt_id:?} field={field}")
+            }
+            fixpoint::Var::UIFRel(rel) => format!("uif rel {rel:?}"),
+            fixpoint::Var::Param(param) => format!("param {param:?}"),
+            fixpoint::Var::ConstGeneric(const_generic) => {
+                format!("const generic {const_generic:?}")
+            }
+        }
     }
 
     fn qualifiers_for(

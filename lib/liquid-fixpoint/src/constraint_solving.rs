@@ -304,6 +304,39 @@ impl<T: Types> Constraint<T> {
         })
     }
 
+    pub fn free_vars_report(&self) -> Vec<T::Var> {
+        let mut free_vars = HashSet::new();
+        self.free_vars_report_help(&HashSet::new(), &mut free_vars);
+        free_vars.into_iter().collect_vec()
+    }
+
+    fn free_vars_report_help(&self, bound: &HashSet<T::Var>, free_vars: &mut HashSet<T::Var>) {
+        match self {
+            Constraint::Conj(conjuncts) => {
+                for conjunct in conjuncts {
+                    conjunct.free_vars_report_help(bound, free_vars);
+                }
+            }
+            Constraint::ForAll(Bind { name, pred, .. }, inner) => {
+                free_vars.extend(pred.free_vars().into_iter().filter(|v| !bound.contains(v)));
+
+                let mut new_bound = bound.clone();
+                new_bound.insert(name.clone());
+                inner.free_vars_report_help(&new_bound, free_vars);
+            }
+            Constraint::Pred(pred, _) => {
+                free_vars.extend(pred.free_vars().into_iter().filter(|v| !bound.contains(v)));
+            }
+        }
+    }
+
+    pub fn assert_no_free_vars(&self, context: &str) {
+        let free_vars = self.free_vars_report();
+        if !free_vars.is_empty() {
+            panic!("{context}: found unbound vars: {free_vars:?}\n{self:#?}");
+        }
+    }
+
     fn elim1(&self, var: &T::KVar) -> Self {
         let solution = self.sol1(var);
         let scope = self.kvar_scope(var);
@@ -329,8 +362,11 @@ impl<T: Types> Constraint<T> {
             .filter(|b| !matches!(b.pred, Pred::KVar(_, _)))
             .map(|b| format!("{:?}", b.pred))
             .collect();
-        let body_parts: Vec<_> = equalities.iter().chain(binder_preds.iter()).collect();
-        let body = body_parts.join(" /\\ ");
+        let body = equalities
+            .iter()
+            .map(|s| s.as_str())
+            .chain(binder_preds.iter().map(|s| s.as_str()))
+            .join(" /\\ ");
         if extra_binders.is_empty() {
             body
         } else {
@@ -437,15 +473,15 @@ impl<T: Types> Constraint<T> {
                                         })
                                         .map(|binder| (binder.name.clone(), binder.sort.clone()))
                                         .collect_vec();
-                                    if exist_binders.is_empty() {
-                                        body
+                                        if exist_binders.is_empty() {
+                                            body
+                                        } else {
+                                            Pred::Expr(Expr::Exists(exist_binders, Box::new(body_expr)))
+                                        }
                                     } else {
-                                        Pred::Expr(Expr::Exists(exist_binders, Box::new(body_expr)))
+                                        body
                                     }
-                                } else {
-                                    body
-                                }
-                            })
+                                })
                             .collect();
                         // Take the disjunction of all cube predicates when possible,
                         // otherwise fall back to a conjunction of separate ForAll constraints.
@@ -573,6 +609,14 @@ impl<T: Types> Pred<T> {
             Pred::And(ps) => ps.iter().any(Pred::contains_kvars),
             Pred::KVar(_, _) => true,
             Pred::Expr(_) => false,
+        }
+    }
+
+    fn free_vars(&self) -> HashSet<T::Var> {
+        match self {
+            Pred::And(ps) => ps.iter().flat_map(Pred::free_vars).collect(),
+            Pred::KVar(_, _) => HashSet::new(),
+            Pred::Expr(expr) => expr.free_vars().into_iter().collect(),
         }
     }
 
