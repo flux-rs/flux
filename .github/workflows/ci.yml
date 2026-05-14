@@ -29,6 +29,8 @@ jobs:
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.8.0
+        with:
+          cache-bin: false
 
       - name: Run tests
         run: |
