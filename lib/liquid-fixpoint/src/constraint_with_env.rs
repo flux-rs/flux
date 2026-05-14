@@ -7,7 +7,7 @@ use {
         graph,
     },
     itertools::Itertools,
-    std::collections::{HashMap, VecDeque},
+    std::collections::{HashMap, HashSet, VecDeque},
     z3::Solver,
 };
 
@@ -114,10 +114,8 @@ impl<T: Types> ConstraintWithEnv<T> {
     /// Eliminate KVars that are acyclic (have no dependencies) from the
     /// constraint by repeatedly removing KVars with empty dependency lists.
     /// Returns the list of KVars that were eliminated (in the order they were
-    /// discovered). Also logs the eliminated kvars to stderr for debugging.
+    /// discovered).
     pub(crate) fn eliminate_acyclic_kvars(&mut self) -> Vec<T::KVar> {
-        use crate::Identifier;
-
         let mut removed: Vec<T::KVar> = Vec::new();
         let mut dep_graph = self.constraint.kvar_dep_graph();
         let mut acyclic_kvars: Vec<T::KVar> = dep_graph
@@ -140,12 +138,6 @@ impl<T: Types> ConstraintWithEnv<T> {
                 .map(|(kvar, _)| kvar)
                 .collect();
         }
-
-        if !removed.is_empty() {
-            let names: Vec<String> = removed.iter().map(|k| format!("{}", k.display())).collect();
-            eprintln!("eliminate_acyclic_kvars removed: {}", names.join(","));
-        }
-
         removed
     }
 
@@ -177,17 +169,30 @@ impl<T: Types> ConstraintWithEnv<T> {
         is_constraint_satisfiable(&self.constraint, &solver, &mut vars)
     }
 
-    /// Compute the set of non-cut KVars according to the in-crate solver. This runs the
-    /// predicate-abstraction assignment phase (`solve_for_kvars`) and returns the list of
-    /// kvar identifiers (displayed as strings like "k42") that have a non-empty
-    /// assignment vector.
+    /// Compute the set of non-cut KVars using the SCC+rank algorithm that mirrors
+    /// the Haskell fixpoint `elimVars`/`sccElims`/`edgeRankCut` logic in
+    /// `Language.Fixpoint.Graph.Deps`.
+    ///
+    /// For each SCC of the KVar dependency graph:
+    ///   - Singleton without a self-loop → non-cut (can be eliminated).
+    ///   - Singleton with self-loop, or multi-node SCC → pick the KVar with the
+    ///     minimum rank (= smallest fragment index where it appears as an LHS
+    ///     assumption) as a cut, remove it, recompute SCCs on the remaining
+    ///     sub-graph, and recurse.
     #[cfg(feature = "rust-fixpoint")]
     pub fn compute_non_cuts(&mut self) -> Vec<String> {
-        use z3::Solver;
         use crate::Identifier;
 
-        let removed = self.eliminate_acyclic_kvars();
-        removed.into_iter().map(|k| format!("{}", k.display())).collect()
+        let n_max = self.constraint.depth_first_fragments().count();
+        let rank = self.constraint.kvar_ranks(n_max);
+        let dep_graph = self.constraint.kvar_dep_graph();
+        let sccs = graph::topological_sort_sccs(&dep_graph);
+
+        let mut non_cuts: Vec<T::KVar> = Vec::new();
+        for scc in sccs {
+            scc_dep::<T>(&scc, &dep_graph, &rank, n_max, &mut non_cuts);
+        }
+        non_cuts.into_iter().map(|k| format!("{}", k.display())).collect()
     }
 
     fn topo_sort_data_declarations(datatype_decls: Vec<DataDecl<T>>) -> Vec<DataDecl<T>> {
@@ -241,4 +246,59 @@ fn type_signature_matches<T: Types>(
     }
 
     true
+}
+
+/// Recursively apply the SCC+rank cut-selection algorithm (mirrors Haskell's
+/// `sccElims`/`edgeRankCut` in `Language.Fixpoint.Graph.Deps`).
+///
+/// `scc`       – the nodes of one SCC (from `topological_sort_sccs`).
+/// `dep_graph` – the *current* sub-graph being processed (not the original).
+/// `rank`      – pre-computed minimum fragment index per KVar (from `kvar_ranks`).
+/// `n_max`     – fallback rank for KVars not seen as assumptions (treated as ∞).
+/// `non_cuts`  – accumulator; KVars that can be eliminated are pushed here.
+#[cfg(feature = "rust-fixpoint")]
+fn scc_dep<T: Types>(
+    scc: &[T::KVar],
+    dep_graph: &HashMap<T::KVar, Vec<T::KVar>>,
+    rank: &HashMap<T::KVar, usize>,
+    n_max: usize,
+    non_cuts: &mut Vec<T::KVar>,
+) {
+    match scc {
+        [] => {}
+        [k] => {
+            // Singleton SCC: non-cut iff no self-loop.
+            let has_self_loop = dep_graph.get(k).map_or(false, |deps| deps.contains(k));
+            if !has_self_loop {
+                non_cuts.push(k.clone());
+            }
+        }
+        _ => {
+            // Multi-node SCC (cycle): pick the KVar with the minimum rank as
+            // the cut variable, remove it, recompute SCCs on the remaining
+            // sub-graph, and recurse.
+            let cut = scc
+                .iter()
+                .min_by_key(|k| rank.get(*k).copied().unwrap_or(n_max))
+                .unwrap()
+                .clone();
+
+            let remaining: HashSet<T::KVar> =
+                scc.iter().filter(|k| **k != cut).cloned().collect();
+
+            let sub_graph: HashMap<T::KVar, Vec<T::KVar>> = remaining
+                .iter()
+                .map(|k| {
+                    let deps = dep_graph.get(k).map_or(vec![], |d| {
+                        d.iter().filter(|dep| remaining.contains(*dep)).cloned().collect()
+                    });
+                    (k.clone(), deps)
+                })
+                .collect();
+
+            for sub_scc in graph::topological_sort_sccs(&sub_graph) {
+                scc_dep::<T>(&sub_scc, &sub_graph, rank, n_max, non_cuts);
+            }
+        }
+    }
 }
