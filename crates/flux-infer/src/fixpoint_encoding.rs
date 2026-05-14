@@ -646,25 +646,12 @@ where
             #[cfg(not(feature = "rust-fixpoint"))]
             {
                 if std::env::var("FLUX_DEBUG_ORIG_NONCUT").is_ok() {
-                    let orig_task = fixpoint::Task {
-                        comments: self.comments.clone(),
-                        constants: constants.clone(),
-                        kvars: kvars.clone(),
-                        define_funs: Vec::new(),
-                        constraint: constraint.clone(),
-                        qualifiers: qualifiers.clone(),
-                        scrape_quals,
-                        solver,
-                        data_decls: self.scx.encode_data_decls(self.genv)?,
-                    };
-                    let orig_result = orig_task.run().expect("orig noncut probe failed");
-                    eprintln!("[orig-noncut] local={:?}", constraint.non_cut_solution_strings());
-                    eprintln!("[orig-noncut] fixpoint non_cut_count={} solution_count={}", orig_result.non_cuts_solution.len(), orig_result.solution.len());
-                    eprintln!("[orig-noncut] fixpoint non_cut={:#?}", orig_result.non_cuts_solution);
-                    eprintln!("[orig-noncut] fixpoint solution={:#?}", orig_result.solution);
+                    let local_solutions = constraint.non_cut_solution_strings();
+                    eprintln!("[orig-noncut] local non_cut_count={}", local_solutions.len());
+                    for (kvar, cube_preds) in &local_solutions {
+                        eprintln!("[orig-noncut]   {kvar:?} => {cube_preds:?}");
+                    }
                 }
-                let mut constraint = constraint;
-                constraint = constraint.elim_non_cut_kvars();
                 constraint
             }
 

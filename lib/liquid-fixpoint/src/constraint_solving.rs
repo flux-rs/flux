@@ -234,14 +234,14 @@ impl<T: Types> Constraint<T> {
         self.compute_non_cuts()
             .into_iter()
             .map(|var| {
-                let scoped = self.scope(&var);
-                let sols: Vec<String> = scoped
+                let scope = self.kvar_scope(&var);
+                let sols: Vec<String> = self
                     .sol1(&var)
                     .into_iter()
-                    .map(|sol| self.fmt_solution(&sol))
+                    .map(|sol| self.fmt_cube_pred(&sol, &scope))
                     .collect();
                 if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
-                    eprintln!("[noncut-scope] var={var:?} scoped={scoped:#?} sol_count={}", sols.len());
+                    eprintln!("[noncut-scope] var={var:?} scope={scope:?} sol_count={}", sols.len());
                 }
                 (var, sols)
             })
@@ -305,14 +305,41 @@ impl<T: Types> Constraint<T> {
     }
 
     fn elim1(&self, var: &T::KVar) -> Self {
-        let solution = self.scope(var).sol1(var);
+        let solution = self.sol1(var);
+        let scope = self.kvar_scope(var);
         if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
-            eprintln!("[noncut] elim solution_count={}", solution.len());
+            eprintln!("[noncut] elim var={var:?} scope={scope:?} solution_count={}", solution.len());
             for (i, sol) in solution.iter().enumerate() {
-                eprintln!("[noncut] solution[{i}] {}", self.fmt_solution(sol));
+                eprintln!("[noncut] solution[{i}] {}", self.fmt_cube_pred(sol, &scope));
             }
         }
-        self.do_elim(var, &solution)
+        self.do_elim(var, &solution, &scope)
+    }
+
+    fn fmt_cube_pred(&self, sol: &Solution<T>, scope: &HashSet<T::Var>) -> String {
+        let extra_binders: Vec<_> = sol.binders.iter().filter(|b| !scope.contains(&b.name)).collect();
+        let equalities: Vec<String> = sol
+            .args
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| format!("v{i}={arg:?}"))
+            .collect();
+        let binder_preds: Vec<String> = extra_binders
+            .iter()
+            .filter(|b| !matches!(b.pred, Pred::KVar(_, _)))
+            .map(|b| format!("{:?}", b.pred))
+            .collect();
+        let body_parts: Vec<_> = equalities.iter().chain(binder_preds.iter()).collect();
+        let body = body_parts.join(" /\\ ");
+        if extra_binders.is_empty() {
+            body
+        } else {
+            let qvars: Vec<_> = extra_binders
+                .iter()
+                .map(|b| format!("{:?}:{:?}", b.name, b.sort))
+                .collect();
+            format!("∃ {}. {}", qvars.join(", "), body)
+        }
     }
 
     fn fmt_solution(&self, sol: &Solution<T>) -> String {
@@ -331,21 +358,20 @@ impl<T: Types> Constraint<T> {
         format!("binders=[{binders}] args=[{args}]")
     }
 
-    fn scope_binders(&self, var: &T::KVar) -> HashSet<T::Var> {
-        fn go<T: Types>(cstr: &Constraint<T>, acc: &mut HashSet<T::Var>) {
-            match cstr {
-                Constraint::ForAll(bind, inner) => {
-                    acc.insert(bind.name.clone());
-                    go(inner, acc);
-                }
-                Constraint::Conj(conjuncts) => conjuncts.iter().for_each(|c| go(c, acc)),
-                Constraint::Pred(_, _) => {}
-            }
+    /// Computes `sScp[k]`: the intersection of all binders that are universally in scope
+    /// at every occurrence (guard or head) of `var` in this constraint.
+    /// Mirrors Haskell's `kvScopes` / `sScp` in `Language.Fixpoint.Solver.Eliminate`.
+    fn kvar_scope(&self, var: &T::KVar) -> HashSet<T::Var> {
+        let mut paths: Vec<HashSet<T::Var>> = Vec::new();
+        collect_occurrence_binders(self, var, &HashSet::new(), &mut paths);
+        if paths.is_empty() {
+            return HashSet::new();
         }
-
-        let mut acc = HashSet::new();
-        go(&self.scope(var), &mut acc);
-        acc
+        let mut scope = paths.swap_remove(0);
+        for path in paths {
+            scope.retain(|x| path.contains(x));
+        }
+        scope
     }
 
     fn pred_to_expr(pred: &Pred<T>) -> Option<Expr<T>> {
@@ -360,42 +386,54 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    fn do_elim(&self, var: &T::KVar, solution: &[Solution<T>]) -> Self {
+    fn do_elim(&self, var: &T::KVar, solution: &[Solution<T>], scope: &HashSet<T::Var>) -> Self {
         match self {
             Constraint::Conj(conjuncts) => {
                 Constraint::Conj(
                     conjuncts
                         .iter()
-                        .map(|cstr| cstr.do_elim(var, solution))
+                        .map(|cstr| cstr.do_elim(var, solution, scope))
                         .collect(),
                 )
             }
             Constraint::ForAll(Bind { name, sort, pred }, inner) => {
-                let inner_elimmed = inner.do_elim(var, solution);
+                let inner_elimmed = inner.do_elim(var, solution, scope);
                 match pred.find_kvar_in_guard(var) {
                     Ok(_) => Constraint::ForAll(
                         Bind { name: name.clone(), sort: sort.clone(), pred: pred.clone() },
                         Box::new(inner_elimmed),
                     ),
                     Err((kvar_instances, preds)) => {
-                        let scope_binders = self.scope_binders(var);
-                        let cstrs: Vec<Constraint<T>> = solution
+                        let cube_preds: Vec<Pred<T>> = solution
                             .iter()
                             .map(|Solution { binders, args }| {
-                                let mut preds = preds.clone();
-                                preds.extend(kvar_instances.iter().flat_map(|(_, eqs)| {
+                                let mut body_preds = preds.clone();
+                                body_preds.extend(kvar_instances.iter().flat_map(|(_, eqs)| {
                                     iter::zip(args, eqs).map(|(arg, eq)| {
-                                        Pred::Expr(Expr::Atom(BinRel::Eq, Box::new([eq.clone(), arg.clone()])))
+                                        Pred::Expr(Expr::Atom(
+                                            BinRel::Eq,
+                                            Box::new([eq.clone(), arg.clone()]),
+                                        ))
                                     })
                                 }));
-                                let body = Pred::and(preds);
-                                let pred = if let Some(body_expr) = Self::pred_to_expr(&body) {
+                                // Include non-kvar predicates from extra binders (not in scope).
+                                // KVar binder preds are skipped (treated as True, since cut-kvar
+                                // solutions are not available on the Rust side).
+                                for binder in binders {
+                                    if !scope.contains(&binder.name) {
+                                        if matches!(binder.pred, Pred::Expr(_)) {
+                                            body_preds.push(binder.pred.clone());
+                                        }
+                                    }
+                                }
+                                let body = Pred::and(body_preds);
+                                if let Some(body_expr) = Self::pred_to_expr(&body) {
                                     let free_vars = body_expr.free_vars();
                                     let exist_binders = binders
                                         .iter()
                                         .filter(|binder| {
                                             free_vars.contains(&binder.name)
-                                                && !scope_binders.contains(&binder.name)
+                                                && !scope.contains(&binder.name)
                                         })
                                         .map(|binder| (binder.name.clone(), binder.sort.clone()))
                                         .collect_vec();
@@ -406,21 +444,42 @@ impl<T: Types> Constraint<T> {
                                     }
                                 } else {
                                     body
-                                };
-                                let init = Constraint::ForAll(
-                                    Bind {
-                                        name: name.clone(),
-                                        sort: sort.clone(),
-                                        pred,
-                                    },
-                                    Box::new(inner_elimmed.clone()),
-                                );
-                                binders.iter().fold(init, |acc, binder| {
-                                    Constraint::ForAll((*binder).clone(), Box::new(acc))
-                                })
+                                }
                             })
                             .collect();
-                        Constraint::conj(cstrs)
+                        // Take the disjunction of all cube predicates when possible,
+                        // otherwise fall back to a conjunction of separate ForAll constraints.
+                        let new_pred = match cube_preds.len() {
+                            0 => Pred::TRUE,
+                            1 => cube_preds.into_iter().next().unwrap(),
+                            _ => {
+                                let exprs: Option<Vec<Expr<T>>> =
+                                    cube_preds.iter().map(Self::pred_to_expr).collect();
+                                if let Some(exprs) = exprs {
+                                    Pred::Expr(Expr::Or(exprs))
+                                } else {
+                                    // Cannot form disjunction; build a conjunction of constraints.
+                                    let cstrs: Vec<Constraint<T>> = cube_preds
+                                        .into_iter()
+                                        .map(|p| {
+                                            Constraint::ForAll(
+                                                Bind {
+                                                    name: name.clone(),
+                                                    sort: sort.clone(),
+                                                    pred: p,
+                                                },
+                                                Box::new(inner_elimmed.clone()),
+                                            )
+                                        })
+                                        .collect();
+                                    return Constraint::conj(cstrs);
+                                }
+                            }
+                        };
+                        Constraint::ForAll(
+                            Bind { name: name.clone(), sort: sort.clone(), pred: new_pred },
+                            Box::new(inner_elimmed),
+                        )
                     }
                 }
             }
@@ -428,6 +487,39 @@ impl<T: Types> Constraint<T> {
                 Constraint::Pred(Pred::TRUE, tag.clone())
             }
             cpred => cpred.clone(),
+        }
+    }
+}
+
+/// Collects, for each occurrence (guard or head) of `var` in `cstr`,
+/// the set of ForAll binder names that are in scope at that occurrence.
+/// Used by `Constraint::kvar_scope` to compute the intersection (sScp[k]).
+fn collect_occurrence_binders<T: Types>(
+    cstr: &Constraint<T>,
+    var: &T::KVar,
+    outer: &HashSet<T::Var>,
+    paths: &mut Vec<HashSet<T::Var>>,
+) {
+    match cstr {
+        Constraint::ForAll(bind, inner) => {
+            if bind.pred.kvars().contains(var) {
+                // Guard occurrence: the binders in scope are those *above* this ForAll.
+                paths.push(outer.clone());
+            }
+            let mut new_outer = outer.clone();
+            new_outer.insert(bind.name.clone());
+            collect_occurrence_binders(inner, var, &new_outer, paths);
+        }
+        Constraint::Conj(conjuncts) => {
+            for c in conjuncts {
+                collect_occurrence_binders(c, var, outer, paths);
+            }
+        }
+        Constraint::Pred(pred, _) => {
+            if pred.kvars().contains(var) {
+                // Head occurrence.
+                paths.push(outer.clone());
+            }
         }
     }
 }
