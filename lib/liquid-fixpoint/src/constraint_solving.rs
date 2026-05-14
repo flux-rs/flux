@@ -27,6 +27,26 @@ impl<T: Types> Constraint<T> {
         ConstraintFragments::new(self)
     }
 
+    /// Computes a map from each KVar to the minimum fragment index (DFS order)
+    /// at which that KVar appears as an LHS/assumption kvar.  The `n_max`
+    /// argument is used as the default rank for KVars that never appear in any
+    /// LHS (they are effectively "infinity", i.e., never seen as assumptions).
+    ///
+    /// This mirrors the Haskell `edgeRank` in `Graph/Deps.hs`, which assigns
+    /// each KVar the smallest sub-constraint ID where it appears on the LHS.
+    pub(crate) fn kvar_ranks(&self, n_max: usize) -> HashMap<T::KVar, usize> {
+        let mut rank: HashMap<T::KVar, usize> = HashMap::new();
+        for (i, frag) in self.depth_first_fragments().enumerate() {
+            for k in frag.kvar_deps() {
+                let r = rank.entry(k).or_insert(n_max);
+                if i < *r {
+                    *r = i;
+                }
+            }
+        }
+        rank
+    }
+
     pub fn kvar_deps(&self) -> Vec<T::KVar> {
         match self {
             Constraint::Conj(_) => panic!("Conjunctions should not occur in fragments"),
@@ -78,6 +98,18 @@ impl<T: Types> Constraint<T> {
                     }
                 }
                 Constraint::ForAll(bind, cstr) => {
+                    // Register assumption kvars as graph nodes with *empty* deps.
+                    // Without this, assumption-only kvars (kvars that never appear as
+                    // heads) would not be keys in the graph and would never be found by
+                    // the acyclic-peeling loop in `eliminate_acyclic_kvars`.
+                    //
+                    // We must NOT inherit outer `deps` here: assumption kvars don't
+                    // depend on the kvars in surrounding ForAll binders.  Their deps
+                    // (if any) come only from when they appear as heads elsewhere in
+                    // the constraint, which is handled by the `Constraint::Pred` arm.
+                    for kvar in bind.pred.kvars() {
+                        graph.entry(kvar.clone()).or_default();
+                    }
                     deps.extend(bind.pred.kvars());
                     go(cstr, deps, graph);
                 }
