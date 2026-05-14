@@ -4,8 +4,8 @@ use core::marker::PhantomData;
 
 use flux_attrs::*;
 
-union MyUnion<T> {
-    ptr: *const T,
+union MyUnion {
+    ptr: *const i32,
 }
 
 #[opaque]
