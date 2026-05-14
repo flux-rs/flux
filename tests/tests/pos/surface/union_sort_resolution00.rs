@@ -8,8 +8,8 @@ union MyUnion {
     x: i32,
 }
 
-#[refined_by(x: crate::MyUnion)]
+#[refined_by(x: MyUnion)]
 struct UsesUnionSort {
-    #[field(crate::MyUnion[x])]
+    #[field(MyUnion[x])]
     x: MyUnion,
 }
