@@ -573,7 +573,7 @@ pub fn walk_path_segment<V: Visitor>(vis: &mut V, segment: &PathSegment) {
 
 pub fn walk_field_expr<V: Visitor>(vis: &mut V, expr: &FieldExpr) {
     vis.visit_ident(expr.ident);
-    vis.visit_expr(&expr.expr);
+    vis.visit_refine_arg(&expr.expr);
 }
 
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {

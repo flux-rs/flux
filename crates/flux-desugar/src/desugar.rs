@@ -1628,7 +1628,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let field_exprs = self
             .genv()
             .alloc_slice_fill_iter(field_exprs.iter().map(|field_expr| {
-                let e = self.desugar_expr(&field_expr.expr);
+                let e = self.desugar_refine_arg(&field_expr.expr);
                 fhir::FieldExpr {
                     ident: field_expr.ident,
                     expr: e,

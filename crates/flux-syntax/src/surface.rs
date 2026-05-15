@@ -680,7 +680,7 @@ pub enum GenericArgKind {
 #[derive(Debug)]
 pub struct FieldExpr {
     pub ident: Ident,
-    pub expr: Expr,
+    pub expr: RefineArg,
     pub span: Span,
     pub node_id: NodeId,
 }
