@@ -338,15 +338,18 @@ impl<T: Types> Constraint<T> {
     }
 
     fn elim1(&self, var: &T::KVar) -> Self {
-        let solution = self.sol1(var);
-        let scope = self.kvar_scope(var);
+        // Call sol1 on scope(var) — the LCA subtree — so that the collected
+        // binders are exactly those that are "extra" (below the LCA), matching
+        // Haskell's `elim1 c k = simplify $ doelim k (sol1 k (scope k c)) c`.
+        let scoped = self.scope(var);
+        let solution = scoped.sol1(var);
         if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
-            eprintln!("[noncut] elim var={var:?} scope={scope:?} solution_count={}", solution.len());
+            eprintln!("[noncut] elim var={var:?} solution_count={}", solution.len());
             for (i, sol) in solution.iter().enumerate() {
-                eprintln!("[noncut] solution[{i}] {}", self.fmt_cube_pred(sol, &scope));
+                eprintln!("[noncut] solution[{i}] binders={} args={:?}", sol.binders.len(), sol.args);
             }
         }
-        self.do_elim(var, &solution, &scope)
+        self.do_elim(var, &solution)
     }
 
     fn fmt_cube_pred(&self, sol: &Solution<T>, scope: &HashSet<T::Var>) -> String {
@@ -422,29 +425,40 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    fn do_elim(&self, var: &T::KVar, solution: &[Solution<T>], scope: &HashSet<T::Var>) -> Self {
+    fn do_elim(&self, var: &T::KVar, solution: &[Solution<T>]) -> Self {
         match self {
             Constraint::Conj(conjuncts) => {
                 Constraint::Conj(
                     conjuncts
                         .iter()
-                        .map(|cstr| cstr.do_elim(var, solution, scope))
+                        .map(|cstr| cstr.do_elim(var, solution))
                         .collect(),
                 )
             }
             Constraint::ForAll(Bind { name, sort, pred }, inner) => {
-                let inner_elimmed = inner.do_elim(var, solution, scope);
+                let inner_elimmed = inner.do_elim(var, solution);
                 match pred.find_kvar_in_guard(var) {
                     Ok(_) => Constraint::ForAll(
                         Bind { name: name.clone(), sort: sort.clone(), pred: pred.clone() },
                         Box::new(inner_elimmed),
                     ),
                     Err((kvar_instances, preds)) => {
-                        let cube_preds: Vec<Pred<T>> = solution
+                        // Mirrors Haskell's `demorgan`/`cubeSol`:
+                        //
+                        //   cubeSol (b:bs, eqs) = All b $ cubeSol (bs, eqs)
+                        //   cubeSol ([], eqs)   = All (Bind x t (PAnd (subst su eqs ++ subst su preds))) cstr'
+                        //
+                        // Extra binders (those not in scope) become nested ForAll wrappers
+                        // *outside* the guard binder, not existentials inside the predicate.
+                        // When there are multiple cubes they are conjoined (CAnd), not disjuncted.
+                        let cube_cstrs: Vec<Constraint<T>> = solution
                             .iter()
                             .map(|Solution { binders, args }| {
-                                let mut body_preds = preds.clone();
-                                body_preds.extend(kvar_instances.iter().flat_map(|(_, eqs)| {
+                                // Build the guard predicate for the original binder:
+                                // equality constraints (guard_arg == sol_arg) plus the remaining
+                                // non-kvar predicates from the guard.
+                                let mut guard_preds = preds.clone();
+                                guard_preds.extend(kvar_instances.iter().flat_map(|(_, eqs)| {
                                     iter::zip(args, eqs).map(|(arg, eq)| {
                                         Pred::Expr(Expr::Atom(
                                             BinRel::Eq,
@@ -452,70 +466,46 @@ impl<T: Types> Constraint<T> {
                                         ))
                                     })
                                 }));
-                                // Include non-kvar predicates from extra binders (not in scope).
-                                // KVar binder preds are skipped (treated as True, since cut-kvar
-                                // solutions are not available on the Rust side).
-                                for binder in binders {
-                                    if !scope.contains(&binder.name) {
-                                        if matches!(binder.pred, Pred::Expr(_)) {
-                                            body_preds.push(binder.pred.clone());
-                                        }
-                                    }
-                                }
-                                let body = Pred::and(body_preds);
-                                if let Some(body_expr) = Self::pred_to_expr(&body) {
-                                    let free_vars = body_expr.free_vars();
-                                    let exist_binders = binders
-                                        .iter()
-                                        .filter(|binder| {
-                                            free_vars.contains(&binder.name)
-                                                && !scope.contains(&binder.name)
-                                        })
-                                        .map(|binder| (binder.name.clone(), binder.sort.clone()))
-                                        .collect_vec();
-                                        if exist_binders.is_empty() {
-                                            body
-                                        } else {
-                                            Pred::Expr(Expr::Exists(exist_binders, Box::new(body_expr)))
-                                        }
+                                // The innermost constraint: the original binder with the new guard.
+                                let innermost = Constraint::ForAll(
+                                    Bind {
+                                        name: name.clone(),
+                                        sort: sort.clone(),
+                                        pred: Pred::and(guard_preds),
+                                    },
+                                    Box::new(inner_elimmed.clone()),
+                                );
+                                // Wrap ALL binders from the solution as outer ForAll quantifiers,
+                                // matching Haskell's `cubeSol (b:bs, eqs) = All b $ cubeSol (bs, eqs)`.
+                                // Because sol1 was called on `scope(var)` (the LCA subtree), the
+                                // binders here are exactly those that are "extra" (below the LCA).
+                                // KVar binder preds are treated as True (we do not have cut-kvar
+                                // solutions on the Rust side).
+                                binders.iter().rev().fold(innermost, |acc, binder| {
+                                    let guard = if matches!(binder.pred, Pred::KVar(_, _)) {
+                                        Pred::TRUE
                                     } else {
-                                        body
-                                    }
+                                        binder.pred.clone()
+                                    };
+                                    Constraint::ForAll(
+                                        Bind {
+                                            name: binder.name.clone(),
+                                            sort: binder.sort.clone(),
+                                            pred: guard,
+                                        },
+                                        Box::new(acc),
+                                    )
                                 })
+                            })
                             .collect();
-                        // Take the disjunction of all cube predicates when possible,
-                        // otherwise fall back to a conjunction of separate ForAll constraints.
-                        let new_pred = match cube_preds.len() {
-                            0 => Pred::TRUE,
-                            1 => cube_preds.into_iter().next().unwrap(),
-                            _ => {
-                                let exprs: Option<Vec<Expr<T>>> =
-                                    cube_preds.iter().map(Self::pred_to_expr).collect();
-                                if let Some(exprs) = exprs {
-                                    Pred::Expr(Expr::Or(exprs))
-                                } else {
-                                    // Cannot form disjunction; build a conjunction of constraints.
-                                    let cstrs: Vec<Constraint<T>> = cube_preds
-                                        .into_iter()
-                                        .map(|p| {
-                                            Constraint::ForAll(
-                                                Bind {
-                                                    name: name.clone(),
-                                                    sort: sort.clone(),
-                                                    pred: p,
-                                                },
-                                                Box::new(inner_elimmed.clone()),
-                                            )
-                                        })
-                                        .collect();
-                                    return Constraint::conj(cstrs);
-                                }
-                            }
-                        };
-                        Constraint::ForAll(
-                            Bind { name: name.clone(), sort: sort.clone(), pred: new_pred },
-                            Box::new(inner_elimmed),
-                        )
+                        match cube_cstrs.len() {
+                            0 => Constraint::ForAll(
+                                Bind { name: name.clone(), sort: sort.clone(), pred: Pred::TRUE },
+                                Box::new(inner_elimmed),
+                            ),
+                            1 => cube_cstrs.into_iter().next().unwrap(),
+                            _ => Constraint::conj(cube_cstrs),
+                        }
                     }
                 }
             }

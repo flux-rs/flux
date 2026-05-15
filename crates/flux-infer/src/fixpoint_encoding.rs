@@ -652,9 +652,7 @@ where
                         eprintln!("[orig-noncut]   {kvar:?} => {cube_preds:?}");
                     }
                 }
-                // Temporarily disable non-cut elimination so we can compare the raw
-                // fixpoint solutions against our own non-cut solution extraction.
-                constraint
+                constraint.elim_non_cut_kvars()
             }
 
             #[cfg(feature = "rust-fixpoint")]
