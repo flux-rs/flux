@@ -13,11 +13,9 @@ use rustc_hir::{
     lang_items::LangItem,
 };
 use rustc_middle::{
-    mir::{TerminatorKind, UnwindAction},
+    mir::{Location, TerminatorKind, UnwindAction},
     ty::{EarlyBinder, GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt, TypingEnv},
 };
-
-pub type CallGraph = FxHashMap<DefId, Vec<DefId>>;
 
 pub fn provide(providers: &mut Providers) {
     providers.inferred_no_panic = inferred_no_panic;
@@ -41,19 +39,74 @@ fn is_outside_cstore(genv: GlobalEnv, krate: CrateNum) -> bool {
     !genv.cstore_has_crate(krate)
 }
 
+// ---- Call graph types -------------------------------------------------------
+
+/// A single call site observed in a function's MIR body.
 #[derive(Debug, Clone)]
-struct GraphBuildResult {
-    call_graph: CallGraph,
-    pub resolution_failures: FxHashMap<DefId, CannotResolveReason>,
-    external_callees: FxHashSet<DefId>,
+struct CallSite<'tcx> {
+    location: Location,
+    kind: CallSiteKind<'tcx>,
 }
 
-/// The entry point for no-panic inference. Given a root function, explores its call graph and returns
-/// an over-approximation of if it might panic and why.
+#[derive(Debug, Clone)]
+enum CallSiteKind<'tcx> {
+    /// `Call` terminator that resolved to a concrete `Instance`.
+    Direct { callee: Instance<'tcx> },
+    /// Synthetic edge from an `Assert` terminator with a reachable unwind path —
+    /// represents the implicit call to `core::panicking::panic`.
+    SynthesizedPanic { callee: Instance<'tcx> },
+    /// `Call` terminator on a `FnDef` where `Instance::try_resolve` failed.
+    UnresolvedTrait { method: DefId },
+    /// `Call` terminator on a non-`FnDef` type (function pointer, closure).
+    DynamicDispatch,
+}
+
+/// Classification of a node in the call graph.
+#[derive(Debug, Clone)]
+enum NodeKind {
+    /// MIR was available and walked (local functions, stdlib, cstore-absent crates).
+    Analyzed,
+    /// Function with no Rust body by design (e.g. `extern "C"`, intrinsics).
+    NoBody(DefKind),
+    /// Function that should have a body but whose MIR could not be loaded.
+    MIRUnavailable(DefKind),
+    /// External crate function — panic spec looked up from crate metadata.
+    ExternalCrate,
+    /// Non-`Item` MIR instance (shim, virtual dispatch stub) or instance with
+    /// abstract type/const params. Conservatively assumed `WillNotPanic`.
+    Opaque,
+}
+
+#[derive(Debug, Clone)]
+struct NodeInfo<'tcx> {
+    kind: NodeKind,
+    /// Call sites observed in this function's MIR body. Non-empty only for
+    /// `NodeKind::Analyzed` nodes.
+    call_sites: Vec<CallSite<'tcx>>,
+}
+
+struct LabeledCallGraph<'tcx> {
+    nodes: FxHashMap<Instance<'tcx>, NodeInfo<'tcx>>,
+    /// Identity instances of local root functions — the only nodes that appear
+    /// in the final `FxHashMap<DefId, PanicSpec>` output.
+    roots: FxHashSet<Instance<'tcx>>,
+}
+
+// ---- Entry points -----------------------------------------------------------
+
+/// The entry point for no-panic inference. Given a root function, explores its
+/// call graph and returns an over-approximation of whether it might panic.
 pub fn infer_no_panics(
     genv: GlobalEnv,
     external_spec: impl Fn(DefId) -> PanicSpec,
 ) -> FxHashMap<DefId, PanicSpec> {
+    let graph = build_call_graph(genv);
+    run_fixpoint(&graph, external_spec)
+}
+
+// ---- Build phase ------------------------------------------------------------
+
+fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> LabeledCallGraph<'tcx> {
     let tcx = genv.tcx();
 
     // We need to use `iter_local_def_id` instead of `hir_body_owners`
@@ -63,85 +116,26 @@ pub fn infer_no_panics(
         .filter(|local_id| tcx.def_kind(local_id.to_def_id()).is_fn_like())
         .collect();
 
-    // 1. Build the call graph.
-    let GraphBuildResult { call_graph, resolution_failures, external_callees } =
-        build_call_graph(genv, &roots);
-
-    // 2. Seed the call graph with initial panic specs.
-    //    - External non-stdlib callees: use the provided spec from their crate's metadata.
-    //    - Resolution failures: seed with the failure reason.
-    //    - Everything else: seed with Unknown for the fixpoint to resolve.
-    let mut initial_specs: FxHashMap<DefId, PanicSpec> = FxHashMap::default();
-
-    for def_id in call_graph.keys() {
-        if external_callees.contains(def_id) {
-            initial_specs.insert(*def_id, external_spec(*def_id));
-        } else if let Some(resolution_error) = resolution_failures.get(def_id) {
-            initial_specs.insert(
-                *def_id,
-                PanicSpec::MightPanic(PanicReason::CannotResolve(*resolution_error)),
-            );
-        } else {
-            initial_specs.insert(*def_id, PanicSpec::MightPanic(PanicReason::Unknown));
-        }
-    }
-
-    // 3. Run fixpoint to propagate panic specs through the call graph.
-    run_fixpoint(&call_graph, &mut initial_specs);
-
-    initial_specs
+    explore(genv, &roots)
 }
 
-/// Builds the call graph starting from the local fn-like roots. If we encounter a call we
-/// can't resolve, we add it to the resolution_failures map and keep going.
-fn build_call_graph(genv: GlobalEnv, roots: &[LocalDefId]) -> GraphBuildResult {
-    let tcx = genv.tcx();
-    let mut resolution_failures = FxHashMap::default();
-    let mut call_graph: CallGraph = FxHashMap::default();
-    let mut external_callees: FxHashSet<DefId> = FxHashSet::default();
-
-    if roots
-        .iter()
-        .any(|root| !tcx.def_kind(root.to_def_id()).is_fn_like())
-    {
-        flux_common::bug!(
-            "flux-opt::infer_no_panics: all roots must be fn-like, but found non-fn-like roots: {:?}",
-            roots
-                .iter()
-                .filter(|root| !tcx.def_kind(root.to_def_id()).is_fn_like())
-                .map(|root| tcx.def_path_str(root.to_def_id()))
-                .collect::<Vec<_>>()
-        );
-    }
-
-    explore(genv, roots, &mut call_graph, &mut resolution_failures, &mut external_callees);
-
-    GraphBuildResult { call_graph, resolution_failures, external_callees }
-}
-
-/// Walks `body`'s Call terminators and resolves each callee to a concrete `Instance` using
-/// the caller instance's type substitution. Returns the resolved callee instances and any
-/// calls that could not be resolved.
-///
-/// `Assert` terminators with a non-unreachable unwind action can also panic — they have no
-/// explicit callee in the MIR (`unwind: continue` propagates without any function call). We
-/// synthesize a call to `core::panicking::panic` so the fixpoint sees the panic edge.
+/// Walks `body`'s Call and Assert terminators, returning all call sites found.
 fn callees_in_body<'tcx>(
     tcx: TyCtxt<'tcx>,
     caller: Instance<'tcx>,
     body: &rustc_middle::mir::Body<'tcx>,
-) -> (Vec<Instance<'tcx>>, Vec<(DefId, CannotResolveReason)>) {
+) -> Vec<CallSite<'tcx>> {
     let typing_env = TypingEnv::non_body_analysis(tcx, caller.def_id());
-    let mut callees = Vec::new();
-    let mut failures = Vec::new();
+    let mut call_sites = Vec::new();
 
-    for bb in body.basic_blocks.iter() {
-        match &bb.terminator().kind {
+    for (bb, bb_data) in body.basic_blocks.iter_enumerated() {
+        let terminator = bb_data.terminator();
+        let location = Location { block: bb, statement_index: bb_data.statements.len() };
+
+        match &terminator.kind {
             TerminatorKind::Call { func, .. } => {
                 let ty = func.ty(&body.local_decls, tcx);
                 // Apply the caller's concrete type args to get the concrete callee type.
-                // For non-generic callers this is a no-op; for generic stdlib bodies
-                // this substitutes abstract type params with the concrete instantiation.
                 let ty = caller.instantiate_mir_and_normalize_erasing_regions(
                     tcx,
                     typing_env,
@@ -151,36 +145,44 @@ fn callees_in_body<'tcx>(
                 match ty.kind() {
                     rustc_middle::ty::TyKind::FnDef(callee_def_id, callee_args) => {
                         match Instance::try_resolve(tcx, typing_env, *callee_def_id, callee_args) {
-                            Ok(Some(instance)) => callees.push(instance),
+                            Ok(Some(instance)) => {
+                                call_sites.push(CallSite {
+                                    location,
+                                    kind: CallSiteKind::Direct { callee: instance },
+                                });
+                            }
                             _ => {
-                                failures.push((
-                                    *callee_def_id,
-                                    CannotResolveReason::UnresolvedTraitMethod(*callee_def_id),
-                                ));
+                                call_sites.push(CallSite {
+                                    location,
+                                    kind: CallSiteKind::UnresolvedTrait {
+                                        method: *callee_def_id,
+                                    },
+                                });
                             }
                         }
                     }
                     _ => {
-                        // Function pointer or closure call — can't statically resolve.
-                        failures.push((
-                            caller.def_id(),
-                            CannotResolveReason::NotFnDef(caller.def_id()),
-                        ));
+                        call_sites.push(CallSite {
+                            location,
+                            kind: CallSiteKind::DynamicDispatch,
+                        });
                     }
                 }
             }
             TerminatorKind::Assert { unwind, .. }
                 if !matches!(unwind, UnwindAction::Unreachable) =>
             {
-                // An Assert with a reachable unwind path can panic without any explicit callee
-                // (e.g. `unwind: continue` propagates with no cleanup call). Synthesize a call
-                // to `core::panicking::panic` so the fixpoint sees the panic edge.
+                // An Assert with a reachable unwind path can panic without any explicit callee.
+                // Synthesize a call to `core::panicking::panic` so the fixpoint sees the panic edge.
                 if let Some(panic_def_id) = tcx.lang_items().get(LangItem::Panic) {
                     let panic_args = GenericArgs::identity_for_item(tcx, panic_def_id);
                     if let Ok(Some(instance)) =
                         Instance::try_resolve(tcx, typing_env, panic_def_id, panic_args)
                     {
-                        callees.push(instance);
+                        call_sites.push(CallSite {
+                            location,
+                            kind: CallSiteKind::SynthesizedPanic { callee: instance },
+                        });
                     }
                 }
             }
@@ -188,68 +190,69 @@ fn callees_in_body<'tcx>(
         }
     }
 
-    (callees, failures)
+    call_sites
 }
 
-/// Callees of a local function. Uses `optimized_mir` (regions erased) rather than
-/// the borrow-checked body to avoid region inference variables (`ReVar`) panicking
-/// inside `instantiate_mir_and_normalize_erasing_regions`.
-fn local_callees<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    local_id: LocalDefId,
-) -> (Vec<Instance<'tcx>>, Vec<(DefId, CannotResolveReason)>) {
+/// Call sites of a local function. Uses `optimized_mir` (regions erased) to
+/// avoid region inference variables panicking inside
+/// `instantiate_mir_and_normalize_erasing_regions`.
+fn local_callees<'tcx>(tcx: TyCtxt<'tcx>, local_id: LocalDefId) -> Vec<CallSite<'tcx>> {
     let def_id = local_id.to_def_id();
     let caller = Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id));
     callees_in_body(tcx, caller, tcx.optimized_mir(def_id))
 }
 
-/// Callees of an external instance. Uses `instance_mir` so that
+/// Call sites of an external instance. Uses `instance_mir` so that
 /// `instantiate_mir_and_normalize_erasing_regions` can substitute the concrete
-/// args carried by `instance` into the generic stdlib body's call types.
-fn extern_callees<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    instance: Instance<'tcx>,
-) -> (Vec<Instance<'tcx>>, Vec<(DefId, CannotResolveReason)>) {
+/// args carried by `instance` into the generic body.
+fn extern_callees<'tcx>(tcx: TyCtxt<'tcx>, instance: Instance<'tcx>) -> Vec<CallSite<'tcx>> {
     callees_in_body(tcx, instance, tcx.instance_mir(instance.def))
 }
 
-fn explore<'tcx>(
-    genv: GlobalEnv<'_, 'tcx>,
-    roots: &[LocalDefId],
-    call_graph: &mut CallGraph,
-    resolution_failures: &mut FxHashMap<DefId, CannotResolveReason>,
-    external_callees: &mut FxHashSet<DefId>,
-) {
+fn resolved_callees<'tcx>(call_sites: &[CallSite<'tcx>]) -> impl Iterator<Item = Instance<'tcx>> {
+    call_sites.iter().filter_map(|site| match site.kind {
+        CallSiteKind::Direct { callee } | CallSiteKind::SynthesizedPanic { callee } => {
+            Some(callee)
+        }
+        _ => None,
+    })
+}
+
+fn explore<'tcx>(genv: GlobalEnv<'_, 'tcx>, roots: &[LocalDefId]) -> LabeledCallGraph<'tcx> {
     let tcx = genv.tcx();
-    // Instance-level worklist and visited set to handle the same DefId
-    // being called with different concrete type args.
-    let mut worklist: Vec<Instance<'tcx>> = Vec::new();
-    let mut explored: FxHashSet<Instance<'tcx>> = FxHashSet::default();
+    let mut graph = LabeledCallGraph {
+        nodes: FxHashMap::default(),
+        roots: FxHashSet::default(),
+    };
+    // Instance-level worklist and visited set to handle the same DefId being
+    // called with different concrete type args.
+    let mut worklist: Vec<Instance<'_>> = Vec::new();
+    let mut explored: FxHashSet<Instance<'_>> = FxHashSet::default();
 
-    // 1. Seed the worklist with the root functions, and add their callees to the call graph.
+    // Seed the worklist with the root functions.
     for &root_local in roots {
-        let root = root_local.to_def_id();
+        let root_def_id = root_local.to_def_id();
+        let root_instance =
+            Instance::new_raw(root_def_id, GenericArgs::identity_for_item(tcx, root_def_id));
 
-        if !tcx.is_mir_available(root) {
-            let def_kind = tcx.def_kind(root);
-            if matches!(def_kind, DefKind::AssocFn) {
-                resolution_failures.insert(root, CannotResolveReason::UnresolvedTraitMethod(root));
+        if !tcx.is_mir_available(root_def_id) {
+            let def_kind = tcx.def_kind(root_def_id);
+            let kind = if matches!(def_kind, DefKind::AssocFn) {
+                NodeKind::NoBody(def_kind)
             } else {
-                resolution_failures
-                    .insert(root, CannotResolveReason::NoMIRAvailable(root, def_kind));
-            }
-            call_graph.insert(root, Vec::new());
+                NodeKind::MIRUnavailable(def_kind)
+            };
+            graph.nodes.insert(root_instance, NodeInfo { kind, call_sites: vec![] });
+            graph.roots.insert(root_instance);
             continue;
         }
 
-        let (callee_instances, failures) = local_callees(tcx, root_local);
-        for (failed_id, reason) in failures {
-            call_graph.entry(failed_id).or_default();
-            resolution_failures.entry(failed_id).or_insert(reason);
-        }
-        let callee_def_ids: Vec<DefId> = callee_instances.iter().map(|i| i.def_id()).collect();
-        call_graph.insert(root, callee_def_ids);
-        worklist.extend(callee_instances);
+        let call_sites = local_callees(tcx, root_local);
+        worklist.extend(resolved_callees(&call_sites));
+        graph
+            .nodes
+            .insert(root_instance, NodeInfo { kind: NodeKind::Analyzed, call_sites });
+        graph.roots.insert(root_instance);
     }
 
     while let Some(instance) = worklist.pop() {
@@ -262,95 +265,169 @@ fn explore<'tcx>(
 
         // External non-stdlib callees: treat as a leaf and record for spec lookup.
         if !should_include_in_call_graph(genv, def_id.krate) {
-            call_graph.entry(def_id).or_default();
-            external_callees.insert(def_id);
+            graph.nodes.entry(instance).or_insert(NodeInfo {
+                kind: NodeKind::ExternalCrate,
+                call_sites: vec![],
+            });
             continue;
         }
 
         // Only Item instances have MIR we can walk; shims, intrinsics, and
-        // virtual-dispatch stubs are treated as opaque leaves.
-        // If the instance still carries abstract type/const params (it was resolved in a
-        // generic context), normalization inside its body would panic — treat as opaque leaf.
+        // virtual-dispatch stubs are treated as opaque WillNotPanic leaves.
+        // If the instance still carries abstract type/const params, normalization
+        // inside its body would panic — treat as opaque leaf.
         let has_abstract_args = instance.args.has_param();
         if matches!(instance.def, InstanceKind::Item(_))
             && tcx.is_mir_available(def_id)
             && !has_abstract_args
         {
-            let (callee_instances, failures) = extern_callees(tcx, instance);
-            for (failed_id, reason) in failures {
-                call_graph.entry(failed_id).or_default();
-                resolution_failures.entry(failed_id).or_insert(reason);
-            }
-            let callee_def_ids: Vec<DefId> = callee_instances.iter().map(|i| i.def_id()).collect();
-            // or_insert so the first concrete instantiation of a DefId wins;
-            // subsequent instantiations still push their callees onto the worklist.
-            call_graph.entry(def_id).or_insert(callee_def_ids);
-            worklist.extend(callee_instances);
+            let call_sites = extern_callees(tcx, instance);
+            worklist.extend(resolved_callees(&call_sites));
+            // or_insert so the first concrete instantiation of an Instance wins;
+            // subsequent identical instances still push their callees onto the worklist.
+            graph
+                .nodes
+                .entry(instance)
+                .or_insert(NodeInfo { kind: NodeKind::Analyzed, call_sites });
         } else if matches!(instance.def, InstanceKind::Item(_))
             && !tcx.is_mir_available(def_id)
             && !has_abstract_args
         {
             // Item with no MIR and concrete args (e.g. extern "C" or platform-specific
-            // functions). We can't analyze it, so conservatively treat as might panic.
-            call_graph.entry(def_id).or_default();
-            resolution_failures
-                .entry(def_id)
-                .or_insert(CannotResolveReason::NoMIRAvailable(def_id, tcx.def_kind(def_id)));
+            // functions). Distinguish functions with no Rust body by design from those
+            // whose MIR we simply cannot load. The exact heuristic is TBD; for now we
+            // conservatively classify all such nodes as MIRUnavailable.
+            let def_kind = tcx.def_kind(def_id);
+            graph.nodes.entry(instance).or_insert(NodeInfo {
+                kind: NodeKind::MIRUnavailable(def_kind),
+                call_sites: vec![],
+            });
         } else {
-            // Non-Item instance (shim, intrinsic, virtual dispatch stub) or abstract args:
-            // treat as opaque WillNotPanic leaf.
-            call_graph.entry(def_id).or_default();
+            // Non-Item instance (shim, intrinsic, virtual dispatch stub) or abstract args.
+            graph
+                .nodes
+                .entry(instance)
+                .or_insert(NodeInfo { kind: NodeKind::Opaque, call_sites: vec![] });
         }
     }
+
+    graph
 }
 
-/// Runs a fixpoint algorithm over the call graph to propagate panic specs.
-/// If all callees are known to not panic, then this function is known to not panic.
-/// If a function has a callee that might panic, then it transitively might panic.
-fn run_fixpoint(call_graph: &CallGraph, fn_to_no_panic: &mut FxHashMap<DefId, PanicSpec>) {
+// ---- Fixpoint phase ---------------------------------------------------------
+
+/// Consumes the labeled call graph and produces a `PanicSpec` for every root node.
+///
+/// Seeding is explicit per `NodeKind`:
+/// - `ExternalCrate` → looked up via `external_spec`
+/// - `Opaque`        → `WillNotPanic` (compiler-generated glue, conservatively safe)
+/// - `NoBody` / `MIRUnavailable` → `MightPanic(CannotResolve(...))`
+/// - `Analyzed` with unresolvable call sites → `MightPanic(CannotResolve(...))` (final)
+/// - `Analyzed` with no unresolvable calls → `MightPanic(Unknown)`, resolved by fixpoint
+fn run_fixpoint(
+    graph: &LabeledCallGraph<'_>,
+    external_spec: impl Fn(DefId) -> PanicSpec,
+) -> FxHashMap<DefId, PanicSpec> {
+    // --- Seeding ---
+    let mut specs: FxHashMap<Instance<'_>, PanicSpec> = FxHashMap::default();
+
+    for (&instance, node) in &graph.nodes {
+        let def_id = instance.def_id();
+        let spec = match &node.kind {
+            NodeKind::ExternalCrate => external_spec(def_id),
+            NodeKind::Opaque => PanicSpec::WillNotPanic,
+            NodeKind::NoBody(def_kind) => {
+                PanicSpec::MightPanic(PanicReason::CannotResolve(
+                    CannotResolveReason::NoMIRAvailable(def_id, *def_kind),
+                ))
+            }
+            NodeKind::MIRUnavailable(def_kind) => {
+                PanicSpec::MightPanic(PanicReason::CannotResolve(
+                    CannotResolveReason::NoMIRAvailable(def_id, *def_kind),
+                ))
+            }
+            NodeKind::Analyzed => {
+                // If any call site is statically unresolvable, the function is
+                // immediately MightPanic(CannotResolve). Otherwise start as Unknown
+                // for the fixpoint to resolve.
+                let unresolvable = node.call_sites.iter().find(|site| {
+                    matches!(
+                        site.kind,
+                        CallSiteKind::DynamicDispatch | CallSiteKind::UnresolvedTrait { .. }
+                    )
+                });
+                if let Some(site) = unresolvable {
+                    let reason = match site.kind {
+                        CallSiteKind::DynamicDispatch => {
+                            CannotResolveReason::NotFnDef(def_id)
+                        }
+                        CallSiteKind::UnresolvedTrait { method } => {
+                            CannotResolveReason::UnresolvedTraitMethod(method)
+                        }
+                        _ => unreachable!(),
+                    };
+                    PanicSpec::MightPanic(PanicReason::CannotResolve(reason))
+                } else {
+                    PanicSpec::MightPanic(PanicReason::Unknown)
+                }
+            }
+        };
+        specs.insert(instance, spec);
+    }
+
+    // --- Fixpoint iteration ---
     let mut changed = true;
     while changed {
         changed = false;
 
-        let keys: Vec<DefId> = call_graph.keys().copied().collect();
+        let instances: Vec<Instance<'_>> = graph.nodes.keys().copied().collect();
 
-        for f in keys {
-            // Skip functions we've already seeded.
-            let current_spec = fn_to_no_panic.get(&f).unwrap();
+        for instance in instances {
+            let current_spec = specs.get(&instance).unwrap();
 
+            // CannotResolve and WillNotPanic are final states; skip them.
             match current_spec {
-                PanicSpec::WillNotPanic | PanicSpec::MightPanic(PanicReason::CannotResolve(_)) => {
-                    continue;
-                }
-                _ => (),
-            };
-
-            let callees = match call_graph.get(&f) {
-                Some(callees) => callees,
-                None => {
-                    unreachable!("run_fixpoint: call graph should contain all reachable functions");
-                }
-            };
-
-            let mut bad_callees = Vec::new();
-
-            for callee in callees {
-                match fn_to_no_panic.get(callee) {
-                    Some(PanicSpec::WillNotPanic) => {}
-                    _ => bad_callees.push(*callee),
-                }
+                PanicSpec::WillNotPanic
+                | PanicSpec::MightPanic(PanicReason::CannotResolve(_)) => continue,
+                _ => {}
             }
 
-            // Case 1: All callees are known to not panic, so this function is also known to not panic.
+            let call_sites = &graph.nodes[&instance].call_sites;
+
+            let bad_callees: Vec<Instance<'_>> = call_sites
+                .iter()
+                .filter_map(|site| match site.kind {
+                    CallSiteKind::Direct { callee }
+                    | CallSiteKind::SynthesizedPanic { callee } => {
+                        match specs.get(&callee) {
+                            Some(PanicSpec::WillNotPanic) => None,
+                            _ => Some(callee),
+                        }
+                    }
+                    // DynamicDispatch and UnresolvedTrait are handled at seeding time.
+                    CallSiteKind::DynamicDispatch | CallSiteKind::UnresolvedTrait { .. } => None,
+                })
+                .collect();
+
+            // Case 1: all callees are known to not panic.
             if bad_callees.is_empty() {
                 changed = true;
-                fn_to_no_panic.insert(f, PanicSpec::WillNotPanic);
-            // Case 2: This function has a callee that transitively might panic, so this function transitively might panic.
+                specs.insert(instance, PanicSpec::WillNotPanic);
+            // Case 2: a callee transitively might panic.
             } else if matches!(current_spec, PanicSpec::MightPanic(PanicReason::Unknown)) {
-                let current_spec = fn_to_no_panic.get_mut(&f).unwrap();
                 changed = true;
-                *current_spec = PanicSpec::MightPanic(PanicReason::Transitive);
+                specs.insert(instance, PanicSpec::MightPanic(PanicReason::Transitive));
             }
         }
     }
+
+    // Filter to root instances only, mapping back to DefId.
+    graph
+        .roots
+        .iter()
+        .filter_map(|instance| {
+            let spec = specs.get(instance)?;
+            Some((instance.def_id(), spec.clone()))
+        })
+        .collect()
 }
