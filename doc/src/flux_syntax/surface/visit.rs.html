@@ -573,7 +573,7 @@
 <a href=#573 id=573 data-nosnippet>573</a>
 <a href=#574 id=574 data-nosnippet>574</a><span class="kw">pub fn </span>walk_field_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>FieldExpr) {
 <a href=#575 id=575 data-nosnippet>575</a>    vis.visit_ident(expr.ident);
-<a href=#576 id=576 data-nosnippet>576</a>    vis.visit_expr(<span class="kw-2">&amp;</span>expr.expr);
+<a href=#576 id=576 data-nosnippet>576</a>    vis.visit_refine_arg(<span class="kw-2">&amp;</span>expr.expr);
 <a href=#577 id=577 data-nosnippet>577</a>}
 <a href=#578 id=578 data-nosnippet>578</a>
 <a href=#579 id=579 data-nosnippet>579</a><span class="kw">pub fn </span>walk_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>Expr) {

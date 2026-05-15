@@ -1628,7 +1628,7 @@
 <a href=#1628 id=1628 data-nosnippet>1628</a>        <span class="kw">let </span>field_exprs = <span class="self">self
 <a href=#1629 id=1629 data-nosnippet>1629</a>            </span>.genv()
 <a href=#1630 id=1630 data-nosnippet>1630</a>            .alloc_slice_fill_iter(field_exprs.iter().map(|field_expr| {
-<a href=#1631 id=1631 data-nosnippet>1631</a>                <span class="kw">let </span>e = <span class="self">self</span>.desugar_expr(<span class="kw-2">&amp;</span>field_expr.expr);
+<a href=#1631 id=1631 data-nosnippet>1631</a>                <span class="kw">let </span>e = <span class="self">self</span>.desugar_refine_arg(<span class="kw-2">&amp;</span>field_expr.expr);
 <a href=#1632 id=1632 data-nosnippet>1632</a>                fhir::FieldExpr {
 <a href=#1633 id=1633 data-nosnippet>1633</a>                    ident: field_expr.ident,
 <a href=#1634 id=1634 data-nosnippet>1634</a>                    expr: e,

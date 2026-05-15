@@ -1565,7 +1565,7 @@
 <a href=#1565 id=1565 data-nosnippet>1565</a>    <span class="kw">if </span>lookahead.peek(NonReserved) {
 <a href=#1566 id=1566 data-nosnippet>1566</a>        <span class="kw">let </span>ident = parse_ident(cx)<span class="question-mark">?</span>;
 <a href=#1567 id=1567 data-nosnippet>1567</a>        cx.expect(token::Colon)<span class="question-mark">?</span>;
-<a href=#1568 id=1568 data-nosnippet>1568</a>        <span class="kw">let </span>expr = parse_expr(cx, <span class="bool-val">true</span>)<span class="question-mark">?</span>;
+<a href=#1568 id=1568 data-nosnippet>1568</a>        <span class="kw">let </span>expr = parse_refine_arg(cx)<span class="question-mark">?</span>;
 <a href=#1569 id=1569 data-nosnippet>1569</a>        <span class="kw">let </span>hi = cx.hi();
 <a href=#1570 id=1570 data-nosnippet>1570</a>        <span class="prelude-val">Ok</span>(ConstructorArg::FieldExpr(FieldExpr {
 <a href=#1571 id=1571 data-nosnippet>1571</a>            ident,
