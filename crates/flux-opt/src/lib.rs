@@ -1,25 +1,21 @@
 #![feature(rustc_private)]
 
 extern crate rustc_hir;
-extern crate rustc_infer;
 extern crate rustc_middle;
-extern crate rustc_trait_selection;
 
 use flux_middle::{
     CannotResolveReason, PanicReason, PanicSpec, global_env::GlobalEnv, queries::Providers,
 };
-use flux_rustc_bridge::lowering::resolve_call_query;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
+    lang_items::LangItem,
 };
-use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
-    mir::TerminatorKind,
-    ty::{TyCtxt, TypingMode},
+    mir::{TerminatorKind, UnwindAction},
+    ty::{EarlyBinder, GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt, TypingEnv},
 };
-use rustc_trait_selection::traits::SelectionContext;
 
 pub type CallGraph = FxHashMap<DefId, Vec<DefId>>;
 
@@ -123,132 +119,117 @@ fn build_call_graph(genv: GlobalEnv, roots: &[LocalDefId]) -> GraphBuildResult {
     GraphBuildResult { call_graph, resolution_failures, external_callees }
 }
 
-/// Tries to resolve a trait method call to an impl method. If successful, returns the DefId of the impl method.
-fn try_resolve<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    caller_id: DefId,
-    callee_id: DefId,
-    args: rustc_middle::ty::GenericArgsRef<'tcx>,
-) -> Result<DefId, CannotResolveReason> {
-    let param_env = tcx.param_env(caller_id);
-    let infcx = tcx
-        .infer_ctxt()
-        .with_next_trait_solver(true)
-        .build(TypingMode::non_body_analysis());
-    let mut selcx = SelectionContext::new(&infcx);
-
-    let resolved = resolve_call_query(tcx, &mut selcx, param_env, callee_id, args);
-
-    let Some((impl_id, _)) = resolved else {
-        // Error case 1: we fail to resolve a trait method to an impl.
-        return Err(CannotResolveReason::UnresolvedTraitMethod(callee_id));
-    };
-
-    if !tcx.is_mir_available(impl_id) {
-        return Err(CannotResolveReason::NoMIRAvailable(impl_id, tcx.def_kind(impl_id)));
-    }
-
-    Ok(impl_id)
-}
-
-/// Walks `body`'s Call terminators and returns (callees, failures): edges to install in
-/// the call graph from `caller`, and (def_id, reason) pairs to seed as `CannotResolve`
-/// leaves. Continues past individual resolution failures rather than short-circuiting.
+/// Walks `body`'s Call terminators and resolves each callee to a concrete `Instance` using
+/// the caller instance's type substitution. Returns the resolved callee instances and any
+/// calls that could not be resolved.
+///
+/// `Assert` terminators with a non-unreachable unwind action can also panic — they have no
+/// explicit callee in the MIR (`unwind: continue` propagates without any function call). We
+/// synthesize a call to `core::panicking::panic` so the fixpoint sees the panic edge.
 fn callees_in_body<'tcx>(
     tcx: TyCtxt<'tcx>,
-    caller: DefId,
+    caller: Instance<'tcx>,
     body: &rustc_middle::mir::Body<'tcx>,
-) -> (Vec<DefId>, Vec<(DefId, CannotResolveReason)>) {
+) -> (Vec<Instance<'tcx>>, Vec<(DefId, CannotResolveReason)>) {
+    let typing_env = TypingEnv::non_body_analysis(tcx, caller.def_id());
     let mut callees = Vec::new();
     let mut failures = Vec::new();
+
     for bb in body.basic_blocks.iter() {
-        if let TerminatorKind::Call { func, .. } = &bb.terminator().kind {
-            let ty = func.ty(&body.local_decls, tcx);
+        match &bb.terminator().kind {
+            TerminatorKind::Call { func, .. } => {
+                let ty = func.ty(&body.local_decls, tcx);
+                // Apply the caller's concrete type args to get the concrete callee type.
+                // For non-generic callers this is a no-op; for generic stdlib bodies
+                // this substitutes abstract type params with the concrete instantiation.
+                let ty = caller.instantiate_mir_and_normalize_erasing_regions(
+                    tcx,
+                    typing_env,
+                    EarlyBinder::bind(ty),
+                );
 
-            match ty.kind() {
-                rustc_middle::ty::TyKind::FnDef(callee_id, args) => {
-                    let Some(_trait_id) = tcx.trait_of_assoc(*callee_id) else {
-                        // Free function! no resolution needed.
-                        callees.push(*callee_id);
-                        continue;
-                    };
-
-                    match try_resolve(tcx, caller, *callee_id, args) {
-                        Err(_) => {
-                            failures.push((
-                                caller,
-                                CannotResolveReason::UnresolvedTraitMethod(*callee_id),
-                            ));
-                            callees.push(*callee_id);
-                        }
-                        Ok(impl_id) => {
-                            if !tcx.is_mir_available(impl_id) {
+                match ty.kind() {
+                    rustc_middle::ty::TyKind::FnDef(callee_def_id, callee_args) => {
+                        match Instance::try_resolve(tcx, typing_env, *callee_def_id, callee_args) {
+                            Ok(Some(instance)) => callees.push(instance),
+                            _ => {
                                 failures.push((
-                                    impl_id,
-                                    CannotResolveReason::NoMIRAvailable(
-                                        impl_id,
-                                        tcx.def_kind(impl_id),
-                                    ),
+                                    *callee_def_id,
+                                    CannotResolveReason::UnresolvedTraitMethod(*callee_def_id),
                                 ));
                             }
-                            callees.push(impl_id);
                         }
                     }
+                    _ => {
+                        // Function pointer or closure call — can't statically resolve.
+                        failures.push((
+                            caller.def_id(),
+                            CannotResolveReason::NotFnDef(caller.def_id()),
+                        ));
+                    }
                 }
-                _ => {
-                    // Not an FnDef (e.g. function pointer / closure) — use caller as sentinel.
-                    failures.push((caller, CannotResolveReason::NotFnDef(caller)));
+            }
+            TerminatorKind::Assert { unwind, .. }
+                if !matches!(unwind, UnwindAction::Unreachable) =>
+            {
+                // An Assert with a reachable unwind path can panic without any explicit callee
+                // (e.g. `unwind: continue` propagates with no cleanup call). Synthesize a call
+                // to `core::panicking::panic` so the fixpoint sees the panic edge.
+                if let Some(panic_def_id) = tcx.lang_items().get(LangItem::Panic) {
+                    let panic_args = GenericArgs::identity_for_item(tcx, panic_def_id);
+                    if let Ok(Some(instance)) =
+                        Instance::try_resolve(tcx, typing_env, panic_def_id, panic_args)
+                    {
+                        callees.push(instance);
+                    }
                 }
-            };
+            }
+            _ => {}
         }
     }
+
     (callees, failures)
 }
 
-/// Callees of a local function. Reads the unoptimized MIR via `genv.mir`.
+/// Callees of a local function. Uses `optimized_mir` (regions erased) rather than
+/// the borrow-checked body to avoid region inference variables (`ReVar`) panicking
+/// inside `instantiate_mir_and_normalize_erasing_regions`.
 fn local_callees<'tcx>(
-    genv: GlobalEnv<'_, 'tcx>,
+    tcx: TyCtxt<'tcx>,
     local_id: LocalDefId,
-) -> (Vec<DefId>, Vec<(DefId, CannotResolveReason)>) {
-    let body_root = genv.mir(local_id).unwrap();
-    callees_in_body(genv.tcx(), local_id.to_def_id(), &body_root.body.rustc_body)
+) -> (Vec<Instance<'tcx>>, Vec<(DefId, CannotResolveReason)>) {
+    let def_id = local_id.to_def_id();
+    let caller = Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id));
+    callees_in_body(tcx, caller, tcx.optimized_mir(def_id))
 }
 
-/// Callees of a non-local function reachable from the worklist. Local callees are filtered
-/// out earlier (they're already in `call_graph` from the root pass), so this only fires
-/// for cross-crate def-ids whose MIR is available via `tcx.optimized_mir`.
+/// Callees of an external instance. Uses `instance_mir` so that
+/// `instantiate_mir_and_normalize_erasing_regions` can substitute the concrete
+/// args carried by `instance` into the generic stdlib body's call types.
 fn extern_callees<'tcx>(
     tcx: TyCtxt<'tcx>,
-    def_id: DefId,
-) -> (Vec<DefId>, Vec<(DefId, CannotResolveReason)>) {
-    callees_in_body(tcx, def_id, tcx.optimized_mir(def_id))
+    instance: Instance<'tcx>,
+) -> (Vec<Instance<'tcx>>, Vec<(DefId, CannotResolveReason)>) {
+    callees_in_body(tcx, instance, tcx.instance_mir(instance.def))
 }
 
-/// Explores the call graph starting from the root function, populating the call graph and resolution failures.
-fn explore(
-    genv: GlobalEnv,
+fn explore<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
     roots: &[LocalDefId],
     call_graph: &mut CallGraph,
     resolution_failures: &mut FxHashMap<DefId, CannotResolveReason>,
     external_callees: &mut FxHashSet<DefId>,
 ) {
     let tcx = genv.tcx();
-    let mut worklist: Vec<DefId> = roots.iter().map(|l| l.to_def_id()).collect();
-
-    // Helper: register individual callee failures as leaves in the call graph.
-    let register_failures =
-        |call_graph: &mut CallGraph,
-         resolution_failures: &mut FxHashMap<DefId, CannotResolveReason>,
-         failures: Vec<(DefId, CannotResolveReason)>| {
-            for (failed_id, reason) in failures {
-                call_graph.entry(failed_id).or_default();
-                resolution_failures.entry(failed_id).or_insert(reason);
-            }
-        };
+    // Instance-level worklist and visited set to handle the same DefId
+    // being called with different concrete type args.
+    let mut worklist: Vec<Instance<'tcx>> = Vec::new();
+    let mut explored: FxHashSet<Instance<'tcx>> = FxHashSet::default();
 
     // 1. Seed the worklist with the root functions, and add their callees to the call graph.
     for &root_local in roots {
         let root = root_local.to_def_id();
+
         if !tcx.is_mir_available(root) {
             let def_kind = tcx.def_kind(root);
             if matches!(def_kind, DefKind::AssocFn) {
@@ -261,41 +242,64 @@ fn explore(
             continue;
         }
 
-        let (callees, failures) = local_callees(genv, root_local);
-        register_failures(call_graph, resolution_failures, failures);
-        call_graph.insert(root, callees);
+        let (callee_instances, failures) = local_callees(tcx, root_local);
+        for (failed_id, reason) in failures {
+            call_graph.entry(failed_id).or_default();
+            resolution_failures.entry(failed_id).or_insert(reason);
+        }
+        let callee_def_ids: Vec<DefId> = callee_instances.iter().map(|i| i.def_id()).collect();
+        call_graph.insert(root, callee_def_ids);
+        worklist.extend(callee_instances);
     }
 
-    // 2. Explore reachable callees (build closed call graph). Local fn-likes are already
-    // in `call_graph` from step 1 (they're all roots), so the `contains_key` guard below
-    // means this loop only ever calls `extern_callees` on non-local def-ids.
-    while let Some(f) = worklist.pop() {
-        let callees = call_graph.get(&f).unwrap().clone();
+    while let Some(instance) = worklist.pop() {
+        if explored.contains(&instance) {
+            continue;
+        }
+        explored.insert(instance);
 
-        for callee in callees {
-            if call_graph.contains_key(&callee) {
-                continue;
-            }
+        let def_id = instance.def_id();
 
-            // External non-stdlib callees: treat as a leaf and record for spec lookup.
-            if !should_include_in_call_graph(genv, callee.krate) {
-                call_graph.entry(callee).or_default();
-                external_callees.insert(callee);
-                continue;
-            }
+        // External non-stdlib callees: treat as a leaf and record for spec lookup.
+        if !should_include_in_call_graph(genv, def_id.krate) {
+            call_graph.entry(def_id).or_default();
+            external_callees.insert(def_id);
+            continue;
+        }
 
-            if tcx.is_mir_available(callee) {
-                let (callees, failures) = extern_callees(tcx, callee);
-                register_failures(call_graph, resolution_failures, failures);
-                call_graph.insert(callee, callees);
-                worklist.push(callee);
-            } else {
-                call_graph.entry(callee).or_default();
-                resolution_failures.insert(
-                    callee,
-                    CannotResolveReason::NoMIRAvailable(callee, tcx.def_kind(callee)),
-                );
+        // Only Item instances have MIR we can walk; shims, intrinsics, and
+        // virtual-dispatch stubs are treated as opaque leaves.
+        // If the instance still carries abstract type/const params (it was resolved in a
+        // generic context), normalization inside its body would panic — treat as opaque leaf.
+        let has_abstract_args = instance.args.has_param();
+        if matches!(instance.def, InstanceKind::Item(_))
+            && tcx.is_mir_available(def_id)
+            && !has_abstract_args
+        {
+            let (callee_instances, failures) = extern_callees(tcx, instance);
+            for (failed_id, reason) in failures {
+                call_graph.entry(failed_id).or_default();
+                resolution_failures.entry(failed_id).or_insert(reason);
             }
+            let callee_def_ids: Vec<DefId> = callee_instances.iter().map(|i| i.def_id()).collect();
+            // or_insert so the first concrete instantiation of a DefId wins;
+            // subsequent instantiations still push their callees onto the worklist.
+            call_graph.entry(def_id).or_insert(callee_def_ids);
+            worklist.extend(callee_instances);
+        } else if matches!(instance.def, InstanceKind::Item(_))
+            && !tcx.is_mir_available(def_id)
+            && !has_abstract_args
+        {
+            // Item with no MIR and concrete args (e.g. extern "C" or platform-specific
+            // functions). We can't analyze it, so conservatively treat as might panic.
+            call_graph.entry(def_id).or_default();
+            resolution_failures
+                .entry(def_id)
+                .or_insert(CannotResolveReason::NoMIRAvailable(def_id, tcx.def_kind(def_id)));
+        } else {
+            // Non-Item instance (shim, intrinsic, virtual dispatch stub) or abstract args:
+            // treat as opaque WillNotPanic leaf.
+            call_graph.entry(def_id).or_default();
         }
     }
 }
