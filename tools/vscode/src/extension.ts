@@ -11,6 +11,7 @@ import {
 } from "./providers";
 import { registerEventListeners, setupFileWatcher } from "./setup";
 import type { RustcDiagnostic } from "./types";
+import { log } from "./utils/logger";
 
 const checkerPath = "log/checker";
 
@@ -28,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // This line of code wll only be executed once when your extension is activated
   const workspacePath = workspaceFolders[0].uri.fsPath;
-  console.log('Extension "flux" is now active in workspace:', workspacePath);
+  log('Extension "flux" is now active in workspace:', workspacePath);
 
   const diagnosticCollection = vscode.languages.createDiagnosticCollection('flux');
 
