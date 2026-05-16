@@ -17,5 +17,6 @@ pub mod fixpoint_qualifiers;
 pub mod infer;
 pub mod lean_encoding;
 pub mod lean_format;
+mod noncut_compare;
 pub mod projections;
 pub mod refine_tree;

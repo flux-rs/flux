@@ -6,7 +6,7 @@ use crate::{
     Assignments, BinRel, Identifier, Types,
     constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
     constraint_fragments::ConstraintFragments,
-    graph::topological_sort_sccs,
+    graph::{FxIndexMap, FxIndexSet, topological_sort_sccs},
 };
 
 pub struct Solution<T: Types> {
@@ -34,8 +34,8 @@ impl<T: Types> Constraint<T> {
     ///
     /// This mirrors the Haskell `edgeRank` in `Graph/Deps.hs`, which assigns
     /// each KVar the smallest sub-constraint ID where it appears on the LHS.
-    pub(crate) fn kvar_ranks(&self, n_max: usize) -> HashMap<T::KVar, usize> {
-        let mut rank: HashMap<T::KVar, usize> = HashMap::new();
+    pub(crate) fn kvar_ranks(&self, n_max: usize) -> FxIndexMap<T::KVar, usize> {
+        let mut rank: FxIndexMap<T::KVar, usize> = FxIndexMap::default();
         for (i, frag) in self.depth_first_fragments().enumerate() {
             for k in frag.kvar_deps() {
                 let r = rank.entry(k).or_insert(n_max);
@@ -59,8 +59,8 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub(crate) fn kvar_mappings(&self) -> HashMap<T::KVar, Vec<Constraint<T>>> {
-        let mut kvar_to_fragments: HashMap<T::KVar, Vec<Constraint<T>>> = HashMap::new();
+    pub(crate) fn kvar_mappings(&self) -> FxIndexMap<T::KVar, Vec<Constraint<T>>> {
+        let mut kvar_to_fragments: FxIndexMap<T::KVar, Vec<Constraint<T>>> = FxIndexMap::default();
         for frag in self.depth_first_fragments() {
             if let Some(kvar) = frag.fragment_kvar_head() {
                 kvar_to_fragments
@@ -75,11 +75,11 @@ impl<T: Types> Constraint<T> {
     /// Computes the kvar dependency graph as an adjacency list.
     ///
     /// There's an edge $k0 -> $k1, if $k1 appears as an assumption when $k0 is a head.
-    pub(crate) fn kvar_dep_graph(&self) -> HashMap<T::KVar, Vec<T::KVar>> {
+    pub(crate) fn kvar_dep_graph(&self) -> FxIndexMap<T::KVar, Vec<T::KVar>> {
         fn go<T: Types>(
             cstr: &Constraint<T>,
             deps: &mut Vec<T::KVar>,
-            graph: &mut HashMap<T::KVar, Vec<T::KVar>>,
+            graph: &mut FxIndexMap<T::KVar, Vec<T::KVar>>,
         ) {
             match cstr {
                 Constraint::Pred(pred, _) => {
@@ -554,8 +554,8 @@ fn collect_occurrence_binders<T: Types>(
 /// `sccElims`/`edgeRankCut` in `Language.Fixpoint.Graph.Deps`).
 fn scc_dep<T: Types>(
     scc: &[T::KVar],
-    dep_graph: &HashMap<T::KVar, Vec<T::KVar>>,
-    rank: &HashMap<T::KVar, usize>,
+    dep_graph: &FxIndexMap<T::KVar, Vec<T::KVar>>,
+    rank: &FxIndexMap<T::KVar, usize>,
     n_max: usize,
     non_cuts: &mut Vec<T::KVar>,
 ) {
@@ -574,9 +574,10 @@ fn scc_dep<T: Types>(
                 .unwrap()
                 .clone();
 
-            let remaining: HashSet<T::KVar> = scc.iter().filter(|k| **k != cut).cloned().collect();
+            let remaining: FxIndexSet<T::KVar> =
+                scc.iter().filter(|k| **k != cut).cloned().collect();
 
-            let sub_graph: HashMap<T::KVar, Vec<T::KVar>> = remaining
+            let sub_graph: FxIndexMap<T::KVar, Vec<T::KVar>> = remaining
                 .iter()
                 .map(|k| {
                     let deps = dep_graph.get(k).map_or(vec![], |d| {

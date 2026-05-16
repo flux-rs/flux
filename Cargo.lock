@@ -885,6 +885,7 @@ dependencies = [
  "derive-where",
  "indexmap",
  "itertools 0.14.0",
+ "rustc-hash",
  "serde",
  "serde_json",
  "z3",

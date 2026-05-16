@@ -559,6 +559,11 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
+    /// When `FLUX_NONCUT_COMPARE=<dir>` is set, holds the per-non-cut-kvar
+    /// "cube predicate" strings Flux derived locally from the un-eliminated
+    /// constraint, captured in `create_task`. Read & cleared in `run_task`,
+    /// where it is dumped alongside fixpoint's `non_cuts_solution`.
+    pending_compare_flux_non_cuts: Option<Vec<(String, Vec<String>)>>,
 }
 
 pub type FixQueryCache = QueryCache<VerificationResult<TagIdx>>;
@@ -589,6 +594,7 @@ where
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
+            pending_compare_flux_non_cuts: None,
         }
     }
 
@@ -652,7 +658,20 @@ where
                         eprintln!("[orig-noncut]   {kvar:?} => {cube_preds:?}");
                     }
                 }
-                constraint.elim_non_cut_kvars()
+                if crate::noncut_compare::enabled().is_some() {
+                    // Capture Flux's local view BEFORE elim, then ship the
+                    // un-eliminated constraint so fixpoint also reports its
+                    // own non-cut solutions in `non_cuts_solution`.
+                    let local = constraint.non_cut_solution_strings();
+                    let local: Vec<(String, Vec<String>)> = local
+                        .into_iter()
+                        .map(|(k, sols)| (format!("k{}", k.as_u32()), sols))
+                        .collect();
+                    self.pending_compare_flux_non_cuts = Some(local);
+                    constraint
+                } else {
+                    constraint.elim_non_cut_kvars()
+                }
             }
 
             #[cfg(feature = "rust-fixpoint")]
@@ -693,6 +712,20 @@ where
             eprintln!("[fixpoint] raw solution count={} non_cut_count={}", result.solution.len(), result.non_cuts_solution.len());
             eprintln!("[fixpoint] raw solution={:#?}", result.solution);
             eprintln!("[fixpoint] raw non_cut_solution={:#?}", result.non_cuts_solution);
+        }
+
+        // Side-by-side dump of Flux vs. fixpoint non-cut KVar solutions
+        // (FLUX_NONCUT_COMPARE=<dir>).
+        if let (Some(dir), Some(flux_local)) =
+            (crate::noncut_compare::enabled(), self.pending_compare_flux_non_cuts.take())
+        {
+            let task_key = kind.task_key(self.genv.tcx(), def_id.resolved_id());
+            let fp_pairs: Vec<(String, String)> = result
+                .non_cuts_solution
+                .iter()
+                .map(|b| (b.kvar.clone(), b.val.clone()))
+                .collect();
+            crate::noncut_compare::record(&dir, &task_key, flux_local, fp_pairs);
         }
 
         if config::dump_checker_trace_info()
