@@ -19,7 +19,7 @@ export async function runShellCommand(
 ): Promise<any> {
     const start = performance.now();
     try {
-        log(`TRACE: Running command: ${command} flags=`, env.FLUXFLAGS);
+        log(`TRACE: Running command: 'FLUXFLAGS="${env.FLUXFLAGS}" ${command}'`);
         const { stdout, stderr } = await execPromise(command, {
             env: env,
             cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
@@ -72,14 +72,17 @@ export async function runCargoFlux(
     statusBarItem.command = "Flux.killProcess";
     statusBarItem.show();
 
-    let fluxFlags = `-Finclude=${includeValue}`;
+    let fluxFlags = "";
+    if (includeValue !== "*") {
+        fluxFlags += `-Finclude=${includeValue}`;
+    }
     fluxFlags += ` -Fsummary=off`;
     if (trace) {
         fluxFlags += ` -Fdump-checker-trace=info`;
     } else {
         fluxFlags += ` -Fdump-checker-trace=warn`;
     }
-    // console.log(`TRACE: Running command: cargo flux with flags=`, fluxFlags);
+    fluxFlags = fluxFlags.trim();
 
     return new Promise((resolve, reject) => {
         const fluxEnv = {
@@ -97,9 +100,9 @@ export async function runCargoFlux(
         const args = commandArgs.slice(1);
 
         const start = performance.now();
+
         log(
-            `TRACE: Running command: ${command} ${args.join(" ")} flags=`,
-            fluxEnv.FLUXFLAGS
+            `TRACE: Running command: FLUXFLAGS="${fluxEnv.FLUXFLAGS}"  ${command} ${args.join(" ")}`
         );
 
         // Use spawn to get a killable process reference
