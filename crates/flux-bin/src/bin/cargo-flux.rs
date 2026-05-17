@@ -42,7 +42,7 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     let cargo_path = get_binary_path(&toolchain, "cargo")?;
 
     let metadata = cargo_flux_cmd.metadata().cargo_path(&cargo_path).exec()?;
-    let config_file = write_cargo_config(metadata)?;
+    let config_file = write_cargo_config(metadata, &cargo_flux_cmd)?;
 
     let sysroot = flux_sysroot_dir();
     let flux_driver_path = get_flux_driver_path(&sysroot)?;
@@ -63,12 +63,13 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     Ok(cargo_command.status()?.code().unwrap_or(EXIT_ERR))
 }
 
-fn write_cargo_config(metadata: Metadata) -> anyhow::Result<NamedTempFile> {
-    let flux_flags: Option<Vec<String>> = if let Ok(flags) = env::var("FLUXFLAGS") {
-        Some(flags.split(" ").map(Into::into).collect())
-    } else {
-        None
-    };
+fn write_cargo_config(
+    metadata: Metadata,
+    cargo_flux_cmd: &CargoFluxCommand,
+) -> anyhow::Result<NamedTempFile> {
+    let flux_flags = env_flags("FLUXFLAGS");
+    let flux_local_flags = env_flags("FLUXLOCALFLAGS");
+    let local_package_ids = cargo_flux_cmd.local_package_ids(&metadata);
 
     let flux_toml = config::Config::builder()
         .add_source(config::File::with_name("flux.toml").required(false))
@@ -127,6 +128,12 @@ rustflags = [{:?}]
                         .into_flags(&metadata.target_directory, manifest_dir_relative_to_workspace)
                         .iter()
                         .chain(flux_flags.iter().flatten())
+                        .chain(
+                            flux_local_flags
+                                .iter()
+                                .flatten()
+                                .filter(|_| local_package_ids.contains(&package.id)),
+                        )
                         .map(|s| s.as_ref())
                         .chain(["-Fverify=on", "-Ffull-compilation=on"])
                         .format(", ")
@@ -135,6 +142,12 @@ rustflags = [{:?}]
         }
     }
     Ok(file)
+}
+
+fn env_flags(var: &str) -> Option<Vec<String>> {
+    env::var(var)
+        .ok()
+        .map(|flags| flags.split_whitespace().map(Into::into).collect())
 }
 
 #[derive(Clone, Debug)]

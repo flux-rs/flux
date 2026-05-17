@@ -234,3 +234,13 @@ for example, to print timing information for all crates checked by Flux:
 ```console
 FLUXFLAGS="-Ftimings" cargo flux
 ```
+
+### `FLUXLOCALFLAGS` Environment Variable
+
+When running `cargo flux`, flags defined in `FLUXLOCALFLAGS` are only passed to the local target
+crates selected by `cargo flux` (for example, default members, `--workspace`, or `-p` targets).
+These flags are not passed to dependency crates.
+
+```console
+FLUXLOCALFLAGS="-Finclude=src/**" cargo flux -p my-crate
+```
