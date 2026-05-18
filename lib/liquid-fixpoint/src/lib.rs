@@ -85,6 +85,27 @@ pub trait Identifier: Sized {
         }
         DisplayAdapter(self)
     }
+
+    /// Whether this identifier is an "anonymous"/non-unique placeholder name
+    /// that should NOT be used for identity comparisons (e.g. when computing
+    /// the common scope of a kvar's occurrences). Distinct binders may share
+    /// such a name, so treating them as equal would over-collapse the scope.
+    /// Defaults to `false`; concrete `Var` types like Flux's `Var::Underscore`
+    /// override this to return `true`.
+    fn is_anonymous(&self) -> bool {
+        false
+    }
+
+    /// Whether this identifier refers to a "local" program variable that should
+    /// be retained as an extra binder in non-cut kvar elimination cubes. Other
+    /// variants (anonymous placeholders, globals, constants, ctors, projections,
+    /// uninterpreted-relation symbols, params, const-generics) are filtered out
+    /// since they aren't real bound variables of the local environment.
+    /// Defaults to `true` to preserve existing behavior for opaque identifiers
+    /// like `&str`; Flux's `Var` overrides this to keep only `Var::Local`.
+    fn is_local(&self) -> bool {
+        true
+    }
 }
 
 impl Identifier for &str {
@@ -329,7 +350,9 @@ impl<T: Types> Task<T> {
             self.constraint.clone(),
         );
         Ok(VerificationResult {
-            status: cstr_with_env.is_satisfiable(),
+            status: cstr_with_env.is_satisfiable(&mut || {
+                panic!("rust-fixpoint native solver: non-cut KVar elimination needs a `fresh` source")
+            }),
             solution: vec![],
             non_cuts_solution: vec![],
             lean_status: LeanStatus::default(),
@@ -354,6 +377,9 @@ impl<T: Types> Task<T> {
         std::mem::swap(&mut stdin, &mut child.stdin);
         {
             let mut w = BufWriter::new(stdin.unwrap());
+            if std::env::var("FLUX_DUMP_SMT2").is_ok() {
+                eprintln!("=== SMT2 BEGIN ===\n{self}\n=== SMT2 END ===");
+            }
             writeln!(w, "{self}")?;
         }
         let out = child.wait_with_output()?;

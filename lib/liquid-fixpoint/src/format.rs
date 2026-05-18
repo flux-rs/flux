@@ -158,7 +158,7 @@ impl ConstraintFormatter {
                     }
                 }
             }
-            Pred::Expr(_) | Pred::KVar(..) => {
+            Pred::Expr(_) | Pred::KVar(..) | Pred::Hyp(..) => {
                 if let Some(tag) = tag {
                     write!(f, "(tag {pred} \"{tag}\")")
                 } else {
@@ -274,7 +274,91 @@ impl<T: Types> fmt::Display for Pred<T> {
                 write!(f, "(${} {})", kvid.display(), args.iter().join(" "),)
             }
             Pred::Expr(expr) => write!(f, "({expr})"),
+            Pred::Hyp(cubes) => {
+                // Hyp formats as a single guard-pred conjunct list `(<expr>)`,
+                // where <expr> is itself parenthesized SMT (`(or ...)` or
+                // `(exists ...)`). So we emit `((or ...))` style at the top.
+                write!(f, "(")?;
+                fmt_hyp_expr_paren(cubes, f)?;
+                write!(f, ")")
+            }
         }
+    }
+}
+
+/// Emit Hyp's content as a parenthesized SMT expression suitable as one
+/// "atomic predicate" inside a guard-pred conjunct list.
+fn fmt_hyp_expr_paren<T: Types>(cubes: &[crate::constraint::Cube<T>], f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match cubes {
+        [] => write!(f, "false"),
+        [c] => fmt_cube_expr(c, f),
+        cs => {
+            write!(f, "(or")?;
+            for c in cs {
+                write!(f, " ")?;
+                fmt_cube_expr(c, f)?;
+            }
+            write!(f, ")")
+        }
+    }
+}
+
+fn fmt_cube_expr<T: Types>(c: &crate::constraint::Cube<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if c.extra_binders.is_empty() {
+        fmt_pred_as_expr(&c.body, f)
+    } else {
+        write!(
+            f,
+            "(exists ({}) ",
+            c.extra_binders.iter().format_with(" ", |b, ff| {
+                ff(&format_args!("({} {})", b.name.display(), b.sort))
+            }),
+        )?;
+        fmt_pred_as_expr(&c.body, f)?;
+        write!(f, ")")
+    }
+}
+
+/// Emit a Pred as an SMT expression. Pred::Expr(e) → `e` (no outer guard-pred wrap),
+/// Pred::And([p, ...]) → `(and <expr_p> ...)`, single-elem And → just the inner expr,
+/// Pred::KVar(k, args) → `($k a0 a1 ...)`, Pred::Hyp → recursive.
+fn fmt_pred_as_expr<T: Types>(p: &Pred<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match p {
+        Pred::Expr(e) => write!(f, "{e}"),
+        Pred::And(ps) => match &ps[..] {
+            [] => write!(f, "true"),
+            [single] => fmt_pred_as_expr(single, f),
+            many => {
+                write!(f, "(and")?;
+                for q in many {
+                    write!(f, " ")?;
+                    fmt_pred_as_expr(q, f)?;
+                }
+                write!(f, ")")
+            }
+        },
+        Pred::KVar(kvid, args) => {
+            write!(f, "(${} {})", kvid.display(), args.iter().join(" "))
+        }
+        Pred::Hyp(cubes) => {
+            // Recursive Hyp: emit as a single SMT expression (already paren-wrapped).
+            fmt_hyp_expr_paren(cubes, f)
+        }
+    }
+}
+
+fn fmt_cube<T: Types>(c: &crate::constraint::Cube<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if c.extra_binders.is_empty() {
+        write!(f, "{}", c.body)
+    } else {
+        write!(
+            f,
+            "(exists ({}) {})",
+            c.extra_binders.iter().format_with(" ", |b, ff| {
+                ff(&format_args!("({} {})", b.name.display(), b.sort))
+            }),
+            c.body
+        )
     }
 }
 

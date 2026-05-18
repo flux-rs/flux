@@ -215,7 +215,7 @@ impl<T: Types> Constraint<T> {
 
     /// Substitute all non-cut KVars with their solutions and return the resulting
     /// constraint. Non-cut KVars are those identified by the SCC+rank algorithm.
-    pub fn elim_non_cut_kvars(&mut self) -> Self {
+    pub fn elim_non_cut_kvars(&mut self, fresh: &mut dyn FnMut() -> T::Var) -> Self {
         self.simplify();
         let non_cuts = self.compute_non_cuts();
         let mut non_cuts = non_cuts;
@@ -223,7 +223,7 @@ impl<T: Types> Constraint<T> {
         if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
             eprintln!("[noncut] vars={non_cuts:?}\n[noncut] before={:#?}", self);
         }
-        let out = self.elim(&non_cuts);
+        let out = self.elim(&non_cuts, fresh);
         if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
             eprintln!("[noncut] after={:#?}", out);
         }
@@ -296,9 +296,9 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn elim(&self, vars: &[T::KVar]) -> Self {
+    pub fn elim(&self, vars: &[T::KVar], fresh: &mut dyn FnMut() -> T::Var) -> Self {
         vars.iter().fold(self.clone(), |mut acc, var| {
-            acc = acc.elim1(var);
+            acc = acc.elim1_v2(var, fresh);
             acc.simplify();
             acc
         })
@@ -413,6 +413,76 @@ impl<T: Types> Constraint<T> {
         scope
     }
 
+    /// FUSION-style elimination of a single non-cut kvar `var`.
+    ///
+    /// Mirrors `Solver/Solution.hs::cubePred`/`hypPred`: for each occurrence of
+    /// `var` at a head position we collect a *cube* (chain of enclosing ForAll
+    /// binders + formal args). At each *use* site `KVar(var, actuals)`, we
+    /// substitute `Pred::Hyp` of those cubes (existentially quantifying each
+    /// cube's "extra" binders — those not in `sScp[var]` — and adding
+    /// `formal_i = actual_i` equalities). Head occurrences of `var` themselves
+    /// become `Pred::TRUE` (the obligation is discharged by the substitution
+    /// at use sites).
+    ///
+    /// Unlike the Horn-syntactic `doelim`, this does NOT change the constraint
+    /// structure: no new outer ForAlls, no Conj-of-cubes. Cube bodies preserve
+    /// `Pred` shape so any cut-kvar references inside extra binders' preds are
+    /// kept verbatim for fixpoint to resolve later.
+    fn elim1_v2(&self, var: &T::KVar, fresh: &mut dyn FnMut() -> T::Var) -> Self {
+        let scope = self.kvar_scope(var);
+        let mut cubes: Vec<CollectedCube<T>> = Vec::new();
+        collect_cubes(self, var, &mut Vec::new(), &mut cubes);
+        if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
+            eprintln!("[noncut-v2] ENTER elim1_v2 var={var:?}");
+            eprintln!(
+                "[noncut-v2] elim {:?}: {} cubes; scope size {}",
+                var,
+                cubes.len(),
+                scope.len()
+            );
+            for (i, c) in cubes.iter().enumerate() {
+                eprintln!(
+                    "[noncut-v2]   cube[{i}] binders={} formals={:?}",
+                    c.binders.len(),
+                    c.formals
+                );
+                for (j, b) in c.binders.iter().enumerate() {
+                    eprintln!("[noncut-v2]     binder[{j}] name={:?} pred={:?}", b.name, b.pred);
+                }
+            }
+        }
+        self.substitute_kvar_uses(var, &cubes, &scope, fresh)
+    }
+
+    fn substitute_kvar_uses(
+        &self,
+        var: &T::KVar,
+        cubes: &[CollectedCube<T>],
+        scope: &HashSet<T::Var>,
+        fresh: &mut dyn FnMut() -> T::Var,
+    ) -> Self {
+        match self {
+            Constraint::Conj(cs) => {
+                Constraint::Conj(
+                    cs.iter()
+                        .map(|c| c.substitute_kvar_uses(var, cubes, scope, fresh))
+                        .collect(),
+                )
+            }
+            Constraint::ForAll(Bind { name, sort, pred }, inner) => {
+                let new_pred = pred.substitute_kvar_use(var, cubes, scope, fresh);
+                Constraint::ForAll(
+                    Bind { name: name.clone(), sort: sort.clone(), pred: new_pred },
+                    Box::new(inner.substitute_kvar_uses(var, cubes, scope, fresh)),
+                )
+            }
+            Constraint::Pred(pred, tag) => {
+                let new_pred = pred.substitute_kvar_head(var);
+                Constraint::Pred(new_pred, tag.clone())
+            }
+        }
+    }
+
     fn pred_to_expr(pred: &Pred<T>) -> Option<Expr<T>> {
         match pred {
             Pred::Expr(expr) => Some(expr.clone()),
@@ -422,6 +492,7 @@ impl<T: Types> Constraint<T> {
                 .collect::<Option<Vec<_>>>()
                 .map(Expr::and),
             Pred::KVar(_, _) => None,
+            Pred::Hyp(_) => None,
         }
     }
 
@@ -533,7 +604,13 @@ fn collect_occurrence_binders<T: Types>(
                 paths.push(outer.clone());
             }
             let mut new_outer = outer.clone();
-            new_outer.insert(bind.name.clone());
+            // Skip anonymous binders (e.g. Flux's `Var::Underscore`): their names
+            // collide across distinct binders, so adding them to the scope set would
+            // over-collapse the kvar's common scope and incorrectly drop binders
+            // from cube extras.
+            if !bind.name.is_anonymous() {
+                new_outer.insert(bind.name.clone());
+            }
             collect_occurrence_binders(inner, var, &new_outer, paths);
         }
         Constraint::Conj(conjuncts) => {
@@ -600,6 +677,8 @@ impl<T: Types> Pred<T> {
             Pred::And(ps) => ps.iter().any(Pred::contains_kvars),
             Pred::KVar(_, _) => true,
             Pred::Expr(_) => false,
+            // A Hyp's body may contain residual cut-kvar references.
+            Pred::Hyp(cubes) => cubes.iter().any(|c| c.body.contains_kvars()),
         }
     }
 
@@ -608,6 +687,17 @@ impl<T: Types> Pred<T> {
             Pred::And(ps) => ps.iter().flat_map(Pred::free_vars).collect(),
             Pred::KVar(_, _) => HashSet::new(),
             Pred::Expr(expr) => expr.free_vars().into_iter().collect(),
+            Pred::Hyp(cubes) => {
+                let mut out = HashSet::new();
+                for c in cubes {
+                    let mut body_free = c.body.free_vars();
+                    for b in &c.extra_binders {
+                        body_free.remove(&b.name);
+                    }
+                    out.extend(body_free);
+                }
+                out
+            }
         }
     }
 
@@ -616,6 +706,7 @@ impl<T: Types> Pred<T> {
             Pred::KVar(kvid, _args) => vec![kvid.clone()],
             Pred::Expr(_expr) => vec![],
             Pred::And(conjuncts) => conjuncts.iter().flat_map(Pred::kvars).unique().collect(),
+            Pred::Hyp(cubes) => cubes.iter().flat_map(|c| c.body.kvars()).unique().collect(),
         }
     }
 
@@ -634,6 +725,10 @@ impl<T: Types> Pred<T> {
             Pred::KVar(kvid, _args) if var.eq(kvid) => Some(self.clone()),
             Pred::KVar(_, _) => None,
             Pred::Expr(_) => None,
+            // A Hyp does not contain references to the *non-cut* kvar being
+            // scoped (it has already been eliminated). Any kvars inside a Hyp
+            // body are cut kvars whose scope we don't compute here.
+            Pred::Hyp(_) => None,
         }
     }
 
@@ -645,6 +740,8 @@ impl<T: Types> Pred<T> {
             }
             Pred::Expr(_) => vec![],
             Pred::KVar(_, _) => vec![],
+            // Hyps don't contribute new sol1 entries for the same non-cut kvar.
+            Pred::Hyp(_) => vec![],
         }
     }
 
@@ -683,6 +780,17 @@ impl<T: Types> Pred<T> {
                         .collect(),
                 )
             }
+            Pred::Hyp(cubes) => {
+                Pred::Hyp(
+                    cubes
+                        .iter()
+                        .map(|c| crate::constraint::Cube {
+                            extra_binders: c.extra_binders.clone(),
+                            body: Box::new(c.body.sub_kvars(assignment)),
+                        })
+                        .collect(),
+                )
+            }
         }
     }
 
@@ -700,7 +808,7 @@ impl<T: Types> Pred<T> {
                         .fold(assignment.0.body.clone(), |acc, e| acc.substitute(e.0, e.1)),
                 )
             }
-            _ => panic!("Conjunctions should not occur here"),
+            _ => panic!("Conjunctions/Hyps should not occur as a constraint head when sub_head is called"),
         }
     }
 
@@ -814,5 +922,240 @@ impl<T: Types> Expr<T> {
         let mut new_expr = self.clone();
         new_expr.substitute_in_place(v_from, v_to);
         new_expr
+    }
+}
+
+impl<T: Types> Pred<T> {
+    /// Substitute the variable `v_from` with the expression `v_to` everywhere
+    /// inside this predicate (including kvar arguments and inside `Hyp` cube
+    /// bodies / extra-binder preds).
+    pub(crate) fn substitute_var(&self, v_from: &T::Var, v_to: &Expr<T>) -> Self {
+        match self {
+            Pred::And(ps) => {
+                Pred::and(ps.iter().map(|p| p.substitute_var(v_from, v_to)).collect())
+            }
+            Pred::KVar(k, args) => {
+                Pred::KVar(
+                    k.clone(),
+                    args.iter().map(|a| a.substitute(v_from, v_to)).collect(),
+                )
+            }
+            Pred::Expr(e) => Pred::Expr(e.substitute(v_from, v_to)),
+            Pred::Hyp(cubes) => {
+                Pred::Hyp(
+                    cubes
+                        .iter()
+                        .map(|c| crate::constraint::Cube {
+                            extra_binders: c
+                                .extra_binders
+                                .iter()
+                                .map(|b| Bind {
+                                    name: b.name.clone(),
+                                    sort: b.sort.clone(),
+                                    pred: b.pred.substitute_var(v_from, v_to),
+                                })
+                                .collect(),
+                            body: Box::new(c.body.substitute_var(v_from, v_to)),
+                        })
+                        .collect(),
+                )
+            }
+        }
+    }
+}
+
+/// A cube collected during walk: the chain of ForAll binders enclosing one
+/// occurrence of `KVar(k, formals)` at a *head* position, plus those formals
+/// and the in-scope guard predicates already conjoined alongside the kvar at
+/// the head (`Pred::And([..., KVar(k,_), ...])`).
+struct CollectedCube<T: Types> {
+    binders: Vec<Bind<T>>,
+    formals: Vec<Expr<T>>,
+}
+
+/// Walk `cstr` and collect a cube for each *head* occurrence of `var`.
+fn collect_cubes<T: Types>(
+    cstr: &Constraint<T>,
+    var: &T::KVar,
+    binders: &mut Vec<Bind<T>>,
+    out: &mut Vec<CollectedCube<T>>,
+) {
+    match cstr {
+        Constraint::Conj(cs) => {
+            for c in cs {
+                collect_cubes(c, var, binders, out);
+            }
+        }
+        Constraint::ForAll(bind, inner) => {
+            binders.push(bind.clone());
+            collect_cubes(inner, var, binders, out);
+            binders.pop();
+        }
+        Constraint::Pred(pred, _tag) => {
+            collect_cubes_pred(pred, var, binders, out);
+        }
+    }
+}
+
+fn collect_cubes_pred<T: Types>(
+    pred: &Pred<T>,
+    var: &T::KVar,
+    binders: &[Bind<T>],
+    out: &mut Vec<CollectedCube<T>>,
+) {
+    match pred {
+        Pred::And(ps) => {
+            for p in ps {
+                collect_cubes_pred(p, var, binders, out);
+            }
+        }
+        Pred::KVar(kvid, args) if var.eq(kvid) => {
+            out.push(CollectedCube { binders: binders.to_vec(), formals: args.clone() });
+        }
+        Pred::KVar(_, _) | Pred::Expr(_) | Pred::Hyp(_) => {}
+    }
+}
+
+impl<T: Types> Pred<T> {
+    /// Substitute uses of `var` (in *guard* position) with `Pred::Hyp` of
+    /// instantiated cubes. Cube bodies preserve cut-kvar references so
+    /// fixpoint can resolve them.
+    fn substitute_kvar_use(
+        &self,
+        var: &T::KVar,
+        cubes: &[CollectedCube<T>],
+        scope: &HashSet<T::Var>,
+        fresh: &mut dyn FnMut() -> T::Var,
+    ) -> Self {
+        match self {
+            Pred::And(ps) => {
+                Pred::and(
+                    ps.iter()
+                        .map(|p| p.substitute_kvar_use(var, cubes, scope, fresh))
+                        .collect(),
+                )
+            }
+            Pred::KVar(kvid, actuals) if var.eq(kvid) => {
+                build_hyp_for_use(cubes, actuals, scope, fresh)
+            }
+            Pred::KVar(_, _) | Pred::Expr(_) => self.clone(),
+            // Recurse into existing Hyp cube bodies (a previously-eliminated
+            // non-cut kvar's body might transitively reference `var`).
+            Pred::Hyp(inner_cubes) => {
+                Pred::Hyp(
+                    inner_cubes
+                        .iter()
+                        .map(|c| crate::constraint::Cube {
+                            extra_binders: c.extra_binders.clone(),
+                            body: Box::new(
+                                c.body.substitute_kvar_use(var, cubes, scope, fresh),
+                            ),
+                        })
+                        .collect(),
+                )
+            }
+        }
+    }
+
+    /// In *head* position, replace `KVar(var, _)` with `True`.
+    /// (The corresponding obligation is discharged by substitutions at use sites.)
+    fn substitute_kvar_head(&self, var: &T::KVar) -> Self {
+        match self {
+            Pred::And(ps) => Pred::and(ps.iter().map(|p| p.substitute_kvar_head(var)).collect()),
+            Pred::KVar(kvid, _) if var.eq(kvid) => Pred::TRUE,
+            Pred::KVar(_, _) | Pred::Expr(_) | Pred::Hyp(_) => self.clone(),
+        }
+    }
+}
+
+/// Build a `Pred::Hyp` from cubes for a use site `KVar(k, actuals)`.
+///
+/// For each cube `c = (binders, formals)`:
+///   - `extra_binders` = binders not in `scope` (sScp[k]).
+///   - cube body = (⋀ pred(b) for b in extra_binders) ∧ (⋀ formal_i = actual_i).
+///
+/// Cube body keeps `Pred` shape so cut-kvar references inside extra binders'
+/// preds are preserved verbatim for fixpoint to resolve.
+fn build_hyp_for_use<T: Types>(
+    cubes: &[CollectedCube<T>],
+    actuals: &[Expr<T>],
+    scope: &HashSet<T::Var>,
+    fresh: &mut dyn FnMut() -> T::Var,
+) -> Pred<T> {
+    let owned: Vec<crate::constraint::Cube<T>> = cubes
+        .iter()
+        .map(|c| build_cube(c, actuals, scope, fresh))
+        .collect();
+    Pred::Hyp(owned)
+}
+
+fn build_cube<T: Types>(
+    cube: &CollectedCube<T>,
+    actuals: &[Expr<T>],
+    scope: &HashSet<T::Var>,
+    fresh: &mut dyn FnMut() -> T::Var,
+) -> crate::constraint::Cube<T> {
+    // All non-scope binders contribute their `pred` as a conjunct in the cube
+    // body, but only `Local` binders are retained as actual existential
+    // binders. Non-local placeholders (e.g. `Var::Underscore`) exist solely as
+    // a syntactic vehicle for attaching a fact-pred with no real bound name;
+    // dropping their pred would lose information.
+    let in_cube: Vec<&Bind<T>> = cube
+        .binders
+        .iter()
+        .filter(|b| !scope.contains(&b.name))
+        .collect();
+    // Freshen each retained `Local` binder. Their original names may collide
+    // with free variables at the use site (e.g. when the cube was collected
+    // inside the same outer scope as the use site); renaming to globally-fresh
+    // names avoids the existential shadowing the outer variable it should be
+    // constraining.
+    let mut renames: Vec<(T::Var, T::Var)> = Vec::new();
+    let extra_binders: Vec<Bind<T>> = in_cube
+        .iter()
+        .filter(|b| b.name.is_local())
+        .map(|b| {
+            let new_name = fresh();
+            renames.push((b.name.clone(), new_name.clone()));
+            Bind { name: new_name, sort: b.sort.clone(), pred: b.pred.clone() }
+        })
+        .collect();
+    // Apply renames to: each in_cube binder's pred (so non-Local extras' preds
+    // that reference renamed locals still resolve), each formal in
+    // cube.formals, and each retained extra binder's pred.
+    let apply_renames_pred = |p: &Pred<T>| -> Pred<T> {
+        let mut acc = p.clone();
+        for (from, to) in &renames {
+            acc = acc.substitute_var(from, &Expr::Var(to.clone()));
+        }
+        acc
+    };
+    let apply_renames_expr = |e: &Expr<T>| -> Expr<T> {
+        let mut acc = e.clone();
+        for (from, to) in &renames {
+            acc = acc.substitute(from, &Expr::Var(to.clone()));
+        }
+        acc
+    };
+
+    let mut conjuncts: Vec<Pred<T>> = Vec::new();
+    for b in &in_cube {
+        if !b.pred.is_trivially_true() {
+            conjuncts.push(apply_renames_pred(&b.pred));
+        }
+    }
+    for (formal, actual) in iter::zip(&cube.formals, actuals) {
+        conjuncts.push(Pred::Expr(Expr::Atom(
+            BinRel::Eq,
+            Box::new([apply_renames_expr(formal), actual.clone()]),
+        )));
+    }
+    let extra_binders: Vec<Bind<T>> = extra_binders
+        .into_iter()
+        .map(|b| Bind { name: b.name, sort: b.sort, pred: apply_renames_pred(&b.pred) })
+        .collect();
+    crate::constraint::Cube {
+        extra_binders,
+        body: Box::new(Pred::and(conjuncts)),
     }
 }

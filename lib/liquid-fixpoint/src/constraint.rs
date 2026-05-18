@@ -238,10 +238,45 @@ pub enum Pred<T: Types> {
     And(Vec<Self>),
     KVar(T::KVar, Vec<Expr<T>>),
     Expr(Expr<T>),
+    /// The "hypothesis" of an eliminated non-cut KVar at a single use site.
+    ///
+    /// In Haskell `liquid-fixpoint`, a kvar `k` that the FUSION solver decides
+    /// to eliminate has a *hypothesis* `Sol.Hyp = [Cube]`: a list of cubes,
+    /// one per syntactic head occurrence of `k` in the constraint. To resolve
+    /// a use site `KVar(k, actuals)`, the solver disjuncts the cubes,
+    /// existentially quantifying each cube's "extra" binders (those not in the
+    /// kvar's common scope `sScp[k]`) and substituting `formal_i = actual_i`:
+    ///
+    /// ```text
+    /// hypPred(k, actuals) = pOr_i [ \exists extra_binders_i.
+    ///                                 ( /\ pred(b) for b in extra_binders_i
+    ///                                 /\ /\ formal_i = actual_i ) ]
+    /// ```
+    ///
+    /// This `Pred::Hyp` variant is the same construction performed eagerly
+    /// (pre-elim) on the Rust side. Each `Cube` carries its `extra_binders`
+    /// and a `body: Pred` (which may itself contain residual `Pred::KVar`
+    /// references to *cut* kvars that fixpoint will resolve later).
+    /// The variant should only ever be constructed by the non-cut elimination
+    /// machinery; ordinary `Pred`s remain `And`/`KVar`/`Expr`.
+    Hyp(Vec<Cube<T>>),
+}
+
+/// One cube of a `Pred::Hyp`. Represents `\exists extra_binders. body`.
+///
+/// `body` is the conjunction of the original cube's extra-binder predicates
+/// together with `formal_i = actual_i` equalities that bind the kvar's
+/// formals to the actual arguments at the use site. `body` may contain
+/// residual `Pred::KVar` references to cut kvars.
+#[derive_where(Hash, Clone, Debug)]
+pub struct Cube<T: Types> {
+    pub extra_binders: Vec<Bind<T>>,
+    pub body: Box<Pred<T>>,
 }
 
 impl<T: Types> Pred<T> {
     pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Boolean(true)));
+    pub const FALSE: Self = Pred::Expr(Expr::Constant(Constant::Boolean(false)));
 
     pub fn and(mut preds: Vec<Self>) -> Self {
         if preds.is_empty() {
@@ -266,6 +301,10 @@ impl<T: Types> Pred<T> {
             Pred::And(ps) => ps.iter().any(Pred::is_concrete),
             Pred::KVar(_, _) => false,
             Pred::Expr(_) => true,
+            // A Hyp is concrete: elimination has resolved the kvar to its
+            // disjunction of cubes. Cubes may still contain residual cut-kvar
+            // references in their bodies, but the Hyp itself counts as concrete.
+            Pred::Hyp(_) => true,
         }
     }
 

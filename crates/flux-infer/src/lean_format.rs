@@ -602,6 +602,13 @@ impl LeanFmt for Pred {
                 }
                 write!(f, ")")
             }
+            Pred::Hyp(_) => {
+                // Lean export currently uses its own non-cut solution table
+                // (see KVar arm above) and does not run the syntactic
+                // elimination pass that produces `Pred::Hyp`. If this ever
+                // fires, the lean pipeline needs its own Hyp handling.
+                todo!("Pred::Hyp not supported in lean export yet")
+            }
         }
     }
 }

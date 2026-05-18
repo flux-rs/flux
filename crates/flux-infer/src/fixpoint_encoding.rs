@@ -155,6 +155,14 @@ pub mod fixpoint {
                 }
             }
         }
+
+        fn is_anonymous(&self) -> bool {
+            matches!(self, Var::Underscore)
+        }
+
+        fn is_local(&self) -> bool {
+            matches!(self, Var::Local(_))
+        }
     }
 
     #[derive(Clone, Hash, Debug, PartialEq, Eq)]
@@ -670,7 +678,9 @@ where
                     self.pending_compare_flux_non_cuts = Some(local);
                     constraint
                 } else {
-                    constraint.elim_non_cut_kvars()
+                    constraint.elim_non_cut_kvars(&mut || {
+                        fixpoint::Var::Local(self.ecx.local_var_env.fresh_name())
+                    })
                 }
             }
 

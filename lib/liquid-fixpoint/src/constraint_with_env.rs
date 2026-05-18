@@ -106,17 +106,17 @@ impl<T: Types> ConstraintWithEnv<T> {
         assignments
     }
 
-    pub fn is_satisfiable(&mut self) -> FixpointStatus<T::Tag> {
-        self.solve_by_fusion()
+    pub fn is_satisfiable(&mut self, fresh: &mut dyn FnMut() -> T::Var) -> FixpointStatus<T::Tag> {
+        self.solve_by_fusion(fresh)
     }
 
     fn simplify(&mut self) {
         self.constraint.simplify();
     }
 
-    pub fn solve_by_fusion(&mut self) -> FixpointStatus<T::Tag> {
+    pub fn solve_by_fusion(&mut self, fresh: &mut dyn FnMut() -> T::Var) -> FixpointStatus<T::Tag> {
         self.simplify();
-        self.constraint = self.constraint.elim_non_cut_kvars();
+        self.constraint = self.constraint.elim_non_cut_kvars(fresh);
         self.solve_by_predicate_abstraction()
     }
 
@@ -138,8 +138,8 @@ impl<T: Types> ConstraintWithEnv<T> {
         is_constraint_satisfiable(&self.constraint, &solver, &mut vars)
     }
 
-    pub fn elim_non_cut_kvars(&mut self) -> Constraint<T> {
-        self.constraint.elim_non_cut_kvars()
+    pub fn elim_non_cut_kvars(&mut self, fresh: &mut dyn FnMut() -> T::Var) -> Constraint<T> {
+        self.constraint.elim_non_cut_kvars(fresh)
     }
 
     fn topo_sort_data_declarations(datatype_decls: Vec<DataDecl<T>>) -> Vec<DataDecl<T>> {
