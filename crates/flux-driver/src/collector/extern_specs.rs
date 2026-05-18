@@ -169,9 +169,12 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 
         // If this is a trait impl compute the impl_id from the trait_ref
         let mut impl_of_trait = None;
+        let mut local_trait_self_ty = None;
         if let hir::ItemKind::Impl(dummy_impl) = &dummy_item.kind {
-            impl_of_trait =
-                Some(self.extract_extern_id_from_impl(dummy_item.owner_id, dummy_impl)?);
+            let (extern_id, self_ty) =
+                self.extract_extern_id_from_impl(dummy_item.owner_id, dummy_impl)?;
+            impl_of_trait = Some(extern_id);
+            local_trait_self_ty = Some(self_ty);
 
             self.inner
                 .specs
@@ -198,8 +201,11 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         if let Some(extern_impl_id) = extern_impl_id {
             self.check_generics(impl_id, extern_impl_id)?;
             // For trait impls, check that the self type matches the external definition
-            if let hir::ItemKind::Impl(dummy_impl) = &dummy_item.kind {
-                self.check_extern_impl_self_ty(impl_id, dummy_impl, extern_impl_id)?;
+            if let (Some(dummy_impl), Some(local_self_ty)) = (
+                if let hir::ItemKind::Impl(d) = &dummy_item.kind { Some(d) } else { None },
+                local_trait_self_ty,
+            ) {
+                self.check_extern_impl_self_ty(dummy_impl, local_self_ty, extern_impl_id)?;
             }
             self.insert_extern_id(impl_id.def_id, extern_impl_id)?;
         }
@@ -364,7 +370,11 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
-    fn extract_extern_id_from_impl(&self, impl_id: OwnerId, impl_: &hir::Impl) -> Result<DefId> {
+    fn extract_extern_id_from_impl(
+        &self,
+        impl_id: OwnerId,
+        impl_: &hir::Impl,
+    ) -> Result<(DefId, ty::Ty<'tcx>)> {
         if let Some(item_id) = impl_.items.first()
             && let hir::ImplItemKind::Fn { .. } = self.tcx().hir_impl_item(*item_id).kind
             && let Some((clause, _)) = self
@@ -376,8 +386,9 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             && let Some(trait_pred) = poly_trait_pred.no_bound_vars()
         {
             let trait_ref = trait_pred.trait_ref;
+            let local_self_ty = trait_ref.self_ty();
             lowering::resolve_trait_ref_impl_id(self.tcx(), impl_id.to_def_id(), trait_ref)
-                .map(|(impl_id, _)| impl_id)
+                .map(|(impl_id, _)| (impl_id, local_self_ty))
                 .ok_or_else(|| self.cannot_resolve_trait_impl())
         } else {
             Err(self.malformed())
@@ -481,23 +492,20 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 
     fn check_extern_impl_self_ty(
         &mut self,
-        local_id: OwnerId,
         local_impl: &hir::Impl,
+        local_self_ty: ty::Ty<'tcx>,
         extern_impl_id: DefId,
     ) -> Result {
         let tcx = self.tcx();
 
-        // Get the self type from the local extern spec
-        let local_self_ty = tcx.type_of(local_id).instantiate_identity();
-
         // Get the self type from the external impl
         let extern_self_ty = tcx.type_of(extern_impl_id).instantiate_identity();
 
-        // Compare self types. Note: this uses raw Ty equality which works after check_generics
-        // has verified param names and indices match. For generic impls where params have
-        // different DefIds across crates, this comparison may produce false mismatches —
-        // but check_generics already rejects differing param structures, so the remaining
-        // cases (concrete type mismatches like Range<usize> vs Range<A>) are caught correctly.
+        // Compare self types. `local_self_ty` is the user-written self type from the extern
+        // spec's trait_ref (not the `__FluxExternImplStruct` wrapper that the macro retargets
+        // the impl onto). After `check_generics` has verified param names and indices match,
+        // raw Ty equality is sound for the cases we want to catch (concrete type mismatches
+        // like `Range<usize>` vs `Range<A>`).
         if local_self_ty != extern_self_ty {
             let span = local_impl.self_ty.span;
             Err(self.emit(errors::MismatchedImplSelfTy {
