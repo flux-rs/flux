@@ -622,11 +622,7 @@ where
             .iter()
             .filter_map(|(k, v)| {
                 // NOTE(ck): Don't send wkvars to fixpoint
-                if let ConstKey::WKVar(..) = k {
-                    None
-                } else {
-                    Some(v)
-                }
+                if let ConstKey::WKVar(..) = k { None } else { Some(v) }
             })
             .cloned()
             .collect_vec();
