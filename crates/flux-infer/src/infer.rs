@@ -12,11 +12,14 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AliasKind, AliasTy, BaseTy, Binder, BoundReftKind, BoundVariableKinds,
-        CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj,
-        GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, NameProvenance, Path,
-        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
+        CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, EarlyReftParam, Expr, ExprKind, FieldProj,
+        GenericArg,
+        HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, NameProvenance, Path,
+        PolyVariant, PtrKind,
+        RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::TypeFoldable,
+        for_refine_arg,
     },
 };
 use itertools::{Itertools, izip};
@@ -32,12 +35,13 @@ use rustc_type_ir::Variance::Invariant;
 use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{
-        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, KVarSolutions,
-        lean_task_key,
+        Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen,
     },
-    lean_encoding::log_proof,
     projections::NormalizeExt as _,
-    refine_tree::{Cursor, Marker, RefineTree, Scope},
+    refine_tree::{
+        AssumptionType, BinderOriginator, BinderProvenance, Cursor, Marker, RefineTree, Scope,
+    },
+    wkvars::{Constraint, Constraints},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
@@ -211,51 +215,18 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
     pub fn execute_lean_query(
         self,
-        cache: &mut FixQueryCache,
-        def_id: MaybeExternId,
+        _cache: &mut FixQueryCache,
+        _def_id: MaybeExternId,
     ) -> QueryResult {
-        let inner = self.inner.into_inner();
-        let kvars = inner.kvars;
-        let evars = inner.evars;
-        let mut refine_tree = self.refine_tree;
-        refine_tree.replace_evars(&evars).unwrap();
-        refine_tree.simplify(self.genv);
-
-        let solver = match self.opts.solver {
-            flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
-            flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
-        };
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
-        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
-        let cstr_variable_sorts = cstr.variable_sorts();
-        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
-
-        log_proof(self.genv, def_id)?;
-        // Skip re-generation if task is already cached (same hash → same lean files on disk).
-        if config::is_cache_enabled() {
-            let key = lean_task_key(self.genv.tcx(), def_id.resolved_id());
-            let hash = task.hash_with_default();
-            if cache.lookup(&key, hash).is_some() {
-                return Ok(());
-            }
-        }
-
-        let result = fcx.run_task(cache, def_id, FixpointQueryKind::Body, &task)?;
-
-        fcx.generate_lean_files(
-            def_id,
-            task,
-            KVarSolutions::closed_solutions(
-                cstr_variable_sorts,
-                result.solution,
-                result.non_cut_solution,
-            ),
-        )
+        // Lean backend is not supported on the wick-eval branch; the flag should
+        // never be enabled in these benchmarks. Bail loudly if someone turns it on.
+        unimplemented!("lean backend is disabled on wick-eval-on-noncut")
     }
 
-    pub fn execute_fixpoint_query(
+    pub fn execute_fixpoint_query_collecting_constraints(
         self,
-        cache: &mut FixQueryCache,
+        _cache: &mut FixQueryCache,
+        constraints: &mut Constraints,
         def_id: MaybeExternId,
         kind: FixpointQueryKind,
     ) -> QueryResult<Answer<Tag>> {
@@ -283,21 +254,21 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
+        constraints.push(Constraint {
+            def_id,
+            refine_tree: refine_tree.clone(),
+            kvgen: kvars.clone(),
+            query_kind: kind,
+            scrape_quals: self.opts.scrape_quals,
+            backend,
+        });
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
-        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
+        // let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
+        // let cstr = refine_tree.into_fixpoint(&mut fcx)?;
 
-        // skip checking trivial constraints
-        let count = cstr.concrete_head_count();
-        metrics::incr_metric(Metric::CsTotal, count as u32);
-        if count == 0 {
-            metrics::incr_metric_if(kind.is_body(), Metric::FnTrivial);
-            return Ok(Answer::trivial());
-        }
+        // fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
 
-        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
-        let result = fcx.run_task(cache, def_id, kind, &task)?;
-        fcx.result_to_answer(result)
+        QueryResult::Ok(Answer::trivial())
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
@@ -339,6 +310,13 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         Ok(RefineArgs::for_item(self.genv, callee_def_id, |param, _| {
             let param = param.instantiate(self.genv.tcx(), args, &[]);
             Ok(self.fresh_infer_var(&param.sort, param.mode))
+        })?)
+    }
+
+    pub fn params_for_refine_args(&mut self, callee_def_id: DefId) -> InferResult<Vec<Var>> {
+        Ok(for_refine_arg(self.genv, callee_def_id, |param, index| {
+            let var = Var::EarlyParam(EarlyReftParam { index: index as u32, name: param.name() });
+            Ok(var)
         })?)
     }
 
@@ -417,7 +395,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         f: impl FnOnce(&mut InferCtxt<'_, 'genv, 'tcx>, T) -> U,
     ) -> U
     where
-        T: TypeFoldable,
+        T: TypeFoldable + flux_middle::pretty::Pretty + std::fmt::Debug,
     {
         self.ensure_resolved_evars(|infcx| {
             let t = t.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
@@ -517,11 +495,11 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.cursor.check_pred(pred, tag);
     }
 
-    pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
-        self.cursor.assume_pred(pred);
+    pub fn assume_pred(&mut self, pred: impl Into<Expr>, assumption_type: AssumptionType) {
+        self.cursor.assume_pred(pred, assumption_type);
     }
 
-    pub fn unpack(&mut self, ty: &Ty) -> Ty {
+    pub fn unpack(&mut self, ty: &Ty, _binder_provenance: BinderProvenance) -> Ty {
         self.hoister(false).hoist(ty)
     }
 
@@ -572,7 +550,7 @@ impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
     }
 
     fn hoist_constr(&mut self, pred: Expr) {
-        self.infcx.assume_pred(pred);
+        self.infcx.assume_pred(pred, AssumptionType::Assumption);
     }
 }
 
@@ -720,7 +698,7 @@ impl std::ops::DerefMut for InferCtxtAt<'_, '_, '_, '_> {
 /// Used for debugging to attach a "trace" to the [`RefineTree`] that can be used to print information
 /// to recover the derivation when relating types via subtyping. The code that attaches the trace is
 /// currently commented out because the output is too verbose.
-#[derive(TypeVisitable, TypeFoldable)]
+#[derive(TypeVisitable, TypeFoldable, Clone)]
 pub(crate) enum TypeTrace {
     Types(Ty, Ty),
     BaseTys(BaseTy, BaseTy),
@@ -812,7 +790,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         // We *fully* unpack the lhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
-        let a = infcx.unpack(a);
+        let a = infcx.unpack(
+            a,
+            BinderProvenance::new(BinderOriginator::Sub(self.reason)).with_span(self.span),
+        );
 
         match (a.kind(), b.kind()) {
             (TyKind::Exists(..), _) => {

@@ -497,6 +497,12 @@ impl<T: Types> Expr<T> {
             Expr::Exists(..) => {
                 todo!("unexpected! exists")
             }
+            Expr::WKVar(wkvar) => {
+                wkvar
+                    .args
+                    .iter_mut()
+                    .for_each(|expr| expr.substitute_in_place(v_from, v_to));
+            }
         }
     }
 

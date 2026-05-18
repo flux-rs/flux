@@ -21,6 +21,8 @@ xflags::xflags! {
         optional --offline
         /// If true, run cargo build commands with --features rust-fixpiont
         optional --rust-fixpoint
+        /// If true, run cargo build commands with --features wick
+        optional --wick
 
         /// Run regression tests
         cmd test {
@@ -113,15 +115,16 @@ fn main() -> anyhow::Result<()> {
         extra.push("--offline");
     }
     match cmd.subcommand {
-        XtaskCmd::Test(args) => test(args, cmd.rust_fixpoint),
-        XtaskCmd::LeanBench(args) => lean_bench(args, cmd.rust_fixpoint),
-        XtaskCmd::Run(args) => run(args, cmd.rust_fixpoint),
-        XtaskCmd::Install(args) => install(&args, &extra, cmd.rust_fixpoint),
+        XtaskCmd::Test(args) => test(args, cmd.rust_fixpoint, cmd.wick),
+        XtaskCmd::LeanBench(args) => lean_bench(args, cmd.rust_fixpoint, cmd.wick),
+        XtaskCmd::Run(args) => run(args, cmd.rust_fixpoint, cmd.wick),
+        XtaskCmd::Install(args) => install(&args, &extra, cmd.rust_fixpoint, cmd.wick),
         XtaskCmd::Doc(args) => doc(args),
         XtaskCmd::BuildSysroot(_) => {
             let config = SysrootConfig {
                 profile: Profile::Dev,
                 rust_fixpoint: cmd.rust_fixpoint,
+                wick: cmd.wick,
                 dst: local_sysroot_dir()?,
                 build_libs: BuildLibs { force: true, tests: true, libs: FluxLib::ALL },
             };
@@ -133,14 +136,15 @@ fn main() -> anyhow::Result<()> {
     }
 }
 
-fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
+fn test(args: Test, rust_fixpoint: bool, wick: bool) -> anyhow::Result<()> {
     let config = SysrootConfig {
         profile: Profile::Dev,
         rust_fixpoint,
+        wick,
         dst: local_sysroot_dir()?,
         build_libs: BuildLibs { force: false, tests: !args.no_lib_tests, libs: FluxLib::ALL },
     };
-    let flux = build_binary("flux", config.profile, false)?;
+    let flux = build_binary("flux", config.profile, false, false)?;
     install_sysroot(&config)?;
 
     Command::new("cargo")
@@ -153,17 +157,18 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
         .run()
 }
 
-fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
+fn lean_bench(args: LeanBench, rust_fixpoint: bool, wick: bool) -> anyhow::Result<()> {
     use walkdir::WalkDir;
 
     let config = SysrootConfig {
         profile: Profile::Dev,
         rust_fixpoint,
+        wick,
         dst: local_sysroot_dir()?,
         build_libs: BuildLibs { force: false, tests: false, libs: FluxLib::ALL },
     };
     install_sysroot(&config)?;
-    let flux = build_binary("flux", config.profile, false)?;
+    let flux = build_binary("flux", config.profile, false, wick)?;
 
     let pos_path = PathBuf::from("tests/tests/pos");
     let lean_bench_dir = PathBuf::from("tests/lean_bench");
@@ -281,7 +286,7 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn run(args: Run, rust_fixpoint: bool) -> anyhow::Result<()> {
+fn run(args: Run, rust_fixpoint: bool, wick: bool) -> anyhow::Result<()> {
     let libs = if args.no_extern_specs { &[FluxLib::FluxRs] } else { FluxLib::ALL };
     run_inner(
         args.input,
@@ -290,6 +295,7 @@ fn run(args: Run, rust_fixpoint: bool) -> anyhow::Result<()> {
             .into_iter()
             .chain(args.opts),
         rust_fixpoint,
+        wick,
     )?;
     Ok(())
 }
@@ -300,6 +306,7 @@ fn expand(args: Expand) -> Result<(), anyhow::Error> {
         BuildLibs { force: false, tests: false, libs: &[FluxLib::FluxRs] },
         ["-Zunpretty=expanded".to_string()],
         false,
+        false,
     )?;
     Ok(())
 }
@@ -309,16 +316,18 @@ fn run_inner(
     build_libs: BuildLibs,
     flags: impl IntoIterator<Item = String>,
     rust_fixpoint: bool,
+    wick: bool,
 ) -> Result<(), anyhow::Error> {
     let config = SysrootConfig {
         profile: Profile::Dev,
         rust_fixpoint,
+        wick,
         dst: local_sysroot_dir()?,
         build_libs,
     };
 
     install_sysroot(&config)?;
-    let flux = build_binary("flux", config.profile, false)?;
+    let flux = build_binary("flux", config.profile, false, false)?;
 
     let mut rustc_flags = tests::default_flags();
     rustc_flags.extend(flags);
@@ -330,11 +339,12 @@ fn run_inner(
         .run()
 }
 
-fn install(args: &Install, extra: &[&str], rust_fixpoint: bool) -> anyhow::Result<()> {
+fn install(args: &Install, extra: &[&str], rust_fixpoint: bool, wick: bool) -> anyhow::Result<()> {
     let libs = if args.no_extern_specs { &[FluxLib::FluxRs] } else { FluxLib::ALL };
     let config = SysrootConfig {
         profile: args.profile(),
         rust_fixpoint,
+        wick,
         dst: default_sysroot_dir(),
         build_libs: BuildLibs { force: false, tests: false, libs },
     };
@@ -362,10 +372,18 @@ fn doc(_args: Doc) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build_binary(bin: &str, profile: Profile, rust_fixpoint: bool) -> anyhow::Result<Utf8PathBuf> {
+fn build_binary(
+    bin: &str,
+    profile: Profile,
+    rust_fixpoint: bool,
+    wick: bool,
+) -> anyhow::Result<Utf8PathBuf> {
     let mut args = vec!["build", "--bin", bin, "--profile", profile.as_str()];
     if rust_fixpoint {
         args.extend_from_slice(&["--features", "rust-fixpoint"]);
+    }
+    if wick {
+        args.extend_from_slice(&["--features", "wick"]);
     }
     Command::new("cargo")
         .args(&args)
@@ -381,6 +399,8 @@ struct SysrootConfig {
     profile: Profile,
     /// Whether rust-fixpoint should be enabled to build `flux-driver`
     rust_fixpoint: bool,
+    /// Whether wick should be enabled to build `flux-driver`
+    wick: bool,
     /// Destination path for sysroot artifacts
     dst: PathBuf,
     build_libs: BuildLibs,
@@ -438,9 +458,12 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
     remove_path(&config.dst)?;
     create_dir(&config.dst)?;
 
-    copy_file(build_binary("flux-driver", config.profile, config.rust_fixpoint)?, &config.dst)?;
+    copy_file(
+        build_binary("flux-driver", config.profile, config.rust_fixpoint, config.wick)?,
+        &config.dst,
+    )?;
 
-    let cargo_flux = build_binary("cargo-flux", config.profile, config.rust_fixpoint)?;
+    let cargo_flux = build_binary("cargo-flux", config.profile, config.rust_fixpoint, config.wick)?;
 
     if config.build_libs.force {
         Command::new(&cargo_flux)
@@ -659,8 +682,6 @@ fn remove_path(path: &Path) -> anyhow::Result<()> {
 fn remove_dir_all(path: &Path) -> io::Result<()> {
     std::fs::remove_dir_all(path)
 }
-
-// Copied from xshell
 #[cfg(windows)]
 fn remove_dir_all(path: &Path) -> io::Result<()> {
     for _ in 0..99 {
@@ -672,6 +693,7 @@ fn remove_dir_all(path: &Path) -> io::Result<()> {
     fs::remove_dir_all(path)
 }
 
+// Copied from xshell
 fn create_dir(path: &Path) -> anyhow::Result<()> {
     match fs::create_dir_all(path) {
         Ok(()) => Ok(()),

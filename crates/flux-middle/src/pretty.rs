@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt};
+use std::{cell::RefCell, collections::HashMap, fmt};
 
 use flux_arc_interner::{Internable, Interned};
 use flux_common::index::IndexGen;
@@ -199,6 +199,8 @@ pub struct PrettyCx<'genv, 'tcx> {
     pub hide_regions: bool,
     pub hide_sorts: bool,
     pub pretty_var_env: PrettyMap<Name>,
+    // Better names to give to free vars
+    pub free_var_substs: HashMap<Name, String>,
     pub bvar_env: BoundVarEnv,
     pub earlyparam_env: RefCell<Option<EarlyParamEnv>>,
 }
@@ -221,7 +223,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             fully_qualified_paths: false,
             simplify_exprs: true,
             tags: true,
-            bindings_chain: true,
+            bindings_chain: false,
             preds_chain: true,
             full_spans: false,
             hide_uninit: true,
@@ -229,6 +231,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             hide_regions: false,
             hide_sorts: true,
             pretty_var_env: PrettyMap::new(),
+            free_var_substs: HashMap::default(),
             bvar_env: BoundVarEnv::default(),
             earlyparam_env: RefCell::new(None),
         }
@@ -382,6 +385,10 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
 
     pub fn hide_refinements(self, b: bool) -> Self {
         Self { hide_refinements: b, ..self }
+    }
+
+    pub fn with_free_var_substs(self, free_var_substs: HashMap<Name, String>) -> Self {
+        Self { free_var_substs, ..self }
     }
 
     pub fn show_kvar_args(self) -> Self {

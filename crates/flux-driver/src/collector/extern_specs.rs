@@ -71,11 +71,12 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             let sig = attrs.fn_sig();
             self.inner.check_fn_sig_name(item.owner_id, sig.as_ref())?;
             let node_id = self.inner.next_node_id();
+            let weak_kvars = attrs.weak_kvars().unwrap_or_default();
             self.inner.insert_item(
                 item.owner_id,
                 surface::Item {
                     attrs: attrs.into_attr_vec(),
-                    kind: surface::ItemKind::Fn(sig),
+                    kind: surface::ItemKind::Fn(weak_kvars, sig),
                     node_id,
                 },
             )?;
@@ -213,9 +214,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             let sig = attrs.fn_sig();
             self.inner.check_fn_sig_name(item.owner_id, sig.as_ref())?;
             let node_id = self.inner.next_node_id();
+            let weak_kvars = attrs.weak_kvars().unwrap_or_default();
             self.inner.insert_impl_item(
                 item.owner_id,
-                surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
+                surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id, weak_kvars },
             )?;
         }
 
@@ -265,9 +267,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             let sig = attrs.fn_sig();
             self.inner.check_fn_sig_name(item.owner_id, sig.as_ref())?;
             let node_id = self.inner.next_node_id();
+            let weak_kvars = attrs.weak_kvars().unwrap_or_default();
             self.inner.insert_trait_item(
                 item.owner_id,
-                surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
+                surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id, weak_kvars },
             )?;
         }
 

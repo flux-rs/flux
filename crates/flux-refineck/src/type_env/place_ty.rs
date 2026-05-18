@@ -4,6 +4,7 @@ use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_infer::{
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
     projections::NormalizeExt as _,
+    refine_tree::AssumptionType,
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -860,7 +861,7 @@ fn downcast_enum(
         })
         .deeply_normalize(&mut infcx.at(span))?;
 
-    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));
+    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx), AssumptionType::Assumption);
 
     Ok(variant_sig.fields.to_vec())
 }

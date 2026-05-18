@@ -114,11 +114,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     let fn_sig = attrs.fn_sig();
                     self.check_fn_sig_name(owner_id, fn_sig.as_ref())?;
                     let node_id = self.next_node_id();
+                    let weak_kvars = attrs.weak_kvars().unwrap_or_default();
                     self.insert_item(
                         owner_id,
                         surface::Item {
                             attrs: attrs.into_attr_vec(),
-                            kind: surface::ItemKind::Fn(fn_sig),
+                            kind: surface::ItemKind::Fn(weak_kvars, fn_sig),
                             node_id,
                         },
                     )?;
@@ -175,9 +176,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             let sig = attrs.fn_sig();
             self.check_fn_sig_name(owner_id, sig.as_ref())?;
             let node_id = self.next_node_id();
+            let weak_kvars = attrs.weak_kvars().unwrap_or_default();
             self.insert_trait_item(
                 owner_id,
-                surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
+                surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id, weak_kvars },
             )?;
         }
         hir::intravisit::walk_trait_item(self, trait_item);
@@ -195,9 +197,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             let sig = attrs.fn_sig();
             self.check_fn_sig_name(owner_id, sig.as_ref())?;
             let node_id = self.next_node_id();
+            let weak_kvars = attrs.weak_kvars().unwrap_or_default();
             self.insert_impl_item(
                 owner_id,
-                surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
+                surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id, weak_kvars },
             )?;
         }
         hir::intravisit::walk_impl_item(self, impl_item);
@@ -622,10 +625,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("extern_spec", hir::AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("no_panic", hir::AttrArgs::Empty) => FluxAttrKind::NoPanic,
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
+            ("no_suggestions", hir::AttrArgs::Empty) => FluxAttrKind::NoSuggestions,
             ("specs", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_detached_specs, FluxAttrKind::DetachedSpecs)?
             }
-
+            ("vars", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_weak_kvars, FluxAttrKind::WeakKvar)?
+            }
             _ => return Err(invalid_attr_err(self)),
         };
         if config::annots() {
@@ -741,10 +747,12 @@ enum FluxAttrKind {
     InferOpts(config::PartialInferOpts),
     Invariant(surface::Expr),
     Ignore(surface::Ignored),
+    WeakKvar(Vec<surface::WeakKvar>),
     ShouldFail,
     ExternSpec,
     NoPanic,
     NoPanicIf(surface::Expr),
+    NoSuggestions,
     /// See `detachXX.rs`
     DetachedSpecs(surface::DetachedSpecs),
 }
@@ -869,6 +877,10 @@ impl FluxAttrs {
         read_attr!(self, StaticSpec)
     }
 
+    fn weak_kvars(&mut self) -> Option<Vec<surface::WeakKvar>> {
+        read_attr!(self, WeakKvar)
+    }
+
     fn constant(&mut self) -> Option<surface::ConstantInfo> {
         read_attr!(self, Constant)
     }
@@ -902,6 +914,7 @@ impl FluxAttrs {
                 FluxAttrKind::Ignore(ignored) => surface::Attr::Ignore(ignored),
                 FluxAttrKind::ShouldFail => surface::Attr::ShouldFail,
                 FluxAttrKind::NoPanic => surface::Attr::NoPanic,
+                FluxAttrKind::NoSuggestions => surface::Attr::NoSuggestions,
                 FluxAttrKind::Opaque
                 | FluxAttrKind::Reflect
                 | FluxAttrKind::FnSig(_)
@@ -918,7 +931,8 @@ impl FluxAttrs {
                 | FluxAttrKind::Invariant(_)
                 | FluxAttrKind::ExternSpec
                 | FluxAttrKind::DetachedSpecs(_)
-                | FluxAttrKind::NoPanicIf(_) => continue,
+                | FluxAttrKind::NoPanicIf(_)
+                | FluxAttrKind::WeakKvar(_) => continue,
             };
             attrs.push(attr);
         }
@@ -955,6 +969,8 @@ impl FluxAttrKind {
             FluxAttrKind::DetachedSpecs(_) => attr_name!(DetachedSpecs),
             FluxAttrKind::NoPanic => attr_name!(NoPanic),
             FluxAttrKind::NoPanicIf(_) => attr_name!(NoPanicIf),
+            FluxAttrKind::NoSuggestions => attr_name!(NoSuggestions),
+            FluxAttrKind::WeakKvar(_) => attr_name!(WeakKvar),
         }
     }
 }

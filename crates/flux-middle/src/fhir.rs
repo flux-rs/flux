@@ -54,6 +54,7 @@ pub enum Attr {
     ShouldFail,
     InferOpts(PartialInferOpts),
     NoPanic,
+    NoSuggestions,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -102,6 +103,12 @@ impl AttrMap<'_> {
 
     pub(crate) fn no_panic(&self) -> bool {
         self.attrs.iter().any(|attr| matches!(attr, Attr::NoPanic))
+    }
+
+    pub(crate) fn no_suggestions(&self) -> bool {
+        self.attrs
+            .iter()
+            .any(|attr| matches!(attr, Attr::NoSuggestions))
     }
 }
 
@@ -518,6 +525,14 @@ pub struct FnSig<'fhir> {
     pub header: FnHeader,
     pub decl: &'fhir FnDecl<'fhir>,
     pub no_panic_if: Option<Expr<'fhir>>,
+    pub weak_kvars: &'fhir [WeakKvar<'fhir>],
+}
+
+#[derive(Debug)]
+pub struct WeakKvar<'fhir> {
+    pub num: u32,
+    pub params: &'fhir [RefineParam<'fhir>],
+    pub solutions: &'fhir [Expr<'fhir>],
 }
 
 #[derive(Clone, Copy)]
@@ -1058,10 +1073,11 @@ pub enum ExprKind<'fhir> {
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
     Block(&'fhir [LetDecl<'fhir>], &'fhir Expr<'fhir>),
     Tuple(&'fhir [Expr<'fhir>]),
+    WeakKvar(u32, usize, &'fhir [QPathExpr<'fhir>]),
     Err(ErrorGuaranteed),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum QPathExpr<'fhir> {
     Resolved(PathExpr<'fhir>, Option<ParamKind>),
     TypeRelative(&'fhir Ty<'fhir>, Ident),
@@ -1627,6 +1643,14 @@ impl fmt::Debug for Expr<'_> {
                     write!(f, "let {:?} = {:?};", decl.param, decl.init)?;
                 }
                 write!(f, "{body:?}")
+            }
+            ExprKind::WeakKvar(num, self_args, args) => {
+                write!(
+                    f,
+                    "$wk{num}({:?})[{:?}]",
+                    args[..self_args].iter().format(", "),
+                    args[self_args..].iter().format(", ")
+                )
             }
             ExprKind::Tuple(exprs) => {
                 write!(f, "({:?})", exprs.iter().format(", "))

@@ -49,9 +49,8 @@ where
             fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(_)) => {
                 panic!("oh no! tuple!") // Ok(rty::SortCtor::Tuple(*size))
             }
-            fixpoint::SortCtor::Data(fixpoint::DataSort::User(opaque_id)) => {
-                let def_id = self.scx.opaque_sorts[opaque_id.as_usize()];
-                Ok(rty::SortCtor::User(def_id))
+            fixpoint::SortCtor::Data(fixpoint::DataSort::User(def_id)) => {
+                Ok(rty::SortCtor::User(*def_id))
             }
             fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id)) => {
                 let def_id = self.scx.adt_sorts[adt_id.as_usize()];
@@ -112,12 +111,15 @@ where
             }
             fixpoint::Expr::Var(fvar) => {
                 match fvar {
-                    fixpoint::Var::Underscore => {
+                    fixpoint::Var::Underscore | fixpoint::Var::UnderscoreInvariant => {
                         unreachable!("Underscore should not appear in exprs")
                     }
-                    fixpoint::Var::Global(global_var, _) | fixpoint::Var::Const(global_var, _) => {
+                    fixpoint::Var::Global(global_var, _) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
+                                ConstKey::Uif(def_id) => {
+                                    Ok(rty::Expr::global_func(SpecFuncKind::Def(*def_id)))
+                                }
                                 ConstKey::RustConst(def_id) => Ok(rty::Expr::const_def_id(*def_id)),
                                 ConstKey::Alias(_flux_id, _args) => {
                                     unreachable!("Should be special-cased as the head of an app")
@@ -133,8 +135,8 @@ where
                                         "Should be specially handled as the head of a function app."
                                     )
                                 }
-                                ConstKey::PtrSize => {
-                                    Ok(rty::Expr::internal_func(InternalFuncKind::PtrSize))
+                                ConstKey::WKVar(_, _) => {
+                                    unreachable!("WKVars are not global vars");
                                 }
                             }
                         } else {
@@ -178,6 +180,11 @@ where
                     }
                     fixpoint::Var::ConstGeneric(const_generic) => {
                         Ok(rty::Expr::const_generic(*const_generic))
+                    }
+                    fixpoint::Var::WKVar(..) => {
+                        unreachable!(
+                            "Weak kvar ids should be converted as part of fixpoint::Expr::WKVar"
+                        );
                     }
                 }
             }
@@ -242,8 +249,7 @@ where
                             Err(FixpointParseError::UIFRelArityMismatch(fargs.len()))
                         }
                     }
-                    fixpoint::Expr::Var(fixpoint::Var::Global(global_var, _))
-                    | fixpoint::Expr::Var(fixpoint::Var::Const(global_var, _)) => {
+                    fixpoint::Expr::Var(fixpoint::Var::Global(global_var, _)) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
                                 // NOTE: Only a few of these are meaningfully needed,
@@ -291,9 +297,12 @@ where
                                 }
                                 ConstKey::RustConst(..)
                                 | ConstKey::Lambda(..)
-                                | ConstKey::PtrSize => {
+                                | ConstKey::Uif(..) => {
                                     // These should be treated as a normal app.
                                     self.fixpoint_app_to_expr(fhead, fargs)
+                                }
+                                ConstKey::WKVar(..) => {
+                                    unreachable!("WKVars should not appear in app head global vars");
                                 }
                             }
                         } else {
@@ -417,6 +426,26 @@ where
                 let body = self.fixpoint_to_expr(body)?;
                 self.ecx.local_var_env.pop_layer();
                 Ok(rty::Expr::exists(Binder::bind_with_sorts(body, &sorts)))
+            }
+            fixpoint::Expr::WKVar(fixpoint::WKVar { wkvid, args }) => {
+                let (rty_wkvid, self_args) = match self.ecx.const_env.wkvar_map_rev.get(wkvid) {
+                    Some(ConstKey::WKVar(w, s)) => (w.clone(), *s),
+                    Some(_) => {
+                        unreachable!("Weak KVar has a const_key that is not a wkvid");
+                    }
+                    None => {
+                        unreachable!("missing weak kvar {:?} in const_env", wkvid);
+                    }
+                };
+                let e_args: Vec<rty::Expr> = args
+                    .iter()
+                    .map(|fexpr| self.fixpoint_to_expr(fexpr))
+                    .try_collect()?;
+                Ok(rty::Expr::wkvar(rty::WKVar {
+                    wkvid: rty_wkvid,
+                    self_args,
+                    args: List::from_vec(e_args),
+                }))
             }
         }
     }

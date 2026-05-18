@@ -1,6 +1,7 @@
 use std::{
     alloc,
     path::{Path, PathBuf},
+cell::RefCell,
     ptr,
     rc::Rc,
     slice,
@@ -12,7 +13,7 @@ use flux_config::{self as config, IncludePattern};
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
-use rustc_data_structures::unord::UnordSet;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -43,6 +44,16 @@ pub struct GlobalEnv<'genv, 'tcx> {
     inner: &'genv GlobalEnvInner<'genv, 'tcx>,
 }
 
+pub struct WeakKvarInfo {
+    /// Solutions (if provided as ground truth annotations). Each soution is
+    /// part of a conjunction that constitutes the full ground truth.
+    pub solutions: Vec<rty::Binder<rty::Expr>>,
+    /// The sorts of the weak kvar in the order in which they appear in the
+    /// arguments.
+    pub sorts: Vec<rty::Sort>,
+}
+pub type WeakKvarMap = UnordMap<u32, WeakKvarInfo>;
+
 struct GlobalEnvInner<'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
@@ -50,6 +61,7 @@ struct GlobalEnvInner<'genv, 'tcx> {
     cstore: Box<CrateStoreDyn>,
     queries: Queries<'genv, 'tcx>,
     tempdir: TempDir,
+    weak_kvars: RefCell<UnordMap<DefId, Rc<WeakKvarMap>>>,
 }
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -65,7 +77,11 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         // files in it.
         let tempdir = TempDir::new_in(lean_parent_dir(tcx)).unwrap();
         let queries = Queries::new(providers);
-        let inner = GlobalEnvInner { tcx, sess, cstore, arena, queries, tempdir };
+        let inner = GlobalEnvInner {
+            tcx,
+            sess,
+            cstore,
+            arena, queries, tempdir, weak_kvars: Default::default(), };
         f(GlobalEnv { inner: &inner })
     }
 }
@@ -436,6 +452,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.fn_sig(self, def_id.into_query_param())
     }
 
+    pub fn feed_weak_kvars(self, def_id: DefId, wk: WeakKvarMap) {
+        self.inner
+            .weak_kvars
+            .borrow_mut()
+            .insert(def_id, Rc::new(wk));
+    }
+
+    pub fn weak_kvars_for(self, def_id: DefId) -> Option<Rc<WeakKvarMap>> {
+        self.inner.weak_kvars.borrow().get(&def_id).cloned()
+    }
+
     pub fn variants_of(
         self,
         def_id: impl IntoQueryParam<DefId>,
@@ -691,6 +718,20 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         annotation || self.matches_trusted_impl_pattern(MaybeExternId::Local(def_id))
     }
 
+    /// Same behavior as [`trusted`], but for the `#[no_suggestions]` attribute.
+    pub fn no_suggestions(self, def_id: LocalDefId) -> bool {
+        self.traverse_parents(def_id, |did| {
+            // A parent has no_suggestions, we inherit it
+            if self.fhir_attr_map(did).no_suggestions() {
+                Some(true)
+            // It doesn't have it, keep trying
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(config::no_suggestions_default)
+    }
+
     /// Whether the item is a dummy item created by the extern spec macro.
     ///
     /// See [`crate::Specs::dummy_extern`]
@@ -810,6 +851,26 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             Ok(item)
         } else {
             Err(query_bug!(def_id, "expected item: `{def_id:?}`"))
+        }
+    }
+
+    pub fn fhir_expect_fn_sig(self, def_id: LocalDefId) -> QueryResult<&'genv fhir::FnSig<'genv>> {
+        match self.fhir_node(def_id)? {
+            fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(fn_sig), .. })
+            | fhir::Node::ImplItem(fhir::ImplItem {
+                kind: fhir::ImplItemKind::Fn(fn_sig), ..
+            })
+            | fhir::Node::TraitItem(fhir::TraitItem {
+                kind: fhir::TraitItemKind::Fn(fn_sig),
+                ..
+            })
+            | fhir::Node::ForeignItem(fhir::ForeignItem {
+                kind: fhir::ForeignItemKind::Fn(fn_sig, _),
+                ..
+            }) => Ok(fn_sig),
+            _ => {
+                bug!("Expected fn_sig: `{def_id:?}`")
+            }
         }
     }
 
