@@ -8,9 +8,7 @@ mod call_graph;
 use std::collections::VecDeque;
 
 use call_graph::{CallGraph, CallSiteKind, NodeKind};
-use flux_middle::{
-    CannotResolveReason, PanicReason, PanicSpec, global_env::GlobalEnv, queries::Providers,
-};
+use flux_middle::{PanicReason, PanicSpec, global_env::GlobalEnv, queries::Providers};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::Instance;
@@ -54,11 +52,7 @@ fn run_fixpoint(
         let def_id = instance.def_id();
         let spec = match &node.kind {
             NodeKind::ExternalCrate => external_spec(def_id),
-            NodeKind::Leaf(def_kind) => {
-                PanicSpec::MightPanic(PanicReason::CannotResolve(
-                    CannotResolveReason::NoMIRAvailable(def_id, *def_kind),
-                ))
-            }
+            NodeKind::Leaf(_) => PanicSpec::MightPanic(PanicReason::NoMIRAvailable),
             NodeKind::Analyzed { .. } if node.call_sites.is_empty() => PanicSpec::WillNotPanic,
             NodeKind::Analyzed { .. } => {
                 // If any call site is statically unresolvable, the function is
@@ -72,13 +66,11 @@ fn run_fixpoint(
                 });
                 if let Some(site) = unresolvable {
                     let reason = match site.kind {
-                        CallSiteKind::DynamicDispatch => CannotResolveReason::NotFnDef(def_id),
-                        CallSiteKind::Unresolved { def_id: method } => {
-                            CannotResolveReason::UnresolvedTraitMethod(method)
-                        }
+                        CallSiteKind::DynamicDispatch => PanicReason::DynamicDispatch,
+                        CallSiteKind::Unresolved { def_id } => PanicReason::UnresolvedCall(def_id),
                         _ => unreachable!(),
                     };
-                    PanicSpec::MightPanic(PanicReason::CannotResolve(reason))
+                    PanicSpec::MightPanic(reason)
                 } else {
                     PanicSpec::MightPanic(PanicReason::Unknown)
                 }
@@ -99,11 +91,8 @@ fn run_fixpoint(
         let current_spec = specs.get(&instance).unwrap();
 
         // WillNotPanic, CannotResolve, and Transitive are all final states.
-        match current_spec {
-            PanicSpec::WillNotPanic
-            | PanicSpec::MightPanic(PanicReason::CannotResolve(_))
-            | PanicSpec::MightPanic(PanicReason::Transitive) => continue,
-            _ => {}
+        if !matches!(current_spec, PanicSpec::MightPanic(PanicReason::Unknown)) {
+            continue;
         }
 
         let call_sites = &graph.nodes[&instance].call_sites;

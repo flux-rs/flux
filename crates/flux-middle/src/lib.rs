@@ -78,16 +78,10 @@ pub enum PanicSpec {
 pub enum PanicReason {
     Unknown,
     Transitive,
-    CannotResolve(CannotResolveReason),
+    UnresolvedCall(DefId),
+    DynamicDispatch,
     NotInCallGraph,
     NoMIRAvailable,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub enum CannotResolveReason {
-    NoMIRAvailable(DefId, DefKind),
-    UnresolvedTraitMethod(DefId),
-    NotFnDef(DefId),
 }
 
 pub struct TheoryFunc {
