@@ -110,6 +110,10 @@ impl<T: Types> Env<T> {
         self.data_types.get(name)
     }
 
+    fn registered_datatype_names(&self) -> Vec<String> {
+        self.data_types.keys().map(|s| format!("{:?}", s)).collect()
+    }
+
     fn push_bvar_layer(&mut self, layer: Vec<(String, Binding)>) {
         self.bound_vars.push(layer);
     }
@@ -567,7 +571,7 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
         Expr::Exists(sorts, e) => {
             let bindings = sorts
                 .iter()
-                .map(|sort| {
+                .map(|(_var, sort)| {
                     let fresh_name = env.fresh_var(sort);
                     let binding = new_binding(&fresh_name, sort, env);
                     (fresh_name, binding)
@@ -594,11 +598,6 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                 );
             }
             body.into()
-        }
-        Expr::BoundVar(bvar) => {
-            env.lookup_bvar(*bvar)
-                .cloned()
-                .expect(&format!("bound var {:?} not present", bvar))
         }
         // UIFs are hard to deal with in QE and we don't need weak kvars in it
         // anyway, so we'll just elide them here.
@@ -630,8 +629,68 @@ fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>, allow_kvars: AllowKVar
                 AllowKVars::ReplaceKVarsWithTrue => ast::Bool::from_bool(true),
             }
         }
-        Pred::Hyp(_) => panic!("Hyps (eliminated non-cut kvar bodies) not supported by the native rust-fixpoint solver"),
+        Pred::Hyp(cubes) => {
+            // Pred::Hyp([cube1, cube2, ...]) is semantically (or cube1 cube2 ...)
+            // where each cube = exists extra_binders. (and binder_preds... body).
+            // Empty Hyp = false. This mirrors fmt_hyp_expr_paren in format.rs.
+            if cubes.is_empty() {
+                return ast::Bool::from_bool(false);
+            }
+            let cube_bools = cubes
+                .iter()
+                .map(|cube| cube_to_z3(cube, env, allow_kvars))
+                .collect_vec();
+            let cube_refs = cube_bools.iter().collect_vec();
+            ast::Bool::or(&cube_refs)
+        }
     }
+}
+
+fn cube_to_z3<T: Types>(
+    cube: &crate::constraint::Cube<T>,
+    env: &mut Env<T>,
+    allow_kvars: AllowKVars,
+) -> ast::Bool {
+    // Push each extra binder into the env as a normal (non-bound) variable,
+    // collect their z3 vars, then build:
+    //   (and binder.pred... body)
+    // and quantify with an existential over the collected vars.
+    let mut inserted_names: Vec<T::Var> = Vec::with_capacity(cube.extra_binders.len());
+    let mut z3_vars: Vec<z3::ast::Dynamic> = Vec::with_capacity(cube.extra_binders.len());
+    let mut binder_pred_bools: Vec<ast::Bool> = Vec::with_capacity(cube.extra_binders.len());
+    for bind in &cube.extra_binders {
+        let binding = new_binding(&bind.name.display().to_string(), &bind.sort, env);
+        let var = binding.to_var().clone();
+        env.insert(bind.name.clone(), binding);
+        inserted_names.push(bind.name.clone());
+        z3_vars.push(var);
+        binder_pred_bools.push(pred_to_z3(&bind.pred, env, allow_kvars));
+    }
+    let body_bool = pred_to_z3(&cube.body, env, allow_kvars);
+    // Pop bindings in reverse order.
+    for name in inserted_names.into_iter().rev() {
+        env.pop(&name);
+    }
+    // Conjunct binder preds + body.
+    let mut all = binder_pred_bools;
+    all.push(body_bool);
+    let all_refs = all.iter().collect_vec();
+    let conj = ast::Bool::and(&all_refs);
+    if z3_vars.is_empty() {
+        return conj;
+    }
+    let var_refs: Vec<&dyn z3::ast::Ast> = z3_vars.iter().map(|v| v as &dyn z3::ast::Ast).collect();
+    let q = z3::ast::quantifier_const(
+        false, // existential
+        0,
+        "hyp_cube".to_string(),
+        "",
+        &var_refs,
+        &[],
+        &[],
+        &conj,
+    );
+    q
 }
 
 pub(crate) fn new_datatype<T: Types>(
@@ -743,7 +802,13 @@ fn z3_sort<T: Types>(s: &Sort<T>, env: &Env<T>) -> z3::Sort {
             match sort_ctor {
                 SortCtor::Set => z3::Sort::set(&z3_sort(&args[0], env)),
                 SortCtor::Map => z3::Sort::array(&z3_sort(&args[0], env), &z3_sort(&args[1], env)),
-                SortCtor::Data(sort) => env.datatype_lookup(sort).unwrap().clone(),
+                SortCtor::Data(sort) => env.datatype_lookup(sort).unwrap_or_else(|| {
+                    panic!(
+                        "datatype_lookup failed for sort {:?}; registered datatypes: {:?}",
+                        sort,
+                        env.registered_datatype_names(),
+                    )
+                }).clone(),
             }
         }
         _ => panic!("unhandled sort encountered {:#?}", s),
@@ -1213,14 +1278,14 @@ fn z3_app_to_expr<T: Types>(
             .map(|arg| z3_to_expr::<T>(env, arg))
             .collect::<Result<Vec<_>, _>>()?;
         // TODO: parse sorts
-        Ok(Expr::App(Box::new(Expr::ThyFunc(thyfunc)), None, expr_args))
+        Ok(Expr::App(Box::new(Expr::ThyFunc(thyfunc)), None, expr_args, None))
     } else if let Some(var) = env.rev_lookup(&head_name) {
         let expr_args = args
             .iter()
             .map(|arg| z3_to_expr::<T>(env, arg))
             .collect::<Result<Vec<_>, _>>()?;
         // TODO: parse sorts
-        Ok(Expr::App(Box::new(Expr::Var(var.clone())), None, expr_args))
+        Ok(Expr::App(Box::new(Expr::Var(var.clone())), None, expr_args, None))
     } else {
         Err(Z3DecodeError::UnexpectedAppHead(head))
     }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use derive_where::derive_where;
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexMap;
+use crate::graph::FxIndexMap;
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
@@ -17,7 +17,6 @@ use {
 use crate::{
     ConstDecl, DataDecl, KVarDecl, Sort, SortCtor, Types,
     constraint::{Constraint, Qualifier},
-    graph,
 };
 
 #[derive_where(Hash)]
@@ -146,39 +145,6 @@ impl<T: Types> ConstraintWithEnv<T> {
     pub fn elim_non_cut_kvars(&mut self, fresh: &mut dyn FnMut() -> T::Var) -> Constraint<T> {
         self.constraint.elim_non_cut_kvars(fresh)
     }
-
-    pub fn topo_sort_data_declarations<T: Types>(datatype_decls: Vec<DataDecl<T>>) -> Vec<DataDecl<T>> {
-        let mut datatype_dependencies: FxIndexMap<T::Sort, Vec<T::Sort>> = FxIndexMap::default();
-        for datatype_decl in &datatype_decls {
-            datatype_dependencies.insert(datatype_decl.name.clone(), vec![]);
-        }
-        let mut data_decls_by_name = FxIndexMap::default();
-        for datatype_decl in datatype_decls {
-            for data_constructor in &datatype_decl.ctors {
-                for accessor in &data_constructor.fields {
-                    if let Sort::App(ctor, _) = &accessor.sort
-                        && let SortCtor::Data(data_ctor) = &ctor
-                    {
-                        datatype_dependencies
-                            .get_mut(&datatype_decl.name)
-                            .unwrap()
-                            .push(data_ctor.clone());
-                    }
-                }
-            }
-            data_decls_by_name.insert(datatype_decl.name.clone(), datatype_decl);
-        }
-        graph::topological_sort_sccs(&datatype_dependencies)
-            .into_iter()
-            .flatten()
-            .rev()
-            .map(|datatype_decl_name| {
-                data_decls_by_name
-                    .shift_remove(&datatype_decl_name)
-                    .unwrap()
-            })
-            .collect_vec()
-    }
 }
 
 pub fn topo_sort_data_declarations<T: Types>(datatype_decls: Vec<DataDecl<T>>) -> Vec<DataDecl<T>> {
@@ -202,7 +168,7 @@ pub fn topo_sort_data_declarations<T: Types>(datatype_decls: Vec<DataDecl<T>>) -
         }
         data_decls_by_name.insert(datatype_decl.name.clone(), datatype_decl);
     }
-    graph::topological_sort_sccs(&datatype_dependencies)
+    crate::graph::topological_sort_sccs(&datatype_dependencies)
         .into_iter()
         .flatten()
         .rev()

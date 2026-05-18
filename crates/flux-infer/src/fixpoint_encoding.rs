@@ -601,6 +601,15 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
+        #[cfg(not(feature = "rust-fixpoint"))]
+        let constraint = {
+            eprintln!("[flux pre-elim] def_id={:?}", def_id.resolved_id());
+            let mut constraint = constraint;
+            constraint.elim_non_cut_kvars(&mut || {
+                fixpoint::Var::Local(self.ecx.local_var_env.fresh_name())
+            })
+        };
+
         #[cfg(feature = "wick")]
         let mut flat_constraint_map: HashMap<TagIdx, fixpoint::FlatConstraint> = constraint
             .flatten(
@@ -668,6 +677,17 @@ where
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
+        if !result.non_cuts_solution.is_empty() {
+            eprintln!(
+                "[fixpoint noncut returned] def_id={:?} ({} entries):",
+                def_id.resolved_id(),
+                result.non_cuts_solution.len(),
+            );
+            for entry in &result.non_cuts_solution {
+                eprintln!("  kvar={}", entry.kvar);
+                eprintln!("  val={}", entry.val.replace('\n', "\\n"));
+            }
+        }
         #[cfg(feature = "wick")]
         let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
         #[cfg(not(feature = "wick"))]
@@ -687,15 +707,16 @@ where
                                 vec![].into_iter()
                             // Substitute the kvar solutions in
                             } else if let fixpoint::Pred::KVar(kvid, args) = pred {
-                                let exprs = if let Some((sorts, solution)) =
+                                let exprs = if let Some((binds, solution)) =
                                     &fixpoint_solution.get(&kvid)
                                 {
-                                    assert!(sorts.len() == args.len());
-                                    let arg_exprs = args
-                                        .into_iter()
-                                        .map(|arg| fixpoint::Expr::Var(*arg))
-                                        .collect_vec();
-                                    let subst_solution = solution.substitute_bvar(&arg_exprs, 0);
+                                    assert!(binds.len() == args.len());
+                                    let subst_map: indexmap::IndexMap<fixpoint::Var, fixpoint::Expr> = binds
+                                        .iter()
+                                        .map(|(v, _s)| v.clone())
+                                        .zip(args.iter().cloned())
+                                        .collect();
+                                    let subst_solution = solution.substitute_bvar(&subst_map);
                                     subst_solution.as_conjunction().into_iter()
                                     // We'll do hoisting later when we split disjuncts.
                                 } else {
@@ -765,9 +786,12 @@ where
                                         // println!("WARN: There is at least one non-valid constraint among {} other constraints, skipping solving...", other_constrs.len());
                                         continue;
                                     }
-                                    let ConstKey::WKVar(wkvid, self_args) = self.ecx.const_env.wkvar_map_rev.get(&wkvar.wkvid).unwrap()
-                                    else {
-                                        panic!()
+                                    let (wkvid, self_args) = {
+                                        let ConstKey::WKVar(wkvid, self_args) = self.ecx.const_env.wkvar_map_rev.get(&wkvar.wkvid).unwrap()
+                                        else {
+                                            panic!()
+                                        };
+                                        (wkvid.clone(), *self_args)
                                     };
                                     let fvars: HashSet<fixpoint::Var> = wkvar
                                         .args
@@ -804,11 +828,11 @@ where
                                                 Ok(e) => {
                                                     if !e.is_trivially_false()
                                                         && !e.is_trivially_true() {
-                                                        if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &e) {
+                                                        if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(self_args, &rty_args, &e) {
                                                             if fe.total_num_disjuncts() > 3 {
                                                                 // Try the regular expression
                                                                 // NOTE: previously used blame_ctx.expr
-                                                                if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &self.fixpoint_to_expr(head_expr.as_ref().unwrap()).unwrap()) {
+                                                                if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(self_args, &rty_args, &self.fixpoint_to_expr(head_expr.as_ref().unwrap()).unwrap()) {
                                                                     possible_solutions.entry(wkvid.clone())
                                                                         .or_default()
                                                                         .push(binder_e);
@@ -820,7 +844,7 @@ where
                                                             }
                                                         } else {
                                                             // NOTE: previously used blame_ctx.expr
-                                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &self.fixpoint_to_expr(head_expr.as_ref().unwrap()).unwrap()) {
+                                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(self_args, &rty_args, &self.fixpoint_to_expr(head_expr.as_ref().unwrap()).unwrap()) {
                                                                 possible_solutions.entry(wkvid.clone())
                                                                     .or_default()
                                                                     .push(binder_e);
@@ -835,7 +859,7 @@ where
                                         }
                                         Err(_err) => {
                                             // NOTE: previously used blame_ctx.expr
-                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &self.fixpoint_to_expr(head_expr.as_ref().unwrap()).unwrap()) {
+                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(self_args, &rty_args, &self.fixpoint_to_expr(head_expr.as_ref().unwrap()).unwrap()) {
                                                 possible_solutions.entry(wkvid.clone())
                                                     .or_default()
                                                     .push(binder_e);
