@@ -368,6 +368,7 @@ impl<T: Types> Task<T> {
             .arg("--json")
             .arg("--allowho")
             .arg("--allowhoqs")
+            .arg("--allow-deep-kvars")
             .arg(format!("--solver={}", self.solver))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
