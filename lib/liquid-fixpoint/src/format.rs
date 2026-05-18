@@ -347,21 +347,6 @@ fn fmt_pred_as_expr<T: Types>(p: &Pred<T>, f: &mut fmt::Formatter<'_>) -> fmt::R
     }
 }
 
-fn fmt_cube<T: Types>(c: &crate::constraint::Cube<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    if c.extra_binders.is_empty() {
-        write!(f, "{}", c.body)
-    } else {
-        write!(
-            f,
-            "(exists ({}) {})",
-            c.extra_binders.iter().format_with(" ", |b, ff| {
-                ff(&format_args!("({} {})", b.name.display(), b.sort))
-            }),
-            c.body
-        )
-    }
-}
-
 impl<T: Types> fmt::Display for Expr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

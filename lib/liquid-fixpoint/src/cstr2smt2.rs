@@ -526,6 +526,7 @@ fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>) -> ast::Bool {
             ast::Bool::and(&bool_refs)
         }
         Pred::KVar(_kvar, _vars) => panic!("Kvars not supported yet"),
+        Pred::Hyp(_) => panic!("Hyps (eliminated non-cut kvar bodies) not supported by the native rust-fixpoint solver"),
     }
 }
 

@@ -567,11 +567,6 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    /// When `FLUX_NONCUT_COMPARE=<dir>` is set, holds the per-non-cut-kvar
-    /// "cube predicate" strings Flux derived locally from the un-eliminated
-    /// constraint, captured in `create_task`. Read & cleared in `run_task`,
-    /// where it is dumped alongside fixpoint's `non_cuts_solution`.
-    pending_compare_flux_non_cuts: Option<Vec<(String, Vec<String>)>>,
 }
 
 pub type FixQueryCache = QueryCache<VerificationResult<TagIdx>>;
@@ -602,7 +597,6 @@ where
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
-            pending_compare_flux_non_cuts: None,
         }
     }
 
@@ -659,29 +653,9 @@ where
         let constraint = {
             #[cfg(not(feature = "rust-fixpoint"))]
             {
-                if std::env::var("FLUX_DEBUG_ORIG_NONCUT").is_ok() {
-                    let local_solutions = constraint.non_cut_solution_strings();
-                    eprintln!("[orig-noncut] local non_cut_count={}", local_solutions.len());
-                    for (kvar, cube_preds) in &local_solutions {
-                        eprintln!("[orig-noncut]   {kvar:?} => {cube_preds:?}");
-                    }
-                }
-                if crate::noncut_compare::enabled().is_some() {
-                    // Capture Flux's local view BEFORE elim, then ship the
-                    // un-eliminated constraint so fixpoint also reports its
-                    // own non-cut solutions in `non_cuts_solution`.
-                    let local = constraint.non_cut_solution_strings();
-                    let local: Vec<(String, Vec<String>)> = local
-                        .into_iter()
-                        .map(|(k, sols)| (format!("k{}", k.as_u32()), sols))
-                        .collect();
-                    self.pending_compare_flux_non_cuts = Some(local);
-                    constraint
-                } else {
-                    constraint.elim_non_cut_kvars(&mut || {
-                        fixpoint::Var::Local(self.ecx.local_var_env.fresh_name())
-                    })
-                }
+                constraint.elim_non_cut_kvars(&mut || {
+                    fixpoint::Var::Local(self.ecx.local_var_env.fresh_name())
+                })
             }
 
             #[cfg(feature = "rust-fixpoint")]
@@ -717,26 +691,6 @@ where
         task: &fixpoint::Task,
     ) -> QueryResult<ParsedResult> {
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
-
-        if std::env::var("FLUX_DEBUG_FIXPOINT_SOLUTION").is_ok() {
-            eprintln!("[fixpoint] raw solution count={} non_cut_count={}", result.solution.len(), result.non_cuts_solution.len());
-            eprintln!("[fixpoint] raw solution={:#?}", result.solution);
-            eprintln!("[fixpoint] raw non_cut_solution={:#?}", result.non_cuts_solution);
-        }
-
-        // Side-by-side dump of Flux vs. fixpoint non-cut KVar solutions
-        // (FLUX_NONCUT_COMPARE=<dir>).
-        if let (Some(dir), Some(flux_local)) =
-            (crate::noncut_compare::enabled(), self.pending_compare_flux_non_cuts.take())
-        {
-            let task_key = kind.task_key(self.genv.tcx(), def_id.resolved_id());
-            let fp_pairs: Vec<(String, String)> = result
-                .non_cuts_solution
-                .iter()
-                .map(|b| (b.kvar.clone(), b.val.clone()))
-                .collect();
-            crate::noncut_compare::record(&dir, &task_key, flux_local, fp_pairs);
-        }
 
         if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
@@ -2361,49 +2315,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
         }
         Ok(constraint)
-    }
-
-    fn dump_free_vars(&self, constraint: &fixpoint::Constraint) {
-        let vars = constraint.free_vars_report();
-        for var in vars {
-            if matches!(
-                var,
-                fixpoint::Var::Const(..)
-                    | fixpoint::Var::DataProj { .. }
-                    | fixpoint::Var::TupleProj { .. }
-            ) {
-                continue;
-            }
-            eprintln!("[noncut-free-var] {} => {var:?}", self.describe_var(&var));
-        }
-    }
-
-    fn describe_var(&self, var: &fixpoint::Var) -> String {
-        match var {
-            fixpoint::Var::Underscore => "underscore binder".to_string(),
-            fixpoint::Var::Global(global, def_id) => {
-                format!("global function {global:?} def_id={def_id:?}")
-            }
-            fixpoint::Var::Const(global, def_id) => {
-                format!("const {global:?} def_id={def_id:?}")
-            }
-            fixpoint::Var::Local(local) => format!("local var {local:?}"),
-            fixpoint::Var::DataCtor(adt_id, variant_idx) => {
-                format!("data ctor adt_id={adt_id:?} variant_idx={variant_idx:?}")
-            }
-            fixpoint::Var::TupleCtor { arity } => format!("tuple ctor arity={arity}"),
-            fixpoint::Var::TupleProj { arity, field } => {
-                format!("tuple proj arity={arity} field={field}")
-            }
-            fixpoint::Var::DataProj { adt_id, field } => {
-                format!("data proj adt_id={adt_id:?} field={field}")
-            }
-            fixpoint::Var::UIFRel(rel) => format!("uif rel {rel:?}"),
-            fixpoint::Var::Param(param) => format!("param {param:?}"),
-            fixpoint::Var::ConstGeneric(const_generic) => {
-                format!("const generic {const_generic:?}")
-            }
-        }
     }
 
     fn qualifiers_for(

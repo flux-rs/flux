@@ -377,9 +377,6 @@ impl<T: Types> Task<T> {
         std::mem::swap(&mut stdin, &mut child.stdin);
         {
             let mut w = BufWriter::new(stdin.unwrap());
-            if std::env::var("FLUX_DUMP_SMT2").is_ok() {
-                eprintln!("=== SMT2 BEGIN ===\n{self}\n=== SMT2 END ===");
-            }
             writeln!(w, "{self}")?;
         }
         let out = child.wait_with_output()?;

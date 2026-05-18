@@ -1,28 +1,15 @@
-use std::{collections::{HashMap, HashSet}, iter};
+use std::{collections::HashSet, iter};
 
 use itertools::Itertools;
 
 use crate::{
     Assignments, BinRel, Identifier, Types,
-    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
+    constraint::{Bind, Constraint, Expr, Pred, Qualifier},
     constraint_fragments::ConstraintFragments,
     graph::{FxIndexMap, FxIndexSet, topological_sort_sccs},
 };
 
-pub struct Solution<T: Types> {
-    pub binders: Vec<Bind<T>>,
-    pub args: Vec<Expr<T>>,
-}
-
 impl<T: Types> Constraint<T> {
-    // fn contains_kvars(&self) -> bool {
-    //     match self {
-    //         Constraint::Conj(cs) => cs.iter().any(Constraint::contains_kvars),
-    //         Constraint::ForAll(_bind, inner) => inner.contains_kvars(),
-    //         Constraint::Pred(p, _tag) => p.contains_kvars(),
-    //     }
-    // }
-
     pub fn depth_first_fragments(&self) -> ConstraintFragments<'_, T> {
         ConstraintFragments::new(self)
     }
@@ -217,184 +204,13 @@ impl<T: Types> Constraint<T> {
     /// constraint. Non-cut KVars are those identified by the SCC+rank algorithm.
     pub fn elim_non_cut_kvars(&mut self, fresh: &mut dyn FnMut() -> T::Var) -> Self {
         self.simplify();
-        let non_cuts = self.compute_non_cuts();
-        let mut non_cuts = non_cuts;
+        let mut non_cuts = self.compute_non_cuts();
         non_cuts.sort_by_key(|k| k.display().to_string());
-        if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
-            eprintln!("[noncut] vars={non_cuts:?}\n[noncut] before={:#?}", self);
-        }
-        let out = self.elim(&non_cuts, fresh);
-        if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
-            eprintln!("[noncut] after={:#?}", out);
-        }
-        out
-    }
-
-    pub fn non_cut_solution_strings(&self) -> Vec<(T::KVar, Vec<String>)> {
-        self.compute_non_cuts()
-            .into_iter()
-            .map(|var| {
-                let scope = self.kvar_scope(&var);
-                let sols: Vec<String> = self
-                    .sol1(&var)
-                    .into_iter()
-                    .map(|sol| self.fmt_cube_pred(&sol, &scope))
-                    .collect();
-                if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
-                    eprintln!("[noncut-scope] var={var:?} scope={scope:?} sol_count={}", sols.len());
-                }
-                (var, sols)
-            })
-            .collect()
-    }
-
-    fn scope(&self, var: &T::KVar) -> Self {
-        self.scope_help(var)
-            .unwrap_or(Constraint::Pred(Pred::Expr(Expr::Constant(Constant::Boolean(true))), None))
-    }
-
-    fn scope_help(&self, var: &T::KVar) -> Option<Constraint<T>> {
-        match self {
-            Constraint::ForAll(bind, inner) => {
-                if bind.pred.kvars().contains(var) {
-                    Some(self.clone())
-                } else {
-                    inner.scope_help(var)
-                }
-            }
-            Constraint::Pred(Pred::KVar(kvid, _args), _tag) if var.eq(kvid) => Some(self.clone()),
-            Constraint::Pred(_, _) => None,
-            Constraint::Conj(conjuncts) => {
-                match conjuncts
-                    .iter()
-                    .filter_map(|inner| inner.scope_help(var))
-                    .collect_vec()
-                    .as_slice()
-                {
-                    [] => None,
-                    [cstr] => Some(cstr.clone()),
-                    _ => Some(self.clone()),
-                }
-            }
-        }
-    }
-
-    fn sol1(&self, var: &T::KVar) -> Vec<Solution<T>> {
-        match self {
-            Constraint::ForAll(bind, inner) => {
-                inner
-                    .sol1(var)
-                    .into_iter()
-                    .map(|Solution { mut binders, args }| {
-                        binders.insert(0, bind.clone());
-                        Solution { binders, args }
-                    })
-                    .collect()
-            }
-            Constraint::Conj(conjuncts) => conjuncts.iter().flat_map(|cstr| cstr.sol1(var)).collect(),
-            Constraint::Pred(pred, _) => pred.sol1(var),
-        }
-    }
-
-    pub fn elim(&self, vars: &[T::KVar], fresh: &mut dyn FnMut() -> T::Var) -> Self {
-        vars.iter().fold(self.clone(), |mut acc, var| {
+        non_cuts.iter().fold(self.clone(), |mut acc, var| {
             acc = acc.elim1_v2(var, fresh);
             acc.simplify();
             acc
         })
-    }
-
-    pub fn free_vars_report(&self) -> Vec<T::Var> {
-        let mut free_vars = HashSet::new();
-        self.free_vars_report_help(&HashSet::new(), &mut free_vars);
-        free_vars.into_iter().collect_vec()
-    }
-
-    fn free_vars_report_help(&self, bound: &HashSet<T::Var>, free_vars: &mut HashSet<T::Var>) {
-        match self {
-            Constraint::Conj(conjuncts) => {
-                for conjunct in conjuncts {
-                    conjunct.free_vars_report_help(bound, free_vars);
-                }
-            }
-            Constraint::ForAll(Bind { name, pred, .. }, inner) => {
-                free_vars.extend(pred.free_vars().into_iter().filter(|v| !bound.contains(v)));
-
-                let mut new_bound = bound.clone();
-                new_bound.insert(name.clone());
-                inner.free_vars_report_help(&new_bound, free_vars);
-            }
-            Constraint::Pred(pred, _) => {
-                free_vars.extend(pred.free_vars().into_iter().filter(|v| !bound.contains(v)));
-            }
-        }
-    }
-
-    pub fn assert_no_free_vars(&self, context: &str) {
-        let free_vars = self.free_vars_report();
-        if !free_vars.is_empty() {
-            panic!("{context}: found unbound vars: {free_vars:?}\n{self:#?}");
-        }
-    }
-
-    fn elim1(&self, var: &T::KVar) -> Self {
-        // Call sol1 on scope(var) — the LCA subtree — so that the collected
-        // binders are exactly those that are "extra" (below the LCA), matching
-        // Haskell's `elim1 c k = simplify $ doelim k (sol1 k (scope k c)) c`.
-        let scoped = self.scope(var);
-        let solution = scoped.sol1(var);
-        if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
-            eprintln!("[noncut] elim var={var:?} solution_count={}", solution.len());
-            for (i, sol) in solution.iter().enumerate() {
-                eprintln!("[noncut] solution[{i}] binders={} args={:?}", sol.binders.len(), sol.args);
-            }
-        }
-        self.do_elim(var, &solution)
-    }
-
-    fn fmt_cube_pred(&self, sol: &Solution<T>, scope: &HashSet<T::Var>) -> String {
-        let extra_binders: Vec<_> = sol.binders.iter().filter(|b| !scope.contains(&b.name)).collect();
-        let equalities: Vec<String> = sol
-            .args
-            .iter()
-            .enumerate()
-            .map(|(i, arg)| format!("v{i}={arg:?}"))
-            .collect();
-        let binder_preds: Vec<String> = extra_binders
-            .iter()
-            .filter(|b| !matches!(b.pred, Pred::KVar(_, _)))
-            .map(|b| format!("{:?}", b.pred))
-            .collect();
-        let body = equalities
-            .iter()
-            .map(|s| s.as_str())
-            .chain(binder_preds.iter().map(|s| s.as_str()))
-            .join(" /\\ ");
-        if extra_binders.is_empty() {
-            body
-        } else {
-            let qvars: Vec<_> = extra_binders
-                .iter()
-                .map(|b| format!("{:?}:{:?}", b.name, b.sort))
-                .collect();
-            format!("∃ {}. {}", qvars.join(", "), body)
-        }
-    }
-
-    fn fmt_solution(&self, sol: &Solution<T>) -> String {
-        let binders = sol
-            .binders
-            .iter()
-            .map(|b| format!("({:?} {:?} {:?})", b.name, b.sort, b.pred))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let args = sol
-            .args
-            .iter()
-            .map(|a| format!("{:?}", a))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("binders=[{binders}] args=[{args}]")
     }
 
     /// Computes `sScp[k]`: the intersection of all binders that are universally in scope
@@ -432,25 +248,6 @@ impl<T: Types> Constraint<T> {
         let scope = self.kvar_scope(var);
         let mut cubes: Vec<CollectedCube<T>> = Vec::new();
         collect_cubes(self, var, &mut Vec::new(), &mut cubes);
-        if std::env::var("FLUX_DEBUG_NONCUT").is_ok() {
-            eprintln!("[noncut-v2] ENTER elim1_v2 var={var:?}");
-            eprintln!(
-                "[noncut-v2] elim {:?}: {} cubes; scope size {}",
-                var,
-                cubes.len(),
-                scope.len()
-            );
-            for (i, c) in cubes.iter().enumerate() {
-                eprintln!(
-                    "[noncut-v2]   cube[{i}] binders={} formals={:?}",
-                    c.binders.len(),
-                    c.formals
-                );
-                for (j, b) in c.binders.iter().enumerate() {
-                    eprintln!("[noncut-v2]     binder[{j}] name={:?} pred={:?}", b.name, b.pred);
-                }
-            }
-        }
         self.substitute_kvar_uses(var, &cubes, &scope, fresh)
     }
 
@@ -480,110 +277,6 @@ impl<T: Types> Constraint<T> {
                 let new_pred = pred.substitute_kvar_head(var);
                 Constraint::Pred(new_pred, tag.clone())
             }
-        }
-    }
-
-    fn pred_to_expr(pred: &Pred<T>) -> Option<Expr<T>> {
-        match pred {
-            Pred::Expr(expr) => Some(expr.clone()),
-            Pred::And(preds) => preds
-                .iter()
-                .map(Self::pred_to_expr)
-                .collect::<Option<Vec<_>>>()
-                .map(Expr::and),
-            Pred::KVar(_, _) => None,
-            Pred::Hyp(_) => None,
-        }
-    }
-
-    fn do_elim(&self, var: &T::KVar, solution: &[Solution<T>]) -> Self {
-        match self {
-            Constraint::Conj(conjuncts) => {
-                Constraint::Conj(
-                    conjuncts
-                        .iter()
-                        .map(|cstr| cstr.do_elim(var, solution))
-                        .collect(),
-                )
-            }
-            Constraint::ForAll(Bind { name, sort, pred }, inner) => {
-                let inner_elimmed = inner.do_elim(var, solution);
-                match pred.find_kvar_in_guard(var) {
-                    Ok(_) => Constraint::ForAll(
-                        Bind { name: name.clone(), sort: sort.clone(), pred: pred.clone() },
-                        Box::new(inner_elimmed),
-                    ),
-                    Err((kvar_instances, preds)) => {
-                        // Mirrors Haskell's `demorgan`/`cubeSol`:
-                        //
-                        //   cubeSol (b:bs, eqs) = All b $ cubeSol (bs, eqs)
-                        //   cubeSol ([], eqs)   = All (Bind x t (PAnd (subst su eqs ++ subst su preds))) cstr'
-                        //
-                        // Extra binders (those not in scope) become nested ForAll wrappers
-                        // *outside* the guard binder, not existentials inside the predicate.
-                        // When there are multiple cubes they are conjoined (CAnd), not disjuncted.
-                        let cube_cstrs: Vec<Constraint<T>> = solution
-                            .iter()
-                            .map(|Solution { binders, args }| {
-                                // Build the guard predicate for the original binder:
-                                // equality constraints (guard_arg == sol_arg) plus the remaining
-                                // non-kvar predicates from the guard.
-                                let mut guard_preds = preds.clone();
-                                guard_preds.extend(kvar_instances.iter().flat_map(|(_, eqs)| {
-                                    iter::zip(args, eqs).map(|(arg, eq)| {
-                                        Pred::Expr(Expr::Atom(
-                                            BinRel::Eq,
-                                            Box::new([eq.clone(), arg.clone()]),
-                                        ))
-                                    })
-                                }));
-                                // The innermost constraint: the original binder with the new guard.
-                                let innermost = Constraint::ForAll(
-                                    Bind {
-                                        name: name.clone(),
-                                        sort: sort.clone(),
-                                        pred: Pred::and(guard_preds),
-                                    },
-                                    Box::new(inner_elimmed.clone()),
-                                );
-                                // Wrap ALL binders from the solution as outer ForAll quantifiers,
-                                // matching Haskell's `cubeSol (b:bs, eqs) = All b $ cubeSol (bs, eqs)`.
-                                // Because sol1 was called on `scope(var)` (the LCA subtree), the
-                                // binders here are exactly those that are "extra" (below the LCA).
-                                // KVar binder preds are treated as True (we do not have cut-kvar
-                                // solutions on the Rust side).
-                                binders.iter().rev().fold(innermost, |acc, binder| {
-                                    let guard = if matches!(binder.pred, Pred::KVar(_, _)) {
-                                        Pred::TRUE
-                                    } else {
-                                        binder.pred.clone()
-                                    };
-                                    Constraint::ForAll(
-                                        Bind {
-                                            name: binder.name.clone(),
-                                            sort: binder.sort.clone(),
-                                            pred: guard,
-                                        },
-                                        Box::new(acc),
-                                    )
-                                })
-                            })
-                            .collect();
-                        match cube_cstrs.len() {
-                            0 => Constraint::ForAll(
-                                Bind { name: name.clone(), sort: sort.clone(), pred: Pred::TRUE },
-                                Box::new(inner_elimmed),
-                            ),
-                            1 => cube_cstrs.into_iter().next().unwrap(),
-                            _ => Constraint::conj(cube_cstrs),
-                        }
-                    }
-                }
-            }
-            Constraint::Pred(Pred::KVar(kvid, _args), tag) if var.eq(kvid) => {
-                Constraint::Pred(Pred::TRUE, tag.clone())
-            }
-            cpred => cpred.clone(),
         }
     }
 }
@@ -682,66 +375,12 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    fn free_vars(&self) -> HashSet<T::Var> {
-        match self {
-            Pred::And(ps) => ps.iter().flat_map(Pred::free_vars).collect(),
-            Pred::KVar(_, _) => HashSet::new(),
-            Pred::Expr(expr) => expr.free_vars().into_iter().collect(),
-            Pred::Hyp(cubes) => {
-                let mut out = HashSet::new();
-                for c in cubes {
-                    let mut body_free = c.body.free_vars();
-                    for b in &c.extra_binders {
-                        body_free.remove(&b.name);
-                    }
-                    out.extend(body_free);
-                }
-                out
-            }
-        }
-    }
-
     fn kvars(&self) -> Vec<T::KVar> {
         match self {
             Pred::KVar(kvid, _args) => vec![kvid.clone()],
             Pred::Expr(_expr) => vec![],
             Pred::And(conjuncts) => conjuncts.iter().flat_map(Pred::kvars).unique().collect(),
             Pred::Hyp(cubes) => cubes.iter().flat_map(|c| c.body.kvars()).unique().collect(),
-        }
-    }
-
-    fn scope_help(&self, var: &T::KVar) -> Option<Self> {
-        match self {
-            Pred::And(conjuncts) => match conjuncts
-                .iter()
-                .filter_map(|inner| inner.scope_help(var))
-                .collect_vec()
-                .as_slice()
-            {
-                [] => None,
-                [p] => Some(p.clone()),
-                _ => Some(Pred::and(conjuncts.clone())),
-            },
-            Pred::KVar(kvid, _args) if var.eq(kvid) => Some(self.clone()),
-            Pred::KVar(_, _) => None,
-            Pred::Expr(_) => None,
-            // A Hyp does not contain references to the *non-cut* kvar being
-            // scoped (it has already been eliminated). Any kvars inside a Hyp
-            // body are cut kvars whose scope we don't compute here.
-            Pred::Hyp(_) => None,
-        }
-    }
-
-    fn sol1(&self, var: &T::KVar) -> Vec<Solution<T>> {
-        match self {
-            Pred::And(conjuncts) => conjuncts.iter().flat_map(|p| p.sol1(var)).collect(),
-            Pred::KVar(kvid, args) if var.eq(kvid) => {
-                vec![Solution { binders: vec![], args: args.clone() }]
-            }
-            Pred::Expr(_) => vec![],
-            Pred::KVar(_, _) => vec![],
-            // Hyps don't contribute new sol1 entries for the same non-cut kvar.
-            Pred::Hyp(_) => vec![],
         }
     }
 
@@ -809,63 +448,6 @@ impl<T: Types> Pred<T> {
                 )
             }
             _ => panic!("Conjunctions/Hyps should not occur as a constraint head when sub_head is called"),
-        }
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn partition_pred(&self, var: &T::KVar) -> (Vec<(T::KVar, Vec<Expr<T>>)>, Vec<Pred<T>>) {
-        let mut kvar_instances = vec![];
-        let mut other_preds = vec![];
-        self.partition_pred_help(var, &mut kvar_instances, &mut other_preds);
-        (kvar_instances, other_preds)
-    }
-
-    fn find_kvar_in_guard(
-        &self,
-        var: &T::KVar,
-    ) -> Result<Pred<T>, (Vec<(T::KVar, Vec<Expr<T>>)>, Vec<Pred<T>>)> {
-        match self {
-            Pred::And(conjuncts) => {
-                let mut lefts = vec![];
-                let mut rights = vec![];
-                for pred in conjuncts {
-                    match pred.find_kvar_in_guard(var) {
-                        Ok(p) => rights.push(p),
-                        Err((kvars, preds)) => {
-                            lefts.extend(kvars);
-                            rights.extend(preds);
-                        }
-                    }
-                }
-                if lefts.is_empty() {
-                    Ok(Pred::and(rights))
-                } else {
-                    Err((lefts, rights))
-                }
-            }
-            Pred::KVar(kvid, args) if var.eq(kvid) => Err((vec![(kvid.clone(), args.clone())], vec![])),
-            _ => Ok(self.clone()),
-        }
-    }
-
-    fn partition_pred_help(
-        &self,
-        var: &T::KVar,
-        kvar_instances: &mut Vec<(T::KVar, Vec<Expr<T>>)>,
-        other_preds: &mut Vec<Pred<T>>,
-    ) {
-        match self {
-            Pred::And(conjuncts) => {
-                conjuncts
-                    .iter()
-                    .for_each(|pred| pred.partition_pred_help(var, kvar_instances, other_preds));
-            }
-            Pred::KVar(kvid, args) if var.eq(kvid) => {
-                kvar_instances.push((kvid.clone(), args.clone()));
-            }
-            _ => {
-                other_preds.push(self.clone());
-            }
         }
     }
 }
