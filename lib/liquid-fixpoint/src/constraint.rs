@@ -656,6 +656,108 @@ impl<T: Types> Pred<T> {
             Pred::Hyp(_) => self.clone(),
         }
     }
+
+    /// Inline all `Pred::KVar` uses (by looking them up in `kvar_solutions`
+    /// and substituting each formal with the corresponding actual) and all
+    /// `Pred::Hyp` cubes (by emitting them as `(or (exists extra_binders.
+    /// (and binder_preds... body)) ...)`), producing a single `Expr<T>`.
+    ///
+    /// KVar uses with no entry in `kvar_solutions` are replaced with `true`
+    /// (mirroring the old wick code path which dropped such assumptions).
+    ///
+    /// WKVar uses in solution bodies and in `Pred::Expr` leaves are
+    /// preserved — this is intentional, since wkvars are resolved by a
+    /// separate analysis after concretization.
+    ///
+    /// This is intended to be called on the assumptions of a
+    /// `FlatConstraint` after non-cut elimination + fixpoint solving, so
+    /// that the downstream wkvars analysis sees only `Pred::Expr` and
+    /// never has to look through `Pred::Hyp` or unresolved `Pred::KVar`.
+    pub fn concretize_kvars(&self, kvar_solutions: &KVarSubst<T>) -> Expr<T> {
+        match self {
+            Pred::Expr(e) => e.clone(),
+            Pred::And(preds) => {
+                let exprs = preds
+                    .iter()
+                    .map(|p| p.concretize_kvars(kvar_solutions))
+                    .collect_vec();
+                if exprs.len() == 1 {
+                    exprs.into_iter().next().unwrap()
+                } else {
+                    Expr::And(exprs)
+                }
+            }
+            Pred::KVar(kvar, actuals) => {
+                if let Some((formals, body)) = kvar_solutions.get(kvar) {
+                    assert_eq!(
+                        formals.len(),
+                        actuals.len(),
+                        "kvar arity mismatch during concretization",
+                    );
+                    let subst_map: IndexMap<T::Var, Expr<T>> = formals
+                        .iter()
+                        .map(|(v, _s)| v.clone())
+                        .zip(actuals.iter().cloned())
+                        .collect();
+                    body.substitute_vars(&subst_map)
+                } else {
+                    // No solution available: drop the assumption (== TRUE).
+                    Expr::TRUE
+                }
+            }
+            Pred::Hyp(cubes) => {
+                if cubes.is_empty() {
+                    return Expr::FALSE;
+                }
+                let disjuncts = cubes
+                    .iter()
+                    .map(|cube| concretize_cube(cube, kvar_solutions))
+                    .collect_vec();
+                if disjuncts.len() == 1 {
+                    disjuncts.into_iter().next().unwrap()
+                } else {
+                    Expr::Or(disjuncts)
+                }
+            }
+        }
+    }
+}
+
+/// Solution map for `Pred::concretize_kvars`: each kvar maps to its
+/// `(formals, body)` pair. Mirrors `FixpointSolution` in
+/// `crates/flux-infer/src/fixpoint_encoding.rs`.
+pub type KVarSubst<T> = std::collections::HashMap<
+    <T as Types>::KVar,
+    (Vec<(<T as Types>::Var, Sort<T>)>, Expr<T>),
+>;
+
+fn concretize_cube<T: Types>(cube: &Cube<T>, kvar_solutions: &KVarSubst<T>) -> Expr<T> {
+    // Conjoin the extra binders' predicates with the cube body, then wrap
+    // in `exists extra_binders.` if there are any binders. Mirrors
+    // `fmt_cube_expr` in format.rs and `cube_to_z3` in cstr2smt2.rs.
+    let mut conj: Vec<Expr<T>> = Vec::with_capacity(cube.extra_binders.len() + 1);
+    for bind in &cube.extra_binders {
+        let bind_expr = bind.pred.concretize_kvars(kvar_solutions);
+        if !matches!(bind_expr, Expr::Constant(Constant::Boolean(true))) {
+            conj.push(bind_expr);
+        }
+    }
+    conj.push(cube.body.concretize_kvars(kvar_solutions));
+    let body = if conj.len() == 1 {
+        conj.into_iter().next().unwrap()
+    } else {
+        Expr::And(conj)
+    };
+    if cube.extra_binders.is_empty() {
+        body
+    } else {
+        let binders = cube
+            .extra_binders
+            .iter()
+            .map(|b| (b.name.clone(), b.sort.clone()))
+            .collect();
+        Expr::Exists(binders, Box::new(body))
+    }
 }
 
 impl<T: Types> Constraint<T> {
@@ -709,18 +811,6 @@ pub enum BinRel {
 
 impl BinRel {
     pub const INEQUALITIES: [BinRel; 4] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
-}
-
-#[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
-pub struct BoundVar {
-    pub level: usize,
-    pub idx: usize,
-}
-
-impl BoundVar {
-    pub fn new(level: usize, idx: usize) -> Self {
-        Self { level, idx }
-    }
 }
 
 #[derive_where(PartialEq, Eq, Hash, Debug, Clone)]
@@ -905,11 +995,11 @@ impl<T: Types> Expr<T> {
 
     /// Substitute the variables in `subst_map` into this expression.
     ///
-    /// Named-binder version of what was once `substitute_bvar` in the
-    /// de-Bruijn-based design.  Wick-eval's iterative solver uses this to
-    /// instantiate kvar arguments into a solution body.  Bound variables
-    /// (those captured by an enclosing `Exists`) are NOT substituted.
-    pub fn substitute_bvar(&self, subst_map: &IndexMap<T::Var, Expr<T>>) -> Self
+    /// Wick-eval's iterative solver uses this to instantiate kvar arguments
+    /// into a solution body.  Bound variables (those captured by an enclosing
+    /// `Exists`) are NOT substituted (shadowing is honored by removing the
+    /// shadowed name from the inherited subst_map before recursing).
+    pub fn substitute_vars(&self, subst_map: &IndexMap<T::Var, Expr<T>>) -> Self
     where
         T::Var: Eq + Hash,
     {
@@ -924,54 +1014,54 @@ impl<T: Types> Expr<T> {
             }
             Expr::App(expr, sort_args, exprs, out_sort) => {
                 Expr::App(
-                    Box::new(expr.substitute_bvar(subst_map)),
+                    Box::new(expr.substitute_vars(subst_map)),
                     sort_args.clone(),
-                    exprs.iter().map(|e| e.substitute_bvar(subst_map)).collect_vec(),
+                    exprs.iter().map(|e| e.substitute_vars(subst_map)).collect_vec(),
                     out_sort.clone(),
                 )
             }
-            Expr::Neg(expr) => Expr::Neg(Box::new(expr.substitute_bvar(subst_map))),
+            Expr::Neg(expr) => Expr::Neg(Box::new(expr.substitute_vars(subst_map))),
             Expr::BinaryOp(bin_op, args) => {
                 Expr::BinaryOp(
                     *bin_op,
                     Box::new([
-                        args[0].substitute_bvar(subst_map),
-                        args[1].substitute_bvar(subst_map),
+                        args[0].substitute_vars(subst_map),
+                        args[1].substitute_vars(subst_map),
                     ]),
                 )
             }
             Expr::IfThenElse(args) => {
                 Expr::IfThenElse(Box::new([
-                    args[0].substitute_bvar(subst_map),
-                    args[1].substitute_bvar(subst_map),
-                    args[2].substitute_bvar(subst_map),
+                    args[0].substitute_vars(subst_map),
+                    args[1].substitute_vars(subst_map),
+                    args[2].substitute_vars(subst_map),
                 ]))
             }
             Expr::And(exprs) => {
-                Expr::And(exprs.iter().map(|e| e.substitute_bvar(subst_map)).collect_vec())
+                Expr::And(exprs.iter().map(|e| e.substitute_vars(subst_map)).collect_vec())
             }
             Expr::Or(exprs) => {
-                Expr::Or(exprs.iter().map(|e| e.substitute_bvar(subst_map)).collect_vec())
+                Expr::Or(exprs.iter().map(|e| e.substitute_vars(subst_map)).collect_vec())
             }
-            Expr::Not(expr) => Expr::Not(Box::new(expr.substitute_bvar(subst_map))),
+            Expr::Not(expr) => Expr::Not(Box::new(expr.substitute_vars(subst_map))),
             Expr::Imp(args) => {
                 Expr::Imp(Box::new([
-                    args[0].substitute_bvar(subst_map),
-                    args[1].substitute_bvar(subst_map),
+                    args[0].substitute_vars(subst_map),
+                    args[1].substitute_vars(subst_map),
                 ]))
             }
             Expr::Iff(args) => {
                 Expr::Iff(Box::new([
-                    args[0].substitute_bvar(subst_map),
-                    args[1].substitute_bvar(subst_map),
+                    args[0].substitute_vars(subst_map),
+                    args[1].substitute_vars(subst_map),
                 ]))
             }
             Expr::Atom(bin_rel, args) => {
                 Expr::Atom(
                     *bin_rel,
                     Box::new([
-                        args[0].substitute_bvar(subst_map),
-                        args[1].substitute_bvar(subst_map),
+                        args[0].substitute_vars(subst_map),
+                        args[1].substitute_vars(subst_map),
                     ]),
                 )
             }
@@ -979,13 +1069,13 @@ impl<T: Types> Expr<T> {
                 Expr::Let(
                     var.clone(),
                     Box::new([
-                        args[0].substitute_bvar(subst_map),
-                        args[1].substitute_bvar(subst_map),
+                        args[0].substitute_vars(subst_map),
+                        args[1].substitute_vars(subst_map),
                     ]),
                 )
             }
             Expr::IsCtor(var, expr) => {
-                Expr::IsCtor(var.clone(), Box::new(expr.substitute_bvar(subst_map)))
+                Expr::IsCtor(var.clone(), Box::new(expr.substitute_vars(subst_map)))
             }
             Expr::Exists(bound_vars, expr) => {
                 // Remove bound vars from the substitution to respect shadowing.
@@ -993,12 +1083,12 @@ impl<T: Types> Expr<T> {
                 for (v, _) in bound_vars {
                     shadowed.shift_remove(v);
                 }
-                Expr::Exists(bound_vars.clone(), Box::new(expr.substitute_bvar(&shadowed)))
+                Expr::Exists(bound_vars.clone(), Box::new(expr.substitute_vars(&shadowed)))
             }
             Expr::WKVar(WKVar { wkvid, args }) => {
                 Expr::WKVar(WKVar {
                     wkvid: wkvid.clone(),
-                    args: args.iter().map(|e| e.substitute_bvar(subst_map)).collect_vec(),
+                    args: args.iter().map(|e| e.substitute_vars(subst_map)).collect_vec(),
                 })
             }
         }
@@ -1129,21 +1219,33 @@ impl<T: Types> Expr<T> {
     }
 
     /// Hoist Exists binders up through Ands, returning the gathered binders
-    /// (with their sorts) plus the body with those binders stripped.  Named-binder
-    /// version: we simply collect the binders as-is rather than alpha-renaming,
-    /// trusting that callers either use globally-fresh binder names or do their
-    /// own renaming.  If `fresh_var` is needed for alpha-renaming the binder
-    /// names, callers should rename before/after.
-    pub fn hoist_exists<F>(&self, _fresh_var: &mut F) -> (Vec<(T::Var, Sort<T>)>, Expr<T>)
+    /// (with their sorts) plus the body with those binders stripped.
+    ///
+    /// Each existentially-bound name is alpha-renamed with `fresh_var()` so the
+    /// hoisted binders cannot collide with each other or with outer-scope
+    /// names. Without this, multiple Exists carrying the same binder name
+    /// (e.g. several concretized Hyp cubes that all introduced `a73`) would
+    /// produce duplicate entries in the hoisted binder list, and the env used
+    /// by the SMT encoder would only register one of them — leaving inner
+    /// references unresolved.
+    pub fn hoist_exists<F>(&self, fresh_var: &mut F) -> (Vec<(T::Var, Sort<T>)>, Expr<T>)
     where
         F: FnMut() -> T::Var,
     {
         match self {
             Expr::Exists(binders, inner_e) => {
-                let (more_vars, hoisted_inner) = inner_e.hoist_exists(_fresh_var);
-                let mut vars = binders.clone();
-                vars.extend(more_vars);
-                (vars, hoisted_inner)
+                // Alpha-rename each binder to a globally-fresh name.
+                let mut subst = IndexMap::new();
+                let mut renamed: Vec<(T::Var, Sort<T>)> = Vec::with_capacity(binders.len());
+                for (old, sort) in binders {
+                    let fresh = fresh_var();
+                    subst.insert(old.clone(), Expr::Var(fresh.clone()));
+                    renamed.push((fresh, sort.clone()));
+                }
+                let renamed_inner = inner_e.substitute_vars(&subst);
+                let (more_vars, hoisted_inner) = renamed_inner.hoist_exists(fresh_var);
+                renamed.extend(more_vars);
+                (renamed, hoisted_inner)
             }
             Expr::And(exprs) => {
                 let mut vars = vec![];
@@ -1151,7 +1253,7 @@ impl<T: Types> Expr<T> {
                     exprs
                         .iter()
                         .flat_map(|expr| {
-                            let (new_vars, hoisted_e) = expr.hoist_exists(_fresh_var);
+                            let (new_vars, hoisted_e) = expr.hoist_exists(fresh_var);
                             vars.extend(new_vars);
                             // Flatten any conjunctions
                             match hoisted_e {

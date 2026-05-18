@@ -399,18 +399,22 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::IsCtor(ctor, e) => {
                 write!(f, "(is${} {})", ctor.display(), e)
             }
-            Expr::Exists(sorts, body) => {
+            Expr::Exists(binders, body) => {
                 write!(
                     f,
                     "(exists ({}) {})",
-                    sorts.iter().format_with(" ", |(name, sort), f| {
+                    binders.iter().format_with(" ", |(name, sort), f| {
                         f(&format_args!("({} {sort})", name.display()))
                     }),
                     body
                 )
             }
-            Expr::WKVar(WKVar { wkvid, args }) => {
-                write!(f, "({} {})", wkvid.display(), args.iter().format(" "))
+            Expr::WKVar(WKVar { .. }) => {
+                // Fusion handles wkvars in flux directly; we keep them in the
+                // in-memory constraint so the wkvar solve loop can see them,
+                // but never expose them to external fixpoint. Render as TRUE so
+                // they are inert in whatever position they occupy.
+                write!(f, "true")
             }
         }
     }

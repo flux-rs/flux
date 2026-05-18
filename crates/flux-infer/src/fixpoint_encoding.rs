@@ -603,7 +603,6 @@ where
 
         #[cfg(not(feature = "rust-fixpoint"))]
         let constraint = {
-            eprintln!("[flux pre-elim] def_id={:?}", def_id.resolved_id());
             let mut constraint = constraint;
             constraint.elim_non_cut_kvars(&mut || {
                 fixpoint::Var::Local(self.ecx.local_var_env.fresh_name())
@@ -677,17 +676,6 @@ where
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
-        if !result.non_cuts_solution.is_empty() {
-            eprintln!(
-                "[fixpoint noncut returned] def_id={:?} ({} entries):",
-                def_id.resolved_id(),
-                result.non_cuts_solution.len(),
-            );
-            for entry in &result.non_cuts_solution {
-                eprintln!("  kvar={}", entry.kvar);
-                eprintln!("  val={}", entry.val.replace('\n', "\\n"));
-            }
-        }
         #[cfg(feature = "wick")]
         let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
         #[cfg(not(feature = "wick"))]
@@ -698,39 +686,33 @@ where
             || {
                 #[cfg(feature = "wick")]
                 for constraint in flat_constraint_map.values_mut() {
+                    // Concretize each assumption: inline KVar solutions and
+                    // expand Hyp cubes into `or`/`exists` expressions, leaving
+                    // WKVars intact. The result is a single Expr per
+                    // assumption; we then split on top-level And and drop
+                    // trivially true conjuncts so the downstream wkvars
+                    // analysis only sees `Pred::Expr` leaves.
                     constraint.assumptions = constraint
                         .assumptions
                         .iter()
                         .flat_map(|pred| {
-                            // Remove all trivially true assumptions
                             if pred.is_trivially_true() {
-                                vec![].into_iter()
-                            // Substitute the kvar solutions in
-                            } else if let fixpoint::Pred::KVar(kvid, args) = pred {
-                                let exprs = if let Some((binds, solution)) =
-                                    &fixpoint_solution.get(&kvid)
-                                {
-                                    assert!(binds.len() == args.len());
-                                    let subst_map: indexmap::IndexMap<fixpoint::Var, fixpoint::Expr> = binds
-                                        .iter()
-                                        .map(|(v, _s)| v.clone())
-                                        .zip(args.iter().cloned())
-                                        .collect();
-                                    let subst_solution = solution.substitute_bvar(&subst_map);
-                                    subst_solution.as_conjunction().into_iter()
-                                    // We'll do hoisting later when we split disjuncts.
-                                } else {
-                                    // println!("Missing kvar solution for kvid {:?}", kvid);
-                                    vec![].into_iter()
-                                };
-                                exprs
-                                    .into_iter()
-                                    .map(|expr| fixpoint::Pred::Expr(expr))
-                                    .collect_vec()
-                                    .into_iter()
-                            } else {
-                                vec![pred.clone()].into_iter()
+                                return Vec::new().into_iter();
                             }
+                            let expr = pred.concretize_kvars(&fixpoint_solution);
+                            expr.as_conjunction()
+                                .into_iter()
+                                .filter(|e| {
+                                    !matches!(
+                                        e,
+                                        fixpoint::Expr::Constant(
+                                            fixpoint::Constant::Boolean(true),
+                                        ),
+                                    )
+                                })
+                                .map(fixpoint::Pred::Expr)
+                                .collect_vec()
+                                .into_iter()
                         })
                         .collect();
                 }
@@ -887,19 +869,16 @@ where
         &mut self,
         result: &VerificationResult<TagIdx>,
     ) -> QueryResult<(FixpointSolutions, Solution)> {
-        // After the cleanup-noncut work, fixpoint should not return any non-cut
-        // kvar solutions — they should all be eliminated before serialization.
-        // Trip loudly if this ever stops being the case so we know to revisit
-        // the decoding path.
-        assert!(
-            result.non_cuts_solution.is_empty(),
-            "fixpoint returned a non-empty nonCutsSolution ({} entries); \
-             cleanup-noncut should have eliminated all non-cut kvars",
-            result.non_cuts_solution.len(),
-        );
+        // Merge cut and non-cut kvar solutions into a single map. With the
+        // cleanup-noncut work flux *tries* to eliminate non-cut kvars itself
+        // before sending to fixpoint, but the two algorithms aren't quite in
+        // lockstep, so fixpoint sometimes still returns non-cut solutions.
+        // `concretize_kvars` doesn't care which list an entry came from; it
+        // just needs to find a solution for each KVar it inlines.
         let fixpoint_solutions: FixpointSolutions = result
             .solution
             .iter()
+            .chain(result.non_cuts_solution.iter())
             .map(|b| self.convert_kvar_bind(b))
             .collect::<QueryResult<_>>()?;
         let solution = self.fixpoint_to_kvar_solutions(&fixpoint_solutions)?;

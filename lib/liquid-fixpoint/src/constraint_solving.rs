@@ -206,11 +206,6 @@ impl<T: Types> Constraint<T> {
         self.simplify();
         let mut non_cuts = self.compute_non_cuts();
         non_cuts.sort_by_key(|k| k.display().to_string());
-        eprintln!(
-            "[flux noncut elim] non_cuts ({}): {}",
-            non_cuts.len(),
-            non_cuts.iter().map(|k| k.display().to_string()).collect::<Vec<_>>().join(", "),
-        );
         non_cuts.iter().fold(self.clone(), |mut acc, var| {
             acc = acc.elim1_v2(var, fresh);
             acc.simplify();

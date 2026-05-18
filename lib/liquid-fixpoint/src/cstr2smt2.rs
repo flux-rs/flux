@@ -13,7 +13,7 @@ use z3::{
 };
 
 use crate::{
-    BoundVar, DataDecl, FixpointFmt, Identifier, SortCtor, ThyFunc, Types,
+    DataDecl, FixpointFmt, Identifier, SortCtor, ThyFunc, Types,
     constraint::{BinOp, BinRel, Constant, Expr, Pred, Sort},
 };
 #[cfg(feature = "wick")]
@@ -46,8 +46,6 @@ pub(crate) struct Env<T: Types> {
     bindings: FxIndexMap<T::Var, Vec<Binding>>,
     data_types: FxIndexMap<T::Sort, z3::Sort>,
     rev_bindings: FxIndexMap<String, T::Var>,
-    bound_vars: Vec<Vec<(String, Binding)>>,
-    fresh_var_counter: usize,
 }
 
 impl<T: Types> Env<T> {
@@ -56,8 +54,6 @@ impl<T: Types> Env<T> {
             bindings: FxIndexMap::default(),
             data_types: FxIndexMap::default(),
             rev_bindings: FxIndexMap::default(),
-            bound_vars: vec![],
-            fresh_var_counter: 0,
         }
     }
 
@@ -112,26 +108,6 @@ impl<T: Types> Env<T> {
 
     fn registered_datatype_names(&self) -> Vec<String> {
         self.data_types.keys().map(|s| format!("{:?}", s)).collect()
-    }
-
-    fn push_bvar_layer(&mut self, layer: Vec<(String, Binding)>) {
-        self.bound_vars.push(layer);
-    }
-
-    fn lookup_bvar(&self, bvar: BoundVar) -> Option<&ast::Dynamic> {
-        self.bound_vars
-            .get((self.bound_vars.len() - bvar.level) - 1)
-            .and_then(|layer| layer.get(bvar.idx).map(|(_name, binding)| binding.to_var()))
-    }
-
-    fn pop_layer(&mut self) -> Option<Vec<(String, Binding)>> {
-        self.bound_vars.pop()
-    }
-
-    fn fresh_var(&mut self, sort: &Sort<T>) -> String {
-        let r = format!("fresh_{}_{}", sort, self.fresh_var_counter);
-        self.fresh_var_counter += 1;
-        r
     }
 }
 
@@ -487,7 +463,7 @@ fn thy_func_application_to_z3<T: Types>(
 
 fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
     match expr {
-        Expr::Var(var) => env.var_lookup(var).cloned().expect("error if not present"),
+        Expr::Var(var) => env.var_lookup(var).cloned().unwrap_or_else(|| panic!("var_lookup missing for {}", var.display())),
         Expr::Constant(cnst) => const_to_z3(cnst),
         Expr::Atom(bin_rel, operands) => atom_to_z3(bin_rel, operands, env),
         Expr::BinaryOp(bin_op, operands) => binop_to_z3(bin_op, operands, env),
@@ -568,30 +544,34 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
         Expr::ThyFunc(_) => {
             unreachable!("Should not encounter theory func outside of an application")
         }
-        Expr::Exists(sorts, e) => {
-            let bindings = sorts
-                .iter()
-                .map(|(_var, sort)| {
-                    let fresh_name = env.fresh_var(sort);
-                    let binding = new_binding(&fresh_name, sort, env);
-                    (fresh_name, binding)
-                })
-                .collect();
-            env.push_bvar_layer(bindings);
+        Expr::Exists(binders, e) => {
+            // Named-binder Exists: register each binder under its actual name
+            // so that `Expr::Var(name)` references inside the body resolve.
+            // Pop them on the way out to restore prior bindings (Env.bindings
+            // is a stack-per-name, so push+pop respects shadowing).
+            let mut pushed: Vec<(T::Var, ast::Dynamic)> = Vec::with_capacity(binders.len());
+            for (var, sort) in binders {
+                let binding = new_binding(&var.display().to_string(), sort, env);
+                let z3_var = binding.to_var().clone();
+                env.insert(var.clone(), binding);
+                pushed.push((var.clone(), z3_var));
+            }
             let mut body = expr_to_z3(e, env)
                 .as_bool()
                 .expect("expecting boolean expression");
-            let bindings: Vec<_> = env.pop_layer().expect("no layer of bound variables to pop");
+            // Pop in reverse insertion order.
+            for (var, _) in pushed.iter().rev() {
+                env.pop(var);
+            }
             // It shouldn't matter, but the order we expect to see the binders is
             // actually the reverse order.
-            for (name, binding) in bindings.into_iter().rev() {
-                let var = binding.to_var();
+            for (var, z3_var) in pushed.into_iter().rev() {
                 body = z3::ast::quantifier_const(
                     false,
                     0,
-                    format!("{}_binder", name),
+                    format!("{}_binder", var.display()),
                     "",
-                    &[var],
+                    &[&z3_var],
                     &[],
                     &[],
                     &body,
