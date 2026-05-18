@@ -615,7 +615,21 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
-        let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
+        let constants = self
+            .ecx
+            .const_env
+            .const_map
+            .iter()
+            .filter_map(|(k, v)| {
+                // NOTE(ck): Don't send wkvars to fixpoint
+                if let ConstKey::WKVar(..) = k {
+                    None
+                } else {
+                    Some(v)
+                }
+            })
+            .cloned()
+            .collect_vec();
 
         // Encode function bodies after qualifiers/assumptions so any functions referenced there
         // are picked up as dependencies.
