@@ -705,7 +705,11 @@ fn build_cube<T: Types>(
         .map(|b| {
             let new_name = fresh();
             renames.push((b.name.clone(), new_name.clone()));
-            Bind { name: new_name, sort: b.sort.clone(), pred: b.pred.clone() }
+            // NOTE(ck): we probably shouldn't store this as a bind because
+            // we're already adding the preds to the conjuncts...
+            //
+            // but it's not a huge deal...
+            Bind { name: new_name, sort: b.sort.clone(), pred: Pred::TRUE, }
         })
         .collect();
     // Apply renames to: each in_cube binder's pred (so non-Local extras' preds
@@ -727,7 +731,9 @@ fn build_cube<T: Types>(
     };
 
     let mut conjuncts: Vec<Pred<T>> = Vec::new();
-    for b in &in_cube {
+    // NOTE(ck): this must be all of the binders, otherwise we drop preds that
+    // come from things which are already in scope or are not local etc.
+    for b in &cube.binders {
         if !b.pred.is_trivially_true() {
             conjuncts.push(apply_renames_pred(&b.pred));
         }
