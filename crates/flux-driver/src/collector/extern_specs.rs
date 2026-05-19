@@ -201,11 +201,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         if let Some(extern_impl_id) = extern_impl_id {
             self.check_generics(impl_id, extern_impl_id)?;
             // For trait impls, check that the self type matches the external definition
-            if let (Some(dummy_impl), Some(local_self_ty)) = (
-                if let hir::ItemKind::Impl(d) = &dummy_item.kind { Some(d) } else { None },
-                local_trait_self_ty,
-            ) {
-                self.check_extern_impl_self_ty(dummy_impl, local_self_ty, extern_impl_id)?;
+            if let Some(local_self_ty) = local_trait_self_ty {
+                self.check_extern_impl_self_ty(impl_id, local_self_ty, extern_impl_id)?;
             }
             self.insert_extern_id(impl_id.def_id, extern_impl_id)?;
         }
@@ -492,7 +489,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 
     fn check_extern_impl_self_ty(
         &mut self,
-        local_impl: &hir::Impl,
+        local_impl_id: OwnerId,
         local_self_ty: ty::Ty<'tcx>,
         extern_impl_id: DefId,
     ) -> Result {
@@ -507,7 +504,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         // raw Ty equality is sound for the cases we want to catch (concrete type mismatches
         // like `Range<usize>` vs `Range<A>`).
         if local_self_ty != extern_self_ty {
-            let span = local_impl.self_ty.span;
+            // Emit on the user's impl block (compiletest matches `//~ ERROR` against the
+            // primary span line). The dummy `__FluxExternImplStruct` wrapper's self_ty has
+            // a macro-generated span that doesn't land on user source.
+            let span = tcx.def_span(local_impl_id);
             Err(self.emit(errors::MismatchedImplSelfTy {
                 span,
                 local_self_ty: local_self_ty.to_string(),
