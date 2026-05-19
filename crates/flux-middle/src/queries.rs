@@ -27,7 +27,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
-    PanicReason, PanicSpec,
+    PanicSpec,
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,

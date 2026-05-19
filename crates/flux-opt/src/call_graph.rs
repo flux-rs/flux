@@ -5,7 +5,7 @@ use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hash::FxHashSet;
 use rustc_hir::{
     def::DefKind,
-    def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
+    def_id::{CrateNum, DefId, LOCAL_CRATE},
 };
 use rustc_middle::{
     mir::{Location, TerminatorKind, UnwindAction},

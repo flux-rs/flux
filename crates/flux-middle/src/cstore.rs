@@ -1,7 +1,6 @@
 use std::rc::Rc;
 
-use rustc_data_structures::unord::UnordSet;
-use rustc_data_structures::unord::UnordMap;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::def_id::CrateNum;
 use rustc_span::def_id::DefId;
 

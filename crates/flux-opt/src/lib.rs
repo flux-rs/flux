@@ -33,8 +33,6 @@ pub fn infer_no_panics(
     run_fixpoint(&graph, external_spec)
 }
 
-// ---- Fixpoint phase ---------------------------------------------------------
-
 /// Computes the initial `PanicSpec` for a node before propagation.
 ///
 /// `Analyzed` nodes with only resolved call sites start as `WillNotPanic` (optimistic).
@@ -100,9 +98,7 @@ fn run_fixpoint(
     graph
         .nodes
         .iter()
-        .filter_map(|(&instance, node)| {
-            matches!(node.kind, NodeKind::Analyzed { is_mono: false })
-                .then(|| (instance.def_id(), specs[&instance]))
-        })
+        .filter(|(_, node)| matches!(node.kind, NodeKind::Analyzed { is_mono: false }))
+        .map(|(&instance, _)| (instance.def_id(), specs[&instance]))
         .collect()
 }
