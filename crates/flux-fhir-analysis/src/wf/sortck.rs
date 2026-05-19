@@ -316,7 +316,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self
                     .fully_resolve(&sort)
                     .map_err(|_| self.emit_err(errors::CannotInferSort::new(callee.span)))?;
-                let Some(poly_fsort) = self.is_coercible_to_func(&sort, callee.fhir_id) else {
+                let callee_id =
+                    if let fhir::ExprKind::Var(fhir::QPathExpr::Resolved(path, _)) = callee.kind {
+                        path.fhir_id
+                    } else {
+                        callee.fhir_id
+                    };
+                let Some(poly_fsort) = self.is_coercible_to_func(&sort, callee_id) else {
                     return Err(self.emit_err(errors::ExpectedFun::new(callee.span, &sort)));
                 };
                 let fsort = self.instantiate_func_sort(expr, poly_fsort);
