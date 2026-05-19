@@ -1582,8 +1582,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 }
             }
             surface::ExprKind::Dot(..) => {
-                let callee = self.genv().alloc(self.desugar_expr(callee));
-                fhir::ExprKind::App(callee, args)
+                let desugared_callee = self.genv().alloc(self.desugar_expr(callee));
+                fhir::ExprKind::App(desugared_callee, args)
             }
             surface::ExprKind::PrimUIF(op) if args.len() == 2 && self.allow_primop_app() => {
                 fhir::ExprKind::PrimApp(*op, &args[0], &args[1])

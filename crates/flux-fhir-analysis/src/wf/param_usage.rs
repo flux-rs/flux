@@ -93,7 +93,9 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                     self.errors
                         .emit(InvalidParamPos::new(path.span, &self.infcx.param_sort(id)));
                 }
-                self.check_func_params_uses(callee, false);
+                if !matches!(callee.kind, fhir::ExprKind::Var(fhir::QPathExpr::Resolved(..))) {
+                    self.check_func_params_uses(callee, false);
+                }
                 for arg in args {
                     self.check_func_params_uses(arg, false);
                 }
