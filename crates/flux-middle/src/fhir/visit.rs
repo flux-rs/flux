@@ -580,7 +580,8 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
             vis.visit_expr(e2);
         }
         ExprKind::UnaryOp(_op, e) => vis.visit_expr(e),
-        ExprKind::App(_func, args) => {
+        ExprKind::App(callee, args) => {
+            vis.visit_expr(callee);
             walk_list!(vis, visit_expr, args);
         }
         ExprKind::Alias(alias_reft, args) => {

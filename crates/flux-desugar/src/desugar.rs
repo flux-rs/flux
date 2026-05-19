@@ -1568,11 +1568,22 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         match &callee.kind {
             surface::ExprKind::Path(path) => {
                 match self.desugar_epath(path) {
-                    QPathExpr::Resolved(path, _) => fhir::ExprKind::App(path, args),
+                    QPathExpr::Resolved(path, kind) => {
+                        let callee = self.genv().alloc(fhir::Expr {
+                            kind: fhir::ExprKind::Var(QPathExpr::Resolved(path, kind)),
+                            span: callee.span,
+                            fhir_id: self.next_fhir_id(),
+                        });
+                        fhir::ExprKind::App(callee, args)
+                    }
                     QPathExpr::TypeRelative(qself, name) => {
                         fhir::ExprKind::Alias(fhir::AliasReft::TypeRelative { qself, name }, args)
                     }
                 }
+            }
+            surface::ExprKind::Dot(..) => {
+                let callee = self.genv().alloc(self.desugar_expr(callee));
+                fhir::ExprKind::App(callee, args)
             }
             surface::ExprKind::PrimUIF(op) if args.len() == 2 && self.allow_primop_app() => {
                 fhir::ExprKind::PrimApp(*op, &args[0], &args[1])
