@@ -328,10 +328,14 @@ impl<'a> TypeEnv<'a> {
         let name = infcx.define_unknown_var(&Sort::Loc);
         let loc = Loc::from(name);
         let ty = infcx.unpack(bound);
-        let bound = bound.with_holes().replace_holes(|sorts, kind| {
-            debug_assert_eq!(kind, HoleKind::Pred);
-            infcx.fresh_kvar(sorts, KVarEncoding::Conj)
-        });
+        let bound = if bound.is_struct() {
+            bound.with_holes().replace_holes(|sorts, kind| {
+                debug_assert_eq!(kind, HoleKind::Pred);
+                infcx.fresh_kvar(sorts, KVarEncoding::Conj)
+            })
+        } else {
+            bound.clone()
+        };
         self.bindings.insert(loc, LocKind::LocalPtr(bound), ty);
         Ok(loc)
     }
