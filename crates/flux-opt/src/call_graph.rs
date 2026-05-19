@@ -1,7 +1,8 @@
 use std::fmt;
 
 use flux_middle::global_env::GlobalEnv;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
+use rustc_hash::FxHashSet;
 use rustc_hir::{
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
@@ -10,8 +11,6 @@ use rustc_middle::{
     mir::{Location, TerminatorKind, UnwindAction},
     ty::{EarlyBinder, GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt, TypingEnv},
 };
-
-// ---- Types ------------------------------------------------------------------
 
 /// A single call site observed in a function's MIR body.
 #[derive(Debug, Clone)]
@@ -58,70 +57,73 @@ pub(crate) struct NodeInfo<'tcx> {
 }
 
 pub(crate) struct CallGraph<'tcx> {
-    pub(crate) nodes: FxHashMap<Instance<'tcx>, NodeInfo<'tcx>>,
-    pub(crate) callers: FxHashMap<Instance<'tcx>, Vec<Instance<'tcx>>>,
+    pub(crate) nodes: FxIndexMap<Instance<'tcx>, NodeInfo<'tcx>>,
+    pub(crate) callers: UnordMap<Instance<'tcx>, Vec<Instance<'tcx>>>,
 }
 
-// ---- Display ----------------------------------------------------------------
-
-impl fmt::Display for NodeKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            NodeKind::Analyzed { is_mono } => {
-                if *is_mono {
-                    write!(f, "Analyzed(mono)")
-                } else {
-                    write!(f, "Analyzed")
-                }
-            }
-            NodeKind::ExternalCrate => write!(f, "ExternalCrate"),
-            NodeKind::Leaf(kind) => write!(f, "Leaf({kind:?})"),
-        }
-    }
-}
-
-impl<'tcx> fmt::Display for CallSiteKind<'tcx> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CallSiteKind::Resolved { callee } => write!(f, "-> {callee}"),
-            CallSiteKind::SynthesizedPanic => write!(f, "-> panic"),
-            CallSiteKind::Unresolved { def_id: method } => write!(f, "-> trait {method:?}"),
-            CallSiteKind::DynamicDispatch => write!(f, "-> <dynamic>"),
-        }
-    }
-}
-
-impl<'tcx> fmt::Display for CallGraph<'tcx> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "call graph ({} nodes):", self.nodes.len())?;
-        let mut nodes: Vec<_> = self.nodes.iter().collect();
-        nodes.sort_by_key(|(inst, _)| format!("{inst}"));
-        for (instance, info) in nodes {
-            writeln!(f, "  {instance} [{}]:", info.kind)?;
-            for site in &info.call_sites {
-                writeln!(f, "    {} at {:?}", site.kind, site.location)?;
+impl<'tcx> CallGraph<'tcx> {
+    fn build_callers(&mut self) {
+        for (&caller, info) in &self.nodes {
+            for callee in resolved_callees(&info.call_sites) {
+                self.callers.entry(callee).or_default().push(caller);
             }
         }
-        Ok(())
     }
 }
-
-// ---- Entry point ------------------------------------------------------------
 
 pub(crate) fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
     let tcx = genv.tcx();
 
-    // We need to use `iter_local_def_id` instead of `hir_body_owners`
-    // so that we can visit trait items with no MIR.
-    let roots: Vec<LocalDefId> = tcx
-        .iter_local_def_id()
-        .filter(|local_id| tcx.def_kind(local_id.to_def_id()).is_fn_like())
-        .collect();
+    let mut graph = CallGraph { nodes: FxIndexMap::default(), callers: UnordMap::default() };
 
-    explore(genv, &roots)
+    // Instance-level worklist and visited set to handle the same DefId being
+    // called with different concrete type args.
+    let mut worklist: Vec<Instance<'_>> = Vec::new();
+    let mut explored: FxHashSet<Instance<'_>> = FxHashSet::default();
+
+    for root_local in tcx.iter_local_def_id() {
+        let def_id = root_local.to_def_id();
+        if !tcx.def_kind(root_local).is_fn_like() || is_method_in_trait(tcx, def_id) {
+            continue;
+        }
+        worklist.push(Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id)));
+    }
+
+    while let Some(instance) = worklist.pop() {
+        if !explored.insert(instance) {
+            continue;
+        }
+
+        let def_id = instance.def_id();
+
+        // External non-stdlib callees: treat as a leaf and record for spec lookup.
+        if !should_include_in_call_graph(genv, def_id.krate) {
+            graph
+                .nodes
+                .insert(instance, NodeInfo { kind: NodeKind::ExternalCrate, call_sites: vec![] });
+            continue;
+        }
+
+        if let InstanceKind::Item(_) = instance.def
+            && tcx.is_mir_available(def_id)
+        {
+            let call_sites = item_callees(tcx, instance);
+            worklist.extend(resolved_callees(&call_sites));
+            let is_mono = !is_identity_instance(tcx, instance);
+            graph
+                .nodes
+                .insert(instance, NodeInfo { kind: NodeKind::Analyzed { is_mono }, call_sites });
+        } else {
+            graph.nodes.insert(
+                instance,
+                NodeInfo { kind: NodeKind::Leaf(tcx.def_kind(def_id)), call_sites: vec![] },
+            );
+        }
+    }
+
+    graph.build_callers();
+    graph
 }
-
-// ---- Helpers ----------------------------------------------------------------
 
 fn is_method_in_trait<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> bool {
     let def_kind = tcx.def_kind(def_id);
@@ -221,15 +223,6 @@ fn callees_in_body<'tcx>(
     call_sites
 }
 
-/// Call sites of a local function. Uses `optimized_mir` (regions erased) to
-/// avoid region inference variables panicking inside
-/// `instantiate_mir_and_normalize_erasing_regions`.
-fn local_callees<'tcx>(tcx: TyCtxt<'tcx>, local_id: LocalDefId) -> Vec<CallSite<'tcx>> {
-    let def_id = local_id.to_def_id();
-    let caller = Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id));
-    callees_in_body(tcx, caller, tcx.optimized_mir(def_id))
-}
-
 /// Call sites of a worklist instance. After normalization all non-mono instances on the worklist
 /// are identity instances, so `instance_mir` returns the unspecialized body.
 fn item_callees<'tcx>(tcx: TyCtxt<'tcx>, instance: Instance<'tcx>) -> Vec<CallSite<'tcx>> {
@@ -247,76 +240,44 @@ pub(crate) fn resolved_callees<'tcx>(
     })
 }
 
-fn explore<'tcx>(genv: GlobalEnv<'_, 'tcx>, roots: &[LocalDefId]) -> CallGraph<'tcx> {
-    let tcx = genv.tcx();
-    let mut graph = CallGraph { nodes: FxHashMap::default(), callers: FxHashMap::default() };
-    // Instance-level worklist and visited set to handle the same DefId being
-    // called with different concrete type args.
-    let mut worklist: Vec<Instance<'_>> = Vec::new();
-    let mut explored: FxHashSet<Instance<'_>> = FxHashSet::default();
-
-    // Seed the worklist with the root functions' callees.
-    for &root_local in roots {
-        let def_id = root_local.to_def_id();
-
-        if is_method_in_trait(tcx, def_id) {
-            continue;
-        }
-
-        let (node_kind, call_sites) = if tcx.is_mir_available(def_id) {
-            (NodeKind::Analyzed { is_mono: false }, local_callees(tcx, root_local))
-        } else {
-            (NodeKind::Leaf(tcx.def_kind(def_id)), vec![])
-        };
-
-        let instance = Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id));
-        for callee in resolved_callees(&call_sites) {
-            worklist.push(callee);
-            graph.callers.entry(callee).or_default().push(instance);
-        }
-        graph
-            .nodes
-            .insert(instance, NodeInfo { kind: node_kind, call_sites });
-        explored.insert(instance);
-    }
-
-    while let Some(instance) = worklist.pop() {
-        if explored.contains(&instance) {
-            continue;
-        }
-        explored.insert(instance);
-
-        let def_id = instance.def_id();
-
-        // External non-stdlib callees: treat as a leaf and record for spec lookup.
-        if !should_include_in_call_graph(genv, def_id.krate) {
-            graph
-                .nodes
-                .entry(instance)
-                .or_insert(NodeInfo { kind: NodeKind::ExternalCrate, call_sites: vec![] });
-            continue;
-        }
-
-        if let InstanceKind::Item(_) = instance.def
-            && tcx.is_mir_available(def_id)
-        {
-            let call_sites = item_callees(tcx, instance);
-            for callee in resolved_callees(&call_sites) {
-                worklist.push(callee);
-                graph.callers.entry(callee).or_default().push(instance);
+impl fmt::Display for NodeKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NodeKind::Analyzed { is_mono } => {
+                if *is_mono {
+                    write!(f, "Analyzed(mono)")
+                } else {
+                    write!(f, "Analyzed")
+                }
             }
-            let is_mono = !is_identity_instance(tcx, instance);
-            graph
-                .nodes
-                .entry(instance)
-                .or_insert(NodeInfo { kind: NodeKind::Analyzed { is_mono }, call_sites });
-        } else {
-            graph.nodes.entry(instance).or_insert(NodeInfo {
-                kind: NodeKind::Leaf(tcx.def_kind(def_id)),
-                call_sites: vec![],
-            });
+            NodeKind::ExternalCrate => write!(f, "ExternalCrate"),
+            NodeKind::Leaf(kind) => write!(f, "Leaf({kind:?})"),
         }
     }
+}
 
-    graph
+impl<'tcx> fmt::Display for CallSiteKind<'tcx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CallSiteKind::Resolved { callee } => write!(f, "-> {callee}"),
+            CallSiteKind::SynthesizedPanic => write!(f, "-> panic"),
+            CallSiteKind::Unresolved { def_id: method } => write!(f, "-> trait {method:?}"),
+            CallSiteKind::DynamicDispatch => write!(f, "-> <dynamic>"),
+        }
+    }
+}
+
+impl<'tcx> fmt::Display for CallGraph<'tcx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "call graph ({} nodes):", self.nodes.len())?;
+        let mut nodes: Vec<_> = self.nodes.iter().collect();
+        nodes.sort_by_key(|(inst, _)| format!("{inst}"));
+        for (instance, info) in nodes {
+            writeln!(f, "  {instance} [{}]:", info.kind)?;
+            for site in &info.call_sites {
+                writeln!(f, "    {} at {:?}", site.kind, site.location)?;
+            }
+        }
+        Ok(())
+    }
 }

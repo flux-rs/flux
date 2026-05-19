@@ -962,10 +962,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             // map. We could potentially key specs by `Instance`, but we also need to be able to recover
             // the resolution to a mono-instance here.
             let inferred_panic_expr = if let CheckerId::DefId(caller_id) = self.checker_id
-                && let PanicSpec::WillNotPanic = genv.inferred_no_panic(caller_id)
+                && genv.inferred_no_panic(caller_id) == PanicSpec::WillNotPanic
             {
                 Expr::tt()
-            } else if let PanicSpec::WillNotPanic = callee_inferred_spec {
+            } else if callee_inferred_spec == PanicSpec::WillNotPanic {
                 Expr::tt()
             } else {
                 Expr::ff()
