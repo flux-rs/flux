@@ -17,7 +17,6 @@ use flux_syntax::symbols::sym;
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_errors::Diagnostic;
-use rustc_hash::FxHashMap;
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -204,7 +203,7 @@ pub struct Providers {
     pub item_bounds:
         fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
     pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
-    pub inferred_no_panic: fn(GlobalEnv) -> FxHashMap<DefId, PanicSpec>,
+    pub inferred_no_panic: fn(GlobalEnv) -> UnordMap<DefId, PanicSpec>,
 }
 
 macro_rules! empty_query {
@@ -291,7 +290,7 @@ pub struct Queries<'genv, 'tcx> {
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
     assume_parametric_params: Cache<DefId, UnordSet<u32>>,
-    inferred_no_panic: Cache<CrateNum, FxHashMap<DefId, PanicSpec>>,
+    inferred_no_panic: Cache<CrateNum, Rc<UnordMap<DefId, PanicSpec>>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -609,7 +608,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv,
         krate: CrateNum,
-    ) -> FxHashMap<DefId, PanicSpec> {
+    ) -> Rc<UnordMap<DefId, PanicSpec>> {
         // We can just make this `core` if we only care about that.
         fn is_stdlib_crate(tcx: rustc_middle::ty::TyCtxt<'_>, krate: CrateNum) -> bool {
             matches!(tcx.crate_name(krate).as_str(), "core" | "alloc" | "std")
@@ -620,18 +619,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 || is_stdlib_crate(genv.tcx(), krate)
                 || !genv.cstore_has_crate(krate)
             {
-                (self.providers.inferred_no_panic)(genv)
+                Rc::new((self.providers.inferred_no_panic)(genv))
             } else {
                 genv.cstore().inferred_no_panic(krate)
             }
         })
-    }
-
-    pub(crate) fn inferred_no_panic(&self, genv: GlobalEnv, def_id: DefId) -> PanicSpec {
-        let map = self.inferred_no_panic_crate(genv, def_id.krate);
-        map.get(&def_id)
-            .copied()
-            .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
     }
 
     pub(crate) fn static_info(

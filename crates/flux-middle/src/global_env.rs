@@ -12,8 +12,7 @@ use flux_config::{self as config, IncludePattern};
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
-use rustc_data_structures::unord::UnordSet;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -28,7 +27,7 @@ pub use rustc_span::{Symbol, symbol::Ident};
 use tempfile::TempDir;
 
 use crate::{
-    PanicSpec,
+    PanicReason, PanicSpec,
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},
@@ -177,7 +176,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn inferred_no_panic_crate(self, krate: CrateNum) -> FxHashMap<DefId, PanicSpec> {
+    pub fn inferred_no_panic_crate(self, krate: CrateNum) -> Rc<UnordMap<DefId, PanicSpec>> {
         self.inner.queries.inferred_no_panic_crate(self, krate)
     }
 
@@ -463,9 +462,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     /// Whether we have inferred that the function cannot panic.
     pub fn inferred_no_panic(self, def_id: impl IntoQueryParam<DefId>) -> PanicSpec {
-        self.inner
-            .queries
-            .inferred_no_panic(self, def_id.into_query_param())
+        let def_id = def_id.into_query_param();
+        let map = self.inferred_no_panic_crate(def_id.krate);
+        map.get(&def_id)
+            .copied()
+            .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
     }
 
     /// Whether the crate has Flux metadata in the cratestore.

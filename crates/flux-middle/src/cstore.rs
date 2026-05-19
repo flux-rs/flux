@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use rustc_data_structures::unord::UnordSet;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::CrateNum;
 use rustc_span::def_id::DefId;
 
@@ -40,7 +40,7 @@ pub trait CrateStore {
     fn sort_decl_param_count(&self, def_id: FluxDefId) -> Option<usize>;
     fn no_panic(&self, def_id: DefId) -> Option<bool>;
     fn assume_parametric_params(&self, def_id: DefId) -> Option<UnordSet<u32>>;
-    fn inferred_no_panic(&self, krate: CrateNum) -> FxHashMap<DefId, PanicSpec>;
+    fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<DefId, PanicSpec>>;
     fn has_crate(&self, krate: CrateNum) -> bool;
 }
 

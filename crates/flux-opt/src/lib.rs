@@ -10,6 +10,7 @@ use std::collections::VecDeque;
 
 use call_graph::{CallGraph, CallSiteKind, NodeKind};
 use flux_middle::{PanicReason, PanicSpec, global_env::GlobalEnv, queries::Providers};
+use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::Instance;
@@ -18,7 +19,7 @@ pub fn provide(providers: &mut Providers) {
     providers.inferred_no_panic = inferred_no_panic;
 }
 
-pub fn inferred_no_panic(genv: GlobalEnv) -> FxHashMap<DefId, PanicSpec> {
+pub fn inferred_no_panic(genv: GlobalEnv) -> UnordMap<DefId, PanicSpec> {
     infer_no_panics(genv, |def_id| genv.inferred_no_panic(def_id))
 }
 
@@ -27,7 +28,7 @@ pub fn inferred_no_panic(genv: GlobalEnv) -> FxHashMap<DefId, PanicSpec> {
 pub fn infer_no_panics(
     genv: GlobalEnv,
     external_spec: impl Fn(DefId) -> PanicSpec,
-) -> FxHashMap<DefId, PanicSpec> {
+) -> UnordMap<DefId, PanicSpec> {
     let graph = call_graph::build_call_graph(genv);
     run_fixpoint(&graph, external_spec)
 }
@@ -74,7 +75,7 @@ fn initial_spec(
 fn run_fixpoint(
     graph: &CallGraph<'_>,
     external_spec: impl Fn(DefId) -> PanicSpec,
-) -> FxHashMap<DefId, PanicSpec> {
+) -> UnordMap<DefId, PanicSpec> {
     let mut specs: FxHashMap<Instance<'_>, PanicSpec> = FxHashMap::default();
     let mut queue: VecDeque<Instance<'_>> = VecDeque::new();
 

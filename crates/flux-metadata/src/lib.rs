@@ -38,7 +38,6 @@ use rustc_data_structures::{
     fx::FxHashMap,
     unord::{ExtendUnord, UnordMap, UnordSet},
 };
-use rustc_hash::FxHashMap as RustcFxHashMap;
 use rustc_hir::{
     def::{CtorKind, DefKind},
     def_id::{LOCAL_CRATE, LocalDefId},
@@ -181,7 +180,7 @@ pub struct Tables<K: Eq + Hash> {
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
     no_panic: UnordMap<K, bool>,
     assume_parametric_params: UnordMap<K, UnordSet<u32>>,
-    no_panic_specs: RustcFxHashMap<DefId, PanicSpec>,
+    no_panic_specs: UnordMap<DefId, PanicSpec>,
 }
 
 impl CStore {
@@ -330,14 +329,16 @@ impl CrateStore for CStore {
         self.local_tables[&krate].normalized_defns.clone()
     }
 
-    fn inferred_no_panic(&self, krate: CrateNum) -> rustc_hash::FxHashMap<DefId, PanicSpec> {
+    fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<DefId, PanicSpec>> {
         // TODO: Some transitive deps (e.g. `hashbrown`) have no flux metadata. Return
         // an empty map (conservative: MightPanic) until the proper fix is in place.
         // See notes/hashbrown-inferred-no-panic.txt.
-        self.local_tables
-            .get(&krate)
-            .map(|t| t.no_panic_specs.clone())
-            .unwrap_or_default()
+        Rc::new(
+            self.local_tables
+                .get(&krate)
+                .map(|t| t.no_panic_specs.clone())
+                .unwrap_or_default(),
+        )
     }
 
     fn has_crate(&self, krate: CrateNum) -> bool {
@@ -368,6 +369,7 @@ impl CrateMetadata {
             FluxDefId::to_index,
         );
         encode_flux_defs(genv, &mut local_tables);
+        local_tables.no_panic_specs = (*genv.inferred_no_panic_crate(LOCAL_CRATE)).clone();
 
         let mut extern_tables = Tables::default();
         encode_def_ids(
@@ -384,7 +386,6 @@ impl CrateMetadata {
 
 fn encode_flux_defs(genv: GlobalEnv, tables: &mut Tables<DefIndex>) {
     tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
-    tables.no_panic_specs = genv.inferred_no_panic_crate(LOCAL_CRATE);
 
     for (def_id, item) in genv.fhir_iter_flux_items() {
         match item {
