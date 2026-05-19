@@ -19,13 +19,15 @@ use flux_common::{
     span_bug,
 };
 use flux_middle::{
+    THEORY_FUNCS,
     def_id::{FluxDefId, MaybeExternId},
     fhir::{self, FhirId, FluxOwnerId, QPathExpr},
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AssocReft, BoundReftKind, ESpan, Expr, INNERMOST, List, RefineArgsExt, WfckResults,
+        self, AssocReft, BoundReftKind, ESpan, Expr, INNERMOST, InternalFuncKind, List,
+        RefineArgsExt, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refine, Refiner},
     },
@@ -2167,8 +2169,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             fhir::ExprKind::App(callee, args) => {
                 let sort_args = self.results().node_sort_args(fhir_id);
-                rty::Expr::app(self.conv_expr(env, callee)?, sort_args, self.conv_exprs(env, args)?)
-                    .at(espan)
+                let callee = if let fhir::ExprKind::Var(QPathExpr::Resolved(path, _)) = callee.kind
+                {
+                    self.conv_func(env, &path)?
+                } else {
+                    self.conv_expr(env, callee)?
+                };
+                rty::Expr::app(callee, sort_args, self.conv_exprs(env, args)?).at(espan)
             }
             fhir::ExprKind::Alias(alias, args) => {
                 let args = args
@@ -2347,6 +2354,50 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     fn conv_exprs(&mut self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {
         exprs.iter().map(|e| self.conv_expr(env, e)).collect()
+    }
+
+    fn conv_func(&mut self, env: &Env, func: &fhir::PathExpr) -> QueryResult<rty::Expr> {
+        let genv = self.genv();
+        let span = func.span;
+        let (expr, sort) = match func.res {
+            fhir::Res::Param(_, id) => {
+                let sort = self.results().param_sort(id);
+                (env.lookup(func).to_expr(), sort)
+            }
+            fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(did)) => {
+                self.hyperlink(span, Some(genv.func_span(did)));
+                let sort = rty::Sort::Func(genv.func_sort(did));
+                (rty::Expr::global_func(rty::SpecFuncKind::Def(did)), sort)
+            }
+            fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf)) => {
+                let sort = THEORY_FUNCS.get(&itf).unwrap().sort.clone();
+                (rty::Expr::global_func(rty::SpecFuncKind::Thy(itf)), rty::Sort::Func(sort))
+            }
+            fhir::Res::GlobalFunc(fhir::SpecFuncKind::PtrSize) => {
+                let fsort = rty::PolyFuncSort::new(
+                    List::empty(),
+                    rty::FuncSort::new(vec![rty::Sort::RawPtr], rty::Sort::Int),
+                );
+                (rty::Expr::internal_func(rty::InternalFuncKind::PtrSize), rty::Sort::Func(fsort))
+            }
+            fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast) => {
+                let fsort = rty::PolyFuncSort::new(
+                    List::from_arr([rty::SortParamKind::Sort, rty::SortParamKind::Sort]),
+                    rty::FuncSort::new(
+                        vec![rty::Sort::Var(rty::ParamSort::from(0_usize))],
+                        rty::Sort::Var(rty::ParamSort::from(1_usize)),
+                    ),
+                );
+                (rty::Expr::internal_func(InternalFuncKind::Cast), rty::Sort::Func(fsort))
+            }
+            _ => {
+                return Err(
+                    self.emit(errors::InvalidRes { span: func.span, res_descr: func.res.descr() })
+                )?;
+            }
+        };
+        self.0.insert_node_sort(func.fhir_id, sort);
+        Ok(self.add_coercions(expr, func.fhir_id))
     }
 
     fn conv_primop_val(&self, op: fhir::BinOp) -> rty::BinOp {
