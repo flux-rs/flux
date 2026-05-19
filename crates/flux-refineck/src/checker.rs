@@ -950,18 +950,33 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             && genv.def_kind(callee_def_id).is_fn_like()
         {
             let callee_no_panic = fn_sig.no_panic();
+            let callee_inferred_spec = genv.inferred_no_panic(callee_def_id);
 
-            let auto_inferred_panic_spec = genv.inferred_no_panic(callee_def_id);
-
-            let infer_panic_expr = if matches!(auto_inferred_panic_spec, PanicSpec::WillNotPanic) {
+            // The call-graph and fixpoint iteration are over `Instance`s, but the output map only
+            // retains non-mono (identity) instances (that we can identify with a `DefId`). A concrete
+            // callee (e.g., `Vec::<i32>::push`) is a mono instance whose spec is not directly queryable
+            // via inferred_no_panic. However, if the caller is `WillNotPanic`, the fixpoint already
+            // accounted for all its concrete callees: any `MightPanic` callee would have propagated up
+            // and marked the caller `MightPanic(Transitive)`. So the caller's `WillNotPanic` proves all
+            // its concrete callees are no-panic, even those whose mono spec is absent from the output
+            // map. We could potentially key specs by `Instance`, but we also need to be able to recover
+            // the resolution to a mono-instance here.
+            let inferred_panic_expr = if let CheckerId::DefId(caller_id) = self.checker_id
+                && let PanicSpec::WillNotPanic = genv.inferred_no_panic(caller_id)
+            {
+                Expr::tt()
+            } else if let PanicSpec::WillNotPanic = callee_inferred_spec {
                 Expr::tt()
             } else {
                 Expr::ff()
             };
 
             at.check_pred(
-                Expr::implies(self.fn_sig.no_panic(), Expr::or(callee_no_panic, infer_panic_expr)),
-                ConstrReason::NoPanic(callee_def_id, auto_inferred_panic_spec),
+                Expr::implies(
+                    self.fn_sig.no_panic(),
+                    Expr::or(callee_no_panic, inferred_panic_expr),
+                ),
+                ConstrReason::NoPanic(callee_def_id, callee_inferred_spec),
             );
         }
 

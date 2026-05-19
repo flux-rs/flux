@@ -57,7 +57,7 @@ use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
 };
-use rustc_hir::{OwnerId, def::DefKind};
+use rustc_hir::OwnerId;
 use rustc_macros::{Decodable, Encodable, extension};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{
@@ -76,10 +76,10 @@ pub enum PanicSpec {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum PanicReason {
-    Unknown,
     Transitive,
     UnresolvedCall(DefId),
     DynamicDispatch,
+    SynthesizedPanic,
     NotInCallGraph,
     NoMIRAvailable,
 }

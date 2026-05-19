@@ -22,7 +22,8 @@ pub(crate) struct CallSite<'tcx> {
 
 #[derive(Debug, Clone)]
 pub(crate) enum CallSiteKind<'tcx> {
-    /// `Call` terminator that resolved to a concrete `Instance`.
+    /// `Call` terminator that resolved to a concrete `Instance`
+    /// (potentionally monomorphized)
     Resolved { callee: Instance<'tcx> },
     /// Synthetic edge from an `Assert` terminator with a reachable unwind path —
     /// represents the implicit call to `core::panicking::panic`.
@@ -117,9 +118,7 @@ pub(crate) fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tc
         .filter(|local_id| tcx.def_kind(local_id.to_def_id()).is_fn_like())
         .collect();
 
-    let g = explore(genv, &roots);
-    eprintln!("{g}");
-    g
+    explore(genv, &roots)
 }
 
 // ---- Helpers ----------------------------------------------------------------
@@ -264,12 +263,13 @@ fn explore<'tcx>(genv: GlobalEnv<'_, 'tcx>, roots: &[LocalDefId]) -> CallGraph<'
             continue;
         }
 
-        let instance = Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id));
         let (node_kind, call_sites) = if tcx.is_mir_available(def_id) {
             (NodeKind::Analyzed { is_mono: false }, local_callees(tcx, root_local))
         } else {
             (NodeKind::Leaf(tcx.def_kind(def_id)), vec![])
         };
+
+        let instance = Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id));
         for callee in resolved_callees(&call_sites) {
             worklist.push(callee);
             graph.callers.entry(callee).or_default().push(instance);
@@ -297,24 +297,19 @@ fn explore<'tcx>(genv: GlobalEnv<'_, 'tcx>, roots: &[LocalDefId]) -> CallGraph<'
             continue;
         }
 
-        if let InstanceKind::Item(_) = instance.def {
-            if tcx.is_mir_available(def_id) {
-                let call_sites = item_callees(tcx, instance);
-                for callee in resolved_callees(&call_sites) {
-                    worklist.push(callee);
-                    graph.callers.entry(callee).or_default().push(instance);
-                }
-                let is_mono = !is_identity_instance(tcx, instance);
-                graph
-                    .nodes
-                    .entry(instance)
-                    .or_insert(NodeInfo { kind: NodeKind::Analyzed { is_mono }, call_sites });
-            } else {
-                graph.nodes.entry(instance).or_insert(NodeInfo {
-                    kind: NodeKind::Leaf(tcx.def_kind(def_id)),
-                    call_sites: vec![],
-                });
+        if let InstanceKind::Item(_) = instance.def
+            && tcx.is_mir_available(def_id)
+        {
+            let call_sites = item_callees(tcx, instance);
+            for callee in resolved_callees(&call_sites) {
+                worklist.push(callee);
+                graph.callers.entry(callee).or_default().push(instance);
             }
+            let is_mono = !is_identity_instance(tcx, instance);
+            graph
+                .nodes
+                .entry(instance)
+                .or_insert(NodeInfo { kind: NodeKind::Analyzed { is_mono }, call_sites });
         } else {
             graph.nodes.entry(instance).or_insert(NodeInfo {
                 kind: NodeKind::Leaf(tcx.def_kind(def_id)),
