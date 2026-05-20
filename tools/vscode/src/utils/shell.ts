@@ -19,7 +19,7 @@ export async function runShellCommand(
 ): Promise<any> {
     const start = performance.now();
     try {
-        log(`TRACE: Running command: 'FLUXFLAGS="${env.FLUXFLAGS}" ${command}'`);
+        log(`TRACE: Running command: 'FLUXLOCALFLAGS="${env.FLUXLOCALFLAGS}" ${command}'`);
         const { stdout, stderr } = await execPromise(command, {
             env: env,
             cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
@@ -87,7 +87,7 @@ export async function runCargoFlux(
     return new Promise((resolve, reject) => {
         const fluxEnv = {
             ...process.env,
-            FLUXFLAGS: fluxFlags,
+            FLUXLOCALFLAGS: fluxFlags,
         };
 
         // Get the flux command from workspace configuration
@@ -102,7 +102,7 @@ export async function runCargoFlux(
         const start = performance.now();
 
         log(
-            `TRACE: Running command: FLUXFLAGS="${fluxEnv.FLUXFLAGS}"  ${command} ${args.join(" ")}`
+            `TRACE: Running command: FLUXLOCALFLAGS="${fluxEnv.FLUXLOCALFLAGS}"  ${command} ${args.join(" ")}`
         );
 
         // Use spawn to get a killable process reference
