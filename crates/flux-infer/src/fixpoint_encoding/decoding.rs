@@ -287,16 +287,10 @@ where
                                 // NOTE: Only a few of these are meaningfully needed,
                                 // e.g. ConstKey::Alias because the rty Expr has its
                                 // args as a part of it.
-                                ConstKey::PrimOp(bin_op) => {
-                                    if fargs.len() != 2 {
-                                        Err(FixpointParseError::PrimOpArityMismatch(fargs.len()))
-                                    } else {
-                                        Ok(rty::Expr::prim_val(
-                                            bin_op.clone(),
-                                            self.fixpoint_to_expr(&fargs[0])?,
-                                            self.fixpoint_to_expr(&fargs[1])?,
-                                        ))
-                                    }
+                                ConstKey::PrimOp(_) => {
+                                    unreachable!(
+                                        "Should have been handled by is_curried_primop_app"
+                                    )
                                 }
                                 ConstKey::Cast(sort1, sort2) => {
                                     if fargs.len() != 1 {
