@@ -108,6 +108,11 @@ incremental = false
                 .build()?
                 .try_deserialize()?;
 
+            let package_flags = flux_local_flags
+                .iter()
+                .flatten()
+                .filter(|_| local_package_ids.contains(&package.id));
+
             if flux_metadata.enabled {
                 // For workspace members, cargo sets the workspace's root as the working dir
                 // when running flux. Paths will be relative to that, so we must normalize
@@ -128,12 +133,7 @@ rustflags = [{:?}]
                         .into_flags(&metadata.target_directory, manifest_dir_relative_to_workspace)
                         .iter()
                         .chain(flux_flags.iter().flatten())
-                        .chain(
-                            flux_local_flags
-                                .iter()
-                                .flatten()
-                                .filter(|_| local_package_ids.contains(&package.id)),
-                        )
+                        .chain(package_flags)
                         .map(|s| s.as_ref())
                         .chain(["-Fverify=on", "-Ffull-compilation=on"])
                         .format(", ")
