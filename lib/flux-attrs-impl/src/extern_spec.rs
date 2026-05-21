@@ -168,7 +168,7 @@ fn extern_impl_to_tokens(
     let extern_item_impl = extern_item_impl; // no more mutation
 
     let self_ty = &extern_item_impl.self_ty;
-    let (impl_generics, ty_generics, where_clause) = &extern_item_impl.generics.split_for_impl();
+    let (impl_generics, ty_generics, _where_clause) = &extern_item_impl.generics.split_for_impl();
 
     let dummy_ident = &extern_item_impl.dummy_ident;
     let mut fields = generic_params_to_fields(&extern_item_impl.generics.params);
@@ -176,7 +176,7 @@ fn extern_impl_to_tokens(
 
     let dummy_impl = if let Some((_, trait_, _)) = &extern_item_impl.trait_ {
         Some(quote!(
-            impl #impl_generics #dummy_ident #ty_generics #where_clause {
+            impl #impl_generics #dummy_ident #ty_generics {
                 fn __flux_extern_extract_impl_id() where #self_ty: #trait_ {}
             }
         ))
@@ -190,7 +190,7 @@ fn extern_impl_to_tokens(
         const _: () = {
             #mod_use
 
-            struct #dummy_ident #impl_generics ( #fields ) #where_clause;
+            struct #dummy_ident #impl_generics ( #fields );
 
             #dummy_impl
 
@@ -441,7 +441,7 @@ impl Parse for ExternItemImpl {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
         let impl_token = input.parse()?;
-        let generics = input.parse()?;
+        let mut generics: Generics = input.parse()?;
 
         let mut first_ty: Type = input.parse()?;
         let self_ty: Type;
@@ -471,6 +471,8 @@ impl Parse for ExternItemImpl {
             trait_ = None;
             self_ty = first_ty;
         }
+
+        generics.where_clause = input.parse()?;
 
         let content;
         let brace_token = braced!(content in input);
@@ -549,6 +551,10 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
                 dummy_prefix.push_str("ConstPtr");
             };
             create_dummy_ident(dummy_prefix, ty_ptr.elem.as_ref())
+        }
+        Array(ty_array) => {
+            dummy_prefix.push_str("Array");
+            create_dummy_ident(dummy_prefix, ty_array.elem.as_ref())
         }
         _ => {
             Err(syn::Error::new(
