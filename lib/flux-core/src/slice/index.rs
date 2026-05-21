@@ -15,7 +15,7 @@ impl<T, I: SliceIndex<[T]>> ops::Index<I> for [T] {
     /// bounds, so `#[no_panic]` is sound under the `in_bounds` precondition.
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/slice/index.rs#L15
     #[no_panic]
-    #[sig(fn(&Self[@len], {I[@idx] | <Self as ops::Index<I>>::in_bounds(len, idx)}) -> &I::Output{out: <I as SliceIndex<[T]>>::output_pred(idx, len, out)})]
+    #[sig(fn(&Self[@len], {I[@idx] | Self::in_bounds(len, idx)}) -> &I::Output{out: I::output_pred(idx, len, out)})]
     fn index(&self, index: I) -> &I::Output;
 }
 
