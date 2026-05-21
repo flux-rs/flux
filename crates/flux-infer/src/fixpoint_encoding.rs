@@ -319,11 +319,14 @@ impl SortEncodingCtxt {
             rty::Sort::Char => fixpoint::Sort::Int,
             rty::Sort::BitVec(size) => fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(*size))),
             rty::Sort::RawPtr => {
-                self.declare_tuple(3);
-                let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(3));
+                let arity = rty::RawPtrField::arity();
+                self.declare_tuple(arity);
+                let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(arity));
                 fixpoint::Sort::App(
                     ctor,
-                    vec![fixpoint::Sort::Int, fixpoint::Sort::Int, fixpoint::Sort::Int],
+                    rty::RawPtrField::iter()
+                        .map(|field| self.sort_to_fixpoint(&field.sort()))
+                        .collect(),
                 )
             }
 
@@ -1816,8 +1819,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     fixpoint::Var::DataProj { adt_id, field }
                 }
                 rty::FieldProj::RawPtr { field } => {
-                    scx.declare_tuple(3);
-                    fixpoint::Var::TupleProj { arity: 3, field: field.index() }
+                    let arity = rty::RawPtrField::arity();
+                    scx.declare_tuple(arity);
+                    fixpoint::Var::TupleProj { arity, field: field.index() }
                 }
             };
             let proj = fixpoint::Expr::Var(proj);
@@ -2035,14 +2039,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 })?
             }
             rty::Sort::RawPtr => {
-                let sorts = [rty::Sort::Int, rty::Sort::Int, rty::Sort::Int];
+                let sorts: Vec<_> = rty::RawPtrField::iter()
+                    .map(rty::RawPtrField::sort)
+                    .collect();
                 self.apply_bin_rel_rec(&sorts, rel, e1, e2, scx, |field| {
-                    let field = match field {
-                        0 => rty::RawPtrField::Base,
-                        1 => rty::RawPtrField::Addr,
-                        2 => rty::RawPtrField::Size,
-                        _ => unreachable!(),
-                    };
+                    let field = rty::RawPtrField::from_index(field).unwrap();
                     rty::FieldProj::RawPtr { field }
                 })?
             }

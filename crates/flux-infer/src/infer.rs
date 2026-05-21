@@ -1133,12 +1133,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             }
             (_, ExprKind::Ctor(Ctor::RawPtr, flds_b)) => {
                 for (f, b) in flds_b.iter().enumerate() {
-                    let field = match f {
-                        0 => rty::RawPtrField::Base,
-                        1 => rty::RawPtrField::Addr,
-                        2 => rty::RawPtrField::Size,
-                        _ => unreachable!(),
-                    };
+                    let field = rty::RawPtrField::from_index(f as u32).unwrap();
                     let a = a.proj_and_reduce(FieldProj::RawPtr { field });
                     self.idxs_eq(infcx, &a, b);
                 }
@@ -1163,12 +1158,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             (ExprKind::Ctor(Ctor::RawPtr, flds_a), _) => {
                 infcx.unify_exprs(a, b);
                 for (f, a) in flds_a.iter().enumerate() {
-                    let field = match f {
-                        0 => rty::RawPtrField::Base,
-                        1 => rty::RawPtrField::Addr,
-                        2 => rty::RawPtrField::Size,
-                        _ => unreachable!(),
-                    };
+                    let field = rty::RawPtrField::from_index(f as u32).unwrap();
                     let b = b.proj_and_reduce(FieldProj::RawPtr { field });
                     self.idxs_eq(infcx, a, &b);
                 }

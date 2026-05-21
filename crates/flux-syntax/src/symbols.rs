@@ -23,6 +23,8 @@ symbols! {
     Symbols {
         Map,
         Set,
+        addr,
+        base,
         int,
         no_panic,
         no_panic_if,

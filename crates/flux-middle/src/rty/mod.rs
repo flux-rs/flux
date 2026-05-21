@@ -1074,7 +1074,7 @@ impl Sort {
 
     pub fn field_sorts(&self) -> Option<List<Sort>> {
         match self {
-            Sort::RawPtr => Some(List::from_arr([Sort::Int, Sort::Int, Sort::Int])),
+            Sort::RawPtr => Some(RawPtrField::iter().map(RawPtrField::sort).collect()),
             Sort::App(SortCtor::Adt(sort_def), args) if sort_def.is_struct() => {
                 Some(sort_def.struct_variant().field_sorts(args))
             }
@@ -1152,11 +1152,8 @@ impl Sort {
                     }
                 }
                 Sort::RawPtr => {
-                    for (field, sort) in [
-                        (RawPtrField::Base, Sort::Int),
-                        (RawPtrField::Addr, Sort::Int),
-                        (RawPtrField::Size, Sort::Int),
-                    ] {
+                    for field in RawPtrField::iter() {
+                        let sort = field.sort();
                         proj.push(FieldProj::RawPtr { field });
                         go(&sort, f, proj);
                         proj.pop();

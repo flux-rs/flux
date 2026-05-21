@@ -8,6 +8,7 @@ use flux_rustc_bridge::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
     ty::{Const, ConstKind, ValTree, VariantIdx},
 };
+use flux_syntax::symbols::sym;
 use itertools::Itertools;
 use liquid_fixpoint::ThyFunc;
 use rustc_abi::{FIRST_VARIANT, FieldIdx};
@@ -715,28 +716,14 @@ pub enum Ctor {
 }
 
 impl Ctor {
-    pub fn def_id(&self) -> DefId {
-        match self {
-            Self::Struct(def_id) | Self::Enum(def_id, _) => *def_id,
-            Self::RawPtr => bug!("raw pointer constructor does not have a def id"),
-        }
-    }
-
-    pub fn variant_idx(&self) -> VariantIdx {
-        match self {
-            Self::Struct(_) => FIRST_VARIANT,
-            Self::Enum(_, variant_idx) => *variant_idx,
-            Self::RawPtr => FIRST_VARIANT,
-        }
-    }
-
     fn is_enum(&self) -> bool {
         matches!(self, Self::Enum(..))
     }
 
-    pub fn opt_def_id(&self) -> Option<DefId> {
+    pub fn def_id_and_variant(&self) -> Option<(DefId, VariantIdx)> {
         match self {
-            Self::Struct(def_id) | Self::Enum(def_id, _) => Some(*def_id),
+            Self::Struct(def_id) => Some((*def_id, FIRST_VARIANT)),
+            Self::Enum(def_id, variant_idx) => Some((*def_id, *variant_idx)),
             Self::RawPtr => None,
         }
     }
@@ -859,6 +846,13 @@ pub enum RawPtrField {
     Size,
 }
 
+struct RawPtrFieldData {
+    field: RawPtrField,
+    index: u32,
+    name: &'static str,
+    sort: Sort,
+}
+
 impl FieldProj {
     pub fn arity(&self, genv: GlobalEnv) -> QueryResult<usize> {
         match self {
@@ -866,7 +860,7 @@ impl FieldProj {
             FieldProj::Adt { def_id, .. } => {
                 Ok(genv.adt_sort_def_of(*def_id)?.struct_variant().fields())
             }
-            FieldProj::RawPtr { .. } => Ok(3),
+            FieldProj::RawPtr { .. } => Ok(RawPtrField::arity()),
         }
     }
 
@@ -879,28 +873,55 @@ impl FieldProj {
 }
 
 impl RawPtrField {
+    const DATA: [RawPtrFieldData; 3] = [
+        RawPtrFieldData { field: Self::Base, index: 0, name: "base", sort: Sort::Int },
+        RawPtrFieldData { field: Self::Addr, index: 1, name: "addr", sort: Sort::Int },
+        RawPtrFieldData { field: Self::Size, index: 2, name: "size", sort: Sort::Int },
+    ];
+
+    pub fn iter() -> impl ExactSizeIterator<Item = Self> {
+        Self::DATA.iter().map(|data| data.field)
+    }
+
+    pub fn arity() -> usize {
+        Self::DATA.len()
+    }
+
+    fn data(self) -> &'static RawPtrFieldData {
+        Self::DATA.iter().find(|data| data.field == self).unwrap()
+    }
+
     pub fn from_name(name: Symbol) -> Option<Self> {
-        match name.as_str() {
-            "base" => Some(RawPtrField::Base),
-            "addr" => Some(RawPtrField::Addr),
-            "size" => Some(RawPtrField::Size),
-            _ => None,
-        }
+        Self::DATA
+            .iter()
+            .find(|data| data.name == name.as_str())
+            .map(|data| data.field)
+    }
+
+    pub fn from_index(index: u32) -> Option<Self> {
+        Self::DATA
+            .iter()
+            .find(|data| data.index == index)
+            .map(|data| data.field)
+    }
+
+    pub fn sort(self) -> Sort {
+        self.data().sort.clone()
     }
 
     pub fn index(self) -> u32 {
-        match self {
-            RawPtrField::Base => 0,
-            RawPtrField::Addr => 1,
-            RawPtrField::Size => 2,
-        }
+        self.data().index
     }
 
     pub fn name(self) -> &'static str {
+        self.data().name
+    }
+
+    pub fn symbol(self) -> Symbol {
         match self {
-            RawPtrField::Base => "base",
-            RawPtrField::Addr => "addr",
-            RawPtrField::Size => "size",
+            Self::Base => sym::base,
+            Self::Addr => sym::addr,
+            Self::Size => rustc_span::sym::size,
         }
     }
 }
@@ -1536,21 +1557,18 @@ pub(crate) mod pretty {
                 }
                 ExprKind::Ctor(ctor, flds) => {
                     if matches!(ctor, Ctor::RawPtr) {
-                        let fields = iter::zip(
-                            [
-                                Symbol::intern("base"),
-                                Symbol::intern("addr"),
-                                Symbol::intern("size"),
-                            ],
-                            flds,
-                        )
-                        .map(|(name, value)| FieldBind { name, value: value.clone() })
-                        .collect_vec();
+                        let fields = iter::zip(RawPtrField::iter(), flds)
+                            .map(|(field, value)| {
+                                FieldBind { name: field.symbol(), value: value.clone() }
+                            })
+                            .collect_vec();
                         return w!(cx, f, "ptr {{ {:?} }}", join!(", ", fields));
                     }
-                    let def_id = ctor.def_id();
+                    let Some((def_id, variant_idx)) = ctor.def_id_and_variant() else {
+                        unreachable!()
+                    };
                     if let Some(adt_sort_def) = cx.adt_sort_def_of(def_id) {
-                        let variant = adt_sort_def.variant(ctor.variant_idx()).field_names();
+                        let variant = adt_sort_def.variant(variant_idx).field_names();
                         let fields = iter::zip(variant, flds)
                             .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
                             .collect_vec();
@@ -1819,7 +1837,6 @@ pub(crate) mod pretty {
         flds: &[Expr],
         is_named: bool,
     ) -> Result<NestedString, fmt::Error> {
-        let def_id = ctor.opt_def_id();
         let mut text =
             if is_named && ctor.is_enum() { format_cx!(cx, "{:?}", ctor) } else { "".to_string() };
         if flds.is_empty() {
@@ -1830,17 +1847,19 @@ pub(crate) mod pretty {
             text += &flds[0].fmt_nested(cx)?.text;
             Ok(NestedString { text, children: None, key: None })
         } else {
-            let keys = if let Some(def_id) = def_id
+            let keys = if let Some((def_id, variant_idx)) = ctor.def_id_and_variant()
                 && let Some(adt_sort_def) = cx.adt_sort_def_of(def_id)
             {
                 adt_sort_def
-                    .variant(ctor.variant_idx())
+                    .variant(variant_idx)
                     .field_names()
                     .iter()
                     .map(|name| format!("{name}"))
                     .collect_vec()
             } else if matches!(ctor, Ctor::RawPtr) {
-                vec!["base".to_string(), "addr".to_string(), "size".to_string()]
+                RawPtrField::iter()
+                    .map(|field| field.name().to_string())
+                    .collect_vec()
             } else {
                 (0..flds.len()).map(|i| format!("arg{i}")).collect_vec()
             };
