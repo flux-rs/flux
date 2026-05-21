@@ -168,7 +168,7 @@ fn extern_impl_to_tokens(
     let extern_item_impl = extern_item_impl; // no more mutation
 
     let self_ty = &extern_item_impl.self_ty;
-    let (impl_generics, ty_generics, _where_clause) = &extern_item_impl.generics.split_for_impl();
+    let (impl_generics, ty_generics, where_clause) = &extern_item_impl.generics.split_for_impl();
 
     let dummy_ident = &extern_item_impl.dummy_ident;
     let mut fields = generic_params_to_fields(&extern_item_impl.generics.params);
@@ -176,7 +176,7 @@ fn extern_impl_to_tokens(
 
     let dummy_impl = if let Some((_, trait_, _)) = &extern_item_impl.trait_ {
         Some(quote!(
-            impl #impl_generics #dummy_ident #ty_generics {
+            impl #impl_generics #dummy_ident #ty_generics #where_clause {
                 fn __flux_extern_extract_impl_id() where #self_ty: #trait_ {}
             }
         ))
@@ -190,7 +190,7 @@ fn extern_impl_to_tokens(
         const _: () = {
             #mod_use
 
-            struct #dummy_ident #impl_generics ( #fields );
+            struct #dummy_ident #impl_generics ( #fields ) #where_clause;
 
             #dummy_impl
 
