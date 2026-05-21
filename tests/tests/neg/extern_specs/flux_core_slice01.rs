@@ -20,17 +20,20 @@ fn create_range_from(arr: &[u8]) {
 #[flux_rs::sig(fn(&[u8]{n: n >= 4}))]
 fn access_range(arr: &[u8]) {
     let s = &arr[2..4];
+    flux_rs::assert(s.len() == 2);
     let _ = s[2]; //~ ERROR assertion might fail
 }
 
 #[flux_rs::sig(fn(&[u8]{n: n >= 4}))]
 fn access_range_to(arr: &[u8]) {
     let s = &arr[..3];
+    flux_rs::assert(s.len() == 3);
     let _ = s[3]; //~ ERROR assertion might fail
 }
 
 #[flux_rs::sig(fn(&[u8]{n: n >= 4}))]
 fn access_range_from(arr: &[u8]) {
     let s = &arr[2..];
+    flux_rs::assert(s.len() == arr.len() - 2);
     let _ = s[2]; //~ ERROR assertion might fail
 }
