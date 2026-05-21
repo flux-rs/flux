@@ -8,3 +8,10 @@ struct Range<Idx> {
     #[field(Idx[end])]
     end: Idx,
 }
+
+#[extern_spec(core::ops)]
+#[refined_by(start: Idx)]
+struct RangeFrom<Idx> {
+    #[field(Idx[start])]
+    start: Idx,
+}
