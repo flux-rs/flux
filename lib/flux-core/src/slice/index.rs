@@ -3,14 +3,20 @@ use core::ops;
 
 use flux_attrs::*;
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+/// Extern Specs for `ops::Index` which delegate to SliceIndex::index //////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 #[extern_spec(core::slice)]
 impl<T, I: SliceIndex<[T]>> ops::Index<I> for [T] {
     #![assoc(
         fn in_bounds(len: int, idx: I) -> bool {
             <I as SliceIndex<[T]>>::in_bounds(idx, len)
         }
+        fn output_pred(len: int, idx: I, out: <I as SliceIndex<[T]>>::Output) -> bool {
+            <I as SliceIndex<[T]>>::output_pred(idx, len, out)
+        }
     )]
-
     /// Delegates to `SliceIndex::index`, documented as panicking iff out of
     /// bounds, so `#[no_panic]` is sound under the `in_bounds` precondition.
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/slice/index.rs#L15
@@ -19,6 +25,8 @@ impl<T, I: SliceIndex<[T]>> ops::Index<I> for [T] {
     fn index(&self, index: I) -> &I::Output;
 }
 
+/// Extern Specs for `ops::IndexMut` which delegate to SliceIndex::index
+
 #[extern_spec(core::slice)]
 impl<T, I: SliceIndex<[T]>> ops::IndexMut<I> for [T] {
     /// See `index`. Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/slice/index.rs#L26
@@ -26,6 +34,10 @@ impl<T, I: SliceIndex<[T]>> ops::IndexMut<I> for [T] {
     #[sig(fn(&mut Self[@len], {I[@idx] | <Self as ops::Index<I>>::in_bounds(len, idx)}) -> &mut I::Output{out: <I as SliceIndex<[T]>>::output_pred(idx, len, out)})]
     fn index_mut(&mut self, index: I) -> &mut I::Output;
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+/// Extern Specs for SliceIndex::index /////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[extern_spec(core::slice)]
 #[flux::assoc(fn in_bounds(idx: Self, v: T) -> bool)]
