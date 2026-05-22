@@ -1209,13 +1209,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         path: &surface::Path,
         res: fhir::Res<!>,
     ) -> fhir::ConstArgKind {
-        let kind = if let Res::Def(DefKind::ConstParam, def_id) = res {
+        if let Res::Def(DefKind::ConstParam, def_id) = res {
             fhir::ConstArgKind::Param(def_id)
         } else {
             self.emit(errors::UnsupportedConstGenericArg::new(path.span, res.descr()));
             fhir::ConstArgKind::Infer
-        };
-        kind
+        }
     }
 
     /// This is the mega desugaring function [`surface::Ty`] -> [`fhir::Ty`].
