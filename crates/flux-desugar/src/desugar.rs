@@ -1200,13 +1200,22 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         path: &surface::Path,
         res: fhir::Res<!>,
     ) -> fhir::GenericArg<'genv> {
+        let kind = self.desugar_const_path_to_const_arg_kind(path, res);
+        fhir::GenericArg::Const(fhir::ConstArg { kind, span: path.span })
+    }
+
+    fn desugar_const_path_to_const_arg_kind(
+        &mut self,
+        path: &surface::Path,
+        res: fhir::Res<!>,
+    ) -> fhir::ConstArgKind {
         let kind = if let Res::Def(DefKind::ConstParam, def_id) = res {
             fhir::ConstArgKind::Param(def_id)
         } else {
             self.emit(errors::UnsupportedConstGenericArg::new(path.span, res.descr()));
             fhir::ConstArgKind::Infer
         };
-        fhir::GenericArg::Const(fhir::ConstArg { kind, span: path.span })
+        kind
     }
 
     /// This is the mega desugaring function [`surface::Ty`] -> [`fhir::Ty`].
@@ -1289,7 +1298,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
             surface::TyKind::Array(ty, len) => {
                 let ty = self.desugar_ty(ty);
-                let len = Self::desugar_const_arg(len);
+                let len = self.desugar_const_arg(len);
                 fhir::TyKind::Array(self.genv().alloc(ty), len)
             }
             surface::TyKind::ImplTrait(_, bounds) => self.desugar_impl_trait(bounds),
@@ -1298,9 +1307,15 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         fhir::Ty { kind, span }
     }
 
-    fn desugar_const_arg(const_arg: &surface::ConstArg) -> fhir::ConstArg {
-        let kind = match const_arg.kind {
-            surface::ConstArgKind::Lit(val) => fhir::ConstArgKind::Lit(val),
+    fn desugar_const_arg(&mut self, const_arg: &surface::ConstArg) -> fhir::ConstArg {
+        let kind = match &const_arg.kind {
+            surface::ConstArgKind::Lit(val) => fhir::ConstArgKind::Lit(*val),
+            surface::ConstArgKind::Path(path) => {
+                let res = self.resolver_output().path_res_map[&path.node_id]
+                    .full_res()
+                    .unwrap_or(Res::Err);
+                self.desugar_const_path_to_const_arg_kind(path, res)
+            }
             surface::ConstArgKind::Infer => fhir::ConstArgKind::Infer,
         };
         fhir::ConstArg { kind, span: const_arg.span }

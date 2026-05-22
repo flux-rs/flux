@@ -832,6 +832,13 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
         surface::visit::walk_generic_arg(self, arg);
     }
 
+    fn visit_const_arg(&mut self, const_arg: &surface::ConstArg) {
+        if let surface::ConstArgKind::Path(path) = &const_arg.kind {
+            self.resolve_path_in(path, ValueNS);
+            surface::visit::walk_path(self, path);
+        }
+    }
+
     fn visit_path(&mut self, path: &surface::Path) {
         self.resolve_type_path(path);
         surface::visit::walk_path(self, path);
