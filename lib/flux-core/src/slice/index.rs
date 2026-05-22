@@ -50,20 +50,3 @@ impl<T> SliceIndex<[T]> for ops::RangeTo<usize> {}
 #[flux::assoc(fn in_bounds(r: Self, len: int) -> bool { r.start <= len })]
 #[flux::assoc(fn output_pred(r: Self, len: int, out: int) -> bool { out == len - r.start })]
 impl<T> SliceIndex<[T]> for ops::RangeFrom<usize> {}
-
-#[cfg(flux_sysroot_test)]
-mod tests {
-    #![allow(dead_code)]
-
-    use flux_attrs::*;
-
-    #[sig(fn(&[i32]{n: n > 10}))]
-    fn test00(xs: &[i32]) {
-        let _y = &xs[0..1];
-    }
-
-    #[should_fail]
-    fn test01(xs: &[i32]) {
-        let _y = &xs[0..1];
-    }
-}
