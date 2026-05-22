@@ -38,7 +38,7 @@ xflags::xflags! {
         cmd run {
             /// Input file
             required input: PathBuf
-            /// Extra options to pass to the `flux` binary, e.g. `cargo x run file.rs -- -Zdump-mir=renumber`
+            /// Extra options to pass to the `flux` binary, e.g., `cargo x run file.rs -- -Zdump-mir=renumber`
             repeated opts: String
             /// Do not build Flux libs for extern specs
             optional --no-extern-specs
@@ -480,6 +480,7 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
         .env(FLUX_SYSROOT, &config.dst)
         .run_with_cargo_metadata()?;
     copy_artifacts(&artifacts, &config.dst)?;
+    write_sysroot_toml(&artifacts, &config.dst)?;
     Ok(())
 }
 
@@ -520,6 +521,39 @@ fn copy_artifact(filename: &Utf8Path, dst: &Path) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn write_sysroot_toml(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<()> {
+    let mut entries: Vec<(String, String)> = vec![];
+
+    for artifact in artifacts {
+        let Some(lib) = [FluxLib::FluxCore, FluxLib::FluxAlloc]
+            .iter()
+            .find(|lib| artifact.target.name == lib.target_name())
+        else {
+            continue;
+        };
+        for filename in &artifact.filenames {
+            if filename.extension() == Some("rmeta") {
+                let rmeta_name = filename.file_name().unwrap().to_string();
+                entries.push((lib.target_name().to_string(), rmeta_name));
+                break;
+            }
+        }
+    }
+
+    if entries.is_empty() {
+        return Ok(());
+    }
+
+    let mut content = String::from("[extern_specs]\n");
+    for (key, value) in &entries {
+        content.push_str(&format!("{key} = \"{value}\"\n"));
+    }
+
+    let path = sysroot.join("sysroot.toml");
+    eprintln!("$ write {}", path.display());
+    fs::write(&path, &content).map_err(|e| anyhow!("failed to write `{}`: {e}", path.display()))
 }
 
 impl Install {
