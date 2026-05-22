@@ -7895,6 +7895,13 @@ pub fn test6(c: char) {
     flux_rs::assert(c &lt;= 0x10FFFF); // (0)
     let c = c | 1;
     flux_rs::assert(c &lt;= 0x10FFFF); // (1)
+}
+
+#[spec(fn (b:bool) -&gt; usize{v: v &lt;= 7})]
+pub fn test7(b: bool) -&gt; usize {
+    let n: usize = 10;
+    let m = if b { n &amp; 7 } else { 6 };
+    m
 }</code></pre>
 <h2 id="casting-sorts"><a class="header" href="#casting-sorts">Casting Sorts</a></h2>
 <p>You can convert refinements of different sorts -- e.g. <code>int</code> to <code>char</code> or <code>int</code> to <code>bool</code> --
