@@ -1,4 +1,4 @@
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "odd cast to slice shenanigans")]
 #[flux_rs::spec(fn (&[T; N]) -> usize[N])]
 pub fn my_size<T, const N: usize>(arr: &[T; N]) -> usize {
     arr.len()
