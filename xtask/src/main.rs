@@ -1,7 +1,6 @@
 #![feature(variant_count)]
 
 use std::{
-    ffi::OsStr,
     fs, io,
     mem::variant_count,
     path::{Path, PathBuf},
@@ -13,7 +12,7 @@ use cargo_metadata::{
     camino::{Utf8Path, Utf8PathBuf},
     Artifact, Message, TargetKind,
 };
-use tests::{FLUX_SYSROOT, FLUX_SYSROOT_TEST};
+use tests::FLUX_SYSROOT;
 
 xflags::xflags! {
     cmd xtask {
@@ -26,8 +25,6 @@ xflags::xflags! {
         cmd test {
             /// Only run tests containing `filter` as a substring.
             optional filter: String
-            /// Do not check tests in Flux libs.
-            optional --no-lib-tests
         }
         /// Run lean benchmarks: emit lean files for each test in tests/pos/
         cmd lean-bench {
@@ -123,7 +120,7 @@ fn main() -> anyhow::Result<()> {
                 profile: Profile::Dev,
                 rust_fixpoint: cmd.rust_fixpoint,
                 dst: local_sysroot_dir()?,
-                build_libs: BuildLibs { force: true, tests: true, libs: FluxLib::ALL },
+                build_libs: BuildLibs { force: true, libs: FluxLib::ALL },
             };
             install_sysroot(&config)?;
             Ok(())
@@ -138,7 +135,7 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
         profile: Profile::Dev,
         rust_fixpoint,
         dst: local_sysroot_dir()?,
-        build_libs: BuildLibs { force: false, tests: !args.no_lib_tests, libs: FluxLib::ALL },
+        build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
     };
     let flux = build_binary("flux", config.profile, false)?;
     install_sysroot(&config)?;
@@ -160,7 +157,7 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         profile: Profile::Dev,
         rust_fixpoint,
         dst: local_sysroot_dir()?,
-        build_libs: BuildLibs { force: false, tests: false, libs: FluxLib::ALL },
+        build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
     };
     install_sysroot(&config)?;
     let flux = build_binary("flux", config.profile, false)?;
@@ -285,7 +282,7 @@ fn run(args: Run, rust_fixpoint: bool) -> anyhow::Result<()> {
     let libs = if args.no_extern_specs { &[FluxLib::FluxRs] } else { FluxLib::ALL };
     run_inner(
         args.input,
-        BuildLibs { force: false, tests: false, libs },
+        BuildLibs { force: false, libs },
         ["-Ztrack-diagnostics=y".to_string()]
             .into_iter()
             .chain(args.opts),
@@ -297,7 +294,7 @@ fn run(args: Run, rust_fixpoint: bool) -> anyhow::Result<()> {
 fn expand(args: Expand) -> Result<(), anyhow::Error> {
     run_inner(
         args.input,
-        BuildLibs { force: false, tests: false, libs: &[FluxLib::FluxRs] },
+        BuildLibs { force: false, libs: &[FluxLib::FluxRs] },
         ["-Zunpretty=expanded".to_string()],
         false,
     )?;
@@ -336,7 +333,7 @@ fn install(args: &Install, extra: &[&str], rust_fixpoint: bool) -> anyhow::Resul
         profile: args.profile(),
         rust_fixpoint,
         dst: default_sysroot_dir(),
-        build_libs: BuildLibs { force: false, tests: false, libs },
+        build_libs: BuildLibs { force: false, libs },
     };
     install_sysroot(&config)?;
     Command::new("cargo")
@@ -389,8 +386,6 @@ struct SysrootConfig {
 struct BuildLibs {
     /// If true, forces a clean build.
     force: bool,
-    /// If is true, run library tests.
-    tests: bool,
     /// List of libraries to install
     libs: &'static [FluxLib],
 }
@@ -459,7 +454,6 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
                 .flat_map(|lib| ["-p", lib.package_name()]),
         )
         .env(FLUX_SYSROOT, &config.dst)
-        .env_if(config.build_libs.tests, FLUX_SYSROOT_TEST, "1")
         .run_with_cargo_metadata()?;
 
     copy_artifacts(&artifacts, &config.dst)?;
@@ -584,10 +578,6 @@ fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(src: S, dst: D) -> anyhow::Result<(
 trait CommandExt {
     fn map_opt<T>(&mut self, b: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self;
     fn run(&mut self) -> anyhow::Result<()>;
-    fn env_if<K, V>(&mut self, b: bool, k: K, v: V) -> &mut Self
-    where
-        K: AsRef<OsStr>,
-        V: AsRef<OsStr>;
     fn run_with_cargo_metadata(&mut self) -> anyhow::Result<Vec<Artifact>>;
 }
 
@@ -595,17 +585,6 @@ impl CommandExt for Command {
     fn map_opt<T>(&mut self, opt: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self {
         if let Some(v) = opt {
             f(v, self);
-        }
-        self
-    }
-
-    fn env_if<K, V>(&mut self, b: bool, k: K, v: V) -> &mut Self
-    where
-        K: AsRef<OsStr>,
-        V: AsRef<OsStr>,
-    {
-        if b {
-            self.env(k, v);
         }
         self
     }

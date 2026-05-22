@@ -219,3 +219,11 @@ pub fn test_split_at_checked_lengths(xs: &[i32], mid: usize) {
         assert(right.len() == n - mid);
     }
 }
+
+// --- Range index ---
+
+pub fn test_range_index_in_bounds(xs: &[i32]) {
+    if xs.len() > 10 {
+        let _y = &xs[0..1];
+    }
+}
