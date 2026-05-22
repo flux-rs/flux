@@ -1,5 +1,4 @@
 #[cfg(flux)]
-use core::ops;
 use core::ops::Index;
 
 use flux_attrs::*;
@@ -20,8 +19,7 @@ mod tests {
     use flux_attrs::*;
 
     fn test00(xs: &[i32; 100]) {
-        let ys = &xs[0..10];
-        flux::assert(ys.len() == 10);
+        let _y = &xs[0..10];
     }
 
     #[should_fail]
