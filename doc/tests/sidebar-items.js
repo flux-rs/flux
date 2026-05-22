@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["FLUX_SYSROOT","FLUX_SYSROOT_TEST"],"fn":["default_flags"]};
+window.SIDEBAR_ITEMS = {"constant":["FLUX_SYSROOT"],"fn":["default_flags"]};
