@@ -8,12 +8,12 @@
 use rustc_span::symbol::Ident;
 
 use super::{
-    Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg, Ensures, EnumDef,
-    Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig,
-    GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, ItemKind,
-    Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef,
-    Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
-    WhereBoundPredicate,
+    Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstArgKind, ConstantInfo, ConstructorArg,
+    Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput,
+    FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft,
+    Indices, ItemKind, Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath,
+    SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef,
+    VariantRet, WhereBoundPredicate,
 };
 use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn};
 
@@ -172,7 +172,9 @@ pub trait Visitor: Sized {
         walk_ty(self, ty);
     }
 
-    fn visit_const_arg(&mut self, _const_arg: &ConstArg) {}
+    fn visit_const_arg(&mut self, const_arg: &ConstArg) {
+        walk_const_arg(self, const_arg);
+    }
 
     fn visit_bty(&mut self, bty: &BaseTy) {
         walk_bty(self, bty);
@@ -515,6 +517,7 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
             vis.visit_indices(indices);
             vis.visit_bty(bty);
         }
+
         TyKind::Exists { bind, bty, pred } => {
             vis.visit_ident(*bind);
             vis.visit_bty(bty);
@@ -545,6 +548,12 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
             walk_list!(vis, visit_trait_ref, trait_ref);
         }
         TyKind::Hole => {}
+    }
+}
+
+pub fn walk_const_arg<V: Visitor>(vis: &mut V, const_arg: &ConstArg) {
+    if let ConstArgKind::Path(path) = &const_arg.kind {
+        vis.visit_path(path);
     }
 }
 

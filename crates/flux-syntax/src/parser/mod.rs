@@ -1207,6 +1207,8 @@ fn parse_const_arg(cx: &mut ParseCtxt) -> ParseResult<ConstArg> {
     let kind = if lookahead.peek(AnyLit) {
         let len = parse_int(cx)?;
         ConstArgKind::Lit(len)
+    } else if lookahead.peek(NonReserved) {
+        ConstArgKind::Path(parse_path(cx)?)
     } else if lookahead.advance_if(kw::Underscore) {
         ConstArgKind::Infer
     } else {

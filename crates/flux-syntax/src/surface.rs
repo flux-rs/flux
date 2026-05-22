@@ -536,15 +536,16 @@ pub enum BaseTyKind {
     Ptr(Mutability, Box<Ty>),
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+#[derive(Debug)]
 pub struct ConstArg {
     pub kind: ConstArgKind,
     pub span: Span,
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+#[derive(Debug)]
 pub enum ConstArgKind {
     Lit(usize),
+    Path(Path),
     Infer,
 }
 

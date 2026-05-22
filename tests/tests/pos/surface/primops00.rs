@@ -72,3 +72,10 @@ pub fn test6(c: char) {
     let c = c | 1;
     flux_rs::assert(c <= 0x10FFFF); // (1)
 }
+
+#[spec(fn (b:bool) -> usize{v: v <= 7})]
+pub fn test7(b: bool) -> usize {
+    let n: usize = 10;
+    let m = if b { n & 7 } else { 6 };
+    m
+}
