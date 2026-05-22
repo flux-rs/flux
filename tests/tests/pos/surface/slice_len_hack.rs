@@ -1,6 +1,5 @@
 use flux_rs::{assert, attrs::*};
 extern crate flux_core;
-use std::ops::Index;
 
 pub fn silly_slice(_src: &mut [i32]) -> usize {
     12

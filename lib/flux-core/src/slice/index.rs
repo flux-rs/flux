@@ -13,8 +13,6 @@ impl<T, I: SliceIndex<[T]>> ops::Index<I> for [T] {
         fn in_bounds(len: int, idx: I) -> bool {
             <I as SliceIndex<[T]>>::in_bounds(idx, len)
         }
-    )]
-    #![assoc(
         fn output_pred(len: int, idx: I, out: <I as SliceIndex<[T]>>::Output) -> bool {
             <I as SliceIndex<[T]>>::output_pred(idx, len, out)
         }
