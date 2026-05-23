@@ -95,11 +95,11 @@ fn main() -> anyhow::Result<()> {
     let cmd = match Xtask::from_env() {
         Ok(cmd) => cmd,
         Err(err) => {
-            println!("{}", Xtask::HELP_);
             if err.is_help() {
+                println!("{}", Xtask::HELP_);
                 std::process::exit(0);
             } else {
-                println!("{}", Xtask::HELP_);
+                eprintln!("{err}");
                 std::process::exit(2);
             }
         }
@@ -130,24 +130,46 @@ fn main() -> anyhow::Result<()> {
     }
 }
 
+fn run_tests(
+    flux: &Utf8Path,
+    sysroot: &Path,
+    suite: &str,
+    filter: Option<&str>,
+) -> anyhow::Result<()> {
+    let mut cmd = Command::new("cargo");
+    cmd.args(["test", "-p", "tests", "--"])
+        .args(["--flux", flux.as_str()])
+        .args(["--sysroot".as_ref(), sysroot.as_os_str()])
+        .args(["--suite", suite]);
+    if let Some(filter) = filter {
+        cmd.args(["--filter", filter]);
+    }
+    cmd.run()
+}
+
 fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
+    let dst = local_sysroot_dir()?;
+
+    // Phase 1: flux_attrs only — run basic tests.
     let config = SysrootConfig {
         profile: Profile::Dev,
         rust_fixpoint,
-        dst: local_sysroot_dir()?,
-        build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
+        dst: dst.clone(),
+        build_libs: BuildLibs { force: false, libs: &[FluxLib::FluxAttrs] },
     };
     let flux = build_binary("flux", config.profile, false)?;
     install_sysroot(&config)?;
+    run_tests(&flux, &dst, "basic", args.filter.as_deref())?;
 
-    Command::new("cargo")
-        .args(["test", "-p", "tests", "--"])
-        .args(["--flux", flux.as_str()])
-        .args(["--sysroot".as_ref(), config.dst.as_os_str()])
-        .map_opt(args.filter.as_ref(), |filter, cmd| {
-            cmd.args(["--filter", filter]);
-        })
-        .run()
+    // Phase 2: full sysroot — run tests with deps (with_deps/).
+    let config = SysrootConfig {
+        profile: Profile::Dev,
+        rust_fixpoint,
+        dst: dst.clone(),
+        build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
+    };
+    install_sysroot(&config)?;
+    run_tests(&flux, &dst, "with-deps", args.filter.as_deref())
 }
 
 fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
@@ -443,9 +465,8 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
             .env(FLUX_SYSROOT, &config.dst)
             .run()?;
     }
-
-    let artifacts = Command::new(cargo_flux)
-        .arg("flux")
+    let artifacts = Command::new(&cargo_flux)
+        .args(["flux", "build"])
         .args(
             config
                 .build_libs
@@ -455,7 +476,6 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
         )
         .env(FLUX_SYSROOT, &config.dst)
         .run_with_cargo_metadata()?;
-
     copy_artifacts(&artifacts, &config.dst)?;
     Ok(())
 }
@@ -576,19 +596,11 @@ fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(src: S, dst: D) -> anyhow::Result<(
 }
 
 trait CommandExt {
-    fn map_opt<T>(&mut self, b: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self;
     fn run(&mut self) -> anyhow::Result<()>;
     fn run_with_cargo_metadata(&mut self) -> anyhow::Result<Vec<Artifact>>;
 }
 
 impl CommandExt for Command {
-    fn map_opt<T>(&mut self, opt: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self {
-        if let Some(v) = opt {
-            f(v, self);
-        }
-        self
-    }
-
     fn run(&mut self) -> anyhow::Result<()> {
         display_command(self);
         let mut child = self.spawn()?;

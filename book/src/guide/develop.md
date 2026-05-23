@@ -49,6 +49,20 @@ test [compile-fail] neg/surface/impl_trait02.rs ... ok
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 207 filtered out; finished in 0.09s
 ```
 
+### Test Suites
+
+The test suite is split into two tiers based on what the test requires at compile time.
+
+**Basic tests** (`tests/pos/` and `tests/neg/`) only require `flux_attrs`, the procedural macro
+crate that provides Flux's surface syntax. **Prefer writing tests here whenever possible.**
+A test belongs in the basic suite if it only uses Flux attributes directly, that is, it uses
+`flux_attrs::*` (or `#[flux::*]`) without importing `flux_rs`, `flux_core`, or `flux_alloc`.
+
+**Dependency tests** (`tests/with_deps/pos/` and `tests/with_deps/neg/`) require the full set of
+precompiled Flux libraries (`flux_rs`, `flux_core`, `flux_alloc`). Only place a test here when it
+genuinely needs one of those libraries, for example, when testing extern specs for
+standard-library types or behaviour that relies on the `flux_rs` prelude.
+
 ## Testing Flux on a File
 
 When working on Flux, you may want to test your changes by running it against a test file.

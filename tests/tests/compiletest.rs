@@ -8,10 +8,36 @@ use itertools::Itertools;
 use tests::{FLUX_SYSROOT, default_flags};
 
 #[derive(Debug)]
+enum Suite {
+    /// Run only `pos/` and `neg/` (tier-1, no sysroot libs needed).
+    Basic,
+    /// Run only `with_deps/pos/` and `with_deps/neg/` (tier-2, sysroot libs required).
+    WithDeps,
+}
+
+impl Suite {
+    fn post_tests(&self) -> PathBuf {
+        match self {
+            Suite::Basic => ["tests", "pos"].iter().collect(),
+            Suite::WithDeps => ["tests", "with_deps", "pos"].iter().collect(),
+        }
+    }
+
+    fn neg_tests(&self) -> PathBuf {
+        match self {
+            Suite::Basic => ["tests", "neg"].iter().collect(),
+            Suite::WithDeps => ["tests", "with_deps", "neg"].iter().collect(),
+        }
+    }
+}
+
+#[derive(Debug)]
 struct Args {
     filters: Vec<String>,
     flux: PathBuf,
     sysroot: PathBuf,
+    /// Which subset of test suites to run.
+    suite: Suite,
 }
 
 impl Args {
@@ -19,22 +45,35 @@ impl Args {
         let mut filters = vec![];
         let mut sysroot = None;
         let mut flux = None;
+        let mut suite = None;
         for (arg, val) in env::args().tuple_windows() {
             match &arg[..] {
-                "--filter" => {
-                    filters.push(val);
-                }
+                "--filter" => filters.push(val.clone()),
                 "--flux" => {
                     if flux.is_some() {
                         panic!("option '--flux' given more than once");
                     }
-                    flux = Some(val);
+                    flux = Some(val.clone());
                 }
                 "--sysroot" => {
                     if sysroot.is_some() {
                         panic!("option '--sysroot' given more than once");
                     }
-                    sysroot = Some(val);
+                    sysroot = Some(val.clone());
+                }
+                "--suite" => {
+                    if suite.is_some() {
+                        panic!("option '--suite' given more than once");
+                    }
+                    suite = Some(match val.as_str() {
+                        "basic" => Suite::Basic,
+                        "with-deps" => Suite::WithDeps,
+                        other => {
+                            panic!(
+                                "unknown --suite value: `{other}`; expected `basic` or `with-deps`"
+                            )
+                        }
+                    });
                 }
                 _ => {}
             }
@@ -45,7 +84,10 @@ impl Args {
         let Some(sysroot) = sysroot else {
             panic!("option '--sysroot' must be provided");
         };
-        Args { filters, flux: PathBuf::from(flux), sysroot: PathBuf::from(sysroot) }
+        let Some(suite) = suite else {
+            panic!("option '--suite' must be provided");
+        };
+        Args { filters, flux: PathBuf::from(flux), sysroot: PathBuf::from(sysroot), suite }
     }
 }
 
@@ -74,14 +116,14 @@ fn test_runner(_: &[&()]) {
         env::set_var(FLUX_SYSROOT, args.sysroot);
     }
 
-    let path: PathBuf = ["tests", "pos"].iter().collect();
+    let path = args.suite.post_tests();
     if path.exists() {
         config.mode = Mode::Ui;
         config.src_base = path;
         compiletest_rs::run_tests(&config);
     }
 
-    let path: PathBuf = ["tests", "neg"].iter().collect();
+    let path = args.suite.neg_tests();
     if path.exists() {
         config.mode = Mode::CompileFail;
         config.src_base = path;
