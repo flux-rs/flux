@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["CargoFluxCommand","Cli"],"struct":["CheckOpts","CleanOpts","CompilationOptions","Features","ManifestOptions","Package","Workspace"]};
+window.SIDEBAR_ITEMS = {"enum":["CargoFluxCommand","Cli"],"struct":["CleanOpts","CompilationOptions","CompileOpts","Features","ManifestOptions","Package","Workspace"]};

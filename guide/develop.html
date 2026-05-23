@@ -198,6 +198,16 @@ test [compile-fail] neg/surface/impl_trait02.rs ... ok
 
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 207 filtered out; finished in 0.09s
 </code></pre>
+<h3 id="test-suites"><a class="header" href="#test-suites">Test Suites</a></h3>
+<p>The test suite is split into two tiers based on what the test requires at compile time.</p>
+<p><strong>Basic tests</strong> (<code>tests/pos/</code> and <code>tests/neg/</code>) only require <code>flux_attrs</code>, the procedural macro
+crate that provides Flux's surface syntax. <strong>Prefer writing tests here whenever possible.</strong>
+A test belongs in the basic suite if it only uses Flux attributes directly, that is, it uses
+<code>flux_attrs::*</code> (or <code>#[flux::*]</code>) without importing <code>flux_rs</code>, <code>flux_core</code>, or <code>flux_alloc</code>.</p>
+<p><strong>Dependency tests</strong> (<code>tests/with_deps/pos/</code> and <code>tests/with_deps/neg/</code>) require the full set of
+precompiled Flux libraries (<code>flux_rs</code>, <code>flux_core</code>, <code>flux_alloc</code>). Only place a test here when it
+genuinely needs one of those libraries, for example, when testing extern specs for
+standard-library types or behaviour that relies on the <code>flux_rs</code> prelude.</p>
 <h2 id="testing-flux-on-a-file"><a class="header" href="#testing-flux-on-a-file">Testing Flux on a File</a></h2>
 <p>When working on Flux, you may want to test your changes by running it against a test file.
 You can use <code>cargo xtask run &lt;input&gt;</code> to run Flux on a single input file.
