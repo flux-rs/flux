@@ -106,6 +106,15 @@ pub fn no_panic() -> bool {
     FLAGS.no_panic
 }
 
+pub fn sysroot() -> Option<PathBuf> {
+    if let Some(p) = FLAGS.sysroot.as_deref() {
+        Some(p.to_path_buf())
+    } else {
+        let exe = std::env::current_exe().ok()?;
+        exe.parent().map(|p| p.to_path_buf())
+    }
+}
+
 pub fn smt_define_fun() -> bool {
     FLAGS.smt_define_fun
 }

@@ -67,6 +67,8 @@ pub struct Flags {
     /// If `true`, produce artifacts after analysis. This flag is managed by `cargo flux`, so you
     /// don't typically have to set it manually.
     pub full_compilation: bool,
+    /// Path to the Flux sysroot directory. If not set, the driver infers it from its own binary location.
+    pub sysroot: Option<PathBuf>,
     /// If `true`, all code is trusted by default. You can selectively untrust items by marking them with `#[trusted(no)]`. The default value of this flag is `false`, i.e., all code is untrusted by default.
     pub trusted_default: bool,
     /// If `true`, all code will be ignored by default. You can selectively unignore items by marking them with `#[ignore(no)]`. The default value of this flag is `false`, i.e., all code is unignored by default.
@@ -103,6 +105,7 @@ impl Default for Flags {
             summary: true,
             verify: false,
             full_compilation: false,
+            sysroot: None,
             trusted_default: false,
             ignore_default: false,
             lean: LeanMode::default(),
@@ -144,6 +147,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "include-trusted-impl" => parse_opt_include(&mut trusted_impls, value),
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
+            "sysroot" => parse_opt_path_buf(&mut flags.sysroot, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
             "ignore" => parse_bool(&mut flags.ignore_default, value),
             "lean" => parse_lean_mode(&mut flags.lean, value),
