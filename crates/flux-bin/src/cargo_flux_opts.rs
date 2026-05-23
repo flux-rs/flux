@@ -12,7 +12,7 @@ pub enum Cli {
     /// Flux's integration with Cargo
     Flux {
         #[command(flatten)]
-        check_opts: CheckOpts,
+        check_opts: CompileOpts,
 
         #[command(subcommand)]
         command: Option<CargoFluxCommand>,
@@ -31,7 +31,9 @@ pub enum Cli {
 pub enum CargoFluxCommand {
     /// Check a local package and its dependencies for errors using Flux.
     /// This is the default command when no subcommand is provided.
-    Check(CheckOpts),
+    Check(CompileOpts),
+    /// Compile a local package and its dependencies using Flux.
+    Build(CompileOpts),
     /// Remove artifacts that cargo-flux has generated in the past
     Clean(CleanOpts),
 }
@@ -42,6 +44,10 @@ impl CargoFluxCommand {
             CargoFluxCommand::Check(check_opts) => {
                 cmd.arg("check");
                 check_opts.forward_args(cmd);
+            }
+            CargoFluxCommand::Build(build_opts) => {
+                cmd.arg("build");
+                build_opts.forward_args(cmd);
             }
             CargoFluxCommand::Clean(clean_opts) => {
                 cmd.arg("clean");
@@ -55,7 +61,7 @@ impl CargoFluxCommand {
     pub fn metadata(&self) -> MetadataCommand {
         let mut meta = cargo_metadata::MetadataCommand::new();
         match self {
-            CargoFluxCommand::Check(check_options) => {
+            CargoFluxCommand::Check(check_options) | CargoFluxCommand::Build(check_options) => {
                 check_options.forward_to_metadata(&mut meta);
             }
             CargoFluxCommand::Clean(clean_options) => {
@@ -67,7 +73,7 @@ impl CargoFluxCommand {
 }
 
 #[derive(clap::Args)]
-pub struct CheckOpts {
+pub struct CompileOpts {
     /// Error format [possible values: human, short, json, json-diagnostic-short, json-diagnostic-rendered-ansi, json-render-diagnostics]
     #[arg(long, value_name = "FMT")]
     message_format: Option<String>,
@@ -82,9 +88,9 @@ pub struct CheckOpts {
     manifest: ManifestOptions,
 }
 
-impl CheckOpts {
+impl CompileOpts {
     fn forward_args(&self, cmd: &mut Command) {
-        let CheckOpts { message_format, workspace, features, compilation, manifest } = self;
+        let CompileOpts { message_format, workspace, features, compilation, manifest } = self;
         if let Some(message_format) = &message_format {
             cmd.args(["--message-format", message_format]);
         }
@@ -95,7 +101,7 @@ impl CheckOpts {
     }
 
     fn forward_to_metadata(&self, meta: &mut MetadataCommand) {
-        let CheckOpts { features, manifest, .. } = self;
+        let CompileOpts { features, manifest, .. } = self;
         features.forward_to_metadata(meta);
         manifest.forward_to_metadata(meta);
     }
