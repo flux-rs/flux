@@ -1,5 +1,7 @@
 #[cfg(flux)]
 use core::ops::Index;
+#[cfg(flux)]
+use core::ops::IndexMut;
 
 use flux_attrs::*;
 
@@ -23,19 +25,10 @@ where
 }
 
 #[extern_spec(core::array)]
-impl<T, I, const N: usize> const IndexMut<I> for [T; N]
+impl<T, I, const N: usize> IndexMut<I> for [T; N]
 where
     [T]: IndexMut<I>,
 {
-    #![assoc(
-        fn in_bounds(len: (), idx: I) -> bool {
-            <[T] as Index<I>>::in_bounds(N, idx)
-        }
-
-        fn output_pred(len: (), idx: I, out: <[T] as Index<I>>::Output) -> bool {
-            <[T] as Index<I>>::output_pred(N, idx, out)
-        }
-    )]
-
-    fn index_mut(&mut self, index: I) -> &mut <[T; N] as IndexMut<I>>::Output
+    #[sig(fn(&mut Self, {I[@idx] | <[T] as Index<I>>::in_bounds(N, idx)}) -> &mut <[T; N] as Index<I>>::Output{out: <[T] as Index<I>>::output_pred(N, idx, out)})]
+    fn index_mut(&mut self, index: I) -> &mut <[T; N] as Index<I>>::Output;
 }
