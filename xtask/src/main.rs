@@ -95,11 +95,11 @@ fn main() -> anyhow::Result<()> {
     let cmd = match Xtask::from_env() {
         Ok(cmd) => cmd,
         Err(err) => {
-            println!("{}", Xtask::HELP_);
             if err.is_help() {
+                println!("{}", Xtask::HELP_);
                 std::process::exit(0);
             } else {
-                println!("{}", Xtask::HELP_);
+                eprintln!("{err}");
                 std::process::exit(2);
             }
         }
