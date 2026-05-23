@@ -25,6 +25,7 @@ fn foo<const N: usize>(arr: &[u8; N]) {
 
 #[flux_rs::sig(fn(&mut [u8; N]) requires N >= 4)]
 fn test_mut<const N: usize>(arr: &mut [u8; N]) {
+    let n = arr.len();
     // Range
     let s1 = &mut arr[2..4];
     flux_rs::assert(s1.len() == 2);
@@ -39,7 +40,7 @@ fn test_mut<const N: usize>(arr: &mut [u8; N]) {
 
     // RangeFrom
     let s3 = &mut arr[2..];
-    flux_rs::assert(s3.len() == arr.len() - 2);
+    flux_rs::assert(s3.len() == n - 2);
     s3[0] = 0;
     s3[1] = 0;
 }
