@@ -921,6 +921,43 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         };
 
         let (clauses, fn_clauses) = Clause::split_off_fn_trait_clauses(self.genv, &clauses);
+
+        // DEBUG: Trace the closure call subtyping bug.
+        // When calling a closure via Fn::call, the predicates returned by
+        // `predicates_of(Fn::call)` are EMPTY because the `Self: Fn<Args>` predicate
+        // lives on the parent trait, not on the `call` method directly.
+        // This means `fn_clauses` is empty and `check_fn_trait_clause` is never invoked,
+        // so no function-subtyping constraint is generated to link the actual argument
+        // value (e.g., `0`) to the closure's parameter kvar (`$k0`).
+        if let Some(callee_def_id) = callee_def_id {
+            if genv.is_fn_call(callee_def_id) {
+                eprintln!(
+                    "\n[BUG TRACE] Calling Fn/FnMut/FnOnce method: {:?}",
+                    callee_def_id
+                );
+                eprintln!("[BUG TRACE] actuals (call-site argument types): {:?}", actuals);
+                eprintln!(
+                    "[BUG TRACE] fn_clauses.len() = {} (predicates_of returned {} clauses)",
+                    fn_clauses.len(),
+                    clauses.len()
+                );
+                if fn_clauses.is_empty() {
+                    eprintln!(
+                        "[BUG TRACE] ** BUG: fn_clauses is EMPTY! check_fn_trait_clause will NOT \
+                         be called. The closure's parameter kvars will remain unconstrained. **"
+                    );
+                    eprintln!(
+                        "[BUG TRACE] Root cause: predicates_of({:?}) only returns direct predicates, \
+                         not parent trait predicates. The `Self: Fn<Args>` clause is on the Fn trait \
+                         (parent), not on the `call` method. Therefore split_off_fn_trait_clauses \
+                         finds nothing, and the function subtyping that should connect the actual \
+                         argument to the closure's kvar is never triggered.",
+                        callee_def_id
+                    );
+                }
+            }
+        }
+
         infcx
             .at(span)
             .check_non_closure_clauses(&clauses, ConstrReason::Call)
@@ -1358,6 +1395,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let (upvar_tys, poly_sig) = self
             .closure_template(infcx, env, stmt_span, args, operands)
             .with_span(stmt_span)?;
+
+        // DEBUG: Show the closure template with kvars
+        eprintln!(
+            "\n[BUG TRACE] Closure defined: {:?}, template poly_sig = {:?}",
+            did, poly_sig
+        );
+        eprintln!(
+            "[BUG TRACE] The closure's parameter kvar (e.g. $k0) is created here. \
+             It should later be constrained when the closure is called."
+        );
+
         // (2) Check the closure body against the template
         self.check_closure_body(infcx, did, &upvar_tys, args, &poly_sig)?;
         // (3) "Save" the closure type in the `closures` map
