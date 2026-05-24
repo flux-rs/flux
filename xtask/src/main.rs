@@ -12,7 +12,8 @@ use cargo_metadata::{
     camino::{Utf8Path, Utf8PathBuf},
     Artifact, Message, TargetKind,
 };
-use tests::FLUX_SYSROOT;
+use flux_dev::Suite;
+use flux_sysroot::{default_flux_sysroot_dir, FLUX_SYSROOT};
 
 xflags::xflags! {
     cmd xtask {
@@ -25,6 +26,8 @@ xflags::xflags! {
         cmd test {
             /// Only run tests containing `filter` as a substring.
             optional filter: String
+            /// Run only the named suite(s). May be repeated. If omitted, all suites run.
+            repeated --suite suite: Suite
         }
         /// Run lean benchmarks: emit lean files for each test in tests/pos/
         cmd lean-bench {
@@ -150,26 +153,26 @@ fn run_tests(
 fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
     let dst = local_sysroot_dir()?;
 
-    // Phase 1: flux_attrs only — run basic tests.
-    let config = SysrootConfig {
-        profile: Profile::Dev,
-        rust_fixpoint,
-        dst: dst.clone(),
-        build_libs: BuildLibs { force: false, libs: &[FluxLib::FluxAttrs] },
-    };
-    let flux = build_binary("flux", config.profile, false)?;
-    install_sysroot(&config)?;
-    run_tests(&flux, &dst, "basic", args.filter.as_deref())?;
+    let suites: &[Suite] = if args.suite.is_empty() { Suite::ALL } else { &args.suite };
 
-    // Phase 2: full sysroot — run tests with deps (with_deps/).
-    let config = SysrootConfig {
-        profile: Profile::Dev,
-        rust_fixpoint,
-        dst: dst.clone(),
-        build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
-    };
-    install_sysroot(&config)?;
-    run_tests(&flux, &dst, "with-deps", args.filter.as_deref())
+    // Build the flux binary once; sysroot is rebuilt per-suite below.
+    let flux = build_binary("flux", Profile::Dev, false)?;
+
+    for suite in suites {
+        let libs = match suite {
+            Suite::Basic => &[FluxLib::FluxAttrs],
+            Suite::WithDeps => FluxLib::ALL,
+        };
+        let config = SysrootConfig {
+            profile: Profile::Dev,
+            rust_fixpoint,
+            dst: dst.clone(),
+            build_libs: BuildLibs { force: false, libs },
+        };
+        install_sysroot(&config)?;
+        run_tests(&flux, &dst, suite.name(), args.filter.as_deref())?;
+    }
+    Ok(())
 }
 
 fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
@@ -246,7 +249,7 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         }
 
         // Build rustc flags
-        let mut rustc_flags = tests::default_flags();
+        let mut rustc_flags = flux_dev::default_flags();
         rustc_flags.push("-Flean=emit".to_string());
         rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
 
@@ -339,7 +342,7 @@ fn run_inner(
     install_sysroot(&config)?;
     let flux = build_binary("flux", config.profile, false)?;
 
-    let mut rustc_flags = tests::default_flags();
+    let mut rustc_flags = flux_dev::default_flags();
     rustc_flags.extend(flags);
 
     Command::new(flux)
@@ -354,7 +357,7 @@ fn install(args: &Install, extra: &[&str], rust_fixpoint: bool) -> anyhow::Resul
     let config = SysrootConfig {
         profile: args.profile(),
         rust_fixpoint,
-        dst: default_sysroot_dir(),
+        dst: default_flux_sysroot_dir(),
         build_libs: BuildLibs { force: false, libs },
     };
     install_sysroot(&config)?;
@@ -369,7 +372,7 @@ fn uninstall() -> anyhow::Result<()> {
         .args(["uninstall", "-p", "flux-bin"])
         .run()?;
     eprintln!("$ rm -rf ~/.flux");
-    remove_path(&default_sysroot_dir())?;
+    remove_path(&default_flux_sysroot_dir())?;
     Ok(())
 }
 
@@ -523,12 +526,6 @@ impl Install {
     fn profile(&self) -> Profile {
         self.profile.unwrap_or(Profile::Release)
     }
-}
-
-fn default_sysroot_dir() -> PathBuf {
-    home::home_dir()
-        .expect("Couldn't find home directory")
-        .join(".flux")
 }
 
 fn local_sysroot_dir() -> anyhow::Result<PathBuf> {

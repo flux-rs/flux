@@ -1,35 +1,12 @@
 #![feature(custom_test_frameworks)]
 #![test_runner(test_runner)]
 
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, str::FromStr};
 
 use compiletest_rs::{Config, common::Mode};
+use flux_dev::{Suite, default_flags};
+use flux_sysroot::FLUX_SYSROOT;
 use itertools::Itertools;
-use tests::{FLUX_SYSROOT, default_flags};
-
-#[derive(Debug)]
-enum Suite {
-    /// Run only `pos/` and `neg/` (tier-1, no sysroot libs needed).
-    Basic,
-    /// Run only `with_deps/pos/` and `with_deps/neg/` (tier-2, sysroot libs required).
-    WithDeps,
-}
-
-impl Suite {
-    fn post_tests(&self) -> PathBuf {
-        match self {
-            Suite::Basic => ["tests", "pos"].iter().collect(),
-            Suite::WithDeps => ["tests", "with_deps", "pos"].iter().collect(),
-        }
-    }
-
-    fn neg_tests(&self) -> PathBuf {
-        match self {
-            Suite::Basic => ["tests", "neg"].iter().collect(),
-            Suite::WithDeps => ["tests", "with_deps", "neg"].iter().collect(),
-        }
-    }
-}
 
 #[derive(Debug)]
 struct Args {
@@ -65,15 +42,10 @@ impl Args {
                     if suite.is_some() {
                         panic!("option '--suite' given more than once");
                     }
-                    suite = Some(match val.as_str() {
-                        "basic" => Suite::Basic,
-                        "with-deps" => Suite::WithDeps,
-                        other => {
-                            panic!(
-                                "unknown --suite value: `{other}`; expected `basic` or `with-deps`"
-                            )
-                        }
-                    });
+                    suite = Some(
+                        Suite::from_str(&val)
+                            .unwrap_or_else(|e| panic!("invalid --suite value `{val}`: {e}")),
+                    );
                 }
                 _ => {}
             }
@@ -116,7 +88,7 @@ fn test_runner(_: &[&()]) {
         env::set_var(FLUX_SYSROOT, args.sysroot);
     }
 
-    let path = args.suite.post_tests();
+    let path = args.suite.pos_tests();
     if path.exists() {
         config.mode = Mode::Ui;
         config.src_base = path;
