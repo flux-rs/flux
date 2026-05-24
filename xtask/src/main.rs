@@ -12,6 +12,7 @@ use cargo_metadata::{
     camino::{Utf8Path, Utf8PathBuf},
     Artifact, Message, TargetKind,
 };
+use flux_dev::Suite;
 use flux_sysroot::{default_flux_sysroot_dir, FLUX_SYSROOT};
 
 xflags::xflags! {
@@ -25,6 +26,8 @@ xflags::xflags! {
         cmd test {
             /// Only run tests containing `filter` as a substring.
             optional filter: String
+            /// Run only the named suite(s). May be repeated. If omitted, all suites run.
+            repeated --suite suite: Suite
         }
         /// Run lean benchmarks: emit lean files for each test in tests/pos/
         cmd lean-bench {
@@ -150,26 +153,26 @@ fn run_tests(
 fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
     let dst = local_sysroot_dir()?;
 
-    // Phase 1: flux_attrs only — run basic tests.
-    let config = SysrootConfig {
-        profile: Profile::Dev,
-        rust_fixpoint,
-        dst: dst.clone(),
-        build_libs: BuildLibs { force: false, libs: &[FluxLib::FluxAttrs] },
-    };
-    let flux = build_binary("flux", config.profile, false)?;
-    install_sysroot(&config)?;
-    run_tests(&flux, &dst, "basic", args.filter.as_deref())?;
+    let suites: &[Suite] = if args.suite.is_empty() { Suite::ALL } else { &args.suite };
 
-    // Phase 2: full sysroot — run tests with deps (with_deps/).
-    let config = SysrootConfig {
-        profile: Profile::Dev,
-        rust_fixpoint,
-        dst: dst.clone(),
-        build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
-    };
-    install_sysroot(&config)?;
-    run_tests(&flux, &dst, "with-deps", args.filter.as_deref())
+    // Build the flux binary once; sysroot is rebuilt per-suite below.
+    let flux = build_binary("flux", Profile::Dev, false)?;
+
+    for suite in suites {
+        let libs = match suite {
+            Suite::Basic => &[FluxLib::FluxAttrs],
+            Suite::WithDeps => FluxLib::ALL,
+        };
+        let config = SysrootConfig {
+            profile: Profile::Dev,
+            rust_fixpoint,
+            dst: dst.clone(),
+            build_libs: BuildLibs { force: false, libs },
+        };
+        install_sysroot(&config)?;
+        run_tests(&flux, &dst, suite.name(), args.filter.as_deref())?;
+    }
+    Ok(())
 }
 
 fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
