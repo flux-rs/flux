@@ -469,7 +469,7 @@ dependencies = [
  "clap",
  "config",
  "flux-config",
- "home",
+ "flux-sysroot",
  "itertools 0.14.0",
  "serde",
  "serde_json",
@@ -519,6 +519,10 @@ dependencies = [
  "rustc-hash",
  "tracing",
 ]
+
+[[package]]
+name = "flux-dev"
+version = "0.1.0"
 
 [[package]]
 name = "flux-driver"
@@ -690,6 +694,13 @@ dependencies = [
  "flux-config",
  "flux-macros",
  "rustc-hash",
+]
+
+[[package]]
+name = "flux-sysroot"
+version = "0.1.0"
+dependencies = [
+ "home",
 ]
 
 [[package]]
@@ -1373,6 +1384,8 @@ name = "tests"
 version = "0.1.0"
 dependencies = [
  "compiletest_rs",
+ "flux-dev",
+ "flux-sysroot",
  "itertools 0.14.0",
 ]
 
@@ -1887,8 +1900,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
- "home",
- "tests",
+ "flux-dev",
+ "flux-sysroot",
  "walkdir",
  "xflags",
 ]

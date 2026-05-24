@@ -12,7 +12,7 @@ use cargo_metadata::{
     camino::{Utf8Path, Utf8PathBuf},
     Artifact, Message, TargetKind,
 };
-use tests::FLUX_SYSROOT;
+use flux_sysroot::{default_flux_sysroot_dir, FLUX_SYSROOT};
 
 xflags::xflags! {
     cmd xtask {
@@ -246,7 +246,7 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         }
 
         // Build rustc flags
-        let mut rustc_flags = tests::default_flags();
+        let mut rustc_flags = flux_dev::default_flags();
         rustc_flags.push("-Flean=emit".to_string());
         rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
 
@@ -339,7 +339,7 @@ fn run_inner(
     install_sysroot(&config)?;
     let flux = build_binary("flux", config.profile, false)?;
 
-    let mut rustc_flags = tests::default_flags();
+    let mut rustc_flags = flux_dev::default_flags();
     rustc_flags.extend(flags);
 
     Command::new(flux)
@@ -354,7 +354,7 @@ fn install(args: &Install, extra: &[&str], rust_fixpoint: bool) -> anyhow::Resul
     let config = SysrootConfig {
         profile: args.profile(),
         rust_fixpoint,
-        dst: default_sysroot_dir(),
+        dst: default_flux_sysroot_dir(),
         build_libs: BuildLibs { force: false, libs },
     };
     install_sysroot(&config)?;
@@ -369,7 +369,7 @@ fn uninstall() -> anyhow::Result<()> {
         .args(["uninstall", "-p", "flux-bin"])
         .run()?;
     eprintln!("$ rm -rf ~/.flux");
-    remove_path(&default_sysroot_dir())?;
+    remove_path(&default_flux_sysroot_dir())?;
     Ok(())
 }
 
@@ -523,12 +523,6 @@ impl Install {
     fn profile(&self) -> Profile {
         self.profile.unwrap_or(Profile::Release)
     }
-}
-
-fn default_sysroot_dir() -> PathBuf {
-    home::home_dir()
-        .expect("Couldn't find home directory")
-        .join(".flux")
 }
 
 fn local_sysroot_dir() -> anyhow::Result<PathBuf> {

@@ -4,8 +4,9 @@
 use std::{env, path::PathBuf};
 
 use compiletest_rs::{Config, common::Mode};
+use flux_dev::default_flags;
+use flux_sysroot::FLUX_SYSROOT;
 use itertools::Itertools;
-use tests::{FLUX_SYSROOT, default_flags};
 
 #[derive(Debug)]
 enum Suite {
