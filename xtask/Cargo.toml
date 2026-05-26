@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
-home.workspace = true
-tests.workspace = true
+flux-dev.workspace = true
+flux-sysroot.workspace = true
 walkdir.workspace = true
 xflags = "0.3.2"
 

@@ -1,6 +1,6 @@
 [workspace]
 default-members = ["crates/*", "xtask"]
-members = ["crates/*", "lib/*", "tests", "xtask"]
+members = ["crates/*", "flux-dev", "lib/*", "tests", "xtask"]
 resolver = "2"
 
 [workspace.package]
@@ -9,6 +9,8 @@ edition = "2024"
 [workspace.dependencies]
 flux-arc-interner = { path = "./crates/flux-arc-interner", version = "0.1.0" }
 flux-bin = { path = "./crates/flux-bin", version = "0.1.0" }
+flux-dev = { path = "./flux-dev", version = "0.1.0" }
+flux-sysroot = { path = "./crates/flux-sysroot", version = "0.1.0" }
 flux-common = { path = "./crates/flux-common", version = "0.1.0" }
 flux-config = { path = "./crates/flux-config", version = "0.1.0" }
 flux-desugar = { path = "./crates/flux-desugar", version = "0.1.0" }
