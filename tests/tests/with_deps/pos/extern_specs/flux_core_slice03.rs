@@ -3,6 +3,8 @@
 extern crate flux_alloc;
 extern crate flux_core;
 
+// These tests check the Deref and DerefMut specs for Vec<T> and [T] types.
+
 #[flux_rs::sig(fn(&[u8][@n]) -> Vec<u8>[n])]
 fn test1(s: &[u8]) -> Vec<u8> {
     s.to_vec()
