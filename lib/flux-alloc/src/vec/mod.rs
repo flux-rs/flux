@@ -76,7 +76,6 @@ impl<T, A: Allocator> Deref for Vec<T, A> {
 }
 
 #[extern_spec(std::vec)]
-// #[assoc(fn as_deref(v: Self, target: int) -> bool { v.len == target })]
 impl<T, A: Allocator> DerefMut for Vec<T, A> {
     #[sig(fn(self: &mut Self[@v]) -> &mut [T][v])]
     fn deref_mut(&mut self) -> &mut [T];
