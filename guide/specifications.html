@@ -736,6 +736,12 @@ impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     fn is_empty(&amp;self) -&gt; bool;
 }
 
+#[extern_spec]
+impl&lt;T: Clone, A: Allocator + Clone&gt; Clone for Vec&lt;T, A&gt; {
+    #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; Vec&lt;T, A&gt;[n])]
+    fn clone(&amp;self) -&gt; Vec&lt;T, A&gt;;
+}
+
 //---------------------------------------------------------------------------------------
 
 #[extern_spec]
@@ -2434,6 +2440,12 @@ impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     fn is_empty(&amp;self) -&gt; bool;
 }
 
+#[extern_spec]
+impl&lt;T: Clone, A: Allocator + Clone&gt; Clone for Vec&lt;T, A&gt; {
+    #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; Vec&lt;T, A&gt;[n])]
+    fn clone(&amp;self) -&gt; Vec&lt;T, A&gt;;
+}
+
 //---------------------------------------------------------------------------------------
 
 #[extern_spec]
@@ -2878,6 +2890,12 @@ impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
 
     #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; bool[n == 0])]
     fn is_empty(&amp;self) -&gt; bool;
+}
+
+#[extern_spec]
+impl&lt;T: Clone, A: Allocator + Clone&gt; Clone for Vec&lt;T, A&gt; {
+    #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; Vec&lt;T, A&gt;[n])]
+    fn clone(&amp;self) -&gt; Vec&lt;T, A&gt;;
 }
 
 //---------------------------------------------------------------------------------------
