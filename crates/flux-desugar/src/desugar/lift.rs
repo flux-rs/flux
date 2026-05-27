@@ -133,8 +133,8 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             hir::GenericBound::Trait(poly_trait_ref) => {
                 Ok(fhir::GenericBound::Trait(self.lift_poly_trait_ref(*poly_trait_ref)?))
             }
-            hir::GenericBound::Outlives(lft) => {
-                let lft = self.lift_lifetime(lft);
+            hir::GenericBound::Outlives(_) => {
+                let lft = self.mk_lft_hole();
                 Ok(fhir::GenericBound::Outlives(lft))
             }
             _ => Err(self.emit_unsupported(&format!("unsupported generic bound: `{bound:?}`"))),
@@ -323,8 +323,8 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
                 let ty = self.lift_ty(ty);
                 fhir::TyKind::Array(self.genv.alloc(ty), self.lift_const_arg(len))
             }
-            hir::TyKind::Ref(lft, mut_ty) => {
-                fhir::TyKind::Ref(self.lift_lifetime(lft), self.lift_mut_ty(mut_ty))
+            hir::TyKind::Ref(_, mut_ty) => {
+                fhir::TyKind::Ref(self.mk_lft_hole(), self.lift_mut_ty(mut_ty))
             }
             hir::TyKind::FnPtr(fn_ptr) => {
                 let bare_fn = self.lift_bare_fn(ty.span, fn_ptr);
@@ -376,7 +376,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
                 });
                 match poly_traits {
                     Ok(poly_traits) => {
-                        let lft = self.lift_lifetime(lt.pointer());
+                        let lft = self.mk_lft_hole();
                         fhir::TyKind::TraitObject(poly_traits, lft, lt.tag())
                     }
                     Err(err) => fhir::TyKind::Err(err),
@@ -406,14 +406,6 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             generic_params,
             decl: self.genv.alloc(decl),
             param_idents: self.genv.alloc_slice(fn_ptr.param_idents),
-        }
-    }
-
-    fn lift_lifetime(&self, lft: &hir::Lifetime) -> fhir::Lifetime {
-        if let Some(resolved) = self.genv.tcx().named_bound_var(lft.hir_id) {
-            fhir::Lifetime::Resolved(resolved)
-        } else {
-            self.mk_lft_hole()
         }
     }
 
@@ -486,8 +478,8 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
     ) -> Result<&'genv [fhir::GenericArg<'genv>]> {
         try_alloc_slice!(self.genv, args, |arg| {
             match arg {
-                hir::GenericArg::Lifetime(lft) => {
-                    let lft = self.lift_lifetime(lft);
+                hir::GenericArg::Lifetime(_) => {
+                    let lft = self.mk_lft_hole();
                     Ok(fhir::GenericArg::Lifetime(lft))
                 }
                 hir::GenericArg::Type(ty) => {
