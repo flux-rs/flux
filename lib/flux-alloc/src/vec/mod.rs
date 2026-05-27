@@ -39,7 +39,7 @@ impl<T, A: Allocator> Vec<T, A> {
 impl<T: Clone, A: Allocator + Clone> Clone for Vec<T, A> {
     #[spec(fn(self: &Vec<T, A>[@n]) -> Vec<T, A>[n])]
     fn clone(&self) -> Vec<T, A>;
-} 
+}
 
 //---------------------------------------------------------------------------------------
 
