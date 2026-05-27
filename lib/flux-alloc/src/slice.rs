@@ -10,7 +10,7 @@ impl<T> [T] {
         A: Allocator;
 
     #[spec(fn(self: &[T][@n]) -> Vec<T>[n])]
-    pub fn to_vec(self: &[T]) -> Vec<T>
+    fn to_vec(self: &[T]) -> Vec<T>
     where
         T: Clone;
 }
