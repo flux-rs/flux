@@ -4853,7 +4853,7 @@ fn test01(vec: &amp;mut RVec&lt;i32&gt;) {
 <p><strong>Associated Refinements</strong> for indexing</p>
 <pre><code class="language-rust noplayground">use std::{
     alloc::{Allocator, Global},
-    ops::{Index, IndexMut},
+    ops::{Deref, DerefMut, Index, IndexMut},
     slice::SliceIndex,
 };
 
@@ -4917,7 +4917,22 @@ impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
 
 #[extern_spec]
 #[assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
-impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
+impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}
+
+// ---------------------------------------------------------------------------------------
+
+#[extern_spec(std::vec)]
+#[assoc(fn as_deref(v: Self, target: int) -&gt; bool { v.len == target })]
+impl&lt;T, A: Allocator&gt; Deref for Vec&lt;T, A&gt; {
+    #[sig(fn(self: &amp;Self[@v]) -&gt; &amp;[T][v])]
+    fn deref(&amp;self) -&gt; &amp;[T];
+}
+
+#[extern_spec(std::vec)]
+impl&lt;T, A: Allocator&gt; DerefMut for Vec&lt;T, A&gt; {
+    #[sig(fn(self: &amp;mut Self[@v]) -&gt; &amp;mut [T][v])]
+    fn deref_mut(&amp;mut self) -&gt; &amp;mut [T];
+}</code></pre>
 <pre><code class="language-rust noplayground">{{#include ../../../tests/tests/neg/surface/vec02.rs}}</code></pre>
 <h2 id="named-function-signatures"><a class="header" href="#named-function-signatures">Named Function Signatures</a></h2>
 <p>You can also write <em>named</em> function signatures using the <code>spec</code>
@@ -6557,7 +6572,7 @@ impl&lt;T&gt; Option&lt;T&gt; {
 <h3 id="vec"><a class="header" href="#vec">Vec</a></h3>
 <pre><code class="language-rust noplayground">use std::{
     alloc::{Allocator, Global},
-    ops::{Index, IndexMut},
+    ops::{Deref, DerefMut, Index, IndexMut},
     slice::SliceIndex,
 };
 
@@ -6621,7 +6636,22 @@ impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
 
 #[extern_spec]
 #[assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
-impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
+impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}
+
+// ---------------------------------------------------------------------------------------
+
+#[extern_spec(std::vec)]
+#[assoc(fn as_deref(v: Self, target: int) -&gt; bool { v.len == target })]
+impl&lt;T, A: Allocator&gt; Deref for Vec&lt;T, A&gt; {
+    #[sig(fn(self: &amp;Self[@v]) -&gt; &amp;[T][v])]
+    fn deref(&amp;self) -&gt; &amp;[T];
+}
+
+#[extern_spec(std::vec)]
+impl&lt;T, A: Allocator&gt; DerefMut for Vec&lt;T, A&gt; {
+    #[sig(fn(self: &amp;mut Self[@v]) -&gt; &amp;mut [T][v])]
+    fn deref_mut(&amp;mut self) -&gt; &amp;mut [T];
+}</code></pre>
 <h3 id="extern-structs"><a class="header" href="#extern-structs">Extern Structs</a></h3>
 <p>Here is an example of refining an extern struct</p>
 <pre><code class="language-rust noplayground">use flux_attrs::extern_spec;
@@ -7009,7 +7039,7 @@ fn test01(x: MyInt, y: MyInt) -&gt; bool {
 }</code></pre>
 <pre><code class="language-rust noplayground">use std::{
     alloc::{Allocator, Global},
-    ops::{Index, IndexMut},
+    ops::{Deref, DerefMut, Index, IndexMut},
     slice::SliceIndex,
 };
 
@@ -7073,7 +7103,22 @@ impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
 
 #[extern_spec]
 #[assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
-impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
+impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}
+
+// ---------------------------------------------------------------------------------------
+
+#[extern_spec(std::vec)]
+#[assoc(fn as_deref(v: Self, target: int) -&gt; bool { v.len == target })]
+impl&lt;T, A: Allocator&gt; Deref for Vec&lt;T, A&gt; {
+    #[sig(fn(self: &amp;Self[@v]) -&gt; &amp;[T][v])]
+    fn deref(&amp;self) -&gt; &amp;[T];
+}
+
+#[extern_spec(std::vec)]
+impl&lt;T, A: Allocator&gt; DerefMut for Vec&lt;T, A&gt; {
+    #[sig(fn(self: &amp;mut Self[@v]) -&gt; &amp;mut [T][v])]
+    fn deref_mut(&amp;mut self) -&gt; &amp;mut [T];
+}</code></pre>
 <pre><code class="language-rust noplayground">mod adapters;
 #[cfg(flux)]
 mod range;

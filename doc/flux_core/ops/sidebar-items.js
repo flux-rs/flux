@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["index","range"]};
+window.SIDEBAR_ITEMS = {"mod":["deref","index","range"]};
