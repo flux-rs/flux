@@ -540,9 +540,11 @@ dependencies = [
  "flux-refineck",
  "flux-rustc-bridge",
  "flux-syntax",
+ "flux-sysroot",
  "itertools 0.14.0",
  "serde",
  "serde_json",
+ "toml",
  "tracing",
  "tracing-subscriber",
 ]
@@ -701,6 +703,7 @@ name = "flux-sysroot"
 version = "0.1.0"
 dependencies = [
  "home",
+ "serde",
 ]
 
 [[package]]
@@ -1902,6 +1905,8 @@ dependencies = [
  "cargo_metadata",
  "flux-dev",
  "flux-sysroot",
+ "serde",
+ "toml",
  "walkdir",
  "xflags",
 ]

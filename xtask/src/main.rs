@@ -520,8 +520,9 @@ fn copy_artifact(filename: &Utf8Path, dst: &Path) -> anyhow::Result<()> {
 }
 
 fn write_sysroot_toml(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<()> {
-    let mut entries: Vec<(String, String)> = vec![];
+    use flux_sysroot::SysrootManifest;
 
+    let mut manifest = SysrootManifest::default();
     for artifact in artifacts {
         let Some(lib) = [FluxLib::FluxCore, FluxLib::FluxAlloc]
             .iter()
@@ -531,22 +532,19 @@ fn write_sysroot_toml(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<
         };
         for filename in &artifact.filenames {
             if filename.extension() == Some("rmeta") {
-                let rmeta_name = filename.file_name().unwrap().to_string();
-                entries.push((lib.target_name().to_string(), rmeta_name));
+                manifest
+                    .extern_specs
+                    .insert(lib.target_name().to_string(), filename.file_name().unwrap().to_string());
                 break;
             }
         }
     }
 
-    if entries.is_empty() {
+    if manifest.extern_specs.is_empty() {
         return Ok(());
     }
 
-    let mut content = String::from("[extern_specs]\n");
-    for (key, value) in &entries {
-        content.push_str(&format!("{key} = \"{value}\"\n"));
-    }
-
+    let content = toml::to_string(&manifest)?;
     let path = sysroot.join("sysroot.toml");
     eprintln!("$ write {}", path.display());
     fs::write(&path, &content).map_err(|e| anyhow!("failed to write `{}`: {e}", path.display()))

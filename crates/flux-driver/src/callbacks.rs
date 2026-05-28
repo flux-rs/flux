@@ -86,6 +86,18 @@ impl FluxCallbacks {
     }
 }
 
+fn load_extern_specs() -> Vec<(String, std::path::PathBuf)> {
+    use flux_sysroot::SysrootManifest;
+    let Some(sysroot) = config::sysroot() else { return vec![] };
+    let Ok(content) = std::fs::read_to_string(sysroot.join("sysroot.toml")) else { return vec![] };
+    let Ok(manifest) = toml::from_str::<SysrootManifest>(&content) else { return vec![] };
+    manifest
+        .extern_specs
+        .into_iter()
+        .map(|(name, rmeta)| (name, sysroot.join(&rmeta)))
+        .collect()
+}
+
 fn inject_std_extern_specs(config: &mut rustc_interface::interface::Config) {
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -94,7 +106,7 @@ fn inject_std_extern_specs(config: &mut rustc_interface::interface::Config) {
         utils::CanonicalizedPath,
     };
 
-    let specs = flux_config::extern_specs_from_sysroot();
+    let specs = load_extern_specs();
     if specs.is_empty() {
         return;
     }
