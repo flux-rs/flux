@@ -1,6 +1,6 @@
 use std::{
     alloc::{Allocator, Global},
-    ops::{Index, IndexMut},
+    ops::{Deref, DerefMut, Index, IndexMut},
     slice::SliceIndex,
 };
 
@@ -65,3 +65,18 @@ impl<'a, T, A: Allocator> IntoIterator for &'a Vec<T, A> {
 #[extern_spec]
 #[assoc(fn with_size(self: Self, n:int) -> bool { self.len == n })]
 impl<T> FromIterator<T> for Vec<T> {}
+
+// ---------------------------------------------------------------------------------------
+
+#[extern_spec(std::vec)]
+#[assoc(fn as_deref(v: Self, target: int) -> bool { v.len == target })]
+impl<T, A: Allocator> Deref for Vec<T, A> {
+    #[sig(fn(self: &Self[@v]) -> &[T][v])]
+    fn deref(&self) -> &[T];
+}
+
+#[extern_spec(std::vec)]
+impl<T, A: Allocator> DerefMut for Vec<T, A> {
+    #[sig(fn(self: &mut Self[@v]) -> &mut [T][v])]
+    fn deref_mut(&mut self) -> &mut [T];
+}
