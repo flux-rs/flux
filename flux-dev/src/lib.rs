@@ -16,6 +16,7 @@ pub fn default_flags(sysroot: &Path) -> Vec<String> {
         "--extern".to_string(),
         "flux_attrs".to_string(),
         "-Fverify=on".to_string(),
+        format!("-Fsysroot={}", sysroot.display()),
     ]
 }
 

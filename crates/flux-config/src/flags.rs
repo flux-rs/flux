@@ -227,7 +227,7 @@ fn parse_string(slot: &mut String, v: Option<&str>) -> Result<(), &'static str> 
             *slot = s.to_string();
             Ok(())
         }
-        None => Err("a string"),
+        None => Err("expected a string"),
     }
 }
 
@@ -237,7 +237,7 @@ fn parse_path_buf(slot: &mut PathBuf, v: Option<&str>) -> Result<(), &'static st
             *slot = PathBuf::from(s);
             Ok(())
         }
-        None => Err("a path"),
+        None => Err("expected a path"),
     }
 }
 
@@ -297,7 +297,7 @@ fn parse_opt_path_buf(slot: &mut Option<PathBuf>, v: Option<&str>) -> Result<(),
             *slot = Some(PathBuf::from(s));
             Ok(())
         }
-        None => Err("a path"),
+        None => Err("expected a path"),
     }
 }
 
