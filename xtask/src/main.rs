@@ -532,9 +532,10 @@ fn write_sysroot_toml(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<
         };
         for filename in &artifact.filenames {
             if filename.extension() == Some("rmeta") {
-                manifest
-                    .extern_specs
-                    .insert(lib.target_name().to_string(), filename.file_name().unwrap().to_string());
+                manifest.extern_specs.insert(
+                    lib.target_name().to_string(),
+                    filename.file_name().unwrap().to_string(),
+                );
                 break;
             }
         }
