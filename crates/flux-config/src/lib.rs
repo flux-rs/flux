@@ -147,6 +147,27 @@ pub fn full_compilation() -> bool {
     FLAGS.full_compilation
 }
 
+pub fn std_extern_specs() -> bool {
+    FLAGS.std_extern_specs
+}
+
+/// Reads `sysroot.toml` and returns `(crate_name, rmeta_path)` pairs for each extern spec entry.
+/// Returns an empty vec if the flag is not set, the file is missing, or parsing fails.
+pub fn extern_specs_from_sysroot() -> Vec<(String, PathBuf)> {
+    let Some(sysroot) = sysroot() else { return vec![] };
+    let Ok(content) = std::fs::read_to_string(sysroot.join("sysroot.toml")) else { return vec![] };
+    let Ok(parsed) = toml::from_str::<toml::Value>(&content) else { return vec![] };
+    let Some(table) = parsed.get("extern_specs").and_then(|v| v.as_table()) else { return vec![] };
+    table
+        .iter()
+        .filter_map(|(name, val)| {
+            let rmeta = val.as_str()?;
+            let path = sysroot.join(rmeta);
+            path.exists().then_some((name.clone(), path))
+        })
+        .collect()
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Pos {
