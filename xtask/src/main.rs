@@ -134,14 +134,14 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn run_tests(
-    flux: &Utf8Path,
+    flux_driver: &Utf8Path,
     sysroot: &Path,
     suite: &str,
     filter: Option<&str>,
 ) -> anyhow::Result<()> {
     let mut cmd = Command::new("cargo");
     cmd.args(["test", "-p", "tests", "--"])
-        .args(["--flux", flux.as_str()])
+        .args(["--flux-driver", flux_driver.as_str()])
         .args(["--sysroot".as_ref(), sysroot.as_os_str()])
         .args(["--suite", suite]);
     if let Some(filter) = filter {
@@ -155,9 +155,6 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
 
     let suites: &[Suite] = if args.suite.is_empty() { Suite::ALL } else { &args.suite };
 
-    // Build the flux binary once; sysroot is rebuilt per-suite below.
-    let flux = build_binary("flux", Profile::Dev, false)?;
-
     for suite in suites {
         let libs = match suite {
             Suite::Basic => &[FluxLib::FluxAttrs],
@@ -169,8 +166,8 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
             dst: dst.clone(),
             build_libs: BuildLibs { force: false, libs },
         };
-        install_sysroot(&config)?;
-        run_tests(&flux, &dst, suite.name(), args.filter.as_deref())?;
+        let flux_driver = install_sysroot(&config)?;
+        run_tests(&flux_driver, &dst, suite.name(), args.filter.as_deref())?;
     }
     Ok(())
 }
@@ -184,8 +181,7 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         dst: local_sysroot_dir()?,
         build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
     };
-    install_sysroot(&config)?;
-    let flux = build_binary("flux", config.profile, false)?;
+    let flux_driver = install_sysroot(&config)?;
 
     let pos_path = PathBuf::from("tests/tests/pos");
     let lean_bench_dir = PathBuf::from("tests/lean_bench");
@@ -249,12 +245,12 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         }
 
         // Build rustc flags
-        let mut rustc_flags = flux_dev::default_flags();
+        let mut rustc_flags = flux_dev::default_flags(&config.dst);
         rustc_flags.push("-Flean=emit".to_string());
         rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
 
         // Run the test
-        let result = Command::new(&flux)
+        let result = Command::new(&flux_driver)
             .args(&rustc_flags)
             .arg(test_path)
             .env(FLUX_SYSROOT, &config.dst)
@@ -339,13 +335,12 @@ fn run_inner(
         build_libs,
     };
 
-    install_sysroot(&config)?;
-    let flux = build_binary("flux", config.profile, false)?;
+    let flux_driver = install_sysroot(&config)?;
 
-    let mut rustc_flags = flux_dev::default_flags();
+    let mut rustc_flags = flux_dev::default_flags(&config.dst);
     rustc_flags.extend(flags);
 
-    Command::new(flux)
+    Command::new(flux_driver)
         .args(&rustc_flags)
         .arg(&input)
         .env(FLUX_SYSROOT, &config.dst)
@@ -454,11 +449,12 @@ impl FluxLib {
     }
 }
 
-fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
+fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
     remove_path(&config.dst)?;
     create_dir(&config.dst)?;
 
-    copy_file(build_binary("flux-driver", config.profile, config.rust_fixpoint)?, &config.dst)?;
+    let flux_driver = build_binary("flux-driver", config.profile, config.rust_fixpoint)?;
+    copy_file(&flux_driver, &config.dst)?;
 
     let cargo_flux = build_binary("cargo-flux", config.profile, config.rust_fixpoint)?;
 
@@ -481,7 +477,7 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
         .run_with_cargo_metadata()?;
     copy_artifacts(&artifacts, &config.dst)?;
     write_sysroot_toml(&artifacts, &config.dst)?;
-    Ok(())
+    Ok(flux_driver)
 }
 
 fn copy_artifacts(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<()> {
