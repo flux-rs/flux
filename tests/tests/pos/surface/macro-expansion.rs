@@ -1,8 +1,9 @@
 // test that we correctly parse annotations expanded from a macro
+use flux_attrs::*;
 
 macro_rules! make_assert {
     ($a:literal) => {
-        #[flux_rs::sig(fn(bool[$a]))]
+        #[spec(fn(bool[$a]))]
         fn assert(_: bool) {
             let x = $a;
         }
@@ -11,7 +12,7 @@ macro_rules! make_assert {
 
 make_assert!(true);
 
-#[flux_rs::should_fail]
+#[should_fail]
 fn test00() {
     assert(0 > 1);
 }
