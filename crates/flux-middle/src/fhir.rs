@@ -61,6 +61,10 @@ pub struct AttrMap<'fhir> {
     pub attrs: &'fhir [Attr],
     pub qualifiers: &'fhir [FluxLocalDefId],
     pub reveals: &'fhir [FluxDefId],
+    /// The `DefId`s of type params listed in `#[assume_parametric(...)]`. They match
+    /// the `DefId` entries in `generics_of(callee_id)`. These are `DefId`s and not
+    /// `LocalDefId`s such that they are correct for extern specs as well.
+    pub parametric_params: &'fhir [DefId],
 }
 
 impl AttrMap<'_> {
@@ -102,6 +106,10 @@ impl AttrMap<'_> {
 
     pub(crate) fn no_panic(&self) -> bool {
         self.attrs.iter().any(|attr| matches!(attr, Attr::NoPanic))
+    }
+
+    pub(crate) fn parametric_params(&self) -> &[DefId] {
+        self.parametric_params
     }
 }
 
