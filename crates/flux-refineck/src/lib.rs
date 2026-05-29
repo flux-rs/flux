@@ -223,7 +223,7 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
             ConstrReason::Goto(_) => genv.sess().emit_err(errors::GotoError { span }),
             ConstrReason::Assert(msg) => genv.sess().emit_err(errors::AssertError { span, msg }),
             ConstrReason::Fold | ConstrReason::FoldLocal => {
-                genv.sess().emit_err(errors::FoldError { span })
+                genv.sess().emit_err(errors::FoldError::new(span, err.dst_span))
             }
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
             ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
@@ -342,6 +342,15 @@ mod errors {
     pub struct FoldError {
         #[primary_span]
         pub span: Span,
+        #[subdiagnostic]
+        span_note: Option<ConditionSpanNote>,
+    }
+
+    impl FoldError {
+        pub fn new(span: Span, espan: Option<ESpan>) -> Self {
+            let span_note = espan.map(|espan| ConditionSpanNote { span: espan.span });
+            FoldError { span, span_note }
+        }
     }
 
     #[derive(Diagnostic)]
