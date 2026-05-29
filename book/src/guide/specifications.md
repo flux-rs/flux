@@ -177,7 +177,7 @@ This uses `extern_spec` which is [described below](#extern-specs).
 **Standalone**
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/vec/vec00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/vec/vec00.rs}}
 ```
 
 **Associated Refinements** for indexing
@@ -187,7 +187,7 @@ This uses `extern_spec` which is [described below](#extern-specs).
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/neg/surface/vec02.rs}}
+{{#include ../../../tests/tests/with_deps/neg/surface/vec02.rs}}
 ```
 
 ## Named Function Signatures
@@ -347,15 +347,15 @@ Here is an example of how to use the `opaque` attribute:
 You can use `int`-ish `const` in refinements e.g.
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/const07.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/const07.rs}}
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/const08.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/const08.rs}}
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/const10.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/const10.rs}}
 ```
 
 ## Requires with `forall`
@@ -369,7 +369,7 @@ We allow a `forall` on the requires clauses, e.g.
 ## Refined Associated Types
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/refined_assoc_type/refined_assoc_type00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/refined_assoc_type/refined_assoc_type00.rs}}
 ```
 
 ## Ignored and trusted code
@@ -557,7 +557,7 @@ You can (sometimes!) use `_` in the `flux` signatures to omit the Rust component
 ### Generic Args
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/const11.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/const11.rs}}
 ```
 
 ## Closures
@@ -649,21 +649,21 @@ TODO
 ### Operators
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/bitvec03.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/bitvec03.rs}}
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/bitvec_const02.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/bitvec_const02.rs}}
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/bv_ord.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/bv_ord.rs}}
 ```
 
 ### Specification functions
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/bitvec05.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/bitvec05.rs}}
 ```
 
 ### Extensions
@@ -675,7 +675,7 @@ TODO
 ### Bitvector Constants
 
 ```rust,noplayground
-{{#include ../../../tests/tests/neg/surface/bitvec_const00.rs}}
+{{#include ../../../tests/tests/with_deps/neg/surface/bitvec_const00.rs}}
 ```
 
 ## `char` Literals
@@ -718,7 +718,7 @@ To define an extern spec on a function, you need to do three things, which
 happen to correspond to each of the below lines.
 
 ```rust,noplayground
-{{#include ../../../tests/tests/neg/surface/extern_spec_swap.rs:5:7}}
+{{#include ../../../tests/tests/with_deps/neg/surface/extern_spec_swap.rs:5:7}}
 ```
 
 1. Add the `#[extern_spec]` attribute. This attribute optionally takes a path;
@@ -738,7 +738,7 @@ above type.
 Here are two examples:
 
 ```rust,noplayground
-{{#include ../../../tests/tests/neg/surface/extern_spec_swap.rs:9:16}}
+{{#include ../../../tests/tests/with_deps/neg/surface/extern_spec_swap.rs:9:16}}
 ```
 
 ```rust,noplayground
@@ -752,7 +752,7 @@ Here are two examples:
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/enums/option00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/enums/option00.rs}}
 ```
 
 ### Vec
@@ -853,7 +853,7 @@ they were refined.
 To see how `flux` handles `for i in 0..n` style loops:
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/for_range00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/for_range00.rs}}
 ```
 
 ## Associated Refinements
@@ -891,7 +891,7 @@ To see how `flux` handles `for i in 0..n` style loops:
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/iter02.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/iter02.rs}}
 ```
 
 ### Associated Types
@@ -926,7 +926,7 @@ You can switch on overflow checking
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/check_overflow02.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/check_overflow02.rs}}
 ```
 
 ```rust,noplayground
@@ -955,7 +955,7 @@ which allows us to customize primops like `<<` with extra "facts"
 or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/primops00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/primops00.rs}}
 ```
 
 ## Casting Sorts
@@ -964,7 +964,7 @@ You can convert refinements of different sorts -- e.g. `int` to `char` or `int` 
 using the `cast` internal function.
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/to_int00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/to_int00.rs}}
 ```
 
 ## Detached Specifications
@@ -987,7 +987,7 @@ as illustrated by the following
 **Structs**
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/detached/detach_struct00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/detached/detach_struct00.rs}}
 ```
 
 **Enums**
@@ -1013,7 +1013,7 @@ as illustrated by the following
 Note the _fully qualified_ name of the `trait` in the spec.
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/detached/detach_impl06.rs}}
+{{#include ../../../tests/tests/with_deps/pos/detached/detach_impl06.rs}}
 ```
 
 ## Include Patterns
@@ -1041,5 +1041,5 @@ by simultaneously specifying assertions and qualifiers that can be used to estab
 that assertion.
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/invariant_macro00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/invariant_macro00.rs}}
 ```
