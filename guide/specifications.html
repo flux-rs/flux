@@ -697,7 +697,63 @@ fn test01(vec: &amp;mut RVec&lt;i32&gt;) {
 <h2 id="refined-vec"><a class="header" href="#refined-vec">Refined <code>Vec</code></a></h2>
 <p>This uses <code>extern_spec</code> which is <a href="#extern-specs">described below</a>.</p>
 <p><strong>Standalone</strong></p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/vec/vec00.rs}}</code></pre>
+<pre><code class="language-rust noplayground">#![feature(allocator_api)]
+
+extern crate flux_alloc;
+extern crate flux_core;
+
+use flux_rs::{assert, attrs::*};
+
+#[spec(fn() -&gt; Vec&lt;i32&gt;[3])]
+pub fn test_vec_macro() -&gt; Vec&lt;i32&gt; {
+    vec![10, 20, 30]
+}
+
+#[spec(fn() -&gt; Vec&lt;i32&gt;[4])]
+pub fn test_push_macro() -&gt; Vec&lt;i32&gt; {
+    let res = vec![10, 20, 30, 40];
+    assert(res.len() == 4);
+    res
+}
+
+#[spec(fn() -&gt; Vec&lt;i32&gt;[2])]
+pub fn test_push() -&gt; Vec&lt;i32&gt; {
+    let mut res = Vec::new();
+    res.push(10);
+    res.push(20);
+    res.push(30);
+    let val = res.pop().unwrap();
+    assert(val &gt;= 10);
+    res
+}
+
+#[spec(fn() -&gt; usize[2])]
+pub fn test_len() -&gt; usize {
+    let res = test_push();
+    res.len()
+}
+
+pub fn test_is_empty() {
+    let res = test_push();
+    assert(!res.is_empty())
+}
+
+// TODO: https://github.com/flux-rs/flux/issues/578
+// #[spec(fn (Vec&lt;i32{v:10 &lt;= v}&gt;))]
+// pub fn test3(xs: Vec&lt;i32&gt;) {
+//     for x in &amp;xs {
+//         assert(0 &lt;= *x)
+//     }
+// }
+
+#[spec(fn (vec: &amp;mut Vec&lt;T&gt;[@n]) -&gt; Option&lt;(T, T)&gt;
+       requires n &gt; 2
+       ensures vec: Vec&lt;T&gt;[n-2])]
+pub fn pop2&lt;T&gt;(vec: &amp;mut Vec&lt;T&gt;) -&gt; Option&lt;(T, T)&gt; {
+    let v1 = vec.pop().unwrap();
+    let v2 = vec.pop().unwrap();
+    Some((v1, v2))
+}</code></pre>
 <p><strong>Associated Refinements</strong> for indexing</p>
 <pre><code class="language-rust noplayground">use std::{
     alloc::{Allocator, Global},
@@ -781,7 +837,60 @@ impl&lt;T, A: Allocator&gt; DerefMut for Vec&lt;T, A&gt; {
     #[sig(fn(self: &amp;mut Self[@v]) -&gt; &amp;mut [T][v])]
     fn deref_mut(&amp;mut self) -&gt; &amp;mut [T];
 }</code></pre>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/neg/surface/vec02.rs}}</code></pre>
+<pre><code class="language-rust noplayground">#![feature(allocator_api)]
+
+use std::ops::Index;
+
+extern crate flux_alloc;
+extern crate flux_core;
+
+// ---------------------------------------------------------------------------------------
+
+pub fn test_get0(xs: &amp;Vec&lt;i32&gt;) -&gt; &amp;i32 {
+    &lt;Vec&lt;i32&gt; as Index&lt;usize&gt;&gt;::index(xs, 10) //~ ERROR refinement type
+}
+
+pub fn test_get1(xs: &amp;Vec&lt;i32&gt;) -&gt; i32 {
+    xs[10] //~ ERROR refinement type
+}
+
+#[flux::sig(fn (&amp;Vec&lt;i32&gt;[100]) -&gt; &amp;i32)]
+pub fn test_get2(xs: &amp;Vec&lt;i32&gt;) -&gt; &amp;i32 {
+    &lt;Vec&lt;i32&gt; as Index&lt;usize&gt;&gt;::index(xs, 99)
+}
+
+#[flux::sig(fn (&amp;Vec&lt;i32&gt;[100]) -&gt; i32)]
+pub fn test_get3(xs: &amp;Vec&lt;i32&gt;) -&gt; i32 {
+    xs[99]
+}
+
+pub fn test_set0(xs: &amp;mut Vec&lt;i32&gt;) {
+    xs[10] = 100; //~ ERROR refinement type
+}
+
+#[flux::sig(fn (&amp;mut Vec&lt;i32&gt;[100]))]
+pub fn test_set1(xs: &amp;mut Vec&lt;i32&gt;) {
+    xs[99] = 100;
+}
+
+pub fn test1() {
+    let mut xs = Vec::&lt;i32&gt;::new();
+    xs.push(10);
+    xs.push(20);
+    xs.push(30);
+
+    xs[0] = 100;
+    xs[1] = 100;
+    xs[2] = 100;
+    xs[10] = 100; //~ ERROR refinement type
+}
+
+pub fn test2(xs: Vec&lt;i32&gt;, i: usize) {
+    if i &lt; xs.len() {
+        let _ = xs[i];
+        let _ = xs[i + 1]; //~ ERROR refinement type
+    }
+}</code></pre>
 <h2 id="named-function-signatures"><a class="header" href="#named-function-signatures">Named Function Signatures</a></h2>
 <p>You can also write <em>named</em> function signatures using the <code>spec</code>
 annotation (instead of the anonymous <code>sig</code> annotation).</p>
@@ -1319,9 +1428,34 @@ impl S {
 }</code></pre>
 <h2 id="const"><a class="header" href="#const">Const</a></h2>
 <p>You can use <code>int</code>-ish <code>const</code> in refinements e.g.</p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/const07.rs}}</code></pre>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/const08.rs}}</code></pre>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/const10.rs}}</code></pre>
+<pre><code class="language-rust noplayground">pub struct Cow {}
+
+impl Cow {
+    const GRASS: usize = 12;
+
+    #[flux_rs::sig(fn () -&gt; usize[12])]
+    pub fn test() -&gt; usize {
+        Self::GRASS
+    }
+}</code></pre>
+<pre><code class="language-rust noplayground">#[repr(u32)]
+pub enum SyscallReturnVariant {
+    Failure = 0,
+}
+
+#[flux_rs::sig(fn() -&gt; u32[0])]
+pub fn test() -&gt; u32 {
+    SyscallReturnVariant::Failure as u32
+}</code></pre>
+<pre><code class="language-rust noplayground">pub struct Cow {}
+
+const GRASS: usize = 12;
+impl Cow {
+    #[flux_rs::sig(fn () -&gt; usize[12])]
+    fn test() -&gt; usize {
+        GRASS
+    }
+}</code></pre>
 <h2 id="requires-with-forall"><a class="header" href="#requires-with-forall">Requires with <code>forall</code></a></h2>
 <p>We allow a <code>forall</code> on the requires clauses, e.g.</p>
 <pre><code class="language-rust noplayground">#[flux::sig(fn(bool[true]))]
@@ -1338,7 +1472,44 @@ fn test2() {
     requires_negative(-1);
 }</code></pre>
 <h2 id="refined-associated-types"><a class="header" href="#refined-associated-types">Refined Associated Types</a></h2>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/refined_assoc_type/refined_assoc_type00.rs}}</code></pre>
+<pre><code class="language-rust noplayground">use flux_rs::*;
+
+#[sig(fn(bool[true]))]
+fn assert(_: bool) {}
+
+trait MyTrait {
+    type Assoc;
+
+    #[sig(fn(Self::Assoc[@x]) -&gt; Self::Assoc[x])]
+    fn f0(x: Self::Assoc) -&gt; Self::Assoc;
+
+    #[sig(fn(x: Self::Assoc) -&gt; Self::Assoc{ v: v == x })]
+    fn f1(x: Self::Assoc) -&gt; Self::Assoc;
+}
+
+impl MyTrait for () {
+    type Assoc = i32;
+
+    #[sig(fn(x: i32) -&gt; i32[x])]
+    fn f0(x: i32) -&gt; i32 {
+        x
+    }
+
+    #[sig(fn(x: i32) -&gt; i32[x])]
+    fn f1(x: i32) -&gt; i32 {
+        x
+    }
+}
+
+fn test00() {
+    let x = &lt;() as MyTrait&gt;::f0(0);
+    assert(x == 0);
+}
+
+fn test01() {
+    let x = &lt;() as MyTrait&gt;::f1(0);
+    assert(x == 0);
+}</code></pre>
 <h2 id="ignored-and-trusted-code"><a class="header" href="#ignored-and-trusted-code">Ignored and trusted code</a></h2>
 <p>Flux offers two attributes for controlling which parts of your code it analyzes: <code>#[flux_rs::ignore]</code> and <code>#[flux_rs::trusted]</code>.</p>
 <ul>
@@ -1783,7 +1954,25 @@ fn test(x: Test) -&gt; Vec&lt;i32&gt; {
     x
 }</code></pre>
 <h3 id="generic-args"><a class="header" href="#generic-args">Generic Args</a></h3>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/const11.rs}}</code></pre>
+<pre><code class="language-rust noplayground">#[flux_rs::refined_by(m: Map&lt;int, int&gt;)]
+#[flux_rs::opaque]
+pub struct S1&lt;const N: usize&gt; {
+    _arr: [usize; N],
+}
+
+const MY_N: usize = 10;
+
+#[flux_rs::refined_by(gloop: S1)]
+pub struct S2 {
+    #[field(S1&lt;_&gt;[gloop])]
+    pub s1: S1&lt;MY_N&gt;,
+}
+
+#[flux_rs::refined_by(zoo: S1)]
+pub struct S3&lt;const M: usize&gt; {
+    #[field(S1&lt;_&gt;[zoo])]
+    pub s1: S1&lt;M&gt;,
+}</code></pre>
 <h2 id="closures"><a class="header" href="#closures">Closures</a></h2>
 <pre><code class="language-rust noplayground">use flux_attrs::*;
 
@@ -2199,11 +2388,214 @@ pub fn test() {
 <p>TODO</p>
 <h2 id="bitvector-refinements"><a class="header" href="#bitvector-refinements">Bitvector Refinements</a></h2>
 <h3 id="operators"><a class="header" href="#operators">Operators</a></h3>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/bitvec03.rs}}</code></pre>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/bitvec_const02.rs}}</code></pre>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/bv_ord.rs}}</code></pre>
+<pre><code class="language-rust noplayground">// https://github.com/flux-rs/flux/issues/1010
+
+use flux_rs::{attrs::*, bitvec::BV32};
+
+#[sig(fn (x:BV32{x == 1}) ensures (bv_shl(x, 3) == 8))]
+pub fn test_shl_a(_x: BV32) {}
+
+#[sig(fn (x:BV32{x == 1}) ensures (x &lt;&lt; 3 == 8))]
+pub fn test_shl_b(_x: BV32) {}
+
+#[sig(fn (x:BV32{x == 8}) ensures (bv_lshr(x, 3) == 1))]
+pub fn test_shr_a(_x: BV32) {}
+
+#[sig(fn (x:BV32{x == 8}) ensures (x &gt;&gt; 3 == 1))]
+pub fn test_shr_b(_x: BV32) {}
+
+#[sig(fn (x:BV32{x == 8}) ensures (bv_or(x, 3) == 11))]
+pub fn test_or_a(_x: BV32) {}
+
+#[sig(fn (x:BV32{x == 8}) ensures (x | 3 == 11))]
+pub fn test_or_b(_x: BV32) {}
+
+#[sig(fn (x:BV32{x == 10}) ensures (bv_and(x, 3) == 2))]
+pub fn test_and_a(_x: BV32) {}
+
+#[sig(fn (x:BV32{x == 10}) ensures (x &amp; 3 == 2))]
+pub fn test_and_b(_x: BV32) {}</code></pre>
+<pre><code class="language-rust noplayground">use flux_rs::{attrs::*, bitvec::BV32};
+
+#[sig(fn(x: BV32) -&gt; BV32[bv_add(x, bv_int_to_bv32(1))])]
+pub fn test_00(x: BV32) -&gt; BV32 {
+    x + BV32::new(1)
+}
+
+#[sig(fn(x: BV32) -&gt; BV32[x + bv_int_to_bv32(1)])]
+pub fn test_01(x: BV32) -&gt; BV32 {
+    x + BV32::new(1)
+}
+
+#[sig(fn(x: BV32) -&gt; BV32[x + 1])]
+pub fn test_02(x: BV32) -&gt; BV32 {
+    x + BV32::new(1)
+}
+
+#[sig(fn(x: i32) -&gt; i32[x + (1 + 2)])]
+pub fn test_03(x: i32) -&gt; i32 {
+    x + 3
+}
+
+#[sig(fn() -&gt; BV32[bv_int_to_bv32(0x5)])]
+pub fn test_04() -&gt; BV32 {
+    BV32::new(0x5)
+}
+
+#[sig(fn() -&gt; BV32[5])]
+pub fn test_05() -&gt; BV32 {
+    BV32::new(0x5)
+}
+
+#[sig(fn(x: BV32, y:BV32) -&gt; bool[x + y &gt; 5])]
+pub fn test_06(x: BV32, y: BV32) -&gt; bool {
+    x + y &gt; BV32::new(5)
+}
+
+#[sig(fn(x: BV32, y:BV32) -&gt; bool[x + y &gt; x - y])]
+pub fn test_07(x: BV32, y: BV32) -&gt; bool {
+    x + y &gt; x - y
+}</code></pre>
+<pre><code class="language-rust noplayground">extern crate flux_core;
+
+use std::ops::{Add, Sub};
+
+#[flux::opaque]
+#[flux::refined_by(x: bitvec&lt;32&gt;)]
+pub struct BV32(u32);
+
+impl BV32 {
+    #[flux::trusted]
+    #[flux::sig(fn (u32[@x]) -&gt; BV32[bv_int_to_bv32(x)])]
+    pub fn new(x: u32) -&gt; Self {
+        BV32(x)
+    }
+}
+
+impl Add for BV32 {
+    type Output = BV32;
+
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn (BV32[@val1], BV32[@val2]) -&gt; BV32[bv_add(val1, val2)])]
+    fn add(self, rhs: Self) -&gt; BV32 {
+        BV32(self.0 + rhs.0)
+    }
+}
+
+impl Sub for BV32 {
+    type Output = BV32;
+
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn (BV32[@val1], BV32[@val2]) -&gt; BV32[bv_sub(val1, val2)])]
+    fn sub(self, rhs: Self) -&gt; BV32 {
+        BV32(self.0.wrapping_add(!rhs.0))
+    }
+}
+
+impl PartialEq for BV32 {
+    fn eq(&amp;self, other: &amp;Self) -&gt; bool {
+        self.0 == other.0
+    }
+}
+flux_core::eq!(
+    #[trusted]
+    BV32
+);
+
+impl PartialOrd for BV32 {
+    #[flux::trusted]
+    fn partial_cmp(&amp;self, other: &amp;Self) -&gt; Option&lt;std::cmp::Ordering&gt; {
+        self.0.partial_cmp(&amp;other.0)
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn (&amp;BV32[@x], &amp;BV32[@y]) -&gt; bool[bv_ule(x, y)])]
+    fn le(&amp;self, other: &amp;Self) -&gt; bool {
+        self.0 &lt;= other.0
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn (&amp;BV32[@x], &amp;BV32[@y]) -&gt; bool[bv_ult(x, y)])]
+    fn lt(&amp;self, other: &amp;Self) -&gt; bool {
+        self.0 &lt; other.0
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn (&amp;BV32[@x], &amp;BV32[@y]) -&gt; bool[bv_uge(x, y)])]
+    fn ge(&amp;self, other: &amp;Self) -&gt; bool {
+        self.0 &gt;= other.0
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn (&amp;BV32[@x], &amp;BV32[@y]) -&gt; bool[bv_ugt(x, y)])]
+    fn gt(&amp;self, other: &amp;Self) -&gt; bool {
+        self.0 &gt; other.0
+    }
+}
+
+#[flux::sig(fn (BV32[@x]) -&gt; bool[bv_ule(x, x)])]
+pub fn trivial_le(x: BV32) -&gt; bool {
+    x &lt;= x
+}
+
+#[flux::sig(fn (BV32[@x]) -&gt; bool[bv_ult(x, x)])]
+pub fn trivial_lt(x: BV32) -&gt; bool {
+    x &lt; x
+}
+
+#[flux::sig(fn (BV32[@x]) -&gt; bool[bv_uge(x, x)])]
+pub fn trivial_ge(x: BV32) -&gt; bool {
+    x &lt;= x
+}
+
+#[flux::sig(fn (BV32[@x]) -&gt; bool[bv_ugt(x, x)])]
+pub fn trivial_gt(x: BV32) -&gt; bool {
+    x &lt; x
+}
+
+#[flux::sig(fn (BV32[@x], BV32[@y]) -&gt; bool[
+    bv_ule(x, bv_int_to_bv32(10))
+    &amp;&amp;
+    bv_uge(y, bv_int_to_bv32(20))
+    &amp;&amp;
+    bv_ult(x, bv_int_to_bv32(11))
+    &amp;&amp;
+    bv_ugt(y, bv_int_to_bv32(21))
+])]
+pub fn real_example(x: BV32, y: BV32) -&gt; bool {
+    x &lt;= BV32::new(10) &amp;&amp; y &gt;= BV32::new(20) &amp;&amp; x &lt; BV32::new(11) &amp;&amp; y &gt; BV32::new(21)
+}
+
+#[flux_rs::sig(fn (BV32[@x], BV32[@y]) -&gt; bool[true] requires bv_ult(x, y) &amp;&amp; bv_ugt(x, bv_int_to_bv32(0x20)) &amp;&amp; bv_ult(y, bv_int_to_bv32(0xFF)))]
+pub fn lt_imp(x: BV32, y: BV32) -&gt; bool {
+    x - BV32::new(0x20) &lt; y + BV32::new(0x20)
+}
+
+#[flux_rs::sig(fn (BV32[@x], BV32[@y]) -&gt; bool[true] requires bv_ule(x, y) &amp;&amp; bv_uge(x, bv_int_to_bv32(0x20)) &amp;&amp; bv_ule(y, bv_int_to_bv32(0xFF)))]
+pub fn le_imp(x: BV32, y: BV32) -&gt; bool {
+    x - BV32::new(0x20) &lt;= y + BV32::new(0x20)
+}
+
+#[flux_rs::sig(fn (BV32[@x], BV32[@y]) -&gt; bool[true] requires bv_ugt(x, y) &amp;&amp; bv_ugt(y, bv_int_to_bv32(0x20)) &amp;&amp; bv_ult(x, bv_int_to_bv32(0xFF)))]
+pub fn gt_imp(x: BV32, y: BV32) -&gt; bool {
+    x + BV32::new(0x20) &gt; y - BV32::new(0x20)
+}
+
+#[flux_rs::sig(fn (BV32[@x], BV32[@y]) -&gt; bool[true] requires bv_uge(x, y) &amp;&amp; bv_uge(y, bv_int_to_bv32(0x20)) &amp;&amp; bv_ule(x, bv_int_to_bv32(0xFF)))]
+pub fn ge_imp(x: BV32, y: BV32) -&gt; bool {
+    x + BV32::new(0x20) &gt;= y - BV32::new(0x20)
+}</code></pre>
 <h3 id="specification-functions"><a class="header" href="#specification-functions">Specification functions</a></h3>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/bitvec05.rs}}</code></pre>
+<pre><code class="language-rust noplayground">use flux_rs::{attrs::*, bitvec::BV32};
+
+defs! {
+    fn is_pow2(x: bitvec&lt;32&gt;) -&gt; bool {
+        (x &gt; 0) &amp;&amp; ((x &amp; x - 1) == 0)
+    }
+}
+
+#[sig(fn(x: BV32) requires is_pow2(x) &amp;&amp; 8 &lt;= x ensures x % 8 == 0)]
+fn theorem_pow2_octet(x: BV32) {}</code></pre>
 <h3 id="extensions"><a class="header" href="#extensions">Extensions</a></h3>
 <pre><code class="language-rust noplayground">// https://github.com/flux-rs/flux/issues/686
 
@@ -2245,7 +2637,39 @@ pub fn test_bv_extensions() {
     assert(r.sign_extend() == 12); //~ ERROR refinement type
 }</code></pre>
 <h3 id="bitvector-constants"><a class="header" href="#bitvector-constants">Bitvector Constants</a></h3>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/neg/surface/bitvec_const00.rs}}</code></pre>
+<pre><code class="language-rust noplayground">#![flux::defs(
+    fn is_start(x:bitvec&lt;32&gt;) -&gt; bool { x == START }
+)]
+
+#[flux::opaque]
+#[flux::refined_by(val: bitvec&lt;32&gt;)]
+pub struct BV32(u32);
+
+impl BV32 {
+    #[flux::trusted]
+    #[flux::sig(fn (x:u32) -&gt; BV32[bv_int_to_bv32(x)])]
+    const fn new(val: u32) -&gt; Self {
+        BV32(val)
+    }
+}
+
+#[flux_rs::constant(bv_int_to_bv32(0x4567))]
+pub const START: BV32 = BV32::new(0x4567);
+
+#[flux_rs::sig(fn () -&gt; BV32[START])]
+pub fn test1() -&gt; BV32 {
+    BV32::new(0x4567)
+}
+
+#[flux_rs::sig(fn () -&gt; BV32{v: is_start(v)})]
+pub fn test2() -&gt; BV32 {
+    BV32::new(0x4567)
+}
+
+#[flux_rs::sig(fn () -&gt; BV32{v: is_start(v)})]
+pub fn test3() -&gt; BV32 {
+    BV32::new(0x4568) //~ ERROR: refinement type
+}</code></pre>
 <h2 id="char-literals"><a class="header" href="#char-literals"><code>char</code> Literals</a></h2>
 <pre><code class="language-rust noplayground">#[flux::sig(fn() -&gt; char['a'])]
 pub fn char00() -&gt; char {
@@ -2289,7 +2713,9 @@ by the procedural macros package <code>flux_rs</code>.</p>
 <a href="https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_macro.rs">here</a>.</p>
 <p>To define an extern spec on a function, you need to do three things, which
 happen to correspond to each of the below lines.</p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/neg/surface/extern_spec_swap.rs:5:7}}</code></pre>
+<pre><code class="language-rust noplayground">#[extern_spec(std::mem)]
+#[spec(fn(x: &amp;mut T[@vx], y: &amp;mut T[@vy]) ensures x: T[vy], y: T[vx])]
+fn swap&lt;T&gt;(a: &amp;mut T, b: &amp;mut T);</code></pre>
 <ol>
 <li>Add the <code>#[extern_spec]</code> attribute. This attribute optionally takes a path;
 in the above example, this is <code>std::mem</code>. You can use this path to qualify
@@ -2305,7 +2731,14 @@ like that the function arguments have compatible types.</li>
 <p>If you do the above, you can use <code>std::mem::swap</code> as if it were refined by the
 above type.</p>
 <p>Here are two examples:</p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/neg/surface/extern_spec_swap.rs:9:16}}</code></pre>
+<pre><code class="language-rust noplayground">pub fn test_swap() {
+    let mut x = 5;
+    let mut y = 10;
+    swap(&amp;mut x, &amp;mut y); // actually calls `std::mem::swap`
+    assert(x == 10); // verified by flux
+    assert(y == 5); // verified by flux
+    assert(y == 10); //~ ERROR refinement type
+}</code></pre>
 <pre><code class="language-rust noplayground">use std::slice::from_ref;
 
 use flux_attrs::extern_spec;
@@ -2416,7 +2849,59 @@ impl&lt;T&gt; Option&lt;T&gt; {
     #[spec(fn(Option&lt;T&gt;[@b], U, F) -&gt; U where F: FnOnce(T) -&gt; U)]
     fn map_or&lt;U, F: FnOnce(T) -&gt; U&gt;(self, default: U, f: F) -&gt; U;
 }</code></pre>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/enums/option00.rs}}</code></pre>
+<pre><code class="language-rust noplayground">use flux_rs::{assert, attrs::*};
+
+extern crate flux_core;
+
+#[flux::trusted]
+#[spec(fn(i32{v: false}) -&gt; T)]
+pub fn never&lt;T&gt;(_: i32) -&gt; T {
+    loop {}
+}
+
+#[spec(fn(x:Option&lt;T&gt;[true]) -&gt; T)]
+pub fn my_unwrap&lt;T&gt;(x: Option&lt;T&gt;) -&gt; T {
+    match x {
+        Option::Some(v) =&gt; v,
+        Option::None =&gt; never(0),
+    }
+}
+
+#[spec(fn(T) -&gt; Option&lt;T&gt;[true])]
+fn my_some&lt;T&gt;(x: T) -&gt; Option&lt;T&gt; {
+    Option::Some(x)
+}
+
+pub fn test1() {
+    let x = my_some(42);
+    let y = my_unwrap(x);
+    assert(y == 42);
+}
+
+pub fn test3() {
+    let x = Option::Some(42);
+    let y = my_unwrap(x);
+    assert(y == 42);
+}
+
+pub fn test_opt_specs() {
+    let a = Some(42);
+    assert(a.is_some());
+    let b: Option&lt;i32&gt; = None;
+    assert(b.is_none());
+    let c = a.unwrap();
+    assert(c == 42);
+}
+
+#[spec(fn (numerator: u32, denominator: u32) -&gt; Option&lt;u32[numerator / denominator]&gt;[denominator != 0])]
+pub fn safe_div(numerator: u32, denominator: u32) -&gt; Option&lt;u32&gt; {
+    if denominator == 0 { None } else { Some(numerator / denominator) }
+}
+
+pub fn test_safe_div() {
+    let res = safe_div(42, 2).unwrap();
+    assert(res == 21);
+}</code></pre>
 <h3 id="vec"><a class="header" href="#vec">Vec</a></h3>
 <pre><code class="language-rust noplayground">use std::{
     alloc::{Allocator, Global},
@@ -2770,7 +3255,61 @@ fn test01(x: MyInt, y: MyInt) -&gt; bool {
 }</code></pre>
 <h3 id="for-loops-with-range-ij"><a class="header" href="#for-loops-with-range-ij"><code>for</code> loops with range <code>i..j</code></a></h3>
 <p>To see how <code>flux</code> handles <code>for i in 0..n</code> style loops:</p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/for_range00.rs}}</code></pre>
+<pre><code class="language-rust noplayground">#![feature(step_trait)]
+#![allow(unused)]
+
+extern crate flux_core;
+
+#[flux_rs::sig(fn (bool[true]))]
+fn assert(b: bool) {}
+
+fn donald() {
+    let n: i32 = 10;
+    let mut thing = 0..n;
+    let a = thing.next().unwrap();
+    assert(a == 0);
+    let b = thing.next().unwrap();
+    assert(b == 1);
+    let c = thing.next().unwrap();
+    assert(c == 2);
+}
+
+#[flux_rs::sig(fn (n:i32{n == 99}))]
+fn goofy(n: i32) {
+    let mut thing = 0..n;
+    let a0 = thing.end;
+    assert(a0 == n);
+    while let Some(i) = thing.next() {
+        assert(0 &lt;= i);
+        assert(i &lt; n);
+    }
+}
+
+#[flux_rs::sig(fn (n:i32{n == 99}))]
+fn mickey(n: i32) {
+    for i in 0..n {
+        assert(0 &lt;= i);
+        assert(i &lt; n);
+    }
+}
+
+#[flux_rs::trusted]
+fn cond() -&gt; bool {
+    todo!()
+}
+
+fn test(len: i32) {
+    if len &gt;= 0 {
+        let mut del = 0;
+        for i in 0..len {
+            assert(del &lt;= i);
+            if cond() {
+                del += 1;
+            }
+        }
+        assert(del &lt;= len)
+    }
+}</code></pre>
 <h2 id="associated-refinements"><a class="header" href="#associated-refinements">Associated Refinements</a></h2>
 <h3 id="basic"><a class="header" href="#basic">Basic</a></h3>
 <pre><code class="language-rust noplayground">#![allow(dead_code)]
@@ -2971,7 +3510,67 @@ impl&lt;T, A: Allocator&gt; DerefMut for Vec&lt;T, A&gt; {
 #[cfg(flux)]
 mod range;
 mod traits;</code></pre>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/iter02.rs}}</code></pre>
+<pre><code class="language-rust noplayground">#![allow(unused)]
+#![feature(allocator_api)]
+
+use std::{iter::Enumerate, slice::Iter};
+
+extern crate flux_alloc;
+extern crate flux_core;
+
+#[flux::sig(fn(bool[true]))]
+pub fn assert(_b: bool) {}
+
+// Tests
+#[flux::sig(fn(slice: &amp;[u8]{n: n &gt; 0}))]
+fn test_iter1(slice: &amp;[u8]) {
+    let mut iter = slice.iter();
+    let next = iter.next();
+    assert(next.is_some());
+}
+
+#[flux::sig(fn(slice: &amp;[u8]{n: n &gt; 1}))]
+fn test_enumerate1(slice: &amp;[u8]) {
+    assert(slice.len() &gt; 0);
+    let mut enumer = slice.iter().enumerate();
+
+    let next = enumer.next();
+    assert(next.is_some());
+    let (idx, _) = next.unwrap();
+    assert(idx == 0);
+
+    let next_next = enumer.next();
+    assert(next_next.is_some());
+    let (idx, _) = next_next.unwrap();
+    assert(idx == 1);
+}
+
+#[flux::sig(fn(&amp;[usize][1]) )]
+pub fn test_enumer2(slice: &amp;[usize]) {
+    assert(slice.len() == 1);
+    let mut enumer = slice.iter().enumerate();
+
+    let next = enumer.next();
+    assert(next.is_some());
+
+    let next_next = enumer.next();
+    assert(next_next.is_none())
+}
+
+#[flux::sig(fn(&amp;[usize][@n]) )]
+pub fn test_enumer3(slice: &amp;[usize]) {
+    let mut e = slice.iter().enumerate();
+    while let Some((idx, _)) = e.next() {
+        assert(idx &lt; slice.len())
+    }
+}
+
+#[flux::sig(fn(&amp;[usize][@n]) )]
+pub fn test_enumer4(slice: &amp;[usize]) {
+    for (idx, _) in slice.iter().enumerate() {
+        assert(idx &lt; slice.len())
+    }
+}</code></pre>
 <h3 id="associated-types"><a class="header" href="#associated-types">Associated Types</a></h3>
 <pre><code class="language-rust noplayground">use flux_attrs::*;
 
@@ -3082,7 +3681,26 @@ mod my_mod {
         x + 2
     }
 }</code></pre>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/check_overflow02.rs}}</code></pre>
+<pre><code class="language-rust noplayground">const MAX: u32 = std::u32::MAX;
+
+#[flux_rs::refined_by(inner: int)]
+struct MyStruct {
+    #[field(u32[inner])]
+    inner: u32,
+}
+
+impl MyStruct {
+    fn add1(&amp;self) -&gt; u32 {
+        self.inner + 1
+    }
+
+    // Error as this may overflow
+    #[flux::opts(check_overflow = "strict")]
+    #[flux::sig(fn (&amp;MyStruct[@inner]) -&gt; u32[inner + 2] requires inner + 2 &lt;= MAX)]
+    fn add2(&amp;self) -&gt; u32 {
+        self.inner + 2
+    }
+}</code></pre>
 <pre><code class="language-rust noplayground">const MAX: u32 = std::u32::MAX;
 
 struct MyStruct {
@@ -3115,11 +3733,124 @@ a refined type for <code>op</code> expressed as a [<code>RuleMatcher</code>]</p>
 <p>The latter can be extended by the user via a <code>property</code> definition,
 which allows us to customize primops like <code>&lt;&lt;</code> with extra "facts"
 or lemmas. See <code>tests/tests/pos/surface/primops00.rs</code> for an example.</p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/primops00.rs}}</code></pre>
+<pre><code class="language-rust noplayground">use flux_rs::{assert, attrs::*, defs};
+
+defs! {
+
+    fn is_char(n: int) -&gt; bool {
+        0 &lt;= n &amp;&amp; n &lt;= 0x10FFFF
+    }
+
+    property ShiftByTwo[&lt;&lt;](x, y) {
+        [&lt;&lt;](x, 2) == 4*x
+    }
+
+    property ShiftRightByFour[&gt;&gt;](x, y) {
+        16 * [&gt;&gt;](x, 4) == x
+    }
+
+    property MaskBy[&amp;](x, y) {
+        [&amp;](x, y) &lt;= y
+    }
+
+    property XorSelfInverse[^](x, y) {
+        x == y =&gt; [^](x, y) == 0
+    }
+
+    property OrBy1[|](x, y) {
+        is_char(x) =&gt; is_char([|](x, 1))
+    }
+}
+
+pub fn test0() {
+    let x: usize = 1 &lt;&lt; 2;
+    assert(x == 4);
+}
+
+pub fn test1() {
+    let x = 1;
+    let x = x &lt;&lt; 2;
+    let x = x &lt;&lt; 2;
+    assert(x == 16)
+}
+
+#[spec(fn (x: u32) -&gt; u32[16*x])]
+pub fn test2(x: u32) -&gt; u32 {
+    let x = x &lt;&lt; 2;
+    let x = x &lt;&lt; 2;
+    x
+}
+
+#[spec(fn (byte: u8{byte &lt;= 127}))]
+pub fn test3(byte: u8) {
+    let tmp1 = byte &gt;&gt; 4;
+    let tmp2 = byte &amp; 0xf;
+    assert(byte &lt;= 127);
+    assert(tmp1 &lt;= 0xf);
+    assert(tmp2 &lt;= 0xf);
+}
+
+static POW10: [i32; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+pub fn test4(n: usize) -&gt; i32 {
+    POW10[n &amp; 7]
+}
+
+#[spec(fn(x: usize) -&gt; usize[0])]
+pub fn test5(x: usize) -&gt; usize {
+    x ^ x
+}
+
+pub fn test6(c: char) {
+    let c = c as u32;
+    flux_rs::assert(c &lt;= 0x10FFFF); // (0)
+    let c = c | 1;
+    flux_rs::assert(c &lt;= 0x10FFFF); // (1)
+}
+
+#[spec(fn (b:bool) -&gt; usize{v: v &lt;= 7})]
+pub fn test7(b: bool) -&gt; usize {
+    let n: usize = 10;
+    let m = if b { n &amp; 7 } else { 6 };
+    m
+}</code></pre>
 <h2 id="casting-sorts"><a class="header" href="#casting-sorts">Casting Sorts</a></h2>
 <p>You can convert refinements of different sorts -- e.g. <code>int</code> to <code>char</code> or <code>int</code> to <code>bool</code> --
 using the <code>cast</code> internal function.</p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/to_int00.rs}}</code></pre>
+<pre><code class="language-rust noplayground">#![flux::defs {
+    fn is_ascii_digit(c: char) -&gt; bool {
+        let i = cast(c);
+        48 &lt;= i &amp;&amp; i &lt;= 57
+    }
+
+    fn is_ascii(c: char) -&gt; bool {
+        let i = cast(c);
+        0 &lt;= i &amp;&amp; i &lt;= 127
+    }
+}]
+
+use flux_rs::{assert, attrs::*};
+
+// extern specs for is_ascii and is_ascii_digit
+#[extern_spec]
+impl char {
+    #[spec(fn (&amp;Self[@c]) -&gt; bool[is_ascii(c)])]
+    fn is_ascii(&amp;self) -&gt; bool;
+
+    #[spec(fn (&amp;Self[@c]) -&gt; bool[is_ascii_digit(c)])]
+    fn is_ascii_digit(&amp;self) -&gt; bool;
+}
+
+pub fn test_ok(x: char) {
+    if x.is_ascii_digit() {
+        assert(x.is_ascii())
+    }
+}
+
+#[spec(fn (char{v: '0' &lt;= v &amp;&amp; v &lt;= '9'}))]
+pub fn test_digit(x: char) {
+    assert(x.is_ascii_digit())
+}</code></pre>
 <h2 id="detached-specifications"><a class="header" href="#detached-specifications">Detached Specifications</a></h2>
 <p>Sometimes you may want to write specs for functions, structs, enums
 etc. but not <em>directly</em> attached to the function i.e. as an attribute
@@ -3145,7 +3876,32 @@ pub fn id(n: i32) -&gt; i32 {
     n
 }</code></pre>
 <p><strong>Structs</strong></p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/detached/detach_struct00.rs}}</code></pre>
+<pre><code class="language-rust noplayground">use flux_rs::assert;
+
+pub struct MyStruct {
+    x: usize,
+    y: usize,
+}
+
+pub fn mk_struct(x: usize, y: usize) -&gt; MyStruct {
+    if x &lt; y { MyStruct { x, y } } else { MyStruct { x: y, y: x } }
+}
+
+pub fn use_struct(s: MyStruct) {
+    assert(s.x &lt;= s.y)
+}
+
+#[flux::specs {
+
+    #[refined_by(vx: int, vy: int)]
+    #[invariant(vx &lt;= vy)]
+    struct MyStruct {
+        x: usize[vx],
+        y: usize[vy],
+    }
+
+}]
+const _: () = ();</code></pre>
 <p><strong>Enums</strong></p>
 <pre><code class="language-rust noplayground">enum Nat {
     Zero,
@@ -3282,7 +4038,61 @@ pub fn test_b() -&gt; Nat {
 const _: () = ();</code></pre>
 <p><strong>Trait Impls</strong></p>
 <p>Note the <em>fully qualified</em> name of the <code>trait</code> in the spec.</p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/detached/detach_impl06.rs}}</code></pre>
+<pre><code class="language-rust noplayground">#![allow(unused)]
+
+extern crate flux_core;
+
+use flux_rs::{assert, attrs::*};
+
+pub mod a {
+    pub mod b {
+        pub trait MyTrait {
+            fn gromp(&amp;self) -&gt; usize;
+        }
+    }
+}
+
+pub mod x {
+    pub mod y {
+        pub struct Thing&lt;T&gt; {
+            inner: T,
+        }
+
+        impl&lt;T&gt; Thing&lt;T&gt; {
+            pub fn new(inner: T) -&gt; Self {
+                Thing { inner }
+            }
+        }
+
+        impl&lt;T&gt; crate::a::b::MyTrait for Thing&lt;T&gt; {
+            fn gromp(&amp;self) -&gt; usize {
+                42
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------
+mod test {
+    use crate::a::b::MyTrait;
+
+    #[flux_rs::spec(fn () -&gt; usize[42])]
+    fn test() -&gt; usize {
+        crate::x::y::Thing::new(true).gromp()
+    }
+}
+
+// -------------------------------------------------------------------
+#[flux_rs::specs {
+    mod x {
+        mod y {
+            impl a::b::MyTrait for Thing&lt;T&gt; {
+                fn gromp(&amp;Self) -&gt; usize[42];
+            }
+        }
+    }
+}]
+const _: () = ();</code></pre>
 <h2 id="include-patterns"><a class="header" href="#include-patterns">Include Patterns</a></h2>
 <p>You can include patterns to restrict <code>flux</code> to only check a subset of a codebase.
 A <code>def_id</code> is checked if it matches any of the patterns.</p>
@@ -3315,7 +4125,34 @@ pub fn range(lo: usize, hi: usize) -&gt; RVec&lt;usize&gt; {
 <p>The <code>invariant!</code> macro can be used to simulate a restricted form of loop invariant,
 by simultaneously specifying assertions and qualifiers that can be used to establish
 that assertion.</p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/pos/surface/invariant_macro00.rs}}</code></pre>
+<pre><code class="language-rust noplayground">use flux_rs::{attrs::*, macros::invariant};
+
+#[spec(fn (n: usize) -&gt; usize[n])]
+pub fn test_with_qualifier(n: usize) -&gt; usize {
+    let mut i = n;
+    let mut res = 0;
+    while i &gt; 0 {
+        #[flux::defs{
+            invariant qualifier Auto(res: int) { res + i == n  &amp;&amp; i &gt;= 99-99 &amp;&amp; res &gt;= 66 - 66 }
+         }]
+        const _: () = ();
+        i -= 1;
+        res += 1;
+    }
+    res
+}
+
+#[spec(fn (n: usize) -&gt; usize[n])]
+pub fn test(n: usize) -&gt; usize {
+    let mut i = n;
+    let mut res = 0;
+    while i &gt; 0 {
+        invariant!(res:int; res + i == n &amp;&amp; i &gt;= 99-99 &amp;&amp; res &gt;= 66 - 66);
+        i -= 1;
+        res += 1;
+    }
+    res
+}</code></pre>
 <hr>
 <ol class="footnote-definition"><li id="footnote-ignore-shorthand">
 <p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>
