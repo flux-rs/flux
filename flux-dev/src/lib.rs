@@ -1,9 +1,23 @@
 //! Shared development utilities for `xtask` and `tests`.
 
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
-pub fn default_flags() -> Vec<String> {
-    vec!["--crate-type=rlib".to_string(), "--edition=2021".to_string()]
+pub fn default_flags(sysroot: &Path) -> Vec<String> {
+    vec![
+        "--crate-type=rlib".to_string(),
+        "--edition=2021".to_string(),
+        "-L".to_string(),
+        sysroot.display().to_string(),
+        "--extern".to_string(),
+        "flux_rs".to_string(),
+        "--extern".to_string(),
+        "flux_attrs".to_string(),
+        "-Fverify=on".to_string(),
+        format!("-Fsysroot={}", sysroot.display()),
+    ]
 }
 
 #[derive(Clone, Copy, Debug)]

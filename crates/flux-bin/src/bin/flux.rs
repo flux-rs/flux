@@ -24,7 +24,8 @@ fn main() -> Result<()> {
         // Skip the invocation of `flux` itself
         .args(env::args().skip(1))
         .arg("-L")
-        .arg(flux_sysroot)
+        .arg(&flux_sysroot)
+        .arg(format!("-Fsysroot={}", flux_sysroot.display()))
         .args(["--extern", "flux_rs", "--extern", "flux_attrs", "-Fverify=on"])
         .env(LIB_PATH, extended_lib_path)
         .status()?

@@ -1,6 +1,18 @@
 //! Shared sysroot utilities for `flux-bin`, `xtask`, and `tests`.
 
-use std::{env, path::PathBuf};
+use std::{collections::BTreeMap, env, path::PathBuf};
+
+use serde::{Deserialize, Serialize};
+
+/// Typed representation of `sysroot.toml`.
+///
+/// Written by `xtask` after building sysroot libraries, read by `flux-driver` at startup to inject
+/// extern specs. Serialization format is left to the caller (`toml` in both cases).
+#[derive(Serialize, Deserialize, Default)]
+pub struct SysrootManifest {
+    #[serde(default)]
+    pub extern_specs: BTreeMap<String, String>,
+}
 
 /// Name of the environment variable used to override the Flux sysroot location.
 ///

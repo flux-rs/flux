@@ -67,6 +67,8 @@ pub struct Flags {
     /// If `true`, produce artifacts after analysis. This flag is managed by `cargo flux`, so you
     /// don't typically have to set it manually.
     pub full_compilation: bool,
+    /// Path to the Flux sysroot directory. If not set, the driver infers it from its own binary location.
+    pub sysroot: Option<PathBuf>,
     /// If `true`, all code is trusted by default. You can selectively untrust items by marking them with `#[trusted(no)]`. The default value of this flag is `false`, i.e., all code is untrusted by default.
     pub trusted_default: bool,
     /// If `true`, all code will be ignored by default. You can selectively unignore items by marking them with `#[ignore(no)]`. The default value of this flag is `false`, i.e., all code is unignored by default.
@@ -74,6 +76,9 @@ pub struct Flags {
     pub lean: LeanMode,
     /// If `true`, every function is implicitly labeled with a `no_panic` by default.
     pub no_panic: bool,
+    /// If `true`, automatically inject `flux_core` and `flux_alloc` as force externs using paths
+    /// from `sysroot.toml`. Off by default.
+    pub std_extern_specs: bool,
 }
 
 impl Default for Flags {
@@ -103,10 +108,12 @@ impl Default for Flags {
             summary: true,
             verify: false,
             full_compilation: false,
+            sysroot: None,
             trusted_default: false,
             ignore_default: false,
             lean: LeanMode::default(),
             no_panic: false,
+            std_extern_specs: false,
         }
     }
 }
@@ -144,10 +151,12 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "include-trusted-impl" => parse_opt_include(&mut trusted_impls, value),
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
+            "sysroot" => parse_opt_path_buf(&mut flags.sysroot, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
             "ignore" => parse_bool(&mut flags.ignore_default, value),
             "lean" => parse_lean_mode(&mut flags.lean, value),
             "no-panic" => parse_bool(&mut flags.no_panic, value),
+            "std-extern-specs" => parse_bool(&mut flags.std_extern_specs, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
@@ -218,7 +227,7 @@ fn parse_string(slot: &mut String, v: Option<&str>) -> Result<(), &'static str> 
             *slot = s.to_string();
             Ok(())
         }
-        None => Err("a string"),
+        None => Err("expected a string"),
     }
 }
 
@@ -228,7 +237,7 @@ fn parse_path_buf(slot: &mut PathBuf, v: Option<&str>) -> Result<(), &'static st
             *slot = PathBuf::from(s);
             Ok(())
         }
-        None => Err("a path"),
+        None => Err("expected a path"),
     }
 }
 
@@ -288,7 +297,7 @@ fn parse_opt_path_buf(slot: &mut Option<PathBuf>, v: Option<&str>) -> Result<(),
             *slot = Some(PathBuf::from(s));
             Ok(())
         }
-        None => Err("a path"),
+        None => Err("expected a path"),
     }
 }
 
