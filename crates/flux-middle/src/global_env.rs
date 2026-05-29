@@ -455,13 +455,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|variants| variants.map(|variants| variants[variant_idx.as_usize()].clone())))
     }
 
-    pub fn lower_late_bound_vars(
-        self,
-        def_id: LocalDefId,
-    ) -> QueryResult<List<ty::BoundVariableKind>> {
-        self.inner.queries.lower_late_bound_vars(self, def_id)
-    }
-
     /// Whether the function is marked with `#[flux::no_panic]`
     pub fn no_panic(self, def_id: impl IntoQueryParam<DefId>) -> bool {
         self.inner.queries.no_panic(self, def_id.into_query_param())

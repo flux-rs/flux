@@ -1447,7 +1447,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn mk_lft_hole(&self) -> fhir::Lifetime {
-        fhir::Lifetime::Hole(self.next_fhir_id())
+        fhir::Lifetime(self.next_fhir_id())
     }
 
     fn desugar_indices(&mut self, idxs: &surface::Indices) -> fhir::Expr<'genv> {
