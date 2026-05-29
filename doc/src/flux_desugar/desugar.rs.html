@@ -1447,7 +1447,7 @@
 <a href=#1447 id=1447 data-nosnippet>1447</a>    }
 <a href=#1448 id=1448 data-nosnippet>1448</a>
 <a href=#1449 id=1449 data-nosnippet>1449</a>    <span class="kw">fn </span>mk_lft_hole(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; fhir::Lifetime {
-<a href=#1450 id=1450 data-nosnippet>1450</a>        fhir::Lifetime::Hole(<span class="self">self</span>.next_fhir_id())
+<a href=#1450 id=1450 data-nosnippet>1450</a>        fhir::Lifetime(<span class="self">self</span>.next_fhir_id())
 <a href=#1451 id=1451 data-nosnippet>1451</a>    }
 <a href=#1452 id=1452 data-nosnippet>1452</a>
 <a href=#1453 id=1453 data-nosnippet>1453</a>    <span class="kw">fn </span>desugar_indices(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idxs: <span class="kw-2">&amp;</span>surface::Indices) -&gt; fhir::Expr&lt;<span class="lifetime">'genv</span>&gt; {
