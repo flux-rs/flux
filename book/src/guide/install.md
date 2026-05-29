@@ -226,7 +226,7 @@ of `cargo flux`.
 
 You can see the format of the `metadata` in <https://flux-rs.github.io/flux/doc/flux_bin/struct.FluxMetadata.html>.
 
-### `FLUXFLAGS` Environement Variable
+### `FLUXFLAGS` Environment Variable
 
 When running `cargo flux`, flags defined in `FLUXFLAGS` will be passed to all `flux` invocations,
 for example, to print timing information for all crates checked by Flux:
@@ -234,3 +234,13 @@ for example, to print timing information for all crates checked by Flux:
 ```console
 FLUXFLAGS="-Ftimings" cargo flux
 ```
+
+### Verbose Flag
+
+One particularly useful flag is
+
+```console
+FLUXFLAGS="-Fverbose" cargo flux
+```
+
+This will make flux print out a log of what it is upto, e.g. the name of the last function checked. This is helpful, e.g. if flux ICEs (hits an internal error), so you can see _which_ function's code caused the issue, so you might mark it as `trusted`, so flux can skip checking its body, and hence, live to fight another day...

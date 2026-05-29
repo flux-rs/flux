@@ -151,6 +151,10 @@ pub fn std_extern_specs() -> bool {
     FLAGS.std_extern_specs
 }
 
+pub fn verbose() -> bool {
+    FLAGS.verbose
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Pos {

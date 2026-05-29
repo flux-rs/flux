@@ -209,6 +209,16 @@ macro_rules! _debug_assert_eq3 {
 }
 pub use crate::_debug_assert_eq3 as debug_assert_eq3;
 
+#[macro_export]
+macro_rules! _log_verbose {
+    ($($arg:tt)*) => {
+        if config::verbose() {
+            eprintln!($($arg)*);
+        }
+    };
+}
+pub use crate::_log_verbose as log_verbose;
+
 pub fn as_subscript<T: ToString>(n: T) -> String {
     n.to_string()
         .chars()
