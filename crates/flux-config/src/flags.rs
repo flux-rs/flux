@@ -79,6 +79,8 @@ pub struct Flags {
     /// If `true`, automatically inject `flux_core` and `flux_alloc` as force externs using paths
     /// from `sysroot.toml`. Off by default.
     pub std_extern_specs: bool,
+    /// If `true`, produce more detailed error messages (e.g. condition spans for fold errors).
+    pub verbose: bool,
 }
 
 impl Default for Flags {
@@ -114,6 +116,7 @@ impl Default for Flags {
             lean: LeanMode::default(),
             no_panic: false,
             std_extern_specs: false,
+            verbose: false,
         }
     }
 }
@@ -157,6 +160,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "lean" => parse_lean_mode(&mut flags.lean, value),
             "no-panic" => parse_bool(&mut flags.no_panic, value),
             "std-extern-specs" => parse_bool(&mut flags.std_extern_specs, value),
+            "verbose" => parse_bool(&mut flags.verbose, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);

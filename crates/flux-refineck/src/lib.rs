@@ -75,6 +75,8 @@ fn check_body(
     let span = genv.tcx().def_span(def_id);
     let opts = genv.infer_opts(def_id);
 
+    dbg::log_verbose!("FLUX checking: {def_id:?} {span:?}");
+
     let ghost_stmts = compute_ghost_statements(genv, def_id)
         .with_span(span)
         .map_err(|err| err.emit(genv, def_id))?;
