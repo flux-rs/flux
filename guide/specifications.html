@@ -802,12 +802,14 @@ impl&lt;T: Clone, A: Allocator + Clone&gt; Clone for Vec&lt;T, A&gt; {
 
 #[extern_spec]
 impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; Index&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[assume_parametric(T)]
     #[spec(fn(&amp;Vec&lt;T, A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
     fn index(z: &amp;Vec&lt;T, A&gt;, index: I) -&gt; &amp;&lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
 }
 
 #[extern_spec]
 impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[assume_parametric(T)]
     #[spec(fn(&amp;mut Vec&lt;T,A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
     fn index_mut(z: &amp;mut Vec&lt;T, A&gt;, index: I) -&gt; &amp;mut &lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
 }
@@ -2950,12 +2952,14 @@ impl&lt;T: Clone, A: Allocator + Clone&gt; Clone for Vec&lt;T, A&gt; {
 
 #[extern_spec]
 impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; Index&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[assume_parametric(T)]
     #[spec(fn(&amp;Vec&lt;T, A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
     fn index(z: &amp;Vec&lt;T, A&gt;, index: I) -&gt; &amp;&lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
 }
 
 #[extern_spec]
 impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[assume_parametric(T)]
     #[spec(fn(&amp;mut Vec&lt;T,A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
     fn index_mut(z: &amp;mut Vec&lt;T, A&gt;, index: I) -&gt; &amp;mut &lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
 }
@@ -3471,12 +3475,14 @@ impl&lt;T: Clone, A: Allocator + Clone&gt; Clone for Vec&lt;T, A&gt; {
 
 #[extern_spec]
 impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; Index&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[assume_parametric(T)]
     #[spec(fn(&amp;Vec&lt;T, A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
     fn index(z: &amp;Vec&lt;T, A&gt;, index: I) -&gt; &amp;&lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
 }
 
 #[extern_spec]
 impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[assume_parametric(T)]
     #[spec(fn(&amp;mut Vec&lt;T,A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
     fn index_mut(z: &amp;mut Vec&lt;T, A&gt;, index: I) -&gt; &amp;mut &lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
 }
