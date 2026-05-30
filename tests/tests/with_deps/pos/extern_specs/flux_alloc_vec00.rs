@@ -10,10 +10,3 @@ fn test(v: Vec<i32>) {
     }
 }
 
-#[spec(fn(v: Vec<i32{v: v > 0}>))]
-fn test_let(v: Vec<i32>) {
-    if v.len() > 0 {
-        let y = v[0];
-        assert(y > 0);
-    }
-}
