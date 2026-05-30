@@ -679,12 +679,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 self,
                 |def_id| {
                     let tcx = genv.tcx();
-                    let param_def_ids = genv
-                        .fhir_attr_map(def_id.local_id())
-                        .parametric_params()
-                        .to_vec();
                     let generics = tcx.generics_of(def_id);
-                    param_def_ids
+                    genv.fhir_attr_map(def_id.local_id())
+                        .parametric_params()
                         .iter()
                         .map(|param_id| generics.param_def_id_to_index(tcx, *param_id).unwrap())
                         .collect()
