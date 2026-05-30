@@ -1,10 +1,7 @@
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hash,
-};
+use std::{collections::HashSet, hash::Hash};
 
 use derive_where::derive_where;
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 
 use crate::{ThyFunc, Types};
 
@@ -36,7 +33,7 @@ impl<T: Types> Constraint<T> {
         if cstrs.len() == 1 { cstrs.remove(0) } else { Self::Conj(cstrs) }
     }
 
-    fn variable_sorts_help(&self, acc: &mut HashMap<T::Var, Sort<T>>) {
+    fn variable_sorts_help(&self, acc: &mut IndexMap<T::Var, Sort<T>>) {
         match self {
             Constraint::ForAll(bind, inner) => {
                 acc.insert(bind.name.clone(), bind.sort.clone());
@@ -49,8 +46,8 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn variable_sorts(&self) -> HashMap<T::Var, Sort<T>> {
-        let mut res = HashMap::new();
+    pub fn variable_sorts(&self) -> IndexMap<T::Var, Sort<T>> {
+        let mut res = IndexMap::new();
         self.variable_sorts_help(&mut res);
         res
     }

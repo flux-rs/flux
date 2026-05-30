@@ -37,7 +37,7 @@ use rustc_hir::{
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable};
 pub use rustc_middle::mir::Mutability;
-use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
 use crate::{
@@ -61,6 +61,10 @@ pub struct AttrMap<'fhir> {
     pub attrs: &'fhir [Attr],
     pub qualifiers: &'fhir [FluxLocalDefId],
     pub reveals: &'fhir [FluxDefId],
+    /// The `DefId`s of type params listed in `#[assume_parametric(...)]`. They match
+    /// the `DefId` entries in `generics_of(callee_id)`. These are `DefId`s and not
+    /// `LocalDefId`s such that they are correct for extern specs as well.
+    pub parametric_params: &'fhir [DefId],
 }
 
 impl AttrMap<'_> {
@@ -102,6 +106,10 @@ impl AttrMap<'_> {
 
     pub(crate) fn no_panic(&self) -> bool {
         self.attrs.iter().any(|attr| matches!(attr, Attr::NoPanic))
+    }
+
+    pub(crate) fn parametric_params(&self) -> &[DefId] {
+        self.parametric_params
     }
 }
 
@@ -585,13 +593,13 @@ pub struct MutTy<'fhir> {
 
 /// Our surface syntax doesn't have lifetimes. To deal with them we create a *hole* for every lifetime
 /// which we then resolve when we check for structural compatibility against the rust type.
+// This struct usede to be an enum with an extra variant carrying a `resolve_bound_vars::ResolvedArg`
+// that we lifted from `hir`, but we simplified tto just a struct to treat all lifetimes uniformely.
+// We are currently not using the `FirHid` so we could potentially remove the struct and remove
+// lifetime from fhir syntax, but we keep it here to mark places in fhir where there ought to be a
+// lifetime.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub enum Lifetime {
-    /// A lifetime hole created during desugaring.
-    Hole(FhirId),
-    /// A resolved lifetime created during lifting.
-    Resolved(ResolvedArg),
-}
+pub struct Lifetime(pub FhirId);
 
 /// Owner version of [`FluxLocalDefId`]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
@@ -1456,10 +1464,7 @@ impl fmt::Debug for BareFnTy<'_> {
 
 impl fmt::Debug for Lifetime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Lifetime::Hole(_) => write!(f, "'_"),
-            Lifetime::Resolved(lft) => write!(f, "{lft:?}"),
-        }
+        write!(f, "'_")
     }
 }
 

@@ -14,6 +14,7 @@ path = "src/bin/main.rs"
 [dependencies]
 flux-common.workspace = true
 flux-config.workspace = true
+flux-sysroot.workspace = true
 flux-desugar.workspace = true
 flux-errors.workspace = true
 flux-fhir-analysis.workspace = true
@@ -28,6 +29,7 @@ flux-infer.workspace = true
 itertools.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+toml.workspace = true
 
 tracing-subscriber = { version = "0.3", features = ["json"] }
 

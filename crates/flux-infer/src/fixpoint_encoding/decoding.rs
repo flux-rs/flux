@@ -94,6 +94,34 @@ where
         }
     }
 
+    fn is_curried_primop_app(
+        &mut self,
+        fhead: &fixpoint::Expr,
+        fargs: &Vec<fixpoint::Expr>,
+        op_args: &mut Vec<fixpoint::Expr>,
+    ) -> Option<rty::BinOp> {
+        match fhead {
+            fixpoint::Expr::Var(fixpoint::Var::Global(global_var, _))
+            | fixpoint::Expr::Var(fixpoint::Var::Const(global_var, _)) => {
+                if let Some(ConstKey::PrimOp(bin_op)) =
+                    self.ecx.const_env.const_map_rev.get(global_var)
+                {
+                    op_args.reverse();
+                    return Some(bin_op.clone());
+                } else {
+                    None
+                }
+            }
+            fixpoint::Expr::App(fhead_inner, _, fargs_inner, _) => {
+                if fargs.len() == 1 {
+                    op_args.push(fargs[0].clone());
+                }
+                self.is_curried_primop_app(fhead_inner, fargs_inner, op_args)
+            }
+            _ => None,
+        }
+    }
+
     #[allow(dead_code)]
     pub(crate) fn fixpoint_to_expr(
         &mut self,
@@ -179,6 +207,16 @@ where
                 }
             }
             fixpoint::Expr::App(fhead, _sort_args, fargs, _out_sort) => {
+                let mut op_args = vec![];
+                if let Some(bin_op) = self.is_curried_primop_app(fhead, fargs, &mut op_args) {
+                    if op_args.len() != 2 {
+                        return Err(FixpointParseError::PrimOpArityMismatch(fargs.len()));
+                    } else {
+                        let e1 = self.fixpoint_to_expr(&op_args[0])?;
+                        let e2 = self.fixpoint_to_expr(&op_args[1])?;
+                        return Ok(rty::Expr::prim_val(bin_op, e1, e2));
+                    }
+                }
                 match &**fhead {
                     fixpoint::Expr::Var(fixpoint::Var::TupleProj { arity, field }) => {
                         if fargs.len() == 1 {
@@ -246,16 +284,10 @@ where
                                 // NOTE: Only a few of these are meaningfully needed,
                                 // e.g. ConstKey::Alias because the rty Expr has its
                                 // args as a part of it.
-                                ConstKey::PrimOp(bin_op) => {
-                                    if fargs.len() != 2 {
-                                        Err(FixpointParseError::PrimOpArityMismatch(fargs.len()))
-                                    } else {
-                                        Ok(rty::Expr::prim_val(
-                                            bin_op.clone(),
-                                            self.fixpoint_to_expr(&fargs[0])?,
-                                            self.fixpoint_to_expr(&fargs[1])?,
-                                        ))
-                                    }
+                                ConstKey::PrimOp(_) => {
+                                    unreachable!(
+                                        "Should have been handled by is_curried_primop_app"
+                                    )
                                 }
                                 ConstKey::Cast(sort1, sort2) => {
                                     if fargs.len() != 1 {

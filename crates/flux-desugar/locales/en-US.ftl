@@ -57,7 +57,8 @@ desugar_unsupported_signature =
     .note = {$note}
 
 desugar_unresolved_path =
-    cannot resolve `{$path}`
+    cannot resolve {$ns} `{$path}` in this scope
+    .label = not found in this scope
 
 desugar_unresolved_var =
     cannot find value `{$var}` in this scope
@@ -80,6 +81,9 @@ desugar_unknown_qualifier =
 
 desugar_unknown_reveal_definition =
     unknown function definition
+
+desugar_unknown_parametric_param =
+    unknown type parameter
 
 desugar_unsupported_const_generic_arg =
     `{$res_descr}` not supported in this position

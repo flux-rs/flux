@@ -284,9 +284,9 @@ pub struct Queries<'genv, 'tcx> {
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
-    lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
+    assume_parametric_params: Cache<DefId, UnordSet<u32>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -325,9 +325,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             type_of: Default::default(),
             variants_of: Default::default(),
             fn_sig: Default::default(),
-            lower_late_bound_vars: Default::default(),
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
+            assume_parametric_params: Default::default(),
         }
     }
 
@@ -450,20 +450,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     .lower(genv.tcx())
                     .map_err(|err| QueryErr::unsupported(def_id, err.into_err()))?,
             ))
-        })
-    }
-
-    pub(crate) fn lower_late_bound_vars(
-        &self,
-        genv: GlobalEnv,
-        def_id: LocalDefId,
-    ) -> QueryResult<List<ty::BoundVariableKind>> {
-        run_with_cache(&self.lower_late_bound_vars, def_id, || {
-            let hir_id = genv.tcx().local_def_id_to_hir_id(def_id);
-            genv.tcx()
-                .late_bound_vars(hir_id)
-                .lower(genv.tcx())
-                .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err.into_err()))
         })
     }
 
@@ -666,6 +652,26 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 },
                 |def_id| genv.cstore().no_panic(def_id),
                 |_| false,
+            )
+        })
+    }
+
+    pub(crate) fn assume_parametric_params(&self, genv: GlobalEnv, def_id: DefId) -> UnordSet<u32> {
+        run_with_cache(&self.assume_parametric_params, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                self,
+                |def_id| {
+                    let tcx = genv.tcx();
+                    let generics = tcx.generics_of(def_id);
+                    genv.fhir_attr_map(def_id.local_id())
+                        .parametric_params()
+                        .iter()
+                        .map(|param_id| generics.param_def_id_to_index(tcx, *param_id).unwrap())
+                        .collect()
+                },
+                |def_id| genv.cstore().assume_parametric_params(def_id),
+                |_| UnordSet::default(),
             )
         })
     }

@@ -1,6 +1,6 @@
 [workspace]
 default-members = ["crates/*", "xtask"]
-members = ["crates/*", "lib/*", "tests", "xtask"]
+members = ["crates/*", "flux-dev", "lib/*", "tests", "xtask"]
 resolver = "2"
 
 [workspace.package]
@@ -9,6 +9,8 @@ edition = "2024"
 [workspace.dependencies]
 flux-arc-interner = { path = "./crates/flux-arc-interner", version = "0.1.0" }
 flux-bin = { path = "./crates/flux-bin", version = "0.1.0" }
+flux-dev = { path = "./flux-dev", version = "0.1.0" }
+flux-sysroot = { path = "./crates/flux-sysroot", version = "0.1.0" }
 flux-common = { path = "./crates/flux-common", version = "0.1.0" }
 flux-config = { path = "./crates/flux-config", version = "0.1.0" }
 flux-desugar = { path = "./crates/flux-desugar", version = "0.1.0" }
@@ -41,6 +43,7 @@ ena = "0.14.3"
 globset = "0.4"
 hashbrown = "0.14.5"
 home = "0.5.11"
+indexmap = "2.12.0"
 itertools = "0.14.0"
 pad-adapter = "0.1.1"
 regex = "1.10"
@@ -55,7 +58,6 @@ walkdir = "2.5"
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(flux_sysroot)',
-    'cfg(flux_sysroot_test)',
     'cfg(flux)',
 ] }
 unused_extern_crates = "warn"

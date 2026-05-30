@@ -4,7 +4,7 @@ pub enum State {
     Off,
 }
 
-#[flux_rs::sig(fn () -> State[On])] //~ ERROR cannot find value `On`
+#[flux::spec(fn () -> State[On])] //~ ERROR cannot find value `On`
 pub fn test00() -> State {
     State::On
 }

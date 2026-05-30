@@ -1999,6 +1999,7 @@ fn instantiate_args_for_fun_call(
     args: &ty::GenericArgs,
 ) -> QueryResult<Vec<rty::GenericArg>> {
     let params_in_clauses = collect_params_in_clauses(genv, callee_id);
+    let assumed_parametric_params = genv.assume_parametric_params(callee_id);
 
     let hole_refiner = Refiner::new_for_item(genv, caller_id, |bty| {
         let sort = bty.sort();
@@ -2017,8 +2018,9 @@ fn instantiate_args_for_fun_call(
         .enumerate()
         .map(|(idx, arg)| {
             let param = callee_generics.param_at(idx, genv)?;
-            let refiner =
-                if params_in_clauses.contains(&idx) { &default_refiner } else { &hole_refiner };
+            let is_parametric = !params_in_clauses.contains(&idx)
+                || assumed_parametric_params.contains(&(idx as u32));
+            let refiner = if is_parametric { &hole_refiner } else { &default_refiner };
             refiner.refine_generic_arg(&param, arg)
         })
         .collect()

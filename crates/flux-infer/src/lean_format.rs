@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{fmt::Write, iter};
+use std::{fmt::Write, iter, sync::LazyLock};
 
 use flux_common::{
     bug,
@@ -13,13 +13,14 @@ use flux_middle::{
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 use rustc_data_structures::fx::FxIndexSet;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
     ClosedSolution, InterpretedConst, KVarSolutions,
     fixpoint::{
         self, AdtId, BinOp, BinRel, Constant, Constraint, DataDecl, DataField, DataSort, Expr,
-        FunDef, FunSort, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+        FunDef, FunSort, GlobalVar, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
     },
 };
 
@@ -29,6 +30,8 @@ pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub adt_map: &'a FxIndexSet<DefId>,
     pub opaque_adt_map: &'a [(FluxDefId, SortDecl)],
     pub kvar_solutions: &'a KVarSolutions,
+    /// Maps the per-run `GlobalVar` index of a primop constant to its stable Lean name.
+    pub primop_var_map: &'a FxHashMap<GlobalVar, String>,
 }
 
 pub struct WithLeanCtxt<'a, 'b, 'genv, 'tcx, T> {
@@ -50,6 +53,7 @@ pub struct LeanKConstraint<'a> {
     pub theorem_name: &'a str,
     pub kvars: &'a [KVarDecl],
     pub constr: &'a Constraint,
+    pub should_fail: bool,
 }
 
 struct LeanThyFunc<'a>(&'a ThyFunc);
@@ -71,7 +75,7 @@ impl LeanFmt for InterpretedConst {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         write!(
             f,
-            "def {} : {} := {}",
+            "abbrev {} : {} := {}",
             WithLeanCtxt { item: &self.0.name, cx },
             WithLeanCtxt { item: &self.0.sort, cx },
             WithLeanCtxt { item: &self.1, cx }
@@ -85,7 +89,7 @@ impl LeanFmt for DataField {
         write!(
             f,
             "({} : {})",
-            self.name.display().to_string().replace("$", "_"),
+            sanitize_name(&self.name.display().to_string()),
             WithLeanCtxt { item: &self.sort, cx }
         )
     }
@@ -199,8 +203,8 @@ impl<'a> fmt::Display for LeanThyFunc<'a> {
             ThyFunc::BvAshr => write!(f, "BitVec_sshiftRight"),
             ThyFunc::BvLshr => write!(f, "BitVec_ushiftRight"),
             ThyFunc::BvShl => write!(f, "BitVec_shiftLeft"),
-            ThyFunc::BvSignExtend(size) => write!(f, "BitVec.signExtend {}", size),
-            ThyFunc::BvZeroExtend(size) => write!(f, "BitVec.zeroExtend {}", size),
+            ThyFunc::BvSignExtend(size) => write!(f, "BitVec_signExtend {}", size),
+            ThyFunc::BvZeroExtend(size) => write!(f, "BitVec_zeroExtend {}", size),
             ThyFunc::BvUrem => write!(f, "BitVec.umod"),
             ThyFunc::BvSge => write!(f, "BitVec_sge"),
             ThyFunc::BvSgt => write!(f, "BitVec_sgt"),
@@ -230,7 +234,13 @@ impl LeanFmt for LeanField {
         if let Some(def_id) = cx.adt_map.get_index(adt_id.as_usize())
             && let Ok(adt_sort_def) = cx.genv.adt_sort_def_of(def_id)
         {
-            write!(f, "{}", adt_sort_def.struct_variant().field_names()[self.1 as usize])
+            write!(
+                f,
+                "{}",
+                sanitize_name(
+                    adt_sort_def.struct_variant().field_names()[self.1 as usize].as_str()
+                )
+            )
         } else {
             write!(f, "fld{}", as_subscript(self.1 as usize))
         }
@@ -263,22 +273,23 @@ impl LeanFmt for Var {
                     .genv
                     .tcx()
                     .def_path(def_id.parent())
-                    .to_filename_friendly_no_crate()
-                    .replace("-", "_");
+                    .to_filename_friendly_no_crate();
                 if path.is_empty() {
                     write!(f, "{}", def_id.name())
                 } else {
-                    write!(f, "{path}_{}", def_id.name())
+                    write!(f, "{}_{}", sanitize_name(&path), def_id.name())
+                }
+            }
+            Var::Const(gvar, None) => {
+                if let Some(stable) = cx.primop_var_map.get(gvar) {
+                    write!(f, "{stable}")
+                } else {
+                    write!(f, "{}", sanitize_name(&self.display().to_string()))
                 }
             }
             Var::Const(_, Some(did)) => {
-                let path = cx
-                    .genv
-                    .tcx()
-                    .def_path(*did)
-                    .to_filename_friendly_no_crate()
-                    .replace("-", "_");
-                write!(f, "{path}")
+                let path = cx.genv.tcx().def_path(*did).to_filename_friendly_no_crate();
+                write!(f, "{}", sanitize_name(&path))
             }
             Var::DataCtor(adt_id, idx) => {
                 write!(
@@ -297,7 +308,7 @@ impl LeanFmt for Var {
                 write!(f, "{}", cx.pretty_var_map.get(&PrettyVar::Param(*param)))
             }
             _ => {
-                write!(f, "{}", self.display().to_string().replace("$", "_"))
+                write!(f, "{}", sanitize_name(&self.display().to_string()))
             }
         }
     }
@@ -364,7 +375,9 @@ impl LeanFmt for Sort {
                 )
             }
             Sort::Var(v) => write!(f, "t{v}"),
-            s => todo!("{:?}", s),
+            Sort::BvSize(size) => {
+                panic!("sort BvSize({size}) should only occur as an argument to BitVec")
+            }
         }
     }
 }
@@ -419,6 +432,9 @@ impl LeanFmt for Expr {
                 function.as_ref().lean_fmt(f, cx)?;
                 if let Some(sort_args) = sort_args {
                     for (i, s_arg) in sort_args.iter().enumerate() {
+                        if matches!(s_arg, Sort::BvSize(..)) {
+                            continue;
+                        }
                         write!(f, " (t{i} := {})", WithLeanCtxt { item: s_arg, cx })?;
                     }
                 }
@@ -429,7 +445,7 @@ impl LeanFmt for Expr {
                 write!(f, ")")?;
                 if let Some(out_sort) = out_sort {
                     write!(f, " : (")?;
-                    out_sort.lean_fmt(f, &cx)?;
+                    out_sort.lean_fmt(f, cx)?;
                     write!(f, "))")?;
                 }
                 Ok(())
@@ -579,7 +595,7 @@ impl LeanFmt for Pred {
                 write!(f, ")")
             }
             Pred::KVar(kvid, args) => {
-                write!(f, "({}", kvid.display().to_string().replace("$", "_"))?;
+                write!(f, "({}", sanitize_name(&kvid.display().to_string()))?;
                 for imp in cx
                     .kvar_solutions
                     .non_cut_solutions
@@ -615,7 +631,7 @@ impl LeanFmt for KVarDecl {
             .enumerate()
             .map(|(i, sort)| format!("(a{i} : {})", WithLeanCtxt { item: sort, cx }))
             .format(" -> ");
-        write!(f, "∃ {} : {} -> Prop", self.kvid.display().to_string().replace("$", "_"), sorts)
+        write!(f, "∃ {} : {} -> Prop", sanitize_name(&self.kvid.display().to_string()), sorts)
     }
 }
 
@@ -645,7 +661,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
             if !cx.kvar_solutions.cut_solutions.is_empty() {
                 writeln!(f, "-- cyclic (cut) kvars")?;
                 for kvar_solution in &cx.kvar_solutions.cut_solutions {
-                    kvar_solution.lean_fmt(f, &cx)?;
+                    kvar_solution.lean_fmt(f, cx)?;
                     writeln!(f)?;
                 }
             }
@@ -653,7 +669,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
             if !cx.kvar_solutions.non_cut_solutions.is_empty() {
                 writeln!(f, "-- acyclic (non-cut) kvars")?;
                 for kvar_solution in &cx.kvar_solutions.non_cut_solutions {
-                    kvar_solution.lean_fmt(f, &cx)?;
+                    kvar_solution.lean_fmt(f, cx)?;
                     writeln!(f)?;
                 }
             }
@@ -662,6 +678,10 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
         }
 
         write!(f, "\n\ndef {theorem_name} := ")?;
+
+        if self.should_fail {
+            write!(f, "¬")?;
+        }
 
         if self.kvars.is_empty() {
             self.constr.lean_fmt(f, cx)
@@ -777,14 +797,33 @@ impl ConstraintFormatter {
     }
 }
 
+static IMPL_RE: LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"\{impl#(\d+)\}").unwrap());
+
+fn is_reserved(name: &str) -> bool {
+    matches!(name, "end" | "def")
+}
+
+fn sanitize_name(name: &str) -> String {
+    if is_reserved(name) {
+        format!("{name}_")
+    } else {
+        IMPL_RE
+            .replace_all(name, "impl_${1}")
+            .replace("-", "_")
+            .replace("$", "_")
+    }
+}
+
 pub fn def_id_to_pascal_case(def_id: &DefId, tcx: &rustc_middle::ty::TyCtxt) -> String {
     let snake = tcx
         .def_path(*def_id)
         .to_filename_friendly_no_crate()
         .replace("-", "_");
     let pascal_case = snake_case_to_pascal_case(&snake);
-    let re = regex::Regex::new(r"\{impl#(\d+)\}").unwrap();
-    re.replace_all(&pascal_case, "Impl__$1__").to_string()
+    IMPL_RE
+        .replace_all(&pascal_case, "Impl__${1}__")
+        .to_string()
 }
 
 pub fn snake_case_to_pascal_case(snake: &str) -> String {

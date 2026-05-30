@@ -32,6 +32,7 @@ use flux_middle::{
         NameProvenance, PrettyMap, PrettyVar, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
     },
 };
+use indexmap::IndexMap;
 use itertools::Itertools;
 use liquid_fixpoint::{
     FixpointStatus, KVarBind, SmtSolver, VerificationResult,
@@ -848,7 +849,16 @@ where
                 interpreted.push((decl, gvar_eq_map.remove(&gvar).unwrap()));
             }
         }
-        let const_deps = ConstDeps { interpreted };
+        let opaque = self
+            .ecx
+            .const_env
+            .const_map
+            .iter()
+            .filter_map(|(key, decl)| {
+                if let ConstKey::PrimOp(op) = key { Some((decl.clone(), op.clone())) } else { None }
+            })
+            .collect();
+        let const_deps = ConstDeps { interpreted, opaque };
         (const_deps, cstr)
     }
 
@@ -1456,7 +1466,7 @@ pub struct KVarSolutions {
 
 impl KVarSolutions {
     pub(crate) fn closed_solutions(
-        variable_sorts: HashMap<fixpoint::Var, fixpoint::Sort>,
+        variable_sorts: IndexMap<fixpoint::Var, fixpoint::Sort>,
         cut_solutions: FxIndexMap<fixpoint::KVid, FixpointSolution>,
         non_cut_solutions: FxIndexMap<fixpoint::KVid, FixpointSolution>,
     ) -> Self {
@@ -1505,6 +1515,9 @@ pub struct SortDeps {
 
 pub struct ConstDeps {
     pub interpreted: Vec<InterpretedConst>,
+    /// Primop constants: the decl paired with the `BinOp` that gives a stable, cross-run
+    /// identity used to derive the Lean name.
+    pub opaque: Vec<(fixpoint::ConstDecl, rty::BinOp)>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {

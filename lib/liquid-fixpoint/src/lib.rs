@@ -343,7 +343,7 @@ impl<T: Types> Task<T> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
-            .arg("--sortedsolution")
+            .arg("--sorted-solution")
             .arg("--json")
             .arg("--allowho")
             .arg("--allowhoqs")
@@ -356,7 +356,8 @@ impl<T: Types> Task<T> {
         std::mem::swap(&mut stdin, &mut child.stdin);
         {
             let mut w = BufWriter::new(stdin.unwrap());
-            writeln!(w, "{self}")?;
+            // Use compact formatting to reduce overhead when communicating with fixpoint
+            writeln!(w, "{}", format::CompactTask(self))?;
         }
         let out = child.wait_with_output()?;
 

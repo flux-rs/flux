@@ -1207,6 +1207,8 @@ fn parse_const_arg(cx: &mut ParseCtxt) -> ParseResult<ConstArg> {
     let kind = if lookahead.peek(AnyLit) {
         let len = parse_int(cx)?;
         ConstArgKind::Lit(len)
+    } else if lookahead.peek(NonReserved) {
+        ConstArgKind::Path(parse_path(cx)?)
     } else if lookahead.advance_if(kw::Underscore) {
         ConstArgKind::Infer
     } else {
@@ -1565,7 +1567,7 @@ fn parse_constructor_arg(cx: &mut ParseCtxt) -> ParseResult<ConstructorArg> {
     if lookahead.peek(NonReserved) {
         let ident = parse_ident(cx)?;
         cx.expect(token::Colon)?;
-        let expr = parse_expr(cx, true)?;
+        let expr = parse_refine_arg(cx)?;
         let hi = cx.hi();
         Ok(ConstructorArg::FieldExpr(FieldExpr {
             ident,

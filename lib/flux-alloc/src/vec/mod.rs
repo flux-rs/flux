@@ -1,6 +1,6 @@
 use std::{
     alloc::{Allocator, Global},
-    ops::{Index, IndexMut},
+    ops::{Deref, DerefMut, Index, IndexMut},
     slice::SliceIndex,
 };
 
@@ -35,16 +35,24 @@ impl<T, A: Allocator> Vec<T, A> {
     fn is_empty(&self) -> bool;
 }
 
+#[extern_spec]
+impl<T: Clone, A: Allocator + Clone> Clone for Vec<T, A> {
+    #[spec(fn(self: &Vec<T, A>[@n]) -> Vec<T, A>[n])]
+    fn clone(&self) -> Vec<T, A>;
+}
+
 //---------------------------------------------------------------------------------------
 
 #[extern_spec]
 impl<T, I: SliceIndex<[T]>, A: Allocator> Index<I> for Vec<T, A> {
+    #[assume_parametric(T)]
     #[spec(fn(&Vec<T, A>[@len], {I[@idx] | <I as SliceIndex<[T]>>::in_bounds(idx, len)}) -> _)]
     fn index(z: &Vec<T, A>, index: I) -> &<I as SliceIndex<[T]>>::Output;
 }
 
 #[extern_spec]
 impl<T, I: SliceIndex<[T]>, A: Allocator> IndexMut<I> for Vec<T, A> {
+    #[assume_parametric(T)]
     #[spec(fn(&mut Vec<T,A>[@len], {I[@idx] | <I as SliceIndex<[T]>>::in_bounds(idx, len)}) -> _)]
     fn index_mut(z: &mut Vec<T, A>, index: I) -> &mut <I as SliceIndex<[T]>>::Output;
 }
@@ -59,3 +67,18 @@ impl<'a, T, A: Allocator> IntoIterator for &'a Vec<T, A> {
 #[extern_spec]
 #[assoc(fn with_size(self: Self, n:int) -> bool { self.len == n })]
 impl<T> FromIterator<T> for Vec<T> {}
+
+// ---------------------------------------------------------------------------------------
+
+#[extern_spec(std::vec)]
+#[assoc(fn as_deref(v: Self, target: int) -> bool { v.len == target })]
+impl<T, A: Allocator> Deref for Vec<T, A> {
+    #[sig(fn(self: &Self[@v]) -> &[T][v])]
+    fn deref(&self) -> &[T];
+}
+
+#[extern_spec(std::vec)]
+impl<T, A: Allocator> DerefMut for Vec<T, A> {
+    #[sig(fn(self: &mut Self[@v]) -> &mut [T][v])]
+    fn deref_mut(&mut self) -> &mut [T];
+}
