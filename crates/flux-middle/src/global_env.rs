@@ -460,6 +460,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.no_panic(self, def_id.into_query_param())
     }
 
+    pub fn assume_parametric_params(self, def_id: impl IntoQueryParam<DefId>) -> UnordSet<u32> {
+        self.inner
+            .queries
+            .assume_parametric_params(self, def_id.into_query_param())
+    }
+
     pub fn is_box(&self, res: fhir::Res) -> bool {
         res.is_box(self.tcx())
     }

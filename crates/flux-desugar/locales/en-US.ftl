@@ -82,6 +82,9 @@ desugar_unknown_qualifier =
 desugar_unknown_reveal_definition =
     unknown function definition
 
+desugar_unknown_parametric_param =
+    unknown type parameter
+
 desugar_unsupported_const_generic_arg =
     `{$res_descr}` not supported in this position
     .label =  help: try using `_` instead

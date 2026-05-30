@@ -492,6 +492,9 @@ pub struct ResolverOutput {
     /// The resolved list of local reveals per function
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
     pub reveal_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
+    /// The resolved type param `DefId`s for `#[assume_parametric(...)]` per function.
+    /// The [`NodeId`] corresponds to the surface item's `node_id`.
+    pub parametric_param_res_map: UnordMap<NodeId, Vec<DefId>>,
 }
 
 #[extension(pub trait PlaceExt)]

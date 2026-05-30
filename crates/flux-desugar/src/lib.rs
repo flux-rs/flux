@@ -206,7 +206,9 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
                         surface::Attr::ShouldFail => Some(fhir::Attr::ShouldFail),
                         surface::Attr::InferOpts(opts) => Some(fhir::Attr::InferOpts(opts)),
                         surface::Attr::NoPanic => Some(fhir::Attr::NoPanic),
-                        surface::Attr::Qualifiers(_) | surface::Attr::Reveal(_) => None,
+                        surface::Attr::Qualifiers(_)
+                        | surface::Attr::Reveal(_)
+                        | surface::Attr::AssumeParametric(_) => None,
                     }
                 })
                 .collect_vec(),
@@ -217,6 +219,10 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
             .map_or(&[][..], Vec::as_slice),
         reveals: resolver_output
             .reveal_res_map
+            .get(&node_id)
+            .map_or(&[][..], Vec::as_slice),
+        parametric_params: resolver_output
+            .parametric_param_res_map
             .get(&node_id)
             .map_or(&[][..], Vec::as_slice),
     }

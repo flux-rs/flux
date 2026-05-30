@@ -286,6 +286,7 @@ pub struct Queries<'genv, 'tcx> {
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
+    assume_parametric_params: Cache<DefId, UnordSet<u32>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -326,6 +327,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             fn_sig: Default::default(),
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
+            assume_parametric_params: Default::default(),
         }
     }
 
@@ -650,6 +652,26 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 },
                 |def_id| genv.cstore().no_panic(def_id),
                 |_| false,
+            )
+        })
+    }
+
+    pub(crate) fn assume_parametric_params(&self, genv: GlobalEnv, def_id: DefId) -> UnordSet<u32> {
+        run_with_cache(&self.assume_parametric_params, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                self,
+                |def_id| {
+                    let tcx = genv.tcx();
+                    let generics = tcx.generics_of(def_id);
+                    genv.fhir_attr_map(def_id.local_id())
+                        .parametric_params()
+                        .iter()
+                        .map(|param_id| generics.param_def_id_to_index(tcx, *param_id).unwrap())
+                        .collect()
+                },
+                |def_id| genv.cstore().assume_parametric_params(def_id),
+                |_| UnordSet::default(),
             )
         })
     }
