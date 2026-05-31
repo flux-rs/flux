@@ -66,10 +66,5 @@ open CloseAtJoinQualifs
 def CloseAtJoin_proof : CloseAtJoin := by
   unfold CloseAtJoin
   try solve_fixpoint
-  exists False
-  simp
-  exists False
-  exists True, 1
-  simp
-  exists True
+
 end F

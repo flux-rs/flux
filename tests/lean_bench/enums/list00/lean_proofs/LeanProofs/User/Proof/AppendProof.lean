@@ -66,12 +66,5 @@ open AppendQualifs
 def Append_proof : Append := by
   unfold Append
   try solve_fixpoint
-  exists 0
-  and_intros
-  omega
-  exists n2₀ + 1
-  and_intros
-  omega
-  right
 
 end F

@@ -66,4 +66,5 @@ open Pop2Qualifs
 def Pop2_proof : Pop2 := by
   unfold Pop2
   try solve_fixpoint
+
 end F

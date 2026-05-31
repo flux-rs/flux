@@ -3,9 +3,7 @@ Found 511 lean_proofs directories
 [1/511] Building: abstract_refinements/test00/lean_proofs ... OK
 [2/511] Building: abstract_refinements/test01/lean_proofs ... OK
 [3/511] Building: abstract_refinements/test02/lean_proofs ... OK
-[4/511] Building: abstract_refinements/test03/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/OrProof.lean:66:21: unsolved goals
-    error: Lean exited with code 1
+[4/511] Building: abstract_refinements/test03/lean_proofs ... OK
 [5/511] Building: abstract_refinements/test04/lean_proofs ... OK
 [6/511] Building: array/array00/lean_proofs ... OK
 [7/511] Building: array/array01/lean_proofs ... OK
@@ -68,9 +66,7 @@ Found 511 lean_proofs directories
 [60/511] Building: enums/invariant02/lean_proofs ... OK
 [61/511] Building: enums/issue-234/lean_proofs ... OK
 [62/511] Building: enums/issue-294/lean_proofs ... OK
-[63/511] Building: enums/list00/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/AppendProof.lean:66:29: unsolved goals
-    error: Lean exited with code 1
+[63/511] Building: enums/list00/lean_proofs ... OK
 [64/511] Building: enums/list01/lean_proofs ... OK
 [65/511] Building: enums/macro-expansion/lean_proofs ... OK
 [66/511] Building: enums/opt00/lean_proofs ... OK
@@ -98,15 +94,13 @@ Found 511 lean_proofs directories
 [84/511] Building: extern_specs/extern_spec_struct03/lean_proofs ... OK
 [85/511] Building: extern_specs/extern_spec_trait00/lean_proofs ... OK
 [86/511] Building: extern_specs/flux_core_alloc00/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/TestFromValidUnwrapProof.lean:68:6: Tactic `simp` failed with a nested error:
-    error: Lean exited with code 1
     error: LeanProofs/User/Proof/TestArrayUnwrapProof.lean:68:6: Tactic `simp` failed with a nested error:
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/TestFromValidUnwrapProof.lean:68:6: Tactic `simp` failed with a nested error:
     error: Lean exited with code 1
 [87/511] Building: extern_specs/flux_core_mem00/lean_proofs ... OK
 [88/511] Building: extern_specs/flux_core_num00/lean_proofs ... OK
-[89/511] Building: extern_specs/flux_core_num01/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/TestIntoBothBoundedConcreteProof.lean:66:71: unsolved goals
-    error: Lean exited with code 1
+[89/511] Building: extern_specs/flux_core_num01/lean_proofs ... OK
 [90/511] Building: extern_specs/flux_core_option00/lean_proofs ... OK
 [91/511] Building: extern_specs/flux_core_result00/lean_proofs ... OK
 [92/511] Building: extern_specs/flux_core_slice00/lean_proofs ... OK
@@ -135,11 +129,11 @@ Found 511 lean_proofs directories
 [115/511] Building: structs/dep-field-00/lean_proofs ... OK
 [116/511] Building: structs/dot00/lean_proofs ... OK
 [117/511] Building: structs/dot01/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:72:6: (deterministic) timeout at `simp`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:72:6: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (200000) has been reached
     error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:70:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
     error: Lean exited with code 1
 [118/511] Building: structs/dot02/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:72:6: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:72:6: (deterministic) timeout at `simp`, maximum number of heartbeats (200000) has been reached
     error: LeanProofs/User/Proof/MkPairsWithBoundProof.lean:70:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
     error: Lean exited with code 1
 [119/511] Building: structs/dot03/lean_proofs ... ERROR
@@ -219,11 +213,7 @@ Found 511 lean_proofs directories
 [189/511] Building: surface/bounded_quant00/lean_proofs ... OK
 [190/511] Building: surface/box00/lean_proofs ... OK
 [191/511] Building: surface/box01/lean_proofs ... OK
-[192/511] Building: surface/box02/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/CloseAtJoinProof.lean:66:39: unsolved goals
-    error: Lean exited with code 1
-    error: LeanProofs/User/Proof/NoCloseJoinProof.lean:66:39: unsolved goals
-    error: Lean exited with code 1
+[192/511] Building: surface/box02/lean_proofs ... OK
 [193/511] Building: surface/box03/lean_proofs ... OK
 [194/511] Building: surface/bsearch/lean_proofs ... ERROR
     error: LeanProofs/User/Proof/BinarySearchProof.lean:66:41: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
@@ -281,9 +271,7 @@ Found 511 lean_proofs directories
 [233/511] Building: surface/constr01/lean_proofs ... OK
 [234/511] Building: surface/constr02/lean_proofs ... OK
 [235/511] Building: surface/constr03/lean_proofs ... OK
-[236/511] Building: surface/date/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/MkDateProof.lean:66:29: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
-    error: Lean exited with code 1
+[236/511] Building: surface/date/lean_proofs ... OK
 [237/511] Building: surface/default00/lean_proofs ... OK
 [238/511] Building: surface/division/lean_proofs ... OK
 [239/511] Building: surface/ealias00/lean_proofs ... OK
@@ -299,11 +287,11 @@ Found 511 lean_proofs directories
 [247/511] Building: surface/extern_function00/lean_proofs ... OK
 [248/511] Building: surface/extern_static00/lean_proofs ... ERROR
 [249/511] Building: surface/fft/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/LoopBProof.lean:66:27: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
-    error: Lean exited with code 1
     error: LeanProofs/User/Proof/FftTestProof.lean:66:31: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
     error: Lean exited with code 1
     error: LeanProofs/User/Proof/LoopAProof.lean:66:27: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/LoopBProof.lean:66:27: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
     error: Lean exited with code 1
 [250/511] Building: surface/fib_loop/lean_proofs ... OK
 [251/511] Building: surface/filter_unit_params/lean_proofs ... OK
@@ -315,13 +303,19 @@ Found 511 lean_proofs directories
 [257/511] Building: surface/float02/lean_proofs ... OK
 [258/511] Building: surface/float03/lean_proofs ... OK
 [259/511] Building: surface/fndef00/lean_proofs ... OK
-[260/511] Building: surface/fndef01/lean_proofs ... OK
+[260/511] Building: surface/fndef01/lean_proofs ... ERROR
+    error: LeanProofs/User/Proof/TestAlsoOkProof.lean:66:37: unsolved goals
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/TestOkProof.lean:66:29: unsolved goals
+    error: Lean exited with code 1
 [261/511] Building: surface/fndef02/lean_proofs ... OK
 [262/511] Building: surface/fnptr00/lean_proofs ... OK
 [263/511] Building: surface/fnptr01/lean_proofs ... OK
 [264/511] Building: surface/fold00/lean_proofs ... OK
 [265/511] Building: surface/for_range00/lean_proofs ... ERROR
     error: LeanProofs/User/Proof/DonaldProof.lean:68:6: Tactic `simp` failed with a nested error:
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/GoofyProof.lean:66:27: unsolved goals
     error: Lean exited with code 1
     error: LeanProofs/User/Proof/TestProof.lean:66:25: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
     error: Lean exited with code 1
@@ -370,9 +364,7 @@ Found 511 lean_proofs directories
 [306/511] Building: surface/issue-299/lean_proofs ... OK
 [307/511] Building: surface/issue-332/lean_proofs ... OK
 [308/511] Building: surface/issue-334/lean_proofs ... OK
-[309/511] Building: surface/issue-431/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/UpdateCentersProof.lean:66:43: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
-    error: Lean exited with code 1
+[309/511] Building: surface/issue-431/lean_proofs ... OK
 [310/511] Building: surface/issue-529/lean_proofs ... OK
 [311/511] Building: surface/issue-555/lean_proofs ... OK
 [312/511] Building: surface/issue-569/lean_proofs ... OK
@@ -408,17 +400,6 @@ Found 511 lean_proofs directories
 [340/511] Building: surface/iter00/lean_proofs ... OK
 [341/511] Building: surface/iter01/lean_proofs ... OK
 [342/511] Building: surface/iter02/lean_proofs ... ERROR
-    error: LeanProofs/Flux/VC/TestEnumer2.lean:12:15: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer2.lean:13:93: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer2.lean:13:168: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer2.lean:14:17: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:129: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:203: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:274: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:343: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer2.lean:16:27: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer2.lean:16:96: failed to synthesize instance of type class
-    error: Lean exited with code 1
     error: LeanProofs/Flux/VC/TestEnumer3.lean:15:13: failed to synthesize instance of type class
     error: LeanProofs/Flux/VC/TestEnumer3.lean:16:69: failed to synthesize instance of type class
     error: LeanProofs/Flux/VC/TestEnumer3.lean:16:131: failed to synthesize instance of type class
@@ -482,6 +463,17 @@ Found 511 lean_proofs directories
     error: LeanProofs/Flux/VC/TestEnumerate1.lean:42:281: failed to synthesize instance of type class
     error: LeanProofs/Flux/VC/TestEnumerate1.lean:42:348: failed to synthesize instance of type class
     error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:12:15: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:13:93: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:13:168: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:14:17: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:129: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:203: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:274: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:15:343: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:16:27: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer2.lean:16:96: failed to synthesize instance of type class
+    error: Lean exited with code 1
 [343/511] Building: surface/iter_slice00/lean_proofs ... ERROR
     error: LeanProofs/User/Proof/TestIter2Proof.lean:66:35: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
     error: Lean exited with code 1
@@ -503,12 +495,9 @@ Found 511 lean_proofs directories
 [351/511] Building: surface/kmeans/lean_proofs ... ERROR
     error: LeanProofs/User/Proof/NearestProof.lean:66:31: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
     error: Lean exited with code 1
-    error: LeanProofs/User/Proof/InitCentersProof.lean:66:39: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
-    error: Lean exited with code 1
     error: LeanProofs/User/Proof/KmeansStepProof.lean:66:37: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
     error: Lean exited with code 1
-    error: LeanProofs/User/Proof/KmeansProof.lean:68:6: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (200000) has been reached
-    error: LeanProofs/User/Proof/KmeansProof.lean:66:0: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+    error: LeanProofs/User/Proof/InitCentersProof.lean:66:39: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
     error: Lean exited with code 1
 [352/511] Building: surface/kmp/lean_proofs ... ERROR
     error: LeanProofs/User/Proof/KmpSearchProof.lean:66:35: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
@@ -550,11 +539,7 @@ Found 511 lean_proofs directories
 [376/511] Building: surface/non_zero/lean_proofs ... OK
 [377/511] Building: surface/num_consts/lean_proofs ... OK
 [378/511] Building: surface/operators/lean_proofs ... OK
-[379/511] Building: surface/opt_blowup/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/Blah2Proof.lean:66:27: unsolved goals
-    error: Lean exited with code 1
-    error: LeanProofs/User/Proof/Blah3Proof.lean:66:27: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
-    error: Lean exited with code 1
+[379/511] Building: surface/opt_blowup/lean_proofs ... OK
 [380/511] Building: surface/output-exists00/lean_proofs ... OK
 [381/511] Building: surface/output-exists01/lean_proofs ... OK
 [382/511] Building: surface/pack00/lean_proofs ... OK
@@ -570,6 +555,17 @@ Found 511 lean_proofs directories
     error: LeanProofs/Flux/VC/Foo.lean:11:4: Unknown identifier `c0`
     error: Lean exited with code 1
 [389/511] Building: surface/primops00/lean_proofs ... ERROR
+    error: LeanProofs/Flux/VC/Test0.lean:10:3: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test0.lean:11:5: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/Test1.lean:10:3: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test1.lean:11:4: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test1.lean:11:27: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test1.lean:12:6: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/Test4.lean:12:5: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/Test4.lean:13:6: Unknown identifier `c0`
+    error: Lean exited with code 1
     error: LeanProofs/Flux/VC/Test6.lean:13:43: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/Test6.lean:13:57: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/Test6.lean:14:8: Unknown identifier `c0`
@@ -584,17 +580,6 @@ Found 511 lean_proofs directories
     error: LeanProofs/Flux/VC/Test3.lean:15:10: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/Test3.lean:16:10: Unknown identifier `c1`
     error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/Test0.lean:10:3: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test0.lean:11:5: Unknown identifier `c0`
-    error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/Test1.lean:10:3: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test1.lean:11:4: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test1.lean:11:27: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test1.lean:12:6: Unknown identifier `c0`
-    error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/Test4.lean:12:5: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test4.lean:13:6: Unknown identifier `c0`
-    error: Lean exited with code 1
     error: LeanProofs/Flux/VC/Test5.lean:12:19: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/Test5.lean:13:6: Unknown identifier `c0`
     error: Lean exited with code 1
@@ -606,24 +591,16 @@ Found 511 lean_proofs directories
 [395/511] Building: surface/ptr02/lean_proofs ... OK
 [396/511] Building: surface/range/lean_proofs ... OK
 [397/511] Building: surface/raw_ptr00/lean_proofs ... ERROR
-    error: LeanProofs/Flux/VC/WriteIxI32.lean:12:5: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/WriteIxI32.lean:13:6: Unknown identifier `c0`
-    error: Lean exited with code 1
     error: LeanProofs/Flux/VC/ReadIx.lean:11:4: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/ReadIx.lean:12:5: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/WriteIxI32.lean:12:5: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/WriteIxI32.lean:13:6: Unknown identifier `c0`
     error: Lean exited with code 1
     error: LeanProofs/Flux/VC/WriteIx.lean:12:5: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/WriteIx.lean:13:6: Unknown identifier `c0`
     error: Lean exited with code 1
 [398/511] Building: surface/raw_ptr01/lean_proofs ... ERROR
-    error: LeanProofs/Flux/VC/TestAddEx.lean:11:4: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddEx.lean:15:6: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddEx.lean:15:17: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddEx.lean:16:8: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddEx.lean:23:10: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddEx.lean:23:21: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddEx.lean:24:11: Unknown identifier `c0`
-    error: Lean exited with code 1
     error: LeanProofs/Flux/VC/TestAddIx.lean:11:4: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/TestAddIx.lean:15:6: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/TestAddIx.lean:15:17: Unknown identifier `c0`
@@ -632,13 +609,13 @@ Found 511 lean_proofs directories
     error: LeanProofs/Flux/VC/TestAddIx.lean:23:21: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/TestAddIx.lean:24:11: Unknown identifier `c0`
     error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/TestAddMutEx.lean:11:4: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddMutEx.lean:13:6: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddMutEx.lean:13:17: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddMutEx.lean:14:8: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddMutEx.lean:16:8: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddMutEx.lean:16:19: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/TestAddMutEx.lean:17:9: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:11:4: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:15:6: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:15:17: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:16:8: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:23:10: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:23:21: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddEx.lean:24:11: Unknown identifier `c0`
     error: Lean exited with code 1
     error: LeanProofs/Flux/VC/TestAddMutIx.lean:11:4: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/TestAddMutIx.lean:13:6: Unknown identifier `c0`
@@ -647,6 +624,14 @@ Found 511 lean_proofs directories
     error: LeanProofs/Flux/VC/TestAddMutIx.lean:16:8: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/TestAddMutIx.lean:16:19: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/TestAddMutIx.lean:17:9: Unknown identifier `c0`
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:11:4: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:13:6: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:13:17: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:14:8: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:16:8: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:16:19: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/TestAddMutEx.lean:17:9: Unknown identifier `c0`
     error: Lean exited with code 1
 [399/511] Building: surface/raw_ptr02/lean_proofs ... ERROR
     error: LeanProofs/Flux/VC/Test.lean:11:4: Unknown identifier `c0`
@@ -788,9 +773,7 @@ Found 511 lean_proofs directories
 [506/511] Building: unconstrained_int_lit/lean_proofs ... ERROR
 [507/511] Building: user_qualifiers/const00/lean_proofs ... OK
 [508/511] Building: user_qualifiers/well_formed/lean_proofs ... OK
-[509/511] Building: vec/vec00/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/Pop2Proof.lean:66:25: unsolved goals
-    error: Lean exited with code 1
+[509/511] Building: vec/vec00/lean_proofs ... OK
 [510/511] Building: vec/vec_get/lean_proofs ... OK
 [511/511] Building: vec/vec_macro/lean_proofs ... OK
 
@@ -798,23 +781,20 @@ Found 511 lean_proofs directories
 SUMMARY
 ============================================================
 Total directories visited: 511
-Successful builds: 426
-Failed builds: 85
+Successful builds: 433
+Failed builds: 78
 
 Directories with errors:
-  - abstract_refinements/test03/lean_proofs
   - const_generics/const_param_arg/lean_proofs
   - const_generics/matrix/lean_proofs
   - detached/detach_trusted00/lean_proofs
   - detached/opaque00/lean_proofs
-  - enums/list00/lean_proofs
   - enums/pred00/lean_proofs
   - extern_specs/extern_spec_impl01/lean_proofs
   - extern_specs/extern_spec_no_annots/lean_proofs
   - extern_specs/extern_spec_self_type/lean_proofs
   - extern_specs/extern_spec_struct01/lean_proofs
   - extern_specs/flux_core_alloc00/lean_proofs
-  - extern_specs/flux_core_num01/lean_proofs
   - extern_specs/super_trait/lean_proofs
   - refined_assoc_type/refined_assoc_type03/lean_proofs
   - refined_assoc_type/refined_assoc_type04/lean_proofs
@@ -828,7 +808,6 @@ Directories with errors:
   - surface/bitvec01/lean_proofs
   - surface/bitvec02/lean_proofs
   - surface/bitvec04/lean_proofs
-  - surface/box02/lean_proofs
   - surface/bsearch/lean_proofs
   - surface/bsearch1/lean_proofs
   - surface/closure00/lean_proofs
@@ -836,17 +815,16 @@ Directories with errors:
   - surface/closure11/lean_proofs
   - surface/closure12/lean_proofs
   - surface/const11/lean_proofs
-  - surface/date/lean_proofs
   - surface/err-res/lean_proofs
   - surface/ex2_min_index_loop/lean_proofs
   - surface/extern_static00/lean_proofs
   - surface/fft/lean_proofs
+  - surface/fndef01/lean_proofs
   - surface/for_range00/lean_proofs
   - surface/heapsort/lean_proofs
   - surface/ignore00/lean_proofs
   - surface/issue-1109/lean_proofs
   - surface/issue-185/lean_proofs
-  - surface/issue-431/lean_proofs
   - surface/issue-698/lean_proofs
   - surface/issue-742/lean_proofs
   - surface/issue-899b/lean_proofs
@@ -864,7 +842,6 @@ Directories with errors:
   - surface/macro00/lean_proofs
   - surface/macro01/lean_proofs
   - surface/macro02/lean_proofs
-  - surface/opt_blowup/lean_proofs
   - surface/polymorphic_qualifier/lean_proofs
   - surface/primop_prop_let/lean_proofs
   - surface/primops00/lean_proofs
@@ -886,4 +863,3 @@ Directories with errors:
   - trait_object/dyn02/lean_proofs
   - trait_object/dyn03/lean_proofs
   - unconstrained_int_lit/lean_proofs
-  - vec/vec00/lean_proofs

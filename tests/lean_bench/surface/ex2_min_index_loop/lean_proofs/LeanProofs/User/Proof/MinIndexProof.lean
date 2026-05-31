@@ -65,7 +65,6 @@ open MinIndexQualifs
 
 def MinIndex_proof : MinIndex := by
   unfold MinIndex
-  rewriteKs
   try solve_fixpoint
 
 end F

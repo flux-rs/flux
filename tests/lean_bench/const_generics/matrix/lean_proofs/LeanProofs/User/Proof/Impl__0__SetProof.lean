@@ -65,6 +65,7 @@ open Impl0SetQualifs
 
 def Impl__0__Set_proof : Impl__0__Set := by
   unfold Impl__0__Set
+  intros
   try solve_fixpoint
 
 end F
