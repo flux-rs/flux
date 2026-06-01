@@ -732,7 +732,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
                 .path_res_map
                 .insert(path.node_id, partial_res);
         } else {
-            self.errors.emit(errors::UnresolvedPath::new(path));
+            self.errors.emit(errors::UnresolvedPath::new(path, ns));
         }
     }
 
@@ -871,15 +871,18 @@ mod errors {
     #[diag(desugar_unresolved_path, code = E0999)]
     pub struct UnresolvedPath {
         #[primary_span]
+        #[label]
         pub span: Span,
         pub path: String,
+        pub ns: &'static str,
     }
 
     impl UnresolvedPath {
-        pub fn new(path: &surface::Path) -> Self {
+        pub fn new(path: &surface::Path, ns: rustc_hir::def::Namespace) -> Self {
             Self {
                 span: path.span,
                 path: path.segments.iter().map(|segment| segment.ident).join("::"),
+                ns: ns.descr(),
             }
         }
     }

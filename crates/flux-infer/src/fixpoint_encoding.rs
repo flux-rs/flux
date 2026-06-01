@@ -833,7 +833,16 @@ where
                 interpreted.push((decl, gvar_eq_map.remove(&gvar).unwrap()));
             }
         }
-        let const_deps = ConstDeps { interpreted };
+        let opaque = self
+            .ecx
+            .const_env
+            .const_map
+            .iter()
+            .filter_map(|(key, decl)| {
+                if let ConstKey::PrimOp(op) = key { Some((decl.clone(), op.clone())) } else { None }
+            })
+            .collect();
+        let const_deps = ConstDeps { interpreted, opaque };
         (const_deps, cstr)
     }
 
@@ -1438,6 +1447,9 @@ pub struct SortDeps {
 
 pub struct ConstDeps {
     pub interpreted: Vec<InterpretedConst>,
+    /// Primop constants: the decl paired with the `BinOp` that gives a stable, cross-run
+    /// identity used to derive the Lean name.
+    pub opaque: Vec<(fixpoint::ConstDecl, rty::BinOp)>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {

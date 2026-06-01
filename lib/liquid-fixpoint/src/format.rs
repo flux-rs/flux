@@ -14,54 +14,75 @@ use crate::{
 pub(crate) fn fmt_constraint<T: Types>(
     cstr: &Constraint<T>,
     f: &mut fmt::Formatter<'_>,
+    pretty: bool,
 ) -> fmt::Result {
-    let mut cx = ConstraintFormatter::default();
+    let mut cx = ConstraintFormatter::new(pretty);
     write!(f, "(constraint")?;
     cx.incr();
     cx.newline(f)?;
     cx.fmt_constraint(f, cstr)?;
     cx.decr();
-    writeln!(f, ")")
+    if pretty { writeln!(f, ")") } else { write!(f, ")") }
 }
 
 impl<T: Types> fmt::Display for Constraint<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt_constraint(self, f)
+        fmt_constraint(self, f, true)
     }
+}
+
+pub(crate) fn fmt_task<T: Types>(
+    task: &Task<T>,
+    f: &mut fmt::Formatter<'_>,
+    pretty: bool,
+) -> fmt::Result {
+    if task.scrape_quals {
+        writeln!(f, "(fixpoint \"--scrape=both\")")?;
+    }
+    if pretty {
+        for line in &task.comments {
+            writeln!(f, ";; {line}")?;
+        }
+        writeln!(f)?;
+    }
+
+    for data_decl in &task.data_decls {
+        writeln!(f, "{data_decl}")?;
+    }
+
+    for qualif in &task.qualifiers {
+        writeln!(f, "{qualif}")?;
+    }
+
+    for cinfo in &task.constants {
+        writeln!(f, "{cinfo}")?;
+    }
+
+    for fun_decl in &task.define_funs {
+        writeln!(f, "{fun_decl}")?;
+    }
+
+    for kvar in &task.kvars {
+        writeln!(f, "{kvar}")?;
+    }
+
+    if pretty {
+        writeln!(f)?;
+    }
+    fmt_constraint(&task.constraint, f, pretty)
 }
 
 impl<T: Types> fmt::Display for Task<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.scrape_quals {
-            writeln!(f, "(fixpoint \"--scrape=both\")")?;
-        }
-        for line in &self.comments {
-            writeln!(f, ";; {line}")?;
-        }
-        writeln!(f)?;
+        fmt_task(self, f, true)
+    }
+}
 
-        for data_decl in &self.data_decls {
-            writeln!(f, "{data_decl}")?;
-        }
+pub(crate) struct CompactTask<'a, T: Types>(pub &'a Task<T>);
 
-        for qualif in &self.qualifiers {
-            writeln!(f, "{qualif}")?;
-        }
-
-        for cinfo in &self.constants {
-            writeln!(f, "{cinfo}")?;
-        }
-
-        for fun_decl in &self.define_funs {
-            writeln!(f, "{fun_decl}")?;
-        }
-
-        for kvar in &self.kvars {
-            writeln!(f, "{kvar}")?;
-        }
-
-        writeln!(f)?;
-        fmt_constraint(&self.constraint, f)
+impl<T: Types> fmt::Display for CompactTask<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_task(self.0, f, false)
     }
 }
 
@@ -93,12 +114,15 @@ impl<T: Types> fmt::Debug for Task<T> {
     }
 }
 
-#[derive(Default)]
 struct ConstraintFormatter {
     level: u32,
+    pretty: bool,
 }
 
 impl ConstraintFormatter {
+    fn new(pretty: bool) -> Self {
+        Self { level: 0, pretty }
+    }
     fn fmt_constraint<T: Types>(
         &mut self,
         f: &mut fmt::Formatter<'_>,
@@ -177,13 +201,19 @@ impl ConstraintFormatter {
     }
 
     fn newline(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_char('\n')?;
-        self.padding(f)
+        if self.pretty {
+            f.write_char('\n')?;
+            self.padding(f)
+        } else {
+            f.write_char(' ')
+        }
     }
 
     fn padding(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for _ in 0..self.level {
-            f.write_str(" ")?;
+        if self.pretty {
+            for _ in 0..self.level {
+                f.write_str(" ")?;
+            }
         }
         Ok(())
     }

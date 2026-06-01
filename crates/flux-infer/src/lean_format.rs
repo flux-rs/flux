@@ -13,13 +13,14 @@ use flux_middle::{
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 use rustc_data_structures::fx::FxIndexSet;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
     InterpretedConst,
     fixpoint::{
         self, AdtId, BinOp, BinRel, Constant, Constraint, DataDecl, DataField, DataSort, Expr,
-        FunDef, FunSort, KVarDecl, LocalVar, Pred, Qualifier, Sort, SortCtor, SortDecl, Var,
+        FunDef, FunSort, GlobalVar, KVarDecl, LocalVar, Pred, Sort, SortCtor, SortDecl, Var, Qualifier
     },
 };
 
@@ -28,6 +29,8 @@ pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub pretty_var_map: &'a PrettyMap<LocalVar>,
     pub adt_map: &'a FxIndexSet<DefId>,
     pub opaque_adt_map: &'a [(FluxDefId, SortDecl)],
+    /// Maps the per-run `GlobalVar` index of a primop constant to its stable Lean name.
+    pub primop_var_map: &'a FxHashMap<GlobalVar, String>,
 }
 
 pub struct WithLeanCtxt<'a, 'b, 'genv, 'tcx, T> {
@@ -199,8 +202,8 @@ impl<'a> fmt::Display for LeanThyFunc<'a> {
             ThyFunc::BvAshr => write!(f, "BitVec_sshiftRight"),
             ThyFunc::BvLshr => write!(f, "BitVec_ushiftRight"),
             ThyFunc::BvShl => write!(f, "BitVec_shiftLeft"),
-            ThyFunc::BvSignExtend(size) => write!(f, "BitVec.signExtend {}", size),
-            ThyFunc::BvZeroExtend(size) => write!(f, "BitVec.zeroExtend {}", size),
+            ThyFunc::BvSignExtend(size) => write!(f, "BitVec_signExtend {}", size),
+            ThyFunc::BvZeroExtend(size) => write!(f, "BitVec_zeroExtend {}", size),
             ThyFunc::BvUrem => write!(f, "BitVec.umod"),
             ThyFunc::BvSge => write!(f, "BitVec_sge"),
             ThyFunc::BvSgt => write!(f, "BitVec_sgt"),
@@ -274,6 +277,13 @@ impl LeanFmt for Var {
                     write!(f, "{}", def_id.name())
                 } else {
                     write!(f, "{}_{}", sanitize_name(&path), def_id.name())
+                }
+            }
+            Var::Const(gvar, None) => {
+                if let Some(stable) = cx.primop_var_map.get(gvar) {
+                    write!(f, "{stable}")
+                } else {
+                    write!(f, "{}", sanitize_name(&self.display().to_string()))
                 }
             }
             Var::Const(_, Some(did)) => {
@@ -432,7 +442,7 @@ impl LeanFmt for Expr {
                 write!(f, ")")?;
                 if let Some(out_sort) = out_sort {
                     write!(f, " : (")?;
-                    out_sort.lean_fmt(f, &cx)?;
+                    out_sort.lean_fmt(f, cx)?;
                     write!(f, "))")?;
                 }
                 Ok(())

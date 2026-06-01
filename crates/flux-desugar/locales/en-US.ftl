@@ -57,7 +57,8 @@ desugar_unsupported_signature =
     .note = {$note}
 
 desugar_unresolved_path =
-    cannot resolve `{$path}`
+    cannot resolve {$ns} `{$path}` in this scope
+    .label = not found in this scope
 
 desugar_unresolved_var =
     cannot find value `{$var}` in this scope
