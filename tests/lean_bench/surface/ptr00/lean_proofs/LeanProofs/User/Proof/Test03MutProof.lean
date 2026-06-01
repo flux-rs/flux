@@ -63,6 +63,7 @@ end Test03MutQualifs
 
 open Test03MutQualifs
 
+set_option maxHeartbeats 5000000
 def Test03Mut_proof : Test03Mut := by
   unfold Test03Mut
   try solve_fixpoint

@@ -63,6 +63,7 @@ end WrapperZeroQualifs
 
 open WrapperZeroQualifs
 
+set_option maxHeartbeats 5000000
 def WrapperZero_proof : WrapperZero := by
   unfold WrapperZero
   try solve_fixpoint

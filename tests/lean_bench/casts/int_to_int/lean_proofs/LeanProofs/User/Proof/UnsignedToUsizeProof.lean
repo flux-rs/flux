@@ -63,6 +63,7 @@ end UnsignedToUsizeQualifs
 
 open UnsignedToUsizeQualifs
 
+set_option maxHeartbeats 5000000
 def UnsignedToUsize_proof : UnsignedToUsize := by
   unfold UnsignedToUsize
   try solve_fixpoint

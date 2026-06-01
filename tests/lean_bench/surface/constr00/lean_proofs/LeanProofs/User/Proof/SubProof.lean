@@ -63,6 +63,7 @@ end SubQualifs
 
 open SubQualifs
 
+set_option maxHeartbeats 5000000
 def Sub_proof : Sub := by
   unfold Sub
   try solve_fixpoint

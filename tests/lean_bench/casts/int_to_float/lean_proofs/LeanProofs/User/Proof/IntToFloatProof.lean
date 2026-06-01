@@ -63,6 +63,7 @@ end IntToFloatQualifs
 
 open IntToFloatQualifs
 
+set_option maxHeartbeats 5000000
 def IntToFloat_proof : IntToFloat := by
   unfold IntToFloat
   try solve_fixpoint

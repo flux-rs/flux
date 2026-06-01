@@ -63,6 +63,7 @@ end MoveOutOfBoxQualifs
 
 open MoveOutOfBoxQualifs
 
+set_option maxHeartbeats 5000000
 def MoveOutOfBox_proof : MoveOutOfBox := by
   unfold MoveOutOfBox
   try solve_fixpoint

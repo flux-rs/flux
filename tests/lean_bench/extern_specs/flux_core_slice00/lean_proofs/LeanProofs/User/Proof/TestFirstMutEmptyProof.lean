@@ -63,6 +63,7 @@ end TestFirstMutEmptyQualifs
 
 open TestFirstMutEmptyQualifs
 
+set_option maxHeartbeats 5000000
 def TestFirstMutEmpty_proof : TestFirstMutEmpty := by
   unfold TestFirstMutEmpty
   try solve_fixpoint

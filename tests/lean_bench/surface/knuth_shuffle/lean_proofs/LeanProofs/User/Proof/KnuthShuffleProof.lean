@@ -63,6 +63,7 @@ end KnuthShuffleQualifs
 
 open KnuthShuffleQualifs
 
+set_option maxHeartbeats 5000000
 def KnuthShuffle_proof : KnuthShuffle := by
   unfold KnuthShuffle
   try solve_fixpoint

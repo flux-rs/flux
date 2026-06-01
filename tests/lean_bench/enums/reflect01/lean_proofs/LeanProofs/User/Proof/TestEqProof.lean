@@ -63,6 +63,7 @@ end TestEqQualifs
 
 open TestEqQualifs
 
+set_option maxHeartbeats 5000000
 def TestEq_proof : TestEq := by
   unfold TestEq
   try solve_fixpoint

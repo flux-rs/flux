@@ -63,6 +63,7 @@ end MakeNatQualifs
 
 open MakeNatQualifs
 
+set_option maxHeartbeats 5000000
 def MakeNat_proof : MakeNat := by
   unfold MakeNat
   try solve_fixpoint

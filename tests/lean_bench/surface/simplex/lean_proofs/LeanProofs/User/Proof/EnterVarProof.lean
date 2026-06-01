@@ -63,6 +63,7 @@ end EnterVarQualifs
 
 open EnterVarQualifs
 
+set_option maxHeartbeats 5000000
 def EnterVar_proof : EnterVar := by
   unfold EnterVar
   try solve_fixpoint

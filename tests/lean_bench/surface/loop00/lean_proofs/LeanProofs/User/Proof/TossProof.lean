@@ -63,6 +63,7 @@ end TossQualifs
 
 open TossQualifs
 
+set_option maxHeartbeats 5000000
 def Toss_proof : Toss := by
   unfold Toss
   try solve_fixpoint

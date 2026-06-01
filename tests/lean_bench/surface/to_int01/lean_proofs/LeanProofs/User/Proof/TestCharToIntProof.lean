@@ -63,6 +63,7 @@ end TestCharToIntQualifs
 
 open TestCharToIntQualifs
 
+set_option maxHeartbeats 5000000
 def TestCharToInt_proof : TestCharToInt := by
   unfold TestCharToInt
   try solve_fixpoint

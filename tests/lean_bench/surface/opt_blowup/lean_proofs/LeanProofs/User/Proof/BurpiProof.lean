@@ -63,6 +63,7 @@ end BurpiQualifs
 
 open BurpiQualifs
 
+set_option maxHeartbeats 5000000
 def Burpi_proof : Burpi := by
   unfold Burpi
   try solve_fixpoint

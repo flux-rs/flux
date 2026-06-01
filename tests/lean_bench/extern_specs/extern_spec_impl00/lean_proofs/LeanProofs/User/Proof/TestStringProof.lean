@@ -63,6 +63,7 @@ end TestStringQualifs
 
 open TestStringQualifs
 
+set_option maxHeartbeats 5000000
 def TestString_proof : TestString := by
   unfold TestString
   try solve_fixpoint

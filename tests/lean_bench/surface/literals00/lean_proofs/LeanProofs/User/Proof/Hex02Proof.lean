@@ -63,6 +63,7 @@ end Hex02Qualifs
 
 open Hex02Qualifs
 
+set_option maxHeartbeats 5000000
 def Hex02_proof : Hex02 := by
   unfold Hex02
   try solve_fixpoint

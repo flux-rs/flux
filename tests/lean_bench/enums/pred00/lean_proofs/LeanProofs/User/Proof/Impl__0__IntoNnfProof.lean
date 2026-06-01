@@ -63,6 +63,7 @@ end Impl0IntoNnfQualifs
 
 open Impl0IntoNnfQualifs
 
+set_option maxHeartbeats 5000000
 def Impl__0__IntoNnf_proof : Impl__0__IntoNnf := by
   unfold Impl__0__IntoNnf
   try solve_fixpoint

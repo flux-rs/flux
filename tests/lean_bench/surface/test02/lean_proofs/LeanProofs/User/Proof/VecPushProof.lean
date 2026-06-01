@@ -63,6 +63,7 @@ end VecPushQualifs
 
 open VecPushQualifs
 
+set_option maxHeartbeats 5000000
 def VecPush_proof : VecPush := by
   unfold VecPush
   try solve_fixpoint

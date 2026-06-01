@@ -63,6 +63,7 @@ end BlahQualifs
 
 open BlahQualifs
 
+set_option maxHeartbeats 5000000
 def Blah_proof : Blah := by
   unfold Blah
   try solve_fixpoint

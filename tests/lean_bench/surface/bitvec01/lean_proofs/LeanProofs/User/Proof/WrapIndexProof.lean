@@ -63,6 +63,7 @@ end WrapIndexQualifs
 
 open WrapIndexQualifs
 
+set_option maxHeartbeats 5000000
 def WrapIndex_proof : WrapIndex := by
   unfold WrapIndex
   try solve_fixpoint

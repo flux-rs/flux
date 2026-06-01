@@ -63,6 +63,7 @@ end TestAbsI32Qualifs
 
 open TestAbsI32Qualifs
 
+set_option maxHeartbeats 5000000
 def TestAbsI32_proof : TestAbsI32 := by
   unfold TestAbsI32
   try solve_fixpoint

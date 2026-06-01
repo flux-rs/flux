@@ -63,6 +63,7 @@ end TestHogQualifs
 
 open TestHogQualifs
 
+set_option maxHeartbeats 5000000
 def TestHog_proof : TestHog := by
   unfold TestHog
   try solve_fixpoint

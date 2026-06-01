@@ -63,6 +63,7 @@ end Binary0Qualifs
 
 open Binary0Qualifs
 
+set_option maxHeartbeats 5000000
 def Binary0_proof : Binary0 := by
   unfold Binary0
   try solve_fixpoint

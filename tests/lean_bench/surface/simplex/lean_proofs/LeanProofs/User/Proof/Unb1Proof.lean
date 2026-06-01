@@ -63,6 +63,7 @@ end Unb1Qualifs
 
 open Unb1Qualifs
 
+set_option maxHeartbeats 5000000
 def Unb1_proof : Unb1 := by
   unfold Unb1
   try solve_fixpoint

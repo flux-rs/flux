@@ -63,6 +63,7 @@ end ReadIxQualifs
 
 open ReadIxQualifs
 
+set_option maxHeartbeats 5000000
 def ReadIx_proof : ReadIx := by
   unfold ReadIx
   try solve_fixpoint

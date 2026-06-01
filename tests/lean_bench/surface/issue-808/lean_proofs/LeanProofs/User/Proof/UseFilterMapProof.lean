@@ -63,6 +63,7 @@ end UseFilterMapQualifs
 
 open UseFilterMapQualifs
 
+set_option maxHeartbeats 5000000
 def UseFilterMap_proof : UseFilterMap := by
   unfold UseFilterMap
   try solve_fixpoint

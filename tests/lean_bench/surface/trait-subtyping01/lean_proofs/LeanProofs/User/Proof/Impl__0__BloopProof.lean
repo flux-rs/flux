@@ -63,6 +63,7 @@ end Impl0BloopQualifs
 
 open Impl0BloopQualifs
 
+set_option maxHeartbeats 5000000
 def Impl__0__Bloop_proof : Impl__0__Bloop := by
   unfold Impl__0__Bloop
   try solve_fixpoint

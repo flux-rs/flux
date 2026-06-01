@@ -63,6 +63,7 @@ end TestVecMacroQualifs
 
 open TestVecMacroQualifs
 
+set_option maxHeartbeats 5000000
 def TestVecMacro_proof : TestVecMacro := by
   unfold TestVecMacro
   try solve_fixpoint

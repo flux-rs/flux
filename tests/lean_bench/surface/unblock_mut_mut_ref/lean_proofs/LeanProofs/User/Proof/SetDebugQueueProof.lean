@@ -63,6 +63,7 @@ end SetDebugQueueQualifs
 
 open SetDebugQueueQualifs
 
+set_option maxHeartbeats 5000000
 def SetDebugQueue_proof : SetDebugQueue := by
   unfold SetDebugQueue
   try solve_fixpoint

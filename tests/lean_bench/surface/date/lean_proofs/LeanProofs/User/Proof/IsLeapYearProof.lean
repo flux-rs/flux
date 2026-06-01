@@ -63,6 +63,7 @@ end IsLeapYearQualifs
 
 open IsLeapYearQualifs
 
+set_option maxHeartbeats 5000000
 def IsLeapYear_proof : IsLeapYear := by
   unfold IsLeapYear
   try solve_fixpoint

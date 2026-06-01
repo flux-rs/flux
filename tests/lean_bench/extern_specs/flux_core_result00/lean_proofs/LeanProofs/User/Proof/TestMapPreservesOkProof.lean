@@ -63,6 +63,7 @@ end TestMapPreservesOkQualifs
 
 open TestMapPreservesOkQualifs
 
+set_option maxHeartbeats 5000000
 def TestMapPreservesOk_proof : TestMapPreservesOk := by
   unfold TestMapPreservesOk
   try solve_fixpoint

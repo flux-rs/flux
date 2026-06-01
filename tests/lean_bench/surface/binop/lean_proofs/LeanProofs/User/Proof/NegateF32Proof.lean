@@ -63,6 +63,7 @@ end NegateF32Qualifs
 
 open NegateF32Qualifs
 
+set_option maxHeartbeats 5000000
 def NegateF32_proof : NegateF32 := by
   unfold NegateF32
   try solve_fixpoint

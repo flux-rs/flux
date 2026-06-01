@@ -63,6 +63,7 @@ end AssertQualifs
 
 open AssertQualifs
 
+set_option maxHeartbeats 5000000
 def Assert_proof : Assert := by
   unfold Assert
   try solve_fixpoint

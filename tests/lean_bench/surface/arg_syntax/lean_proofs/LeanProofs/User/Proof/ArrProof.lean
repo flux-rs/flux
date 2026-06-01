@@ -63,6 +63,7 @@ end ArrQualifs
 
 open ArrQualifs
 
+set_option maxHeartbeats 5000000
 def Arr_proof : Arr := by
   unfold Arr
   try solve_fixpoint

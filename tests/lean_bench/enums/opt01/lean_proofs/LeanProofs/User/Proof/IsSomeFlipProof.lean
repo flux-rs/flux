@@ -63,6 +63,7 @@ end IsSomeFlipQualifs
 
 open IsSomeFlipQualifs
 
+set_option maxHeartbeats 5000000
 def IsSomeFlip_proof : IsSomeFlip := by
   unfold IsSomeFlip
   try solve_fixpoint

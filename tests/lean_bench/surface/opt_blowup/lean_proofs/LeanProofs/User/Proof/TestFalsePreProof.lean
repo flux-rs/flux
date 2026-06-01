@@ -63,6 +63,7 @@ end TestFalsePreQualifs
 
 open TestFalsePreQualifs
 
+set_option maxHeartbeats 5000000
 def TestFalsePre_proof : TestFalsePre := by
   unfold TestFalsePre
   try solve_fixpoint

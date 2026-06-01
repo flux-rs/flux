@@ -63,6 +63,7 @@ end TestUnwrapOrQualifs
 
 open TestUnwrapOrQualifs
 
+set_option maxHeartbeats 5000000
 def TestUnwrapOr_proof : TestUnwrapOr := by
   unfold TestUnwrapOr
   try solve_fixpoint

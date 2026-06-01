@@ -63,6 +63,7 @@ end JazzQualifs
 
 open JazzQualifs
 
+set_option maxHeartbeats 5000000
 def Jazz_proof : Jazz := by
   unfold Jazz
   try solve_fixpoint

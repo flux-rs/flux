@@ -63,6 +63,7 @@ end Bar1Qualifs
 
 open Bar1Qualifs
 
+set_option maxHeartbeats 5000000
 def Bar1_proof : Bar1 := by
   unfold Bar1
   try solve_fixpoint

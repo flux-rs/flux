@@ -63,6 +63,7 @@ end CheckGe0Qualifs
 
 open CheckGe0Qualifs
 
+set_option maxHeartbeats 5000000
 def CheckGe0_proof : CheckGe0 := by
   unfold CheckGe0
   try solve_fixpoint

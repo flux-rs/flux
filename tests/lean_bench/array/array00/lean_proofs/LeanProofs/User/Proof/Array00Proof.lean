@@ -63,6 +63,7 @@ end Array00Qualifs
 
 open Array00Qualifs
 
+set_option maxHeartbeats 5000000
 def Array00_proof : Array00 := by
   unfold Array00
   try solve_fixpoint

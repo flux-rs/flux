@@ -63,6 +63,7 @@ end TestSplitFirstEmptyQualifs
 
 open TestSplitFirstEmptyQualifs
 
+set_option maxHeartbeats 5000000
 def TestSplitFirstEmpty_proof : TestSplitFirstEmpty := by
   unfold TestSplitFirstEmpty
   try solve_fixpoint

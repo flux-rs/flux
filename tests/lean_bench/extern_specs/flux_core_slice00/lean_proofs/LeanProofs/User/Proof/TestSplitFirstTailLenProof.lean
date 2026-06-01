@@ -63,6 +63,7 @@ end TestSplitFirstTailLenQualifs
 
 open TestSplitFirstTailLenQualifs
 
+set_option maxHeartbeats 5000000
 def TestSplitFirstTailLen_proof : TestSplitFirstTailLen := by
   unfold TestSplitFirstTailLen
   try solve_fixpoint

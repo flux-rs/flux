@@ -63,6 +63,7 @@ end BitwiseNotI32Qualifs
 
 open BitwiseNotI32Qualifs
 
+set_option maxHeartbeats 5000000
 def BitwiseNotI32_proof : BitwiseNotI32 := by
   unfold BitwiseNotI32
   try solve_fixpoint

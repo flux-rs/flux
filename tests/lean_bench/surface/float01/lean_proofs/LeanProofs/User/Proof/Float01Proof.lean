@@ -63,6 +63,7 @@ end Float01Qualifs
 
 open Float01Qualifs
 
+set_option maxHeartbeats 5000000
 def Float01_proof : Float01 := by
   unfold Float01
   try solve_fixpoint

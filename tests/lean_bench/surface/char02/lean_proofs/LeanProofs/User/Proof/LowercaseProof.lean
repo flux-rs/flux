@@ -63,6 +63,7 @@ end LowercaseQualifs
 
 open LowercaseQualifs
 
+set_option maxHeartbeats 5000000
 def Lowercase_proof : Lowercase := by
   unfold Lowercase
   try solve_fixpoint

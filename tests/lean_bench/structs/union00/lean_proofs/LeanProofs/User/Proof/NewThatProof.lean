@@ -63,6 +63,7 @@ end NewThatQualifs
 
 open NewThatQualifs
 
+set_option maxHeartbeats 5000000
 def NewThat_proof : NewThat := by
   unfold NewThat
   try solve_fixpoint

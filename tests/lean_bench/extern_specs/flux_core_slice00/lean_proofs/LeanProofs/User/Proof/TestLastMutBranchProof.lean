@@ -63,6 +63,7 @@ end TestLastMutBranchQualifs
 
 open TestLastMutBranchQualifs
 
+set_option maxHeartbeats 5000000
 def TestLastMutBranch_proof : TestLastMutBranch := by
   unfold TestLastMutBranch
   try solve_fixpoint

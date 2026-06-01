@@ -63,6 +63,7 @@ end FirstHalfQualifs
 
 open FirstHalfQualifs
 
+set_option maxHeartbeats 5000000
 def FirstHalf_proof : FirstHalf := by
   unfold FirstHalf
   try solve_fixpoint

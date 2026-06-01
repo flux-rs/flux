@@ -63,6 +63,7 @@ end TestOkQualifs
 
 open TestOkQualifs
 
+set_option maxHeartbeats 5000000
 def TestOk_proof : TestOk := by
   unfold TestOk
   try solve_fixpoint

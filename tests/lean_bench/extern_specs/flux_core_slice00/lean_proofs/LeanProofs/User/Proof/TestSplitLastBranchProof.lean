@@ -63,6 +63,7 @@ end TestSplitLastBranchQualifs
 
 open TestSplitLastBranchQualifs
 
+set_option maxHeartbeats 5000000
 def TestSplitLastBranch_proof : TestSplitLastBranch := by
   unfold TestSplitLastBranch
   try solve_fixpoint

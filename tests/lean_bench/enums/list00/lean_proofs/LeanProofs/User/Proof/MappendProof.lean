@@ -63,6 +63,7 @@ end MappendQualifs
 
 open MappendQualifs
 
+set_option maxHeartbeats 5000000
 def Mappend_proof : Mappend := by
   unfold Mappend
   try solve_fixpoint

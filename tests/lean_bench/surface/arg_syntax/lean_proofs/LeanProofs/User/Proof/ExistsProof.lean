@@ -63,6 +63,7 @@ end ExistsQualifs
 
 open ExistsQualifs
 
+set_option maxHeartbeats 5000000
 def Exists_proof : Exists := by
   unfold Exists
   try solve_fixpoint

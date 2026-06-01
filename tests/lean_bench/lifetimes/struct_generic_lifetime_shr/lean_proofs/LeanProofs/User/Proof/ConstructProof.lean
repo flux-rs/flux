@@ -63,6 +63,7 @@ end ConstructQualifs
 
 open ConstructQualifs
 
+set_option maxHeartbeats 5000000
 def Construct_proof : Construct := by
   unfold Construct
   try solve_fixpoint

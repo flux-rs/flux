@@ -67,6 +67,7 @@ end RvecImpl3IndexQualifs
 
 open RvecImpl3IndexQualifs
 
+set_option maxHeartbeats 5000000
 def RvecImpl__3__Index_proof : RvecImpl__3__Index := by
   unfold RvecImpl__3__Index
   try solve_fixpoint

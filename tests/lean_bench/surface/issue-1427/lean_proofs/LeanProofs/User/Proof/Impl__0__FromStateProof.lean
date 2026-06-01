@@ -63,6 +63,7 @@ end Impl0FromStateQualifs
 
 open Impl0FromStateQualifs
 
+set_option maxHeartbeats 5000000
 def Impl__0__FromState_proof : Impl__0__FromState := by
   unfold Impl__0__FromState
   try solve_fixpoint

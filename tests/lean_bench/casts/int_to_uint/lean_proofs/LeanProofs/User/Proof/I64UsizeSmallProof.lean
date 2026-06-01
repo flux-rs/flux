@@ -63,6 +63,7 @@ end I64UsizeSmallQualifs
 
 open I64UsizeSmallQualifs
 
+set_option maxHeartbeats 5000000
 def I64UsizeSmall_proof : I64UsizeSmall := by
   unfold I64UsizeSmall
   try solve_fixpoint

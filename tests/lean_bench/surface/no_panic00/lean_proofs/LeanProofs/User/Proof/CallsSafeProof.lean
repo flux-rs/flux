@@ -63,6 +63,7 @@ end CallsSafeQualifs
 
 open CallsSafeQualifs
 
+set_option maxHeartbeats 5000000
 def CallsSafe_proof : CallsSafe := by
   unfold CallsSafe
   try solve_fixpoint

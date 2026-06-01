@@ -63,6 +63,7 @@ end UnwrapQualifs
 
 open UnwrapQualifs
 
+set_option maxHeartbeats 5000000
 def Unwrap_proof : Unwrap := by
   unfold Unwrap
   try solve_fixpoint

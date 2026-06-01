@@ -63,6 +63,7 @@ end TestAndThenNoneInputQualifs
 
 open TestAndThenNoneInputQualifs
 
+set_option maxHeartbeats 5000000
 def TestAndThenNoneInput_proof : TestAndThenNoneInput := by
   unfold TestAndThenNoneInput
   try solve_fixpoint

@@ -63,6 +63,7 @@ end Test01FunQualifs
 
 open Test01FunQualifs
 
+set_option maxHeartbeats 5000000
 def Test01Fun_proof : Test01Fun := by
   unfold Test01Fun
   try solve_fixpoint

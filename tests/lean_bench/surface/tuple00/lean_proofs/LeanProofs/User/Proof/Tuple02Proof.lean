@@ -63,6 +63,7 @@ end Tuple02Qualifs
 
 open Tuple02Qualifs
 
+set_option maxHeartbeats 5000000
 def Tuple02_proof : Tuple02 := by
   unfold Tuple02
   try solve_fixpoint

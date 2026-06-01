@@ -63,6 +63,7 @@ end MyModAdd2Qualifs
 
 open MyModAdd2Qualifs
 
+set_option maxHeartbeats 5000000
 def MyModAdd2_proof : MyModAdd2 := by
   unfold MyModAdd2
   try solve_fixpoint

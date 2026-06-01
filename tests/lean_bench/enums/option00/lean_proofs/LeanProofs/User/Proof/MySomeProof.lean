@@ -63,6 +63,7 @@ end MySomeQualifs
 
 open MySomeQualifs
 
+set_option maxHeartbeats 5000000
 def MySome_proof : MySome := by
   unfold MySome
   try solve_fixpoint

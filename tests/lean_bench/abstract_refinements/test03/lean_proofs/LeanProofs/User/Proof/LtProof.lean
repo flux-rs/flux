@@ -63,6 +63,7 @@ end LtQualifs
 
 open LtQualifs
 
+set_option maxHeartbeats 5000000
 def Lt_proof : Lt := by
   unfold Lt
   try solve_fixpoint

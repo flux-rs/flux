@@ -63,6 +63,7 @@ end MickeyQualifs
 
 open MickeyQualifs
 
+set_option maxHeartbeats 5000000
 def Mickey_proof : Mickey := by
   unfold Mickey
   try solve_fixpoint

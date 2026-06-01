@@ -63,6 +63,7 @@ end TestI16Qualifs
 
 open TestI16Qualifs
 
+set_option maxHeartbeats 5000000
 def TestI16_proof : TestI16 := by
   unfold TestI16
   try solve_fixpoint

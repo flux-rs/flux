@@ -63,6 +63,7 @@ end TestUsizeQualifs
 
 open TestUsizeQualifs
 
+set_option maxHeartbeats 5000000
 def TestUsize_proof : TestUsize := by
   unfold TestUsize
   try solve_fixpoint

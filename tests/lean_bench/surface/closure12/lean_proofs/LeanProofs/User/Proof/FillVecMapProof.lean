@@ -63,6 +63,7 @@ end FillVecMapQualifs
 
 open FillVecMapQualifs
 
+set_option maxHeartbeats 5000000
 def FillVecMap_proof : FillVecMap := by
   unfold FillVecMap
   try solve_fixpoint

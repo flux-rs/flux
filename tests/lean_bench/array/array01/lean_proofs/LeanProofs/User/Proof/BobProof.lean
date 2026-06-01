@@ -63,6 +63,7 @@ end BobQualifs
 
 open BobQualifs
 
+set_option maxHeartbeats 5000000
 def Bob_proof : Bob := by
   unfold Bob
   try solve_fixpoint

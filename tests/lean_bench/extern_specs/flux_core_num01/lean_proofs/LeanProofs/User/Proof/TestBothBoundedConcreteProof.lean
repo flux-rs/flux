@@ -63,6 +63,7 @@ end TestBothBoundedConcreteQualifs
 
 open TestBothBoundedConcreteQualifs
 
+set_option maxHeartbeats 5000000
 def TestBothBoundedConcrete_proof : TestBothBoundedConcrete := by
   unfold TestBothBoundedConcrete
   try solve_fixpoint

@@ -63,6 +63,7 @@ end TestForIndexQualifs
 
 open TestForIndexQualifs
 
+set_option maxHeartbeats 5000000
 def TestForIndex_proof : TestForIndex := by
   unfold TestForIndex
   try solve_fixpoint

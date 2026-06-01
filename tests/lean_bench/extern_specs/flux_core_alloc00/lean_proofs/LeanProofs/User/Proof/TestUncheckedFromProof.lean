@@ -63,6 +63,7 @@ end TestUncheckedFromQualifs
 
 open TestUncheckedFromQualifs
 
+set_option maxHeartbeats 5000000
 def TestUncheckedFrom_proof : TestUncheckedFrom := by
   unfold TestUncheckedFrom
   try solve_fixpoint

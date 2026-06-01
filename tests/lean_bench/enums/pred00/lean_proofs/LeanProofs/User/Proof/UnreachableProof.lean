@@ -63,6 +63,7 @@ end UnreachableQualifs
 
 open UnreachableQualifs
 
+set_option maxHeartbeats 5000000
 def Unreachable_proof : Unreachable := by
   unfold Unreachable
   try solve_fixpoint

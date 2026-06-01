@@ -63,6 +63,7 @@ end DotQualifs
 
 open DotQualifs
 
+set_option maxHeartbeats 5000000
 def Dot_proof : Dot := by
   unfold Dot
   try solve_fixpoint

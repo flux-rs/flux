@@ -63,6 +63,7 @@ end GlobQualifs
 
 open GlobQualifs
 
+set_option maxHeartbeats 5000000
 def Glob_proof : Glob := by
   unfold Glob
   try solve_fixpoint

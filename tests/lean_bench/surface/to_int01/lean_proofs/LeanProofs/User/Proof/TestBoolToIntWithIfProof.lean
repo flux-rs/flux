@@ -63,6 +63,7 @@ end TestBoolToIntWithIfQualifs
 
 open TestBoolToIntWithIfQualifs
 
+set_option maxHeartbeats 5000000
 def TestBoolToIntWithIf_proof : TestBoolToIntWithIf := by
   unfold TestBoolToIntWithIf
   try solve_fixpoint

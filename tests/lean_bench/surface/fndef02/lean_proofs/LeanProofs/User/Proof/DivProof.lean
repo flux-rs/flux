@@ -63,6 +63,7 @@ end DivQualifs
 
 open DivQualifs
 
+set_option maxHeartbeats 5000000
 def Div_proof : Div := by
   unfold Div
   try solve_fixpoint

@@ -63,6 +63,7 @@ end LeImpQualifs
 
 open LeImpQualifs
 
+set_option maxHeartbeats 5000000
 def LeImp_proof : LeImp := by
   unfold LeImp
   try solve_fixpoint

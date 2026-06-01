@@ -63,6 +63,7 @@ end GhostCellImpl3TakeQualifs
 
 open GhostCellImpl3TakeQualifs
 
+set_option maxHeartbeats 5000000
 def GhostCellImpl__3__Take_proof : GhostCellImpl__3__Take := by
   unfold GhostCellImpl__3__Take
   try solve_fixpoint

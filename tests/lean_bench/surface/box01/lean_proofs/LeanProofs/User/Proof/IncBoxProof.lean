@@ -63,6 +63,7 @@ end IncBoxQualifs
 
 open IncBoxQualifs
 
+set_option maxHeartbeats 5000000
 def IncBox_proof : IncBox := by
   unfold IncBox
   try solve_fixpoint

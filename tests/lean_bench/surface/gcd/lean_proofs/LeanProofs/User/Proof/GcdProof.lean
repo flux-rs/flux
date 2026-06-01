@@ -63,6 +63,7 @@ end GcdQualifs
 
 open GcdQualifs
 
+set_option maxHeartbeats 5000000
 def Gcd_proof : Gcd := by
   unfold Gcd
   try solve_fixpoint

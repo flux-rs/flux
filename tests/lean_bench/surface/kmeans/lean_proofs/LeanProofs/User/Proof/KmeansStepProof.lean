@@ -63,6 +63,7 @@ end KmeansStepQualifs
 
 open KmeansStepQualifs
 
+set_option maxHeartbeats 5000000
 def KmeansStep_proof : KmeansStep := by
   unfold KmeansStep
   try solve_fixpoint

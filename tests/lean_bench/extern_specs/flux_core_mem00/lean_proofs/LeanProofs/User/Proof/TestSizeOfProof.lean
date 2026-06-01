@@ -63,6 +63,7 @@ end TestSizeOfQualifs
 
 open TestSizeOfQualifs
 
+set_option maxHeartbeats 5000000
 def TestSizeOf_proof : TestSizeOf := by
   unfold TestSizeOf
   try solve_fixpoint

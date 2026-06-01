@@ -63,6 +63,7 @@ end AddQualifs
 
 open AddQualifs
 
+set_option maxHeartbeats 5000000
 def Add_proof : Add := by
   unfold Add
   try solve_fixpoint

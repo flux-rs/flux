@@ -63,6 +63,7 @@ end TestFrogQualifs
 
 open TestFrogQualifs
 
+set_option maxHeartbeats 5000000
 def TestFrog_proof : TestFrog := by
   unfold TestFrog
   try solve_fixpoint

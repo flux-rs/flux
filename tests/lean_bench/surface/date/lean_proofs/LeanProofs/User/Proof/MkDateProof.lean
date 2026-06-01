@@ -63,6 +63,7 @@ end MkDateQualifs
 
 open MkDateQualifs
 
+set_option maxHeartbeats 5000000
 def MkDate_proof : MkDate := by
   unfold MkDate
   try solve_fixpoint

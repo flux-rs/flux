@@ -63,6 +63,7 @@ end Impl0Add1Qualifs
 
 open Impl0Add1Qualifs
 
+set_option maxHeartbeats 5000000
 def Impl__0__Add1_proof : Impl__0__Add1 := by
   unfold Impl__0__Add1
   try solve_fixpoint

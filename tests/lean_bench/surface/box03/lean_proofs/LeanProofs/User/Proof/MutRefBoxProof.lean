@@ -63,6 +63,7 @@ end MutRefBoxQualifs
 
 open MutRefBoxQualifs
 
+set_option maxHeartbeats 5000000
 def MutRefBox_proof : MutRefBox := by
   unfold MutRefBox
   try solve_fixpoint

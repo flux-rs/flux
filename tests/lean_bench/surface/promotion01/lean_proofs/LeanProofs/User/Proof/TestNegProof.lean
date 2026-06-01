@@ -63,6 +63,7 @@ end TestNegQualifs
 
 open TestNegQualifs
 
+set_option maxHeartbeats 5000000
 def TestNeg_proof : TestNeg := by
   unfold TestNeg
   try solve_fixpoint

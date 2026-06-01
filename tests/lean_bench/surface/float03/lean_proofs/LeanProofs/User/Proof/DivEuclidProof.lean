@@ -63,6 +63,7 @@ end DivEuclidQualifs
 
 open DivEuclidQualifs
 
+set_option maxHeartbeats 5000000
 def DivEuclid_proof : DivEuclid := by
   unfold DivEuclid
   try solve_fixpoint

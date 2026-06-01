@@ -63,6 +63,7 @@ end SafeDivQualifs
 
 open SafeDivQualifs
 
+set_option maxHeartbeats 5000000
 def SafeDiv_proof : SafeDiv := by
   unfold SafeDiv
   try solve_fixpoint

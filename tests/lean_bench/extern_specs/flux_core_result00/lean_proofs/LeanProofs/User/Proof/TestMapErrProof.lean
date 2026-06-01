@@ -63,6 +63,7 @@ end TestMapErrQualifs
 
 open TestMapErrQualifs
 
+set_option maxHeartbeats 5000000
 def TestMapErr_proof : TestMapErr := by
   unfold TestMapErr
   try solve_fixpoint

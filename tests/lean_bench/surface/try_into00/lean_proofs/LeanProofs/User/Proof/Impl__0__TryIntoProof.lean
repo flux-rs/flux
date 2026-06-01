@@ -63,6 +63,7 @@ end Impl0TryIntoQualifs
 
 open Impl0TryIntoQualifs
 
+set_option maxHeartbeats 5000000
 def Impl__0__TryInto_proof : Impl__0__TryInto := by
   unfold Impl__0__TryInto
   try solve_fixpoint

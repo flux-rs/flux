@@ -63,6 +63,7 @@ end TestOr32Qualifs
 
 open TestOr32Qualifs
 
+set_option maxHeartbeats 5000000
 def TestOr32_proof : TestOr32 := by
   unfold TestOr32
   try solve_fixpoint

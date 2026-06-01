@@ -63,6 +63,7 @@ end TestAndNoneLeftQualifs
 
 open TestAndNoneLeftQualifs
 
+set_option maxHeartbeats 5000000
 def TestAndNoneLeft_proof : TestAndNoneLeft := by
   unfold TestAndNoneLeft
   try solve_fixpoint

@@ -63,6 +63,7 @@ end TestWrappingIsizeQualifs
 
 open TestWrappingIsizeQualifs
 
+set_option maxHeartbeats 5000000
 def TestWrappingIsize_proof : TestWrappingIsize := by
   unfold TestWrappingIsize
   try solve_fixpoint

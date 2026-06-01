@@ -63,6 +63,7 @@ end TestOkOrBranchQualifs
 
 open TestOkOrBranchQualifs
 
+set_option maxHeartbeats 5000000
 def TestOkOrBranch_proof : TestOkOrBranch := by
   unfold TestOkOrBranch
   try solve_fixpoint

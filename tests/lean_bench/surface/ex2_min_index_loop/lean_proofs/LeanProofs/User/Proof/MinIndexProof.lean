@@ -63,6 +63,7 @@ end MinIndexQualifs
 
 open MinIndexQualifs
 
+set_option maxHeartbeats 5000000
 def MinIndex_proof : MinIndex := by
   unfold MinIndex
   try solve_fixpoint

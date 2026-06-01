@@ -63,6 +63,7 @@ end InputMustBeOddQualifs
 
 open InputMustBeOddQualifs
 
+set_option maxHeartbeats 5000000
 def InputMustBeOdd_proof : InputMustBeOdd := by
   unfold InputMustBeOdd
   try solve_fixpoint

@@ -63,6 +63,7 @@ end Impl0FooBarBazQualifs
 
 open Impl0FooBarBazQualifs
 
+set_option maxHeartbeats 5000000
 def Impl__0__FooBarBaz_proof : Impl__0__FooBarBaz := by
   unfold Impl__0__FooBarBaz
   try solve_fixpoint

@@ -63,6 +63,7 @@ end RunClosureQualifs
 
 open RunClosureQualifs
 
+set_option maxHeartbeats 5000000
 def RunClosure_proof : RunClosure := by
   unfold RunClosure
   try solve_fixpoint

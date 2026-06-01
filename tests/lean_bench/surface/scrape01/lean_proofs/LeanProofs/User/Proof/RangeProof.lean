@@ -63,6 +63,7 @@ end RangeQualifs
 
 open RangeQualifs
 
+set_option maxHeartbeats 5000000
 def Range_proof : Range := by
   unfold Range
   try solve_fixpoint

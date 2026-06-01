@@ -63,6 +63,7 @@ end TestUpperBoundedUErrQualifs
 
 open TestUpperBoundedUErrQualifs
 
+set_option maxHeartbeats 5000000
 def TestUpperBoundedUErr_proof : TestUpperBoundedUErr := by
   unfold TestUpperBoundedUErr
   try solve_fixpoint

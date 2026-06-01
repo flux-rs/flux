@@ -63,6 +63,7 @@ end TestMapSliceQualifs
 
 open TestMapSliceQualifs
 
+set_option maxHeartbeats 5000000
 def TestMapSlice_proof : TestMapSlice := by
   unfold TestMapSlice
   try solve_fixpoint

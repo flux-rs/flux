@@ -63,6 +63,7 @@ end Str01Qualifs
 
 open Str01Qualifs
 
+set_option maxHeartbeats 5000000
 def Str01_proof : Str01 := by
   unfold Str01
   try solve_fixpoint

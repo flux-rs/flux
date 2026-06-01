@@ -63,6 +63,7 @@ end ModSignedPosQualifs
 
 open ModSignedPosQualifs
 
+set_option maxHeartbeats 5000000
 def ModSignedPos_proof : ModSignedPos := by
   unfold ModSignedPos
   try solve_fixpoint

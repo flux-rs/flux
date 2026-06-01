@@ -63,6 +63,7 @@ end BcopyAuxQualifs
 
 open BcopyAuxQualifs
 
+set_option maxHeartbeats 5000000
 def BcopyAux_proof : BcopyAux := by
   unfold BcopyAux
   try solve_fixpoint

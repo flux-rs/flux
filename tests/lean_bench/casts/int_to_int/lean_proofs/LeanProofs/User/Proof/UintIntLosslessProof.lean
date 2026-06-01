@@ -63,6 +63,7 @@ end UintIntLosslessQualifs
 
 open UintIntLosslessQualifs
 
+set_option maxHeartbeats 5000000
 def UintIntLossless_proof : UintIntLossless := by
   unfold UintIntLossless
   try solve_fixpoint

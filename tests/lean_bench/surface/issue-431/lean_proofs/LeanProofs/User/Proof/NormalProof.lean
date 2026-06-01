@@ -63,6 +63,7 @@ end NormalQualifs
 
 open NormalQualifs
 
+set_option maxHeartbeats 5000000
 def Normal_proof : Normal := by
   unfold Normal
   try solve_fixpoint

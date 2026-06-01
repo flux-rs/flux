@@ -63,6 +63,7 @@ end GeImpQualifs
 
 open GeImpQualifs
 
+set_option maxHeartbeats 5000000
 def GeImp_proof : GeImp := by
   unfold GeImp
   try solve_fixpoint

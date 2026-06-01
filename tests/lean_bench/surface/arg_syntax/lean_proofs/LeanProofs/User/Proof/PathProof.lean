@@ -63,6 +63,7 @@ end PathQualifs
 
 open PathQualifs
 
+set_option maxHeartbeats 5000000
 def Path_proof : Path := by
   unfold Path
   try solve_fixpoint

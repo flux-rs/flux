@@ -63,6 +63,7 @@ end TestPushMacroQualifs
 
 open TestPushMacroQualifs
 
+set_option maxHeartbeats 5000000
 def TestPushMacro_proof : TestPushMacro := by
   unfold TestPushMacro
   try solve_fixpoint

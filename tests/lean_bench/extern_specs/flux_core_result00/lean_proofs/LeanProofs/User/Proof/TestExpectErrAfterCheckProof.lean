@@ -63,6 +63,7 @@ end TestExpectErrAfterCheckQualifs
 
 open TestExpectErrAfterCheckQualifs
 
+set_option maxHeartbeats 5000000
 def TestExpectErrAfterCheck_proof : TestExpectErrAfterCheck := by
   unfold TestExpectErrAfterCheck
   try solve_fixpoint

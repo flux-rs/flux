@@ -63,6 +63,7 @@ end TestCheckedDivU32Qualifs
 
 open TestCheckedDivU32Qualifs
 
+set_option maxHeartbeats 5000000
 def TestCheckedDivU32_proof : TestCheckedDivU32 := by
   unfold TestCheckedDivU32
   try solve_fixpoint

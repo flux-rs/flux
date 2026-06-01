@@ -63,6 +63,7 @@ end UpdateCentersQualifs
 
 open UpdateCentersQualifs
 
+set_option maxHeartbeats 5000000
 def UpdateCenters_proof : UpdateCenters := by
   unfold UpdateCenters
   try solve_fixpoint

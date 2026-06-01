@@ -63,6 +63,7 @@ end BoolIntQualifs
 
 open BoolIntQualifs
 
+set_option maxHeartbeats 5000000
 def BoolInt_proof : BoolInt := by
   unfold BoolInt
   try solve_fixpoint

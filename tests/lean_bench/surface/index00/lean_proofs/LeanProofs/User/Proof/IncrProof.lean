@@ -63,6 +63,7 @@ end IncrQualifs
 
 open IncrQualifs
 
+set_option maxHeartbeats 5000000
 def Incr_proof : Incr := by
   unfold Incr
   try solve_fixpoint

@@ -63,6 +63,7 @@ end RequiresNegativeQualifs
 
 open RequiresNegativeQualifs
 
+set_option maxHeartbeats 5000000
 def RequiresNegative_proof : RequiresNegative := by
   unfold RequiresNegative
   try solve_fixpoint

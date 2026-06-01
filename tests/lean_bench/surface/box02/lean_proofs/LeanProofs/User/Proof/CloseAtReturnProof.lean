@@ -63,6 +63,7 @@ end CloseAtReturnQualifs
 
 open CloseAtReturnQualifs
 
+set_option maxHeartbeats 5000000
 def CloseAtReturn_proof : CloseAtReturn := by
   unfold CloseAtReturn
   try solve_fixpoint

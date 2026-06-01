@@ -63,6 +63,7 @@ end Impl0TakeMutQualifs
 
 open Impl0TakeMutQualifs
 
+set_option maxHeartbeats 5000000
 def Impl__0__TakeMut_proof : Impl__0__TakeMut := by
   unfold Impl__0__TakeMut
   try solve_fixpoint

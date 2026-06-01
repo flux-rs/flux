@@ -63,6 +63,7 @@ end TestMapBranchQualifs
 
 open TestMapBranchQualifs
 
+set_option maxHeartbeats 5000000
 def TestMapBranch_proof : TestMapBranch := by
   unfold TestMapBranch
   try solve_fixpoint

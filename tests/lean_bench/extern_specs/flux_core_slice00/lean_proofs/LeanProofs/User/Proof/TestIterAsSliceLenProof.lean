@@ -63,6 +63,7 @@ end TestIterAsSliceLenQualifs
 
 open TestIterAsSliceLenQualifs
 
+set_option maxHeartbeats 5000000
 def TestIterAsSliceLen_proof : TestIterAsSliceLen := by
   unfold TestIterAsSliceLen
   try solve_fixpoint

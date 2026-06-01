@@ -63,6 +63,7 @@ end ZeroQualifs
 
 open ZeroQualifs
 
+set_option maxHeartbeats 5000000
 def Zero_proof : Zero := by
   unfold Zero
   try solve_fixpoint

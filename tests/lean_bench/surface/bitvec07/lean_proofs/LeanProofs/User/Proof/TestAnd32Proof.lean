@@ -63,6 +63,7 @@ end TestAnd32Qualifs
 
 open TestAnd32Qualifs
 
+set_option maxHeartbeats 5000000
 def TestAnd32_proof : TestAnd32 := by
   unfold TestAnd32
   try solve_fixpoint

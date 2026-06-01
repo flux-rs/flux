@@ -63,6 +63,7 @@ end TrivialLtQualifs
 
 open TrivialLtQualifs
 
+set_option maxHeartbeats 5000000
 def TrivialLt_proof : TrivialLt := by
   unfold TrivialLt
   try solve_fixpoint

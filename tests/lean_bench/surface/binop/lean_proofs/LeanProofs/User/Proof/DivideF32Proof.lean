@@ -63,6 +63,7 @@ end DivideF32Qualifs
 
 open DivideF32Qualifs
 
+set_option maxHeartbeats 5000000
 def DivideF32_proof : DivideF32 := by
   unfold DivideF32
   try solve_fixpoint

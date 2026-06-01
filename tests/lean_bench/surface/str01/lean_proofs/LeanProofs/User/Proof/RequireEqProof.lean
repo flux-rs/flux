@@ -63,6 +63,7 @@ end RequireEqQualifs
 
 open RequireEqQualifs
 
+set_option maxHeartbeats 5000000
 def RequireEq_proof : RequireEq := by
   unfold RequireEq
   try solve_fixpoint

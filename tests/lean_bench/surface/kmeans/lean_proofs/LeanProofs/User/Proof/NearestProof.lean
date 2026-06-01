@@ -63,6 +63,7 @@ end NearestQualifs
 
 open NearestQualifs
 
+set_option maxHeartbeats 5000000
 def Nearest_proof : Nearest := by
   unfold Nearest
   try solve_fixpoint

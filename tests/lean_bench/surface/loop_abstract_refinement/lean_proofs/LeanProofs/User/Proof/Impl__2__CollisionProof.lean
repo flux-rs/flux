@@ -67,6 +67,7 @@ end Impl2CollisionQualifs
 
 open Impl2CollisionQualifs
 
+set_option maxHeartbeats 5000000
 def Impl__2__Collision_proof : Impl__2__Collision := by
   unfold Impl__2__Collision
   try solve_fixpoint

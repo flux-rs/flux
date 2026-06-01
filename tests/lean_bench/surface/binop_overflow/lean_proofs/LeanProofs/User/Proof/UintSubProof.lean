@@ -63,6 +63,7 @@ end UintSubQualifs
 
 open UintSubQualifs
 
+set_option maxHeartbeats 5000000
 def UintSub_proof : UintSub := by
   unfold UintSub
   try solve_fixpoint

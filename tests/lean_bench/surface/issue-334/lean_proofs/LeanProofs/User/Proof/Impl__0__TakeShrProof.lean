@@ -63,6 +63,7 @@ end Impl0TakeShrQualifs
 
 open Impl0TakeShrQualifs
 
+set_option maxHeartbeats 5000000
 def Impl__0__TakeShr_proof : Impl__0__TakeShr := by
   unfold Impl__0__TakeShr
   try solve_fixpoint

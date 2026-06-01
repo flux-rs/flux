@@ -63,6 +63,7 @@ end TakesClosureQualifs
 
 open TakesClosureQualifs
 
+set_option maxHeartbeats 5000000
 def TakesClosure_proof : TakesClosure := by
   unfold TakesClosure
   try solve_fixpoint

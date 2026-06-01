@@ -63,6 +63,7 @@ end TestGetMutOutOfBoundsQualifs
 
 open TestGetMutOutOfBoundsQualifs
 
+set_option maxHeartbeats 5000000
 def TestGetMutOutOfBounds_proof : TestGetMutOutOfBounds := by
   unfold TestGetMutOutOfBounds
   try solve_fixpoint

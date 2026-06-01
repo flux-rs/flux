@@ -63,6 +63,7 @@ end ChooseQualifs
 
 open ChooseQualifs
 
+set_option maxHeartbeats 5000000
 def Choose_proof : Choose := by
   unfold Choose
   try solve_fixpoint

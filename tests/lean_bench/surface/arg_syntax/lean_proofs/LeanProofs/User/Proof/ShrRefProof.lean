@@ -63,6 +63,7 @@ end ShrRefQualifs
 
 open ShrRefQualifs
 
+set_option maxHeartbeats 5000000
 def ShrRef_proof : ShrRef := by
   unfold ShrRef
   try solve_fixpoint

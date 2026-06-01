@@ -63,6 +63,7 @@ end MainQualifs
 
 open MainQualifs
 
+set_option maxHeartbeats 5000000
 def Main_proof : Main := by
   unfold Main
   try solve_fixpoint

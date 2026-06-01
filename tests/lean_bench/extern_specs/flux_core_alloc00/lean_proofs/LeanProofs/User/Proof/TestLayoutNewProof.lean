@@ -63,6 +63,7 @@ end TestLayoutNewQualifs
 
 open TestLayoutNewQualifs
 
+set_option maxHeartbeats 5000000
 def TestLayoutNew_proof : TestLayoutNew := by
   unfold TestLayoutNew
   try solve_fixpoint

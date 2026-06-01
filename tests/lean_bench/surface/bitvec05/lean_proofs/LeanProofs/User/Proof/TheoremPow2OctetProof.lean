@@ -63,6 +63,7 @@ end TheoremPow2OctetQualifs
 
 open TheoremPow2OctetQualifs
 
+set_option maxHeartbeats 5000000
 def TheoremPow2Octet_proof : TheoremPow2Octet := by
   unfold TheoremPow2Octet
   try solve_fixpoint

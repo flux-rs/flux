@@ -63,6 +63,7 @@ end TestIntToIntQualifs
 
 open TestIntToIntQualifs
 
+set_option maxHeartbeats 5000000
 def TestIntToInt_proof : TestIntToInt := by
   unfold TestIntToInt
   try solve_fixpoint

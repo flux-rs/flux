@@ -63,6 +63,7 @@ end FThroughYQualifs
 
 open FThroughYQualifs
 
+set_option maxHeartbeats 5000000
 def FThroughY_proof : FThroughY := by
   unfold FThroughY
   try solve_fixpoint

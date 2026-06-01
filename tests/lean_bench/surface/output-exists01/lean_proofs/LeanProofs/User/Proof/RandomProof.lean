@@ -63,6 +63,7 @@ end RandomQualifs
 
 open RandomQualifs
 
+set_option maxHeartbeats 5000000
 def Random_proof : Random := by
   unfold Random
   try solve_fixpoint

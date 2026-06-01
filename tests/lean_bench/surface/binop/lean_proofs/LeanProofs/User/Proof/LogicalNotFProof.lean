@@ -63,6 +63,7 @@ end LogicalNotFQualifs
 
 open LogicalNotFQualifs
 
+set_option maxHeartbeats 5000000
 def LogicalNotF_proof : LogicalNotF := by
   unfold LogicalNotF
   try solve_fixpoint

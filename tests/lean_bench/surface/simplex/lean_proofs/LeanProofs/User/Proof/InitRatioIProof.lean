@@ -63,6 +63,7 @@ end InitRatioIQualifs
 
 open InitRatioIQualifs
 
+set_option maxHeartbeats 5000000
 def InitRatioI_proof : InitRatioI := by
   unfold InitRatioI
   try solve_fixpoint

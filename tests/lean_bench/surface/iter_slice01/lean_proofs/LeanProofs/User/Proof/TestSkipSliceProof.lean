@@ -63,6 +63,7 @@ end TestSkipSliceQualifs
 
 open TestSkipSliceQualifs
 
+set_option maxHeartbeats 5000000
 def TestSkipSlice_proof : TestSkipSlice := by
   unfold TestSkipSlice
   try solve_fixpoint

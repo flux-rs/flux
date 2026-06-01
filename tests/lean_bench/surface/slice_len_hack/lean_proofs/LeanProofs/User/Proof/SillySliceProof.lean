@@ -63,6 +63,7 @@ end SillySliceQualifs
 
 open SillySliceQualifs
 
+set_option maxHeartbeats 5000000
 def SillySlice_proof : SillySlice := by
   unfold SillySlice
   try solve_fixpoint

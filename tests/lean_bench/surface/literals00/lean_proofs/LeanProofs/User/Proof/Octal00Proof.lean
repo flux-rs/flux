@@ -63,6 +63,7 @@ end Octal00Qualifs
 
 open Octal00Qualifs
 
+set_option maxHeartbeats 5000000
 def Octal00_proof : Octal00 := by
   unfold Octal00
   try solve_fixpoint

@@ -63,6 +63,7 @@ end LoopC1Qualifs
 
 open LoopC1Qualifs
 
+set_option maxHeartbeats 5000000
 def LoopC1_proof : LoopC1 := by
   unfold LoopC1
   try solve_fixpoint

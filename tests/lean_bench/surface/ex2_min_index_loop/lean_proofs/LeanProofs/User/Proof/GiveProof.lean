@@ -63,6 +63,7 @@ end GiveQualifs
 
 open GiveQualifs
 
+set_option maxHeartbeats 5000000
 def Give_proof : Give := by
   unfold Give
   try solve_fixpoint

@@ -63,6 +63,7 @@ end TestOrSomeLeftQualifs
 
 open TestOrSomeLeftQualifs
 
+set_option maxHeartbeats 5000000
 def TestOrSomeLeft_proof : TestOrSomeLeft := by
   unfold TestOrSomeLeft
   try solve_fixpoint

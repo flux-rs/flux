@@ -63,6 +63,7 @@ end KmpTableQualifs
 
 open KmpTableQualifs
 
+set_option maxHeartbeats 5000000
 def KmpTable_proof : KmpTable := by
   unfold KmpTable
   try solve_fixpoint

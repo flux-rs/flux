@@ -63,6 +63,7 @@ end TakeShrRefQualifs
 
 open TakeShrRefQualifs
 
+set_option maxHeartbeats 5000000
 def TakeShrRef_proof : TakeShrRef := by
   unfold TakeShrRef
   try solve_fixpoint

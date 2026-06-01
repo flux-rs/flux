@@ -63,6 +63,7 @@ end SimplexQualifs
 
 open SimplexQualifs
 
+set_option maxHeartbeats 5000000
 def Simplex_proof : Simplex := by
   unfold Simplex
   try solve_fixpoint

@@ -63,6 +63,7 @@ end BazCallQualifs
 
 open BazCallQualifs
 
+set_option maxHeartbeats 5000000
 def BazCall_proof : BazCall := by
   unfold BazCall
   try solve_fixpoint

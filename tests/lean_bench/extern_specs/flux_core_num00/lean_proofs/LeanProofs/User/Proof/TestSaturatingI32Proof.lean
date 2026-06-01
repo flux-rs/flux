@@ -63,6 +63,7 @@ end TestSaturatingI32Qualifs
 
 open TestSaturatingI32Qualifs
 
+set_option maxHeartbeats 5000000
 def TestSaturatingI32_proof : TestSaturatingI32 := by
   unfold TestSaturatingI32
   try solve_fixpoint

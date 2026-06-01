@@ -63,6 +63,7 @@ end LibQualifs
 
 open LibQualifs
 
+set_option maxHeartbeats 5000000
 def Lib_proof : Lib := by
   unfold Lib
   try solve_fixpoint

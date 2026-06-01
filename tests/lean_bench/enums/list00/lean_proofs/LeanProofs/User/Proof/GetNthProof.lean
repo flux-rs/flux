@@ -63,6 +63,7 @@ end GetNthQualifs
 
 open GetNthQualifs
 
+set_option maxHeartbeats 5000000
 def GetNth_proof : GetNth := by
   unfold GetNth
   try solve_fixpoint

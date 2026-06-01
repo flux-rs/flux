@@ -63,6 +63,7 @@ end DivUnsignedQualifs
 
 open DivUnsignedQualifs
 
+set_option maxHeartbeats 5000000
 def DivUnsigned_proof : DivUnsigned := by
   unfold DivUnsigned
   try solve_fixpoint

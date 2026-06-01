@@ -63,6 +63,7 @@ end DivSignedNonnegQualifs
 
 open DivSignedNonnegQualifs
 
+set_option maxHeartbeats 5000000
 def DivSignedNonneg_proof : DivSignedNonneg := by
   unfold DivSignedNonneg
   try solve_fixpoint

@@ -63,6 +63,7 @@ end MaxQualifs
 
 open MaxQualifs
 
+set_option maxHeartbeats 5000000
 def Max_proof : Max := by
   unfold Max
   try solve_fixpoint

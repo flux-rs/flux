@@ -63,6 +63,7 @@ end TestIncQualifs
 
 open TestIncQualifs
 
+set_option maxHeartbeats 5000000
 def TestInc_proof : TestInc := by
   unfold TestInc
   try solve_fixpoint

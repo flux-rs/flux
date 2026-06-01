@@ -63,6 +63,7 @@ end OpaqueStruct01Qualifs
 
 open OpaqueStruct01Qualifs
 
+set_option maxHeartbeats 5000000
 def OpaqueStruct01_proof : OpaqueStruct01 := by
   unfold OpaqueStruct01
   try solve_fixpoint

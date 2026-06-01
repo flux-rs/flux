@@ -63,6 +63,7 @@ end TestLastConcreteQualifs
 
 open TestLastConcreteQualifs
 
+set_option maxHeartbeats 5000000
 def TestLastConcrete_proof : TestLastConcrete := by
   unfold TestLastConcrete
   try solve_fixpoint

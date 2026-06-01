@@ -63,6 +63,7 @@ end TestEnumer2Qualifs
 
 open TestEnumer2Qualifs
 
+set_option maxHeartbeats 5000000
 def TestEnumer2_proof : TestEnumer2 := by
   unfold TestEnumer2
   try solve_fixpoint

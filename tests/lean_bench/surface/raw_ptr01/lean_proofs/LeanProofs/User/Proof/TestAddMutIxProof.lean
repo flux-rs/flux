@@ -63,6 +63,7 @@ end TestAddMutIxQualifs
 
 open TestAddMutIxQualifs
 
+set_option maxHeartbeats 5000000
 def TestAddMutIx_proof : TestAddMutIx := by
   unfold TestAddMutIx
   try solve_fixpoint

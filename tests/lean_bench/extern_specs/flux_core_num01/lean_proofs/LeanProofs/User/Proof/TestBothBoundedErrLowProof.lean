@@ -63,6 +63,7 @@ end TestBothBoundedErrLowQualifs
 
 open TestBothBoundedErrLowQualifs
 
+set_option maxHeartbeats 5000000
 def TestBothBoundedErrLow_proof : TestBothBoundedErrLow := by
   unfold TestBothBoundedErrLow
   try solve_fixpoint

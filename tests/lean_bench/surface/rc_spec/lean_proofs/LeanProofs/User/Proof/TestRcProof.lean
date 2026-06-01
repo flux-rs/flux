@@ -63,6 +63,7 @@ end TestRcQualifs
 
 open TestRcQualifs
 
+set_option maxHeartbeats 5000000
 def TestRc_proof : TestRc := by
   unfold TestRc
   try solve_fixpoint

@@ -63,6 +63,7 @@ end FillVecIndexLoopQualifs
 
 open FillVecIndexLoopQualifs
 
+set_option maxHeartbeats 5000000
 def FillVecIndexLoop_proof : FillVecIndexLoop := by
   unfold FillVecIndexLoop
   try solve_fixpoint
