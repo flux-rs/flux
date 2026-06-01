@@ -45,12 +45,14 @@ impl<T: Clone, A: Allocator + Clone> Clone for Vec<T, A> {
 
 #[extern_spec]
 impl<T, I: SliceIndex<[T]>, A: Allocator> Index<I> for Vec<T, A> {
+    #[assume_parametric(T)]
     #[spec(fn(&Vec<T, A>[@len], {I[@idx] | <I as SliceIndex<[T]>>::in_bounds(idx, len)}) -> _)]
     fn index(z: &Vec<T, A>, index: I) -> &<I as SliceIndex<[T]>>::Output;
 }
 
 #[extern_spec]
 impl<T, I: SliceIndex<[T]>, A: Allocator> IndexMut<I> for Vec<T, A> {
+    #[assume_parametric(T)]
     #[spec(fn(&mut Vec<T,A>[@len], {I[@idx] | <I as SliceIndex<[T]>>::in_bounds(idx, len)}) -> _)]
     fn index_mut(z: &mut Vec<T, A>, index: I) -> &mut <I as SliceIndex<[T]>>::Output;
 }

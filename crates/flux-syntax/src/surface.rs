@@ -641,6 +641,8 @@ pub enum Attr {
     InferOpts(PartialInferOpts),
     /// A `#[no_panic]` attribute
     NoPanic,
+    /// A `#[assume_parametric(...)]` attribute
+    AssumeParametric(Vec<Ident>),
 }
 
 #[derive(Debug)]
