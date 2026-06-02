@@ -289,7 +289,6 @@ impl PlacesTree {
     }
 
     pub(crate) fn remove_local(&mut self, loc: &Loc) {
-        // self.map.remove(loc);
         self.map.shift_remove(loc);
     }
 
