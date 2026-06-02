@@ -16,12 +16,12 @@ use flux_middle::{
 };
 use flux_rustc_bridge::mir::{FieldIdx, Place, PlaceElem};
 use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::data_structures::IndexMap;
 use rustc_span::Span;
 #[derive(Clone, Default)]
 pub(crate) struct PlacesTree {
-    map: IndexMap<Loc, Binding>,
+    map: FxIndexMap<Loc, Binding>,
 }
 
 #[derive(Clone, Debug)]
