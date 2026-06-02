@@ -26,8 +26,10 @@ use itertools::Itertools;
 use rustc_abi;
 pub use rustc_abi::VariantIdx;
 use rustc_ast::TraitObjectSyntax;
-use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
-use rustc_hash::FxHashMap;
+use rustc_data_structures::{
+    fx::{FxIndexMap, FxIndexSet},
+    unord::UnordMap,
+};
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
     FnHeader, OwnerId, ParamName, Safety,
@@ -333,7 +335,7 @@ pub struct SortDecl {
     pub span: Span,
 }
 
-pub type SortDecls = FxHashMap<Symbol, SortDecl>;
+pub type SortDecls = UnordMap<Symbol, SortDecl>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct WhereBoundPredicate<'fhir> {

@@ -4,8 +4,7 @@ use flux_arc_interner::{Internable, Interned};
 use flux_common::index::IndexGen;
 use flux_config as config;
 use rustc_abi::FieldIdx;
-use rustc_data_structures::unord::UnordMap;
-use rustc_hash::FxHashSet;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
@@ -268,7 +267,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     }
 
     pub fn with_bound_vars<R>(&self, vars: &[BoundVariableKind], f: impl FnOnce() -> R) -> R {
-        self.bvar_env.push_layer(vars, FxHashSet::default(), None);
+        self.bvar_env.push_layer(vars, UnordSet::new(), None);
         let r = f();
         self.bvar_env.pop_layer();
         r
@@ -277,7 +276,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     pub fn with_bound_vars_removable<T>(
         &self,
         vars: &[BoundVariableKind],
-        vars_to_remove: FxHashSet<BoundVar>,
+        vars_to_remove: UnordSet<BoundVar>,
         fn_root_layer_type: Option<FnRootLayerType>,
         fmt: impl FnOnce() -> Result<T, fmt::Error>,
     ) -> Result<T, fmt::Error> {
@@ -358,7 +357,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
 
     pub fn with_early_params<R>(&self, f: impl FnOnce() -> R) -> R {
         assert!(self.earlyparam_env.borrow().is_none(), "Already in an early param env");
-        *self.earlyparam_env.borrow_mut() = Some(FxHashSet::default());
+        *self.earlyparam_env.borrow_mut() = Some(UnordSet::new());
         let r = f();
         *self.earlyparam_env.borrow_mut() = None;
         r
@@ -421,15 +420,15 @@ pub enum FnRootLayerType {
 #[derive(Clone)]
 pub struct FnRootLayerMap {
     pub name_map: UnordMap<BoundVar, BoundVarName>,
-    pub seen_vars: FxHashSet<BoundVar>,
+    pub seen_vars: UnordSet<BoundVar>,
     pub layer_type: FnRootLayerType,
 }
 
 #[derive(Clone)]
 pub struct BoundVarLayer {
     pub layer_map: BoundVarLayerMap,
-    pub vars_to_remove: FxHashSet<BoundVar>,
-    pub successfully_removed_vars: FxHashSet<BoundVar>,
+    pub vars_to_remove: UnordSet<BoundVar>,
+    pub successfully_removed_vars: UnordSet<BoundVar>,
 }
 
 impl BoundVarLayer {
@@ -550,7 +549,7 @@ impl BoundVarEnv {
     fn push_layer(
         &self,
         vars: &[BoundVariableKind],
-        vars_to_remove: FxHashSet<BoundVar>,
+        vars_to_remove: UnordSet<BoundVar>,
         is_fn_root_layer: Option<FnRootLayerType>,
     ) {
         let mut name_map = UnordMap::default();
@@ -562,17 +561,14 @@ impl BoundVarEnv {
         let layer_map = if let Some(layer_type) = is_fn_root_layer {
             BoundVarLayerMap::FnRootLayerMap(FnRootLayerMap {
                 name_map,
-                seen_vars: FxHashSet::default(),
+                seen_vars: UnordSet::new(),
                 layer_type,
             })
         } else {
             BoundVarLayerMap::LayerMap(name_map)
         };
-        let layer = BoundVarLayer {
-            layer_map,
-            vars_to_remove,
-            successfully_removed_vars: FxHashSet::default(),
-        };
+        let layer =
+            BoundVarLayer { layer_map, vars_to_remove, successfully_removed_vars: UnordSet::new() };
         self.layers.borrow_mut().push(layer);
     }
 
@@ -585,7 +581,7 @@ impl BoundVarEnv {
     }
 }
 
-type EarlyParamEnv = FxHashSet<EarlyReftParam>;
+type EarlyParamEnv = UnordSet<EarlyReftParam>;
 
 pub struct WithCx<'a, 'genv, 'tcx, T> {
     data: T,

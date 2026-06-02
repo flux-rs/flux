@@ -11,7 +11,7 @@ use flux_rustc_bridge::{
 use itertools::Itertools;
 use liquid_fixpoint::ThyFunc;
 use rustc_abi::{FIRST_VARIANT, FieldIdx};
-use rustc_data_structures::{fx::FxHashMap, snapshot_map::SnapshotMap};
+use rustc_data_structures::{snapshot_map::SnapshotMap, unord::UnordMap};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -978,13 +978,13 @@ impl<V: Copy + Into<usize>> PrettyVar<V> {
 }
 
 pub struct PrettyMap<V: Eq + Hash> {
-    map: FxHashMap<PrettyVar<V>, String>,
-    count: FxHashMap<Symbol, usize>,
+    map: UnordMap<PrettyVar<V>, String>,
+    count: UnordMap<Symbol, usize>,
 }
 
 impl<V: Eq + Hash + Copy + Into<usize>> PrettyMap<V> {
     pub fn new() -> Self {
-        PrettyMap { map: FxHashMap::default(), count: FxHashMap::default() }
+        PrettyMap { map: UnordMap::default(), count: UnordMap::default() }
     }
 
     pub fn set(&mut self, var: PrettyVar<V>, prefix: Option<Symbol>) -> String {
