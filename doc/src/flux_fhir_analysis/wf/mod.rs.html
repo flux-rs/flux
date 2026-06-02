@@ -15,8 +15,8 @@
 <a href=#15 id=15 data-nosnippet>15</a>    queries::QueryResult,
 <a href=#16 id=16 data-nosnippet>16</a>    rty::{<span class="self">self</span>, WfckResults},
 <a href=#17 id=17 data-nosnippet>17</a>};
-<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>rustc_errors::ErrorGuaranteed;
-<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>rustc_hash::FxHashSet;
+<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>rustc_data_structures::unord::UnordSet;
+<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>rustc_hir::{
 <a href=#21 id=21 data-nosnippet>21</a>    OwnerId,
 <a href=#22 id=22 data-nosnippet>22</a>    def::DefKind,
@@ -339,7 +339,7 @@
 <a href=#339 id=339 data-nosnippet>339</a>    }
 <a href=#340 id=340 data-nosnippet>340</a>
 <a href=#341 id=341 data-nosnippet>341</a>    <span class="kw">fn </span>check_output_locs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fn_decl: <span class="kw-2">&amp;</span>fhir::FnDecl) {
-<a href=#342 id=342 data-nosnippet>342</a>        <span class="kw">let </span><span class="kw-2">mut </span>output_locs = FxHashSet::default();
+<a href=#342 id=342 data-nosnippet>342</a>        <span class="kw">let </span><span class="kw-2">mut </span>output_locs = UnordSet::new();
 <a href=#343 id=343 data-nosnippet>343</a>        <span class="kw">for </span>ens <span class="kw">in </span>fn_decl.output.ensures {
 <a href=#344 id=344 data-nosnippet>344</a>            <span class="kw">if let </span>fhir::Ensures::Type(loc, ..) = ens
 <a href=#345 id=345 data-nosnippet>345</a>                &amp;&amp; <span class="kw">let </span>(<span class="kw">_</span>, id) = loc.res.expect_param()
