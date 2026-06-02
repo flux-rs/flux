@@ -16,12 +16,13 @@ use flux_middle::{
 };
 use flux_rustc_bridge::mir::{FieldIdx, Place, PlaceElem};
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
+use rustc_middle::ty::data_structures::IndexMap;
 use rustc_span::Span;
 #[derive(Clone, Default)]
 pub(crate) struct PlacesTree {
-    map: FxHashMap<Loc, Binding>,
+    // map: FxHashMap<Loc, Binding>,
+    map: IndexMap<Loc, Binding>,
 }
 
 #[derive(Clone, Debug)]
@@ -289,7 +290,8 @@ impl PlacesTree {
     }
 
     pub(crate) fn remove_local(&mut self, loc: &Loc) {
-        self.map.remove(loc);
+        // self.map.remove(loc);
+        self.map.shift_remove(loc);
     }
 
     pub(crate) fn local_ptrs(&self) -> Vec<(Loc, Ty, Ty)> {
@@ -306,7 +308,9 @@ impl PlacesTree {
     }
 
     fn remove(&mut self, loc: &Loc) -> Binding {
-        self.map.remove(loc).unwrap_or_else(|| tracked_span_bug!())
+        self.map
+            .shift_remove(loc)
+            .unwrap_or_else(|| tracked_span_bug!())
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&Loc, &Binding)> {
