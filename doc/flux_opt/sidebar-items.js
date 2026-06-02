@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["build_call_graph","callees_in_body","explore","extern_callees","infer_no_panics","inferred_no_panic","is_outside_cstore","is_stdlib_crate","local_callees","provide","run_fixpoint","should_include_in_call_graph","try_resolve"],"struct":["GraphBuildResult"],"type":["CallGraph"]};
