@@ -24,7 +24,7 @@ use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
 use crate::{
-    fixpoint_encoding::{ConstDeps, InterpretedConst, KVarSolutions, SortDeps, fixpoint},
+    fixpoint_encoding::{ConstDeps, InterpretedConst, SortDeps, fixpoint},
     lean_format::{self, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case},
 };
 
@@ -372,7 +372,6 @@ pub struct LeanEncoder<'genv, 'tcx> {
     sort_deps: SortDeps,
     fun_deps: Vec<fixpoint::FunDef>,
     constants: ConstDeps,
-    kvar_solutions: KVarSolutions,
     kvar_decls: Vec<fixpoint::KVarDecl>,
     constraint: fixpoint::Constraint,
     sort_files: FxHashMap<fixpoint::DataSort, LeanFile>,
@@ -388,7 +387,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             pretty_var_map: &self.pretty_var_map,
             adt_map: &self.sort_deps.adt_map,
             opaque_adt_map: &self.sort_deps.opaque_sorts,
-            kvar_solutions: &self.kvar_solutions,
             primop_var_map: &self.primop_var_map,
         }
     }
@@ -424,7 +422,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         sort_deps: SortDeps,
         fun_deps: Vec<fixpoint::FunDef>,
         constants: ConstDeps,
-        kvar_solutions: KVarSolutions,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> io::Result<Self> {
@@ -447,7 +444,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             fun_deps,
             constants,
             kvar_decls,
-            kvar_solutions,
             constraint,
             fun_files: FxHashMap::default(),
             sort_files: FxHashMap::default(),
@@ -930,7 +926,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         constants: ConstDeps,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
-        kvar_solutions: KVarSolutions,
     ) -> io::Result<()> {
         let encoder = Self::new(
             genv,
@@ -939,7 +934,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             sort_deps,
             fun_deps,
             constants,
-            kvar_solutions,
             kvar_decls,
             constraint,
         )?;

@@ -1,7 +1,7 @@
 use std::{collections::HashSet, hash::Hash};
 
 use derive_where::derive_where;
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexSet;
 
 use crate::{ThyFunc, Types};
 
@@ -31,25 +31,6 @@ impl<T: Types> Constraint<T> {
 
     pub fn conj(mut cstrs: Vec<Self>) -> Self {
         if cstrs.len() == 1 { cstrs.remove(0) } else { Self::Conj(cstrs) }
-    }
-
-    fn variable_sorts_help(&self, acc: &mut IndexMap<T::Var, Sort<T>>) {
-        match self {
-            Constraint::ForAll(bind, inner) => {
-                acc.insert(bind.name.clone(), bind.sort.clone());
-                inner.variable_sorts_help(acc);
-            }
-            Constraint::Conj(cstrs) => {
-                cstrs.iter().for_each(|cstr| cstr.variable_sorts_help(acc));
-            }
-            Constraint::Pred(..) => {}
-        }
-    }
-
-    pub fn variable_sorts(&self) -> IndexMap<T::Var, Sort<T>> {
-        let mut res = IndexMap::new();
-        self.variable_sorts_help(&mut res);
-        res
     }
 
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
