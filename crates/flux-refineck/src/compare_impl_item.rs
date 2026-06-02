@@ -10,7 +10,7 @@ use flux_middle::{
     queries::QueryResult,
     rty::TraitRef,
 };
-use rustc_hash::FxHashSet;
+use rustc_data_structures::unord::UnordSet;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
 
@@ -19,7 +19,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
 
     let impl_assoc_refts = genv.assoc_refinements_of(impl_id)?;
     let trait_assoc_refts = genv.assoc_refinements_of(trait_id)?;
-    let impl_names: FxHashSet<_> = impl_assoc_refts.items.iter().map(|x| x.name()).collect();
+    let impl_names: UnordSet<_> = impl_assoc_refts.items.iter().map(|x| x.name()).collect();
 
     for trait_assoc_reft in &trait_assoc_refts.items {
         let trait_assoc_def_id = trait_assoc_reft.def_id();

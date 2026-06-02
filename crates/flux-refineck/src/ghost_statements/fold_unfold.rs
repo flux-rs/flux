@@ -13,8 +13,7 @@ use flux_rustc_bridge::{
     ty::{AdtDef, GenericArgs, GenericArgsExt as _, List, Mutability, Ty, TyKind},
 };
 use itertools::{Itertools, repeat_n};
-use rustc_data_structures::unord::UnordMap;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::{fx::FxHashMap, unord::UnordMap};
 use rustc_hir::def_id::DefId;
 use rustc_index::{Idx, IndexVec, bit_set::DenseBitSet};
 use rustc_middle::mir::{FakeReadCause, START_BLOCK};
@@ -31,7 +30,7 @@ pub(crate) fn add_ghost_statements<'tcx>(
     body: &Body<'tcx>,
     fn_sig: Option<&rty::EarlyBinder<rty::PolyFnSig>>,
 ) -> QueryResult {
-    let mut bb_envs = FxHashMap::default();
+    let mut bb_envs = UnordMap::default();
     FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Infer).run(fn_sig)?;
 
     FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Elaboration { stmts }).run(fn_sig)
@@ -120,7 +119,7 @@ type Modified = bool;
 struct FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
     body: &'a Body<'tcx>,
-    bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
+    bb_envs: &'a mut UnordMap<BasicBlock, Env>,
     visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'a>,
     discriminants: UnordMap<Place, Place>,
@@ -465,7 +464,7 @@ impl<'a, 'genv, 'tcx, M> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     pub(crate) fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         body: &'a Body<'tcx>,
-        bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
+        bb_envs: &'a mut UnordMap<BasicBlock, Env>,
         mode: M,
     ) -> Self {
         Self {
