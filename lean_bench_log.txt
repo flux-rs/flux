@@ -45,15 +45,15 @@ Found 511 lean_proofs directories
 [39/511] Building: detached/detach_assoc00/lean_proofs ... OK
 [40/511] Building: detached/detach_enum00/lean_proofs ... OK
 [41/511] Building: detached/detach_enum01/lean_proofs ... OK
-[42/511] Building: detached/detach_enum02/lean_proofs ... OK
+[42/511] Building: detached/detach_enum02/lean_proofs ... ERROR
 [43/511] Building: detached/detach_impl00/lean_proofs ... OK
 [44/511] Building: detached/detach_impl01/lean_proofs ... OK
-[45/511] Building: detached/detach_impl02/lean_proofs ... OK
-[46/511] Building: detached/detach_impl03/lean_proofs ... OK
+[45/511] Building: detached/detach_impl02/lean_proofs ... ERROR
+[46/511] Building: detached/detach_impl03/lean_proofs ... ERROR
 [47/511] Building: detached/detach_impl04/lean_proofs ... OK
 [48/511] Building: detached/detach_impl05/lean_proofs ... OK
 [49/511] Building: detached/detach_impl05_macro/lean_proofs ... OK
-[50/511] Building: detached/detach_impl06/lean_proofs ... OK
+[50/511] Building: detached/detach_impl06/lean_proofs ... ERROR
 [51/511] Building: detached/detach_macro/lean_proofs ... OK
 [52/511] Building: detached/detach_static00/lean_proofs ... OK
 [53/511] Building: detached/detach_struct00/lean_proofs ... OK
@@ -105,7 +105,7 @@ Found 511 lean_proofs directories
 [94/511] Building: fn_ptrs/fnptr00/lean_proofs ... OK
 [95/511] Building: fn_ptrs/fnptr01/lean_proofs ... OK
 [96/511] Building: fn_ptrs/fnptr02/lean_proofs ... OK
-[97/511] Building: fold_unfold/test00/lean_proofs ... OK
+[97/511] Building: fold_unfold/test00/lean_proofs ... ERROR
 [98/511] Building: funky_cast/lean_proofs ... OK
 [99/511] Building: impl_trait/impl_trait00/lean_proofs ... OK
 [100/511] Building: impl_trait/impl_trait01/lean_proofs ... OK
@@ -115,10 +115,10 @@ Found 511 lean_proofs directories
 [104/511] Building: lifetimes/list_mut_ref/lean_proofs ... OK
 [105/511] Building: lifetimes/struct_generic_lifetime_mut/lean_proofs ... OK
 [106/511] Building: lifetimes/struct_generic_lifetime_shr/lean_proofs ... OK
-[107/511] Building: opaque_sorts/seq_00/lean_proofs ... ERROR
+[107/511] Building: opaque_sorts/seq_00/lean_proofs ... OK
 [108/511] Building: parse-paren-ty/lean_proofs ... OK
-[109/511] Building: refined_assoc_type/refined_assoc_type00/lean_proofs ... OK
-[110/511] Building: refined_assoc_type/refined_assoc_type01/lean_proofs ... OK
+[109/511] Building: refined_assoc_type/refined_assoc_type00/lean_proofs ... ERROR
+[110/511] Building: refined_assoc_type/refined_assoc_type01/lean_proofs ... ERROR
 [111/511] Building: refined_assoc_type/refined_assoc_type02/lean_proofs ... OK
 [112/511] Building: refined_assoc_type/refined_assoc_type03/lean_proofs ... ERROR
 [113/511] Building: refined_assoc_type/refined_assoc_type04/lean_proofs ... ERROR
@@ -189,9 +189,7 @@ Found 511 lean_proofs directories
 [178/511] Building: surface/bitvec01/lean_proofs ... ERROR
     error: LeanProofs/User/Proof/WrapIndexProof.lean:67:35: unsolved goals
     error: Lean exited with code 1
-[179/511] Building: surface/bitvec02/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/TestBvExtensionsProof.lean:67:49: unsolved goals
-    error: Lean exited with code 1
+[179/511] Building: surface/bitvec02/lean_proofs ... OK
 [180/511] Building: surface/bitvec03/lean_proofs ... OK
 [181/511] Building: surface/bitvec04/lean_proofs ... ERROR
 [182/511] Building: surface/bitvec05/lean_proofs ... OK
@@ -390,6 +388,32 @@ Found 511 lean_proofs directories
     error: LeanProofs/Flux/VC/TestEnumer2.lean:16:27: failed to synthesize instance of type class
     error: LeanProofs/Flux/VC/TestEnumer2.lean:16:96: failed to synthesize instance of type class
     error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:15:13: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:16:69: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:16:131: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:17:19: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:126: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:195: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:266: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:330: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:19:31: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:19:95: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:24:82: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer3.lean:24:149: failed to synthesize instance of type class
+    error: Lean exited with code 1
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:15:16: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:16:72: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:16:137: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:17:19: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:129: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:201: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:272: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:339: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:19:31: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:19:98: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:24:82: failed to synthesize instance of type class
+    error: LeanProofs/Flux/VC/TestEnumer4.lean:24:149: failed to synthesize instance of type class
+    error: Lean exited with code 1
     error: LeanProofs/Flux/VC/TestEnumerate1.lean:16:19: failed to synthesize instance of type class
     error: LeanProofs/Flux/VC/TestEnumerate1.lean:17:96: failed to synthesize instance of type class
     error: LeanProofs/Flux/VC/TestEnumerate1.lean:17:172: failed to synthesize instance of type class
@@ -426,32 +450,6 @@ Found 511 lean_proofs directories
     error: LeanProofs/Flux/VC/TestEnumerate1.lean:42:161: failed to synthesize instance of type class
     error: LeanProofs/Flux/VC/TestEnumerate1.lean:42:281: failed to synthesize instance of type class
     error: LeanProofs/Flux/VC/TestEnumerate1.lean:42:348: failed to synthesize instance of type class
-    error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:15:13: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:16:69: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:16:131: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:17:19: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:126: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:195: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:266: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:18:330: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:19:31: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:19:95: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:24:82: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer3.lean:24:149: failed to synthesize instance of type class
-    error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:15:16: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:16:72: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:16:137: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:17:19: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:129: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:201: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:272: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:18:339: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:19:31: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:19:98: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:24:82: failed to synthesize instance of type class
-    error: LeanProofs/Flux/VC/TestEnumer4.lean:24:149: failed to synthesize instance of type class
     error: Lean exited with code 1
 [343/511] Building: surface/iter_slice00/lean_proofs ... OK
 [344/511] Building: surface/iter_slice01/lean_proofs ... OK
@@ -512,39 +510,8 @@ Found 511 lean_proofs directories
 [387/511] Building: surface/polymorphic_qualifier/lean_proofs ... ERROR
     error: LeanProofs/User/Proof/MaximumProof.lean:67:31: unsolved goals
     error: Lean exited with code 1
-[388/511] Building: surface/primop_prop_let/lean_proofs ... ERROR
-    error: LeanProofs/Flux/VC/Foo.lean:10:33: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Foo.lean:11:4: Unknown identifier `c0`
-    error: Lean exited with code 1
-[389/511] Building: surface/primops00/lean_proofs ... ERROR
-    error: LeanProofs/Flux/VC/Test6.lean:13:43: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test6.lean:13:57: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test6.lean:14:8: Unknown identifier `c0`
-    error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/Test2.lean:12:5: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test2.lean:13:6: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test2.lean:13:30: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test2.lean:14:7: Unknown identifier `c0`
-    error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/Test3.lean:13:12: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test3.lean:14:7: Unknown identifier `c1`
-    error: LeanProofs/Flux/VC/Test3.lean:15:10: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test3.lean:16:10: Unknown identifier `c1`
-    error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/Test5.lean:12:19: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test5.lean:13:6: Unknown identifier `c0`
-    error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/Test0.lean:10:3: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test0.lean:11:5: Unknown identifier `c0`
-    error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/Test1.lean:10:3: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test1.lean:11:4: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test1.lean:11:27: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test1.lean:12:6: Unknown identifier `c0`
-    error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/Test4.lean:12:5: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/Test4.lean:13:6: Unknown identifier `c0`
-    error: Lean exited with code 1
+[388/511] Building: surface/primop_prop_let/lean_proofs ... OK
+[389/511] Building: surface/primops00/lean_proofs ... OK
 [390/511] Building: surface/promotion00/lean_proofs ... OK
 [391/511] Building: surface/promotion01/lean_proofs ... OK
 [392/511] Building: surface/promotion02/lean_proofs ... OK
@@ -553,14 +520,14 @@ Found 511 lean_proofs directories
 [395/511] Building: surface/ptr02/lean_proofs ... OK
 [396/511] Building: surface/range/lean_proofs ... OK
 [397/511] Building: surface/raw_ptr00/lean_proofs ... ERROR
+    error: LeanProofs/Flux/VC/WriteIx.lean:12:5: Unknown identifier `c0`
+    error: LeanProofs/Flux/VC/WriteIx.lean:13:6: Unknown identifier `c0`
+    error: Lean exited with code 1
     error: LeanProofs/Flux/VC/ReadIx.lean:11:4: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/ReadIx.lean:12:5: Unknown identifier `c0`
     error: Lean exited with code 1
     error: LeanProofs/Flux/VC/WriteIxI32.lean:12:5: Unknown identifier `c0`
     error: LeanProofs/Flux/VC/WriteIxI32.lean:13:6: Unknown identifier `c0`
-    error: Lean exited with code 1
-    error: LeanProofs/Flux/VC/WriteIx.lean:12:5: Unknown identifier `c0`
-    error: LeanProofs/Flux/VC/WriteIx.lean:13:6: Unknown identifier `c0`
     error: Lean exited with code 1
 [398/511] Building: surface/raw_ptr01/lean_proofs ... ERROR
     error: LeanProofs/Flux/VC/TestAddMutEx.lean:11:4: Unknown identifier `c0`
@@ -687,9 +654,9 @@ Found 511 lean_proofs directories
 [470/511] Building: surface/trait-subtyping08/lean_proofs ... OK
 [471/511] Building: surface/trait00/lean_proofs ... OK
 [472/511] Building: surface/trait01/lean_proofs ... ERROR
-    error: LeanProofs/User/Proof/TestOkProof.lean:67:29: unsolved goals
-    error: Lean exited with code 1
     error: LeanProofs/User/Proof/Test1Proof.lean:67:27: unsolved goals
+    error: Lean exited with code 1
+    error: LeanProofs/User/Proof/TestOkProof.lean:67:29: unsolved goals
     error: Lean exited with code 1
 [473/511] Building: surface/trait01a/lean_proofs ... OK
 [474/511] Building: surface/trait02/lean_proofs ... ERROR
@@ -737,12 +704,16 @@ Found 511 lean_proofs directories
 SUMMARY
 ============================================================
 Total directories visited: 511
-Successful builds: 444
-Failed builds: 67
+Successful builds: 441
+Failed builds: 70
 
 Directories with errors:
   - const_generics/const_param_arg/lean_proofs
   - const_generics/matrix/lean_proofs
+  - detached/detach_enum02/lean_proofs
+  - detached/detach_impl02/lean_proofs
+  - detached/detach_impl03/lean_proofs
+  - detached/detach_impl06/lean_proofs
   - detached/detach_trusted00/lean_proofs
   - detached/opaque00/lean_proofs
   - enums/pred00/lean_proofs
@@ -752,7 +723,9 @@ Directories with errors:
   - extern_specs/extern_spec_struct01/lean_proofs
   - extern_specs/flux_core_alloc00/lean_proofs
   - extern_specs/super_trait/lean_proofs
-  - opaque_sorts/seq_00/lean_proofs
+  - fold_unfold/test00/lean_proofs
+  - refined_assoc_type/refined_assoc_type00/lean_proofs
+  - refined_assoc_type/refined_assoc_type01/lean_proofs
   - refined_assoc_type/refined_assoc_type03/lean_proofs
   - refined_assoc_type/refined_assoc_type04/lean_proofs
   - structs/dot03/lean_proofs
@@ -761,7 +734,6 @@ Directories with errors:
   - structs/struct-def/lean_proofs
   - surface/assoc_reft00/lean_proofs
   - surface/bitvec01/lean_proofs
-  - surface/bitvec02/lean_proofs
   - surface/bitvec04/lean_proofs
   - surface/bsearch1/lean_proofs
   - surface/closure00/lean_proofs
@@ -790,8 +762,6 @@ Directories with errors:
   - surface/macro01/lean_proofs
   - surface/macro02/lean_proofs
   - surface/polymorphic_qualifier/lean_proofs
-  - surface/primop_prop_let/lean_proofs
-  - surface/primops00/lean_proofs
   - surface/raw_ptr00/lean_proofs
   - surface/raw_ptr01/lean_proofs
   - surface/raw_ptr02/lean_proofs
