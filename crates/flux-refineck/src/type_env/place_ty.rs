@@ -21,7 +21,6 @@ use rustc_middle::ty::data_structures::IndexMap;
 use rustc_span::Span;
 #[derive(Clone, Default)]
 pub(crate) struct PlacesTree {
-    // map: FxHashMap<Loc, Binding>,
     map: IndexMap<Loc, Binding>,
 }
 
