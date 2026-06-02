@@ -178,7 +178,6 @@ fn project_path(genv: GlobalEnv, kind: FileKind) -> PathBuf {
 
 fn run_proof(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
     let proof_path = LeanFile::Proof(def_id).path(genv, true);
-    dbg::log_verbose!("FLUX: Running Lean proof for {def_id:?} at {proof_path:?}");
     let out = Command::new("lake")
         .arg("--quiet")
         .arg("--log-level=error")
@@ -190,10 +189,8 @@ fn run_proof(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
         .spawn()?
         .wait_with_output()?;
     if out.stderr.is_empty() && out.stdout.is_empty() {
-        dbg::log_verbose!("FLUX: Lean proof for {def_id:?} succeeded");
         Ok(())
     } else {
-        dbg::log_verbose!("FLUX: Lean proof for {def_id:?} failed with {out:?}",);
         let stderr =
             std::str::from_utf8(&out.stderr).unwrap_or("Lean exited with a non-zero return code");
         Err(io::Error::other(stderr))
@@ -202,7 +199,6 @@ fn run_proof(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
 
 fn run_check(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
     let checking_path = LeanFile::Checking(def_id).path(genv, true);
-    dbg::log_verbose!("Running Lean check for {def_id:?} at path: {checking_path:?}");
     let status = Command::new("lake")
         .arg("--quiet")
         .arg("--log-level=error")
@@ -212,18 +208,14 @@ fn run_check(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
         .spawn()?
         .wait()?;
     if status.success() {
-        dbg::log_verbose!("Lean checking for {def_id:?} succeeded");
         Ok(())
     } else {
-        dbg::log_verbose!(
-            "Lean checking for {def_id:?} failed with exit code: {:?}",
-            status.code()
-        );
         Err(io::Error::other("Lean exited with a non-zero exit code"))
     }
 }
 
 fn run_lean(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
+    dbg::log_verbose!("FLUX running lean proof for {def_id:?}");
     run_proof(genv, def_id)?;
     run_check(genv, def_id)?;
     Ok(())
