@@ -178,6 +178,7 @@ fn project_path(genv: GlobalEnv, kind: FileKind) -> PathBuf {
 
 fn run_proof(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
     let proof_path = LeanFile::Proof(def_id).path(genv, true);
+    dbg::log_verbose!("FLUX: Running Lean proof for {def_id:?} at {proof_path:?}");
     let out = Command::new("lake")
         .arg("--quiet")
         .arg("--log-level=error")
@@ -189,8 +190,10 @@ fn run_proof(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
         .spawn()?
         .wait_with_output()?;
     if out.stderr.is_empty() && out.stdout.is_empty() {
+        dbg::log_verbose!("FLUX: Lean proof for {def_id:?} succeeded");
         Ok(())
     } else {
+        dbg::log_verbose!("FLUX: Lean proof for {def_id:?} failed with {out:?}",);
         let stderr =
             std::str::from_utf8(&out.stderr).unwrap_or("Lean exited with a non-zero return code");
         Err(io::Error::other(stderr))
@@ -199,6 +202,7 @@ fn run_proof(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
 
 fn run_check(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
     let checking_path = LeanFile::Checking(def_id).path(genv, true);
+    dbg::log_verbose!("Running Lean check for {def_id:?} at path: {checking_path:?}");
     let status = Command::new("lake")
         .arg("--quiet")
         .arg("--log-level=error")
@@ -208,9 +212,14 @@ fn run_check(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
         .spawn()?
         .wait()?;
     if status.success() {
+        dbg::log_verbose!("Lean checking for {def_id:?} succeeded");
         Ok(())
     } else {
-        Err(io::Error::other("Lean existed with a non-zero exit code"))
+        dbg::log_verbose!(
+            "Lean checking for {def_id:?} failed with exit code: {:?}",
+            status.code()
+        );
+        Err(io::Error::other("Lean exited with a non-zero exit code"))
     }
 }
 
@@ -412,8 +421,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         snake_case_to_pascal_case(&name)
     }
 
-    fn open_classical(&self) -> &str {
-        "open Classical"
+    fn post_import_preamble(&self) -> &str {
+        "open Classical\nset_option linter.unusedVariables false\n"
     }
 
     fn new(
@@ -535,7 +544,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = file.path(self.genv, false);
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
             namespaced(&mut file, |f| {
                 writeln!(f, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })
             })?;
@@ -576,7 +585,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             for dep in self.data_decl_dependencies(data_decl) {
                 writeln!(file, "{}", dep.import(self.genv))?;
             }
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
 
             // write data decl
             namespaced(&mut file, |f| {
@@ -648,7 +657,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             for dep in self.fun_def_dependencies(did, fun_def) {
                 writeln!(file, "{}", dep.import(self.genv))?;
             }
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
 
             // write fun def
             namespaced(&mut file, |f| {
@@ -677,7 +686,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 writeln!(file, "{}", self.sort_file(&dep).import(self.genv))?;
             }
 
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
 
             namespaced(&mut file, |f| {
                 if let Some(comment) = &const_decl.comment {
@@ -707,7 +716,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", self.sort_file(&dep).import(self.genv))?;
         }
 
-        writeln!(file, "{}", self.open_classical())?;
+        writeln!(file, "{}", self.post_import_preamble())?;
 
         namespaced(&mut file, |f| {
             if let Some(comment) = &const_decl.comment {
@@ -856,7 +865,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = LeanFile::Vc(def_id).path(self.genv, false);
         if let Some(mut file) = create_file_with_dirs(path)? {
             self.generate_vc_imports(&mut file)?;
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
 
             let vc_name = vc_name(self.genv, def_id);
             // 3. Write the VC
@@ -894,7 +903,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
             writeln!(file, "{}", LeanFile::Vc(def_id).import(self.genv))?;
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
             namespaced(&mut file, |f| {
                 writeln!(f, "def {proof_name} : {vc_name} := by")?;
                 writeln!(f, "  unfold {vc_name}")?;
