@@ -37,8 +37,11 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _},
 };
 use itertools::{Itertools, izip};
-use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_data_structures::{
+    graph::dominators::Dominators,
+    unord::{UnordMap, UnordSet},
+};
+use rustc_hash::FxHashMap;
 use rustc_hir::{
     LangItem,
     def_id::{DefId, LocalDefId},
@@ -2048,10 +2051,10 @@ fn instantiate_args_for_constructor(
         .collect()
 }
 
-fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize> {
+fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> UnordSet<usize> {
     let tcx = genv.tcx();
     struct Collector {
-        params: FxHashSet<usize>,
+        params: UnordSet<usize>,
     }
 
     impl rustc_middle::ty::TypeVisitor<TyCtxt<'_>> for Collector {
@@ -2062,7 +2065,7 @@ fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize>
             t.super_visit_with(self);
         }
     }
-    let mut vis = Collector { params: Default::default() };
+    let mut vis = Collector { params: UnordSet::new() };
 
     let span = genv.tcx().def_span(def_id);
     for (clause, _) in all_predicates_of(tcx, def_id) {

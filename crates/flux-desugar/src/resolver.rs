@@ -17,7 +17,6 @@ use flux_syntax::{
 use hir::{ItemId, ItemKind, OwnerId, def::DefKind};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
 use rustc_hir::{
     self as hir, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy,
     def::{
@@ -71,7 +70,7 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
 /// Map to keep track of names defined in a scope
 #[derive(Default)]
 struct DefinitionMap {
-    defined: FxHashMap<Ident, ()>,
+    defined: UnordMap<Ident, ()>,
 }
 
 impl DefinitionMap {
@@ -627,7 +626,7 @@ enum RibKind {
 #[derive(Debug)]
 struct Rib {
     kind: RibKind,
-    bindings: FxHashMap<Symbol, fhir::Res>,
+    bindings: UnordMap<Symbol, fhir::Res>,
 }
 
 impl Rib {
@@ -765,7 +764,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     fn resolve_parametric_params(&mut self, node_id: surface::NodeId, names: &[Ident]) {
         let tcx = self.resolver.genv.tcx();
         let generics = tcx.generics_of(self.item_id.resolved_id());
-        let param_map: FxHashMap<Symbol, DefId> = (0..generics.count())
+        let param_map: UnordMap<Symbol, DefId> = (0..generics.count())
             .map(|i| generics.param_at(i, tcx))
             .map(|p| (p.name, p.def_id))
             .collect();

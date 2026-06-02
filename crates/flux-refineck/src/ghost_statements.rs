@@ -19,8 +19,8 @@ use rustc_middle::{
     ty::TyCtxt,
 };
 
-type LocationMap = FxHashMap<Location, Vec<GhostStatement>>;
-type EdgeMap = FxHashMap<BasicBlock, FxHashMap<BasicBlock, Vec<GhostStatement>>>;
+type LocationMap = UnordMap<Location, Vec<GhostStatement>>;
+type EdgeMap = UnordMap<BasicBlock, FxHashMap<BasicBlock, Vec<GhostStatement>>>;
 
 /// A type to indicate _who_ the ghost statements are for: either a regular `DefId` (including closures)  a promoted body.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

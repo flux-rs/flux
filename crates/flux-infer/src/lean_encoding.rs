@@ -18,8 +18,7 @@ use flux_middle::{
     rty::{BinOp, BvSize, PrettyMap, Sort, local_deps},
 };
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexSet;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
@@ -375,10 +374,10 @@ pub struct LeanEncoder<'genv, 'tcx> {
     kvar_solutions: KVarSolutions,
     kvar_decls: Vec<fixpoint::KVarDecl>,
     constraint: fixpoint::Constraint,
-    sort_files: FxHashMap<fixpoint::DataSort, LeanFile>,
-    fun_files: FxHashMap<FluxDefId, LeanFile>,
-    const_files: FxHashMap<fixpoint::Var, LeanFile>,
-    primop_var_map: FxHashMap<fixpoint::GlobalVar, String>,
+    sort_files: UnordMap<fixpoint::DataSort, LeanFile>,
+    fun_files: UnordMap<FluxDefId, LeanFile>,
+    const_files: UnordMap<fixpoint::Var, LeanFile>,
+    primop_var_map: UnordMap<fixpoint::GlobalVar, String>,
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
@@ -428,7 +427,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> io::Result<Self> {
-        let primop_var_map: FxHashMap<fixpoint::GlobalVar, String> = constants
+        let primop_var_map: UnordMap<fixpoint::GlobalVar, String> = constants
             .opaque
             .iter()
             .filter_map(|(decl, op)| {
@@ -449,9 +448,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             kvar_decls,
             kvar_solutions,
             constraint,
-            fun_files: FxHashMap::default(),
-            sort_files: FxHashMap::default(),
-            const_files: FxHashMap::default(),
+            fun_files: UnordMap::default(),
+            sort_files: UnordMap::default(),
+            const_files: UnordMap::default(),
             primop_var_map,
         };
         encoder.fun_files = encoder.fun_files();
@@ -469,8 +468,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn fun_files(&self) -> FxHashMap<FluxDefId, LeanFile> {
-        let mut res = FxHashMap::default();
+    fn fun_files(&self) -> UnordMap<FluxDefId, LeanFile> {
+        let mut res = UnordMap::default();
         for fun_def in &self.fun_deps {
             let fixpoint::Var::Global(_, did) = fun_def.name else {
                 bug!("expected global var with id")
@@ -482,8 +481,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         res
     }
 
-    fn sort_files(&self) -> FxHashMap<fixpoint::DataSort, LeanFile> {
-        let mut res = FxHashMap::default();
+    fn sort_files(&self) -> UnordMap<fixpoint::DataSort, LeanFile> {
+        let mut res = UnordMap::default();
         for (_, sort) in &self.sort_deps.opaque_sorts {
             let data_sort = sort.name.clone();
             let name = self.datasort_name(&sort.name);
@@ -499,8 +498,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         res
     }
 
-    fn const_files(&self) -> FxHashMap<fixpoint::Var, LeanFile> {
-        let mut res = FxHashMap::default();
+    fn const_files(&self) -> UnordMap<fixpoint::Var, LeanFile> {
+        let mut res = UnordMap::default();
         for (decl, _) in &self.constants.interpreted {
             res.insert(decl.name, LeanFile::Fun(self.var_name(&decl.name)));
         }
