@@ -27,6 +27,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
+    PanicSpec,
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
@@ -202,6 +203,7 @@ pub struct Providers {
     pub item_bounds:
         fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
     pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
+    pub inferred_no_panic: fn(GlobalEnv) -> UnordMap<DefId, PanicSpec>,
 }
 
 macro_rules! empty_query {
@@ -240,6 +242,7 @@ impl Default for Providers {
             constant_info: |_, _| empty_query!(),
             static_info: |_, _| empty_query!(),
             sort_decl_param_count: |_, _| empty_query!(),
+            inferred_no_panic: |_| empty_query!(),
         }
     }
 }
@@ -287,6 +290,7 @@ pub struct Queries<'genv, 'tcx> {
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
     assume_parametric_params: Cache<DefId, UnordSet<u32>>,
+    inferred_no_panic: Cache<CrateNum, Rc<UnordMap<DefId, PanicSpec>>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -328,6 +332,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
             assume_parametric_params: Default::default(),
+            inferred_no_panic: Default::default(),
         }
     }
 
@@ -596,6 +601,28 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     Ok(rty::ConstantInfo::Uninterpreted)
                 },
             )
+        })
+    }
+
+    pub fn inferred_no_panic_crate(
+        &self,
+        genv: GlobalEnv,
+        krate: CrateNum,
+    ) -> Rc<UnordMap<DefId, PanicSpec>> {
+        // We can just make this `core` if we only care about that.
+        fn is_stdlib_crate(tcx: rustc_middle::ty::TyCtxt<'_>, krate: CrateNum) -> bool {
+            matches!(tcx.crate_name(krate).as_str(), "core" | "alloc" | "std")
+        }
+
+        run_with_cache(&self.inferred_no_panic, krate, || {
+            if krate == LOCAL_CRATE
+                || is_stdlib_crate(genv.tcx(), krate)
+                || !genv.cstore_has_crate(krate)
+            {
+                Rc::new((self.providers.inferred_no_panic)(genv))
+            } else {
+                genv.cstore().inferred_no_panic(krate)
+            }
         })
     }
 
