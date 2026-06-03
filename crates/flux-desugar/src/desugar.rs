@@ -1692,6 +1692,54 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         }
     }
 
+    fn try_parse_integral_real_lit(&self, span: Span, s: &str) -> Result<u128> {
+        let s = s.replace("_", "");
+        let (mantissa, exp) = if let Some(idx) = s.find(['e', 'E']) {
+            let (mantissa, exp) = s.split_at(idx);
+            let exp = exp[1..]
+                .parse::<i32>()
+                .map_err(|_| self.emit(errors::UnexpectedLiteral { span }))?;
+            (mantissa, exp)
+        } else {
+            (s.as_str(), 0)
+        };
+
+        let (int_part, frac_part) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+        if int_part.is_empty() && frac_part.is_empty() {
+            return Err(self.emit(errors::UnexpectedLiteral { span }));
+        }
+
+        let mut digits = String::with_capacity(int_part.len() + frac_part.len());
+        digits.push_str(int_part);
+        digits.push_str(frac_part);
+        if digits.is_empty() || !digits.bytes().all(|c| c.is_ascii_digit()) {
+            return Err(self.emit(errors::UnexpectedLiteral { span }));
+        }
+
+        let mut n = self.try_parse_int_lit(span, &digits)?;
+        let scale = frac_part.len() as i32 - exp;
+        if scale > 0 {
+            let scale = scale as u32;
+            let factor = 10u128
+                .checked_pow(scale)
+                .ok_or_else(|| self.emit(errors::IntTooLarge { span }))?;
+            if n % factor != 0 {
+                return Err(self.emit(errors::UnexpectedLiteral { span }));
+            }
+            n /= factor;
+        } else if scale < 0 {
+            let scale = (-scale) as u32;
+            let factor = 10u128
+                .checked_pow(scale)
+                .ok_or_else(|| self.emit(errors::IntTooLarge { span }))?;
+            n = n
+                .checked_mul(factor)
+                .ok_or_else(|| self.emit(errors::IntTooLarge { span }))?;
+        }
+
+        Ok(n)
+    }
+
     /// Desugar surface literal
     fn desugar_lit(&self, span: Span, lit: surface::Lit) -> fhir::ExprKind<'genv> {
         let lit = match lit.kind {
@@ -1704,6 +1752,20 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     Some(sym::int) => fhir::Lit::Int(n, Some(fhir::NumLitKind::Int)),
                     Some(sym::real) => fhir::Lit::Int(n, Some(fhir::NumLitKind::Real)),
                     None => fhir::Lit::Int(n, None),
+                    Some(suffix) => {
+                        return fhir::ExprKind::Err(
+                            self.emit(errors::InvalidNumericSuffix::new(span, suffix)),
+                        );
+                    }
+                }
+            }
+            surface::LitKind::Float => {
+                let n = match self.try_parse_integral_real_lit(span, lit.symbol.as_str()) {
+                    Ok(n) => n,
+                    Err(err) => return fhir::ExprKind::Err(err),
+                };
+                match lit.suffix {
+                    None | Some(sym::real) => fhir::Lit::Int(n, Some(fhir::NumLitKind::Real)),
                     Some(suffix) => {
                         return fhir::ExprKind::Err(
                             self.emit(errors::InvalidNumericSuffix::new(span, suffix)),

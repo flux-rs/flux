@@ -4,6 +4,9 @@ fhir_analysis_sort_mismatch =
     mismatched sorts
     .label = expected `{$expected}`, found `{$found}`
 
+fhir_analysis_literal_not_of_sort =
+    `{$lit}` is not of sort `{$sort}`
+
 fhir_analysis_arg_count_mismatch =
     this {$thing} takes {$expected ->
         [one] {$expected} refinement argument

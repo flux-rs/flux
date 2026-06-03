@@ -787,6 +787,15 @@ impl<'genv> InferCtxt<'genv, '_> {
             let sort = self
                 .fully_resolve(&sort)
                 .map_err(|_| self.emit_err(errors::CannotInferSort::new(node.span)))?;
+            if let fhir::ExprKind::Literal(fhir::Lit::Int(n, None)) = node.kind
+                && sort == rty::Sort::Real
+            {
+                return Err(self.emit_err(errors::LiteralNotOfSort::new(
+                    node.span,
+                    n.to_string(),
+                    sort,
+                )));
+            }
             self.wfckresults.node_sorts_mut().insert(node.fhir_id, sort);
         }
 

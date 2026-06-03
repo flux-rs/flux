@@ -20,6 +20,21 @@ impl SortMismatch {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_literal_not_of_sort, code = E0999)]
+pub(super) struct LiteralNotOfSort {
+    #[primary_span]
+    span: Span,
+    lit: String,
+    sort: rty::Sort,
+}
+
+impl LiteralNotOfSort {
+    pub(super) fn new(span: Span, lit: String, sort: rty::Sort) -> Self {
+        Self { span, lit, sort }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_arg_count_mismatch, code = E0999)]
 pub(super) struct ArgCountMismatch {
     #[primary_span]
