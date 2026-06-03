@@ -390,6 +390,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             opaque_adt_map: &self.sort_deps.opaque_sorts,
             kvar_solutions: &self.kvar_solutions,
             primop_var_map: &self.primop_var_map,
+            hide_sort_vars: false,
         }
     }
 

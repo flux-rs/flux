@@ -1481,6 +1481,7 @@ impl KVarSolutions {
                     )
             });
             let free_var_subs = free_vars
+                .filter(|fvar| !matches!(fvar, fixpoint::Var::Const(..)))
                 .map(|fvar| (*fvar, variable_sorts.get(fvar).unwrap().clone()))
                 .collect();
             solution.1.var_sorts_to_int();
