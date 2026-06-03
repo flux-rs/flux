@@ -312,8 +312,17 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::ExprKind::PrimApp(op, e1, e2) => self.synth_prim_app(&op, e1, e2, expr.span),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(op, e),
             fhir::ExprKind::App(callee, args) => {
-                let sort = self.ensure_resolved_path(&callee)?;
-                let Some(poly_fsort) = self.is_coercible_to_func(&sort, callee.fhir_id) else {
+                let sort = self.synth_expr(callee)?;
+                let sort = self
+                    .fully_resolve(&sort)
+                    .map_err(|_| self.emit_err(errors::CannotInferSort::new(callee.span)))?;
+                let coercion_site_id =
+                    if let fhir::ExprKind::Var(fhir::QPathExpr::Resolved(path, _)) = callee.kind {
+                        path.fhir_id
+                    } else {
+                        callee.fhir_id
+                    };
+                let Some(poly_fsort) = self.is_coercible_to_func(&sort, coercion_site_id) else {
                     return Err(self.emit_err(errors::ExpectedFun::new(callee.span, &sort)));
                 };
                 let fsort = self.instantiate_func_sort(expr, poly_fsort);
@@ -752,12 +761,6 @@ impl<'genv> InferCtxt<'genv, '_> {
         self.bv_size_unification_table.new_key(None)
     }
 
-    fn ensure_resolved_path(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
-        let sort = self.synth_path(path);
-        self.fully_resolve(&sort)
-            .map_err(|_| self.emit_err(errors::CannotInferSort::new(path.span)))
-    }
-
     fn is_single_field_struct(&mut self, sort: &rty::Sort) -> Option<(DefId, rty::Sort)> {
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = sort
             && let Some(variant) = sort_def.opt_struct_variant()
@@ -834,7 +837,8 @@ impl<'genv> InferCtxt<'genv, '_> {
                 res.push(sort_arg);
             }
             if let fhir::ExprKind::App(callee, _) = node.kind
-                && matches!(callee.res, fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast))
+                && let fhir::ExprKind::Var(fhir::QPathExpr::Resolved(path, _)) = callee.kind
+                && matches!(path.res, fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast))
             {
                 let [rty::SortArg::Sort(from), rty::SortArg::Sort(to)] = &res[..] else {
                     span_bug!(node.span, "invalid sort args!")

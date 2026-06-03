@@ -84,13 +84,17 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                 self.check_func_params_uses(e2, is_top_level_conj);
             }
             fhir::ExprKind::UnaryOp(_, e) => self.check_func_params_uses(e, false),
-            fhir::ExprKind::App(func, args) => {
+            fhir::ExprKind::App(callee, args) => {
                 if !is_top_level_conj
-                    && let fhir::Res::Param(_, id) = func.res
+                    && let fhir::ExprKind::Var(fhir::QPathExpr::Resolved(path, _)) = callee.kind
+                    && let fhir::Res::Param(_, id) = path.res
                     && let fhir::InferMode::KVar = self.infcx.infer_mode(id)
                 {
                     self.errors
-                        .emit(InvalidParamPos::new(func.span, &self.infcx.param_sort(id)));
+                        .emit(InvalidParamPos::new(path.span, &self.infcx.param_sort(id)));
+                }
+                if !matches!(callee.kind, fhir::ExprKind::Var(fhir::QPathExpr::Resolved(..))) {
+                    self.check_func_params_uses(callee, false);
                 }
                 for arg in args {
                     self.check_func_params_uses(arg, false);

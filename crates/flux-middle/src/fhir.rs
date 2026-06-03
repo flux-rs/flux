@@ -1056,7 +1056,7 @@ pub enum ExprKind<'fhir> {
     Literal(Lit),
     BinaryOp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     UnaryOp(UnOp, &'fhir Expr<'fhir>),
-    App(PathExpr<'fhir>, &'fhir [Expr<'fhir>]),
+    App(&'fhir Expr<'fhir>, &'fhir [Expr<'fhir>]),
     /// UIF application representing a primitive operation, e.g. `[<<](x, y)`
     PrimApp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
@@ -1589,7 +1589,7 @@ impl fmt::Debug for Expr<'_> {
             ExprKind::PrimApp(op, e1, e2) => write!(f, "[{op:?}]({e1:?}, {e2:?})"),
             ExprKind::UnaryOp(op, e) => write!(f, "{op:?}{e:?}"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
-            ExprKind::App(uf, es) => write!(f, "{uf:?}({:?})", es.iter().format(", ")),
+            ExprKind::App(callee, es) => write!(f, "{callee:?}({:?})", es.iter().format(", ")),
             ExprKind::Alias(alias, refine_args) => {
                 write!(f, "{alias:?}({:?})", refine_args.iter().format(", "))
             }
