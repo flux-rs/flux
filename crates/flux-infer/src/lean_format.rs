@@ -375,7 +375,11 @@ impl LeanFmt for Sort {
                 )
             }
             Sort::Var(v) => {
-                if cx.hide_sort_vars { write!(f, "_") } else { write!(f, "t{v}") }
+                if cx.hide_sort_vars {
+                    write!(f, "_")
+                } else {
+                    write!(f, "t{v}")
+                }
             }
             Sort::BvSize(size) => {
                 panic!("sort BvSize({size}) should only occur as an argument to BitVec")
