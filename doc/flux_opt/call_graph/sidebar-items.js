@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CallSiteKind","NodeKind"],"fn":["build_call_graph","callees_in_body","is_identity_instance","is_method_in_trait","is_outside_cstore","is_stdlib_crate","item_callees","normalize_abstract_args","resolved_callees","should_include_in_call_graph"],"struct":["CallGraph","CallSite","NodeInfo"]};
