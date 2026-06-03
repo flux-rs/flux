@@ -1692,7 +1692,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         }
     }
 
-    fn try_parse_integral_real_lit(&self, span: Span, s: &str) -> Result<u128> {
+    fn try_parse_decimal_real_lit(&self, span: Span, s: &str) -> Result<u128> {
         let s = s.replace("_", "");
         let (mantissa, exp) = if let Some(idx) = s.find(['e', 'E']) {
             let (mantissa, exp) = s.split_at(idx);
@@ -1712,14 +1712,17 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let mut digits = String::with_capacity(int_part.len() + frac_part.len());
         digits.push_str(int_part);
         digits.push_str(frac_part);
-        if digits.is_empty() || !digits.bytes().all(|c| c.is_ascii_digit()) {
+        if !digits.bytes().all(|c| c.is_ascii_digit()) {
             return Err(self.emit(errors::UnexpectedLiteral { span }));
         }
 
         let mut n = self.try_parse_int_lit(span, &digits)?;
-        let scale = frac_part.len() as i32 - exp;
+        let frac_len =
+            i64::try_from(frac_part.len()).map_err(|_| self.emit(errors::IntTooLarge { span }))?;
+        let scale = frac_len - i64::from(exp);
         if scale > 0 {
-            let scale = scale as u32;
+            let scale =
+                u32::try_from(scale).map_err(|_| self.emit(errors::IntTooLarge { span }))?;
             let factor = 10u128
                 .checked_pow(scale)
                 .ok_or_else(|| self.emit(errors::IntTooLarge { span }))?;
@@ -1728,7 +1731,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
             n /= factor;
         } else if scale < 0 {
-            let scale = (-scale) as u32;
+            let scale =
+                u32::try_from(-scale).map_err(|_| self.emit(errors::IntTooLarge { span }))?;
             let factor = 10u128
                 .checked_pow(scale)
                 .ok_or_else(|| self.emit(errors::IntTooLarge { span }))?;
@@ -1760,7 +1764,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 }
             }
             surface::LitKind::Float => {
-                let n = match self.try_parse_integral_real_lit(span, lit.symbol.as_str()) {
+                let n = match self.try_parse_decimal_real_lit(span, lit.symbol.as_str()) {
                     Ok(n) => n,
                     Err(err) => return fhir::ExprKind::Err(err),
                 };
