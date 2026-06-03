@@ -154,6 +154,7 @@ fn constant_deps(expr: &fixpoint::Expr, acc: &mut FxIndexSet<fixpoint::Var>) {
             constant_deps(inner, acc);
         }
         fixpoint::Expr::Var(..) | fixpoint::Expr::Constant(..) | fixpoint::Expr::ThyFunc(..) => {}
+        fixpoint::Expr::WKVar(..) => unimplemented!(),
     }
 }
 

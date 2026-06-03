@@ -336,14 +336,14 @@ fn trigger_queries(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult {
             genv.generics_of(def_id)?;
             genv.refinement_generics_of(def_id)?;
             genv.predicates_of(def_id)?;
-            genv.fn_sig(def_id)?;
+            genv.fn_sig(def_id, true)?;
         }
         DefKind::Ctor(_, CtorKind::Fn) => {
             genv.generics_of(def_id)?;
             genv.refinement_generics_of(def_id)?;
             // We don't report the error because it can raise a `QueryErr::OpaqueStruct`,  which
             // should be reported at the use site.
-            let _ = genv.fn_sig(def_id);
+            let _ = genv.fn_sig(def_id, true);
         }
         DefKind::Enum | DefKind::Struct => {
             genv.generics_of(def_id)?;

@@ -164,6 +164,9 @@ where
                                 ConstKey::PtrSize => {
                                     Ok(rty::Expr::internal_func(InternalFuncKind::PtrSize))
                                 }
+                                ConstKey::WKVar(_, _) => {
+                                    unreachable!("Weak kvars are not global vars");
+                                }
                             }
                         } else {
                             Err(FixpointParseError::NoGlobalVar(*global_var))
@@ -206,6 +209,11 @@ where
                     }
                     fixpoint::Var::ConstGeneric(const_generic) => {
                         Ok(rty::Expr::const_generic(*const_generic))
+                    }
+                    fixpoint::Var::WKVar(..) => {
+                        unreachable!(
+                            "Weak kvar ids should be converted as part of fixpoint::Expr::WKVar"
+                        );
                     }
                 }
             }
@@ -320,6 +328,9 @@ where
                                         .map(|farg| self.fixpoint_to_expr(farg))
                                         .try_collect()?;
                                     Ok(rty::Expr::alias(alias_reft, args))
+                                }
+                                ConstKey::WKVar(..) => {
+                                    unreachable!("WKVars should not appear in global vars");
                                 }
                                 ConstKey::RustConst(..)
                                 | ConstKey::Lambda(..)
@@ -449,6 +460,28 @@ where
                 let body = self.fixpoint_to_expr(body)?;
                 self.ecx.local_var_env.pop_layer();
                 Ok(rty::Expr::exists(Binder::bind_with_sorts(body, &sorts)))
+            }
+            fixpoint::Expr::WKVar(fixpoint::WKVar { wkvid, args }) => {
+                let e_args: Vec<rty::Expr> = args
+                    .iter()
+                    .map(|fexpr| self.fixpoint_to_expr(fexpr))
+                    .try_collect()?;
+                if let Some(const_key) = self.ecx.const_env.wkvar_map_rev.get(wkvid) {
+                    match const_key {
+                        ConstKey::WKVar(wkvid, self_args) => {
+                            Ok(rty::Expr::wkvar(rty::WKVar {
+                                wkvid: wkvid.clone(),
+                                self_args: *self_args,
+                                args: List::from_vec(e_args),
+                            }))
+                        }
+                        _ => {
+                            unreachable!("Weak KVar has a const_key that is not a wkvid");
+                        }
+                    }
+                } else {
+                    unreachable!("missing weak kvar {:?} in const_env", wkvid);
+                }
             }
         }
     }

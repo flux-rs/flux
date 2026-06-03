@@ -534,6 +534,9 @@ impl LeanFmt for Expr {
                 write!(f, ")")?;
                 Ok(())
             }
+            Expr::WKVar(_) => {
+                todo!("not yet implemented")
+            }
         }
     }
 }

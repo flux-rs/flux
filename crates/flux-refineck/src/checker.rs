@@ -398,10 +398,12 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
 
     let mut infcx = root_ctxt.infcx(impl_method_id, &rustc_infcx);
 
-    let trait_fn_sig =
-        genv.fn_sig(trait_method_id)?
-            .instantiate(tcx, &trait_method_args, &trait_refine_args);
-    let impl_sig = genv.fn_sig(impl_method_id)?;
+    let trait_fn_sig = genv.fn_sig(trait_method_id, true)?.instantiate(
+        tcx,
+        &trait_method_args,
+        &trait_refine_args,
+    );
+    let impl_sig = genv.fn_sig(impl_method_id, true)?;
     let sub_sig = SubFn::Poly(impl_method_id, impl_sig, impl_method_args);
 
     check_fn_subtyping(&mut infcx, sub_sig, &trait_fn_sig, span)?;
@@ -783,7 +785,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(terminator_span)?;
                 let ret = match kind {
                     mir::CallKind::FnDef { resolved_id, resolved_args, .. } => {
-                        let fn_sig = self.genv.fn_sig(*resolved_id).with_span(terminator_span)?;
+                        let fn_sig = self
+                            .genv
+                            .fn_sig(*resolved_id, true)
+                            .with_span(terminator_span)?;
                         let generic_args = instantiate_args_for_fun_call(
                             self.genv,
                             self.checker_id.root_id().to_def_id(),
@@ -1096,7 +1101,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
-                let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
+                let sub_sig = self.genv.fn_sig(def_id, true).with_span(span)?;
                 check_fn_subtyping(
                     infcx,
                     SubFn::Poly(*def_id, sub_sig, args.clone()),
@@ -1697,7 +1702,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 {
                     let current_did = infcx.def_id;
                     let sub_sig =
-                        SubFn::Poly(current_did, infcx.genv.fn_sig(*def_id)?, args.clone());
+                        SubFn::Poly(current_did, infcx.genv.fn_sig(*def_id, false)?, args.clone());
                     // TODO:CLOSURE:2 TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
                     check_fn_subtyping(infcx, sub_sig, super_sig, stmt_span)?;
                     to

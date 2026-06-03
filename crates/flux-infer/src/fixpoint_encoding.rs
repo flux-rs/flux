@@ -20,7 +20,7 @@ use flux_errors::Errors;
 use flux_macros::DebugAsJson;
 use flux_middle::{
     FixpointQueryKind,
-    def_id::{FluxDefId, MaybeExternId},
+    def_id::{FluxDefId, MaybeExternId, ResolvedDefId},
     def_id_to_string,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
@@ -105,6 +105,7 @@ pub mod fixpoint {
         Underscore,
         Global(GlobalVar, FluxDefId),
         Const(GlobalVar, Option<DefId>),
+        WKVar(Symbol, u32),
         Local(LocalVar),
         DataCtor(AdtId, VariantIdx),
         TupleCtor { arity: usize },
@@ -132,6 +133,7 @@ pub mod fixpoint {
             match self {
                 Var::Global(v, did) => write!(f, "f${}${}", did.name(), v.as_u32()),
                 Var::Const(v, _) => write!(f, "c{}", v.as_u32()),
+                Var::WKVar(def, idx) => write!(f, "wk${}${}", def, idx),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
                 Var::DataCtor(adt_id, variant_idx) => {
                     write!(f, "mkadt{}${}", adt_id.as_u32(), variant_idx.as_u32())
@@ -542,6 +544,7 @@ enum ConstKey<'tcx> {
     PrimOp(rty::BinOp),
     Cast(rty::Sort, rty::Sort),
     PtrSize,
+    WKVar(rty::WKVid, usize),
 }
 
 #[derive(Clone)]
@@ -612,7 +615,17 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
-        let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
+        let constants = self
+            .ecx
+            .const_env
+            .const_map
+            .iter()
+            .filter_map(|(k, v)| {
+                // NOTE(ck): Don't send wkvars to fixpoint
+                if let ConstKey::WKVar(..) = k { None } else { Some(v) }
+            })
+            .cloned()
+            .collect_vec();
 
         // Encode function bodies after qualifiers/assumptions so any functions referenced there
         // are picked up as dependencies.
@@ -978,6 +991,12 @@ where
                 let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
+            rty::ExprKind::WKVar(_wkvar) => {
+                // We don't translate the weak kvar here because we don't want to
+                // send it to fixpoint to check (we only care about it appearing
+                // in assumptions)
+                Ok(fixpoint::Constraint::TRUE)
+            }
             rty::ExprKind::ForAll(pred) => {
                 self.ecx
                     .local_var_env
@@ -1034,6 +1053,9 @@ where
             rty::ExprKind::KVar(kvar) => {
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
             }
+            rty::ExprKind::WKVar(wkvar) => {
+                preds.push(self.wkvar_to_fixpoint(wkvar)?);
+            }
             rty::ExprKind::ForAll(_) => {
                 // If a forall appears in assumptive position replace it with true. This is sound
                 // because we are weakening the context, i.e., anything true without the assumption
@@ -1085,6 +1107,23 @@ where
             .collect_vec();
 
         Ok(fixpoint::Pred::And(kvars))
+    }
+
+    fn wkvar_to_fixpoint(&mut self, wkvar: &rty::WKVar) -> QueryResult<fixpoint::Pred> {
+        if let Some(var) =
+            self.ecx
+                .define_const_for_wkvar(&wkvar.wkvid, wkvar.self_args, &mut self.scx)
+        {
+            let args: Vec<fixpoint::Expr> = wkvar
+                .args
+                .iter()
+                .map(|arg| self.ecx.expr_to_fixpoint(arg, &mut self.scx))
+                .collect::<QueryResult<Vec<fixpoint::Expr>>>()?;
+            Ok(fixpoint::Pred::Expr(fixpoint::Expr::WKVar(fixpoint::WKVar { wkvid: var, args })))
+        } else {
+            // println!("WARN: Skipping encoding wkvar {:?} because it isn't in the global map", wkvar.wkvid);
+            Ok(fixpoint::Pred::Expr(fixpoint::Expr::Constant(fixpoint::Constant::Boolean(true))))
+        }
     }
 }
 
@@ -1419,6 +1458,7 @@ impl std::str::FromStr for TagIdx {
 struct ConstEnv<'tcx> {
     const_map: ConstMap<'tcx>,
     const_map_rev: HashMap<fixpoint::GlobalVar, ConstKey<'tcx>>,
+    pub(crate) wkvar_map_rev: HashMap<fixpoint::Var, ConstKey<'tcx>>,
     global_var_gen: IndexGen<fixpoint::GlobalVar>,
     fun_decl_map: FunDeclMap,
 }
@@ -1750,7 +1790,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let expr = self.body_to_fixpoint(expr, scx)?;
                 fixpoint::Expr::Exists(expr.0, Box::new(expr.1))
             }
-            rty::ExprKind::Hole(..)
+            rty::ExprKind::WKVar(_)
+            | rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
@@ -2248,6 +2289,57 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name
     }
 
+    /// We encode weak kvars as UIFs when we send them to fixpoint, but
+    /// represent them in fixpoint as their own Expr. This is necessary to add
+    /// the const declaration for the UIF.
+    ///
+    /// Currently returns an Option in case weak kvars generated automatically
+    /// don't track the sorts of their arguments, but there is no reason why
+    /// they shouldn't --- we could probably unwrap the Option.
+    fn define_const_for_wkvar(
+        &mut self,
+        wkvid: &rty::WKVid,
+        self_args: usize,
+        scx: &mut SortEncodingCtxt,
+    ) -> Option<fixpoint::Var> {
+        if !matches!(
+            self.genv.resolve_id(wkvid.parent_fn),
+            ResolvedDefId::Local(..) | ResolvedDefId::ExternSpec(..)
+        ) {
+            return None;
+        }
+        let key = ConstKey::WKVar(wkvid.clone(), self_args);
+        let arg_sorts = self
+            .genv
+            .weak_kvars_for(wkvid.parent_fn)
+            .and_then(|wkvars_map| {
+                wkvars_map
+                    .get(&wkvid.id.as_u32())
+                    .map(|wkvars| wkvars.sorts.clone())
+            });
+        arg_sorts.map(|arg_sorts| {
+            self.const_env
+                .const_map
+                .entry(key.clone())
+                .or_insert_with(|| {
+                    let comment = Some(format!("weak kvar: {:?}", wkvid));
+                    let def_name = self.genv.tcx().def_path_str(wkvid.parent_fn);
+                    let sanitized_name: String = def_name
+                        .chars()
+                        .map(|c| if !c.is_alphanumeric() { '_' } else { c })
+                        .collect();
+                    let name =
+                        fixpoint::Var::WKVar(Symbol::intern(&sanitized_name), wkvid.id.as_u32());
+                    let func_sort =
+                        rty::FuncSort::new(arg_sorts.clone(), rty::Sort::Bool).to_poly();
+                    let sort = scx.func_sort_to_fixpoint(&func_sort).into_sort();
+                    self.const_env.wkvar_map_rev.insert(name, key);
+                    fixpoint::ConstDecl { name, comment, sort }
+                })
+                .name
+        })
+    }
+
     fn assume_const_values(
         &mut self,
         mut constraint: fixpoint::Constraint,
@@ -2302,7 +2394,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 | ConstKey::Cast(..)
                 | ConstKey::Lambda(..)
                 | ConstKey::PrimOp(..)
-                | ConstKey::PtrSize => {}
+                | ConstKey::PtrSize
+                | ConstKey::WKVar(..) => {}
             }
         }
         Ok(constraint)
