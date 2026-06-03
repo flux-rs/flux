@@ -6,7 +6,7 @@ use std::ops::ControlFlow;
 use flux_arc_interner::{Internable, List};
 use flux_common::bug;
 use itertools::Itertools;
-use rustc_data_structures::fx::FxHashMap;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hash::FxHashSet;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
@@ -262,11 +262,11 @@ pub trait TypeVisitable: Sized {
     /// for which the existential is now necessary.
     ///
     /// NOTE: this only applies to refinement bvars.
-    fn redundant_bvars(&self) -> FxHashSet<BoundVar> {
+    fn redundant_bvars(&self) -> UnordSet<BoundVar> {
         struct RedundantBVarFinder {
             current_index: DebruijnIndex,
-            total_bvar_occurrences: FxHashMap<BoundVar, usize>,
-            bvars_appearing_in_index: FxHashSet<BoundVar>,
+            total_bvar_occurrences: UnordMap<BoundVar, usize>,
+            bvars_appearing_in_index: UnordSet<BoundVar>,
         }
 
         impl TypeVisitor for RedundantBVarFinder {
@@ -322,15 +322,15 @@ pub trait TypeVisitable: Sized {
 
         let mut finder = RedundantBVarFinder {
             current_index: INNERMOST,
-            total_bvar_occurrences: FxHashMap::default(),
-            bvars_appearing_in_index: FxHashSet::default(),
+            total_bvar_occurrences: UnordMap::default(),
+            bvars_appearing_in_index: UnordSet::new(),
         };
         let _ = self.visit_with(&mut finder);
 
-        finder
-            .bvars_appearing_in_index
-            .into_iter()
-            .filter(|var_index| finder.total_bvar_occurrences.get(var_index) == Some(&1))
+        let RedundantBVarFinder { bvars_appearing_in_index, total_bvar_occurrences, .. } = finder;
+        bvars_appearing_in_index
+            .into_items()
+            .filter(|var_index| total_bvar_occurrences.get(var_index) == Some(&1))
             .collect()
     }
 }

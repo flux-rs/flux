@@ -38,11 +38,10 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 use rustc_data_structures::{
-    fx::{FxHashMap, FxIndexMap},
-    unord::UnordMap,
+    fx::FxIndexMap,
+    unord::{UnordMap, UnordSet},
 };
 use rustc_errors::Diagnostic;
-use rustc_hash::FxHashSet;
 use rustc_hir::{self as hir, BodyId, OwnerId, Safety, def::DefKind, def_id::DefId};
 use rustc_index::IndexVec;
 use rustc_middle::ty::{self, AssocItem, AssocTag, BoundVar, TyCtxt};
@@ -680,8 +679,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let no_panic = if let Some(e) = fn_sig.no_panic_if {
             self.conv_expr(&mut env, &e)?
+        } else if self.genv().no_panic(fn_id) {
+            Expr::tt()
         } else {
-            if self.genv().no_panic(fn_id) { Expr::tt() } else { Expr::ff() }
+            Expr::ff()
         };
 
         let fn_sig =
@@ -1392,7 +1393,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         // De-duplicate auto traits preserving order
         {
-            let mut duplicates = FxHashSet::default();
+            let mut duplicates = UnordSet::new();
             auto_traits.retain(|trait_ref| duplicates.insert(trait_ref.def_id()));
         }
 
@@ -2281,7 +2282,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let spread = spread
             .map(|spread| self.conv_expr(env, &spread.expr))
             .transpose()?;
-        let mut field_exprs_by_name: FxHashMap<Symbol, rty::Expr> = exprs
+        let mut field_exprs_by_name: UnordMap<Symbol, rty::Expr> = exprs
             .iter()
             .map(|field_expr| -> QueryResult<_> {
                 Ok((field_expr.ident.name, self.conv_expr(env, &field_expr.expr)?))
@@ -2882,7 +2883,7 @@ fn transitive_bounds<'tcx>(
     tcx: TyCtxt<'tcx>,
     trait_refs: impl Iterator<Item = ty::PolyTraitRef<'tcx>>,
 ) -> impl Iterator<Item = ty::PolyTraitRef<'tcx>> {
-    let mut seen = FxHashSet::default();
+    let mut seen = UnordSet::new();
     let mut stack: Vec<_> = trait_refs.collect();
 
     std::iter::from_fn(move || {

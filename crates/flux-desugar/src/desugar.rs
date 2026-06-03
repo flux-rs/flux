@@ -27,9 +27,8 @@ use flux_syntax::{
 };
 use hir::{ItemKind, def::DefKind};
 use itertools::{Either, Itertools};
-use rustc_data_structures::fx::FxIndexSet;
+use rustc_data_structures::{fx::FxIndexSet, unord::UnordSet};
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
-use rustc_hash::FxHashSet;
 use rustc_hir::{self as hir, OwnerId, def::Namespace};
 use rustc_span::{
     DUMMY_SP, Span,
@@ -50,7 +49,7 @@ fn collect_generics_in_params(
 ) -> FxIndexSet<DefId> {
     struct ParamCollector<'a> {
         resolver_output: &'a ResolverOutput,
-        found: FxHashSet<DefId>,
+        found: UnordSet<DefId>,
     }
     impl surface::visit::Visitor for ParamCollector<'_> {
         fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
@@ -63,7 +62,7 @@ fn collect_generics_in_params(
             surface::visit::walk_base_sort(self, bsort);
         }
     }
-    let mut vis = ParamCollector { resolver_output, found: FxHashSet::default() };
+    let mut vis = ParamCollector { resolver_output, found: UnordSet::new() };
     walk_list!(vis, visit_refine_param, params);
     genv.tcx()
         .generics_of(owner.resolved_id())

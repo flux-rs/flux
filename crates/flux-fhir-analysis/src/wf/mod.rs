@@ -15,8 +15,8 @@ use flux_middle::{
     queries::QueryResult,
     rty::{self, WfckResults},
 };
+use rustc_data_structures::unord::UnordSet;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashSet;
 use rustc_hir::{
     OwnerId,
     def::DefKind,
@@ -339,7 +339,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
     }
 
     fn check_output_locs(&mut self, fn_decl: &fhir::FnDecl) {
-        let mut output_locs = FxHashSet::default();
+        let mut output_locs = UnordSet::new();
         for ens in fn_decl.output.ensures {
             if let fhir::Ensures::Type(loc, ..) = ens
                 && let (_, id) = loc.res.expect_param()

@@ -12,8 +12,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
-use rustc_data_structures::fx::FxIndexSet;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
@@ -31,7 +30,7 @@ pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub opaque_adt_map: &'a [(FluxDefId, SortDecl)],
     pub kvar_solutions: &'a KVarSolutions,
     /// Maps the per-run `GlobalVar` index of a primop constant to its stable Lean name.
-    pub primop_var_map: &'a FxHashMap<GlobalVar, String>,
+    pub primop_var_map: &'a UnordMap<GlobalVar, String>,
     pub hide_sort_vars: bool,
 }
 
