@@ -145,20 +145,23 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let mut ck = CrateChecker::new(genv);
 
         // Iterate over all def ids including dummy items for extern specs
-        let result = genv.tcx().iter_local_def_id().try_for_each_exhaust(|def_id| {
-            let result = ck.check_def_catching_bugs(def_id);
-            // On error, point at the constraint dump for this item
-            if result.is_err() && config::dump_constraint() {
-                let path = dbg::item_dump_path(genv.tcx(), def_id.to_def_id(), "smt2");
-                if path.exists() {
-                    genv.sess()
-                        .dcx()
-                        .handle()
-                        .note(format!("log file saved to {}", path.display()));
+        let result = genv
+            .tcx()
+            .iter_local_def_id()
+            .try_for_each_exhaust(|def_id| {
+                let result = ck.check_def_catching_bugs(def_id);
+                // On error, point at the constraint dump for this item
+                if result.is_err() && config::dump_constraint() {
+                    let path = dbg::item_dump_path(genv.tcx(), def_id.to_def_id(), "smt2");
+                    if path.exists() {
+                        genv.sess()
+                            .dcx()
+                            .handle()
+                            .note(format!("log file saved to {}", path.display()));
+                    }
                 }
-            }
-            result
-        });
+                result
+            });
 
         if config::lean().is_check() || config::lean().is_emit() {
             lean_encoding::finalize(genv)
