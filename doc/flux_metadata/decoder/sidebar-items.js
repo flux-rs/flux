@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["decode_crate_metadata"],"mod":["__ty_decoder_impl","errors"],"struct":["DecodeContext"]};
+window.SIDEBAR_ITEMS = {"fn":["catch_decode","decode_crate_metadata"],"mod":["__ty_decoder_impl","errors"],"struct":["DecodeContext"]};

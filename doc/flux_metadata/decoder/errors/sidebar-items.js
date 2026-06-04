@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["DecodeFileError"]};
+window.SIDEBAR_ITEMS = {"struct":["DecodeFileError","IncompatibleMetadata"]};
