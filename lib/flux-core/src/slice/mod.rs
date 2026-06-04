@@ -101,10 +101,10 @@ impl<T> [T] {
     fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut [T], &mut [T])>;
 
     #[no_panic]
-    #[spec(fn(&Self[@n]) -> *const{p: ptr_size(p) == n} T)]
+    #[spec(fn(&Self[@n]) -> {base:int, addr:int. *const[base, addr, n] T | addr >= base})]
     fn as_ptr(&self) -> *const T;
 
     #[no_panic]
-    #[spec(fn(&mut Self[@n]) -> *mut{p: ptr_size(p) == n} T)]
+    #[spec(fn(&mut Self[@n]) -> {base:int, addr:int. *mut[base, addr, n] T | addr >= base})]
     fn as_mut_ptr(&mut self) -> *mut T;
 }

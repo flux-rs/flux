@@ -10,7 +10,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        self, AdtSortDef, FuncSort, List, WfckResults,
+        self, AdtSortDef, FuncSort, List, RecordCtor, WfckResults,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
     },
 };
@@ -155,7 +155,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = &expected {
             self.wfckresults
                 .record_ctors_mut()
-                .insert(expr.fhir_id, sort_def.did());
+                .insert(expr.fhir_id, RecordCtor::Struct(sort_def.did()));
             self.check_field_exprs(expr.span, sort_def, sort_args, field_exprs, spread, &expected)?;
             Ok(())
         } else {
@@ -169,8 +169,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         flds: &[fhir::Expr<'genv>],
         expected: &rty::Sort,
     ) -> Result {
-        if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-            let sorts = sort_def.struct_variant().field_sorts(sort_args);
+        if let Some(sorts) = expected.field_sorts() {
             if flds.len() != sorts.len() {
                 return Err(self.emit_err(errors::ArgCountMismatch::new(
                     Some(arg.span),
@@ -179,9 +178,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     flds.len(),
                 )));
             }
-            self.wfckresults
-                .record_ctors_mut()
-                .insert(arg.fhir_id, sort_def.did());
+            if let rty::Sort::App(rty::SortCtor::Adt(sort_def), _) = expected {
+                self.wfckresults
+                    .record_ctors_mut()
+                    .insert(arg.fhir_id, RecordCtor::Struct(sort_def.did()));
+            } else if matches!(expected, rty::Sort::RawPtr) {
+                self.wfckresults
+                    .record_ctors_mut()
+                    .insert(arg.fhir_id, RecordCtor::RawPtr);
+            }
 
             izip!(flds, &sorts)
                 .map(|(arg, expected)| self.check_expr(arg, expected))
@@ -367,6 +372,14 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                         } else {
                             Err(self.emit_field_not_found(&sort, fld))
                         }
+                    }
+                    rty::Sort::RawPtr => {
+                        let field = rty::RawPtrField::from_name(fld.name)
+                            .ok_or_else(|| self.emit_field_not_found(&sort, fld))?;
+                        self.wfckresults
+                            .field_projs_mut()
+                            .insert(expr.fhir_id, rty::FieldProj::RawPtr { field });
+                        Ok(rty::Sort::Int)
                     }
                     rty::Sort::Bool | rty::Sort::Int | rty::Sort::Real => {
                         Err(self.emit_err(errors::InvalidPrimitiveDotAccess::new(&sort, fld)))
@@ -923,8 +936,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
                 });
             }
             fhir::ExprKind::Record(flds) => {
-                if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-                    let sorts = sort_def.struct_variant().field_sorts(sort_args);
+                if let Some(sorts) = expected.field_sorts() {
                     if flds.len() != sorts.len() {
                         self.errors.emit(errors::ArgCountMismatch::new(
                             Some(idx.span),

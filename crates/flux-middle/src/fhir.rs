@@ -1277,8 +1277,6 @@ pub enum SpecFuncKind {
     Def(FluxDefId),
     /// Casts between sorts: id for char, int; if-then-else for bool-int; uninterpreted otherwise.
     Cast,
-    /// Built-in function to get the size of a raw pointer's pointee type.
-    PtrSize,
 }
 
 impl SpecFuncKind {
