@@ -16,7 +16,7 @@ use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
-    rty::{self, Expr},
+    rty::{self, Expr, fold::TypeVisitable},
 };
 
 pub fn refine_generics(generics: &ty::Generics) -> rty::Generics {
@@ -213,7 +213,19 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     pub fn refine_ty_or_base(&self, ty: &ty::Ty) -> QueryResult<rty::TyOrBase> {
         let bty = match ty.kind() {
             ty::TyKind::Closure(did, args) => {
-                let no_panic = self.genv.no_panic(did);
+                let parent_id = self.genv.parent_of_closure(*did);
+                let parent_sig = self.genv.fn_sig(parent_id)?;
+
+                assert!(
+                    !parent_sig
+                        .skip_binder_ref()
+                        .skip_binder_ref()
+                        .no_panic()
+                        .has_escaping_bvars()
+                );
+
+                let no_panic = parent_sig.skip_binder().skip_binder().no_panic();
+
                 let closure_args = args.as_closure();
                 let upvar_tys = closure_args
                     .upvar_tys()
