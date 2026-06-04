@@ -26,6 +26,7 @@ use derive_where::derive_where;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use flux_middle::{
+    PanicSpec,
     cstore::{CrateStore, OptResult},
     def_id::{FluxDefId, FluxId},
     fhir,
@@ -179,6 +180,7 @@ pub struct Tables<K: Eq + Hash> {
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
     no_panic: UnordMap<K, bool>,
     assume_parametric_params: UnordMap<K, UnordSet<u32>>,
+    no_panic_specs: UnordMap<DefId, PanicSpec>,
 }
 
 impl CStore {
@@ -327,6 +329,22 @@ impl CrateStore for CStore {
         self.local_tables[&krate].normalized_defns.clone()
     }
 
+    fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<DefId, PanicSpec>> {
+        // TODO: Some transitive deps (e.g. `hashbrown`) have no flux metadata. Return
+        // an empty map (conservative: MightPanic) until the proper fix is in place.
+        // See notes/hashbrown-inferred-no-panic.txt.
+        Rc::new(
+            self.local_tables
+                .get(&krate)
+                .map(|t| t.no_panic_specs.clone())
+                .unwrap_or_default(),
+        )
+    }
+
+    fn has_crate(&self, krate: CrateNum) -> bool {
+        self.local_tables.contains_key(&krate)
+    }
+
     fn func_sort(&self, key: FluxDefId) -> Option<rty::PolyFuncSort> {
         get!(self, func_sort, key)
     }
@@ -351,6 +369,7 @@ impl CrateMetadata {
             FluxDefId::to_index,
         );
         encode_flux_defs(genv, &mut local_tables);
+        local_tables.no_panic_specs = (*genv.inferred_no_panic_crate(LOCAL_CRATE)).clone();
 
         let mut extern_tables = Tables::default();
         encode_def_ids(

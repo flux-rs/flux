@@ -183,18 +183,23 @@ fn run_proof(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
         .arg("--log-level=error")
         .arg("lean")
         .arg(proof_path)
+        .arg("--")
+        .arg("--json")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .current_dir(project_path(genv, FileKind::User))
         .spawn()?
         .wait_with_output()?;
-    if out.stderr.is_empty() && out.stdout.is_empty() {
-        Ok(())
-    } else {
+    if !out.stderr.is_empty() {
         let stderr =
             std::str::from_utf8(&out.stderr).unwrap_or("Lean exited with a non-zero return code");
-        Err(io::Error::other(stderr))
+        return Err(io::Error::other(stderr));
     }
+    let stdout = std::str::from_utf8(&out.stdout).unwrap_or("");
+    if stdout.lines().any(|line| line.contains("\"hasSorry\"")) {
+        return Err(io::Error::other("proof uses `sorry`"));
+    }
+    Ok(())
 }
 
 fn run_check(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
@@ -204,6 +209,8 @@ fn run_check(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
         .arg("--log-level=error")
         .arg("lean")
         .arg(checking_path)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .current_dir(project_path(genv, FileKind::User))
         .spawn()?
         .wait()?;
@@ -390,6 +397,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             opaque_adt_map: &self.sort_deps.opaque_sorts,
             kvar_solutions: &self.kvar_solutions,
             primop_var_map: &self.primop_var_map,
+            hide_sort_vars: false,
         }
     }
 
