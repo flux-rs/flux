@@ -2,7 +2,7 @@
 use std::{
     fmt, fs,
     io::{self, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use flux_config as config;
@@ -199,6 +199,10 @@ fn dump_base_name(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> String {
     let crate_name = tcx.crate_name(def_id.krate);
     let item_name = tcx.def_path(def_id).to_filename_friendly_no_crate();
     format!("{crate_name}.{item_name}.{}", ext.as_ref())
+}
+
+pub fn item_dump_path(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> PathBuf {
+    config::log_dir().join(dump_base_name(tcx, def_id, ext))
 }
 
 #[macro_export]
