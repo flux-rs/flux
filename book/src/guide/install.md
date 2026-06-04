@@ -2,6 +2,12 @@
 
 You can install and then run Flux either on a single file or on an entire crate.
 
+## Quick Install (Linux / macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/flux-rs/flux/main/install.sh | bash
+```
+
 ## Requirements
 
 - [rustup](https://rustup.rs/)
