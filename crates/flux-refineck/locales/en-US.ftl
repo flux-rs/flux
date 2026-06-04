@@ -1,6 +1,6 @@
 # Refinememt checking errors
 
-refineck_goto_error = error jumping to join point
+refineck_goto_error = flux internal error (this should not happen): cannot prove join point jump condition
 
 refineck_assign_error =
     assignment might be unsafe
@@ -22,7 +22,7 @@ refineck_div_error =
     possible division by zero
 
 refineck_rem_error =
-    possible reminder with a divisor of zero
+    possible remainder with a divisor of zero
 
 refineck_assert_error =
     assertion might fail: {$msg}
