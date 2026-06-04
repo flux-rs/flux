@@ -2077,6 +2077,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     } else {
                         Err(self.emit(errors::InvalidBitVectorConstant::new(span, sort)))?
                     }
+                } else if sort == rty::Sort::Real {
+                    // Sort inference allows Int literals to unify with Real, but we require
+                    // explicit float syntax to avoid silently producing a mistyped constant.
+                    Err(self.emit(errors::IntLiteralInRealContext::new(span, n)))?
                 } else {
                     Ok(rty::Constant::from(n))
                 }
@@ -3161,6 +3165,21 @@ mod errors {
     pub(super) struct GenericsOnForeignTy {
         #[primary_span]
         pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_int_literal_in_real_context, code = E0999)]
+    pub struct IntLiteralInRealContext {
+        #[primary_span]
+        #[label]
+        span: Span,
+        n: u128,
+    }
+
+    impl IntLiteralInRealContext {
+        pub(crate) fn new(span: Span, n: u128) -> Self {
+            Self { span, n }
+        }
     }
 
     #[derive(Diagnostic)]

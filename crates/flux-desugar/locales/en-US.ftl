@@ -18,7 +18,7 @@ desugar_invalid_loc =
 
 desugar_invalid_numeric_suffix =
     invalid suffix `{$suffix}` for number literal
-    .label = the suffix must be one of the numeric sorts `int` or `real`
+    .label = the suffix must be the numeric sort `int`; use a float literal (e.g. `1.0`) for `real`
 
 desugar_unresolved_generic_param =
     cannot resolve generic param
