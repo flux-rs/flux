@@ -13,7 +13,7 @@
 <a href=#13 id=13 data-nosnippet>13</a>    fhir::{<span class="self">self</span>, FhirId, FluxOwnerId, visit::Visitor},
 <a href=#14 id=14 data-nosnippet>14</a>    global_env::GlobalEnv,
 <a href=#15 id=15 data-nosnippet>15</a>    queries::QueryResult,
-<a href=#16 id=16 data-nosnippet>16</a>    rty::{<span class="self">self</span>, WfckResults},
+<a href=#16 id=16 data-nosnippet>16</a>    rty::{<span class="self">self</span>, RecordCtor, WfckResults},
 <a href=#17 id=17 data-nosnippet>17</a>};
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>rustc_data_structures::unord::UnordSet;
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>rustc_errors::ErrorGuaranteed;
@@ -590,8 +590,8 @@
 <a href=#590 id=590 data-nosnippet>590</a>        rty::FieldProj::Tuple { arity: <span class="number">0</span>, field: <span class="number">0 </span>}
 <a href=#591 id=591 data-nosnippet>591</a>    }
 <a href=#592 id=592 data-nosnippet>592</a>
-<a href=#593 id=593 data-nosnippet>593</a>    <span class="kw">fn </span>record_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: FhirId) -&gt; DefId {
-<a href=#594 id=594 data-nosnippet>594</a>        DefId { index: DefIndex::from_u32(<span class="number">0</span>), krate: CrateNum::from_u32(<span class="number">0</span>) }
+<a href=#593 id=593 data-nosnippet>593</a>    <span class="kw">fn </span>record_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: FhirId) -&gt; RecordCtor {
+<a href=#594 id=594 data-nosnippet>594</a>        RecordCtor::Struct(DefId { index: DefIndex::from_u32(<span class="number">0</span>), krate: CrateNum::from_u32(<span class="number">0</span>) })
 <a href=#595 id=595 data-nosnippet>595</a>    }
 <a href=#596 id=596 data-nosnippet>596</a>
 <a href=#597 id=597 data-nosnippet>597</a>    <span class="kw">fn </span>param_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, param_id: fhir::ParamId) -&gt; rty::Sort {
