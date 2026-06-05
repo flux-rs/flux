@@ -8,4 +8,9 @@ impl<T> [T] {
     fn into_vec<A>(self: Box<[T], A>) -> Vec<T, A>
     where
         A: Allocator;
+
+    #[spec(fn(self: &[T][@n]) -> Vec<T>[n])]
+    fn to_vec(self: &[T]) -> Vec<T>
+    where
+        T: Clone;
 }

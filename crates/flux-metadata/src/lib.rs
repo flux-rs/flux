@@ -26,6 +26,7 @@ use derive_where::derive_where;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use flux_middle::{
+    PanicSpec,
     cstore::{CrateStore, OptResult},
     def_id::{FluxDefId, FluxId},
     fhir,
@@ -35,7 +36,7 @@ use flux_middle::{
 };
 use rustc_data_structures::{
     fx::FxHashMap,
-    unord::{ExtendUnord, UnordMap},
+    unord::{ExtendUnord, UnordMap, UnordSet},
 };
 use rustc_hir::{
     def::{CtorKind, DefKind},
@@ -178,6 +179,8 @@ pub struct Tables<K: Eq + Hash> {
     func_span: UnordMap<FluxId<K>, Span>,
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
     no_panic: UnordMap<K, bool>,
+    assume_parametric_params: UnordMap<K, UnordSet<u32>>,
+    no_panic_specs: UnordMap<DefId, PanicSpec>,
 }
 
 impl CStore {
@@ -227,6 +230,7 @@ impl CStore {
         merge_extern_table!(self, tcx, variants_of, extern_tables);
         merge_extern_table!(self, tcx, type_of, extern_tables);
         merge_extern_table!(self, tcx, no_panic, extern_tables);
+        merge_extern_table!(self, tcx, assume_parametric_params, extern_tables);
         merge_extern_table!(self, tcx, static_info, extern_tables);
     }
 }
@@ -258,6 +262,10 @@ impl CrateStore for CStore {
 
     fn no_panic(&self, def_id: DefId) -> Option<bool> {
         get!(self, no_panic, def_id)
+    }
+
+    fn assume_parametric_params(&self, def_id: DefId) -> Option<UnordSet<u32>> {
+        get!(self, assume_parametric_params, def_id)
     }
 
     fn variants_of(
@@ -321,6 +329,22 @@ impl CrateStore for CStore {
         self.local_tables[&krate].normalized_defns.clone()
     }
 
+    fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<DefId, PanicSpec>> {
+        // TODO: Some transitive deps (e.g. `hashbrown`) have no flux metadata. Return
+        // an empty map (conservative: MightPanic) until the proper fix is in place.
+        // See notes/hashbrown-inferred-no-panic.txt.
+        Rc::new(
+            self.local_tables
+                .get(&krate)
+                .map(|t| t.no_panic_specs.clone())
+                .unwrap_or_default(),
+        )
+    }
+
+    fn has_crate(&self, krate: CrateNum) -> bool {
+        self.local_tables.contains_key(&krate)
+    }
+
     fn func_sort(&self, key: FluxDefId) -> Option<rty::PolyFuncSort> {
         get!(self, func_sort, key)
     }
@@ -345,6 +369,7 @@ impl CrateMetadata {
             FluxDefId::to_index,
         );
         encode_flux_defs(genv, &mut local_tables);
+        local_tables.no_panic_specs = (*genv.inferred_no_panic_crate(LOCAL_CRATE)).clone();
 
         let mut extern_tables = Tables::default();
         encode_def_ids(
@@ -471,6 +496,9 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     .fn_sig
                     .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::fn_sig));
                 tables.no_panic.insert(key, genv.no_panic(def_id));
+                tables
+                    .assume_parametric_params
+                    .insert(key, genv.assume_parametric_params(def_id));
             }
             DefKind::Ctor(_, CtorKind::Fn) => {
                 tables

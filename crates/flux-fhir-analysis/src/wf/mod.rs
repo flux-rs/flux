@@ -13,10 +13,10 @@ use flux_middle::{
     fhir::{self, FhirId, FluxOwnerId, visit::Visitor},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, WfckResults},
+    rty::{self, RecordCtor, WfckResults},
 };
+use rustc_data_structures::unord::UnordSet;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashSet;
 use rustc_hir::{
     OwnerId,
     def::DefKind,
@@ -339,7 +339,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
     }
 
     fn check_output_locs(&mut self, fn_decl: &fhir::FnDecl) {
-        let mut output_locs = FxHashSet::default();
+        let mut output_locs = UnordSet::new();
         for ens in fn_decl.output.ensures {
             if let fhir::Ensures::Type(loc, ..) = ens
                 && let (_, id) = loc.res.expect_param()
@@ -590,8 +590,8 @@ impl WfckResultsProvider for InferCtxt<'_, '_> {
         rty::FieldProj::Tuple { arity: 0, field: 0 }
     }
 
-    fn record_ctor(&self, _: FhirId) -> DefId {
-        DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) }
+    fn record_ctor(&self, _: FhirId) -> RecordCtor {
+        RecordCtor::Struct(DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) })
     }
 
     fn param_sort(&self, param_id: fhir::ParamId) -> rty::Sort {

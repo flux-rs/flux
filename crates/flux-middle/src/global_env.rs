@@ -12,7 +12,7 @@ use flux_config::{self as config, IncludePattern};
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
-use rustc_data_structures::unord::UnordSet;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -27,6 +27,7 @@ pub use rustc_span::{Symbol, symbol::Ident};
 use tempfile::TempDir;
 
 use crate::{
+    PanicReason, PanicSpec,
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},
@@ -173,6 +174,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
             slice::from_raw_parts(dst.as_ptr(), len)
         }
+    }
+
+    pub fn inferred_no_panic_crate(self, krate: CrateNum) -> Rc<UnordMap<DefId, PanicSpec>> {
+        self.inner.queries.inferred_no_panic_crate(self, krate)
     }
 
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
@@ -455,16 +460,29 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|variants| variants.map(|variants| variants[variant_idx.as_usize()].clone())))
     }
 
-    pub fn lower_late_bound_vars(
-        self,
-        def_id: LocalDefId,
-    ) -> QueryResult<List<ty::BoundVariableKind>> {
-        self.inner.queries.lower_late_bound_vars(self, def_id)
+    /// Whether we have inferred that the function cannot panic.
+    pub fn inferred_no_panic(self, def_id: impl IntoQueryParam<DefId>) -> PanicSpec {
+        let def_id = def_id.into_query_param();
+        let map = self.inferred_no_panic_crate(def_id.krate);
+        map.get(&def_id)
+            .copied()
+            .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
+    }
+
+    /// Whether the crate has Flux metadata in the cratestore.
+    pub fn cstore_has_crate(self, krate: CrateNum) -> bool {
+        self.cstore().has_crate(krate)
     }
 
     /// Whether the function is marked with `#[flux::no_panic]`
     pub fn no_panic(self, def_id: impl IntoQueryParam<DefId>) -> bool {
         self.inner.queries.no_panic(self, def_id.into_query_param())
+    }
+
+    pub fn assume_parametric_params(self, def_id: impl IntoQueryParam<DefId>) -> UnordSet<u32> {
+        self.inner
+            .queries
+            .assume_parametric_params(self, def_id.into_query_param())
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {

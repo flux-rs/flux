@@ -75,6 +75,8 @@ fn check_body(
     let span = genv.tcx().def_span(def_id);
     let opts = genv.infer_opts(def_id);
 
+    dbg::log_verbose!("FLUX checking: {def_id:?} {span:?}");
+
     let ghost_stmts = compute_ghost_statements(genv, def_id)
         .with_span(span)
         .map_err(|err| err.emit(genv, def_id))?;
@@ -223,15 +225,17 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
             ConstrReason::Goto(_) => genv.sess().emit_err(errors::GotoError { span }),
             ConstrReason::Assert(msg) => genv.sess().emit_err(errors::AssertError { span, msg }),
             ConstrReason::Fold | ConstrReason::FoldLocal => {
-                genv.sess().emit_err(errors::FoldError { span })
+                genv.sess()
+                    .emit_err(errors::FoldError::new(span, err.dst_span))
             }
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
             ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
-            ConstrReason::NoPanic(callee) => {
+            ConstrReason::NoPanic(callee, reason) => {
                 genv.sess().emit_err(errors::PanicError {
                     span,
                     callee: genv.tcx().def_path_debug_str(callee),
+                    reason: format!("{:?}", reason),
                 })
             }
         });
@@ -342,6 +346,15 @@ mod errors {
     pub struct FoldError {
         #[primary_span]
         pub span: Span,
+        #[subdiagnostic]
+        span_note: Option<ConditionSpanNote>,
+    }
+
+    impl FoldError {
+        pub fn new(span: Span, espan: Option<ESpan>) -> Self {
+            let span_note = espan.map(|espan| ConditionSpanNote { span: espan.span });
+            FoldError { span, span_note }
+        }
     }
 
     #[derive(Diagnostic)]
@@ -379,5 +392,6 @@ mod errors {
         #[primary_span]
         pub(super) span: Span,
         pub(super) callee: String,
+        pub(super) reason: String,
     }
 }

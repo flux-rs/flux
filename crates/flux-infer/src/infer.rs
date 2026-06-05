@@ -4,7 +4,7 @@ use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_sp
 use flux_config::{self as config, InferOpts, OverflowMode, RawDerefMode};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
-    FixpointQueryKind,
+    FixpointQueryKind, PanicSpec,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric},
@@ -81,7 +81,7 @@ pub enum ConstrReason {
     Overflow,
     Underflow,
     Subtype(SubtypeReason),
-    NoPanic(DefId),
+    NoPanic(DefId, PanicSpec),
     Other,
 }
 
@@ -1109,10 +1109,22 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                     self.idxs_eq(infcx, a, b);
                 }
             }
+            (ExprKind::Ctor(Ctor::RawPtr, flds_a), ExprKind::Ctor(Ctor::RawPtr, flds_b)) => {
+                for (a, b) in iter::zip(flds_a, flds_b) {
+                    self.idxs_eq(infcx, a, b);
+                }
+            }
             (_, ExprKind::Tuple(flds_b)) => {
                 for (f, b) in flds_b.iter().enumerate() {
                     let proj = FieldProj::Tuple { arity: flds_b.len(), field: f as u32 };
                     let a = a.proj_and_reduce(proj);
+                    self.idxs_eq(infcx, &a, b);
+                }
+            }
+            (_, ExprKind::Ctor(Ctor::RawPtr, flds_b)) => {
+                for (f, b) in flds_b.iter().enumerate() {
+                    let field = rty::RawPtrField::from_index(f as u32).unwrap();
+                    let a = a.proj_and_reduce(FieldProj::RawPtr { field });
                     self.idxs_eq(infcx, &a, b);
                 }
             }
@@ -1130,6 +1142,14 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 for (f, a) in flds_a.iter().enumerate() {
                     let proj = FieldProj::Tuple { arity: flds_a.len(), field: f as u32 };
                     let b = b.proj_and_reduce(proj);
+                    self.idxs_eq(infcx, a, &b);
+                }
+            }
+            (ExprKind::Ctor(Ctor::RawPtr, flds_a), _) => {
+                infcx.unify_exprs(a, b);
+                for (f, a) in flds_a.iter().enumerate() {
+                    let field = rty::RawPtrField::from_index(f as u32).unwrap();
+                    let b = b.proj_and_reduce(FieldProj::RawPtr { field });
                     self.idxs_eq(infcx, a, &b);
                 }
             }

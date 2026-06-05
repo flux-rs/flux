@@ -1,7 +1,7 @@
 #![feature(variant_count)]
 
 use std::{
-    ffi::OsStr, fs::{self, create_dir_all, exists}, io, mem::variant_count, os::unix::fs::symlink, path::{Path, PathBuf}, process::{Command, ExitStatus}
+    fs::{self, create_dir_all, exists}, io, mem::variant_count, os::unix::fs::symlink, path::{Path, PathBuf}, process::{Command, ExitStatus}
 };
 
 use anyhow::anyhow;
@@ -9,7 +9,8 @@ use cargo_metadata::{
     camino::{Utf8Path, Utf8PathBuf},
     Artifact, Message, TargetKind,
 };
-use tests::{FLUX_SYSROOT, FLUX_SYSROOT_TEST};
+use flux_dev::Suite;
+use flux_sysroot::{default_flux_sysroot_dir, FLUX_SYSROOT};
 
 xflags::xflags! {
     cmd xtask {
@@ -22,8 +23,8 @@ xflags::xflags! {
         cmd test {
             /// Only run tests containing `filter` as a substring.
             optional filter: String
-            /// Do not check tests in Flux libs.
-            optional --no-lib-tests
+            /// Run only the named suite(s). May be repeated. If omitted, all suites run.
+            repeated --suite suite: Suite
         }
         /// Run lean benchmarks: emit lean files for each test in tests/pos/
         cmd lean-bench {
@@ -34,7 +35,7 @@ xflags::xflags! {
         cmd run {
             /// Input file
             required input: PathBuf
-            /// Extra options to pass to the `flux` binary, e.g. `cargo x run file.rs -- -Zdump-mir=renumber`
+            /// Extra options to pass to the `flux` binary, e.g., `cargo x run file.rs -- -Zdump-mir=renumber`
             repeated opts: String
             /// Do not build Flux libs for extern specs
             optional --no-extern-specs
@@ -94,11 +95,11 @@ fn main() -> anyhow::Result<()> {
     let cmd = match Xtask::from_env() {
         Ok(cmd) => cmd,
         Err(err) => {
-            println!("{}", Xtask::HELP_);
             if err.is_help() {
+                println!("{}", Xtask::HELP_);
                 std::process::exit(0);
             } else {
-                println!("{}", Xtask::HELP_);
+                eprintln!("{err}");
                 std::process::exit(2);
             }
         }
@@ -119,7 +120,7 @@ fn main() -> anyhow::Result<()> {
                 profile: Profile::Dev,
                 rust_fixpoint: cmd.rust_fixpoint,
                 dst: local_sysroot_dir()?,
-                build_libs: BuildLibs { force: true, tests: true, libs: FluxLib::ALL },
+                build_libs: BuildLibs { force: true, libs: FluxLib::ALL },
             };
             install_sysroot(&config)?;
             Ok(())
@@ -129,24 +130,43 @@ fn main() -> anyhow::Result<()> {
     }
 }
 
-fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
-    let config = SysrootConfig {
-        profile: Profile::Dev,
-        rust_fixpoint,
-        dst: local_sysroot_dir()?,
-        build_libs: BuildLibs { force: false, tests: !args.no_lib_tests, libs: FluxLib::ALL },
-    };
-    let flux = build_binary("flux", config.profile, false)?;
-    install_sysroot(&config)?;
+fn run_tests(
+    flux_driver: &Utf8Path,
+    sysroot: &Path,
+    suite: &str,
+    filter: Option<&str>,
+) -> anyhow::Result<()> {
+    let mut cmd = Command::new("cargo");
+    cmd.args(["test", "-p", "tests", "--"])
+        .args(["--flux-driver", flux_driver.as_str()])
+        .args(["--sysroot".as_ref(), sysroot.as_os_str()])
+        .args(["--suite", suite]);
+    if let Some(filter) = filter {
+        cmd.args(["--filter", filter]);
+    }
+    cmd.run()
+}
 
-    Command::new("cargo")
-        .args(["test", "-p", "tests", "--"])
-        .args(["--flux", flux.as_str()])
-        .args(["--sysroot".as_ref(), config.dst.as_os_str()])
-        .map_opt(args.filter.as_ref(), |filter, cmd| {
-            cmd.args(["--filter", filter]);
-        })
-        .run()
+fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
+    let dst = local_sysroot_dir()?;
+
+    let suites: &[Suite] = if args.suite.is_empty() { Suite::ALL } else { &args.suite };
+
+    for suite in suites {
+        let libs = match suite {
+            Suite::Basic => &[FluxLib::FluxAttrs],
+            Suite::WithDeps => FluxLib::ALL,
+        };
+        let config = SysrootConfig {
+            profile: Profile::Dev,
+            rust_fixpoint,
+            dst: dst.clone(),
+            build_libs: BuildLibs { force: false, libs },
+        };
+        let flux_driver = install_sysroot(&config)?;
+        run_tests(&flux_driver, &dst, suite.name(), args.filter.as_deref())?;
+    }
+    Ok(())
 }
 
 fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
@@ -156,10 +176,9 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         profile: Profile::Dev,
         rust_fixpoint,
         dst: local_sysroot_dir()?,
-        build_libs: BuildLibs { force: false, tests: false, libs: FluxLib::ALL },
+        build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
     };
-    install_sysroot(&config)?;
-    let flux = build_binary("flux", config.profile, false)?;
+    let flux_driver = install_sysroot(&config)?;
 
     let pos_path = PathBuf::from("tests/tests/pos");
     let lean_bench_dir = PathBuf::from("tests/lean_bench");
@@ -226,13 +245,13 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         }
 
         // Build rustc flags
-        let mut rustc_flags = tests::default_flags();
+        let mut rustc_flags = flux_dev::default_flags(&config.dst);
         rustc_flags.push("-Flean=emit".to_string());
         rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
         first_lean_dir = std::path::absolute(lean_dir.join("lean_proofs"))?;
 
         // Run the test
-        let result = Command::new(&flux)
+        let result = Command::new(&flux_driver)
             .args(&rustc_flags)
             .arg(test_path)
             .env(FLUX_SYSROOT, &config.dst)
@@ -286,12 +305,12 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         }
 
         // Build rustc flags
-        let mut rustc_flags = tests::default_flags();
+        let mut rustc_flags = flux_dev::default_flags(&config.dst);
         rustc_flags.push("-Flean=emit".to_string());
         rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
 
         // Run the test
-        let result = Command::new(&flux)
+        let result = Command::new(&flux_driver)
             .args(&rustc_flags)
             .arg(test_path)
             .env(FLUX_SYSROOT, &config.dst)
@@ -351,7 +370,7 @@ fn run(args: Run, rust_fixpoint: bool) -> anyhow::Result<()> {
     let libs = if args.no_extern_specs { &[FluxLib::FluxRs] } else { FluxLib::ALL };
     run_inner(
         args.input,
-        BuildLibs { force: false, tests: false, libs },
+        BuildLibs { force: false, libs },
         ["-Ztrack-diagnostics=y".to_string()]
             .into_iter()
             .chain(args.opts),
@@ -363,7 +382,7 @@ fn run(args: Run, rust_fixpoint: bool) -> anyhow::Result<()> {
 fn expand(args: Expand) -> Result<(), anyhow::Error> {
     run_inner(
         args.input,
-        BuildLibs { force: false, tests: false, libs: &[FluxLib::FluxRs] },
+        BuildLibs { force: false, libs: &[FluxLib::FluxRs] },
         ["-Zunpretty=expanded".to_string()],
         false,
     )?;
@@ -383,13 +402,12 @@ fn run_inner(
         build_libs,
     };
 
-    install_sysroot(&config)?;
-    let flux = build_binary("flux", config.profile, false)?;
+    let flux_driver = install_sysroot(&config)?;
 
-    let mut rustc_flags = tests::default_flags();
+    let mut rustc_flags = flux_dev::default_flags(&config.dst);
     rustc_flags.extend(flags);
 
-    Command::new(flux)
+    Command::new(flux_driver)
         .args(&rustc_flags)
         .arg(&input)
         .env(FLUX_SYSROOT, &config.dst)
@@ -401,8 +419,8 @@ fn install(args: &Install, extra: &[&str], rust_fixpoint: bool) -> anyhow::Resul
     let config = SysrootConfig {
         profile: args.profile(),
         rust_fixpoint,
-        dst: default_sysroot_dir(),
-        build_libs: BuildLibs { force: false, tests: false, libs },
+        dst: default_flux_sysroot_dir(),
+        build_libs: BuildLibs { force: false, libs },
     };
     install_sysroot(&config)?;
     Command::new("cargo")
@@ -416,7 +434,7 @@ fn uninstall() -> anyhow::Result<()> {
         .args(["uninstall", "-p", "flux-bin"])
         .run()?;
     eprintln!("$ rm -rf ~/.flux");
-    remove_path(&default_sysroot_dir())?;
+    remove_path(&default_flux_sysroot_dir())?;
     Ok(())
 }
 
@@ -455,8 +473,6 @@ struct SysrootConfig {
 struct BuildLibs {
     /// If true, forces a clean build.
     force: bool,
-    /// If is true, run library tests.
-    tests: bool,
     /// List of libraries to install
     libs: &'static [FluxLib],
 }
@@ -500,11 +516,12 @@ impl FluxLib {
     }
 }
 
-fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
+fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
     remove_path(&config.dst)?;
     create_dir(&config.dst)?;
 
-    copy_file(build_binary("flux-driver", config.profile, config.rust_fixpoint)?, &config.dst)?;
+    let flux_driver = build_binary("flux-driver", config.profile, config.rust_fixpoint)?;
+    copy_file(&flux_driver, &config.dst)?;
 
     let cargo_flux = build_binary("cargo-flux", config.profile, config.rust_fixpoint)?;
 
@@ -514,9 +531,8 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
             .env(FLUX_SYSROOT, &config.dst)
             .run()?;
     }
-
-    let artifacts = Command::new(cargo_flux)
-        .arg("flux")
+    let artifacts = Command::new(&cargo_flux)
+        .args(["flux", "build"])
         .args(
             config
                 .build_libs
@@ -525,11 +541,10 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
                 .flat_map(|lib| ["-p", lib.package_name()]),
         )
         .env(FLUX_SYSROOT, &config.dst)
-        .env_if(config.build_libs.tests, FLUX_SYSROOT_TEST, "1")
         .run_with_cargo_metadata()?;
-
     copy_artifacts(&artifacts, &config.dst)?;
-    Ok(())
+    write_sysroot_toml(&artifacts, &config.dst)?;
+    Ok(flux_driver)
 }
 
 fn copy_artifacts(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<()> {
@@ -571,16 +586,42 @@ fn copy_artifact(filename: &Utf8Path, dst: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn write_sysroot_toml(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<()> {
+    use flux_sysroot::SysrootManifest;
+
+    let mut manifest = SysrootManifest::default();
+    for artifact in artifacts {
+        let Some(lib) = [FluxLib::FluxCore, FluxLib::FluxAlloc]
+            .iter()
+            .find(|lib| artifact.target.name == lib.target_name())
+        else {
+            continue;
+        };
+        for filename in &artifact.filenames {
+            if filename.extension() == Some("rmeta") {
+                manifest.extern_specs.insert(
+                    lib.target_name().to_string(),
+                    filename.file_name().unwrap().to_string(),
+                );
+                break;
+            }
+        }
+    }
+
+    if manifest.extern_specs.is_empty() {
+        return Ok(());
+    }
+
+    let content = toml::to_string(&manifest)?;
+    let path = sysroot.join("sysroot.toml");
+    eprintln!("$ write {}", path.display());
+    fs::write(&path, &content).map_err(|e| anyhow!("failed to write `{}`: {e}", path.display()))
+}
+
 impl Install {
     fn profile(&self) -> Profile {
         self.profile.unwrap_or(Profile::Release)
     }
-}
-
-fn default_sysroot_dir() -> PathBuf {
-    home::home_dir()
-        .expect("Couldn't find home directory")
-        .join(".flux")
 }
 
 fn local_sysroot_dir() -> anyhow::Result<PathBuf> {
@@ -648,34 +689,11 @@ fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(src: S, dst: D) -> anyhow::Result<(
 }
 
 trait CommandExt {
-    fn map_opt<T>(&mut self, b: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self;
     fn run(&mut self) -> anyhow::Result<()>;
-    fn env_if<K, V>(&mut self, b: bool, k: K, v: V) -> &mut Self
-    where
-        K: AsRef<OsStr>,
-        V: AsRef<OsStr>;
     fn run_with_cargo_metadata(&mut self) -> anyhow::Result<Vec<Artifact>>;
 }
 
 impl CommandExt for Command {
-    fn map_opt<T>(&mut self, opt: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self {
-        if let Some(v) = opt {
-            f(v, self);
-        }
-        self
-    }
-
-    fn env_if<K, V>(&mut self, b: bool, k: K, v: V) -> &mut Self
-    where
-        K: AsRef<OsStr>,
-        V: AsRef<OsStr>,
-    {
-        if b {
-            self.env(k, v);
-        }
-        self
-    }
-
     fn run(&mut self) -> anyhow::Result<()> {
         display_command(self);
         let mut child = self.spawn()?;

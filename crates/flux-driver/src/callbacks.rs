@@ -43,6 +43,10 @@ impl Callbacks for FluxCallbacks {
         // about symbol interning are wrong.
         assert!(config.extra_symbols.is_empty());
         config.extra_symbols = flux_syntax::symbols::PREDEFINED_FLUX_SYMBOLS.to_vec();
+
+        if flux_config::std_extern_specs() {
+            inject_std_extern_specs(config);
+        }
     }
 
     fn after_analysis(&mut self, compiler: &Compiler, tcx: TyCtxt<'_>) -> Compilation {
@@ -64,6 +68,7 @@ impl FluxCallbacks {
         );
 
         let mut providers = Providers::default();
+        flux_opt::provide(&mut providers);
         flux_desugar::provide(&mut providers);
         flux_fhir_analysis::provide(&mut providers);
         providers.collect_specs = collect_specs;
@@ -80,6 +85,54 @@ impl FluxCallbacks {
         let _ = metrics::print_and_dump_timings(tcx);
         sess.finish_diagnostics();
     }
+}
+
+fn load_extern_specs() -> Vec<(String, std::path::PathBuf)> {
+    use flux_sysroot::SysrootManifest;
+    let Some(sysroot) = config::sysroot() else { return vec![] };
+    let Ok(content) = std::fs::read_to_string(sysroot.join("sysroot.toml")) else { return vec![] };
+    let Ok(manifest) = toml::from_str::<SysrootManifest>(&content) else { return vec![] };
+    manifest
+        .extern_specs
+        .into_iter()
+        .map(|(name, rmeta)| (name, sysroot.join(&rmeta)))
+        .collect()
+}
+
+fn inject_std_extern_specs(config: &mut rustc_interface::interface::Config) {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use rustc_session::{
+        config::{ExternEntry, ExternLocation, Externs},
+        utils::CanonicalizedPath,
+    };
+
+    let specs = load_extern_specs();
+    if specs.is_empty() {
+        return;
+    }
+
+    let mut map: BTreeMap<String, ExternEntry> = config
+        .opts
+        .externs
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+
+    for (crate_name, rmeta_path) in specs {
+        let entry = ExternEntry {
+            location: ExternLocation::ExactPaths(BTreeSet::from([CanonicalizedPath::new(
+                rmeta_path,
+            )])),
+            is_private_dep: false,
+            add_prelude: true,
+            nounused_dep: true,
+            force: true,
+        };
+        map.insert(crate_name, entry);
+    }
+
+    config.opts.externs = Externs::new(map);
 }
 
 fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {

@@ -68,3 +68,9 @@ pub fn test_split_last(xs: &[i32]) {
 pub fn test_split_at_checked(xs: &[i32], mid: usize) {
     assert(xs.split_at_checked(mid).is_some()); //~ ERROR refinement type error
 }
+
+// --- Range index ---
+
+pub fn test_range_index_oob(xs: &[i32]) {
+    let _y = &xs[0..1]; //~ ERROR refinement type error
+}
