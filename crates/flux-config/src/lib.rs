@@ -152,7 +152,7 @@ pub fn std_extern_specs() -> bool {
 }
 
 pub fn verbose() -> bool {
-    FLAGS.verbose
+    FLAGS.flux_verbose
 }
 
 #[derive(Clone, Debug, Deserialize)]
