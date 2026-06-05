@@ -1,7 +1,7 @@
 use std::{env, path::PathBuf, process, str::FromStr, sync::LazyLock};
 
-pub use toml::Value;
 use clap::Args;
+pub use toml::Value;
 use tracing::Level;
 
 use crate::{IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver};
@@ -16,7 +16,6 @@ macro_rules! flux_arg {
 
 /// Exit status code used for invalid flags.
 pub const EXIT_FAILURE: i32 = 2;
-
 
 #[derive(Args)]
 #[command(next_help_heading = "Flux-Specific Flags (Not Yet Supported)")]
