@@ -481,7 +481,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             let args = self.infcx.path_args(path.fhir_id);
             for (i, expr) in path.refine.iter().enumerate() {
                 let Ok(param) = generics.param_at(i, genv).emit(&self.errors) else { return };
-                let param = param.instantiate(genv.tcx(), &args, &[]);
+                let param = param.instantiate(genv.tcx(), &args, &[], path.span);
                 self.check_expr(expr, &param.sort);
             }
         };

@@ -66,9 +66,10 @@ impl GlobalEnv<'_, '_> {
         match self.def_kind(alias_ty.def_id) {
             DefKind::Impl { .. } => Ok(self.sort_of_self_ty_alias(alias_ty.def_id)?.unwrap()),
             DefKind::TyAlias => {
+                let span = self.tcx().def_span(alias_ty.def_id);
                 Ok(self
                     .type_of(alias_ty.def_id)?
-                    .instantiate(self.tcx(), &alias_ty.args, &alias_ty.refine_args)
+                    .instantiate(self.tcx(), &alias_ty.args, &alias_ty.refine_args, span)
                     .expect_ctor()
                     .sort())
             }
@@ -122,8 +123,9 @@ impl rty::BaseTy {
 
 impl rty::AliasReft {
     pub fn fsort(&self, genv: GlobalEnv) -> QueryResult<rty::FuncSort> {
+        let span = genv.tcx().def_span(self.assoc_id.parent());
         Ok(genv
             .sort_of_assoc_reft(self.assoc_id)?
-            .instantiate(genv.tcx(), &self.args, &[]))
+            .instantiate(genv.tcx(), &self.args, &[], span))
     }
 }
