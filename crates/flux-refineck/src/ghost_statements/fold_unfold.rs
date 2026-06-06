@@ -445,7 +445,10 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
             | TerminatorKind::UnwindResume
             | TerminatorKind::CoroutineDrop => {}
         }
-        Ok(successors)
+        Ok(successors
+            .into_iter()
+            .map(|(env, target)| (env, self.body.real_successor(target)))
+            .collect())
     }
 
     fn goto(&mut self, target: BasicBlock, env: Env) -> QueryResult {

@@ -103,6 +103,8 @@ pub struct Body<'tcx> {
     pub dominator_order_rank: IndexVec<BasicBlock, u32>,
     /// See [`mk_fake_predecessors`]
     fake_predecessors: IndexVec<BasicBlock, usize>,
+    /// True for blocks that are only `nop*; goto` and have multiple incoming edges.
+    dummy_basic_blocks: IndexVec<BasicBlock, bool>,
     pub local_names: UnordMap<Local, Symbol>,
     /// A mir body that contains region identifiers.
     pub rustc_body: rustc_middle::mir::Body<'tcx>,
@@ -419,6 +421,7 @@ impl<'tcx> Body<'tcx> {
         rustc_body: rustc_middle::mir::Body<'tcx>,
     ) -> Self {
         let fake_predecessors = mk_fake_predecessors(&basic_blocks);
+        let dummy_basic_blocks = mk_dummy_basic_blocks(&basic_blocks, &rustc_body, &fake_predecessors);
 
         // The dominator rank of each node is just its index in a reverse-postorder traversal.
         let graph = &rustc_body.basic_blocks;
@@ -444,6 +447,7 @@ impl<'tcx> Body<'tcx> {
             basic_blocks,
             local_decls,
             fake_predecessors,
+            dummy_basic_blocks,
             dominator_order_rank,
             local_names,
             rustc_body,
@@ -486,6 +490,36 @@ impl<'tcx> Body<'tcx> {
     pub fn return_ty(&self) -> Ty {
         self.local_decls[RETURN_PLACE].ty.clone()
     }
+
+    pub fn is_dummy_basic_block(&self, bb: BasicBlock) -> bool {
+        self.dummy_basic_blocks[bb]
+    }
+
+    pub fn real_successor(&self, mut bb: BasicBlock) -> BasicBlock {
+        let mut remaining = self.basic_blocks.len();
+        while remaining > 0 && self.is_dummy_basic_block(bb) {
+            remaining -= 1;
+            let Some(terminator) = self.basic_blocks[bb].terminator.as_ref() else {
+                break;
+            };
+            if let TerminatorKind::Goto { target } = terminator.kind {
+                bb = target;
+            } else {
+                break;
+            }
+        }
+        bb
+    }
+
+    pub fn real_successors(&self, bb: BasicBlock) -> Vec<BasicBlock> {
+        let Some(terminator) = self.basic_blocks[bb].terminator.as_ref() else {
+            return vec![];
+        };
+        direct_successors(terminator)
+            .into_iter()
+            .map(|target| self.real_successor(target))
+            .collect()
+    }
 }
 
 /// The `FalseEdge/imaginary_target` edges mess up the `is_join_point` computation which creates spurious
@@ -509,6 +543,42 @@ fn mk_fake_predecessors(
         }
     }
     res
+}
+
+fn mk_dummy_basic_blocks(
+    basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
+    rustc_body: &rustc_middle::mir::Body<'_>,
+    fake_predecessors: &IndexVec<BasicBlock, usize>,
+) -> IndexVec<BasicBlock, bool> {
+    let mut res = IndexVec::from_elem_n(false, basic_blocks.len());
+    for (bb, data) in basic_blocks.iter_enumerated() {
+        let real_preds = rustc_body.basic_blocks.predecessors()[bb].len() - fake_predecessors[bb];
+        let has_multiple_incoming = real_preds > 1;
+        let is_nop_only = data.statements.iter().all(Statement::is_nop);
+        let is_single_goto = matches!(
+            data.terminator.as_ref().map(|terminator| &terminator.kind),
+            Some(TerminatorKind::Goto { .. })
+        );
+        res[bb] = has_multiple_incoming && is_nop_only && is_single_goto;
+    }
+    res
+}
+
+fn direct_successors(terminator: &Terminator<'_>) -> Vec<BasicBlock> {
+    match &terminator.kind {
+        TerminatorKind::Call { target, .. } => target.iter().copied().collect(),
+        TerminatorKind::SwitchInt { targets, .. } => targets.all_targets().iter().copied().collect(),
+        TerminatorKind::Goto { target } => vec![*target],
+        TerminatorKind::Drop { target, .. } => vec![*target],
+        TerminatorKind::Assert { target, .. } => vec![*target],
+        TerminatorKind::FalseEdge { real_target, .. } => vec![*real_target],
+        TerminatorKind::FalseUnwind { real_target, .. } => vec![*real_target],
+        TerminatorKind::Yield { resume, .. } => vec![*resume],
+        TerminatorKind::Return
+        | TerminatorKind::Unreachable
+        | TerminatorKind::CoroutineDrop
+        | TerminatorKind::UnwindResume => vec![],
+    }
 }
 
 impl fmt::Debug for Body<'_> {
