@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "*": "ask",
+    "bash": {
+        "cargo *": "allow",
+    },
+    "read": {
+      "/Users/cole/git/flux/*": "allow",
+    },
+    "write": {
+      "/Users/cole/git/flux/*": "allow",
+    },
+    "glob": {
+      "/Users/cole/git/flux/*": "allow",
+    },
+    "grep": {
+      "/Users/cole/git/flux/*": "allow",
+    },
+  }
+}

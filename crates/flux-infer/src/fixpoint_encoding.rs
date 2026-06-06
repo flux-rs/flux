@@ -581,7 +581,7 @@ pub fn lean_task_key(tcx: rustc_middle::ty::TyCtxt, def_id: DefId) -> String {
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
-    Tag: std::hash::Hash + Eq + Copy,
+    Tag: std::hash::Hash + Eq + Clone,
 {
     pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
@@ -704,7 +704,7 @@ where
                 metrics::incr_metric(Metric::CsError, errors.len() as u32);
                 errors
                     .into_iter()
-                    .map(|err| self.tags[err.tag])
+                    .map(|err| self.tags[err.tag].clone())
                     .unique()
                     .collect_vec()
             }
@@ -921,11 +921,13 @@ where
     where
         Tag: std::fmt::Debug,
     {
-        *self.tags_inv.entry(tag).or_insert_with(|| {
-            let idx = self.tags.push(tag);
-            self.comments.push(format!("Tag {idx}: {tag:?}"));
-            idx
-        })
+        if let Some(&idx) = self.tags_inv.get(&tag) {
+            return idx;
+        }
+        let idx = self.tags.push(tag.clone());
+        self.comments.push(format!("Tag {idx}: {tag:?}"));
+        self.tags_inv.insert(tag, idx);
+        idx
     }
 
     pub(crate) fn with_early_param(&mut self, param: &EarlyReftParam) {
@@ -962,7 +964,7 @@ where
     pub(crate) fn head_to_fixpoint(
         &mut self,
         expr: &rty::Expr,
-        mk_tag: impl Fn(Option<ESpan>) -> Tag + Copy,
+        mk_tag: &impl Fn(Option<ESpan>) -> Tag,
     ) -> QueryResult<fixpoint::Constraint>
     where
         Tag: std::fmt::Debug,

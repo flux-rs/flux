@@ -13,7 +13,7 @@ use crate::fixpoint_encoding::FixpointSolution;
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
-    Tag: std::hash::Hash + Eq + Copy,
+    Tag: std::hash::Hash + Eq + Clone,
 {
     pub(crate) fn fixpoint_to_solution(
         &mut self,

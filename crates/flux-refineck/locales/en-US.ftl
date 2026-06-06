@@ -3,7 +3,7 @@
 refineck_goto_error = flux internal error (this should not happen): cannot prove join point jump condition
 
 refineck_assign_error =
-    assignment might be unsafe
+    assignment might be unsafe: expected `{$ty1}` but got `{$ty2}`
 
 refineck_condition_span_note =
     this is the condition that cannot be proved

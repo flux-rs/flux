@@ -390,7 +390,7 @@ impl Node {
                 if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
                 } else {
-                    self.kind = NodeKind::Head(pred, *tag);
+                    self.kind = NodeKind::Head(pred, tag.clone());
                 }
             }
             NodeKind::Assumption(pred) => {
@@ -517,7 +517,7 @@ impl Node {
                 Some(fixpoint::Constraint::foralls(bindings, cstr))
             }
             NodeKind::Head(pred, tag) => {
-                Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span))?)
+                Some(cx.head_to_fixpoint(pred, &|span| tag.with_dst(span))?)
             }
             NodeKind::True => None,
         };
@@ -844,7 +844,7 @@ impl Node {
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
                 let pred = assignment.simplify(pred);
-                self.kind = NodeKind::Head(pred, *tag);
+                self.kind = NodeKind::Head(pred, tag.clone());
             }
             NodeKind::Assumption(pred) => {
                 let pred = assignment.simplify(pred);

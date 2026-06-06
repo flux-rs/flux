@@ -42,7 +42,7 @@ use crate::{
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
 
-#[derive(PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub struct Tag {
     pub reason: ConstrReason,
     pub src_span: Span,
@@ -54,8 +54,8 @@ impl Tag {
         Self { reason, src_span: span, dst_span: None }
     }
 
-    pub fn with_dst(self, dst_span: Option<ESpan>) -> Self {
-        Self { dst_span, ..self }
+    pub fn with_dst(&self, dst_span: Option<ESpan>) -> Self {
+        Self { reason: self.reason.clone(), src_span: self.src_span, dst_span }
     }
 }
 
@@ -67,10 +67,11 @@ pub enum SubtypeReason {
     Ensures,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub enum ConstrReason {
     Call,
-    Assign,
+    /// Assignee Ty, Assignment Ty
+    Assign(Ty, Ty),
     Ret,
     Fold,
     FoldLocal,
@@ -611,8 +612,8 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
                 let term = projection_pred.term.to_ty().deeply_normalize(self)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
-                self.subtyping(&impl_elem, &term, reason)?;
-                self.subtyping(&term, &impl_elem, reason)?;
+                self.subtyping(&impl_elem, &term, reason.clone())?;
+                self.subtyping(&term, &impl_elem, reason.clone())?;
             }
         }
         Ok(())
@@ -681,7 +682,7 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
 
             // Check arguments
             for (actual, formal) in iter::zip(fields, variant.fields()) {
-                this.subtyping(actual, formal, reason)?;
+                this.subtyping(actual, formal, reason.clone())?;
             }
 
             // Check requires predicates
@@ -802,7 +803,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
     }
 
     fn tag(&self) -> Tag {
-        Tag::new(self.reason, self.span)
+        Tag::new(self.reason.clone(), self.span)
     }
 
     fn tys(&mut self, infcx: &mut InferCtxt, a: &Ty, b: &Ty) -> InferResult {
@@ -865,7 +866,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
 
                 self.env.ptr_to_ref(
                     &mut infcx.at(self.span),
-                    self.reason,
+                    self.reason.clone(),
                     *re,
                     path,
                     bound.clone(),

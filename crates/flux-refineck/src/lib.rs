@@ -216,7 +216,13 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
             | ConstrReason::Subtype(SubtypeReason::Input)
             | ConstrReason::Subtype(SubtypeReason::Requires)
             | ConstrReason::Predicate => call_error(genv, span, err.dst_span),
-            ConstrReason::Assign => genv.sess().emit_err(errors::AssignError { span }),
+            ConstrReason::Assign(ty1, ty2) => {
+                genv.sess().emit_err(errors::AssignError {
+                    span,
+                    ty1: format!("{ty1:?}"),
+                    ty2: format!("{ty2:?}"),
+                })
+            }
             ConstrReason::Ret
             | ConstrReason::Subtype(SubtypeReason::Output)
             | ConstrReason::Subtype(SubtypeReason::Ensures) => ret_error(genv, span, err.dst_span),
@@ -269,6 +275,8 @@ mod errors {
     pub struct AssignError {
         #[primary_span]
         pub span: Span,
+        pub ty1: String,
+        pub ty2: String,
     }
 
     #[derive(Subdiagnostic)]
