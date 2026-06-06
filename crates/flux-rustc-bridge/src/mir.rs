@@ -421,7 +421,8 @@ impl<'tcx> Body<'tcx> {
         rustc_body: rustc_middle::mir::Body<'tcx>,
     ) -> Self {
         let fake_predecessors = mk_fake_predecessors(&basic_blocks);
-        let dummy_basic_blocks = mk_dummy_basic_blocks(&basic_blocks, &rustc_body, &fake_predecessors);
+        let dummy_basic_blocks =
+            mk_dummy_basic_blocks(&basic_blocks, &rustc_body, &fake_predecessors);
 
         // The dominator rank of each node is just its index in a reverse-postorder traversal.
         let graph = &rustc_body.basic_blocks;
@@ -496,9 +497,10 @@ impl<'tcx> Body<'tcx> {
     }
 
     pub fn real_successor(&self, mut bb: BasicBlock) -> BasicBlock {
-        let mut remaining = self.basic_blocks.len();
-        while remaining > 0 && self.is_dummy_basic_block(bb) {
-            remaining -= 1;
+        // Bound traversal to avoid looping forever on malformed cyclic dummy chains.
+        let mut max_hops = self.basic_blocks.len();
+        while max_hops > 0 && self.is_dummy_basic_block(bb) {
+            max_hops -= 1;
             let Some(terminator) = self.basic_blocks[bb].terminator.as_ref() else {
                 break;
             };
@@ -552,8 +554,9 @@ fn mk_dummy_basic_blocks(
 ) -> IndexVec<BasicBlock, bool> {
     let mut res = IndexVec::from_elem_n(false, basic_blocks.len());
     for (bb, data) in basic_blocks.iter_enumerated() {
-        let real_preds = rustc_body.basic_blocks.predecessors()[bb].len() - fake_predecessors[bb];
-        let has_multiple_incoming = real_preds > 1;
+        let real_predecessor_count =
+            rustc_body.basic_blocks.predecessors()[bb].len() - fake_predecessors[bb];
+        let has_multiple_incoming = real_predecessor_count > 1;
         let is_nop_only = data.statements.iter().all(Statement::is_nop);
         let is_single_goto = matches!(
             data.terminator.as_ref().map(|terminator| &terminator.kind),
@@ -567,7 +570,9 @@ fn mk_dummy_basic_blocks(
 fn direct_successors(terminator: &Terminator<'_>) -> Vec<BasicBlock> {
     match &terminator.kind {
         TerminatorKind::Call { target, .. } => target.iter().copied().collect(),
-        TerminatorKind::SwitchInt { targets, .. } => targets.all_targets().iter().copied().collect(),
+        TerminatorKind::SwitchInt { targets, .. } => {
+            targets.all_targets().iter().copied().collect()
+        }
         TerminatorKind::Goto { target } => vec![*target],
         TerminatorKind::Drop { target, .. } => vec![*target],
         TerminatorKind::Assert { target, .. } => vec![*target],

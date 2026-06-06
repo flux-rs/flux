@@ -831,11 +831,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
                     .with_span(terminator_span)?;
 
-                if let Some(target) = target {
-                    vec![(*target, Guard::None)]
-                } else {
-                    vec![]
-                }
+                if let Some(target) = target { vec![(*target, Guard::None)] } else { vec![] }
             }
             TerminatorKind::Assert { cond, expected, target, msg } => {
                 vec![(
