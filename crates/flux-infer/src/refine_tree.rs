@@ -29,7 +29,7 @@ use serde::Serialize;
 use crate::{
     evars::EVarStore,
     fixpoint_encoding::{FixpointCtxt, fixpoint},
-    infer::{Tag, TypeTrace},
+    infer::{ConstraintInfo, Tag, TypeTrace},
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
@@ -443,8 +443,22 @@ impl Node {
         }
         match &mut self.kind {
             NodeKind::Assumption(pred) => *pred = evars.replace_evars(pred)?,
-            NodeKind::Head(pred, _) => {
+            NodeKind::Head(pred, tag) => {
                 *pred = evars.replace_evars(pred)?;
+                // Resolve evars in TypeMismatch info for better error messages.
+                // We intentionally do NOT resolve evars in Predicate info because
+                // constant folding during resolution reduces the predicate to
+                // trivial true/false values, losing the meaningful structure.
+                // The pretty-printer evaluates constant expressions, so
+                // `BinaryOp(Lt, 1000, 400)` would display as `false`.
+                if let Some(ConstraintInfo::TypeMismatch { expected, got }) = &mut tag.info {
+                    if let Ok(resolved) = evars.replace_evars(expected) {
+                        *expected = resolved;
+                    }
+                    if let Ok(resolved) = evars.replace_evars(got) {
+                        *got = resolved;
+                    }
+                }
             }
             NodeKind::Trace(trace) => {
                 evars.replace_evars(trace)?;
@@ -517,7 +531,7 @@ impl Node {
                 Some(fixpoint::Constraint::foralls(bindings, cstr))
             }
             NodeKind::Head(pred, tag) => {
-                Some(cx.head_to_fixpoint(pred, &|span| tag.with_dst(span))?)
+                Some(cx.head_to_fixpoint(pred, &|span, _| tag.with_dst(span))?)
             }
             NodeKind::True => None,
         };

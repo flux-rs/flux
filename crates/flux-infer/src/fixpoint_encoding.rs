@@ -964,7 +964,7 @@ where
     pub(crate) fn head_to_fixpoint(
         &mut self,
         expr: &rty::Expr,
-        mk_tag: &impl Fn(Option<ESpan>) -> Tag,
+        mk_tag: &impl Fn(Option<ESpan>, &rty::Expr) -> Tag,
     ) -> QueryResult<fixpoint::Constraint>
     where
         Tag: std::fmt::Debug,
@@ -1009,7 +1009,7 @@ where
                 Ok(fixpoint::Constraint::foralls(bindings, cstr))
             }
             _ => {
-                let tag_idx = self.tag_idx(mk_tag(expr.span()));
+                let tag_idx = self.tag_idx(mk_tag(expr.span(), expr));
                 let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
             }

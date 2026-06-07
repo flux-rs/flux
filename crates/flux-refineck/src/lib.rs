@@ -217,14 +217,29 @@ fn ret_error(
         .emit_err(errors::RefineError::ret(span, dst_span, constraint_note))
 }
 
-fn make_constraint_note(info: Option<ConstraintInfo>) -> Option<errors::ConstraintNote> {
+fn make_constraint_note(
+    info: Option<ConstraintInfo>,
+    dst_span: Option<ESpan>,
+) -> Option<errors::ConstraintNote> {
     info.map(|info| match info {
         ConstraintInfo::TypeMismatch { expected, got } => errors::ConstraintNote::TypeMismatch {
             expected: format!("{expected:?}"),
             got: format!("{got:?}"),
         },
         ConstraintInfo::Predicate(expr) => {
-            errors::ConstraintNote::Predicate { predicate: format!("{expr:?}") }
+            // Try to narrow to the specific failing conjunct by matching dst_span.
+            // The fixpoint encoding splits conjunctions and assigns each conjunct its own
+            // dst_span, so we can identify which conjunct failed.
+            let narrowed = if let Some(dst) = dst_span {
+                expr.flatten_conjs()
+                    .into_iter()
+                    .find(|conj| conj.span() == Some(dst))
+                    .cloned()
+                    .unwrap_or_else(|| expr.clone())
+            } else {
+                expr
+            };
+            errors::ConstraintNote::Predicate { predicate: format!("{narrowed:?}") }
         }
     })
 }
@@ -233,7 +248,7 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
     let mut e = None;
     for err in errors {
         let span = err.src_span;
-        let note = make_constraint_note(err.info);
+        let note = make_constraint_note(err.info, err.dst_span);
         e = Some(match err.reason {
             ConstrReason::Call
             | ConstrReason::Subtype(SubtypeReason::Input)
