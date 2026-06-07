@@ -134,6 +134,15 @@ pub fn pprint_with_default_cx<T: Pretty>(
     })
 }
 
+/// Format a [`Pretty`] value without simplifying expressions (no constant folding).
+pub fn format_unsimplified<T: Pretty>(t: &T) -> String {
+    rustc_middle::ty::tls::with(|tcx| {
+        let mut cx = <T>::default_cx(tcx);
+        cx.simplify_exprs = false;
+        format!("{:?}", WithCx::new(&cx, t))
+    })
+}
+
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 use crate::{
     global_env::GlobalEnv,

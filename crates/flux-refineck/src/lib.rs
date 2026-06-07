@@ -42,6 +42,7 @@ use flux_middle::{
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
+    pretty::format_unsimplified,
     rty::{self, ESpan},
 };
 use rustc_data_structures::unord::UnordMap;
@@ -239,7 +240,9 @@ fn make_constraint_note(
             } else {
                 expr
             };
-            errors::ConstraintNote::Predicate { predicate: format!("{narrowed:?}") }
+            // Use format_unsimplified to avoid constant folding by the pretty-printer
+            // (e.g., `1000 < 400` should display as-is, not be reduced to `false`)
+            errors::ConstraintNote::Predicate { predicate: format_unsimplified(&narrowed) }
         }
     })
 }
