@@ -34,7 +34,7 @@ use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{FixQueryCache, SolutionTrace},
-    infer::{ConstrReason, SubtypeReason, Tag},
+    infer::{ConstraintInfo, ConstrReason, SubtypeReason, Tag},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -197,42 +197,63 @@ pub fn check_fn(
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| Ok(()))
 }
 
-fn call_error(genv: GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
+fn call_error(
+    genv: GlobalEnv,
+    span: Span,
+    dst_span: Option<ESpan>,
+    constraint_note: Option<errors::ConstraintNote>,
+) -> ErrorGuaranteed {
     genv.sess()
-        .emit_err(errors::RefineError::call(span, dst_span))
+        .emit_err(errors::RefineError::call(span, dst_span, constraint_note))
 }
 
-fn ret_error(genv: GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
+fn ret_error(
+    genv: GlobalEnv,
+    span: Span,
+    dst_span: Option<ESpan>,
+    constraint_note: Option<errors::ConstraintNote>,
+) -> ErrorGuaranteed {
     genv.sess()
-        .emit_err(errors::RefineError::ret(span, dst_span))
+        .emit_err(errors::RefineError::ret(span, dst_span, constraint_note))
+}
+
+fn make_constraint_note(info: Option<ConstraintInfo>) -> Option<errors::ConstraintNote> {
+    info.map(|info| match info {
+        ConstraintInfo::TypeMismatch { expected, got } => errors::ConstraintNote::TypeMismatch {
+            expected: format!("{expected:?}"),
+            got: format!("{got:?}"),
+        },
+        ConstraintInfo::Predicate(expr) => {
+            errors::ConstraintNote::Predicate { predicate: format!("{expr:?}") }
+        }
+    })
 }
 
 fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuaranteed> {
     let mut e = None;
     for err in errors {
         let span = err.src_span;
+        let note = make_constraint_note(err.info);
         e = Some(match err.reason {
             ConstrReason::Call
             | ConstrReason::Subtype(SubtypeReason::Input)
             | ConstrReason::Subtype(SubtypeReason::Requires)
-            | ConstrReason::Predicate => call_error(genv, span, err.dst_span),
-            ConstrReason::Assign(ty1, ty2) => {
-                genv.sess().emit_err(errors::AssignError {
-                    span,
-                    ty1: format!("{ty1:?}"),
-                    ty2: format!("{ty2:?}"),
-                })
+            | ConstrReason::Predicate => call_error(genv, span, err.dst_span, note),
+            ConstrReason::Assign => {
+                genv.sess().emit_err(errors::AssignError { span, constraint_note: note })
             }
             ConstrReason::Ret
             | ConstrReason::Subtype(SubtypeReason::Output)
-            | ConstrReason::Subtype(SubtypeReason::Ensures) => ret_error(genv, span, err.dst_span),
+            | ConstrReason::Subtype(SubtypeReason::Ensures) => {
+                ret_error(genv, span, err.dst_span, note)
+            }
             ConstrReason::Div => genv.sess().emit_err(errors::DivError { span }),
             ConstrReason::Rem => genv.sess().emit_err(errors::RemError { span }),
             ConstrReason::Goto(_) => genv.sess().emit_err(errors::GotoError { span }),
             ConstrReason::Assert(msg) => genv.sess().emit_err(errors::AssertError { span, msg }),
             ConstrReason::Fold | ConstrReason::FoldLocal => {
                 genv.sess()
-                    .emit_err(errors::FoldError::new(span, err.dst_span))
+                    .emit_err(errors::FoldError::new(span, err.dst_span, note))
             }
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
             ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
@@ -263,6 +284,15 @@ mod errors {
     use flux_middle::rty::ESpan;
     use rustc_span::Span;
 
+    /// Rich constraint diagnostic note, attached as a subdiagnostic to errors that benefit from it.
+    #[derive(Subdiagnostic)]
+    pub(crate) enum ConstraintNote {
+        #[note(refineck_type_mismatch_note)]
+        TypeMismatch { expected: String, got: String },
+        #[note(refineck_condition_note)]
+        Predicate { predicate: String },
+    }
+
     #[derive(Diagnostic)]
     #[diag(refineck_goto_error, code = E0999)]
     pub struct GotoError {
@@ -275,8 +305,8 @@ mod errors {
     pub struct AssignError {
         #[primary_span]
         pub span: Span,
-        pub ty1: String,
-        pub ty2: String,
+        #[subdiagnostic]
+        pub constraint_note: Option<ConstraintNote>,
     }
 
     #[derive(Subdiagnostic)]
@@ -304,25 +334,27 @@ mod errors {
         span_note: Option<ConditionSpanNote>,
         #[subdiagnostic]
         call_span_note: Option<CallSpanNote>,
+        #[subdiagnostic]
+        constraint_note: Option<ConstraintNote>,
     }
 
     impl RefineError {
-        pub fn call(span: Span, espan: Option<ESpan>) -> Self {
-            RefineError::new("precondition", span, espan)
+        pub fn call(span: Span, espan: Option<ESpan>, constraint_note: Option<ConstraintNote>) -> Self {
+            RefineError::new("precondition", span, espan, constraint_note)
         }
 
-        pub fn ret(span: Span, espan: Option<ESpan>) -> Self {
-            RefineError::new("postcondition", span, espan)
+        pub fn ret(span: Span, espan: Option<ESpan>, constraint_note: Option<ConstraintNote>) -> Self {
+            RefineError::new("postcondition", span, espan, constraint_note)
         }
 
-        fn new(cond: &'static str, span: Span, espan: Option<ESpan>) -> RefineError {
+        fn new(cond: &'static str, span: Span, espan: Option<ESpan>, constraint_note: Option<ConstraintNote>) -> RefineError {
             match espan {
                 Some(dst_span) => {
                     let span_note = Some(ConditionSpanNote { span: dst_span.span });
                     let call_span_note = dst_span.base.map(|span| CallSpanNote { span });
-                    RefineError { span, cond, span_note, call_span_note }
+                    RefineError { span, cond, span_note, call_span_note, constraint_note }
                 }
-                None => RefineError { span, cond, span_note: None, call_span_note: None },
+                None => RefineError { span, cond, span_note: None, call_span_note: None, constraint_note },
             }
         }
     }
@@ -356,12 +388,14 @@ mod errors {
         pub span: Span,
         #[subdiagnostic]
         span_note: Option<ConditionSpanNote>,
+        #[subdiagnostic]
+        constraint_note: Option<ConstraintNote>,
     }
 
     impl FoldError {
-        pub fn new(span: Span, espan: Option<ESpan>) -> Self {
+        pub fn new(span: Span, espan: Option<ESpan>, constraint_note: Option<ConstraintNote>) -> Self {
             let span_note = espan.map(|espan| ConditionSpanNote { span: espan.span });
-            FoldError { span, span_note }
+            FoldError { span, span_note, constraint_note }
         }
     }
 

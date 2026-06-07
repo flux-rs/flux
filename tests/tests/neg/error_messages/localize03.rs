@@ -10,4 +10,5 @@ fn f(s: S, x: i32) {}
 fn g(s: S) {
     f(s, 0); //~ ERROR refinement type
              //~| NOTE a precondition cannot be proved
+             //~| NOTE this condition cannot be proved
 }

@@ -42,20 +42,53 @@ use crate::{
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
 
-#[derive(PartialEq, Eq, Clone, Hash)]
+/// Rich diagnostic information attached to a constraint tag.
+/// Intentionally excluded from `Hash`/`PartialEq`/`Eq` on [`Tag`] so that
+/// error deduplication (by reason + src_span + dst_span) is not affected.
+#[derive(Clone, Debug)]
+pub enum ConstraintInfo {
+    TypeMismatch { expected: Ty, got: Ty },
+    Predicate(Expr),
+}
+
+#[derive(Clone)]
 pub struct Tag {
     pub reason: ConstrReason,
     pub src_span: Span,
     pub dst_span: Option<ESpan>,
+    /// Rich diagnostic info — excluded from dedup key (not in Hash/PartialEq/Eq).
+    pub info: Option<ConstraintInfo>,
+}
+
+impl PartialEq for Tag {
+    fn eq(&self, other: &Self) -> bool {
+        self.reason == other.reason
+            && self.src_span == other.src_span
+            && self.dst_span == other.dst_span
+    }
+}
+
+impl Eq for Tag {}
+
+impl std::hash::Hash for Tag {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.reason.hash(state);
+        self.src_span.hash(state);
+        self.dst_span.hash(state);
+    }
 }
 
 impl Tag {
     pub fn new(reason: ConstrReason, span: Span) -> Self {
-        Self { reason, src_span: span, dst_span: None }
+        Self { reason, src_span: span, dst_span: None, info: None }
     }
 
     pub fn with_dst(&self, dst_span: Option<ESpan>) -> Self {
-        Self { reason: self.reason.clone(), src_span: self.src_span, dst_span }
+        Self { reason: self.reason, src_span: self.src_span, dst_span, info: self.info.clone() }
+    }
+
+    pub fn with_info(self, info: ConstraintInfo) -> Self {
+        Self { info: Some(info), ..self }
     }
 }
 
@@ -67,11 +100,10 @@ pub enum SubtypeReason {
     Ensures,
 }
 
-#[derive(PartialEq, Eq, Clone, Hash, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
 pub enum ConstrReason {
     Call,
-    /// Assignee Ty, Assignment Ty
-    Assign(Ty, Ty),
+    Assign,
     Ret,
     Fold,
     FoldLocal,
@@ -590,12 +622,9 @@ pub struct InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
-    fn tag(&self, reason: ConstrReason) -> Tag {
-        Tag::new(reason, self.span)
-    }
-
     pub fn check_pred(&mut self, pred: impl Into<Expr>, reason: ConstrReason) {
-        let tag = self.tag(reason);
+        let pred: Expr = pred.into();
+        let tag = Tag::new(reason, self.span).with_info(ConstraintInfo::Predicate(pred.clone()));
         self.infcx.check_pred(pred, tag);
     }
 
@@ -612,8 +641,8 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
                 let term = projection_pred.term.to_ty().deeply_normalize(self)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
-                self.subtyping(&impl_elem, &term, reason.clone())?;
-                self.subtyping(&term, &impl_elem, reason.clone())?;
+                self.subtyping(&impl_elem, &term, reason)?;
+                self.subtyping(&term, &impl_elem, reason)?;
             }
         }
         Ok(())
@@ -629,6 +658,7 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         reason: ConstrReason,
     ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
         let mut sub = Sub::new(env, reason, self.span);
+        sub.info = Some(ConstraintInfo::TypeMismatch { expected: b.clone(), got: a.clone() });
         sub.tys(self.infcx, a, b)?;
         Ok(sub.obligations)
     }
@@ -645,6 +675,7 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
     ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
         let mut env = DummyEnv;
         let mut sub = Sub::new(&mut env, reason, self.span);
+        sub.info = Some(ConstraintInfo::TypeMismatch { expected: b.clone(), got: a.clone() });
         sub.tys(self.infcx, a, b)?;
         Ok(sub.obligations)
     }
@@ -657,7 +688,17 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         reason: ConstrReason,
     ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
         let mut env = DummyEnv;
+        let info = match (a, b) {
+            (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => {
+                Some(ConstraintInfo::TypeMismatch { expected: ty_b.clone(), got: ty_a.clone() })
+            }
+            (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => Some(
+                ConstraintInfo::TypeMismatch { expected: ctor_b.to_ty(), got: ctor_a.to_ty() },
+            ),
+            _ => None,
+        };
         let mut sub = Sub::new(&mut env, reason, self.span);
+        sub.info = info;
         sub.generic_args(self.infcx, variance, a, b)?;
         Ok(sub.obligations)
     }
@@ -682,7 +723,7 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
 
             // Check arguments
             for (actual, formal) in iter::zip(fields, variant.fields()) {
-                this.subtyping(actual, formal, reason.clone())?;
+                this.subtyping(actual, formal, reason)?;
             }
 
             // Check requires predicates
@@ -791,6 +832,8 @@ struct Sub<'a, E> {
     env: &'a mut E,
     reason: ConstrReason,
     span: Span,
+    /// Rich diagnostic info propagated to every constraint generated by this [`Sub`].
+    info: Option<ConstraintInfo>,
     /// FIXME(nilehmann) This is used to store coroutine obligations generated during subtyping when
     /// relating an opaque type. Other obligations related to relating opaque types are resolved
     /// directly here. The implementation is really messy and we may be missing some obligations.
@@ -799,11 +842,11 @@ struct Sub<'a, E> {
 
 impl<'a, E: LocEnv> Sub<'a, E> {
     fn new(env: &'a mut E, reason: ConstrReason, span: Span) -> Self {
-        Self { env, reason, span, obligations: vec![] }
+        Self { env, reason, span, info: None, obligations: vec![] }
     }
 
     fn tag(&self) -> Tag {
-        Tag::new(self.reason.clone(), self.span)
+        Tag { reason: self.reason, src_span: self.span, dst_span: None, info: self.info.clone() }
     }
 
     fn tys(&mut self, infcx: &mut InferCtxt, a: &Ty, b: &Ty) -> InferResult {
@@ -866,7 +909,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
 
                 self.env.ptr_to_ref(
                     &mut infcx.at(self.span),
-                    self.reason.clone(),
+                    self.reason,
                     *re,
                     path,
                     bound.clone(),

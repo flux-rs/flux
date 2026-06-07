@@ -7,6 +7,7 @@ pub fn test(n: i32) {
     if n < 15 {
         pre(n); //~ ERROR refinement type
                 //~| NOTE a precondition cannot be proved
+                //~| NOTE this condition cannot be proved
     }
 }
 
@@ -18,6 +19,7 @@ pub fn pre2(_n: i32, _m: i32) {}
 pub fn test2(n: i32) {
     pre2(n, n + n); //~ ERROR refinement type
                     //~| NOTE a precondition cannot be proved
+                    //~| NOTE expected
 }
 
 // ------ Test 3 -------------------------------------------------
@@ -26,6 +28,7 @@ pub fn test2(n: i32) {
 pub fn post(n: i32) -> i32 {
     n + 100 //~ ERROR refinement type
             //~| NOTE a postcondition cannot be proved
+            //~| NOTE expected
 }
 
 // ------ Test 4 -------------------------------------------------
@@ -35,4 +38,5 @@ pub fn floo(_n: i32) {}
 pub fn test_floo() {
     floo(1000); //~ ERROR refinement type
                 //~| NOTE a precondition cannot be proved
+                //~| NOTE this condition cannot be proved
 }

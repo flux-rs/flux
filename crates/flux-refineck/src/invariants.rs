@@ -3,7 +3,7 @@ use flux_config::InferOpts;
 use flux_errors::ErrorGuaranteed;
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, GlobalEnvExt, Tag},
+    infer::{ConstraintInfo, ConstrReason, GlobalEnvExt, Tag},
 };
 use flux_middle::{
     FixpointQueryKind,
@@ -84,7 +84,9 @@ fn check_invariant(
             rcx.assume_invariants(&ty);
         }
         let pred = invariant.apply(&variant_sig.idx);
-        rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
+        let tag = Tag::new(ConstrReason::Other, DUMMY_SP)
+            .with_info(ConstraintInfo::Predicate(pred.clone()));
+        rcx.check_pred(pred, tag);
     }
     let answer = infcx_root
         .execute_fixpoint_query(cache, def_id, FixpointQueryKind::Invariant)

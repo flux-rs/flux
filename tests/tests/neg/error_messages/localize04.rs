@@ -9,3 +9,4 @@ pub struct Foo {
 pub fn test(a: &mut Foo) {
     a.y += 1;
 } //~ ERROR type invariant may not hold
+  //~| NOTE expected

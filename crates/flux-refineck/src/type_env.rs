@@ -261,7 +261,7 @@ impl<'a> TypeEnv<'a> {
         if result.is_strg {
             result.update(new_ty);
         } else if !place.behind_raw_ptr(infcx.genv, self.local_decls)? {
-            infcx.subtyping(&new_ty, &result.ty, ConstrReason::Assign(result.ty.clone(), new_ty.clone()))?;
+            infcx.subtyping(&new_ty, &result.ty, ConstrReason::Assign)?;
         }
         Ok(())
     }
@@ -409,7 +409,7 @@ impl<'a> TypeEnv<'a> {
             match constraint {
                 Ensures::Type(path, ty) => {
                     let actual_ty = self.get(path).unblocked(); // HACK
-                    at.subtyping(&actual_ty, ty, reason.clone())?;
+                    at.subtyping(&actual_ty, ty, reason)?;
                 }
                 Ensures::Pred(e) => {
                     at.check_pred(e, ConstrReason::Ret);
