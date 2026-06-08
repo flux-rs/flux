@@ -275,6 +275,10 @@ fhir_analysis_invalid_bitvector_constant =
     invalid bit vector literal
     .label = not a valid `{$sort}` literal
 
+fhir_analysis_int_literal_in_real_context =
+    integer literal used in real-sorted context
+    .label = use a float literal instead, e.g. `{$n}.0`
+
 fhir_analysis_refine_arg_mismatch =
     {$kind} takes {$expected} generic refinement {$expected ->
         [one] argument

@@ -270,13 +270,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_lit(&mut self, lit: fhir::Lit, expr: &fhir::Expr<'genv>) -> rty::Sort {
         match lit {
-            fhir::Lit::Int(_, Some(fhir::NumLitKind::Int)) => rty::Sort::Int,
-            fhir::Lit::Int(_, Some(fhir::NumLitKind::Real)) => rty::Sort::Real,
-            fhir::Lit::Int(_, None) => {
+            fhir::Lit::Int(_) => {
                 let sort = self.next_sort_var_with_cstr(rty::SortCstr::NUMERIC);
                 self.sort_of_literal.insert(*expr, sort.clone());
                 sort
             }
+            fhir::Lit::Real(_) => rty::Sort::Real,
             fhir::Lit::Bool(_) => rty::Sort::Bool,
             fhir::Lit::Str(_) => rty::Sort::Str,
             fhir::Lit::Char(_) => rty::Sort::Char,

@@ -1084,14 +1084,9 @@ pub struct LetDecl<'fhir> {
 }
 
 #[derive(Clone, Copy)]
-pub enum NumLitKind {
-    Int,
-    Real,
-}
-
-#[derive(Clone, Copy)]
 pub enum Lit {
-    Int(u128, Option<NumLitKind>),
+    Int(u128),
+    Real(Symbol),
     Bool(bool),
     Str(Symbol),
     Char(char),
@@ -1649,8 +1644,8 @@ impl fmt::Debug for PathExpr<'_> {
 impl fmt::Debug for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Lit::Int(i, Some(NumLitKind::Real)) => write!(f, "{i}real"),
-            Lit::Int(i, _) => write!(f, "{i}"),
+            Lit::Int(i) => write!(f, "{i}"),
+            Lit::Real(s) => write!(f, "{s}"),
             Lit::Bool(b) => write!(f, "{b}"),
             Lit::Str(s) => write!(f, "\"{s:?}\""),
             Lit::Char(c) => write!(f, "\'{c}\'"),

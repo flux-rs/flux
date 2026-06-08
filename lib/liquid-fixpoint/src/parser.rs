@@ -706,6 +706,7 @@ impl Types for StringTypes {
     type Var = String;
     type Tag = String;
     type String = String;
+    type Real = String;
 }
 
 impl FromSexp<StringTypes> for StringTypes {
