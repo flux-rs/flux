@@ -397,7 +397,7 @@
 <a href=#397 id=397 data-nosnippet>397</a>                    Constant::Numeral(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{n}"</span>,),
 <a href=#398 id=398 data-nosnippet>398</a>                    Constant::Boolean(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="kw">if </span><span class="kw-2">*</span>b { <span class="string">"True" </span>} <span class="kw">else </span>{ <span class="string">"False" </span>}),
 <a href=#399 id=399 data-nosnippet>399</a>                    Constant::String(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, s.display()),
-<a href=#400 id=400 data-nosnippet>400</a>                    Constant::Real(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{n}.0"</span>),
+<a href=#400 id=400 data-nosnippet>400</a>                    Constant::Real(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, n.display()),
 <a href=#401 id=401 data-nosnippet>401</a>                    Constant::BitVec(bv, size) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}#{}"</span>, bv, size),
 <a href=#402 id=402 data-nosnippet>402</a>                }
 <a href=#403 id=403 data-nosnippet>403</a>            }

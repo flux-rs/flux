@@ -706,26 +706,27 @@
 <a href=#706 id=706 data-nosnippet>706</a>    <span class="kw">type </span>Var = String;
 <a href=#707 id=707 data-nosnippet>707</a>    <span class="kw">type </span>Tag = String;
 <a href=#708 id=708 data-nosnippet>708</a>    <span class="kw">type </span>String = String;
-<a href=#709 id=709 data-nosnippet>709</a>}
-<a href=#710 id=710 data-nosnippet>710</a>
-<a href=#711 id=711 data-nosnippet>711</a><span class="kw">impl </span>FromSexp&lt;StringTypes&gt; <span class="kw">for </span>StringTypes {
-<a href=#712 id=712 data-nosnippet>712</a>    <span class="kw">fn </span>fresh_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; &lt;StringTypes <span class="kw">as </span>Types&gt;::Var {
-<a href=#713 id=713 data-nosnippet>713</a>        <span class="macro">todo!</span>()
-<a href=#714 id=714 data-nosnippet>714</a>    }
-<a href=#715 id=715 data-nosnippet>715</a>    <span class="kw">fn </span>var(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
-<a href=#716 id=716 data-nosnippet>716</a>        <span class="prelude-val">Ok</span>(name.to_string())
-<a href=#717 id=717 data-nosnippet>717</a>    }
-<a href=#718 id=718 data-nosnippet>718</a>
-<a href=#719 id=719 data-nosnippet>719</a>    <span class="kw">fn </span>kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
-<a href=#720 id=720 data-nosnippet>720</a>        <span class="prelude-val">Ok</span>(name.to_string())
-<a href=#721 id=721 data-nosnippet>721</a>    }
-<a href=#722 id=722 data-nosnippet>722</a>
-<a href=#723 id=723 data-nosnippet>723</a>    <span class="kw">fn </span>string(<span class="kw-2">&amp;</span><span class="self">self</span>, s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
-<a href=#724 id=724 data-nosnippet>724</a>        <span class="prelude-val">Ok</span>(s.to_string())
-<a href=#725 id=725 data-nosnippet>725</a>    }
-<a href=#726 id=726 data-nosnippet>726</a>
-<a href=#727 id=727 data-nosnippet>727</a>    <span class="kw">fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
-<a href=#728 id=728 data-nosnippet>728</a>        <span class="prelude-val">Ok</span>(name.to_string())
-<a href=#729 id=729 data-nosnippet>729</a>    }
-<a href=#730 id=730 data-nosnippet>730</a>}
+<a href=#709 id=709 data-nosnippet>709</a>    <span class="kw">type </span>Real = String;
+<a href=#710 id=710 data-nosnippet>710</a>}
+<a href=#711 id=711 data-nosnippet>711</a>
+<a href=#712 id=712 data-nosnippet>712</a><span class="kw">impl </span>FromSexp&lt;StringTypes&gt; <span class="kw">for </span>StringTypes {
+<a href=#713 id=713 data-nosnippet>713</a>    <span class="kw">fn </span>fresh_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; &lt;StringTypes <span class="kw">as </span>Types&gt;::Var {
+<a href=#714 id=714 data-nosnippet>714</a>        <span class="macro">todo!</span>()
+<a href=#715 id=715 data-nosnippet>715</a>    }
+<a href=#716 id=716 data-nosnippet>716</a>    <span class="kw">fn </span>var(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
+<a href=#717 id=717 data-nosnippet>717</a>        <span class="prelude-val">Ok</span>(name.to_string())
+<a href=#718 id=718 data-nosnippet>718</a>    }
+<a href=#719 id=719 data-nosnippet>719</a>
+<a href=#720 id=720 data-nosnippet>720</a>    <span class="kw">fn </span>kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
+<a href=#721 id=721 data-nosnippet>721</a>        <span class="prelude-val">Ok</span>(name.to_string())
+<a href=#722 id=722 data-nosnippet>722</a>    }
+<a href=#723 id=723 data-nosnippet>723</a>
+<a href=#724 id=724 data-nosnippet>724</a>    <span class="kw">fn </span>string(<span class="kw-2">&amp;</span><span class="self">self</span>, s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
+<a href=#725 id=725 data-nosnippet>725</a>        <span class="prelude-val">Ok</span>(s.to_string())
+<a href=#726 id=726 data-nosnippet>726</a>    }
+<a href=#727 id=727 data-nosnippet>727</a>
+<a href=#728 id=728 data-nosnippet>728</a>    <span class="kw">fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
+<a href=#729 id=729 data-nosnippet>729</a>        <span class="prelude-val">Ok</span>(name.to_string())
+<a href=#730 id=730 data-nosnippet>730</a>    }
+<a href=#731 id=731 data-nosnippet>731</a>}
 </code></pre></div></section></main></body></html>
