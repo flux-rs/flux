@@ -279,7 +279,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
             self.point = Point::BeforeLocation(Location { block: bb, statement_index });
             self.statement(stmt, &mut env)?;
         }
-        if let Some(terminator) = &data.terminator {
+        if let Some(terminator) = &self.body.terminator_for(bb) {
             self.point = Point::BeforeLocation(self.body.terminator_loc(bb));
             let successors = self.terminator(terminator, env)?;
             for (env, target) in successors {
@@ -445,10 +445,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
             | TerminatorKind::UnwindResume
             | TerminatorKind::CoroutineDrop => {}
         }
-        Ok(successors
-            .into_iter()
-            .map(|(env, target)| (env, self.body.real_successor(target)))
-            .collect())
+        Ok(successors)
     }
 
     fn goto(&mut self, target: BasicBlock, env: Env) -> QueryResult {

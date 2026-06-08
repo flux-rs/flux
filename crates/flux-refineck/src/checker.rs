@@ -651,7 +651,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             location = location.successor_within_block();
         }
 
-        if let Some(terminator) = &data.terminator {
+        if let Some(terminator) = self.body.terminator_for(bb) {
             let span = terminator.source_info.span;
             self.check_ghost_statements_at(
                 &mut infcx,
@@ -731,10 +731,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn is_exit_block(&self, bb: BasicBlock) -> bool {
         let data = &self.body.basic_blocks[bb];
         let is_no_op = data.statements.iter().all(Statement::is_nop);
-        let is_ret = match &data.terminator {
-            None => false,
-            Some(term) => term.is_return(),
-        };
+        let is_ret = self
+            .body
+            .terminator_for(bb)
+            .map_or(false, |term| term.is_return());
         is_no_op && is_ret
     }
 
@@ -750,14 +750,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<Vec<(BasicBlock, Guard)>> {
         let source_info = terminator.source_info;
         let terminator_span = source_info.span;
-        let successors = match &terminator.kind {
+        match &terminator.kind {
             TerminatorKind::Return => {
                 self.check_ret(infcx, env, last_stmt_span.unwrap_or(terminator_span))?;
-                vec![]
+                Ok(vec![])
             }
-            TerminatorKind::Unreachable => vec![],
-            TerminatorKind::CoroutineDrop => vec![],
-            TerminatorKind::Goto { target } => vec![(*target, Guard::None)],
+            TerminatorKind::Unreachable => Ok(vec![]),
+            TerminatorKind::CoroutineDrop => Ok(vec![]),
+            TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::Yield { resume, resume_arg, .. } => {
                 if let Some(resume_ty) = self.resume_ty.clone() {
                     self.check_assign_ty(infcx, env, resume_arg, resume_ty, terminator_span)
@@ -765,16 +765,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 } else {
                     bug!("yield in non-generator function");
                 }
-                vec![(*resume, Guard::None)]
+                Ok(vec![(*resume, Guard::None)])
             }
             TerminatorKind::SwitchInt { discr, targets } => {
                 let discr_ty = self
                     .check_operand(infcx, env, terminator_span, discr)
                     .with_span(terminator_span)?;
                 if discr_ty.is_integral() || discr_ty.is_bool() || discr_ty.is_char() {
-                    Self::check_if(&discr_ty, targets)
+                    Ok(Self::check_if(&discr_ty, targets))
                 } else {
-                    self.check_match(infcx, env, &discr_ty, targets, terminator_span)
+                    Ok(self.check_match(infcx, env, &discr_ty, targets, terminator_span))
                 }
             }
             TerminatorKind::Call { kind, args, destination, target, .. } => {
@@ -831,27 +831,29 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
                     .with_span(terminator_span)?;
 
-                if let Some(target) = target { vec![(*target, Guard::None)] } else { vec![] }
+                if let Some(target) = target {
+                    Ok(vec![(*target, Guard::None)])
+                } else {
+                    Ok(vec![])
+                }
             }
             TerminatorKind::Assert { cond, expected, target, msg } => {
-                vec![(
+                Ok(vec![(
                     *target,
                     self.check_assert(infcx, env, terminator_span, cond, *expected, msg)
                         .with_span(terminator_span)?,
-                )]
+                )])
             }
             TerminatorKind::Drop { place, target, .. } => {
                 let _ = env.move_place(&mut infcx.at(terminator_span), place);
-                vec![(*target, Guard::None)]
+                Ok(vec![(*target, Guard::None)])
             }
-            TerminatorKind::FalseEdge { real_target, .. } => vec![(*real_target, Guard::None)],
-            TerminatorKind::FalseUnwind { real_target, .. } => vec![(*real_target, Guard::None)],
+            TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
+            TerminatorKind::FalseUnwind { real_target, .. } => {
+                Ok(vec![(*real_target, Guard::None)])
+            }
             TerminatorKind::UnwindResume => bug!("TODO: implement checking of cleanup code"),
-        };
-        Ok(successors
-            .into_iter()
-            .map(|(target, guard)| (self.body.real_successor(target), guard))
-            .collect())
+        }
     }
 
     fn check_ret(
