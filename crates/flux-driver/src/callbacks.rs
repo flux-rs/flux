@@ -1,4 +1,4 @@
-use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
+use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::{
@@ -148,20 +148,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let result = genv
             .tcx()
             .iter_local_def_id()
-            .try_for_each_exhaust(|def_id| {
-                let result = ck.check_def_catching_bugs(def_id);
-                // On error, point at the constraint dump for this item
-                if result.is_err() && config::dump_constraint() {
-                    let path = dbg::item_dump_path(genv.tcx(), def_id.to_def_id(), "smt2");
-                    if path.exists() {
-                        genv.sess()
-                            .dcx()
-                            .handle()
-                            .note(format!("log file saved to {}", path.display()));
-                    }
-                }
-                result
-            });
+            .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
         if config::lean().is_check() || config::lean().is_emit() {
             lean_encoding::finalize(genv)
