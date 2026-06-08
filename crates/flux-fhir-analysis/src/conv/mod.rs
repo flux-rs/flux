@@ -26,7 +26,7 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AssocReft, BoundReftKind, ESpan, Expr, INNERMOST, InternalFuncKind, List,
+        self, AssocReft, BoundReftKind, ESpan, Expr, INNERMOST, InternalFuncKind, List, RecordCtor,
         RefineArgsExt, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refine, Refiner},
@@ -127,7 +127,7 @@ pub trait WfckResultsProvider: Sized {
 
     fn field_proj(&self, fhir_id: FhirId) -> rty::FieldProj;
 
-    fn record_ctor(&self, fhir_id: FhirId) -> DefId;
+    fn record_ctor(&self, fhir_id: FhirId) -> RecordCtor;
 
     fn param_sort(&self, param_id: fhir::ParamId) -> rty::Sort;
 
@@ -200,11 +200,11 @@ impl WfckResultsProvider for WfckResults {
             .unwrap_or_else(|| bug!("field projection without elaboration `{fhir_id:?}`"))
     }
 
-    fn record_ctor(&self, fhir_id: FhirId) -> DefId {
-        *self
-            .record_ctors()
+    fn record_ctor(&self, fhir_id: FhirId) -> RecordCtor {
+        self.record_ctors()
             .get(fhir_id)
-            .unwrap_or_else(|| bug!("unelaborated record constructor `{fhir_id:?}`"))
+            .copied()
+            .unwrap_or_else(|| bug!("unelaborated record constructor `{:?}`", fhir_id))
     }
 
     fn param_sort(&self, param_id: fhir::ParamId) -> rty::Sort {
@@ -1470,12 +1470,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
             }
             fhir::BaseTyKind::RawPtr(ty, mutability) => {
-                let name = name.map(|sym| Self::suffix_symbol(sym, "size"));
-                let bty = rty::BaseTy::RawPtr(self.conv_ty(env, ty, name)?, *mutability)
+                let bty = rty::BaseTy::RawPtr(self.conv_ty(env, ty, None)?, *mutability)
                     .shift_in_escaping(1);
-                let sort = bty.sort();
                 let ty = rty::Ty::indexed(bty, rty::Expr::nu());
-                Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
+                Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, rty::Sort::RawPtr)))
             }
             fhir::BaseTyKind::Err(err) => Err(QueryErr::Emitted(*err)),
         }
@@ -2180,12 +2178,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::Expr::bounded_quant(kind, rng, body)
             }
             fhir::ExprKind::Record(flds) => {
-                let def_id = self.results().record_ctor(expr.fhir_id);
                 let flds = flds
                     .iter()
                     .map(|expr| self.conv_expr(env, expr))
                     .try_collect()?;
-                rty::Expr::ctor_struct(def_id, flds)
+                match self.results().record_ctor(expr.fhir_id) {
+                    RecordCtor::Struct(def_id) => rty::Expr::ctor_struct(def_id, flds),
+                    RecordCtor::RawPtr => rty::Expr::ctor_raw_ptr(flds),
+                }
             }
             fhir::ExprKind::SetLiteral(elems) => {
                 let elems = elems
@@ -2201,7 +2201,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         _ => span_bug!(path.span, "unexpected path in constructor"),
                     }
                 } else {
-                    self.results().record_ctor(expr.fhir_id)
+                    match self.results().record_ctor(expr.fhir_id) {
+                        RecordCtor::Struct(def_id) => def_id,
+                        RecordCtor::RawPtr => bug!("unexpected raw pointer constructor"),
+                    }
                 };
                 let assns = self.conv_constructor_exprs(def_id, env, exprs, &spread)?;
                 rty::Expr::ctor_struct(def_id, assns)
@@ -2387,13 +2390,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf)) => {
                 let sort = THEORY_FUNCS.get(&itf).unwrap().sort.clone();
                 (rty::Expr::global_func(rty::SpecFuncKind::Thy(itf)), rty::Sort::Func(sort))
-            }
-            fhir::Res::GlobalFunc(fhir::SpecFuncKind::PtrSize) => {
-                let fsort = rty::PolyFuncSort::new(
-                    List::empty(),
-                    rty::FuncSort::new(vec![rty::Sort::RawPtr], rty::Sort::Int),
-                );
-                (rty::Expr::internal_func(rty::InternalFuncKind::PtrSize), rty::Sort::Func(fsort))
             }
             fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast) => {
                 let fsort = rty::PolyFuncSort::new(

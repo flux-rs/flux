@@ -1,6 +1,7 @@
 use std::{path::Path, process::Command};
 
 use cargo_metadata::{MetadataCommand, camino::Utf8PathBuf};
+use flux_config::flags::Flags;
 
 use crate::cargo_style;
 
@@ -86,11 +87,13 @@ pub struct CompileOpts {
     compilation: CompilationOptions,
     #[command(flatten)]
     manifest: ManifestOptions,
+    #[command(flatten)]
+    flux_flags: Flags,
 }
 
 impl CompileOpts {
     fn forward_args(&self, cmd: &mut Command) {
-        let CompileOpts { message_format, workspace, features, compilation, manifest } = self;
+        let CompileOpts { message_format, workspace, features, compilation, manifest, .. } = self;
         if let Some(message_format) = &message_format {
             cmd.args(["--message-format", message_format]);
         }

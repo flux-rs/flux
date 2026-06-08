@@ -50,8 +50,8 @@ impl GlobalEnv<'_, '_> {
                     None
                 }
             }
+            ty::TyKind::RawPtr(..) => Some(rty::Sort::RawPtr),
             ty::TyKind::Float(_)
-            | ty::TyKind::RawPtr(..)
             | ty::TyKind::Ref(..)
             | ty::TyKind::Tuple(_)
             | ty::TyKind::Array(..)

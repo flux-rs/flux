@@ -1,7 +1,7 @@
 use std::{
     fs,
     io::{self, Read},
-    mem,
+    mem, panic,
     path::Path,
     sync::Arc,
 };
@@ -75,30 +75,49 @@ pub(super) fn decode_crate_metadata(
     file.read_to_end(&mut buf)
         .unwrap_or_else(|err| sess.emit_fatal(errors::DecodeFileError::new(path, err)));
 
+    // The last byte of the header is `METADATA_VERSION`. A header mismatch means the file was
+    // produced by a version of flux using a different (and thus incompatible) metadata format.
     if !buf.starts_with(METADATA_HEADER) {
-        bug!("incompatible metadata version");
+        sess.emit_fatal(errors::IncompatibleMetadata::new(path));
     }
 
-    let footer = {
-        let mut decoder = MemDecoder::new(&buf, 0).unwrap();
-        let footer_pos = decoder
-            .with_position(decoder.len() - IntEncodedWithFixedSize::ENCODED_SIZE, |d| {
-                IntEncodedWithFixedSize::decode(d).0 as usize
-            });
-        decoder.with_position(footer_pos, Footer::decode)
-    };
+    let metadata = catch_decode(|| {
+        let footer = {
+            let mut decoder = MemDecoder::new(&buf, 0).unwrap();
+            let footer_pos = decoder
+                .with_position(decoder.len() - IntEncodedWithFixedSize::ENCODED_SIZE, |d| {
+                    IntEncodedWithFixedSize::decode(d).0 as usize
+                });
+            decoder.with_position(footer_pos, Footer::decode)
+        };
 
-    let mut decoder = DecodeContext {
-        tcx,
-        opaque: MemDecoder::new(&buf, METADATA_HEADER.len()).unwrap(),
-        file_index_to_stable_id: footer.file_index_to_stable_id,
-        file_index_to_file: Default::default(),
-        syntax_contexts: &footer.syntax_contexts,
-        expn_data: footer.expn_data,
-        hygiene_context: &Default::default(),
-    };
+        let mut decoder = DecodeContext {
+            tcx,
+            opaque: MemDecoder::new(&buf, METADATA_HEADER.len()).unwrap(),
+            file_index_to_stable_id: footer.file_index_to_stable_id,
+            file_index_to_file: Default::default(),
+            syntax_contexts: &footer.syntax_contexts,
+            expn_data: footer.expn_data,
+            hygiene_context: &Default::default(),
+        };
 
-    Some(CrateMetadata::decode(&mut decoder))
+        CrateMetadata::decode(&mut decoder)
+    });
+
+    match metadata {
+        Ok(metadata) => Some(metadata),
+        Err(()) => sess.emit_fatal(errors::IncompatibleMetadata::new(path)),
+    }
+}
+
+/// Runs `decode`, catching any panic raised by rustc's opaque decoder on malformed input.
+/// The panic hook is silenced so stale metadata surfaces as a clean diagnostic, not an ICE dump.
+fn catch_decode<R>(decode: impl FnOnce() -> R) -> Result<R, ()> {
+    let prev_hook = panic::take_hook();
+    panic::set_hook(Box::new(|_| {}));
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(decode));
+    panic::set_hook(prev_hook);
+    result.map_err(|_| ())
 }
 
 implement_ty_decoder!(DecodeContext<'a, 'tcx>);
@@ -254,6 +273,18 @@ mod errors {
     impl<'a> DecodeFileError<'a> {
         pub(super) fn new(path: &'a Path, err: io::Error) -> Self {
             Self { path, err }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(metadata_incompatible_metadata, code = E0999)]
+    pub(super) struct IncompatibleMetadata<'a> {
+        path: &'a Path,
+    }
+
+    impl<'a> IncompatibleMetadata<'a> {
+        pub(super) fn new(path: &'a Path) -> Self {
+            Self { path }
         }
     }
 }
