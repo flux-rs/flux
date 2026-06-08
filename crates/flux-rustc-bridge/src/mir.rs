@@ -521,12 +521,12 @@ impl<'tcx> Body<'tcx> {
     }
 
     pub fn terminator_for(&self, bb: BasicBlock) -> Option<&Terminator<'tcx>> {
-        match self.dummy_basic_blocks[bb] {
-            DummyBlockTarget::Normal | DummyBlockTarget::DummyCycle => {
-                self.basic_blocks[bb].terminator.as_ref()
-            }
-            DummyBlockTarget::DummySuccessor(target) => self.terminator_for(target),
-        }
+        println!("TRACE: terminator_for: bb={bb:?}");
+        let bb = match self.dummy_basic_blocks[bb] {
+            DummyBlockTarget::Normal | DummyBlockTarget::DummyCycle => bb,
+            DummyBlockTarget::DummySuccessor(target) => target,
+        };
+        self.basic_blocks[bb].terminator.as_ref()
     }
 }
 
@@ -582,9 +582,10 @@ fn is_dummy_basic_block(
 fn mk_dummy_basic_blocks(
     basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
 ) -> IndexVec<BasicBlock, DummyBlockTarget> {
+    println!("TRACE: mk_dummy_basic_blocks");
     let mut res = IndexVec::from_elem_n(DummyBlockTarget::Normal, basic_blocks.len());
     for (bb, _) in basic_blocks.iter_enumerated() {
-        // If already marked, continue
+        // If already marked, continue (memoizes results and handles cycles)
         if !matches!(res[bb], DummyBlockTarget::Normal) {
             continue;
         }
@@ -594,7 +595,7 @@ fn mk_dummy_basic_blocks(
         }
         // Mark this block and all transitively reachable dummy blocks with the same target
         let mut path = vec![];
-        let target = get_dummy_target(basic_blocks, &mut path, bb);
+        let target = get_transitive_dummy_target(basic_blocks, &mut path, bb);
         for bb_ in path.into_iter() {
             res[bb_] = target.clone();
         }
@@ -602,18 +603,19 @@ fn mk_dummy_basic_blocks(
     res
 }
 
-fn get_dummy_target(
+fn get_transitive_dummy_target(
     basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
     path: &mut Vec<BasicBlock>,
     bb: BasicBlock,
 ) -> DummyBlockTarget {
+    println!("TRACE: get_transitive_dummy_targe: bb={bb:?}, path={path:?}");
     if path.contains(&bb) {
         // we've seen this bb before, abort! ...
         DummyBlockTarget::DummyCycle
     } else if let Some(target) = is_dummy_basic_block(basic_blocks, bb) {
         // bb is also a dummy block, continue traversal!
         path.push(bb);
-        get_dummy_target(basic_blocks, path, target)
+        get_transitive_dummy_target(basic_blocks, path, target)
     } else {
         // bb is NOT a dummy block, this is the "real" successor!
         DummyBlockTarget::DummySuccessor(bb)
