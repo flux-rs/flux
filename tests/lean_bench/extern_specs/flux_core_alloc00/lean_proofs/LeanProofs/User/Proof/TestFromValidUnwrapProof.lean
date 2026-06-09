@@ -2,6 +2,8 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.TestFromValidUnwrap
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -66,6 +68,8 @@ open TestFromValidUnwrapQualifs
 set_option maxHeartbeats 5000000
 def TestFromValidUnwrap_proof : TestFromValidUnwrap := by
   unfold TestFromValidUnwrap
-  try solve_fixpoint
+  fusion
+  zap
+  solve_fixpoint
 
 end F

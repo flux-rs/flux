@@ -1,8 +1,9 @@
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.Fun.NumImpl2MAX
 import LeanProofs.Flux.Fun.NumImpl2MIN
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 

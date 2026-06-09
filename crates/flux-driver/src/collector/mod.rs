@@ -18,6 +18,7 @@ use flux_syntax::{
     ParseResult, ParseSess,
     surface::{self, NodeId, Trusted},
 };
+use itertools::Itertools;
 use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::ErrorGuaranteed;

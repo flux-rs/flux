@@ -2,6 +2,8 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.Impl__0__Simplify
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -66,6 +68,9 @@ open Impl0SimplifyQualifs
 set_option maxHeartbeats 5000000
 def Impl__0__Simplify_proof : Impl__0__Simplify := by
   unfold Impl__0__Simplify
-  try solve_fixpoint
+  rewriteKs
+  fusion
+  fixpoint
+  zap
 
 end F

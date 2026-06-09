@@ -2,6 +2,8 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.FibLoop
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -36,28 +38,28 @@ def LeZero (v₀ : Int) : Prop :=
   (v₀ ≤ 0)
 
 @[qualif]
-def Eq (v₀ : Int) (i₀ : Int) : Prop :=
-  (v₀ = i₀)
+def Eq (v₀ : Int) (k₀ : Int) : Prop :=
+  (v₀ = k₀)
 
 @[qualif]
-def Gt (v₀ : Int) (i₀ : Int) : Prop :=
-  (v₀ > i₀)
+def Gt (v₀ : Int) (k₀ : Int) : Prop :=
+  (v₀ > k₀)
 
 @[qualif]
-def Ge (v₀ : Int) (i₀ : Int) : Prop :=
-  (v₀ ≥ i₀)
+def Ge (v₀ : Int) (k₀ : Int) : Prop :=
+  (v₀ ≥ k₀)
 
 @[qualif]
-def Lt (v₀ : Int) (i₀ : Int) : Prop :=
-  (v₀ < i₀)
+def Lt (v₀ : Int) (k₀ : Int) : Prop :=
+  (v₀ < k₀)
 
 @[qualif]
-def Le (v₀ : Int) (i₀ : Int) : Prop :=
-  (v₀ ≤ i₀)
+def Le (v₀ : Int) (k₀ : Int) : Prop :=
+  (v₀ ≤ k₀)
 
 @[qualif]
-def Le1 (v₀ : Int) (i₀ : Int) : Prop :=
-  (v₀ ≤ (i₀ - 1))
+def Le1 (v₀ : Int) (k₀ : Int) : Prop :=
+  (v₀ ≤ (k₀ - 1))
 
 end FibLoopQualifs
 

@@ -1,6 +1,7 @@
 import LeanProofs.Flux.Prelude
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -9,5 +10,5 @@ namespace F
 def RunClosure := 
  ∀ (c0 : Prop),
   False ->
-   (c0)
+   ((c0) ∨ False)
 end F

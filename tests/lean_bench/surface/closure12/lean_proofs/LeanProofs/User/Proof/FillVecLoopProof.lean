@@ -2,6 +2,8 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.FillVecLoop
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -36,28 +38,28 @@ def LeZero (f₀ : Int) : Prop :=
   (f₀ ≤ 0)
 
 @[qualif]
-def Eq (f₀ : Int) (res₀ : Int) : Prop :=
-  (f₀ = res₀)
+def Eq (f₀ : Int) (f₁ : Int) : Prop :=
+  (f₀ = f₁)
 
 @[qualif]
-def Gt (f₀ : Int) (res₀ : Int) : Prop :=
-  (f₀ > res₀)
+def Gt (f₀ : Int) (f₁ : Int) : Prop :=
+  (f₀ > f₁)
 
 @[qualif]
-def Ge (f₀ : Int) (res₀ : Int) : Prop :=
-  (f₀ ≥ res₀)
+def Ge (f₀ : Int) (f₁ : Int) : Prop :=
+  (f₀ ≥ f₁)
 
 @[qualif]
-def Lt (f₀ : Int) (res₀ : Int) : Prop :=
-  (f₀ < res₀)
+def Lt (f₀ : Int) (f₁ : Int) : Prop :=
+  (f₀ < f₁)
 
 @[qualif]
-def Le (f₀ : Int) (res₀ : Int) : Prop :=
-  (f₀ ≤ res₀)
+def Le (f₀ : Int) (f₁ : Int) : Prop :=
+  (f₀ ≤ f₁)
 
 @[qualif]
-def Le1 (f₀ : Int) (res₀ : Int) : Prop :=
-  (f₀ ≤ (res₀ - 1))
+def Le1 (f₀ : Int) (f₁ : Int) : Prop :=
+  (f₀ ≤ (f₁ - 1))
 
 end FillVecLoopQualifs
 

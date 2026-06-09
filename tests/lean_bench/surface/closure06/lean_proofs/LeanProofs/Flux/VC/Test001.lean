@@ -1,6 +1,7 @@
 import LeanProofs.Flux.Prelude
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -26,7 +27,7 @@ def Test001 := ∃ k0 : (a0 : Int) -> (a1 : Int) -> (a2 : Int) -> Prop, ∃ k1 :
             )
         ) ∧
     (False ->
-     (c0)) ∧
+     ((c0) ∨ False)) ∧
     (((k0 frog₀ n₀ frog₀))) ∧
     (((k1 (n₀ + 1) n₀ frog₀))) ∧
     (∀ (a'₆ : Int),

@@ -1,7 +1,8 @@
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.Struct.OpsRangeRange
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -12,11 +13,11 @@ def FillVecIndexLoop := ∃ k0 : (a0 : Int) -> (a1 : Int) -> (a2 : Int) -> (a3 :
   ∀ (n₀ : Int),
    ∀ (f₀ : Int),
     (n₀ ≥ 0) ->
-     (((k0 0 f₀ 0 n₀ n₀ f₀))) ∧
-     (∀ (res₀ : Int),
-      ∀ (f₁ : Int),
+     (((k0 f₀ 0 0 n₀ n₀ f₀))) ∧
+     (∀ (f₁ : Int),
+      ∀ (res₀ : Int),
        ∀ (iter₀ : (OpsRangeRange Int)),
-        ((k0 res₀ f₁ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) n₀ f₀)) ->
+        ((k0 f₁ res₀ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) n₀ f₀)) ->
          ∀ (r₀ : (OpsRangeRange Int)),
           ((((OpsRangeRange.start iter₀) < (OpsRangeRange.end_ iter₀)) -> ((OpsRangeRange.start r₀) = ((OpsRangeRange.start iter₀) + 1))) ∧ ((OpsRangeRange.end_ r₀) = (OpsRangeRange.end_ iter₀))) ->
            ((((OpsRangeRange.start iter₀) < (OpsRangeRange.end_ iter₀)) = False) ->
@@ -26,33 +27,33 @@ def FillVecIndexLoop := ∃ k0 : (a0 : Int) -> (a1 : Int) -> (a2 : Int) -> (a3 :
              (a'₅ = (OpsRangeRange.start iter₀)) ->
               (a'₅ ≥ 0) ->
                (∀ (a'₆ : Int),
-                ((k1 a'₆ n₀ f₀ res₀ f₁ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
+                ((k1 a'₆ n₀ f₀ f₁ res₀ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
                  ∀ (a'₇ : Int),
-                  ((k2 a'₇ n₀ f₀ res₀ f₁ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
+                  ((k2 a'₇ n₀ f₀ f₁ res₀ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
                    (((0 ≤ a'₇)) ∧
                    ((a'₇ < n₀))
                    ) ∧
                    (∀ (a'₈ : Int),
-                    ((k1 a'₈ n₀ f₀ res₀ f₁ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
+                    ((k1 a'₈ n₀ f₀ f₁ res₀ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
                      ∀ (a'₉ : Int),
-                      ((k2 a'₉ n₀ f₀ res₀ f₁ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
+                      ((k2 a'₉ n₀ f₀ f₁ res₀ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
                        (((0 ≤ a'₉)) ∧
                        ((a'₉ < n₀))
                        ) ∧
                        (∀ (a'₁₀ : Int),
-                        ((k3 a'₁₀ n₀ f₀ res₀ f₁ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)))
+                        ((k3 a'₁₀ n₀ f₀ f₁ res₀ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)))
                        )
                    ) ∧
                (False ->
-                (c0)) ∧
-               (((k1 f₁ n₀ f₀ res₀ f₁ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅))) ∧
-               (((k2 a'₅ n₀ f₀ res₀ f₁ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅))) ∧
+                ((c0) ∨ False)) ∧
+               (((k1 f₁ n₀ f₀ f₁ res₀ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅))) ∧
+               (((k2 a'₅ n₀ f₀ f₁ res₀ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅))) ∧
                (∀ (a'₁₁ : Int),
-                ((k3 a'₁₁ n₀ f₀ res₀ f₁ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
+                ((k3 a'₁₁ n₀ f₀ f₁ res₀ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
                  ∀ (a'₁₂ : Int),
-                  ((k1 a'₁₂ n₀ f₀ res₀ f₁ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
+                  ((k1 a'₁₂ n₀ f₀ f₁ res₀ (OpsRangeRange.start iter₀) (OpsRangeRange.end_ iter₀) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) a'₅)) ->
                    (0 ≤ (res₀ + 1)) ->
-                    ((k0 (res₀ + 1) a'₁₂ (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) n₀ f₀)))
+                    ((k0 a'₁₂ (res₀ + 1) (OpsRangeRange.start r₀) (OpsRangeRange.end_ r₀) n₀ f₀)))
                )
            )
      

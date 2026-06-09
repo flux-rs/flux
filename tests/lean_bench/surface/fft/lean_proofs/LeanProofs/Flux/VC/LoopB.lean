@@ -1,6 +1,7 @@
 import LeanProofs.Flux.Prelude
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -17,10 +18,10 @@ def LoopB := ∃ k0 : (a0 : Int) -> (a1 : Int) -> (a2 : Int) -> Prop, ∃ k1 : (
       ∀ (id₀ : Int),
        ((k0 is₀ id₀ n₀)) ->
         (is₀ < (n₀ - 1)) ->
-         (((k1 (is₀ + 1) is₀ n₀ is₀ id₀))) ∧
-         (∀ (i1₀ : Int),
-          ∀ (i0₀ : Int),
-           ((k1 i1₀ i0₀ n₀ is₀ id₀)) ->
+         (((k1 is₀ (is₀ + 1) n₀ is₀ id₀))) ∧
+         (∀ (i0₀ : Int),
+          ∀ (i1₀ : Int),
+           ((k1 i0₀ i1₀ n₀ is₀ id₀)) ->
             ((¬(i1₀ ≤ (n₀ - 1))) ->
              ((((2 * id₀) - 1) ≥ 0)) ∧
              (((k0 ((2 * id₀) - 1) (4 * id₀) n₀)))
@@ -36,7 +37,7 @@ def LoopB := ∃ k0 : (a0 : Int) -> (a1 : Int) -> (a2 : Int) -> Prop, ∃ k1 : (
              ((i0₀ < n₀)) ∧
              ((i1₀ < n₀)) ∧
              ((i1₀ < n₀)) ∧
-             (((k1 (i1₀ + id₀) (i0₀ + id₀) n₀ is₀ id₀)))
+             (((k1 (i0₀ + id₀) (i1₀ + id₀) n₀ is₀ id₀)))
              )
             )
          )

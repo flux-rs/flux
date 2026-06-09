@@ -2,62 +2,64 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.Doit
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
 namespace DoitQualifs
 
 @[qualif]
-def EqTrue (np₀ : Prop) : Prop :=
-  np₀
+def EqTrue (i₀ : Prop) : Prop :=
+  i₀
 
 @[qualif]
-def EqFalse (np₀ : Prop) : Prop :=
-  (¬np₀)
+def EqFalse (i₀ : Prop) : Prop :=
+  (¬i₀)
 
 @[qualif]
-def EqZero (np₀ : Int) : Prop :=
-  (np₀ = 0)
+def EqZero (i₀ : Int) : Prop :=
+  (i₀ = 0)
 
 @[qualif]
-def GtZero (np₀ : Int) : Prop :=
-  (np₀ > 0)
+def GtZero (i₀ : Int) : Prop :=
+  (i₀ > 0)
 
 @[qualif]
-def GeZero (np₀ : Int) : Prop :=
-  (np₀ ≥ 0)
+def GeZero (i₀ : Int) : Prop :=
+  (i₀ ≥ 0)
 
 @[qualif]
-def LtZero (np₀ : Int) : Prop :=
-  (np₀ < 0)
+def LtZero (i₀ : Int) : Prop :=
+  (i₀ < 0)
 
 @[qualif]
-def LeZero (np₀ : Int) : Prop :=
-  (np₀ ≤ 0)
+def LeZero (i₀ : Int) : Prop :=
+  (i₀ ≤ 0)
 
 @[qualif]
-def Eq (np₀ : Int) (i₀ : Int) : Prop :=
-  (np₀ = i₀)
+def Eq (i₀ : Int) (np₀ : Int) : Prop :=
+  (i₀ = np₀)
 
 @[qualif]
-def Gt (np₀ : Int) (i₀ : Int) : Prop :=
-  (np₀ > i₀)
+def Gt (i₀ : Int) (np₀ : Int) : Prop :=
+  (i₀ > np₀)
 
 @[qualif]
-def Ge (np₀ : Int) (i₀ : Int) : Prop :=
-  (np₀ ≥ i₀)
+def Ge (i₀ : Int) (np₀ : Int) : Prop :=
+  (i₀ ≥ np₀)
 
 @[qualif]
-def Lt (np₀ : Int) (i₀ : Int) : Prop :=
-  (np₀ < i₀)
+def Lt (i₀ : Int) (np₀ : Int) : Prop :=
+  (i₀ < np₀)
 
 @[qualif]
-def Le (np₀ : Int) (i₀ : Int) : Prop :=
-  (np₀ ≤ i₀)
+def Le (i₀ : Int) (np₀ : Int) : Prop :=
+  (i₀ ≤ np₀)
 
 @[qualif]
-def Le1 (np₀ : Int) (i₀ : Int) : Prop :=
-  (np₀ ≤ (i₀ - 1))
+def Le1 (i₀ : Int) (np₀ : Int) : Prop :=
+  (i₀ ≤ (np₀ - 1))
 
 end DoitQualifs
 

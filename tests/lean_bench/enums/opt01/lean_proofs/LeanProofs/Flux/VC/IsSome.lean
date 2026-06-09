@@ -1,6 +1,7 @@
 import LeanProofs.Flux.Prelude
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -13,9 +14,9 @@ def IsSome := ∃ k0 : (a0 : Prop) -> (a1 : Prop) -> (a2 : Prop) -> Prop,
   ((b₀ = True) ->
    ∀ (a'₀ : Int),
     ((k0 True True b₀))) ∧
-  (∀ (a'₁ : Prop),
-   ∀ (x₀ : Prop),
-    ((k0 a'₁ x₀ b₀)) ->
-     (a'₁ = b₀))
+  (∀ (x₀ : Prop),
+   ∀ (a'₂ : Prop),
+    ((k0 x₀ a'₂ b₀)) ->
+     (a'₂ = b₀))
   
 end F

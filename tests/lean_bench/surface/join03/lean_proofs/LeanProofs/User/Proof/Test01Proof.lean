@@ -2,62 +2,64 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.Test01
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
 namespace Test01Qualifs
 
 @[qualif]
-def EqTrue (i₀ : Prop) : Prop :=
-  i₀
+def EqTrue (p₁ : Prop) : Prop :=
+  p₁
 
 @[qualif]
-def EqFalse (i₀ : Prop) : Prop :=
-  (¬i₀)
+def EqFalse (p₁ : Prop) : Prop :=
+  (¬p₁)
 
 @[qualif]
-def EqZero (i₀ : Int) : Prop :=
-  (i₀ = 0)
+def EqZero (p₁ : Int) : Prop :=
+  (p₁ = 0)
 
 @[qualif]
-def GtZero (i₀ : Int) : Prop :=
-  (i₀ > 0)
+def GtZero (p₁ : Int) : Prop :=
+  (p₁ > 0)
 
 @[qualif]
-def GeZero (i₀ : Int) : Prop :=
-  (i₀ ≥ 0)
+def GeZero (p₁ : Int) : Prop :=
+  (p₁ ≥ 0)
 
 @[qualif]
-def LtZero (i₀ : Int) : Prop :=
-  (i₀ < 0)
+def LtZero (p₁ : Int) : Prop :=
+  (p₁ < 0)
 
 @[qualif]
-def LeZero (i₀ : Int) : Prop :=
-  (i₀ ≤ 0)
+def LeZero (p₁ : Int) : Prop :=
+  (p₁ ≤ 0)
 
 @[qualif]
-def Eq (i₀ : Int) (p₁ : Int) : Prop :=
-  (i₀ = p₁)
+def Eq (p₁ : Int) (i₀ : Int) : Prop :=
+  (p₁ = i₀)
 
 @[qualif]
-def Gt (i₀ : Int) (p₁ : Int) : Prop :=
-  (i₀ > p₁)
+def Gt (p₁ : Int) (i₀ : Int) : Prop :=
+  (p₁ > i₀)
 
 @[qualif]
-def Ge (i₀ : Int) (p₁ : Int) : Prop :=
-  (i₀ ≥ p₁)
+def Ge (p₁ : Int) (i₀ : Int) : Prop :=
+  (p₁ ≥ i₀)
 
 @[qualif]
-def Lt (i₀ : Int) (p₁ : Int) : Prop :=
-  (i₀ < p₁)
+def Lt (p₁ : Int) (i₀ : Int) : Prop :=
+  (p₁ < i₀)
 
 @[qualif]
-def Le (i₀ : Int) (p₁ : Int) : Prop :=
-  (i₀ ≤ p₁)
+def Le (p₁ : Int) (i₀ : Int) : Prop :=
+  (p₁ ≤ i₀)
 
 @[qualif]
-def Le1 (i₀ : Int) (p₁ : Int) : Prop :=
-  (i₀ ≤ (p₁ - 1))
+def Le1 (p₁ : Int) (i₀ : Int) : Prop :=
+  (p₁ ≤ (i₀ - 1))
 
 end Test01Qualifs
 

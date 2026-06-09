@@ -1,6 +1,7 @@
 import LeanProofs.Flux.Prelude
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -8,14 +9,14 @@ namespace F
 
 def Impl__0__LenConstMemory := ∃ k0 : (a0 : Int) -> (a1 : Int) -> (a2 : Int) -> Prop, 
  ∀ (n₀ : Int),
-  (((k0 n₀ 0 n₀))) ∧
-  (∀ (cur₀ : Int),
-   ∀ (len₀ : Int),
-    ((k0 cur₀ len₀ n₀)) ->
+  (((k0 0 n₀ n₀))) ∧
+  (∀ (len₀ : Int),
+   ∀ (cur₀ : Int),
+    ((k0 len₀ cur₀ n₀)) ->
      (∀ (n₁ : Int),
       (cur₀ = (n₁ + 1)) ->
        ∀ (a'₃ : Int),
-        ((k0 n₁ (len₀ + 1) n₀))) ∧
+        ((k0 (len₀ + 1) n₁ n₀))) ∧
      ((cur₀ = 0) ->
       (len₀ = n₀))
      )

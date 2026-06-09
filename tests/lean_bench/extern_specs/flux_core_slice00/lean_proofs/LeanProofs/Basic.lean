@@ -29,3 +29,4 @@ import LeanProofs.Flux.Checking.TestSplitAtMutCheckedLengths
 import LeanProofs.Flux.Checking.TestSplitAtCheckedInBounds
 import LeanProofs.Flux.Checking.TestSplitAtCheckedOutOfBounds
 import LeanProofs.Flux.Checking.TestSplitAtCheckedLengths
+import LeanProofs.Flux.Checking.TestRangeIndexInBounds

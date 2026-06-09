@@ -1,8 +1,9 @@
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.Struct.IterAdaptersEnumerateEnumerate
 import LeanProofs.Flux.Struct.SliceIterIter
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 

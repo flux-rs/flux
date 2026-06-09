@@ -1,6 +1,7 @@
 import LeanProofs.Flux.Prelude
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -9,13 +10,13 @@ namespace F
 def GeneralizedJoin := ∃ k0 : (a0 : Int) -> (a1 : Int) -> (a2 : Int) -> Prop, 
  ∀ (n₀ : Int),
   (((k0 0 0 n₀))) ∧
-  (∀ (j₀ : Int),
-   ∀ (i₀ : Int),
-    ((k0 j₀ i₀ n₀)) ->
+  (∀ (i₀ : Int),
+   ∀ (j₀ : Int),
+    ((k0 i₀ j₀ n₀)) ->
      ((¬(i₀ < n₀)) ->
       ((i₀ - j₀) = 0)) ∧
      ((i₀ < n₀) ->
-      ((k0 (j₀ + 1) (i₀ + 1) n₀)))
+      ((k0 (i₀ + 1) (j₀ + 1) n₀)))
      )
   
 end F

@@ -2,6 +2,8 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.IsSomeFlip
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -36,28 +38,28 @@ def LeZero (a'₀ : Int) : Prop :=
   (a'₀ ≤ 0)
 
 @[qualif]
-def Eq (a'₀ : Int) (a'₁ : Int) : Prop :=
-  (a'₀ = a'₁)
+def Eq (a'₀ : Int) (x₀ : Int) : Prop :=
+  (a'₀ = x₀)
 
 @[qualif]
-def Gt (a'₀ : Int) (a'₁ : Int) : Prop :=
-  (a'₀ > a'₁)
+def Gt (a'₀ : Int) (x₀ : Int) : Prop :=
+  (a'₀ > x₀)
 
 @[qualif]
-def Ge (a'₀ : Int) (a'₁ : Int) : Prop :=
-  (a'₀ ≥ a'₁)
+def Ge (a'₀ : Int) (x₀ : Int) : Prop :=
+  (a'₀ ≥ x₀)
 
 @[qualif]
-def Lt (a'₀ : Int) (a'₁ : Int) : Prop :=
-  (a'₀ < a'₁)
+def Lt (a'₀ : Int) (x₀ : Int) : Prop :=
+  (a'₀ < x₀)
 
 @[qualif]
-def Le (a'₀ : Int) (a'₁ : Int) : Prop :=
-  (a'₀ ≤ a'₁)
+def Le (a'₀ : Int) (x₀ : Int) : Prop :=
+  (a'₀ ≤ x₀)
 
 @[qualif]
-def Le1 (a'₀ : Int) (a'₁ : Int) : Prop :=
-  (a'₀ ≤ (a'₁ - 1))
+def Le1 (a'₀ : Int) (x₀ : Int) : Prop :=
+  (a'₀ ≤ (x₀ - 1))
 
 end IsSomeFlipQualifs
 

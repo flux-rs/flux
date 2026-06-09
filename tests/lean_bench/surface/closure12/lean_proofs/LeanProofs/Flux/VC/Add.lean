@@ -1,12 +1,13 @@
 import LeanProofs.Flux.Prelude
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
 
 
-def Add := ∃ k0 : (a0 : Int) -> (a1 : Int) -> Prop, 
+def Add := ∃ k0 : (a0 : Int) -> (a1 : Int) -> Prop, ∃ k1 : (a0 : Int) -> (a1 : Int) -> (a2 : Int) -> Prop, 
  ∀ (n₀ : Int),
   (0 ≤ n₀) ->
    (n₀ ≥ 0) ->
@@ -16,7 +17,10 @@ def Add := ∃ k0 : (a0 : Int) -> (a1 : Int) -> Prop,
       (a'₀ ≥ 0) ->
        ((a'₀ < n₀)) ∧
        (∀ (a'₁ : Int),
-        (a'₀ < n₀))
+        ((k1 a'₁ n₀ a'₀))) ∧
+       (∀ (a'₂ : Int),
+        ((k1 a'₂ n₀ a'₀)) ->
+         (a'₀ < n₀))
        ) ∧
     (∀ (v₀ : Int),
      ((0 ≤ v₀) ∧ (v₀ < n₀)) ->

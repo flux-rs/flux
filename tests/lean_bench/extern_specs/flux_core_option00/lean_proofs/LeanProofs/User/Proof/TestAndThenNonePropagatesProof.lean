@@ -2,6 +2,8 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.TestAndThenNonePropagates
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 

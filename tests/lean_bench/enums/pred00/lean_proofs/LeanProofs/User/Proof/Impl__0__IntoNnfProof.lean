@@ -2,6 +2,8 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.Impl__0__IntoNnf
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -66,6 +68,9 @@ open Impl0IntoNnfQualifs
 set_option maxHeartbeats 5000000
 def Impl__0__IntoNnf_proof : Impl__0__IntoNnf := by
   unfold Impl__0__IntoNnf
-  try solve_fixpoint
+  rewriteKs
+  fusion
+  fixpoint
+  zap
 
 end F

@@ -2,6 +2,8 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.Tuple01
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 

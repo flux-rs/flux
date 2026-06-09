@@ -7,5 +7,4 @@ name = "LeanProofs"
 
 [[require]]
 name = "LeanFixpoint"
-git = "git@github.com:jam-khan/lean-fixpoint.git"
-rev = "main"
+path = "/Users/petros/Documents/UCSD/Work/lean-fixpoint"

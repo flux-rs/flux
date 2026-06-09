@@ -6,3 +6,4 @@ import LeanProofs.Flux.Checking.Test6
 import LeanProofs.Flux.Checking.Test2
 import LeanProofs.Flux.Checking.Test3
 import LeanProofs.Flux.Checking.Test5
+import LeanProofs.Flux.Checking.Test7

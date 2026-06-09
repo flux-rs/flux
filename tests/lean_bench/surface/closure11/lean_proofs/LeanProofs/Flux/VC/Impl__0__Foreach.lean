@@ -1,6 +1,7 @@
 import LeanProofs.Flux.Prelude
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -16,7 +17,7 @@ def Impl__0__Foreach := ∃ k0 : (a0 : Int) -> (a1 : Int) -> (a2 : Int) -> Prop,
        ((k0 a'₁ n₀ f₀)) ->
         (a'₁ ≥ 0) ->
          False ->
-          (c0)) ∧
+          ((c0) ∨ False)) ∧
       (∀ (item₀ : Int),
        ((0 ≤ item₀) ∧ (item₀ < n₀)) ->
         ((k0 item₀ n₀ f₀)))

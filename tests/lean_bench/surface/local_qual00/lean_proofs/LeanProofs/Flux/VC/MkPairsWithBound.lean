@@ -1,7 +1,8 @@
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.Struct.Pair
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 

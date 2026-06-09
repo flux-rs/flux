@@ -1,8 +1,9 @@
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.Struct.AllocLayoutLayout
 import LeanProofs.Flux.Fun.NumImpl5MAX
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 

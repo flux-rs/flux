@@ -2,6 +2,8 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.Impl__0__LenConstMemory
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -12,56 +14,56 @@ def Sub2 (a'₄ : Int) (a'₅ : Int) (a'₆ : Int) : Prop :=
   (a'₄ = (a'₅ - a'₆))
 
 @[qualif]
-def EqTrue (cur₀ : Prop) : Prop :=
-  cur₀
+def EqTrue (len₀ : Prop) : Prop :=
+  len₀
 
 @[qualif]
-def EqFalse (cur₀ : Prop) : Prop :=
-  (¬cur₀)
+def EqFalse (len₀ : Prop) : Prop :=
+  (¬len₀)
 
 @[qualif]
-def EqZero (cur₀ : Int) : Prop :=
-  (cur₀ = 0)
+def EqZero (len₀ : Int) : Prop :=
+  (len₀ = 0)
 
 @[qualif]
-def GtZero (cur₀ : Int) : Prop :=
-  (cur₀ > 0)
+def GtZero (len₀ : Int) : Prop :=
+  (len₀ > 0)
 
 @[qualif]
-def GeZero (cur₀ : Int) : Prop :=
-  (cur₀ ≥ 0)
+def GeZero (len₀ : Int) : Prop :=
+  (len₀ ≥ 0)
 
 @[qualif]
-def LtZero (cur₀ : Int) : Prop :=
-  (cur₀ < 0)
+def LtZero (len₀ : Int) : Prop :=
+  (len₀ < 0)
 
 @[qualif]
-def LeZero (cur₀ : Int) : Prop :=
-  (cur₀ ≤ 0)
+def LeZero (len₀ : Int) : Prop :=
+  (len₀ ≤ 0)
 
 @[qualif]
-def Eq (cur₀ : Int) (len₀ : Int) : Prop :=
-  (cur₀ = len₀)
+def Eq (len₀ : Int) (cur₀ : Int) : Prop :=
+  (len₀ = cur₀)
 
 @[qualif]
-def Gt (cur₀ : Int) (len₀ : Int) : Prop :=
-  (cur₀ > len₀)
+def Gt (len₀ : Int) (cur₀ : Int) : Prop :=
+  (len₀ > cur₀)
 
 @[qualif]
-def Ge (cur₀ : Int) (len₀ : Int) : Prop :=
-  (cur₀ ≥ len₀)
+def Ge (len₀ : Int) (cur₀ : Int) : Prop :=
+  (len₀ ≥ cur₀)
 
 @[qualif]
-def Lt (cur₀ : Int) (len₀ : Int) : Prop :=
-  (cur₀ < len₀)
+def Lt (len₀ : Int) (cur₀ : Int) : Prop :=
+  (len₀ < cur₀)
 
 @[qualif]
-def Le (cur₀ : Int) (len₀ : Int) : Prop :=
-  (cur₀ ≤ len₀)
+def Le (len₀ : Int) (cur₀ : Int) : Prop :=
+  (len₀ ≤ cur₀)
 
 @[qualif]
-def Le1 (cur₀ : Int) (len₀ : Int) : Prop :=
-  (cur₀ ≤ (len₀ - 1))
+def Le1 (len₀ : Int) (cur₀ : Int) : Prop :=
+  (len₀ ≤ (cur₀ - 1))
 
 end Impl0LenConstMemoryQualifs
 

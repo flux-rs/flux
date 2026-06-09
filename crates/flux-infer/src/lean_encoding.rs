@@ -407,8 +407,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             r#"
 [[require]]
 name = "LeanFixpoint"
-git = "git@github.com:jam-khan/lean-fixpoint.git"
-rev = "main"
+path = "/Users/petros/Documents/UCSD/Work/lean-fixpoint"
 "#,
         );
         fs::write(lakefile, contents)

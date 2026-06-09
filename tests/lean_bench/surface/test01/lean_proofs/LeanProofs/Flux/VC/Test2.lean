@@ -1,6 +1,7 @@
 import LeanProofs.Flux.Prelude
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -11,10 +12,10 @@ def Test2 := ∃ k0 : (a0 : Int) -> (a1 : Prop) -> Prop, ∃ k1 : (a0 : Prop) ->
   ((¬b₀) ->
    (((k0 1 b₀))) ∧
    (((k1 b₀))) ∧
+   (((k2 1 b₀))) ∧
    (∀ (a'₁ : Int),
     ((k0 a'₁ b₀)) ->
-     ((k2 a'₁ b₀))) ∧
-   (((k3 1 b₀))) ∧
+     ((k3 a'₁ b₀))) ∧
    (∀ (a'₂ : Int),
     ((k0 a'₂ b₀)) ->
      ((k4 a'₂ b₀))) ∧
@@ -25,10 +26,10 @@ def Test2 := ∃ k0 : (a0 : Int) -> (a1 : Prop) -> Prop, ∃ k1 : (a0 : Prop) ->
   (b₀ ->
    (((k5 1 True))) ∧
    (((k1 True))) ∧
-   (((k2 1 True))) ∧
    (∀ (a'₄ : Int),
     ((k5 a'₄ True)) ->
-     ((k3 a'₄ True))) ∧
+     ((k2 a'₄ True))) ∧
+   (((k3 1 True))) ∧
    (∀ (a'₅ : Int),
     ((k5 a'₅ True)) ->
      ((k4 a'₅ True))) ∧
@@ -41,9 +42,9 @@ def Test2 := ∃ k0 : (a0 : Int) -> (a1 : Prop) -> Prop, ∃ k1 : (a0 : Prop) ->
     ((k4 a'₇ b₀)) ->
      (((k4 (a'₇ + 1) b₀))) ∧
      (∀ (a'₈ : Int),
-      ((k3 a'₈ b₀)) ->
+      ((k2 a'₈ b₀)) ->
        ∀ (a'₉ : Int),
-        ((k2 a'₉ b₀)) ->
+        ((k3 a'₉ b₀)) ->
          ((a'₈ + a'₉) > 0))
      )
   

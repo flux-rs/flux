@@ -2,6 +2,8 @@ import LeanFixpoint
 import LeanProofs.Flux.Prelude
 import LeanProofs.Flux.VC.TestArrayUnwrap
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -63,9 +65,12 @@ end TestArrayUnwrapQualifs
 
 open TestArrayUnwrapQualifs
 
+attribute [grind] AllocLayoutLayout.ext
+
 set_option maxHeartbeats 5000000
 def TestArrayUnwrap_proof : TestArrayUnwrap := by
   unfold TestArrayUnwrap
-  try solve_fixpoint
+  fusion
+  zap
 
 end F

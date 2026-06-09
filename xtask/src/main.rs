@@ -169,9 +169,30 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
+fn collect_test_files(args: &LeanBench, paths: &[PathBuf]) -> Vec<PathBuf> {
     use walkdir::WalkDir;
+    let mut res = vec![];
+    for pos_path in paths {
+        res.extend(
+            WalkDir::new(&pos_path)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
+                .map(|e| e.path().to_path_buf())
+                .filter(|path| {
+                    // Apply filter if specified
+                    if let Some(ref filter) = args.filter {
+                        path.to_string_lossy().contains(filter)
+                    } else {
+                        true
+                    }
+                })
+        );
+    }
+    res
+}
 
+fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     let config = SysrootConfig {
         profile: Profile::Dev,
         rust_fixpoint,
@@ -180,34 +201,20 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     };
     let flux_driver = install_sysroot(&config)?;
 
-    let pos_path = PathBuf::from("tests/tests/pos");
+    let pos_paths = [PathBuf::from("tests/tests/pos"), PathBuf::from("tests/tests/with_deps/pos")];
     let lean_bench_dir = PathBuf::from("tests/lean_bench");
 
-    if !pos_path.exists() {
-        return Err(anyhow!("tests/tests/pos directory not found"));
+    if !pos_paths.iter().all(|p| p.exists()) {
+        return Err(anyhow!("directories not found"));
     }
 
-    // Find all .rs test files
-    let test_files: Vec<PathBuf> = WalkDir::new(&pos_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
-        .map(|e| e.path().to_path_buf())
-        .filter(|path| {
-            // Apply filter if specified
-            if let Some(ref filter) = args.filter {
-                path.to_string_lossy().contains(filter)
-            } else {
-                true
-            }
-        })
-        .collect();
+    let test_files = collect_test_files(&args, &pos_paths);
 
     if test_files.is_empty() {
         if args.filter.is_some() {
             eprintln!("No test files found matching filter: {:?}", args.filter);
         } else {
-            eprintln!("No test files found under {:?}", pos_path);
+            eprintln!("No test files found under {:?}", pos_paths);
         }
         return Ok(());
     }
@@ -222,7 +229,12 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     let Some((i, test_path)) = enumerated_tests.next() else { return Ok(()) };
     let first_lean_dir: PathBuf;
     {
-        let rel_path = test_path.strip_prefix(&pos_path).unwrap();
+        let rel_path = pos_paths
+            .iter()
+            .map(|pos_path| {
+                test_path.strip_prefix(pos_path)
+            }).filter(Result::is_ok)
+            .next().unwrap().unwrap();
 
         // Create lean output dir: ./tests/lean_bench/<path>/<to>/<file>/
         let mut lean_dir = lean_bench_dir.clone();
@@ -282,7 +294,12 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     }
 
     for (i, test_path) in enumerated_tests {
-        let rel_path = test_path.strip_prefix(&pos_path).unwrap();
+        let rel_path = pos_paths
+            .iter()
+            .map(|pos_path| {
+                test_path.strip_prefix(pos_path)
+            }).filter(Result::is_ok)
+            .next().unwrap().unwrap();
 
         // Create lean output dir: ./tests/lean_bench/<path>/<to>/<file>/
         let mut lean_dir = lean_bench_dir.clone();
@@ -355,7 +372,12 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         eprintln!();
         eprintln!("Failed tests:");
         for (path, _) in &failures {
-            let rel_path = path.strip_prefix(&pos_path).unwrap_or(path);
+            let rel_path = pos_paths
+            .iter()
+            .map(|pos_path| {
+                path.strip_prefix(pos_path)
+            }).filter(Result::is_ok)
+            .next().unwrap().unwrap();
             eprintln!("  - {}", rel_path.display());
         }
         eprintln!("{}", "=".repeat(60));

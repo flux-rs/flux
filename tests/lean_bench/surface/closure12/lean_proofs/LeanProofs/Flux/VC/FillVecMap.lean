@@ -1,6 +1,7 @@
 import LeanProofs.Flux.Prelude
-import LeanFixpoint
 open Classical
+set_option linter.unusedVariables false
+
 
 namespace F
 
@@ -16,7 +17,7 @@ def FillVecMap := ∃ k0 : (a0 : Int) -> (a1 : Int) -> (a2 : Int) -> Prop, ∃ k
       ((k1 a'₁ n₀ f₀)) ->
        (a'₁ ≥ 0) ->
         (False ->
-         (c0)) ∧
+         ((c0) ∨ False)) ∧
         (∀ (a'₂ : Int),
          ((k0 a'₂ n₀ f₀)) ->
           ((k2 a'₂ n₀ f₀ a'₁))) ∧
