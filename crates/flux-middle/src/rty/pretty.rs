@@ -436,7 +436,13 @@ impl Pretty for Ty {
                 w!(cx, f, "{:?}", self.shallow_canonicalize())
             }
             TyKind::Uninit => w!(cx, f, "uninit"),
-            TyKind::StrgRef(re, loc, ty) => w!(cx, f, "&{:?} strg <{:?}: {:?}>", re, loc, ty),
+            TyKind::StrgRef(re, loc, ty) => {
+                if cx.hide_regions {
+                    w!(cx, f, "{:?}: &strg {:?}", loc, ty)
+                } else {
+                    w!(cx, f, "{:?}: &{:?} strg {:?}", loc, re, ty)
+                }
+            }
             TyKind::Ptr(pk, loc) => w!(cx, f, "ptr({:?}, {:?})", pk, loc),
             TyKind::Discr(adt_def, place) => {
                 w!(cx, f, "discr({:?}, {:?})", adt_def.did(), ^place)
