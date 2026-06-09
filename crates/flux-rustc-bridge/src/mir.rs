@@ -450,7 +450,9 @@ impl<'tcx> Body<'tcx> {
         rustc_body: rustc_middle::mir::Body<'tcx>,
     ) -> Self {
         let fake_predecessors = mk_fake_predecessors(&basic_blocks);
-        let dummy_basic_blocks = mk_dummy_basic_blocks(&basic_blocks);
+
+        let dummy_basic_blocks =
+            mk_dummy_basic_blocks(&rustc_body, &fake_predecessors, &basic_blocks);
 
         // The dominator rank of each node is just its index in a reverse-postorder traversal.
         let graph = &rustc_body.basic_blocks;
@@ -520,12 +522,15 @@ impl<'tcx> Body<'tcx> {
         self.local_decls[RETURN_PLACE].ty.clone()
     }
 
+    pub fn resolve_dummy(&self, bb: BasicBlock) -> Option<BasicBlock> {
+        if let DummyBlockTarget::DummySuccessor(target) = self.dummy_basic_blocks[bb] {
+            Some(target)
+        } else {
+            None
+        }
+    }
+
     pub fn terminator_for(&self, bb: BasicBlock) -> Option<&Terminator<'tcx>> {
-        println!("TRACE: terminator_for: bb={bb:?}");
-        let bb = match self.dummy_basic_blocks[bb] {
-            DummyBlockTarget::Normal | DummyBlockTarget::DummyCycle => bb,
-            DummyBlockTarget::DummySuccessor(target) => target,
-        };
         self.basic_blocks[bb].terminator.as_ref()
     }
 }
@@ -569,10 +574,16 @@ fn is_single_goto(
 }
 
 fn is_dummy_basic_block(
+    rustc_body: &rustc_middle::mir::Body<'_>,
+    fake_predecessors: &IndexVec<BasicBlock, usize>,
     basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
     bb: BasicBlock,
 ) -> Option<BasicBlock> {
-    if basic_blocks[bb].statements.iter().all(Statement::is_nop) {
+    let real_predecessor_count =
+        rustc_body.basic_blocks.predecessors()[bb].len() - fake_predecessors[bb];
+    let has_multiple_incoming = real_predecessor_count > 1;
+
+    if has_multiple_incoming && basic_blocks[bb].statements.iter().all(Statement::is_nop) {
         is_single_goto(basic_blocks, bb)
     } else {
         None
@@ -580,9 +591,10 @@ fn is_dummy_basic_block(
 }
 
 fn mk_dummy_basic_blocks(
+    rustc_body: &rustc_middle::mir::Body<'_>,
+    fake_predecessors: &IndexVec<BasicBlock, usize>,
     basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
 ) -> IndexVec<BasicBlock, DummyBlockTarget> {
-    println!("TRACE: mk_dummy_basic_blocks");
     let mut res = IndexVec::from_elem_n(DummyBlockTarget::Normal, basic_blocks.len());
     for (bb, _) in basic_blocks.iter_enumerated() {
         // If already marked, continue (memoizes results and handles cycles)
@@ -590,12 +602,13 @@ fn mk_dummy_basic_blocks(
             continue;
         }
         // Check if this block is a dummy block
-        if is_dummy_basic_block(basic_blocks, bb).is_none() {
+        if is_dummy_basic_block(rustc_body, fake_predecessors, basic_blocks, bb).is_none() {
             continue;
         }
         // Mark this block and all transitively reachable dummy blocks with the same target
         let mut path = vec![];
-        let target = get_transitive_dummy_target(basic_blocks, &mut path, bb);
+        let target =
+            get_transitive_dummy_target(rustc_body, fake_predecessors, basic_blocks, &mut path, bb);
         for bb_ in path.into_iter() {
             res[bb_] = target.clone();
         }
@@ -604,18 +617,21 @@ fn mk_dummy_basic_blocks(
 }
 
 fn get_transitive_dummy_target(
+    rustc_body: &rustc_middle::mir::Body,
+    fake_predecessors: &IndexVec<BasicBlock, usize>,
     basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
     path: &mut Vec<BasicBlock>,
     bb: BasicBlock,
 ) -> DummyBlockTarget {
-    println!("TRACE: get_transitive_dummy_targe: bb={bb:?}, path={path:?}");
     if path.contains(&bb) {
         // we've seen this bb before, abort! ...
         DummyBlockTarget::DummyCycle
-    } else if let Some(target) = is_dummy_basic_block(basic_blocks, bb) {
+    } else if let Some(target) =
+        is_dummy_basic_block(rustc_body, fake_predecessors, basic_blocks, bb)
+    {
         // bb is also a dummy block, continue traversal!
         path.push(bb);
-        get_transitive_dummy_target(basic_blocks, path, target)
+        get_transitive_dummy_target(rustc_body, fake_predecessors, basic_blocks, path, target)
     } else {
         // bb is NOT a dummy block, this is the "real" successor!
         DummyBlockTarget::DummySuccessor(bb)

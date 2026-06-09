@@ -625,8 +625,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result {
+        // println!("TRACE: check_basic_block: {:?} {bb:?}", infcx.def_id);
         dbg::basic_block_start!(bb, infcx, env);
-
         self.visited.insert(bb);
         let data = &self.body.basic_blocks[bb];
         let mut last_stmt_span = None;
@@ -1296,6 +1296,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 span,
             )?;
             self.check_ret(&mut infcx, &mut env, span)
+        } else if let Some(real_target) = self.body.resolve_dummy(target) {
+            self.check_goto(infcx, env, span, real_target)
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, infcx, env, span, target)? {
                 self.queue.insert(target);

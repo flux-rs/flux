@@ -449,7 +449,9 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
     }
 
     fn goto(&mut self, target: BasicBlock, env: Env) -> QueryResult {
-        if self.body.is_join_point(target) {
+        if let Some(real_target) = self.body.resolve_dummy(target) {
+            self.goto(real_target, env)
+        } else if self.body.is_join_point(target) {
             if M::goto_join_point(self, target, env)? {
                 self.queue.insert(target);
             }
