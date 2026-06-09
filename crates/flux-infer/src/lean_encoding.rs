@@ -519,7 +519,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn generate_lake_project_if_not_present(&self) -> io::Result<()> {
-        let path = project_path(self.genv, FileKind::User);
+        let path = project_path(self.genv, FileKind::User).join("lakefile.toml");
         if !path.exists() {
             Command::new("lake")
                 .current_dir(self.genv.lean_parent_dir())

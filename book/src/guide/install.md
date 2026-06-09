@@ -246,7 +246,7 @@ FLUXFLAGS="-Ftimings" cargo flux
 One particularly useful flag is
 
 ```console
-FLUXFLAGS="-Fverbose" cargo flux
+FLUXFLAGS="-Fflux-verbose" cargo flux
 ```
 
 This will make flux print out a log of what it is upto, e.g. the name of the last function checked. This is helpful, e.g. if flux ICEs (hits an internal error), so you can see _which_ function's code caused the issue, so you might mark it as `trusted`, so flux can skip checking its body, and hence, live to fight another day...
