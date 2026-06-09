@@ -131,7 +131,7 @@ where
             fixpoint::Expr::Constant(constant) => {
                 let c = match constant {
                     fixpoint::Constant::Numeral(num) => rty::Constant::Int(BigInt::from(*num)),
-                    fixpoint::Constant::Real(dec) => rty::Constant::Real(rty::Real(*dec)),
+                    fixpoint::Constant::Real(dec) => rty::Constant::Real(rty::Real(dec.0)),
                     fixpoint::Constant::Boolean(b) => rty::Constant::Bool(*b),
                     fixpoint::Constant::String(s) => rty::Constant::Str(s.0),
                     fixpoint::Constant::BitVec(bv, size) => rty::Constant::BitVec(*bv, *size),

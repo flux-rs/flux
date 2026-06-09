@@ -1701,15 +1701,21 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     Err(err) => return fhir::ExprKind::Err(err),
                 };
                 match lit.suffix {
-                    Some(sym::int) => fhir::Lit::Int(n, Some(fhir::NumLitKind::Int)),
-                    Some(sym::real) => fhir::Lit::Int(n, Some(fhir::NumLitKind::Real)),
-                    None => fhir::Lit::Int(n, None),
+                    None => fhir::Lit::Int(n),
                     Some(suffix) => {
                         return fhir::ExprKind::Err(
                             self.emit(errors::InvalidNumericSuffix::new(span, suffix)),
                         );
                     }
                 }
+            }
+            surface::LitKind::Float => {
+                if let Some(suffix) = lit.suffix {
+                    return fhir::ExprKind::Err(
+                        self.emit(errors::InvalidNumericSuffix::new(span, suffix)),
+                    );
+                }
+                fhir::Lit::Real(lit.symbol)
             }
             surface::LitKind::Bool => fhir::Lit::Bool(lit.symbol == kw::True),
             surface::LitKind::Str => fhir::Lit::Str(lit.symbol),

@@ -197,11 +197,21 @@ pub mod fixpoint {
         }
     }
 
+    #[derive(Hash, Clone, Debug)]
+    pub struct SymReal(pub Symbol);
+
+    impl FixpointFmt for SymReal {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+
     liquid_fixpoint::declare_types! {
         type Sort = DataSort;
         type KVar = KVid;
         type Var = Var;
         type String = SymStr;
+        type Real = SymReal;
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
@@ -1106,7 +1116,7 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
                 fixpoint::Constant::Numeral(i.abs()).into()
             }
         }
-        rty::Constant::Real(r) => fixpoint::Constant::Real(r.0).into(),
+        rty::Constant::Real(r) => fixpoint::Constant::Real(fixpoint::SymReal(r.0)).into(),
         rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b).into(),
         rty::Constant::Char(c) => fixpoint::Constant::Numeral(u128::from(c)).into(),
         rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)).into(),

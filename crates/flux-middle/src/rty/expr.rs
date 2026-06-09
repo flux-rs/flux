@@ -1223,7 +1223,7 @@ impl From<Local> for Loc {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub struct Real(pub u128);
+pub struct Real(pub Symbol);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum Constant {
@@ -1700,7 +1700,7 @@ pub(crate) mod pretty {
             match self {
                 Constant::Int(i) => w!(cx, f, "{i}"),
                 Constant::BitVec(i, sz) => w!(cx, f, "bv({i}, {sz})"),
-                Constant::Real(r) => w!(cx, f, "{}.0", ^r.0),
+                Constant::Real(r) => w!(cx, f, "{}", ^r.0),
                 Constant::Bool(b) => w!(cx, f, "{b}"),
                 Constant::Str(sym) => w!(cx, f, "\"{sym}\""),
                 Constant::Char(c) => w!(cx, f, "\'{c}\'"),

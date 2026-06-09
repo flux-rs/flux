@@ -10,7 +10,7 @@ fn add(x: Real, y: Real) -> Real {
 }
 
 #[flux::trusted]
-#[flux::sig(fn(x: Real) -> Real[x + 1real])]
+#[flux::sig(fn(x: Real) -> Real[x + 1.0])]
 fn add1(x: Real) -> Real {
     Real
 }
@@ -23,7 +23,7 @@ fn test01(x: Real) {
 }
 
 fn test02() {
-    #[flux::sig(fn() requires 1real/2real != 1real/3real)]
+    #[flux::sig(fn() requires 1.0/2.0 != 1.0/3.0)]
     fn assert() {}
     assert()
 }
