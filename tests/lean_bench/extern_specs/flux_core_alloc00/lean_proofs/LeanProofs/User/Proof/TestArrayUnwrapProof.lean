@@ -65,12 +65,9 @@ end TestArrayUnwrapQualifs
 
 open TestArrayUnwrapQualifs
 
-attribute [grind] AllocLayoutLayout.ext
-
 set_option maxHeartbeats 5000000
 def TestArrayUnwrap_proof : TestArrayUnwrap := by
   unfold TestArrayUnwrap
-  fusion
-  zap
+  try solve_fixpoint
 
 end F

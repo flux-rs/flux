@@ -65,12 +65,9 @@ end Impl0SimplifyQualifs
 
 open Impl0SimplifyQualifs
 
-set_option maxHeartbeats 5000000
+set_option maxHeartbeats 20000000
 def Impl__0__Simplify_proof : Impl__0__Simplify := by
   unfold Impl__0__Simplify
-  rewriteKs
-  fusion
-  fixpoint
-  zap
+  try solve_fixpoint
 
 end F

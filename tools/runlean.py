@@ -38,20 +38,18 @@ def run_lake_build(directory: Path) -> tuple[bool, str]:
             text=True,
             timeout=300,  # 5 minute timeout per directory
         )
-        # Filter stdout lines that start with "error: LeanProofs"
-        error_lines = [
-            line for line in result.stdout.splitlines()
-            if line.startswith("error: ")
-        ]
+        all_lines = result.stdout.splitlines()
+        error_lines = [line for line in all_lines if line.startswith("error: ")]
+        kappa_lines = [line for line in all_lines if "[solve_fixpoint]" in line]
         has_error = result.returncode != 0 or len(error_lines) > 0
         error_output = "\n".join(error_lines) if error_lines else ""
-        return (not has_error, error_output)
+        return (not has_error, error_output, kappa_lines)
     except subprocess.TimeoutExpired:
-        return (False, "Timeout expired (5 minutes)")
+        return (False, "Timeout expired (5 minutes)", [])
     except FileNotFoundError:
-        return (False, "lake command not found")
+        return (False, "lake command not found", [])
     except Exception as e:
-        return (False, str(e))
+        return (False, str(e), [])
 
 
 def main():
@@ -99,7 +97,7 @@ def main():
         relative_path = lean_dir.relative_to(root_path)
         print(f"[{visited_count}/{len(lean_dirs)}] Building: {relative_path} ... ", end="", flush=True)
 
-        success, error_output = run_lake_build(lean_dir)
+        success, error_output, kappa_lines = run_lake_build(lean_dir)
 
         if success:
             print("OK")
@@ -109,6 +107,8 @@ def main():
             if error_output:
                 for err in error_output.splitlines():
                     print(f"    {err.strip()}")
+        for kline in kappa_lines:
+            print(f"    {kline.strip()}")
                 # print(f"    Error: {error_output.strip()}")
 
     # Print summary

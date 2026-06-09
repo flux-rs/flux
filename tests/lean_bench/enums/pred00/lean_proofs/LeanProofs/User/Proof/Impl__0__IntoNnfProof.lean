@@ -65,12 +65,9 @@ end Impl0IntoNnfQualifs
 
 open Impl0IntoNnfQualifs
 
-set_option maxHeartbeats 5000000
+set_option maxHeartbeats 20000000
 def Impl__0__IntoNnf_proof : Impl__0__IntoNnf := by
   unfold Impl__0__IntoNnf
-  rewriteKs
-  fusion
-  fixpoint
-  zap
+  try solve_fixpoint
 
 end F

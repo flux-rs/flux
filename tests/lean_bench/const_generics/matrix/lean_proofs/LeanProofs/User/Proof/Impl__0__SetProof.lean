@@ -68,6 +68,10 @@ open Impl0SetQualifs
 set_option maxHeartbeats 5000000
 def Impl__0__Set_proof : Impl__0__Set := by
   unfold Impl__0__Set
-  try solve_fixpoint
-
+  intro N M i j v hin hjm hi hj hnm
+  apply Int.lt_of_lt_of_le (b := i * M + M) (by omega)
+  apply Int.le_trans (b := (N - 1) * M + M)
+  apply Int.add_le_add_right
+  rw [Int.mul_le_mul_right]
+  all_goals grind
 end F
