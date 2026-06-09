@@ -625,7 +625,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         mut env: TypeEnv,
         bb: BasicBlock,
     ) -> Result {
-        // println!("TRACE: check_basic_block: {:?} {bb:?}", infcx.def_id);
         dbg::basic_block_start!(bb, infcx, env);
         self.visited.insert(bb);
         let data = &self.body.basic_blocks[bb];
