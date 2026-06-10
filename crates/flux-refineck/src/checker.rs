@@ -1296,8 +1296,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 span,
             )?;
             self.check_ret(&mut infcx, &mut env, span)
-        } else if let Some(real_target) = self.is_dummy_basic_block(target) {
-            println!("TRACE: skipping {target:?} => {real_target:?}");
+        } else if let Some(real_target) = self.is_dummy_join(target) {
             self.check_goto(infcx, env, span, real_target)
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, infcx, env, span, target)? {
@@ -1309,25 +1308,26 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
-    /// NOTE: `dummy_basic_blocks` are those that have
-    /// - MULTIPLE incoming edges,
-    /// - SINGLE outgoing edge,
-    /// - and only contain no-op statements.
+    /// A dummy-join-block is a BasicBlock that has
+    /// 1. MULTIPLE incoming edges,
+    /// 2. SINGLE outgoing edge,
+    /// 3. ONLY no-op statements, and
+    /// 4. NO ghosts statements.
+    ///
+    /// (1) is because we want to avoid "spurious joins"
+    /// but also, without it, we have problems with
+    /// degenerate loops like (e.g. `const_generics/loop.rs`).
+    ///
     /// We can "skip" such blocks and jump straight to
     /// the first (transitively reachable) non-dummy
     /// successor, aka the "real" successor, which allows
     /// us to avoid emitting KVars for spurious joins.
-    fn is_dummy_basic_block(&self, bb: BasicBlock) -> Option<BasicBlock> {
-        // let real_predecessor_count = self.body.rustc_body.basic_blocks.predecessors()[bb].len()
-        //     - self.body.fake_predecessors[bb];
-        // let has_multiple_incoming = real_predecessor_count > 1;
-        let has_multiple_incoming = self.body.is_join_point(bb);
-        if has_multiple_incoming
+    fn is_dummy_join(&self, bb: BasicBlock) -> Option<BasicBlock> {
+        if self.body.is_join_point(bb)
             && self.body.basic_blocks[bb]
                 .statements
                 .iter()
                 .all(Statement::is_nop)
-            // has a single goto target
             && let Some(TerminatorKind::Goto { target: real_target }) = &self.body.basic_blocks[bb]
                 .terminator
                 .as_ref()
