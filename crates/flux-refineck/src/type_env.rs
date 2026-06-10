@@ -29,7 +29,7 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{
     self,
-    mir::{BasicBlock, Body, Local, LocalDecl, LocalDecls, Place, PlaceElem},
+    mir::{BasicBlock, Body, Local, LocalDecl, LocalDecls, Operand, Place, PlaceElem},
     ty,
 };
 use itertools::{Itertools, izip};
@@ -47,6 +47,7 @@ use super::rty::Sort;
 pub struct TypeEnv<'a> {
     bindings: PlacesTree,
     local_decls: &'a LocalDecls,
+    borrows: UnordMap<Local, Place>,
 }
 
 pub struct BasicBlockEnvShape {
@@ -67,7 +68,11 @@ struct BasicBlockEnvData {
 
 impl<'a> TypeEnv<'a> {
     pub fn new(infcx: &mut InferCtxt, body: &'a Body, fn_sig: &FnSig) -> TypeEnv<'a> {
-        let mut env = TypeEnv { bindings: PlacesTree::default(), local_decls: &body.local_decls };
+        let mut env = TypeEnv {
+            bindings: PlacesTree::default(),
+            local_decls: &body.local_decls,
+            borrows: UnordMap::default(),
+        };
 
         for requires in fn_sig.requires() {
             infcx.assume_pred(requires);
@@ -88,7 +93,11 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub fn empty() -> TypeEnv<'a> {
-        TypeEnv { bindings: PlacesTree::default(), local_decls: IndexSlice::empty() }
+        TypeEnv {
+            bindings: PlacesTree::default(),
+            local_decls: IndexSlice::empty(),
+            borrows: UnordMap::default(),
+        }
     }
 
     fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
@@ -230,11 +239,29 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult {
-        for (loc, bound, ty) in self.bindings.local_ptrs() {
-            infcx.subtyping(&ty, &bound, ConstrReason::FoldLocal)?;
+        for (loc, bound, ty, borrowed_place) in self.bindings.local_ptrs() {
+            if let Some(borrowed_place) = borrowed_place.filter(has_field_projection) {
+                self.bindings.lookup(&borrowed_place, infcx.span).update(ty);
+            } else {
+                infcx.subtyping(&ty, &bound, ConstrReason::FoldLocal)?;
+            }
             self.bindings.remove_local(&loc);
         }
         Ok(())
+    }
+
+    pub(crate) fn record_borrow(&mut self, place: &Place, borrowed_place: &Place) {
+        if place.projection.is_empty() {
+            self.borrows.insert(place.local, borrowed_place.clone());
+        }
+    }
+
+    pub(crate) fn borrowed_place_for_operand(&self, operand: &Operand) -> Option<Place> {
+        let place = match operand {
+            Operand::Copy(place) | Operand::Move(place) if place.projection.is_empty() => place,
+            _ => return None,
+        };
+        self.borrows.get(&place.local).cloned()
     }
 
     /// Updates the type of `place` to `new_ty`. This may involve a *strong update* if we have
@@ -324,12 +351,13 @@ impl<'a> TypeEnv<'a> {
         &mut self,
         infcx: &mut InferCtxt,
         bound: &Ty,
+        borrowed_place: Option<Place>,
     ) -> InferResult<Loc> {
         let name = infcx.define_unknown_var(&Sort::Loc);
         let loc = Loc::from(name);
         let ty = infcx.unpack(bound);
         self.bindings
-            .insert(loc, LocKind::LocalPtr(bound.clone()), ty);
+            .insert(loc, LocKind::LocalPtr { bound: bound.clone(), borrowed_place }, ty);
         Ok(loc)
     }
 
@@ -420,6 +448,13 @@ impl<'a> TypeEnv<'a> {
     }
 }
 
+fn has_field_projection(place: &Place) -> bool {
+    place
+        .projection
+        .iter()
+        .any(|elem| matches!(elem, PlaceElem::Field(_)))
+}
+
 pub(crate) enum PtrToRefBound {
     Ty(Ty),
     Infer,
@@ -449,7 +484,7 @@ impl flux_infer::infer::LocEnv for TypeEnv<'_> {
 
 impl BasicBlockEnvShape {
     pub fn enter<'a>(&self, local_decls: &'a LocalDecls) -> TypeEnv<'a> {
-        TypeEnv { bindings: self.bindings.clone(), local_decls }
+        TypeEnv { bindings: self.bindings.clone(), local_decls, borrows: UnordMap::default() }
     }
 
     fn new(scope: Scope, env: TypeEnv) -> BasicBlockEnvShape {
@@ -824,7 +859,7 @@ impl BasicBlockEnv {
         for constr in &data.constrs {
             infcx.assume_pred(constr);
         }
-        TypeEnv { bindings: data.bindings, local_decls }
+        TypeEnv { bindings: data.bindings, local_decls, borrows: UnordMap::default() }
     }
 
     pub(crate) fn scope(&self) -> &Scope {
