@@ -19,7 +19,7 @@ export async function runShellCommand(
 ): Promise<any> {
     const start = performance.now();
     try {
-        log(`TRACE: Running command: 'FLUXFLAGS="${env.FLUXFLAGS}" ${command}'`);
+        log(`TRACE: Running command: 'FLUXLOCALFLAGS="${env.FLUXLOCALFLAGS}" ${command}'`);
         const { stdout, stderr } = await execPromise(command, {
             env: env,
             cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
@@ -27,9 +27,6 @@ export async function runShellCommand(
 
         const end = performance.now();
         log(`TRACE: Finish command: execution time: ${end - start} ms`);
-        // Handle any output
-        // if (stdout) { console.log(`Command stdout: ${stdout}`); }
-        // if (stderr) { console.warn(`Command stderr: ${stderr}`); }
 
         return stdout.trim();
     } catch (error: any) {
@@ -41,8 +38,6 @@ export async function runShellCommand(
         const exitCode = error.code;
 
         log(`Command failed with exit code ${exitCode}`);
-        // if (stdout) { console.log(`Command stdout: ${stdout}`); }
-        // if (stderr) { console.warn(`Command stderr: ${stderr}`); }
         // Return stdout even on failure - useful for commands that output data but exit with non-zero
         return stdout.trim();
     }
@@ -72,22 +67,22 @@ export async function runCargoFlux(
     statusBarItem.command = "Flux.killProcess";
     statusBarItem.show();
 
-    let fluxFlags = "";
-    if (includeValue !== "*") {
-        fluxFlags += `-Finclude=${includeValue}`;
+    let fluxLocalFlags = "";
+    if (includeValue && includeValue !== "*") {
+        fluxLocalFlags += `-Finclude=lsp:${includeValue}`;
     }
-    fluxFlags += ` -Fsummary=off`;
+    fluxLocalFlags += ` -Fsummary=off`;
     if (trace) {
-        fluxFlags += ` -Fdump-checker-trace=info`;
+        fluxLocalFlags += ` -Fdump-checker-trace=info`;
     } else {
-        fluxFlags += ` -Fdump-checker-trace=warn`;
+        fluxLocalFlags += ` -Fdump-checker-trace=warn`;
     }
-    fluxFlags = fluxFlags.trim();
+    fluxLocalFlags = fluxLocalFlags.trim();
 
     return new Promise((resolve, reject) => {
         const fluxEnv = {
             ...process.env,
-            FLUXFLAGS: fluxFlags,
+            FLUXLOCALFLAGS: fluxLocalFlags,
         };
 
         // Get the flux command from workspace configuration
@@ -102,7 +97,7 @@ export async function runCargoFlux(
         const start = performance.now();
 
         log(
-            `TRACE: Running command: FLUXFLAGS="${fluxEnv.FLUXFLAGS}"  ${command} ${args.join(" ")}`
+            `TRACE: Running command: FLUXLOCALFLAGS="${fluxEnv.FLUXLOCALFLAGS}"  ${command} ${args.join(" ")}`
         );
 
         // Use spawn to get a killable process reference

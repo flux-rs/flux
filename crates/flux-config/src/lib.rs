@@ -219,7 +219,18 @@ pub struct IncludePattern {
 }
 
 impl IncludePattern {
+    /// strip out the includes with an `lsp:` prefix and ONLY use them if they are present.
+    /// This allows users to specify both `lsp:` patterns, and the plain patterns from the cargo.toml,
+    /// prioritizing the `lsp:` patterns when present.
     fn new(includes: Vec<String>) -> Result<Self, String> {
+        let lsps: Vec<_> = includes
+            .iter()
+            .filter_map(|s| s.strip_prefix("lsp:").map(|suffix| suffix.to_string()))
+            .collect();
+        if !lsps.is_empty() { Self::new_raw(lsps) } else { Self::new_raw(includes) }
+    }
+
+    fn new_raw(includes: Vec<String>) -> Result<Self, String> {
         let mut defs = Vec::new();
         let mut spans = Vec::new();
         let mut glob = GlobSetBuilder::new();

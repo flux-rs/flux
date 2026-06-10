@@ -44,7 +44,7 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     let metadata = cargo_flux_cmd.metadata().cargo_path(&cargo_path).exec()?;
     let sysroot = flux_sysroot_dir();
     let flux_driver_path = get_flux_driver_path(&sysroot)?;
-    let config_file = write_cargo_config(metadata, &sysroot)?;
+    let config_file = write_cargo_config(metadata, &sysroot, &cargo_flux_cmd)?;
 
     let mut cargo_command = Command::new("cargo");
 
@@ -62,15 +62,19 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     Ok(cargo_command.status()?.code().unwrap_or(EXIT_ERR))
 }
 
+fn env_flags(var: &str) -> Option<Vec<String>> {
+    env::var(var)
+        .ok()
+        .map(|flags| flags.split_whitespace().map(Into::into).collect())
+}
+
 fn write_cargo_config(
     metadata: Metadata,
     sysroot: &std::path::Path,
+    cargo_flux_cmd: &CargoFluxCommand,
 ) -> anyhow::Result<NamedTempFile> {
-    let flux_flags: Option<Vec<String>> = if let Ok(flags) = env::var("FLUXFLAGS") {
-        Some(flags.split(" ").map(Into::into).collect())
-    } else {
-        None
-    };
+    let flux_flags = env_flags("FLUXFLAGS");
+    let local_flags = env_flags("FLUXLOCALFLAGS");
 
     let flux_toml = config::Config::builder()
         .add_source(config::File::with_name("flux.toml").required(false))
@@ -79,6 +83,7 @@ fn write_cargo_config(
     if flux_toml.get_bool("enabled").is_ok() {
         return Err(anyhow!("`enabled` cannot be set in `flux.toml`"));
     }
+    let local_package_ids = cargo_flux_cmd.local_package_ids(&metadata);
 
     let mut file = NamedTempFile::new()?;
     {
@@ -109,6 +114,11 @@ incremental = false
                 .build()?
                 .try_deserialize()?;
 
+            let flux_local_flags = local_flags
+                .iter()
+                .flatten()
+                .filter(|_| local_package_ids.contains(&package.id));
+
             if flux_metadata.enabled {
                 // For workspace members, cargo sets the workspace's root as the working dir
                 // when running flux. Paths will be relative to that, so we must normalize
@@ -130,6 +140,7 @@ rustflags = [{:?}]
                         .into_flags(&metadata.target_directory, manifest_dir_relative_to_workspace)
                         .iter()
                         .chain(flux_flags.iter().flatten())
+                        .chain(flux_local_flags)
                         .map(|s| s.as_ref())
                         .chain(["-Fverify=on", "-Ffull-compilation=on", sysroot_flag.as_str()])
                         .format(", ")
