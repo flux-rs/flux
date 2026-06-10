@@ -27,9 +27,6 @@ export async function runShellCommand(
 
         const end = performance.now();
         log(`TRACE: Finish command: execution time: ${end - start} ms`);
-        // Handle any output
-        // if (stdout) { console.log(`Command stdout: ${stdout}`); }
-        // if (stderr) { console.warn(`Command stderr: ${stderr}`); }
 
         return stdout.trim();
     } catch (error: any) {
@@ -41,8 +38,6 @@ export async function runShellCommand(
         const exitCode = error.code;
 
         log(`Command failed with exit code ${exitCode}`);
-        // if (stdout) { console.log(`Command stdout: ${stdout}`); }
-        // if (stderr) { console.warn(`Command stderr: ${stderr}`); }
         // Return stdout even on failure - useful for commands that output data but exit with non-zero
         return stdout.trim();
     }
@@ -72,17 +67,12 @@ export async function runCargoFlux(
     statusBarItem.command = "Flux.killProcess";
     statusBarItem.show();
 
-    let fluxFlags = "";
-    if (includeValue !== "*") {
-        fluxFlags += `-Finclude=${includeValue}`;
-    }
-    fluxFlags += ` -Fsummary=off`;
+    let fluxFlags = "-Fsummary=off";
     if (trace) {
         fluxFlags += ` -Fdump-checker-trace=info`;
     } else {
         fluxFlags += ` -Fdump-checker-trace=warn`;
     }
-    fluxFlags = fluxFlags.trim();
 
     return new Promise((resolve, reject) => {
         const fluxEnv = {
@@ -93,9 +83,11 @@ export async function runCargoFlux(
         // Get the flux command from workspace configuration
         const config = vscode.workspace.getConfiguration("flux");
         const baseCommand = config.get<string>("command", "cargo flux");
-        const commandArgs = `${baseCommand} --message-format=json-diagnostic-rendered-ansi`.split(
-            " "
-        );
+        let commandStr = `${baseCommand} --message-format=json-diagnostic-rendered-ansi`;
+        if (includeValue && includeValue !== "*") {
+            commandStr += ` --only-check=${includeValue}`;
+        }
+        const commandArgs = commandStr.split(" ");
         const command = commandArgs[0];
         const args = commandArgs.slice(1);
 

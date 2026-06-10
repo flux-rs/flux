@@ -1,6 +1,8 @@
-use std::{path::Path, process::Command};
+use std::{collections::HashSet, path::Path, process::Command};
 
-use cargo_metadata::{MetadataCommand, camino::Utf8PathBuf};
+use cargo_metadata::{
+    Metadata, MetadataCommand, Package as CargoPackage, PackageId, camino::Utf8PathBuf,
+};
 use flux_config::flags::Flags;
 
 use crate::cargo_style;
@@ -71,6 +73,23 @@ impl CargoFluxCommand {
         }
         meta
     }
+
+    pub fn local_package_ids(&self, metadata: &Metadata) -> HashSet<PackageId> {
+        match self {
+            CargoFluxCommand::Check(check_options) => check_options.local_package_ids(metadata),
+            CargoFluxCommand::Build(compile_opts) => compile_opts.local_package_ids(metadata),
+            CargoFluxCommand::Clean(_) => HashSet::new(),
+        }
+    }
+
+    pub fn only_check(&self) -> Option<&str> {
+        match self {
+            CargoFluxCommand::Check(opts) | CargoFluxCommand::Build(opts) => {
+                opts.only_check.as_deref()
+            }
+            CargoFluxCommand::Clean(_) => None,
+        }
+    }
 }
 
 #[derive(clap::Args)]
@@ -89,6 +108,16 @@ pub struct CompileOpts {
     manifest: ManifestOptions,
     #[command(flatten)]
     flux_flags: Flags,
+
+    /// Only check items matching PATTERN (overrides include patterns from cargo.toml or flux.toml).
+    ///
+    /// Supported patterns:
+    ///   def:<name>              — match items whose name contains <name>
+    ///   span:<file>:<line>:<col> — match the item at a source location
+    ///   glob:<pattern>          — match files by glob (e.g. "glob:src/ascii/*.rs")
+    ///   <pattern>               — bare string treated as a glob
+    #[arg(long, value_name = "PATTERN")]
+    pub only_check: Option<String>,
 }
 
 impl CompileOpts {
@@ -108,6 +137,59 @@ impl CompileOpts {
         features.forward_to_metadata(meta);
         manifest.forward_to_metadata(meta);
     }
+
+    fn local_package_ids(&self, metadata: &Metadata) -> HashSet<PackageId> {
+        let workspace_packages = metadata.workspace_packages();
+        let package_specs = &self.workspace.package.package;
+        if !package_specs.is_empty() {
+            return workspace_packages
+                .into_iter()
+                .filter(|package| {
+                    package_specs
+                        .iter()
+                        .any(|spec| package_matches_spec(package, spec))
+                })
+                .map(|package| package.id.clone())
+                .collect();
+        }
+
+        let mut target_packages = if self.workspace.workspace {
+            workspace_packages
+        } else if metadata.workspace_default_members.is_available() {
+            metadata.workspace_default_packages()
+        } else if let Some(root) = metadata.root_package() {
+            vec![root]
+        } else {
+            workspace_packages
+        };
+
+        if !self.workspace.exclude.is_empty() {
+            target_packages.retain(|package| {
+                !self
+                    .workspace
+                    .exclude
+                    .iter()
+                    .any(|spec| package_matches_spec(package, spec))
+            });
+        }
+
+        target_packages
+            .into_iter()
+            .map(|package| package.id.clone())
+            .collect()
+    }
+}
+
+fn package_matches_spec(package: &CargoPackage, spec: &str) -> bool {
+    if package.id.repr == spec {
+        return true;
+    }
+
+    if let Some((name, version)) = spec.rsplit_once('@') {
+        return package.name == name && package.version.to_string() == version;
+    }
+
+    package.name == spec
 }
 
 #[derive(clap::Args)]
