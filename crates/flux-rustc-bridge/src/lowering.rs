@@ -200,17 +200,19 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         &mut self,
         data: &rustc_mir::BasicBlockData<'tcx>,
     ) -> Result<BasicBlockData<'tcx>, ErrorGuaranteed> {
-        let data = BasicBlockData::new(
-            data.statements
+        let data = BasicBlockData {
+            statements: data
+                .statements
                 .iter()
                 .map(|stmt| self.lower_statement(stmt))
                 .try_collect()?,
-            data.terminator
+            terminator: data
+                .terminator
                 .as_ref()
                 .map(|terminator| self.lower_terminator(terminator))
                 .transpose()?,
-            data.is_cleanup,
-        );
+            is_cleanup: data.is_cleanup,
+        };
         Ok(data)
     }
 
