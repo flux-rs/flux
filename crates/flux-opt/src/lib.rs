@@ -24,16 +24,18 @@ pub fn provide(providers: &mut Providers) {
     providers.inferred_no_panic = inferred_no_panic;
 }
 
-pub fn inferred_no_panic(genv: GlobalEnv) -> UnordMap<DefId, PanicSpec> {
+pub fn inferred_no_panic<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
+) -> UnordMap<Instance<'tcx>, PanicSpec> {
     infer_no_panics(genv, |def_id| genv.inferred_no_panic(def_id))
 }
 
-/// The entry point for no-panic inference. Given a root function, explores its
-/// call graph and returns an over-approximation of whether it might panic.
-pub fn infer_no_panics(
-    genv: GlobalEnv,
+/// The entry point for no-panic inference. Explores the call graph and returns, for every analyzed
+/// `Instance`, an over-approximation of whether it might panic.
+pub fn infer_no_panics<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
     external_spec: impl Fn(DefId) -> PanicSpec,
-) -> UnordMap<DefId, PanicSpec> {
+) -> UnordMap<Instance<'tcx>, PanicSpec> {
     let graph = genv.call_graph();
     run_fixpoint(graph, external_spec)
 }
@@ -75,12 +77,12 @@ fn initial_spec(
 ///
 /// Each node flips at most once, so the loop terminates. Cycles with no reachable panic
 /// source correctly remain `WillNotPanic`.
-fn run_fixpoint(
-    graph: &CallGraph<'_>,
+fn run_fixpoint<'tcx>(
+    graph: &CallGraph<'tcx>,
     external_spec: impl Fn(DefId) -> PanicSpec,
-) -> UnordMap<DefId, PanicSpec> {
-    let mut specs: FxHashMap<Instance<'_>, PanicSpec> = FxHashMap::default();
-    let mut queue: VecDeque<Instance<'_>> = VecDeque::new();
+) -> UnordMap<Instance<'tcx>, PanicSpec> {
+    let mut specs: FxHashMap<Instance<'tcx>, PanicSpec> = FxHashMap::default();
+    let mut queue: VecDeque<Instance<'tcx>> = VecDeque::new();
 
     for (&instance, node) in &graph.nodes {
         let spec = initial_spec(node, &external_spec, instance.def_id());
@@ -100,10 +102,8 @@ fn run_fixpoint(
         }
     }
 
-    graph
-        .nodes
-        .iter()
-        .filter(|(_, node)| matches!(node, Node::Analyzed { is_mono: false, .. }))
-        .map(|(&instance, _)| (instance.def_id(), specs[&instance]))
-        .collect()
+    // Return every analyzed instance's spec, keyed by `Instance`. The `DefId`-keyed projection
+    // (identity instances only) now happens downstream in `Queries::inferred_no_panic_crate` for
+    // the metadata/checker path; it is removed entirely once the checker queries by `Instance`.
+    specs.into_iter().collect()
 }

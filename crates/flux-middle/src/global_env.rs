@@ -20,7 +20,7 @@ use rustc_hir::{
 };
 use rustc_middle::{
     query::IntoQueryParam,
-    ty::{TyCtxt, Variance},
+    ty::{Instance, TyCtxt, Variance},
 };
 use rustc_span::{FileName, Span};
 pub use rustc_span::{Symbol, symbol::Ident};
@@ -182,6 +182,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn inferred_no_panic_crate(self, krate: CrateNum) -> Rc<UnordMap<DefId, PanicSpec>> {
         self.inner.queries.inferred_no_panic_crate(self, krate)
+    }
+
+    /// The inferred [`PanicSpec`] for a concrete `instance`, looked up in the local crate's
+    /// instance-keyed map. Missing entries default to `MightPanic(NotInCallGraph)`.
+    pub fn inferred_no_panic_instance(self, instance: Instance<'tcx>) -> PanicSpec {
+        self.inner
+            .queries
+            .inferred_no_panic(self)
+            .get(&instance)
+            .copied()
+            .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
     }
 
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {

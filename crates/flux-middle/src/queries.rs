@@ -24,11 +24,12 @@ use rustc_hir::{
 };
 use rustc_index::IndexVec;
 use rustc_macros::{Decodable, Encodable};
+use rustc_middle::ty::Instance;
 use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
     PanicSpec,
-    call_graph::CallGraph,
+    call_graph::{CallGraph, Node},
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
@@ -205,7 +206,8 @@ pub struct Providers {
         fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
     pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
     pub call_graph: for<'genv, 'tcx> fn(GlobalEnv<'genv, 'tcx>) -> CallGraph<'tcx>,
-    pub inferred_no_panic: fn(GlobalEnv) -> UnordMap<DefId, PanicSpec>,
+    pub inferred_no_panic:
+        for<'genv, 'tcx> fn(GlobalEnv<'genv, 'tcx>) -> UnordMap<Instance<'tcx>, PanicSpec>,
 }
 
 macro_rules! empty_query {
@@ -294,7 +296,12 @@ pub struct Queries<'genv, 'tcx> {
     no_panic: Cache<DefId, bool>,
     assume_parametric_params: Cache<DefId, UnordSet<u32>>,
     call_graph: OnceCell<CallGraph<'tcx>>,
-    inferred_no_panic: Cache<CrateNum, Rc<UnordMap<DefId, PanicSpec>>>,
+    /// The no-panic inference result for the local crate, keyed by `Instance`.
+    inferred_no_panic: OnceCell<Rc<UnordMap<Instance<'tcx>, PanicSpec>>>,
+    /// `DefId`-keyed projection (identity instances) consulted by the metadata/checker path. Fed
+    /// from `inferred_no_panic` for the local crate and from the cstore for external crates.
+    /// Temporary: removed once the checker queries the instance-keyed map directly (Step 6/7).
+    inferred_no_panic_crate: Cache<CrateNum, Rc<UnordMap<DefId, PanicSpec>>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -338,6 +345,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             assume_parametric_params: Default::default(),
             call_graph: Default::default(),
             inferred_no_panic: Default::default(),
+            inferred_no_panic_crate: Default::default(),
         }
     }
 
@@ -613,9 +621,19 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         self.call_graph.get_or_init(|| (self.providers.call_graph)(genv))
     }
 
+    /// The no-panic inference result for the local crate, keyed by `Instance`.
+    pub fn inferred_no_panic(
+        &'genv self,
+        genv: GlobalEnv<'genv, 'tcx>,
+    ) -> Rc<UnordMap<Instance<'tcx>, PanicSpec>> {
+        self.inferred_no_panic
+            .get_or_init(|| Rc::new((self.providers.inferred_no_panic)(genv)))
+            .clone()
+    }
+
     pub fn inferred_no_panic_crate(
-        &self,
-        genv: GlobalEnv,
+        &'genv self,
+        genv: GlobalEnv<'genv, 'tcx>,
         krate: CrateNum,
     ) -> Rc<UnordMap<DefId, PanicSpec>> {
         // We can just make this `core` if we only care about that.
@@ -623,12 +641,25 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             matches!(tcx.crate_name(krate).as_str(), "core" | "alloc" | "std")
         }
 
-        run_with_cache(&self.inferred_no_panic, krate, || {
+        run_with_cache(&self.inferred_no_panic_crate, krate, || {
             if krate == LOCAL_CRATE
                 || is_stdlib_crate(genv.tcx(), krate)
                 || !genv.cstore_has_crate(krate)
             {
-                Rc::new((self.providers.inferred_no_panic)(genv))
+                // Project the instance-keyed local map down to identity instances, reproducing the
+                // pre-Step-4 `DefId`-keyed result. The checker (until Step 6) and metadata (until
+                // Step 5) still consume this; it disappears once they query by `Instance`.
+                let instance_map = self.inferred_no_panic(genv);
+                let def_map = genv
+                    .call_graph()
+                    .nodes
+                    .iter()
+                    .filter(|(_, node)| matches!(node, Node::Analyzed { is_mono: false, .. }))
+                    .filter_map(|(&instance, _)| {
+                        instance_map.get(&instance).map(|&spec| (instance.def_id(), spec))
+                    })
+                    .collect();
+                Rc::new(def_map)
             } else {
                 genv.cstore().inferred_no_panic(krate)
             }
