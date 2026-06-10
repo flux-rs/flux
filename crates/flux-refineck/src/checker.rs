@@ -732,8 +732,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn is_exit_block(&self, bb: BasicBlock) -> bool {
         let data = &self.body.basic_blocks[bb];
         let is_no_op = data.statements.iter().all(Statement::is_nop);
-        let is_ret = terminator_for(self.checker_id, &self.inherited.ghost_stmts, &self.body, bb)
-            .map_or(false, |term| term.is_return());
+        // let is_ret = terminator_for(self.checker_id, &self.inherited.ghost_stmts, &self.body, bb)
+        //    .map_or(false, |term| term.is_return());
+        let is_ret = match &data.terminator {
+            None => false,
+            Some(term) => term.is_return(),
+        };
         is_no_op && is_ret
     }
 
@@ -2146,14 +2150,38 @@ fn no_ghosts_at<'ck, 'tcx>(
     let Some(ghosts) = ghost_stmts.get(&checker_id) else {
         return true;
     };
-    let num_stmts = body.basic_blocks[src_bb].statements.len();
-    let no_before = (0..=num_stmts).all(|i| {
-        let loc = Location { block: src_bb, statement_index: i };
-        ghosts
-            .statements_at(Point::BeforeLocation(loc))
+    let mut no_before = true;
+    let mut location = Location { block: dst_bb, statement_index: 0 };
+    for _ in &body.basic_blocks[dst_bb].statements {
+        no_before = no_before
+            && ghosts
+                .statements_at(Point::BeforeLocation(location))
+                .next()
+                .is_none();
+        location = location.successor_within_block();
+        // self.check_ghost_statements_at(
+        //     &mut infcx,
+        //     &mut env,
+        //     Point::BeforeLocation(location),
+        //     span,
+        // )?;
+    }
+    no_before = no_before
+        && ghosts
+            .statements_at(Point::BeforeLocation(location))
             .next()
-            .is_none()
-    });
+            .is_none();
+    // self.check_ghost_statements_at(&mut infcx, &mut env, Point::BeforeLocation(location), span)?;
+
+    // CLAUDE
+    // let num_stmts = body.basic_blocks[src_bb].statements.len();
+    // let no_before = (0..=num_stmts).all(|i| {
+    //     let loc = Location { block: src_bb, statement_index: i };
+    //     ghosts
+    //         .statements_at(Point::BeforeLocation(loc))
+    //         .next()
+    //         .is_none()
+    // });
     let no_edge = ghosts
         .statements_at(Point::Edge(src_bb, dst_bb))
         .next()
@@ -2175,6 +2203,7 @@ fn terminator_for<'ck, 'tcx>(
         && body.is_dummy_basic_block(*dst_bb).is_some()
         && no_ghosts_at(checker_id, ghost_stmts, body, src_bb, *dst_bb)
     {
+        println!("TRACE: skipping terminator from {src_bb:?} ==> {dst_bb:?}");
         terminator_for(checker_id, ghost_stmts, body, *dst_bb)
     } else {
         bb_term.as_ref()
