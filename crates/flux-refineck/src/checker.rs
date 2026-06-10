@@ -1296,6 +1296,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 span,
             )?;
             self.check_ret(&mut infcx, &mut env, span)
+        } else if let Some(real_target) = self.is_dummy_join(target) {
+            self.check_goto(infcx, env, span, real_target)
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, infcx, env, span, target)? {
                 self.queue.insert(target);
@@ -1304,6 +1306,65 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         } else {
             self.check_basic_block(infcx, env, target)
         }
+    }
+
+    /// A dummy-join-block is a BasicBlock that has
+    /// 1. MULTIPLE incoming edges,
+    /// 2. SINGLE outgoing edge,
+    /// 3. ONLY no-op statements, and
+    /// 4. NO ghosts statements.
+    ///
+    /// (1) is because we want to avoid "spurious joins"
+    /// but also, without it, we have problems with
+    /// degenerate loops like (e.g. `const_generics/loop.rs`).
+    ///
+    /// We can "skip" such blocks and jump straight to
+    /// the first (transitively reachable) non-dummy
+    /// successor, aka the "real" successor, which allows
+    /// us to avoid emitting KVars for spurious joins.
+    fn is_dummy_join(&self, bb: BasicBlock) -> Option<BasicBlock> {
+        if self.body.is_join_point(bb)
+            && self.body.basic_blocks[bb]
+                .statements
+                .iter()
+                .all(Statement::is_nop)
+            && let Some(TerminatorKind::Goto { target: real_target }) = &self.body.basic_blocks[bb]
+                .terminator
+                .as_ref()
+                .map(|terminator| &terminator.kind)
+            && self.no_ghosts_at(bb, *real_target)
+        {
+            Some(*real_target)
+        } else {
+            None
+        }
+    }
+
+    fn no_ghosts_at(&self, bb: BasicBlock, real_target: BasicBlock) -> bool {
+        let Some(ghosts) = self.inherited.ghost_stmts.get(&self.checker_id) else {
+            return true;
+        };
+
+        let mut res = ghosts
+            .statements_at(Point::Edge(bb, real_target))
+            .next()
+            .is_none();
+
+        let mut location = Location { block: bb, statement_index: 0 };
+        for _ in &self.body.basic_blocks[bb].statements {
+            res = res
+                && ghosts
+                    .statements_at(Point::BeforeLocation(location))
+                    .next()
+                    .is_none();
+            location = location.successor_within_block();
+        }
+        res = res
+            && ghosts
+                .statements_at(Point::BeforeLocation(location))
+                .next()
+                .is_none();
+        res
     }
 
     fn closure_template(
