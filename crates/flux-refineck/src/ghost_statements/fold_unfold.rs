@@ -279,7 +279,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
             self.point = Point::BeforeLocation(Location { block: bb, statement_index });
             self.statement(stmt, &mut env)?;
         }
-        if let Some(terminator) = &self.body.terminator_for(bb) {
+        if let Some(terminator) = &self.body.basic_blocks[bb].terminator {
             self.point = Point::BeforeLocation(self.body.terminator_loc(bb));
             let successors = self.terminator(terminator, env)?;
             for (env, target) in successors {
@@ -449,9 +449,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
     }
 
     fn goto(&mut self, target: BasicBlock, env: Env) -> QueryResult {
-        if let Some(real_target) = self.body.resolve_dummy(target) {
-            self.goto(real_target, env)
-        } else if self.body.is_join_point(target) {
+        if self.body.is_join_point(target) {
             if M::goto_join_point(self, target, env)? {
                 self.queue.insert(target);
             }

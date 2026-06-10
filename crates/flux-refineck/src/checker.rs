@@ -650,7 +650,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             location = location.successor_within_block();
         }
 
-        if let Some(terminator) = self.body.terminator_for(bb) {
+        if let Some(terminator) =
+            terminator_for(self.checker_id, &self.inherited.ghost_stmts, &self.body, bb)
+        {
             let span = terminator.source_info.span;
             self.check_ghost_statements_at(
                 &mut infcx,
@@ -730,9 +732,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn is_exit_block(&self, bb: BasicBlock) -> bool {
         let data = &self.body.basic_blocks[bb];
         let is_no_op = data.statements.iter().all(Statement::is_nop);
-        let is_ret = self
-            .body
-            .terminator_for(bb)
+        let is_ret = terminator_for(self.checker_id, &self.inherited.ghost_stmts, &self.body, bb)
             .map_or(false, |term| term.is_return());
         is_no_op && is_ret
     }
@@ -1295,8 +1295,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 span,
             )?;
             self.check_ret(&mut infcx, &mut env, span)
-        } else if let Some(real_target) = self.body.resolve_dummy(target) {
-            self.check_goto(infcx, env, span, real_target)
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, infcx, env, span, target)? {
                 self.queue.insert(target);
@@ -2136,6 +2134,51 @@ fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> UnordSet<usize> 
         clause.visit_with(&mut vis);
     }
     vis.params
+}
+
+fn no_ghosts_at<'ck, 'tcx>(
+    checker_id: CheckerId,
+    ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
+    body: &'ck Body<'tcx>,
+    src_bb: BasicBlock,
+    dst_bb: BasicBlock,
+) -> bool {
+    let Some(ghosts) = ghost_stmts.get(&checker_id) else {
+        return true;
+    };
+    let num_stmts = body.basic_blocks[src_bb].statements.len();
+    let no_before = (0..=num_stmts).all(|i| {
+        let loc = Location { block: src_bb, statement_index: i };
+        ghosts
+            .statements_at(Point::BeforeLocation(loc))
+            .next()
+            .is_none()
+    });
+    let no_edge = ghosts
+        .statements_at(Point::Edge(src_bb, dst_bb))
+        .next()
+        .is_none();
+    no_before && no_edge
+}
+
+fn terminator_for<'ck, 'tcx>(
+    checker_id: CheckerId,
+    ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
+    body: &'ck Body<'tcx>,
+    src_bb: BasicBlock,
+) -> Option<&'ck Terminator<'tcx>> {
+    let bb_term = &body.basic_blocks[src_bb].terminator;
+    let Some(terminator) = bb_term else {
+        return None;
+    };
+    if let TerminatorKind::Goto { target: dst_bb } = &terminator.kind
+        && body.is_dummy_basic_block(*dst_bb).is_some()
+        && no_ghosts_at(checker_id, ghost_stmts, body, src_bb, *dst_bb)
+    {
+        terminator_for(checker_id, ghost_stmts, body, *dst_bb)
+    } else {
+        bb_term.as_ref()
+    }
 }
 
 fn all_predicates_of(

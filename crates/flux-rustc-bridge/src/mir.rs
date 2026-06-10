@@ -132,7 +132,7 @@ pub struct Body<'tcx> {
 #[derive(Debug)]
 pub struct BasicBlockData<'tcx> {
     pub statements: Vec<Statement<'tcx>>,
-    terminator: Option<Terminator<'tcx>>,
+    pub terminator: Option<Terminator<'tcx>>,
     pub is_cleanup: bool,
 }
 
@@ -522,17 +522,47 @@ impl<'tcx> Body<'tcx> {
         self.local_decls[RETURN_PLACE].ty.clone()
     }
 
-    pub fn resolve_dummy(&self, bb: BasicBlock) -> Option<BasicBlock> {
-        if let DummyBlockTarget::DummySuccessor(target) = self.dummy_basic_blocks[bb] {
-            Some(target)
+    pub fn is_dummy_basic_block(&self, bb: BasicBlock) -> Option<BasicBlock> {
+        // rustc_body: &rustc_middle::mir::Body<'_>,
+        // fake_predecessors: &IndexVec<BasicBlock, usize>,
+        // basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
+        // bb: BasicBlock,
+        let real_predecessor_count =
+            self.rustc_body.basic_blocks.predecessors()[bb].len() - self.fake_predecessors[bb];
+        let has_multiple_incoming = real_predecessor_count > 1;
+
+        if has_multiple_incoming
+            && self.basic_blocks[bb]
+                .statements
+                .iter()
+                .all(Statement::is_nop)
+        {
+            is_single_goto(&self.basic_blocks, bb)
         } else {
             None
         }
     }
+    // pub fn resolve_dummy(&self, bb: BasicBlock) -> Option<BasicBlock> {
+    //     if let DummyBlockTarget::DummySuccessor(target) = self.dummy_basic_blocks[bb] {
+    //         Some(target)
+    //     } else {
+    //         None
+    //     }
+    // }
 
-    pub fn terminator_for(&self, bb: BasicBlock) -> Option<&Terminator<'tcx>> {
-        self.basic_blocks[bb].terminator.as_ref()
-    }
+    // pub fn terminator_for(&self, bb: BasicBlock) -> Option<&Terminator<'tcx>> {
+    //     let bb_term = &self.basic_blocks[bb].terminator;
+    //     let Some(terminator) = bb_term else {
+    //         return None;
+    //     };
+    //     if let TerminatorKind::Goto { target: bb_target } = &terminator.kind
+    //         && let DummyBlockTarget::DummySuccessor(target) = self.dummy_basic_blocks[*bb_target]
+    //     {
+    //         self.basic_blocks[target].terminator.as_ref()
+    //     } else {
+    //         bb_term.as_ref()
+    //     }
+    // }
 }
 
 /// The `FalseEdge/imaginary_target` edges mess up the `is_join_point` computation which creates spurious
