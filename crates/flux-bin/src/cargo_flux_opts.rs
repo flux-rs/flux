@@ -81,6 +81,15 @@ impl CargoFluxCommand {
             CargoFluxCommand::Clean(_) => HashSet::new(),
         }
     }
+
+    pub fn only_check(&self) -> Option<&str> {
+        match self {
+            CargoFluxCommand::Check(opts) | CargoFluxCommand::Build(opts) => {
+                opts.only_check.as_deref()
+            }
+            CargoFluxCommand::Clean(_) => None,
+        }
+    }
 }
 
 #[derive(clap::Args)]
@@ -99,6 +108,16 @@ pub struct CompileOpts {
     manifest: ManifestOptions,
     #[command(flatten)]
     flux_flags: Flags,
+
+    /// Only check items matching PATTERN (overrides include patterns from flux.toml).
+    ///
+    /// Supported patterns:
+    ///   def:<name>              — match items whose name contains <name>
+    ///   span:<file>:<line>:<col> — match the item at a source location
+    ///   glob:<pattern>          — match files by glob (e.g. "glob:src/ascii/*.rs")
+    ///   <pattern>               — bare string treated as a glob
+    #[arg(long, value_name = "PATTERN")]
+    pub only_check: Option<String>,
 }
 
 impl CompileOpts {

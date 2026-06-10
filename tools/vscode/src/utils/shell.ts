@@ -19,7 +19,7 @@ export async function runShellCommand(
 ): Promise<any> {
     const start = performance.now();
     try {
-        log(`TRACE: Running command: 'FLUXLOCALFLAGS="${env.FLUXLOCALFLAGS}" ${command}'`);
+        log(`TRACE: Running command: 'FLUXFLAGS="${env.FLUXFLAGS}" ${command}'`);
         const { stdout, stderr } = await execPromise(command, {
             env: env,
             cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
@@ -67,37 +67,34 @@ export async function runCargoFlux(
     statusBarItem.command = "Flux.killProcess";
     statusBarItem.show();
 
-    let fluxLocalFlags = "";
-    if (includeValue && includeValue !== "*") {
-        fluxLocalFlags += `-Finclude=lsp:${includeValue}`;
-    }
-    fluxLocalFlags += ` -Fsummary=off`;
+    let fluxFlags = "-Fsummary=off";
     if (trace) {
-        fluxLocalFlags += ` -Fdump-checker-trace=info`;
+        fluxFlags += ` -Fdump-checker-trace=info`;
     } else {
-        fluxLocalFlags += ` -Fdump-checker-trace=warn`;
+        fluxFlags += ` -Fdump-checker-trace=warn`;
     }
-    fluxLocalFlags = fluxLocalFlags.trim();
 
     return new Promise((resolve, reject) => {
         const fluxEnv = {
             ...process.env,
-            FLUXLOCALFLAGS: fluxLocalFlags,
+            FLUXFLAGS: fluxFlags,
         };
 
         // Get the flux command from workspace configuration
         const config = vscode.workspace.getConfiguration("flux");
         const baseCommand = config.get<string>("command", "cargo flux");
-        const commandArgs = `${baseCommand} --message-format=json-diagnostic-rendered-ansi`.split(
-            " "
-        );
+        let commandStr = `${baseCommand} --message-format=json-diagnostic-rendered-ansi`;
+        if (includeValue && includeValue !== "*") {
+            commandStr += ` --only-check=${includeValue}`;
+        }
+        const commandArgs = commandStr.split(" ");
         const command = commandArgs[0];
         const args = commandArgs.slice(1);
 
         const start = performance.now();
 
         log(
-            `TRACE: Running command: FLUXLOCALFLAGS="${fluxEnv.FLUXLOCALFLAGS}"  ${command} ${args.join(" ")}`
+            `TRACE: Running command: FLUXFLAGS="${fluxEnv.FLUXFLAGS}"  ${command} ${args.join(" ")}`
         );
 
         // Use spawn to get a killable process reference

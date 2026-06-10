@@ -68,13 +68,18 @@ fn env_flags(var: &str) -> Option<Vec<String>> {
         .map(|flags| flags.split_whitespace().map(Into::into).collect())
 }
 
+fn command_local_flags(command: &CargoFluxCommand) -> Option<Vec<String>> {
+    let s = command.only_check()?;
+    Some(vec![format!("-Finclude=lsp:{s}")])
+}
+
 fn write_cargo_config(
     metadata: Metadata,
     sysroot: &std::path::Path,
     cargo_flux_cmd: &CargoFluxCommand,
 ) -> anyhow::Result<NamedTempFile> {
     let flux_flags = env_flags("FLUXFLAGS");
-    let local_flags = env_flags("FLUXLOCALFLAGS");
+    let local_flags = command_local_flags(cargo_flux_cmd);
 
     let flux_toml = config::Config::builder()
         .add_source(config::File::with_name("flux.toml").required(false))
