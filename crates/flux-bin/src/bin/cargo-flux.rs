@@ -62,6 +62,15 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     Ok(cargo_command.status()?.code().unwrap_or(EXIT_ERR))
 }
 
+fn override_with_only_check(global_flags: Vec<String>, only_check: String) -> Vec<String> {
+    let mut flags: Vec<String> = global_flags
+        .into_iter()
+        .filter(|s| !s.starts_with("-Finclude="))
+        .collect();
+    flags.push(only_check);
+    flags
+}
+
 fn write_cargo_config(
     metadata: Metadata,
     sysroot: &std::path::Path,
@@ -73,8 +82,8 @@ fn write_cargo_config(
         None
     };
 
-    let local_flags = if let Some(s) = cargo_flux_cmd.only_check() {
-        Some(vec![format!("-Finclude=only:{s}")])
+    let only_check_pattern = if let Some(s) = cargo_flux_cmd.only_check() {
+        Some(format!("-Finclude={s}"))
     } else {
         None
     };
@@ -117,11 +126,6 @@ incremental = false
                 .build()?
                 .try_deserialize()?;
 
-            let flux_local_flags = local_flags
-                .iter()
-                .flatten()
-                .filter(|_| local_package_ids.contains(&package.id));
-
             if flux_metadata.enabled {
                 // For workspace members, cargo sets the workspace's root as the working dir
                 // when running flux. Paths will be relative to that, so we must normalize
@@ -131,6 +135,23 @@ incremental = false
                     .strip_prefix(&metadata.workspace_root)
                     .ok()
                     .and_then(Utf8Path::parent);
+
+                let metadata_flags = flux_metadata
+                    .into_flags(&metadata.target_directory, manifest_dir_relative_to_workspace);
+
+                let global_flags = metadata_flags
+                    .into_iter()
+                    .chain(flux_flags.clone().into_iter().flatten())
+                    .collect::<Vec<_>>();
+
+                let combined_flags = if let Some(only_check) = only_check_pattern.clone()
+                    && local_package_ids.contains(&package.id)
+                {
+                    override_with_only_check(global_flags, only_check)
+                } else {
+                    global_flags
+                };
+
                 let sysroot_flag = format!("-Fsysroot={}", sysroot.display());
                 write!(
                     w,
@@ -139,12 +160,9 @@ incremental = false
 rustflags = [{:?}]
                         "#,
                     package.id,
-                    flux_metadata
-                        .into_flags(&metadata.target_directory, manifest_dir_relative_to_workspace)
+                    combined_flags
                         .iter()
-                        .chain(flux_flags.iter().flatten())
-                        .chain(flux_local_flags)
-                        .map(|s| s.as_ref())
+                        .map(|s| s.as_str())
                         .chain(["-Fverify=on", "-Ffull-compilation=on", sysroot_flag.as_str()])
                         .format(", ")
                 )?;
