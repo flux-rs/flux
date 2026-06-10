@@ -291,7 +291,9 @@ fn check_fn_subtyping(
         .collect_vec();
 
     let mut env = TypeEnv::empty();
-    let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals)?;
+    let borrowed_places = vec![None; actuals.len()];
+    let actuals =
+        unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals, &borrowed_places)?;
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
     let output = infcx.ensure_resolved_evars(|infcx| {
@@ -437,17 +439,18 @@ fn unfold_local_ptrs(
     env: &mut TypeEnv,
     fn_sig: &PolyFnSig,
     actuals: &[Ty],
+    borrowed_places: &[Option<Place>],
 ) -> InferResult<Vec<Ty>> {
     // We *only* need to know whether each input is a &strg or not
     let fn_sig = fn_sig.skip_binder_ref();
     let mut tys = vec![];
-    for (actual, input) in izip!(actuals, fn_sig.inputs()) {
+    for (actual, input, borrowed_place) in izip!(actuals, fn_sig.inputs(), borrowed_places) {
         let actual = if let (
             TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), _),
             TyKind::StrgRef(_, _, _),
         ) = (actual.kind(), input.kind())
         {
-            let loc = env.unfold_local_ptr(infcx, bound)?;
+            let loc = env.unfold_local_ptr(infcx, bound, borrowed_place.clone())?;
             let path1 = Path::new(loc, rty::List::empty());
             Ty::ptr(PtrKind::Mut(*re), path1)
         } else {
@@ -699,6 +702,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let ty = self.check_rvalue(infcx, env, stmt_span, rvalue)?;
                 self.check_assign_ty(infcx, env, place, ty, stmt_span)
                     .with_span(stmt_span)?;
+                if let Rvalue::Ref(_, BorrowKind::Mut { .. }, borrowed_place) = rvalue {
+                    env.record_borrow(place, borrowed_place);
+                }
             }
             StatementKind::SetDiscriminant { .. } => {
                 // TODO(nilehmann) double check here that the place is unfolded to
@@ -778,6 +784,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
             TerminatorKind::Call { kind, args, destination, target, .. } => {
+                let borrowed_places = args
+                    .iter()
+                    .map(|arg| env.borrowed_place_for_operand(arg))
+                    .collect_vec();
                 let actuals = self
                     .check_operands(infcx, env, terminator_span, args)
                     .with_span(terminator_span)?;
@@ -799,6 +809,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             fn_sig,
                             &generic_args,
                             &actuals,
+                            &borrowed_places,
                         )?
                         .output
                     }
@@ -816,6 +827,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                                 EarlyBinder(fn_sig.clone()),
                                 &[],
                                 &actuals,
+                                &borrowed_places,
                             )?
                             .output
                         } else {
@@ -892,12 +904,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
+        borrowed_places: &[Option<Place>],
     ) -> Result<ResolvedCall> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
         let actuals =
-            unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
+            unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals, borrowed_places)
+                .with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());
         infcx.push_evar_scope();
 
@@ -1497,8 +1511,21 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     args,
                 )
                 .with_span(stmt_span)?;
-                self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals)
-                    .map(|resolved_call| resolved_call.output)
+                let borrowed_places = operands
+                    .iter()
+                    .map(|operand| env.borrowed_place_for_operand(operand))
+                    .collect_vec();
+                self.check_call(
+                    infcx,
+                    env,
+                    stmt_span,
+                    Some(*def_id),
+                    sig,
+                    &args,
+                    &actuals,
+                    &borrowed_places,
+                )
+                .map(|resolved_call| resolved_call.output)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self
