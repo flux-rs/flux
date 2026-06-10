@@ -25,5 +25,4 @@ Documentation, including installation and usage guides can be found on the
 # Sponsors
 
 ### [![Zulip logo](https://static.zulipchat.com/static/images/logo/zulip-icon-128x128.png)](https://zulip.com)
-
 **[Zulip](https://zulip.com)** — Zulip Cloud Standard generously provided free of charge.
