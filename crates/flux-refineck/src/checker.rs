@@ -1295,7 +1295,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 span,
             )?;
             self.check_ret(&mut infcx, &mut env, span)
-        } else if let Some(real_target) = self.body.is_dummy_basic_block(target) {
+        } else if let Some(real_target) = self.body.is_dummy_basic_block(target)
+            && self.no_ghosts_at(target)
+        {
             self.check_goto(infcx, env, span, real_target)
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, infcx, env, span, target)? {
@@ -1305,6 +1307,28 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         } else {
             self.check_basic_block(infcx, env, target)
         }
+    }
+
+    fn no_ghosts_at(&self, src: BasicBlock) -> bool {
+        let Some(ghosts) = self.inherited.ghost_stmts.get(&self.checker_id) else {
+            return true;
+        };
+        let mut res = true; // ghosts.statements_at(Point::Edge(src, dst)).next().is_none();
+        let mut location = Location { block: src, statement_index: 0 };
+        for _ in &self.body.basic_blocks[src].statements {
+            res = res
+                && ghosts
+                    .statements_at(Point::BeforeLocation(location))
+                    .next()
+                    .is_none();
+            location = location.successor_within_block();
+        }
+        res = res
+            && ghosts
+                .statements_at(Point::BeforeLocation(location))
+                .next()
+                .is_none();
+        res
     }
 
     fn closure_template(
