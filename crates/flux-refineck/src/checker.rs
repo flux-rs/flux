@@ -627,6 +627,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         dbg::basic_block_start!(bb, infcx, env);
         self.visited.insert(bb);
+
         let data = &self.body.basic_blocks[bb];
         let mut last_stmt_span = None;
         let mut location = Location { block: bb, statement_index: 0 };
