@@ -157,6 +157,10 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
         let lean_result = if config::lean().is_check() {
             genv.iter_local_def_id().try_for_each_exhaust(|def_id| {
+                // Skip proof check if not included
+                if !genv.included(genv.maybe_extern_id(def_id)) {
+                    return Ok(());
+                }
                 if genv.proven_externally(def_id).is_some() {
                     let key = lean_task_key(genv.tcx(), def_id.to_def_id());
                     // Skip proof check if previously verified successfully.
