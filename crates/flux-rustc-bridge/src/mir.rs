@@ -486,39 +486,6 @@ impl<'tcx> Body<'tcx> {
     pub fn return_ty(&self) -> Ty {
         self.local_decls[RETURN_PLACE].ty.clone()
     }
-
-    /// NOTE: `dummy_basic_blocks` are those that have
-    /// - MULTIPLE incoming edges,
-    /// - SINGLE outgoing edge,
-    /// - and only contain no-op statements.
-    /// We can "skip" such blocks and jump straight to
-    /// the first (transitively reachable) non-dummy
-    /// successor, aka the "real" successor, which allows
-    /// us to avoid emitting KVars for spurious joins.
-    pub fn is_dummy_basic_block(&self, bb: BasicBlock) -> Option<BasicBlock> {
-        let real_predecessor_count =
-            self.rustc_body.basic_blocks.predecessors()[bb].len() - self.fake_predecessors[bb];
-        let has_multiple_incoming = real_predecessor_count > 1;
-        if has_multiple_incoming
-            && self.basic_blocks[bb]
-                .statements
-                .iter()
-                .all(Statement::is_nop)
-        {
-            // has a single goto target
-            if let Some(TerminatorKind::Goto { target }) = &self.basic_blocks[bb]
-                .terminator
-                .as_ref()
-                .map(|terminator| &terminator.kind)
-            {
-                Some(*target)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
 }
 
 /// The `FalseEdge/imaginary_target` edges mess up the `is_join_point` computation which creates spurious

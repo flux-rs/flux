@@ -12,3 +12,17 @@ pub fn test(x: i32) -> i32 {
         test(x - 1)
     }
 }
+
+#[flux::spec(fn (x: i32) -> i32{v: 2 <= v && v <= 5})]
+pub fn test2(x: i32) -> i32 {
+    let res = if x == 0 {
+        1
+    } else if x == 1 {
+        2
+    } else if x == 2 {
+        3
+    } else {
+        4
+    };
+    res + 1
+}

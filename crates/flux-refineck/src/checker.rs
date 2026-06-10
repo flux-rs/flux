@@ -1297,6 +1297,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             )?;
             self.check_ret(&mut infcx, &mut env, span)
         } else if let Some(real_target) = self.is_dummy_basic_block(target) {
+            println!("TRACE: skipping {target:?} => {real_target:?}");
             self.check_goto(infcx, env, span, real_target)
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, infcx, env, span, target)? {
@@ -1308,11 +1309,32 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
+    /// NOTE: `dummy_basic_blocks` are those that have
+    /// - MULTIPLE incoming edges,
+    /// - SINGLE outgoing edge,
+    /// - and only contain no-op statements.
+    /// We can "skip" such blocks and jump straight to
+    /// the first (transitively reachable) non-dummy
+    /// successor, aka the "real" successor, which allows
+    /// us to avoid emitting KVars for spurious joins.
     fn is_dummy_basic_block(&self, bb: BasicBlock) -> Option<BasicBlock> {
-        if let Some(real_target) = self.body.is_dummy_basic_block(bb)
-            && self.no_ghosts_at(bb, real_target)
+        // let real_predecessor_count = self.body.rustc_body.basic_blocks.predecessors()[bb].len()
+        //     - self.body.fake_predecessors[bb];
+        // let has_multiple_incoming = real_predecessor_count > 1;
+        let has_multiple_incoming = self.body.is_join_point(bb);
+        if has_multiple_incoming
+            && self.body.basic_blocks[bb]
+                .statements
+                .iter()
+                .all(Statement::is_nop)
+            // has a single goto target
+            && let Some(TerminatorKind::Goto { target: real_target }) = &self.body.basic_blocks[bb]
+                .terminator
+                .as_ref()
+                .map(|terminator| &terminator.kind)
+            && self.no_ghosts_at(bb, *real_target)
         {
-            Some(real_target)
+            Some(*real_target)
         } else {
             None
         }
