@@ -176,6 +176,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
+    pub fn call_graph(self) -> &'genv crate::call_graph::CallGraph<'tcx> {
+        self.inner.queries.call_graph(self)
+    }
+
     pub fn inferred_no_panic_crate(self, krate: CrateNum) -> Rc<UnordMap<DefId, PanicSpec>> {
         self.inner.queries.inferred_no_panic_crate(self, krate)
     }

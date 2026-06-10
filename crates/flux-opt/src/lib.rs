@@ -8,14 +8,19 @@ mod call_graph;
 
 use std::collections::VecDeque;
 
-use call_graph::{CallGraph, CallSiteKind, NodeKind};
-use flux_middle::{PanicReason, PanicSpec, global_env::GlobalEnv, queries::Providers};
+use flux_middle::{
+    PanicReason, PanicSpec,
+    call_graph::{CallGraph, CallSiteKind, NodeInfo, NodeKind},
+    global_env::GlobalEnv,
+    queries::Providers,
+};
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::Instance;
 
 pub fn provide(providers: &mut Providers) {
+    providers.call_graph = call_graph::build_call_graph;
     providers.inferred_no_panic = inferred_no_panic;
 }
 
@@ -29,8 +34,8 @@ pub fn infer_no_panics(
     genv: GlobalEnv,
     external_spec: impl Fn(DefId) -> PanicSpec,
 ) -> UnordMap<DefId, PanicSpec> {
-    let graph = call_graph::build_call_graph(genv);
-    run_fixpoint(&graph, external_spec)
+    let graph = genv.call_graph();
+    run_fixpoint(graph, external_spec)
 }
 
 /// Computes the initial `PanicSpec` for a node before propagation.
@@ -38,7 +43,7 @@ pub fn infer_no_panics(
 /// `Analyzed` nodes with only resolved call sites start as `WillNotPanic` (optimistic).
 /// Every other node starts as `MightPanic` with the appropriate reason.
 fn initial_spec(
-    node: &call_graph::NodeInfo<'_>,
+    node: &NodeInfo<'_>,
     external_spec: &impl Fn(DefId) -> PanicSpec,
     def_id: DefId,
 ) -> PanicSpec {

@@ -28,6 +28,7 @@ use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
     PanicSpec,
+    call_graph::CallGraph,
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
@@ -203,6 +204,7 @@ pub struct Providers {
     pub item_bounds:
         fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
     pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
+    pub call_graph: for<'genv, 'tcx> fn(GlobalEnv<'genv, 'tcx>) -> CallGraph<'tcx>,
     pub inferred_no_panic: fn(GlobalEnv) -> UnordMap<DefId, PanicSpec>,
 }
 
@@ -242,6 +244,7 @@ impl Default for Providers {
             constant_info: |_, _| empty_query!(),
             static_info: |_, _| empty_query!(),
             sort_decl_param_count: |_, _| empty_query!(),
+            call_graph: |_| empty_query!(),
             inferred_no_panic: |_| empty_query!(),
         }
     }
@@ -290,6 +293,7 @@ pub struct Queries<'genv, 'tcx> {
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
     assume_parametric_params: Cache<DefId, UnordSet<u32>>,
+    call_graph: OnceCell<CallGraph<'tcx>>,
     inferred_no_panic: Cache<CrateNum, Rc<UnordMap<DefId, PanicSpec>>>,
 }
 
@@ -332,6 +336,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
             assume_parametric_params: Default::default(),
+            call_graph: Default::default(),
             inferred_no_panic: Default::default(),
         }
     }
@@ -602,6 +607,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 },
             )
         })
+    }
+
+    pub fn call_graph(&'genv self, genv: GlobalEnv<'genv, 'tcx>) -> &'genv CallGraph<'tcx> {
+        self.call_graph.get_or_init(|| (self.providers.call_graph)(genv))
     }
 
     pub fn inferred_no_panic_crate(
