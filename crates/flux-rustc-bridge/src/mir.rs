@@ -115,16 +115,6 @@ pub struct BasicBlockData<'tcx> {
     pub is_cleanup: bool,
 }
 
-impl<'tcx> BasicBlockData<'tcx> {
-    pub fn new(
-        statements: Vec<Statement<'tcx>>,
-        terminator: Option<Terminator<'tcx>>,
-        is_cleanup: bool,
-    ) -> Self {
-        Self { statements, terminator, is_cleanup }
-    }
-}
-
 pub type LocalDecls = IndexSlice<Local, LocalDecl>;
 
 #[derive(Clone, Debug)]
