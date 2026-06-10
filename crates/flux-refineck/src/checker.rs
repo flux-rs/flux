@@ -1310,7 +1310,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn is_dummy_basic_block(&self, bb: BasicBlock) -> Option<BasicBlock> {
         if let Some(real_target) = self.body.is_dummy_basic_block(bb)
-            && self.no_ghosts_at(bb)
+            && self.no_ghosts_at(bb, real_target)
         {
             Some(real_target)
         } else {
@@ -1318,11 +1318,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
-    fn no_ghosts_at(&self, bb: BasicBlock) -> bool {
+    fn no_ghosts_at(&self, bb: BasicBlock, real_target: BasicBlock) -> bool {
         let Some(ghosts) = self.inherited.ghost_stmts.get(&self.checker_id) else {
             return true;
         };
-        let mut res = true;
+
+        let mut res = ghosts
+            .statements_at(Point::Edge(bb, real_target))
+            .next()
+            .is_none();
+
         let mut location = Location { block: bb, statement_index: 0 };
         for _ in &self.body.basic_blocks[bb].statements {
             res = res
