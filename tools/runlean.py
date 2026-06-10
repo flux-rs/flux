@@ -13,6 +13,7 @@ import argparse
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -25,12 +26,27 @@ def find_lean_proofs_dirs(root_path: Path) -> list[Path]:
     return lean_dirs
 
 
-def run_lake_build(directory: Path) -> tuple[bool, str]:
+def run_lake_update(directory: Path) -> None:
+    """Run 'lake update' in the given directory, ignoring errors."""
+    try:
+        subprocess.run(
+            ["lake", "update"],
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except Exception:
+        pass
+
+
+def run_lake_build(directory: Path) -> tuple[bool, str, list[str], int]:
     """
     Run 'lake build' in the given directory.
-    Returns (success, error_output) tuple.
+    Returns (success, error_output, kappa_lines, elapsed_ms).
     """
     try:
+        t0 = time.monotonic()
         result = subprocess.run(
             ["lake", "build"],
             cwd=directory,
@@ -38,18 +54,19 @@ def run_lake_build(directory: Path) -> tuple[bool, str]:
             text=True,
             timeout=300,  # 5 minute timeout per directory
         )
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
         all_lines = result.stdout.splitlines()
         error_lines = [line for line in all_lines if line.startswith("error: ")]
         kappa_lines = [line for line in all_lines if "[solve_fixpoint]" in line]
         has_error = result.returncode != 0 or len(error_lines) > 0
         error_output = "\n".join(error_lines) if error_lines else ""
-        return (not has_error, error_output, kappa_lines)
+        return (not has_error, error_output, kappa_lines, elapsed_ms)
     except subprocess.TimeoutExpired:
-        return (False, "Timeout expired (5 minutes)", [])
+        return (False, "Timeout expired (5 minutes)", [], 300_000)
     except FileNotFoundError:
-        return (False, "lake command not found", [])
+        return (False, "lake command not found", [], 0)
     except Exception as e:
-        return (False, str(e), [])
+        return (False, str(e), [], 0)
 
 
 def main():
@@ -91,13 +108,18 @@ def main():
     # Track results
     visited_count = 0
     error_dirs: list[tuple[Path, str]] = []
+    total_ms = 0
 
     for lean_dir in sorted(lean_dirs):
         visited_count += 1
         relative_path = lean_dir.relative_to(root_path)
+
+        run_lake_update(lean_dir)
+
         print(f"[{visited_count}/{len(lean_dirs)}] Building: {relative_path} ... ", end="", flush=True)
 
-        success, error_output, kappa_lines = run_lake_build(lean_dir)
+        success, error_output, kappa_lines, elapsed_ms = run_lake_build(lean_dir)
+        total_ms += elapsed_ms
 
         if success:
             print("OK")
@@ -109,7 +131,10 @@ def main():
                     print(f"    {err.strip()}")
         for kline in kappa_lines:
             print(f"    {kline.strip()}")
-                # print(f"    Error: {error_output.strip()}")
+
+    # Write timing file next to where lean_bench_log.txt lands (cwd).
+    time_path = Path.cwd() / "lean_bench.time"
+    time_path.write_text(f"{total_ms}\n")
 
     # Print summary
     print()
@@ -119,6 +144,7 @@ def main():
     print(f"Total directories visited: {visited_count}")
     print(f"Successful builds: {visited_count - len(error_dirs)}")
     print(f"Failed builds: {len(error_dirs)}")
+    print(f"Total build time: {total_ms / 1000:.1f}s  (saved to {time_path})")
 
     if error_dirs:
         print()
