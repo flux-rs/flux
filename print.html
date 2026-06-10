@@ -352,7 +352,7 @@ for example, to print timing information for all crates checked by Flux:</p>
 </code></pre>
 <h3 id="verbose-flag"><a class="header" href="#verbose-flag">Verbose Flag</a></h3>
 <p>One particularly useful flag is</p>
-<pre><code class="language-console">FLUXFLAGS="-Fverbose" cargo flux
+<pre><code class="language-console">FLUXFLAGS="-Fflux-verbose" cargo flux
 </code></pre>
 <p>This will make flux print out a log of what it is upto, e.g. the name of the last function checked. This is helpful, e.g. if flux ICEs (hits an internal error), so you can see <em>which</em> function's code caused the issue, so you might mark it as <code>trusted</code>, so flux can skip checking its body, and hence, live to fight another day...</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="about-flux"><a class="header" href="#about-flux">About Flux</a></h1>

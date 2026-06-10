@@ -519,7 +519,7 @@
 <a href=#519 id=519 data-nosnippet>519</a>    }
 <a href=#520 id=520 data-nosnippet>520</a>
 <a href=#521 id=521 data-nosnippet>521</a>    <span class="kw">fn </span>generate_lake_project_if_not_present(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; io::Result&lt;()&gt; {
-<a href=#522 id=522 data-nosnippet>522</a>        <span class="kw">let </span>path = project_path(<span class="self">self</span>.genv, FileKind::User);
+<a href=#522 id=522 data-nosnippet>522</a>        <span class="kw">let </span>path = project_path(<span class="self">self</span>.genv, FileKind::User).join(<span class="string">"lakefile.toml"</span>);
 <a href=#523 id=523 data-nosnippet>523</a>        <span class="kw">if </span>!path.exists() {
 <a href=#524 id=524 data-nosnippet>524</a>            Command::new(<span class="string">"lake"</span>)
 <a href=#525 id=525 data-nosnippet>525</a>                .current_dir(<span class="self">self</span>.genv.lean_parent_dir())
