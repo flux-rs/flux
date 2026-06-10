@@ -10,7 +10,7 @@
 //! that is used to show that the lifetime that the client provided is indeed
 //! `'tcx`.
 
-use std::{cell::RefCell, collections::HashMap, thread_local};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, thread_local};
 
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_hir::def_id::LocalDefId;
@@ -20,7 +20,7 @@ use crate::bug;
 
 thread_local! {
     pub static SHARED_STATE:
-        RefCell<HashMap<LocalDefId, BodyWithBorrowckFacts<'static>>> =
+        RefCell<HashMap<LocalDefId, Rc<BodyWithBorrowckFacts<'static>>>> =
         RefCell::new(HashMap::new());
 }
 
@@ -37,26 +37,31 @@ pub unsafe fn store_mir_body<'tcx>(
         unsafe { std::mem::transmute(body_with_facts) };
     SHARED_STATE.with(|state| {
         let mut map = state.borrow_mut();
-        assert!(map.insert(def_id, body_with_facts).is_none());
+        assert!(map.insert(def_id, Rc::new(body_with_facts)).is_none());
     });
 }
 
 /// # Safety
 ///
 /// See the module level comment.
+///
+/// Unlike a plain `remove`, this does *not* consume the stored body: it returns a clone of the
+/// shared [`Rc`] and keeps the entry in place, so the body can be retrieved more than once (e.g.
+/// by both the checker and the no-panic call-graph provider).
 pub unsafe fn retrieve_mir_body<'tcx>(
     _tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
-) -> BodyWithBorrowckFacts<'tcx> {
-    let body_with_facts: BodyWithBorrowckFacts<'static> = SHARED_STATE.with(|state| {
-        let mut map = state.borrow_mut();
-        match map.remove(&def_id) {
-            Some(body) => body,
+) -> Rc<BodyWithBorrowckFacts<'tcx>> {
+    let body_with_facts: Rc<BodyWithBorrowckFacts<'static>> = SHARED_STATE.with(|state| {
+        let map = state.borrow();
+        match map.get(&def_id) {
+            Some(body) => Rc::clone(body),
             None => {
                 bug!("retrieve_mir_body: panic on {def_id:?}")
             }
         }
     });
-    // SAFETY: See the module level comment.
+    // SAFETY: See the module level comment. `Rc<T>` is a thin pointer regardless of `T`, so the
+    // lifetime transmute does not change its layout.
     unsafe { std::mem::transmute(body_with_facts) }
 }

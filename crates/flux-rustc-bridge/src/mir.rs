@@ -1,12 +1,12 @@
 //! A simplified version of rust mir.
 
-use std::fmt;
+use std::{fmt, rc::Rc};
 
 use flux_arc_interner::List;
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
 pub use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
-use rustc_borrowck::consumers::{BorrowData, BorrowIndex, BorrowSet, RegionInferenceContext};
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowData, BorrowIndex};
 use rustc_data_structures::{
     fx::FxIndexMap,
     graph::{self, DirectedGraph, StartNode, dominators::Dominators},
@@ -66,11 +66,12 @@ pub struct BodyRoot<'tcx> {
     /// [region variable ids]: super::ty::RegionVid
     /// [`InferCtxt`]: rustc_infer::infer::InferCtxt
     pub infcx: rustc_infer::infer::InferCtxt<'tcx>,
-    /// The set of borrows occurring in `body` with data about them.
-    pub borrow_set: rustc_borrowck::consumers::BorrowSet<'tcx>,
-    /// Context generated during borrowck, intended to be passed to
-    /// [`calculate_borrows_out_of_scope_at_location`].
-    pub region_inference_context: rustc_borrowck::consumers::RegionInferenceContext<'tcx>,
+    /// The borrowck facts (`rustc_body`, `borrow_set`, `region_inference_context`, ...) backing
+    /// this body. Shared via [`Rc`] so the same stashed body can be lowered by the checker and
+    /// walked by the no-panic call-graph provider without being cloned or moved out. The lowered
+    /// [`Body`]s in `body`/`promoted` keep their own clone of this `Rc` and recover their
+    /// corresponding [`rustc_middle::mir::Body`] through it.
+    facts: Rc<BodyWithBorrowckFacts<'tcx>>,
 }
 
 impl<'tcx> BodyRoot<'tcx> {
@@ -82,14 +83,15 @@ impl<'tcx> BodyRoot<'tcx> {
         &self,
     ) -> FxIndexMap<Location, Vec<BorrowIndex>> {
         rustc_borrowck::consumers::calculate_borrows_out_of_scope_at_location(
-            &self.body.rustc_body,
-            &self.region_inference_context,
-            &self.borrow_set,
+            self.body.rustc_body(),
+            &self.facts.region_inference_context,
+            &self.facts.borrow_set,
         )
     }
 
     pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
-        self.borrow_set
+        self.facts
+            .borrow_set
             .location_map()
             .get_index(idx.as_usize())
             .unwrap()
@@ -104,8 +106,34 @@ pub struct Body<'tcx> {
     /// See [`mk_fake_predecessors`]
     fake_predecessors: IndexVec<BasicBlock, usize>,
     pub local_names: UnordMap<Local, Symbol>,
-    /// A mir body that contains region identifiers.
-    pub rustc_body: rustc_middle::mir::Body<'tcx>,
+    /// The borrowck facts backing the whole [`BodyRoot`]. The unrefined [`rustc_middle::mir::Body`]
+    /// for *this* body (which contains region identifiers) lives inside, selected by `kind`. Access
+    /// it through [`Body::rustc_body`].
+    facts: Rc<BodyWithBorrowckFacts<'tcx>>,
+    /// Identifies which [`rustc_middle::mir::Body`] inside `facts` this body corresponds to.
+    kind: BodyKind,
+}
+
+/// Selects a particular [`rustc_middle::mir::Body`] within a [`BodyWithBorrowckFacts`].
+#[derive(Clone, Copy)]
+pub enum BodyKind {
+    /// The main body, i.e. `facts.body`.
+    Main,
+    /// The promoted constant at the given index, i.e. `facts.promoted[_]`.
+    Promoted(Promoted),
+}
+
+impl BodyKind {
+    /// The [`rustc_middle::mir::Body`] this kind selects out of `facts`.
+    pub fn select_body<'a, 'tcx>(
+        self,
+        facts: &'a BodyWithBorrowckFacts<'tcx>,
+    ) -> &'a rustc_middle::mir::Body<'tcx> {
+        match self {
+            BodyKind::Main => &facts.body,
+            BodyKind::Promoted(promoted) => &facts.promoted[promoted],
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -402,13 +430,12 @@ impl Statement<'_> {
 
 impl<'tcx> BodyRoot<'tcx> {
     pub fn new(
-        borrow_set: BorrowSet<'tcx>,
-        region_inference_context: RegionInferenceContext<'tcx>,
+        facts: Rc<BodyWithBorrowckFacts<'tcx>>,
         infcx: rustc_infer::infer::InferCtxt<'tcx>,
         body: Body<'tcx>,
         promoted: IndexVec<Promoted, Body<'tcx>>,
     ) -> Self {
-        Self { body, promoted, infcx, borrow_set, region_inference_context }
+        Self { body, promoted, infcx, facts }
     }
 }
 
@@ -416,8 +443,10 @@ impl<'tcx> Body<'tcx> {
     pub fn new(
         basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
         local_decls: IndexVec<Local, LocalDecl>,
-        rustc_body: rustc_middle::mir::Body<'tcx>,
+        facts: Rc<BodyWithBorrowckFacts<'tcx>>,
+        kind: BodyKind,
     ) -> Self {
+        let rustc_body = kind.select_body(&facts);
         let fake_predecessors = mk_fake_predecessors(&basic_blocks);
 
         // The dominator rank of each node is just its index in a reverse-postorder traversal.
@@ -446,8 +475,15 @@ impl<'tcx> Body<'tcx> {
             fake_predecessors,
             dominator_order_rank,
             local_names,
-            rustc_body,
+            facts,
+            kind,
         }
+    }
+
+    /// The unrefined [`rustc_middle::mir::Body`] backing this body. It still contains region
+    /// identifiers.
+    pub fn rustc_body(&self) -> &rustc_middle::mir::Body<'tcx> {
+        self.kind.select_body(&self.facts)
     }
 
     pub fn terminator_loc(&self, bb: BasicBlock) -> Location {
@@ -456,7 +492,7 @@ impl<'tcx> Body<'tcx> {
 
     #[inline]
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
-        let total_preds = self.rustc_body.basic_blocks.predecessors()[bb].len();
+        let total_preds = self.rustc_body().basic_blocks.predecessors()[bb].len();
         let real_preds = total_preds - self.fake_predecessors[bb];
         // The entry block is a joint point if it has at least one predecessor because there's
         // an implicit goto from the environment at the beginning of the function.
@@ -465,21 +501,21 @@ impl<'tcx> Body<'tcx> {
 
     #[inline]
     pub fn dominators(&self) -> &Dominators<BasicBlock> {
-        self.rustc_body.basic_blocks.dominators()
+        self.rustc_body().basic_blocks.dominators()
     }
 
     #[inline]
     pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (1..self.rustc_body.arg_count + 1).map(Local::new)
+        (1..self.rustc_body().arg_count + 1).map(Local::new)
     }
 
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.rustc_body.arg_count + 1..self.local_decls.len()).map(Local::new)
+        (self.rustc_body().arg_count + 1..self.local_decls.len()).map(Local::new)
     }
 
     pub fn span(&self) -> Span {
-        self.rustc_body.span
+        self.rustc_body().span
     }
 
     #[inline]
