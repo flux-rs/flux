@@ -35,7 +35,7 @@ pub(crate) enum LocKind {
     Local,
     Box(GenericArg),
     // An &mut T unfolded "locally" at a call-site; with the super-type T
-    LocalPtr(Ty),
+    LocalPtr { bound: Ty, borrowed_place: Option<Place> },
     Universal,
 }
 
@@ -292,12 +292,12 @@ impl PlacesTree {
         self.map.shift_remove(loc);
     }
 
-    pub(crate) fn local_ptrs(&self) -> Vec<(Loc, Ty, Ty)> {
+    pub(crate) fn local_ptrs(&self) -> Vec<(Loc, Ty, Ty, Option<Place>)> {
         self.map
             .iter()
             .filter_map(|(loc, binding)| {
-                if let LocKind::LocalPtr(bound) = &binding.kind {
-                    Some((*loc, bound.clone(), binding.ty.clone()))
+                if let LocKind::LocalPtr { bound, borrowed_place } = &binding.kind {
+                    Some((*loc, bound.clone(), binding.ty.clone(), borrowed_place.clone()))
                 } else {
                     None
                 }
@@ -961,7 +961,7 @@ mod pretty {
             match self {
                 LocKind::Local | LocKind::Universal => Ok(()),
                 LocKind::Box(_) => w!(cx, f, "[box]"),
-                LocKind::LocalPtr(ty) => w!(cx, f, "[local-ptr({:?})]", ty),
+                LocKind::LocalPtr { bound, .. } => w!(cx, f, "[local-ptr({:?})]", bound),
             }
         }
     }
