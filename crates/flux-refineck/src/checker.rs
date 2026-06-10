@@ -651,7 +651,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             location = location.successor_within_block();
         }
 
-        if let Some(terminator) = self.body.basic_blocks[bb].terminator.as_ref() {
+        if let Some(terminator) = &data.terminator {
             let span = terminator.source_info.span;
             self.check_ghost_statements_at(
                 &mut infcx,
