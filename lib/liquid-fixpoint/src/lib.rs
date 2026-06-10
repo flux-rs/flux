@@ -359,6 +359,7 @@ impl<T: Types> Task<T> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
+            .arg("--sorted-solution")
             .arg("--json")
             .arg("--allowho")
             .arg("--allowhoqs")

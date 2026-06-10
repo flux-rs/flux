@@ -883,9 +883,11 @@ where
 
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
         let mut sexp_ctx = SexpParseCtxt.into_wrapper();
-        Ok(sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
+        let mut sol = sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
-        }))
+        });
+        parse_wkvars(&mut sol.1);
+        Ok(sol)
     }
 
     fn convert_kvar_bind(
@@ -2655,3 +2657,55 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt {
         Err(ParseError::err(format!("Unknown sort: {name}")))
     }
 }
+
+fn parse_wkvars(expr: &mut fixpoint::Expr) {
+    use fixpoint::*;
+    match expr {
+        Expr::Constant(_) | Expr::ThyFunc(_) | Expr::Var(_) => {}
+        Expr::App(head, _sort_args, args) => {
+            match &mut **head {
+                Expr::Var(v @ Var::WKVar(..)) => {
+                    *expr = Expr::WKVar(WKVar { wkvid: *v, args: args.clone() });
+                }
+                e => {
+                    parse_wkvars(e);
+                }
+            }
+        }
+        Expr::Neg(e) | Expr::Not(e) => parse_wkvars(e),
+        Expr::BinaryOp(_, exprs) | Expr::Imp(exprs) | Expr::Iff(exprs) | Expr::Atom(_, exprs) => {
+            let [e1, e2] = &mut **exprs;
+            parse_wkvars(e1);
+            parse_wkvars(e2);
+        }
+        Expr::IfThenElse(exprs) => {
+            let [p, e1, e2] = &mut **exprs;
+            parse_wkvars(p);
+            parse_wkvars(e1);
+            parse_wkvars(e2);
+        }
+        Expr::And(exprs) | Expr::Or(exprs) => {
+            for e in exprs {
+                parse_wkvars(e);
+            }
+        }
+        Expr::Let(_, exprs) => {
+            let [var_e, body_e] = &mut **exprs;
+            parse_wkvars(var_e);
+            parse_wkvars(body_e);
+        }
+        Expr::IsCtor(_v, expr) => {
+            parse_wkvars(expr);
+        }
+        Expr::Exists(_binder, expr) => {
+            parse_wkvars(expr);
+        }
+        Expr::WKVar(fixpoint::WKVar { wkvid: _, args }) => {
+            for e in args {
+                parse_wkvars(e);
+            }
+        }
+        Expr::BoundVar(..) => {}
+    }
+}
+
