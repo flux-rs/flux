@@ -505,32 +505,20 @@ impl<'tcx> Body<'tcx> {
                 .iter()
                 .all(Statement::is_nop)
         {
-            is_single_goto(&self.basic_blocks, bb)
+            // has a single goto target
+            if let Some(TerminatorKind::Goto { target }) = &self.basic_blocks[bb]
+                .terminator
+                .as_ref()
+                .map(|terminator| &terminator.kind)
+            {
+                Some(*target)
+            } else {
+                None
+            }
         } else {
             None
         }
     }
-    // pub fn resolve_dummy(&self, bb: BasicBlock) -> Option<BasicBlock> {
-    //     if let DummyBlockTarget::DummySuccessor(target) = self.dummy_basic_blocks[bb] {
-    //         Some(target)
-    //     } else {
-    //         None
-    //     }
-    // }
-
-    // pub fn terminator_for(&self, bb: BasicBlock) -> Option<&Terminator<'tcx>> {
-    //     let bb_term = &self.basic_blocks[bb].terminator;
-    //     let Some(terminator) = bb_term else {
-    //         return None;
-    //     };
-    //     if let TerminatorKind::Goto { target: bb_target } = &terminator.kind
-    //         && let DummyBlockTarget::DummySuccessor(target) = self.dummy_basic_blocks[*bb_target]
-    //     {
-    //         self.basic_blocks[target].terminator.as_ref()
-    //     } else {
-    //         bb_term.as_ref()
-    //     }
-    // }
 }
 
 /// The `FalseEdge/imaginary_target` edges mess up the `is_join_point` computation which creates spurious
@@ -554,21 +542,6 @@ fn mk_fake_predecessors(
         }
     }
     res
-}
-
-fn is_single_goto(
-    basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
-    bb: BasicBlock,
-) -> Option<BasicBlock> {
-    if let Some(TerminatorKind::Goto { target }) = basic_blocks[bb]
-        .terminator
-        .as_ref()
-        .map(|terminator| &terminator.kind)
-    {
-        Some(*target)
-    } else {
-        None
-    }
 }
 
 impl fmt::Debug for Body<'_> {
