@@ -67,7 +67,7 @@ fn override_with_only_check(global_flags: Vec<String>, only_check: String) -> Ve
         .into_iter()
         .filter(|s| !s.starts_with("-Finclude="))
         .collect();
-    flags.push(only_check);
+    flags.push(format!("-Finclude={only_check}"));
     flags
 }
 
@@ -82,11 +82,8 @@ fn write_cargo_config(
         None
     };
 
-    let only_check_pattern = if let Some(s) = cargo_flux_cmd.only_check() {
-        Some(format!("-Finclude={s}"))
-    } else {
-        None
-    };
+    let only_check_pattern =
+        if let Some(s) = cargo_flux_cmd.only_check() { Some(format!("{s}")) } else { None };
 
     let flux_toml = config::Config::builder()
         .add_source(config::File::with_name("flux.toml").required(false))
