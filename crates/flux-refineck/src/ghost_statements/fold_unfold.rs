@@ -279,7 +279,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
             self.point = Point::BeforeLocation(Location { block: bb, statement_index });
             self.statement(stmt, &mut env)?;
         }
-        if let Some(terminator) = &self.body.basic_blocks[bb].terminator {
+        if let Some(terminator) = &data.terminator {
             self.point = Point::BeforeLocation(self.body.terminator_loc(bb));
             let successors = self.terminator(terminator, env)?;
             for (env, target) in successors {
