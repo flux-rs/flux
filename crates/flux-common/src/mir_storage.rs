@@ -49,19 +49,30 @@ pub unsafe fn store_mir_body<'tcx>(
 /// shared [`Rc`] and keeps the entry in place, so the body can be retrieved more than once (e.g.
 /// by both the checker and the no-panic call-graph provider).
 pub unsafe fn retrieve_mir_body<'tcx>(
-    _tcx: TyCtxt<'tcx>,
+    tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
 ) -> Rc<BodyWithBorrowckFacts<'tcx>> {
-    let body_with_facts: Rc<BodyWithBorrowckFacts<'static>> = SHARED_STATE.with(|state| {
-        let map = state.borrow();
-        match map.get(&def_id) {
-            Some(body) => Rc::clone(body),
-            None => {
-                bug!("retrieve_mir_body: panic on {def_id:?}")
-            }
-        }
-    });
+    // SAFETY: See the module level comment.
+    match unsafe { try_retrieve_mir_body(tcx, def_id) } {
+        Some(body) => body,
+        None => bug!("retrieve_mir_body: panic on {def_id:?}"),
+    }
+}
+
+/// Like [`retrieve_mir_body`], but returns `None` instead of panicking when no body was stashed
+/// for `def_id` (e.g. a local item rustc never borrowchecks). The no-panic call-graph provider
+/// uses this to degrade such items to leaf nodes.
+///
+/// # Safety
+///
+/// See the module level comment.
+pub unsafe fn try_retrieve_mir_body<'tcx>(
+    _tcx: TyCtxt<'tcx>,
+    def_id: LocalDefId,
+) -> Option<Rc<BodyWithBorrowckFacts<'tcx>>> {
+    let body_with_facts: Rc<BodyWithBorrowckFacts<'static>> =
+        SHARED_STATE.with(|state| state.borrow().get(&def_id).map(Rc::clone))?;
     // SAFETY: See the module level comment. `Rc<T>` is a thin pointer regardless of `T`, so the
     // lifetime transmute does not change its layout.
-    unsafe { std::mem::transmute(body_with_facts) }
+    Some(unsafe { std::mem::transmute(body_with_facts) })
 }

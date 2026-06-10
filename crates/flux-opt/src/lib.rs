@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 
 use flux_middle::{
     PanicReason, PanicSpec,
-    call_graph::{CallGraph, CallSiteKind, NodeInfo, NodeKind},
+    call_graph::{CallGraph, CallSiteKind, Node},
     global_env::GlobalEnv,
     queries::Providers,
 };
@@ -43,15 +43,15 @@ pub fn infer_no_panics(
 /// `Analyzed` nodes with only resolved call sites start as `WillNotPanic` (optimistic).
 /// Every other node starts as `MightPanic` with the appropriate reason.
 fn initial_spec(
-    node: &NodeInfo<'_>,
+    node: &Node<'_>,
     external_spec: &impl Fn(DefId) -> PanicSpec,
     def_id: DefId,
 ) -> PanicSpec {
-    match &node.kind {
-        NodeKind::ExternalCrate => external_spec(def_id),
-        NodeKind::Leaf(_) => PanicSpec::MightPanic(PanicReason::NoMIRAvailable),
-        NodeKind::Analyzed { .. } => {
-            for site in &node.call_sites {
+    match node {
+        Node::ExternalCrate => external_spec(def_id),
+        Node::Leaf(_) => PanicSpec::MightPanic(PanicReason::NoMIRAvailable),
+        Node::Analyzed { call_sites, .. } => {
+            for site in call_sites {
                 let reason = match site.kind {
                     CallSiteKind::SynthesizedPanic => PanicReason::SynthesizedPanic,
                     CallSiteKind::DynamicDispatch => PanicReason::DynamicDispatch,
@@ -103,7 +103,7 @@ fn run_fixpoint(
     graph
         .nodes
         .iter()
-        .filter(|(_, node)| matches!(node.kind, NodeKind::Analyzed { is_mono: false }))
+        .filter(|(_, node)| matches!(node, Node::Analyzed { is_mono: false, .. }))
         .map(|(&instance, _)| (instance.def_id(), specs[&instance]))
         .collect()
 }

@@ -1,5 +1,5 @@
 use flux_middle::{
-    call_graph::{CallGraph, CallSite, CallSiteKind, NodeInfo, NodeKind, resolved_callees},
+    call_graph::{CallGraph, CallSite, CallSiteKind, Node, resolved_callees},
     global_env::GlobalEnv,
 };
 use rustc_data_structures::fx::FxIndexMap;
@@ -16,7 +16,7 @@ use rustc_middle::{
 pub fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
     let tcx = genv.tcx();
 
-    let mut nodes: FxIndexMap<Instance<'_>, NodeInfo<'_>> = FxIndexMap::default();
+    let mut nodes: FxIndexMap<Instance<'_>, Node<'_>> = FxIndexMap::default();
 
     // Instance-level worklist and visited set to handle the same DefId being
     // called with different concrete type args.
@@ -35,31 +35,50 @@ pub fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
         if !explored.insert(instance) {
             continue;
         }
-
-        let def_id = instance.def_id();
-
-        // External non-stdlib callees: treat as a leaf and record for spec lookup.
-        if !should_include_in_call_graph(genv, def_id.krate) {
-            nodes.insert(instance, NodeInfo { kind: NodeKind::ExternalCrate, call_sites: vec![] });
-            continue;
-        }
-
-        if let InstanceKind::Item(_) = instance.def
-            && tcx.is_mir_available(def_id)
-        {
-            let call_sites = item_callees(tcx, instance);
-            worklist.extend(resolved_callees(&call_sites));
-            let is_mono = !is_identity_instance(tcx, instance);
-            nodes.insert(instance, NodeInfo { kind: NodeKind::Analyzed { is_mono }, call_sites });
-        } else {
-            nodes.insert(
-                instance,
-                NodeInfo { kind: NodeKind::Leaf(tcx.def_kind(def_id)), call_sites: vec![] },
-            );
-        }
+        let node = analyze_instance(genv, instance);
+        worklist.extend(resolved_callees(node.call_sites()));
+        nodes.insert(instance, node);
     }
 
     CallGraph::new(nodes)
+}
+
+/// Classifies `instance` into a call-graph [`Node`], walking its body for call sites when one is
+/// available.
+fn analyze_instance<'tcx>(genv: GlobalEnv<'_, 'tcx>, instance: Instance<'tcx>) -> Node<'tcx> {
+    let tcx = genv.tcx();
+    let def_id = instance.def_id();
+
+    // External non-stdlib callees: leaf, panic spec looked up from crate metadata.
+    if !should_include_in_call_graph(genv, def_id.krate) {
+        return Node::ExternalCrate;
+    }
+
+    // Only `Item` instances have a walkable Rust body; shims / virtual stubs are leaves.
+    //
+    // For **local** functions we walk the unoptimized borrowck body (stashed by the `mir_borrowck`
+    // override) rather than `tcx.instance_mir`, which would give us *optimized* MIR. This matters
+    // because the checker recovers the resolved callee at a call site by `Location`, and those
+    // locations must refer to the same (unoptimized) body the checker checks. See REPORT step 3.
+    if let InstanceKind::Item(_) = instance.def {
+        let call_sites = if let Some(local_def_id) = def_id.as_local() {
+            // SAFETY: the call graph runs after rustc's analysis pass, so every local body has
+            // been borrowchecked and stashed. `try_retrieve_mir_body` degrades to `None` (→ leaf)
+            // for the rare local fn-like item rustc never borrowchecks.
+            unsafe { flux_common::mir_storage::try_retrieve_mir_body(tcx, local_def_id) }
+                .map(|facts| callees_in_body(tcx, instance, &facts.body))
+        } else if tcx.is_mir_available(def_id) {
+            Some(callees_in_body(tcx, instance, tcx.instance_mir(instance.def)))
+        } else {
+            None
+        };
+        if let Some(call_sites) = call_sites {
+            let is_mono = !is_identity_instance(tcx, instance);
+            return Node::Analyzed { is_mono, call_sites };
+        }
+    }
+
+    Node::Leaf(tcx.def_kind(def_id))
 }
 
 fn is_method_in_trait<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> bool {
@@ -118,6 +137,10 @@ fn callees_in_body<'tcx>(
         let kind = match &terminator.kind {
             TerminatorKind::Call { func, .. } => {
                 let ty = func.ty(&body.local_decls, tcx);
+                // The unoptimized borrowck body still carries region inference vars (`ReVar`),
+                // which `instantiate_mir_and_normalize_erasing_regions` would panic on. Erase
+                // regions up front — we only need the callee's type/const args to resolve it.
+                let ty = tcx.erase_and_anonymize_regions(ty);
                 // Apply the caller's concrete type args to get the concrete callee type.
                 let ty = caller.instantiate_mir_and_normalize_erasing_regions(
                     tcx,
@@ -150,10 +173,4 @@ fn callees_in_body<'tcx>(
     }
 
     call_sites
-}
-
-/// Call sites of a worklist instance. After normalization all non-mono instances on the worklist
-/// are identity instances, so `instance_mir` returns the unspecialized body.
-fn item_callees<'tcx>(tcx: TyCtxt<'tcx>, instance: Instance<'tcx>) -> Vec<CallSite<'tcx>> {
-    callees_in_body(tcx, instance, tcx.instance_mir(instance.def))
 }

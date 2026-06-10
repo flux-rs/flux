@@ -35,13 +35,14 @@ pub enum CallSiteKind<'tcx> {
     DynamicDispatch,
 }
 
-/// Classification of a node in the call graph.
+/// A node in the call graph: an `Instance` together with its classification and, when it has an
+/// analyzable body, the call sites observed in it.
 #[derive(Debug, Clone)]
-pub enum NodeKind {
-    /// MIR was available and walked.
-    /// `is_mono` is true when the instance is a concrete monomorphization
-    /// (args differ from the identity args). False for the source-level item.
-    Analyzed { is_mono: bool },
+pub enum Node<'tcx> {
+    /// MIR was available and walked. `is_mono` is true when the instance is a concrete
+    /// monomorphization (args differ from the identity args), false for the source-level item.
+    /// `call_sites` are the Call/Assert terminators observed in the body.
+    Analyzed { is_mono: bool, call_sites: Vec<CallSite<'tcx>> },
     /// External crate function — panic spec looked up from crate metadata.
     ExternalCrate,
     /// Function with no analyzable body (no Rust body by design, MIR unavailable,
@@ -50,30 +51,32 @@ pub enum NodeKind {
     Leaf(DefKind),
 }
 
-#[derive(Debug, Clone)]
-pub struct NodeInfo<'tcx> {
-    pub kind: NodeKind,
-    /// Call sites observed in this function's MIR body. Non-empty only for
-    /// `NodeKind::Analyzed` nodes.
-    pub call_sites: Vec<CallSite<'tcx>>,
+impl<'tcx> Node<'tcx> {
+    /// Call sites observed in this node's body. Empty for non-`Analyzed` nodes.
+    pub fn call_sites(&self) -> &[CallSite<'tcx>] {
+        match self {
+            Node::Analyzed { call_sites, .. } => call_sites,
+            Node::ExternalCrate | Node::Leaf(_) => &[],
+        }
+    }
 }
 
 pub struct CallGraph<'tcx> {
-    pub nodes: FxIndexMap<Instance<'tcx>, NodeInfo<'tcx>>,
+    pub nodes: FxIndexMap<Instance<'tcx>, Node<'tcx>>,
     pub callers: UnordMap<Instance<'tcx>, Vec<Instance<'tcx>>>,
 }
 
 impl<'tcx> CallGraph<'tcx> {
     /// Builds a `CallGraph` from its nodes, deriving the `callers` map.
-    pub fn new(nodes: FxIndexMap<Instance<'tcx>, NodeInfo<'tcx>>) -> Self {
+    pub fn new(nodes: FxIndexMap<Instance<'tcx>, Node<'tcx>>) -> Self {
         let mut graph = CallGraph { nodes, callers: UnordMap::default() };
         graph.build_callers();
         graph
     }
 
     fn build_callers(&mut self) {
-        for (&caller, info) in &self.nodes {
-            for callee in resolved_callees(&info.call_sites) {
+        for (&caller, node) in &self.nodes {
+            for callee in resolved_callees(node.call_sites()) {
                 self.callers.entry(callee).or_default().push(caller);
             }
         }
@@ -91,8 +94,8 @@ impl<'tcx> CallGraph<'tcx> {
         location: Location,
     ) -> Option<Instance<'tcx>> {
         let instance = Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id));
-        let info = self.nodes.get(&instance)?;
-        info.call_sites.iter().find_map(|site| {
+        let node = self.nodes.get(&instance)?;
+        node.call_sites().iter().find_map(|site| {
             match site.kind {
                 CallSiteKind::Resolved { callee } if site.location == location => Some(callee),
                 _ => None,
@@ -112,18 +115,18 @@ pub fn resolved_callees<'tcx>(
     })
 }
 
-impl fmt::Display for NodeKind {
+impl<'tcx> fmt::Display for Node<'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NodeKind::Analyzed { is_mono } => {
+            Node::Analyzed { is_mono, .. } => {
                 if *is_mono {
                     write!(f, "Analyzed(mono)")
                 } else {
                     write!(f, "Analyzed")
                 }
             }
-            NodeKind::ExternalCrate => write!(f, "ExternalCrate"),
-            NodeKind::Leaf(kind) => write!(f, "Leaf({kind:?})"),
+            Node::ExternalCrate => write!(f, "ExternalCrate"),
+            Node::Leaf(kind) => write!(f, "Leaf({kind:?})"),
         }
     }
 }
@@ -144,9 +147,9 @@ impl<'tcx> fmt::Display for CallGraph<'tcx> {
         writeln!(f, "call graph ({} nodes):", self.nodes.len())?;
         let mut nodes: Vec<_> = self.nodes.iter().collect();
         nodes.sort_by_key(|(inst, _)| format!("{inst}"));
-        for (instance, info) in nodes {
-            writeln!(f, "  {instance} [{}]:", info.kind)?;
-            for site in &info.call_sites {
+        for (instance, node) in nodes {
+            writeln!(f, "  {instance} [{node}]:")?;
+            for site in node.call_sites() {
                 writeln!(f, "    {} at {:?}", site.kind, site.location)?;
             }
         }
