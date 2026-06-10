@@ -227,10 +227,7 @@ impl IncludePattern {
             .iter()
             .filter_map(|s| s.strip_prefix("lsp:").map(|suffix| suffix.to_string()))
             .collect();
-        if !lsps.is_empty() { Self::new_raw(lsps) } else { Self::new_raw(includes) }
-    }
-
-    fn new_raw(includes: Vec<String>) -> Result<Self, String> {
+        let includes = if lsps.is_empty() { includes } else { lsps };
         let mut defs = Vec::new();
         let mut spans = Vec::new();
         let mut glob = GlobSetBuilder::new();
