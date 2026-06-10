@@ -219,13 +219,13 @@ pub struct IncludePattern {
 }
 
 impl IncludePattern {
-    /// strip out the includes with an `lsp:` prefix and ONLY use them if they are present.
-    /// This allows users to specify both `lsp:` patterns, and the plain patterns from the cargo.toml,
-    /// prioritizing the `lsp:` patterns when present.
+    /// strip out the includes with an `only:` prefix and ONLY use them if they are present.
+    /// This allows users to specify both `only:` patterns, and the plain patterns from the cargo.toml,
+    /// prioritizing the `only:` patterns when present.
     fn new(includes: Vec<String>) -> Result<Self, String> {
         let lsps: Vec<_> = includes
             .iter()
-            .filter_map(|s| s.strip_prefix("lsp:").map(|suffix| suffix.to_string()))
+            .filter_map(|s| s.strip_prefix("only:").map(|suffix| suffix.to_string()))
             .collect();
         let includes = if lsps.is_empty() { includes } else { lsps };
         let mut defs = Vec::new();

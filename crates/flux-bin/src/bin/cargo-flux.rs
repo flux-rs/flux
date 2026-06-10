@@ -74,7 +74,7 @@ fn write_cargo_config(
     };
 
     let local_flags = if let Some(s) = cargo_flux_cmd.only_check() {
-        Some(vec![format!("-Finclude=lsp:{s}")])
+        Some(vec![format!("-Finclude=only:{s}")])
     } else {
         None
     };
