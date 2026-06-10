@@ -1296,9 +1296,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 span,
             )?;
             self.check_ret(&mut infcx, &mut env, span)
-        } else if let Some(real_target) = self.body.is_dummy_basic_block(target)
-            && self.no_ghosts_at(target)
-        {
+        } else if let Some(real_target) = self.is_dummy_basic_block(target) {
             self.check_goto(infcx, env, span, real_target)
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, infcx, env, span, target)? {
@@ -1307,6 +1305,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Ok(())
         } else {
             self.check_basic_block(infcx, env, target)
+        }
+    }
+
+    fn is_dummy_basic_block(&self, bb: BasicBlock) -> Option<BasicBlock> {
+        if let Some(real_target) = self.body.is_dummy_basic_block(bb)
+            && self.no_ghosts_at(bb)
+        {
+            Some(real_target)
+        } else {
+            None
         }
     }
 
