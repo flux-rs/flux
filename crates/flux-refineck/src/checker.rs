@@ -1309,13 +1309,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
-    fn no_ghosts_at(&self, src: BasicBlock) -> bool {
+    fn no_ghosts_at(&self, bb: BasicBlock) -> bool {
         let Some(ghosts) = self.inherited.ghost_stmts.get(&self.checker_id) else {
             return true;
         };
-        let mut res = true; // ghosts.statements_at(Point::Edge(src, dst)).next().is_none();
-        let mut location = Location { block: src, statement_index: 0 };
-        for _ in &self.body.basic_blocks[src].statements {
+        let mut res = true;
+        let mut location = Location { block: bb, statement_index: 0 };
+        for _ in &self.body.basic_blocks[bb].statements {
             res = res
                 && ghosts
                     .statements_at(Point::BeforeLocation(location))

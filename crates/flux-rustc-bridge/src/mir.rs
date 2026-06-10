@@ -96,25 +96,6 @@ impl<'tcx> BodyRoot<'tcx> {
             .1
     }
 }
-/* NOTE: `dummy_basic_blocks` are those that have
-    - MULTIPLE incoming edges,
-    - SINGLE outgoing edge,
-    - and only contain no-op statements.
-    We can "skip" such blocks and jump straight to
-    the first (transitively reachable) non-dummy
-    successor, aka the "real" successor, which allows
-    us to avoid emitting KVars for spurious joins.
-*/
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum DummyBlockTarget {
-    /// For regular (non-dummy) blocks;
-    Normal,
-    /// This block is a dummy but somehow in some degenerate dummy-cycle
-    DummyCycle,
-    /// This block is a dummy block, and its "real" successor is the given block.
-    DummySuccessor(BasicBlock),
-}
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
@@ -122,8 +103,6 @@ pub struct Body<'tcx> {
     pub dominator_order_rank: IndexVec<BasicBlock, u32>,
     /// See [`mk_fake_predecessors`]
     fake_predecessors: IndexVec<BasicBlock, usize>,
-    /// This is bb -> Some(bb') when `bb` is a dummy block and `bb'` is its "real" successor.
-    dummy_basic_blocks: IndexVec<BasicBlock, DummyBlockTarget>,
     pub local_names: UnordMap<Local, Symbol>,
     /// A mir body that contains region identifiers.
     pub rustc_body: rustc_middle::mir::Body<'tcx>,
@@ -451,9 +430,6 @@ impl<'tcx> Body<'tcx> {
     ) -> Self {
         let fake_predecessors = mk_fake_predecessors(&basic_blocks);
 
-        let dummy_basic_blocks =
-            mk_dummy_basic_blocks(&rustc_body, &fake_predecessors, &basic_blocks);
-
         // The dominator rank of each node is just its index in a reverse-postorder traversal.
         let graph = &rustc_body.basic_blocks;
         let mut dominator_order_rank = IndexVec::from_elem_n(0, graph.num_nodes());
@@ -478,7 +454,6 @@ impl<'tcx> Body<'tcx> {
             basic_blocks,
             local_decls,
             fake_predecessors,
-            dummy_basic_blocks,
             dominator_order_rank,
             local_names,
             rustc_body,
@@ -522,15 +497,18 @@ impl<'tcx> Body<'tcx> {
         self.local_decls[RETURN_PLACE].ty.clone()
     }
 
+    /// NOTE: `dummy_basic_blocks` are those that have
+    /// - MULTIPLE incoming edges,
+    /// - SINGLE outgoing edge,
+    /// - and only contain no-op statements.
+    /// We can "skip" such blocks and jump straight to
+    /// the first (transitively reachable) non-dummy
+    /// successor, aka the "real" successor, which allows
+    /// us to avoid emitting KVars for spurious joins.
     pub fn is_dummy_basic_block(&self, bb: BasicBlock) -> Option<BasicBlock> {
-        // rustc_body: &rustc_middle::mir::Body<'_>,
-        // fake_predecessors: &IndexVec<BasicBlock, usize>,
-        // basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
-        // bb: BasicBlock,
         let real_predecessor_count =
             self.rustc_body.basic_blocks.predecessors()[bb].len() - self.fake_predecessors[bb];
         let has_multiple_incoming = real_predecessor_count > 1;
-
         if has_multiple_incoming
             && self.basic_blocks[bb]
                 .statements
@@ -600,71 +578,6 @@ fn is_single_goto(
         Some(*target)
     } else {
         None
-    }
-}
-
-fn is_dummy_basic_block(
-    rustc_body: &rustc_middle::mir::Body<'_>,
-    fake_predecessors: &IndexVec<BasicBlock, usize>,
-    basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
-    bb: BasicBlock,
-) -> Option<BasicBlock> {
-    let real_predecessor_count =
-        rustc_body.basic_blocks.predecessors()[bb].len() - fake_predecessors[bb];
-    let has_multiple_incoming = real_predecessor_count > 1;
-
-    if has_multiple_incoming && basic_blocks[bb].statements.iter().all(Statement::is_nop) {
-        is_single_goto(basic_blocks, bb)
-    } else {
-        None
-    }
-}
-
-fn mk_dummy_basic_blocks(
-    rustc_body: &rustc_middle::mir::Body<'_>,
-    fake_predecessors: &IndexVec<BasicBlock, usize>,
-    basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
-) -> IndexVec<BasicBlock, DummyBlockTarget> {
-    let mut res = IndexVec::from_elem_n(DummyBlockTarget::Normal, basic_blocks.len());
-    for (bb, _) in basic_blocks.iter_enumerated() {
-        // If already marked, continue (memoizes results and handles cycles)
-        if !matches!(res[bb], DummyBlockTarget::Normal) {
-            continue;
-        }
-        // Check if this block is a dummy block
-        if is_dummy_basic_block(rustc_body, fake_predecessors, basic_blocks, bb).is_none() {
-            continue;
-        }
-        // Mark this block and all transitively reachable dummy blocks with the same target
-        let mut path = vec![];
-        let target =
-            get_transitive_dummy_target(rustc_body, fake_predecessors, basic_blocks, &mut path, bb);
-        for bb_ in path.into_iter() {
-            res[bb_] = target.clone();
-        }
-    }
-    res
-}
-
-fn get_transitive_dummy_target(
-    rustc_body: &rustc_middle::mir::Body,
-    fake_predecessors: &IndexVec<BasicBlock, usize>,
-    basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
-    path: &mut Vec<BasicBlock>,
-    bb: BasicBlock,
-) -> DummyBlockTarget {
-    if path.contains(&bb) {
-        // we've seen this bb before, abort! ...
-        DummyBlockTarget::DummyCycle
-    } else if let Some(target) =
-        is_dummy_basic_block(rustc_body, fake_predecessors, basic_blocks, bb)
-    {
-        // bb is also a dummy block, continue traversal!
-        path.push(bb);
-        get_transitive_dummy_target(rustc_body, fake_predecessors, basic_blocks, path, target)
-    } else {
-        // bb is NOT a dummy block, this is the "real" successor!
-        DummyBlockTarget::DummySuccessor(bb)
     }
 }
 
