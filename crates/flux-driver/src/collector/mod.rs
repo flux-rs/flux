@@ -625,6 +625,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::AssumeParametric)?
             }
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
+            ("no_suggestions", hir::AttrArgs::Empty) => FluxAttrKind::NoSuggestions,
             ("specs", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_detached_specs, FluxAttrKind::DetachedSpecs)?
             }
@@ -749,6 +750,7 @@ enum FluxAttrKind {
     NoPanic,
     NoPanicIf(surface::Expr),
     AssumeParametric(Vec<Ident>),
+    NoSuggestions,
     /// See `detachXX.rs`
     DetachedSpecs(surface::DetachedSpecs),
 }
@@ -907,6 +909,7 @@ impl FluxAttrs {
                 FluxAttrKind::ShouldFail => surface::Attr::ShouldFail,
                 FluxAttrKind::NoPanic => surface::Attr::NoPanic,
                 FluxAttrKind::AssumeParametric(names) => surface::Attr::AssumeParametric(names),
+                FluxAttrKind::NoSuggestions => surface::Attr::NoSuggestions,
                 FluxAttrKind::Opaque
                 | FluxAttrKind::Reflect
                 | FluxAttrKind::FnSig(_)
@@ -961,6 +964,7 @@ impl FluxAttrKind {
             FluxAttrKind::NoPanic => attr_name!(NoPanic),
             FluxAttrKind::NoPanicIf(_) => attr_name!(NoPanicIf),
             FluxAttrKind::AssumeParametric(_) => attr_name!(AssumeParametric),
+            FluxAttrKind::NoSuggestions => attr_name!(NoSuggestions),
         }
     }
 }

@@ -600,7 +600,8 @@ fn variants_of(
 }
 
 fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    match genv.fhir_node(def_id.local_id())? {
+    let fhir_node = genv.fhir_node(def_id.local_id())?;
+    match &fhir_node {
         fhir::Node::Item(Item { kind: ItemKind::Fn(fhir_fn_sig, ..), .. })
         | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fhir_fn_sig), .. })
         | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fhir_fn_sig), .. })
@@ -612,7 +613,18 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 .into_conv_ctxt()
                 .conv_fn_sig(def_id, fhir_fn_sig)?;
             let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-            let fn_sig = fn_sig.hoist_input_binders();
+            #[cfg(feature = "wick")]
+            let mut fn_sig = fn_sig.hoist_input_binders();
+            #[cfg(feature = "wick")]
+            if !genv.no_suggestions(def_id.local_id())
+                && !matches!(fhir_node, fhir::Node::TraitItem(..) | fhir::Node::ForeignItem(..) | fhir::Node::ImplItem(..))
+            {
+                let id = match def_id {
+                    MaybeExternId::Extern(_local_id, def_id) => def_id,
+                    MaybeExternId::Local(local_id) => local_id.into(),
+                };
+                fn_sig = fn_sig.add_weak_kvars(genv, id)?;
+            }
 
             if config::dump_rty() {
                 let generics = genv.generics_of(def_id)?;
