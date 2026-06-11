@@ -48,7 +48,7 @@ struct GlobalEnvInner<'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
     arena: &'genv fhir::Arena,
-    cstore: Box<CrateStoreDyn>,
+    cstore: Box<CrateStoreDyn<'tcx>>,
     queries: Queries<'genv, 'tcx>,
     tempdir: TempDir,
 }
@@ -57,7 +57,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
     pub fn enter<'a, R>(
         tcx: TyCtxt<'tcx>,
         sess: &'a FluxSession,
-        cstore: Box<CrateStoreDyn>,
+        cstore: Box<CrateStoreDyn<'tcx>>,
         arena: &'a fhir::Arena,
         providers: Providers,
         f: impl for<'genv> FnOnce(GlobalEnv<'genv, 'tcx>) -> R,
@@ -187,12 +187,35 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// The inferred [`PanicSpec`] for a concrete `instance`, looked up in the local crate's
     /// instance-keyed map. Missing entries default to `MightPanic(NotInCallGraph)`.
     pub fn inferred_no_panic_instance(self, instance: Instance<'tcx>) -> PanicSpec {
-        self.inner
-            .queries
-            .inferred_no_panic(self)
+        self.inferred_no_panic_local()
             .get(&instance)
             .copied()
             .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
+    }
+
+    /// The local crate's full instance-keyed no-panic map (used by metadata encoding).
+    pub fn inferred_no_panic_local(self) -> Rc<UnordMap<Instance<'tcx>, PanicSpec>> {
+        self.inner.queries.inferred_no_panic(self)
+    }
+
+    /// Looks up the inferred [`PanicSpec`] for an `instance` defined in an *external* crate, from
+    /// that crate's serialized metadata table. Tries the exact (monomorphized) instance first, then
+    /// falls back to the identity instance (covering instantiations the external crate could never
+    /// have analyzed, e.g. at a local type), then to `MightPanic`.
+    pub fn inferred_no_panic_external(self, instance: Instance<'tcx>) -> PanicSpec {
+        let def_id = instance.def_id();
+        let table = self.cstore().inferred_no_panic(def_id.krate);
+        if let Some(&spec) = table.get(&instance) {
+            return spec;
+        }
+        let identity = Instance::new_raw(
+            def_id,
+            rustc_middle::ty::GenericArgs::identity_for_item(self.tcx(), def_id),
+        );
+        if let Some(&spec) = table.get(&identity) {
+            return spec;
+        }
+        PanicSpec::MightPanic(PanicReason::NotInCallGraph)
     }
 
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
@@ -510,7 +533,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         generics.param_def_id_to_index(self.tcx(), def_id).unwrap()
     }
 
-    pub(crate) fn cstore(self) -> &'genv CrateStoreDyn {
+    pub(crate) fn cstore(self) -> &'genv CrateStoreDyn<'tcx> {
         &*self.inner.cstore
     }
 

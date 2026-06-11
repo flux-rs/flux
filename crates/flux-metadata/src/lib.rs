@@ -43,7 +43,7 @@ use rustc_hir::{
     def_id::{LOCAL_CRATE, LocalDefId},
 };
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{Instance, InstanceKind, TyCtxt};
 use rustc_session::config::OutFileName;
 use rustc_span::{
     SourceFile, Span, StableSourceFileId,
@@ -54,13 +54,13 @@ pub use crate::encoder::encode_metadata;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
-const METADATA_VERSION: u8 = 0;
+const METADATA_VERSION: u8 = 1;
 const METADATA_HEADER: &[u8] = &[b'f', b'l', b'u', b'x', 0, 0, 0, METADATA_VERSION];
 
 #[derive(Default)]
-pub struct CStore {
-    local_tables: UnordMap<CrateNum, Tables<DefIndex>>,
-    extern_tables: Tables<DefId>,
+pub struct CStore<'tcx> {
+    local_tables: UnordMap<CrateNum, Tables<'tcx, DefIndex>>,
+    extern_tables: Tables<'tcx, DefId>,
 }
 
 /// From CREUSOT: used to store the info about source files
@@ -109,9 +109,9 @@ impl AbsoluteBytePos {
 }
 
 #[derive(Default, TyEncodable, TyDecodable)]
-pub struct CrateMetadata {
-    local_tables: Tables<DefIndex>,
-    extern_tables: Tables<DefId>,
+pub struct CrateMetadata<'tcx> {
+    local_tables: Tables<'tcx, DefIndex>,
+    extern_tables: Tables<'tcx, DefId>,
 }
 
 /// Trait to deal with the fact that `assoc_refinmenents_of` and `assoc_refinements_def` use
@@ -157,7 +157,7 @@ impl Key for FluxDefId {
 
 #[derive_where(Default)]
 #[derive(TyEncodable, TyDecodable)]
-pub struct Tables<K: Eq + Hash> {
+pub struct Tables<'tcx, K: Eq + Hash> {
     generics_of: UnordMap<K, QueryResult<rty::Generics>>,
     refinement_generics_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>>,
     predicates_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
@@ -180,11 +180,11 @@ pub struct Tables<K: Eq + Hash> {
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
     no_panic: UnordMap<K, bool>,
     assume_parametric_params: UnordMap<K, UnordSet<u32>>,
-    no_panic_specs: UnordMap<DefId, PanicSpec>,
+    no_panic_specs: UnordMap<Instance<'tcx>, PanicSpec>,
 }
 
-impl CStore {
-    pub fn load(tcx: TyCtxt, sess: &FluxSession) -> Self {
+impl<'tcx> CStore<'tcx> {
+    pub fn load(tcx: TyCtxt<'tcx>, sess: &FluxSession) -> Self {
         let mut cstore = CStore::default();
         for crate_num in tcx.used_crates(()) {
             let Some(path) = flux_metadata_extern_location(tcx, *crate_num) else { continue };
@@ -199,7 +199,7 @@ impl CStore {
         &mut self,
         tcx: TyCtxt,
         sess: &FluxSession,
-        extern_tables: Tables<DefId>,
+        extern_tables: Tables<'tcx, DefId>,
     ) {
         macro_rules! merge_extern_table {
             ($self:expr, $tcx:expr, $table:ident, $extern_tables:expr) => {{
@@ -247,7 +247,7 @@ macro_rules! get {
     }};
 }
 
-impl CrateStore for CStore {
+impl<'tcx> CrateStore<'tcx> for CStore<'tcx> {
     fn fn_sig(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::PolyFnSig>> {
         get!(self, fn_sig, def_id)
     }
@@ -329,7 +329,7 @@ impl CrateStore for CStore {
         self.local_tables[&krate].normalized_defns.clone()
     }
 
-    fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<DefId, PanicSpec>> {
+    fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<Instance<'tcx>, PanicSpec>> {
         // TODO: Some transitive deps (e.g. `hashbrown`) have no flux metadata. Return
         // an empty map (conservative: MightPanic) until the proper fix is in place.
         // See notes/hashbrown-inferred-no-panic.txt.
@@ -358,8 +358,8 @@ impl CrateStore for CStore {
     }
 }
 
-impl CrateMetadata {
-    fn new(genv: GlobalEnv) -> Self {
+impl<'tcx> CrateMetadata<'tcx> {
+    fn new(genv: GlobalEnv<'_, 'tcx>) -> Self {
         let mut local_tables = Tables::default();
         encode_def_ids(
             genv,
@@ -369,7 +369,18 @@ impl CrateMetadata {
             FluxDefId::to_index,
         );
         encode_flux_defs(genv, &mut local_tables);
-        local_tables.no_panic_specs = (*genv.inferred_no_panic_crate(LOCAL_CRATE)).clone();
+        // Serialize the instance-keyed map filtered to instances of locally-defined functions
+        // (identity + monomorphizations). Only `Item` instances carry a meaningful spec; shims and
+        // other non-`Item` instances are `Leaf`/`MightPanic` and not worth storing. Downstream
+        // crates reconstruct these `Instance`s for exact/identity lookups (`external_spec`).
+        local_tables.no_panic_specs = genv
+            .inferred_no_panic_local()
+            .items()
+            .filter(|(instance, _)| {
+                instance.def_id().is_local() && matches!(instance.def, InstanceKind::Item(_))
+            })
+            .map(|(instance, spec)| (*instance, *spec))
+            .collect();
 
         let mut extern_tables = Tables::default();
         encode_def_ids(
@@ -384,7 +395,7 @@ impl CrateMetadata {
     }
 }
 
-fn encode_flux_defs(genv: GlobalEnv, tables: &mut Tables<DefIndex>) {
+fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, DefIndex>) {
     tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
 
     for (def_id, item) in genv.fhir_iter_flux_items() {
@@ -407,10 +418,10 @@ fn encode_flux_defs(genv: GlobalEnv, tables: &mut Tables<DefIndex>) {
     }
 }
 
-fn encode_def_ids<K: Eq + Hash + Copy>(
-    genv: GlobalEnv,
+fn encode_def_ids<'tcx, K: Eq + Hash + Copy>(
+    genv: GlobalEnv<'_, 'tcx>,
     def_ids: impl IntoIterator<Item = DefId>,
-    tables: &mut Tables<K>,
+    tables: &mut Tables<'tcx, K>,
     did_to_key: fn(DefId) -> K,
     assoc_id_to_key: fn(FluxDefId) -> FluxId<K>,
 ) {

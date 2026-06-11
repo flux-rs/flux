@@ -16,7 +16,6 @@ use flux_middle::{
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
 use rustc_middle::ty::Instance;
 
 pub fn provide(providers: &mut Providers) {
@@ -27,14 +26,17 @@ pub fn provide(providers: &mut Providers) {
 pub fn inferred_no_panic<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
 ) -> UnordMap<Instance<'tcx>, PanicSpec> {
-    infer_no_panics(genv, |def_id| genv.inferred_no_panic(def_id))
+    infer_no_panics(genv, |instance| genv.inferred_no_panic_external(instance))
 }
 
 /// The entry point for no-panic inference. Explores the call graph and returns, for every analyzed
 /// `Instance`, an over-approximation of whether it might panic.
+///
+/// `external_spec` resolves the spec of an `Instance` defined in another crate (a
+/// [`Node::ExternalCrate`]), looking it up in that crate's serialized metadata.
 pub fn infer_no_panics<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
-    external_spec: impl Fn(DefId) -> PanicSpec,
+    external_spec: impl Fn(Instance<'tcx>) -> PanicSpec,
 ) -> UnordMap<Instance<'tcx>, PanicSpec> {
     let graph = genv.call_graph();
     run_fixpoint(graph, external_spec)
@@ -44,13 +46,13 @@ pub fn infer_no_panics<'tcx>(
 ///
 /// `Analyzed` nodes with only resolved call sites start as `WillNotPanic` (optimistic).
 /// Every other node starts as `MightPanic` with the appropriate reason.
-fn initial_spec(
-    node: &Node<'_>,
-    external_spec: &impl Fn(DefId) -> PanicSpec,
-    def_id: DefId,
+fn initial_spec<'tcx>(
+    node: &Node<'tcx>,
+    external_spec: &impl Fn(Instance<'tcx>) -> PanicSpec,
+    instance: Instance<'tcx>,
 ) -> PanicSpec {
     match node {
-        Node::ExternalCrate => external_spec(def_id),
+        Node::ExternalCrate => external_spec(instance),
         Node::Leaf(_) => PanicSpec::MightPanic(PanicReason::NoMIRAvailable),
         Node::Analyzed { call_sites, .. } => {
             for site in call_sites {
@@ -79,13 +81,13 @@ fn initial_spec(
 /// source correctly remain `WillNotPanic`.
 fn run_fixpoint<'tcx>(
     graph: &CallGraph<'tcx>,
-    external_spec: impl Fn(DefId) -> PanicSpec,
+    external_spec: impl Fn(Instance<'tcx>) -> PanicSpec,
 ) -> UnordMap<Instance<'tcx>, PanicSpec> {
     let mut specs: FxHashMap<Instance<'tcx>, PanicSpec> = FxHashMap::default();
     let mut queue: VecDeque<Instance<'tcx>> = VecDeque::new();
 
     for (&instance, node) in &graph.nodes {
-        let spec = initial_spec(node, &external_spec, instance.def_id());
+        let spec = initial_spec(node, &external_spec, instance);
         if matches!(spec, PanicSpec::MightPanic(_)) {
             queue.push_back(instance);
         }

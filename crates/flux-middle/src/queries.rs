@@ -24,7 +24,7 @@ use rustc_hir::{
 };
 use rustc_index::IndexVec;
 use rustc_macros::{Decodable, Encodable};
-use rustc_middle::ty::Instance;
+use rustc_middle::ty::{GenericArgs, Instance};
 use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
@@ -661,7 +661,21 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     .collect();
                 Rc::new(def_map)
             } else {
-                genv.cstore().inferred_no_panic(krate)
+                // The cstore table is instance-keyed (Step 5). Project it down to identity
+                // instances to reproduce the `DefId`-keyed result the checker still expects (until
+                // Step 6). The exact-instance precision is consumed only inside the inference via
+                // `inferred_no_panic_external`, not on this path.
+                let tcx = genv.tcx();
+                let def_map = genv
+                    .cstore()
+                    .inferred_no_panic(krate)
+                    .items()
+                    .filter(|(instance, _)| {
+                        instance.args == GenericArgs::identity_for_item(tcx, instance.def_id())
+                    })
+                    .map(|(instance, spec)| (instance.def_id(), *spec))
+                    .collect();
+                Rc::new(def_map)
             }
         })
     }
