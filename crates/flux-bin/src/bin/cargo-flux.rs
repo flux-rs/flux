@@ -80,7 +80,7 @@ fn write_cargo_config(
     if flux_toml.get_bool("enabled").is_ok() {
         return Err(anyhow!("`enabled` cannot be set in `flux.toml`"));
     }
-    let local_package_ids = cargo_flux_cmd.local_package_ids(&metadata);
+    let targeted_package_ids = cargo_flux_cmd.targeted_package_ids(&metadata);
 
     let mut file = NamedTempFile::new()?;
     {
@@ -135,7 +135,7 @@ rustflags = [{:?}]
                             manifest_dir_relative_to_workspace,
                             cargo_flux_cmd
                                 .only_check()
-                                .filter(|_| local_package_ids.contains(&package.id))
+                                .filter(|_| targeted_package_ids.contains(&package.id))
                         )
                         .iter()
                         .chain(flux_flags.iter().flatten())
