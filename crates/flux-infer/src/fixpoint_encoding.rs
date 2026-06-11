@@ -1954,12 +1954,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
         };
         let proj = fixpoint::Expr::Var(proj);
-        Ok(fixpoint::Expr::App(
-            Box::new(proj),
-            None,
-            vec![self.expr_to_fixpoint(e, scx)?],
-            None,
-        ))
+        Ok(fixpoint::Expr::App(Box::new(proj), None, vec![self.expr_to_fixpoint(e, scx)?], None))
     }
 
     fn un_op_to_fixpoint(

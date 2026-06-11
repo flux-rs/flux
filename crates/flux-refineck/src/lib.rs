@@ -358,7 +358,10 @@ fn add_fn_fix_diagnostic<'a>(
         diag.span_suggestion(
             fn_first_line,
             "try adding the refinement",
-            format!("{}#[flux_rs::sig({})]\n{}", prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
+            format!(
+                "{}#[flux_rs::sig({})]\n{}",
+                prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet
+            ),
             Applicability::MachineApplicable,
         );
     }

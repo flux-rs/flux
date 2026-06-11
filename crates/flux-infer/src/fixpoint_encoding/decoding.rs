@@ -107,7 +107,7 @@ where
                     self.ecx.const_env.const_map_rev.get(global_var)
                 {
                     op_args.reverse();
-                    return Some(bin_op.clone());
+                    Some(bin_op.clone())
                 } else {
                     None
                 }

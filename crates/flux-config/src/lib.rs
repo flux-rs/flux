@@ -159,7 +159,6 @@ pub fn no_suggestions_default() -> bool {
     FLAGS.no_suggestions_default
 }
 
-
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Pos {

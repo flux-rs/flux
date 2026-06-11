@@ -111,11 +111,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         match &item.kind {
             ItemKind::Fn { .. } => {
                 if attrs.has_attrs() {
-                    let (fn_sig, attr_span) = if let Some((sig, span)) = attrs.fn_sig_with_attr_span() {
-                        (Some(sig), Some(span))
-                    } else {
-                        (None, None)
-                    };
+                    let (fn_sig, attr_span) =
+                        if let Some((sig, span)) = attrs.fn_sig_with_attr_span() {
+                            (Some(sig), Some(span))
+                        } else {
+                            (None, None)
+                        };
                     self.check_fn_sig_name(owner_id, fn_sig.as_ref())?;
                     let node_id = self.next_node_id();
                     self.insert_item(
@@ -127,7 +128,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                         },
                     )?;
                     if let Some(span) = attr_span {
-                        self.specs.set_spec_attr_span(owner_id.def_id.to_def_id(), span);
+                        self.specs
+                            .set_spec_attr_span(owner_id.def_id.to_def_id(), span);
                     }
                 }
             }
@@ -191,7 +193,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
             )?;
             if let Some(span) = attr_span {
-                self.specs.set_spec_attr_span(owner_id.def_id.to_def_id(), span);
+                self.specs
+                    .set_spec_attr_span(owner_id.def_id.to_def_id(), span);
             }
         }
         hir::intravisit::walk_trait_item(self, trait_item);
@@ -218,7 +221,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
             )?;
             if let Some(span) = attr_span {
-                self.specs.set_spec_attr_span(owner_id.def_id.to_def_id(), span);
+                self.specs
+                    .set_spec_attr_span(owner_id.def_id.to_def_id(), span);
             }
         }
         hir::intravisit::walk_impl_item(self, impl_item);

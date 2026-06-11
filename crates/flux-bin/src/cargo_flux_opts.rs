@@ -141,7 +141,16 @@ pub struct CompileOpts {
 
 impl CompileOpts {
     fn forward_args(&self, cmd: &mut Command) {
-        let CompileOpts { message_format, workspace, features, compilation, manifest, fix: _, fix_opts, .. } = self;
+        let CompileOpts {
+            message_format,
+            workspace,
+            features,
+            compilation,
+            manifest,
+            fix: _,
+            fix_opts,
+            ..
+        } = self;
         if let Some(message_format) = &message_format {
             cmd.args(["--message-format", message_format]);
         }

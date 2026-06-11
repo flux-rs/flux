@@ -617,7 +617,12 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             let mut fn_sig = fn_sig.hoist_input_binders();
             #[cfg(feature = "wick")]
             if !genv.no_suggestions(def_id.local_id())
-                && !matches!(fhir_node, fhir::Node::TraitItem(..) | fhir::Node::ForeignItem(..) | fhir::Node::ImplItem(..))
+                && !matches!(
+                    fhir_node,
+                    fhir::Node::TraitItem(..)
+                        | fhir::Node::ForeignItem(..)
+                        | fhir::Node::ImplItem(..)
+                )
             {
                 let id = match def_id {
                     MaybeExternId::Extern(_local_id, def_id) => def_id,

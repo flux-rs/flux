@@ -473,7 +473,8 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
     remove_path(&config.dst)?;
     create_dir(&config.dst)?;
 
-    let flux_driver = build_binary("flux-driver", config.profile, config.rust_fixpoint, config.wick)?;
+    let flux_driver =
+        build_binary("flux-driver", config.profile, config.rust_fixpoint, config.wick)?;
     copy_file(&flux_driver, &config.dst)?;
 
     let cargo_flux = build_binary("cargo-flux", config.profile, config.rust_fixpoint, config.wick)?;
