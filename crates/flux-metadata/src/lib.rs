@@ -27,6 +27,7 @@ use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use flux_middle::{
     PanicSpec,
+    call_graph::NodeKey,
     cstore::{CrateStore, OptResult},
     def_id::{FluxDefId, FluxId},
     fhir,
@@ -43,7 +44,7 @@ use rustc_hir::{
     def_id::{LOCAL_CRATE, LocalDefId},
 };
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::{Instance, InstanceKind, TyCtxt};
+use rustc_middle::ty::{InstanceKind, TyCtxt};
 use rustc_session::config::OutFileName;
 use rustc_span::{
     SourceFile, Span, StableSourceFileId,
@@ -180,7 +181,7 @@ pub struct Tables<'tcx, K: Eq + Hash> {
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
     no_panic: UnordMap<K, bool>,
     assume_parametric_params: UnordMap<K, UnordSet<u32>>,
-    no_panic_specs: UnordMap<Instance<'tcx>, PanicSpec>,
+    no_panic_specs: UnordMap<NodeKey<'tcx>, PanicSpec>,
 }
 
 impl<'tcx> CStore<'tcx> {
@@ -329,7 +330,7 @@ impl<'tcx> CrateStore<'tcx> for CStore<'tcx> {
         self.local_tables[&krate].normalized_defns.clone()
     }
 
-    fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<Instance<'tcx>, PanicSpec>> {
+    fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec>> {
         // TODO: Some transitive deps (e.g. `hashbrown`) have no flux metadata. Return
         // an empty map (conservative: MightPanic) until the proper fix is in place.
         // See notes/hashbrown-inferred-no-panic.txt.
@@ -369,17 +370,23 @@ impl<'tcx> CrateMetadata<'tcx> {
             FluxDefId::to_index,
         );
         encode_flux_defs(genv, &mut local_tables);
-        // Serialize the instance-keyed map filtered to instances of locally-defined functions
-        // (identity + monomorphizations). Only `Item` instances carry a meaningful spec; shims and
+        // Serialize the `NodeKey`-keyed map filtered to nodes of locally-defined functions (source
+        // items + monomorphizations). Only `Item`-kind instances carry a meaningful spec; shims and
         // other non-`Item` instances are `Leaf`/`MightPanic` and not worth storing. Downstream
-        // crates reconstruct these `Instance`s for exact/identity lookups (`external_spec`).
+        // crates reconstruct these keys for exact/identity lookups (`inferred_no_panic_external`).
         local_tables.no_panic_specs = genv
             .inferred_no_panic_local()
             .items()
-            .filter(|(instance, _)| {
-                instance.def_id().is_local() && matches!(instance.def, InstanceKind::Item(_))
+            .filter(|(key, _)| {
+                key.def_id().is_local()
+                    && match key {
+                        NodeKey::Item(_) => true,
+                        NodeKey::Mono(instance) => {
+                            matches!(instance.def, InstanceKind::Item(_))
+                        }
+                    }
             })
-            .map(|(instance, spec)| (*instance, *spec))
+            .map(|(key, spec)| (*key, *spec))
             .collect();
 
         let mut extern_tables = Tables::default();

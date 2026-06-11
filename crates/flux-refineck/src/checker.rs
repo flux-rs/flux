@@ -975,10 +975,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let callee_inferred_spec = body_def_id
                 .zip(location)
                 .and_then(|(body_def_id, location)| {
-                    genv.call_graph()
-                        .resolved_callee(tcx, body_def_id, location)
+                    genv.call_graph().resolved_callee(body_def_id, location)
                 })
-                .map(|instance| genv.inferred_no_panic_instance(instance))
+                .map(|key| genv.inferred_no_panic_key(key))
                 .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph));
 
             let inferred_panic_expr = if callee_inferred_spec == PanicSpec::WillNotPanic {

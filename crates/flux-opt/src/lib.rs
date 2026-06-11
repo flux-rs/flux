@@ -10,12 +10,11 @@ use std::collections::VecDeque;
 
 use flux_middle::{
     PanicReason, PanicSpec,
-    call_graph::{CallSiteKind, Node},
+    call_graph::{CallSiteKind, Node, NodeKey},
     global_env::GlobalEnv,
     queries::Providers,
 };
 use rustc_data_structures::unord::UnordMap;
-use rustc_middle::ty::Instance;
 
 pub fn provide(providers: &mut Providers) {
     providers.call_graph = call_graph::build_call_graph;
@@ -33,22 +32,22 @@ pub fn provide(providers: &mut Providers) {
 ///
 /// `external_spec` resolves the spec of an `Instance` defined in another crate (a
 /// [`Node::ExternalCrate`]), looking it up in that crate's serialized metadata.
-pub fn inferred_no_panic<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> UnordMap<Instance<'tcx>, PanicSpec> {
+pub fn inferred_no_panic<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> UnordMap<NodeKey<'tcx>, PanicSpec> {
     let graph = genv.call_graph();
 
-    let mut specs: UnordMap<Instance<'tcx>, PanicSpec> = UnordMap::default();
-    let mut queue: VecDeque<Instance<'tcx>> = VecDeque::new();
+    let mut specs: UnordMap<NodeKey<'tcx>, PanicSpec> = UnordMap::default();
+    let mut queue: VecDeque<NodeKey<'tcx>> = VecDeque::new();
 
-    for (&instance, node) in &graph.nodes {
-        let spec = initial_spec(genv, node, instance);
+    for (&key, node) in &graph.nodes {
+        let spec = initial_spec(genv, node, key);
         if matches!(spec, PanicSpec::MightPanic(_)) {
-            queue.push_back(instance);
+            queue.push_back(key);
         }
-        specs.insert(instance, spec);
+        specs.insert(key, spec);
     }
 
-    while let Some(instance) = queue.pop_front() {
-        let Some(callers) = graph.callers.get(&instance) else { continue };
+    while let Some(key) = queue.pop_front() {
+        let Some(callers) = graph.callers.get(&key) else { continue };
         for &caller in callers {
             if specs[&caller] == PanicSpec::WillNotPanic {
                 specs.insert(caller, PanicSpec::MightPanic(PanicReason::Transitive));
@@ -66,12 +65,12 @@ pub fn inferred_no_panic<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> UnordMap<Instance<'
 fn initial_spec<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     node: &Node<'tcx>,
-    instance: Instance<'tcx>,
+    key: NodeKey<'tcx>,
 ) -> PanicSpec {
     match node {
-        Node::ExternalCrate => genv.inferred_no_panic_external(instance),
+        Node::ExternalCrate => genv.inferred_no_panic_external(key),
         Node::Leaf(_) => PanicSpec::MightPanic(PanicReason::NoMIRAvailable),
-        Node::Analyzed { call_sites, .. } => {
+        Node::Analyzed { call_sites } => {
             for site in call_sites {
                 let reason = match site.kind {
                     CallSiteKind::SynthesizedPanic => PanicReason::SynthesizedPanic,

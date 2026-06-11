@@ -9,10 +9,55 @@ use std::fmt;
 
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::{def::DefKind, def_id::DefId};
+use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::{
     mir::Location,
-    ty::{GenericArgs, Instance, TyCtxt},
+    ty::{GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt},
 };
+
+/// Identity of a call-graph node. Distinguishes an item *as defined in source* from a
+/// *monomorphization* synthesized while building the graph.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum NodeKey<'tcx> {
+    /// An item as written in source (generic or not), identified by its `DefId`. Its `Instance`
+    /// is the identity instance `new_raw(def_id, identity_for_item(def_id))`.
+    Item(DefId),
+    /// A generic item monomorphized at concrete (non-identity) type/const args while walking the
+    /// call graph (e.g. `Vec::<i32>::push`). We guarantee that the instance is fully monomorphic, i.e.,
+    /// the Instance's args are all concrete types.
+    Mono(Instance<'tcx>),
+}
+
+impl<'tcx> NodeKey<'tcx> {
+    /// Classifies an `Instance` into a `NodeKey`.
+    pub fn from_instance(instance: Instance<'tcx>) -> Self {
+        if let InstanceKind::Item(def_id) = instance.def
+            && (instance.args.has_param() || instance.args.is_empty())
+        {
+            NodeKey::Item(def_id)
+        } else {
+            NodeKey::Mono(instance)
+        }
+    }
+
+    pub fn def_id(self) -> DefId {
+        match self {
+            NodeKey::Item(def_id) => def_id,
+            NodeKey::Mono(instance) => instance.def_id(),
+        }
+    }
+
+    /// The `Instance` this key denotes. For an [`Item`](NodeKey::Item) this rebuilds the identity
+    /// instance; for a [`Mono`](NodeKey::Mono) it is the stored instance.
+    pub fn instance(self, tcx: TyCtxt<'tcx>) -> Instance<'tcx> {
+        match self {
+            NodeKey::Item(def_id) => {
+                Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id))
+            }
+            NodeKey::Mono(instance) => instance,
+        }
+    }
+}
 
 /// A single call site observed in a function's MIR body.
 #[derive(Debug, Clone)]
@@ -23,9 +68,9 @@ pub struct CallSite<'tcx> {
 
 #[derive(Debug, Clone)]
 pub enum CallSiteKind<'tcx> {
-    /// `Call` terminator that resolved to a concrete `Instance`
-    /// (potentionally monomorphized)
-    Resolved { callee: Instance<'tcx> },
+    /// `Call` terminator that resolved to a concrete callee node (a source item or a
+    /// monomorphization).
+    Resolved { callee: NodeKey<'tcx> },
     /// Synthetic edge from an `Assert` terminator with a reachable unwind path —
     /// represents the implicit call to `core::panicking::panic`.
     SynthesizedPanic,
@@ -35,14 +80,13 @@ pub enum CallSiteKind<'tcx> {
     DynamicDispatch,
 }
 
-/// A node in the call graph: an `Instance` together with its classification and, when it has an
-/// analyzable body, the call sites observed in it.
+/// A node in the call graph. The node's provenance (source item vs monomorphization) is carried by
+/// its [`NodeKey`]; the node itself only records, when it has an analyzable body, the call sites
+/// observed in it.
 #[derive(Debug, Clone)]
 pub enum Node<'tcx> {
-    /// MIR was available and walked. `is_mono` is true when the instance is a concrete
-    /// monomorphization (args differ from the identity args), false for the source-level item.
-    /// `call_sites` are the Call/Assert terminators observed in the body.
-    Analyzed { is_mono: bool, call_sites: Vec<CallSite<'tcx>> },
+    /// MIR was available and walked. `call_sites` are the Call/Assert terminators observed.
+    Analyzed { call_sites: Vec<CallSite<'tcx>> },
     /// External crate function — panic spec looked up from crate metadata.
     ExternalCrate,
     /// Function with no analyzable body (no Rust body by design, MIR unavailable,
@@ -55,44 +99,33 @@ impl<'tcx> Node<'tcx> {
     /// Call sites observed in this node's body. Empty for non-`Analyzed` nodes.
     pub fn call_sites(&self) -> &[CallSite<'tcx>] {
         match self {
-            Node::Analyzed { call_sites, .. } => call_sites,
+            Node::Analyzed { call_sites } => call_sites,
             Node::ExternalCrate | Node::Leaf(_) => &[],
         }
     }
 }
 
 pub struct CallGraph<'tcx> {
-    pub nodes: FxIndexMap<Instance<'tcx>, Node<'tcx>>,
-    pub callers: UnordMap<Instance<'tcx>, Vec<Instance<'tcx>>>,
+    pub nodes: FxIndexMap<NodeKey<'tcx>, Node<'tcx>>,
+    pub callers: UnordMap<NodeKey<'tcx>, Vec<NodeKey<'tcx>>>,
 }
 
 impl<'tcx> CallGraph<'tcx> {
-    /// Builds a `CallGraph` from its nodes, deriving the `callers` map.
-    pub fn new(nodes: FxIndexMap<Instance<'tcx>, Node<'tcx>>) -> Self {
-        let mut graph = CallGraph { nodes, callers: UnordMap::default() };
-        graph.build_callers();
-        graph
-    }
-
-    fn build_callers(&mut self) {
-        for (&caller, node) in &self.nodes {
+    pub fn new(nodes: FxIndexMap<NodeKey<'tcx>, Node<'tcx>>) -> Self {
+        let mut callers: UnordMap<_, Vec<_>> = UnordMap::default();
+        for (&caller, node) in &nodes {
             for callee in resolved_callees(node.call_sites()) {
-                self.callers.entry(callee).or_default().push(caller);
+                callers.entry(callee).or_default().push(caller);
             }
         }
+        CallGraph { nodes, callers }
     }
 
-    /// The callee `Instance` resolved for the `Call` terminator at `location` in the body of
-    /// `def_id`. Returns `None` for call sites that did not resolve to a concrete instance
-    /// (unresolved trait calls, dynamic dispatch) or whose body is not in the graph.
-    pub fn resolved_callee(
-        &self,
-        tcx: TyCtxt<'tcx>,
-        def_id: DefId,
-        location: Location,
-    ) -> Option<Instance<'tcx>> {
-        let instance = Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id));
-        let node = self.nodes.get(&instance)?;
+    /// The callee node resolved for the `Call` terminator at `location` in the body of `caller`.
+    /// Returns `None` for call sites that did not resolve to a concrete node (unresolved trait
+    /// calls, dynamic dispatch) or whose body is not in the graph.
+    pub fn resolved_callee(&self, caller: DefId, location: Location) -> Option<NodeKey<'tcx>> {
+        let node = self.nodes.get(&NodeKey::Item(caller))?;
         node.call_sites().iter().find_map(|site| {
             match site.kind {
                 CallSiteKind::Resolved { callee } if site.location == location => Some(callee),
@@ -104,7 +137,7 @@ impl<'tcx> CallGraph<'tcx> {
 
 pub fn resolved_callees<'tcx>(
     call_sites: &[CallSite<'tcx>],
-) -> impl Iterator<Item = Instance<'tcx>> {
+) -> impl Iterator<Item = NodeKey<'tcx>> {
     call_sites.iter().filter_map(|site| {
         match site.kind {
             CallSiteKind::Resolved { callee } => Some(callee),
@@ -113,16 +146,19 @@ pub fn resolved_callees<'tcx>(
     })
 }
 
+impl<'tcx> fmt::Display for NodeKey<'tcx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NodeKey::Item(def_id) => write!(f, "{def_id:?}"),
+            NodeKey::Mono(instance) => write!(f, "{instance}"),
+        }
+    }
+}
+
 impl<'tcx> fmt::Display for Node<'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Node::Analyzed { is_mono, .. } => {
-                if *is_mono {
-                    write!(f, "Analyzed(mono)")
-                } else {
-                    write!(f, "Analyzed")
-                }
-            }
+            Node::Analyzed { .. } => write!(f, "Analyzed"),
             Node::ExternalCrate => write!(f, "ExternalCrate"),
             Node::Leaf(kind) => write!(f, "Leaf({kind:?})"),
         }
@@ -144,9 +180,9 @@ impl<'tcx> fmt::Display for CallGraph<'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "call graph ({} nodes):", self.nodes.len())?;
         let mut nodes: Vec<_> = self.nodes.iter().collect();
-        nodes.sort_by_key(|(inst, _)| format!("{inst}"));
-        for (instance, node) in nodes {
-            writeln!(f, "  {instance} [{node}]:")?;
+        nodes.sort_by_key(|(key, _)| format!("{key}"));
+        for (key, node) in nodes {
+            writeln!(f, "  {key} [{node}]:")?;
             for site in node.call_sites() {
                 writeln!(f, "    {} at {:?}", site.kind, site.location)?;
             }

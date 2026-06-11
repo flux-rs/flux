@@ -24,12 +24,11 @@ use rustc_hir::{
 };
 use rustc_index::IndexVec;
 use rustc_macros::{Decodable, Encodable};
-use rustc_middle::ty::Instance;
 use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
     PanicSpec,
-    call_graph::CallGraph,
+    call_graph::{CallGraph, NodeKey},
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
@@ -207,7 +206,7 @@ pub struct Providers {
     pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
     pub call_graph: for<'genv, 'tcx> fn(GlobalEnv<'genv, 'tcx>) -> CallGraph<'tcx>,
     pub inferred_no_panic:
-        for<'genv, 'tcx> fn(GlobalEnv<'genv, 'tcx>) -> UnordMap<Instance<'tcx>, PanicSpec>,
+        for<'genv, 'tcx> fn(GlobalEnv<'genv, 'tcx>) -> UnordMap<NodeKey<'tcx>, PanicSpec>,
 }
 
 macro_rules! empty_query {
@@ -296,8 +295,8 @@ pub struct Queries<'genv, 'tcx> {
     no_panic: Cache<DefId, bool>,
     assume_parametric_params: Cache<DefId, UnordSet<u32>>,
     call_graph: OnceCell<CallGraph<'tcx>>,
-    /// The no-panic inference result for the local crate, keyed by `Instance`.
-    inferred_no_panic: OnceCell<Rc<UnordMap<Instance<'tcx>, PanicSpec>>>,
+    /// The no-panic inference result for the local crate, keyed by `NodeKey`.
+    inferred_no_panic: OnceCell<Rc<UnordMap<NodeKey<'tcx>, PanicSpec>>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -616,11 +615,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         self.call_graph.get_or_init(|| (self.providers.call_graph)(genv))
     }
 
-    /// The no-panic inference result for the local crate, keyed by `Instance`.
+    /// The no-panic inference result for the local crate, keyed by `NodeKey`.
     pub fn inferred_no_panic(
         &'genv self,
         genv: GlobalEnv<'genv, 'tcx>,
-    ) -> Rc<UnordMap<Instance<'tcx>, PanicSpec>> {
+    ) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec>> {
         self.inferred_no_panic
             .get_or_init(|| Rc::new((self.providers.inferred_no_panic)(genv)))
             .clone()

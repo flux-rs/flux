@@ -20,7 +20,7 @@ use rustc_hir::{
 };
 use rustc_middle::{
     query::IntoQueryParam,
-    ty::{Instance, TyCtxt, Variance},
+    ty::{TyCtxt, Variance},
 };
 use rustc_span::{FileName, Span};
 pub use rustc_span::{Symbol, symbol::Ident};
@@ -28,6 +28,7 @@ use tempfile::TempDir;
 
 use crate::{
     PanicReason, PanicSpec,
+    call_graph::NodeKey,
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},
@@ -180,35 +181,33 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.call_graph(self)
     }
 
-    /// The inferred [`PanicSpec`] for a concrete `instance`, looked up in the local crate's
-    /// instance-keyed map. Missing entries default to `MightPanic(NotInCallGraph)`.
-    pub fn inferred_no_panic_instance(self, instance: Instance<'tcx>) -> PanicSpec {
+    /// The inferred [`PanicSpec`] for the node `key`, looked up in the local crate's
+    /// `NodeKey`-keyed map. Missing entries default to `MightPanic(NotInCallGraph)`.
+    pub fn inferred_no_panic_key(self, key: NodeKey<'tcx>) -> PanicSpec {
         self.inferred_no_panic_local()
-            .get(&instance)
+            .get(&key)
             .copied()
             .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
     }
 
-    /// The local crate's full instance-keyed no-panic map (used by metadata encoding).
-    pub fn inferred_no_panic_local(self) -> Rc<UnordMap<Instance<'tcx>, PanicSpec>> {
+    /// The local crate's full `NodeKey`-keyed no-panic map (used by metadata encoding).
+    pub fn inferred_no_panic_local(self) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec>> {
         self.inner.queries.inferred_no_panic(self)
     }
 
-    /// Looks up the inferred [`PanicSpec`] for an `instance` defined in an *external* crate, from
-    /// that crate's serialized metadata table. Tries the exact (monomorphized) instance first, then
-    /// falls back to the identity instance (covering instantiations the external crate could never
-    /// have analyzed, e.g. at a local type), then to `MightPanic`.
-    pub fn inferred_no_panic_external(self, instance: Instance<'tcx>) -> PanicSpec {
-        let def_id = instance.def_id();
-        let table = self.cstore().inferred_no_panic(def_id.krate);
-        if let Some(&spec) = table.get(&instance) {
+    /// Looks up the inferred [`PanicSpec`] for a node `key` defined in an *external* crate, from
+    /// that crate's serialized metadata table. Tries the exact key first (so a serialized
+    /// [`Mono`](NodeKey::Mono) is used when present), then for a monomorphization falls back to the
+    /// source [`Item`](NodeKey::Item) (covering instantiations the external crate could never have
+    /// analyzed, e.g. at a local type), then to `MightPanic`.
+    pub fn inferred_no_panic_external(self, key: NodeKey<'tcx>) -> PanicSpec {
+        let table = self.cstore().inferred_no_panic(key.def_id().krate);
+        if let Some(&spec) = table.get(&key) {
             return spec;
         }
-        let identity = Instance::new_raw(
-            def_id,
-            rustc_middle::ty::GenericArgs::identity_for_item(self.tcx(), def_id),
-        );
-        if let Some(&spec) = table.get(&identity) {
+        if let NodeKey::Mono(instance) = key
+            && let Some(&spec) = table.get(&NodeKey::Item(instance.def_id()))
+        {
             return spec;
         }
         PanicSpec::MightPanic(PanicReason::NotInCallGraph)

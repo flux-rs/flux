@@ -1,5 +1,5 @@
 use flux_middle::{
-    call_graph::{CallGraph, CallSite, CallSiteKind, Node, resolved_callees},
+    call_graph::{CallGraph, CallSite, CallSiteKind, Node, NodeKey, resolved_callees},
     global_env::GlobalEnv,
 };
 use rustc_data_structures::fx::FxIndexMap;
@@ -10,49 +10,52 @@ use rustc_hir::{
 };
 use rustc_middle::{
     mir::{Location, TerminatorKind, UnwindAction},
-    ty::{EarlyBinder, GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt, TypingEnv},
+    ty::{EarlyBinder, Instance, InstanceKind, TyCtxt, TypingEnv},
 };
 
 pub fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
     let tcx = genv.tcx();
 
-    let mut nodes: FxIndexMap<Instance<'_>, Node<'_>> = FxIndexMap::default();
+    let mut nodes: FxIndexMap<NodeKey<'_>, Node<'_>> = FxIndexMap::default();
 
-    // Instance-level worklist and visited set to handle the same DefId being
-    // called with different concrete type args.
-    let mut worklist: Vec<Instance<'_>> = Vec::new();
-    let mut explored: FxHashSet<Instance<'_>> = FxHashSet::default();
+    // Node-level worklist and visited set: the same DefId can appear both as a source item and as
+    // distinct monomorphizations, each a separate [`NodeKey`].
+    let mut worklist: Vec<NodeKey<'_>> = Vec::new();
+    let mut explored: FxHashSet<NodeKey<'_>> = FxHashSet::default();
 
     for root_local in tcx.iter_local_def_id() {
         let def_id = root_local.to_def_id();
         if !tcx.def_kind(root_local).is_fn_like() || is_method_in_trait(tcx, def_id) {
             continue;
         }
-        worklist.push(Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id)));
+        // Roots are the items as written in source.
+        worklist.push(NodeKey::Item(def_id));
     }
 
-    while let Some(instance) = worklist.pop() {
-        if !explored.insert(instance) {
+    while let Some(key) = worklist.pop() {
+        if !explored.insert(key) {
             continue;
         }
-        let node = analyze_instance(genv, instance);
+        let node = analyze_node(genv, key);
         worklist.extend(resolved_callees(node.call_sites()));
-        nodes.insert(instance, node);
+        nodes.insert(key, node);
     }
 
     CallGraph::new(nodes)
 }
 
-/// Classifies `instance` into a call-graph [`Node`], walking its body for call sites when one is
-/// available.
-fn analyze_instance<'tcx>(genv: GlobalEnv<'_, 'tcx>, instance: Instance<'tcx>) -> Node<'tcx> {
+/// Classifies the node identified by `key` into a call-graph [`Node`], walking its body for call
+/// sites when one is available.
+fn analyze_node<'tcx>(genv: GlobalEnv<'_, 'tcx>, key: NodeKey<'tcx>) -> Node<'tcx> {
     let tcx = genv.tcx();
-    let def_id = instance.def_id();
+    let def_id = key.def_id();
 
     // External non-stdlib callees looked up from crate metadata.
     if !should_include_in_call_graph(genv, def_id.krate) {
         return Node::ExternalCrate;
     }
+
+    let instance = key.instance(tcx);
 
     // Only `Item` instances have a walkable Rust body; shims / virtual stubs are leaves.
     //
@@ -73,8 +76,7 @@ fn analyze_instance<'tcx>(genv: GlobalEnv<'_, 'tcx>, instance: Instance<'tcx>) -
             None
         };
         if let Some(call_sites) = call_sites {
-            let is_mono = !is_identity_instance(tcx, instance);
-            return Node::Analyzed { is_mono, call_sites };
+            return Node::Analyzed { call_sites };
         }
     }
 
@@ -87,23 +89,6 @@ fn is_method_in_trait<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> bool {
         matches!(tcx.associated_item(def_id).container, rustc_middle::ty::AssocContainer::Trait)
     } else {
         false
-    }
-}
-
-fn is_identity_instance<'tcx>(tcx: TyCtxt<'tcx>, instance: Instance<'tcx>) -> bool {
-    let identity = GenericArgs::identity_for_item(tcx, instance.def_id());
-    instance.args == identity
-}
-
-/// If `instance` is an `InstanceKind::Item` whose args still contain abstract type/const
-/// parameters (i.e., we are inside a generic caller), normalize it to its identity instance so
-/// all call sites for the same generic function fold into one graph node.
-fn normalize_abstract_args<'tcx>(tcx: TyCtxt<'tcx>, instance: Instance<'tcx>) -> Instance<'tcx> {
-    if matches!(instance.def, InstanceKind::Item(_)) && instance.args.has_param() {
-        let def_id = instance.def_id();
-        Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id))
-    } else {
-        instance
     }
 }
 
@@ -154,9 +139,7 @@ fn callees_in_body<'tcx>(
                     rustc_middle::ty::TyKind::FnDef(callee_def_id, callee_args) => {
                         match Instance::try_resolve(tcx, typing_env, *callee_def_id, callee_args) {
                             Ok(Some(instance)) => {
-                                CallSiteKind::Resolved {
-                                    callee: normalize_abstract_args(tcx, instance),
-                                }
+                                CallSiteKind::Resolved { callee: NodeKey::from_instance(instance) }
                             }
                             _ => CallSiteKind::Unresolved { def_id: *callee_def_id },
                         }
