@@ -987,6 +987,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     //      in its parent.
                     #[cfg(feature = "wick")]
                     if genv.weak_kvars_for(def_id).is_none()
+                        && genv.resolve_id(def_id).as_maybe_extern().is_some()
                         && def_id
                             .as_local()
                             .map(|local_id| !genv.no_suggestions(local_id))
