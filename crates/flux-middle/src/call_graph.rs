@@ -83,9 +83,7 @@ impl<'tcx> CallGraph<'tcx> {
     }
 
     /// The callee `Instance` resolved for the `Call` terminator at `location` in the body of
-    /// `def_id`. The checker only ever checks identity bodies (mono instances of a local generic
-    /// share the same `def_id` and body), so we look up the identity instance's node and scan its
-    /// call sites. Returns `None` for call sites that did not resolve to a concrete instance
+    /// `def_id`. Returns `None` for call sites that did not resolve to a concrete instance
     /// (unresolved trait calls, dynamic dispatch) or whose body is not in the graph.
     pub fn resolved_callee(
         &self,

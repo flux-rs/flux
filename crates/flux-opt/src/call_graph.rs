@@ -49,7 +49,7 @@ fn analyze_instance<'tcx>(genv: GlobalEnv<'_, 'tcx>, instance: Instance<'tcx>) -
     let tcx = genv.tcx();
     let def_id = instance.def_id();
 
-    // External non-stdlib callees: leaf, panic spec looked up from crate metadata.
+    // External non-stdlib callees looked up from crate metadata.
     if !should_include_in_call_graph(genv, def_id.krate) {
         return Node::ExternalCrate;
     }
@@ -141,7 +141,9 @@ fn callees_in_body<'tcx>(
                 // which `instantiate_mir_and_normalize_erasing_regions` would panic on. Erase
                 // regions up front — we only need the callee's type/const args to resolve it.
                 let ty = tcx.erase_and_anonymize_regions(ty);
-                // Apply the caller's concrete type args to get the concrete callee type.
+                // If we are inside a generic caller that we have monomorphized to a particular `Instance`,
+                // we apply the caller's concrete args to get the concrete callee type. For generic callers
+                // where `Instance` remains polymorphic (i.e., it has identity args) this is a no-op.
                 let ty = caller.instantiate_mir_and_normalize_erasing_regions(
                     tcx,
                     typing_env,

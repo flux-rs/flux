@@ -663,8 +663,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             bug::track_span(span, || {
                 dbg::terminator!("start", terminator, infcx, env);
 
-                let successors =
-                    self.check_terminator(&mut infcx, &mut env, terminator, location, last_stmt_span)?;
+                let successors = self.check_terminator(
+                    &mut infcx,
+                    &mut env,
+                    terminator,
+                    location,
+                    last_stmt_span,
+                )?;
                 dbg::terminator!("end", terminator, infcx, env);
 
                 self.markers[bb] = Some(infcx.marker());
@@ -970,7 +975,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let callee_inferred_spec = body_def_id
                 .zip(location)
                 .and_then(|(body_def_id, location)| {
-                    genv.call_graph().resolved_callee(tcx, body_def_id, location)
+                    genv.call_graph()
+                        .resolved_callee(tcx, body_def_id, location)
                 })
                 .map(|instance| genv.inferred_no_panic_instance(instance))
                 .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph));

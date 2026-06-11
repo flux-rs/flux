@@ -54,7 +54,7 @@ pub use crate::encoder::encode_metadata;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
-const METADATA_VERSION: u8 = 1;
+const METADATA_VERSION: u8 = 0;
 const METADATA_HEADER: &[u8] = &[b'f', b'l', b'u', b'x', 0, 0, 0, METADATA_VERSION];
 
 #[derive(Default)]
