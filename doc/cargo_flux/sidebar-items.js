@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["main","override_with_only_check","run","serde_json_to_config","write_cargo_config"],"struct":["FluxMetadataSource"]};
+window.SIDEBAR_ITEMS = {"fn":["main","run","serde_json_to_config","write_cargo_config"],"struct":["FluxMetadataSource"]};
