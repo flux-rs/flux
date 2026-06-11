@@ -34,7 +34,28 @@ impl CargoFluxCommand {
     pub fn forward_args(&self, cmd: &mut Command, config_file: &Path) {
         match self {
             CargoFluxCommand::Check(check_opts) => {
-                cmd.arg("check");
+                if check_opts.fix {
+                    // `cargo fix` applies span_suggestion replacements written by flux-driver.
+                    //
+                    // Mechanism: cargo fix sets RUSTC_WORKSPACE_WRAPPER to a self-re-exec proxy
+                    // that runs flux-driver (our RUSTC) with --error-format=json, parses the
+                    // resulting diagnostic JSON for suggested_replacement spans, and applies them
+                    // via rustfix. This is the same pipeline Clippy uses, just with RUSTC= instead
+                    // of RUSTC_WORKSPACE_WRAPPER= on our side; the two env vars are independent.
+                    //
+                    // --broken-code: required for two reasons:
+                    //   1. Our suggestions carry Applicability::MaybeIncorrect; rustfix only
+                    //      applies MaybeIncorrect when this flag is set (Filter::Everything).
+                    //   2. The suggestions attached to refinement errors appear while compilation
+                    //      is failing; this flag tells cargo fix not to bail in that case.
+                    //
+                    // --allow-dirty / --allow-staged: users running --fix will almost always
+                    // have uncommitted work; don't require a clean tree.
+                    cmd.arg("fix")
+                        .args(["--allow-dirty", "--allow-staged", "--broken-code"]);
+                } else {
+                    cmd.arg("check");
+                }
                 check_opts.forward_args(cmd);
             }
             CargoFluxCommand::Clean(clean_opts) => {
@@ -66,6 +87,11 @@ pub struct CheckOpts {
     #[arg(long, value_name = "FMT")]
     message_format: Option<String>,
 
+    /// Automatically apply Flux's suggested annotations to the source code.
+    /// Implies `cargo fix --allow-dirty --allow-staged --broken-code`.
+    #[arg(long)]
+    pub fix: bool,
+
     #[command(flatten)]
     workspace: Workspace,
     #[command(flatten)]
@@ -76,7 +102,7 @@ pub struct CheckOpts {
 
 impl CheckOpts {
     fn forward_args(&self, cmd: &mut Command) {
-        let CheckOpts { message_format, workspace, features, manifest } = self;
+        let CheckOpts { message_format, workspace, features, manifest, fix: _ } = self;
         if let Some(message_format) = &message_format {
             cmd.args(["--message-format", message_format]);
         }
@@ -86,7 +112,7 @@ impl CheckOpts {
     }
 
     fn forward_to_metadata(&self, meta: &mut MetadataCommand) {
-        let CheckOpts { message_format: _, workspace: _, features, manifest } = self;
+        let CheckOpts { message_format: _, workspace: _, features, manifest, fix: _ } = self;
         features.forward_to_metadata(meta);
         manifest.forward_to_metadata(meta);
     }

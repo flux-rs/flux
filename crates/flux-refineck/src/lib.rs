@@ -138,7 +138,7 @@ pub fn report_inferred_annotations(
             fn_first_line,
             "try adding the refinement",
             format!("{}#[sig({})]\n{}", prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
-            Applicability::MaybeIncorrect,
+            Applicability::MachineApplicable,
         );
         
         diag.emit();
