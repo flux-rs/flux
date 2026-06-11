@@ -594,6 +594,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fhir_attr_map(def_id).proven_externally()
     }
 
+    /// Get the span of the #[sig(...)] attribute for a function, if it exists
+    pub fn spec_attr_span(self, def_id: DefId) -> Option<Span> {
+        self.collect_specs().get_spec_attr_span(def_id)
+    }
+
     /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
     fn traverse_parents<T>(
         self,

@@ -134,12 +134,24 @@ pub fn report_inferred_annotations(
             .find(|c: char| !c.is_whitespace())
             .unwrap_or(fn_first_line_snippet.len())];
         
-        diag.span_suggestion(
-            fn_first_line,
-            "try adding the refinement",
-            format!("{}#[sig({})]\n{}", prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
-            Applicability::MachineApplicable,
-        );
+        // Check if there's an existing spec attribute that needs to be replaced
+        if let Some(old_spec_span) = genv.spec_attr_span(def_id) {
+            // Emit a multipart suggestion: delete the old spec and add the new one
+            diag.span_suggestion(
+                old_spec_span,
+                "try replacing the refinement",
+                format!("{}#[sig({})]", prefix_spaces, fixed_fn_sig_snippet),
+                Applicability::MachineApplicable,
+            );
+        } else {
+            // No existing spec, just add a new one
+            diag.span_suggestion(
+                fn_first_line,
+                "try adding the refinement",
+                format!("{}#[sig({})]\n{}", prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
+                Applicability::MachineApplicable,
+            );
+        }
         
         diag.emit();
     }
@@ -559,12 +571,26 @@ fn add_fn_fix_diagnostic<'a>(
         .unwrap_or(fn_first_line_snippet.len())];
     let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
     assert!(subst_solutions.len() == 1);
-    diag.span_suggestion(
-        fn_first_line,
-        "try adding the refinement",
-        format!("{}#[sig({})]\n{}", prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
-        Applicability::MaybeIncorrect,
-    );
+    
+    // Check if there's an existing spec attribute that needs to be replaced
+    if let Some(old_spec_span) = genv.spec_attr_span(wkvid.parent_fn) {
+        // Emit a multipart suggestion: delete the old spec and add the new one
+        // Second suggestion part: add the new #[sig(...)] before the function
+        diag.span_suggestion(
+            old_spec_span,
+            "try replacing the refinement",
+            format!("{}#[sig({})]\n{}", prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
+            Applicability::MaybeIncorrect,
+        );
+    } else {
+        // No existing spec, just add a new one
+        diag.span_suggestion(
+            fn_first_line,
+            "try adding the refinement",
+            format!("{}#[sig({})]\n{}", prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
+            Applicability::MaybeIncorrect,
+        );
+    }
 }
 
 fn fn_first_line<'a>(genv: GlobalEnv<'a, '_>, def_id: DefId) -> Span {
