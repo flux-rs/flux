@@ -493,7 +493,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|variants| variants.map(|variants| variants[variant_idx.as_usize()].clone())))
     }
 
-
     /// Whether the crate has Flux metadata in the cratestore.
     pub fn cstore_has_crate(self, krate: CrateNum) -> bool {
         self.cstore().has_crate(krate)
@@ -564,7 +563,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         })
     }
 
-    /// Iterator over all local def ids that are not a extern spec
+    /// Iterator over all local def ids that are not an extern spec
     pub fn iter_local_def_id(self) -> impl Iterator<Item = LocalDefId> + use<'tcx, 'genv> {
         self.tcx().iter_local_def_id().filter(move |&local_def_id| {
             self.maybe_extern_id(local_def_id).is_local() && !self.is_dummy(local_def_id)

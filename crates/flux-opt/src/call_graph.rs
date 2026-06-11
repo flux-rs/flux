@@ -22,7 +22,7 @@ pub fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
     let mut worklist: Vec<NodeKey<'_>> = Vec::new();
     let mut explored: UnordSet<NodeKey<'_>> = UnordSet::default();
 
-    for root_local in tcx.iter_local_def_id() {
+    for root_local in genv.iter_local_def_id() {
         let def_id = root_local.to_def_id();
         if !tcx.def_kind(root_local).is_fn_like() || is_method_in_trait(tcx, def_id) {
             continue;
