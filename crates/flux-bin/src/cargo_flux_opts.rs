@@ -74,11 +74,12 @@ impl CargoFluxCommand {
         meta
     }
 
-    pub fn local_package_ids(&self, metadata: &Metadata) -> HashSet<PackageId> {
+    pub fn targeted_package_ids(&self, metadata: &Metadata) -> HashSet<PackageId> {
         match self {
-            CargoFluxCommand::Check(check_options) => check_options.local_package_ids(metadata),
-            CargoFluxCommand::Build(compile_opts) => compile_opts.local_package_ids(metadata),
-            CargoFluxCommand::Clean(_) => HashSet::new(),
+            CargoFluxCommand::Check(opts) | CargoFluxCommand::Build(opts) => {
+                opts.targeted_package_ids(metadata)
+            }
+            CargoFluxCommand::Clean(opts) => opts.targeted_package_ids(metadata),
         }
     }
 
@@ -138,45 +139,8 @@ impl CompileOpts {
         manifest.forward_to_metadata(meta);
     }
 
-    fn local_package_ids(&self, metadata: &Metadata) -> HashSet<PackageId> {
-        let workspace_packages = metadata.workspace_packages();
-        let package_specs = &self.workspace.package.package;
-        if !package_specs.is_empty() {
-            return workspace_packages
-                .into_iter()
-                .filter(|package| {
-                    package_specs
-                        .iter()
-                        .any(|spec| package_matches_spec(package, spec))
-                })
-                .map(|package| package.id.clone())
-                .collect();
-        }
-
-        let mut target_packages = if self.workspace.workspace {
-            workspace_packages
-        } else if metadata.workspace_default_members.is_available() {
-            metadata.workspace_default_packages()
-        } else if let Some(root) = metadata.root_package() {
-            vec![root]
-        } else {
-            workspace_packages
-        };
-
-        if !self.workspace.exclude.is_empty() {
-            target_packages.retain(|package| {
-                !self
-                    .workspace
-                    .exclude
-                    .iter()
-                    .any(|spec| package_matches_spec(package, spec))
-            });
-        }
-
-        target_packages
-            .into_iter()
-            .map(|package| package.id.clone())
-            .collect()
+    pub fn targeted_package_ids(&self, metadata: &Metadata) -> HashSet<PackageId> {
+        targeted_package_ids(&self.workspace, metadata)
     }
 }
 
@@ -190,6 +154,44 @@ fn package_matches_spec(package: &CargoPackage, spec: &str) -> bool {
     }
 
     package.name == spec
+}
+
+fn select_packages_by_spec<'a>(package: &Package, metadata: &'a Metadata) -> Vec<&'a CargoPackage> {
+    let workspace_packages = metadata.workspace_packages();
+    if !package.package.is_empty() {
+        workspace_packages
+            .into_iter()
+            .filter(|p| {
+                package
+                    .package
+                    .iter()
+                    .any(|spec| package_matches_spec(p, spec))
+            })
+            .collect()
+    } else if metadata.workspace_default_members.is_available() {
+        metadata.workspace_default_packages()
+    } else if let Some(root) = metadata.root_package() {
+        vec![root]
+    } else {
+        workspace_packages
+    }
+}
+
+fn targeted_package_ids(workspace: &Workspace, metadata: &Metadata) -> HashSet<PackageId> {
+    let mut packages = if workspace.workspace {
+        metadata.workspace_packages()
+    } else {
+        select_packages_by_spec(&workspace.package, metadata)
+    };
+
+    packages.retain(|p| {
+        !workspace
+            .exclude
+            .iter()
+            .any(|spec| package_matches_spec(p, spec))
+    });
+
+    packages.into_iter().map(|p| p.id.clone()).collect()
 }
 
 #[derive(clap::Args)]
@@ -214,6 +216,13 @@ impl CleanOpts {
         let CleanOpts { package: _, features, manifest } = self;
         features.forward_to_metadata(meta);
         manifest.forward_to_metadata(meta);
+    }
+
+    pub fn targeted_package_ids(&self, metadata: &Metadata) -> HashSet<PackageId> {
+        select_packages_by_spec(&self.package, metadata)
+            .into_iter()
+            .map(|p| p.id.clone())
+            .collect()
     }
 }
 
