@@ -180,10 +180,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.call_graph(self)
     }
 
-    pub fn inferred_no_panic_crate(self, krate: CrateNum) -> Rc<UnordMap<DefId, PanicSpec>> {
-        self.inner.queries.inferred_no_panic_crate(self, krate)
-    }
-
     /// The inferred [`PanicSpec`] for a concrete `instance`, looked up in the local crate's
     /// instance-keyed map. Missing entries default to `MightPanic(NotInCallGraph)`.
     pub fn inferred_no_panic_instance(self, instance: Instance<'tcx>) -> PanicSpec {
@@ -498,14 +494,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|variants| variants.map(|variants| variants[variant_idx.as_usize()].clone())))
     }
 
-    /// Whether we have inferred that the function cannot panic.
-    pub fn inferred_no_panic(self, def_id: impl IntoQueryParam<DefId>) -> PanicSpec {
-        let def_id = def_id.into_query_param();
-        let map = self.inferred_no_panic_crate(def_id.krate);
-        map.get(&def_id)
-            .copied()
-            .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
-    }
 
     /// Whether the crate has Flux metadata in the cratestore.
     pub fn cstore_has_crate(self, krate: CrateNum) -> bool {

@@ -104,8 +104,8 @@ fn run_fixpoint<'tcx>(
         }
     }
 
-    // Return every analyzed instance's spec, keyed by `Instance`. The `DefId`-keyed projection
-    // (identity instances only) now happens downstream in `Queries::inferred_no_panic_crate` for
-    // the metadata/checker path; it is removed entirely once the checker queries by `Instance`.
+    // Return every analyzed instance's spec, keyed by `Instance`. The checker queries this map
+    // directly by the callee `Instance` recovered from the call graph (see `Checker::check_call`),
+    // and metadata serializes the crate-local entries; there is no `DefId`-keyed projection.
     specs.into_iter().collect()
 }
