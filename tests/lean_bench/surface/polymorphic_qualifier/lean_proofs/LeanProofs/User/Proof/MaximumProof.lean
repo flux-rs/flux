@@ -61,6 +61,10 @@ def Le (v₀ : Int) (a'₁ : Int) : Prop :=
 def Le1 (v₀ : Int) (a'₁ : Int) : Prop :=
   (v₀ ≤ (a'₁ - 1))
 
+@[qualif]
+def App (v : Int) (p : Int → Prop) : Prop :=
+  p v
+
 end MaximumQualifs
 
 open MaximumQualifs

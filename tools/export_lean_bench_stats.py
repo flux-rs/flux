@@ -150,7 +150,7 @@ def main() -> None:
         vcs.append({"name": f"{test_rel}/{vc_name}", "trivial": trivial,
                     "kappa": kappa, "failed": failed})
 
-    time_path = log_path.with_suffix(".time")
+    time_path = log_path.parent / "lean_bench.time"
     suite: dict = {"suite": "Flux lean-bench", "vcs": vcs}
     try:
         suite["time_ms"] = int(time_path.read_text().strip())
