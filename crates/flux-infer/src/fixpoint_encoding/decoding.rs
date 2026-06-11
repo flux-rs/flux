@@ -97,7 +97,7 @@ where
     fn is_curried_primop_app(
         &mut self,
         fhead: &fixpoint::Expr,
-        fargs: &Vec<fixpoint::Expr>,
+        fargs: &[fixpoint::Expr],
         op_args: &mut Vec<fixpoint::Expr>,
     ) -> Option<rty::BinOp> {
         match fhead {
@@ -107,7 +107,7 @@ where
                     self.ecx.const_env.const_map_rev.get(global_var)
                 {
                     op_args.reverse();
-                    return Some(bin_op.clone());
+                    Some(bin_op.clone())
                 } else {
                     None
                 }
