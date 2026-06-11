@@ -4,6 +4,7 @@ use std::{
 };
 
 use expr::{FieldBind, pretty::aggregate_nested};
+use flux_rustc_bridge::ToRustc;
 use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_type_ir::DebruijnIndex;
 use ty::{UnevaluatedConst, ValTree, region_to_string};
@@ -554,10 +555,42 @@ impl Pretty for BaseTy {
             BaseTy::Char => w!(cx, f, "char"),
             BaseTy::Adt(adt_def, args) => {
                 w!(cx, f, "{:?}", adt_def.did())?;
-                let args = args
+                let mut args: Vec<_> = args
                     .iter()
                     .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
-                    .collect_vec();
+                    .collect();
+                if cx.hide_default_args {
+                    let tcx = cx.tcx();
+                    let generics = tcx.generics_of(adt_def.did());
+                    // Trim trailing args that match their instantiated defaults
+                    while let Some(arg) = args.last() {
+                        let arg_idx = args.len() - 1;
+                        if arg_idx >= generics.own_params.len() {
+                            break;
+                        }
+                        let param = &generics.own_params[arg_idx];
+                        let has_default = match param.kind {
+                            rustc_middle::ty::GenericParamDefKind::Type { has_default, .. } => {
+                                has_default
+                            }
+                            rustc_middle::ty::GenericParamDefKind::Const { has_default, .. } => {
+                                has_default
+                            }
+                            _ => false,
+                        };
+                        if !has_default {
+                            break;
+                        }
+                        let earlier_args = tcx.mk_args_from_iter(
+                            args[..arg_idx].iter().map(|a| a.to_rustc(tcx)),
+                        );
+                        let default_ty = tcx.type_of(param.def_id).instantiate(tcx, earlier_args);
+                        if arg.to_rustc(tcx) != rustc_middle::ty::GenericArg::from(default_ty) {
+                            break;
+                        }
+                        args.pop();
+                    }
+                }
                 if !args.is_empty() {
                     w!(cx, f, "<{:?}>", join!(", ", args))?;
                 }
