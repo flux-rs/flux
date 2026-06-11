@@ -19,12 +19,13 @@ use rustc_middle::{
 /// *monomorphization* synthesized while building the graph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum NodeKey<'tcx> {
-    /// An item as written in source (generic or not), identified by its `DefId`. Its `Instance`
-    /// is the identity instance `new_raw(def_id, identity_for_item(def_id))`.
+    /// An item as written in source (generic or not), identified by its `DefId`.
     Item(DefId),
-    /// A generic item monomorphized at concrete (non-identity) type/const args while walking the
-    /// call graph (e.g. `Vec::<i32>::push`). We guarantee that the instance is fully monomorphic, i.e.,
-    /// the Instance's args are all concrete types.
+    /// A generic item monomorphized at concrete type/const args while building the
+    /// call graph (e.g. `Vec::<i32>::push`). We must guarantee that the instance is fully
+    /// monomorphic, i.e., the `Instance`'s args are all concrete types/consts.
+    ///
+    /// Use `NodeKey::from_instance` to classify an `Instance` into a `NodeKey`.
     Mono(Instance<'tcx>),
 }
 
@@ -32,6 +33,8 @@ impl<'tcx> NodeKey<'tcx> {
     /// Classifies an `Instance` into a `NodeKey`.
     pub fn from_instance(instance: Instance<'tcx>) -> Self {
         if let InstanceKind::Item(def_id) = instance.def
+            // - If `has_param()` is true then the instance is not fully monomorphic
+            // - If args is empty then is a non-generic item
             && (instance.args.has_param() || instance.args.is_empty())
         {
             NodeKey::Item(def_id)
@@ -97,11 +100,21 @@ pub enum Node<'tcx> {
 
 impl<'tcx> Node<'tcx> {
     /// Call sites observed in this node's body. Empty for non-`Analyzed` nodes.
-    pub fn call_sites(&self) -> &[CallSite<'tcx>] {
+    fn call_sites(&self) -> &[CallSite<'tcx>] {
         match self {
             Node::Analyzed { call_sites } => call_sites,
             Node::ExternalCrate | Node::Leaf(_) => &[],
         }
+    }
+
+    /// The callee nodes of this node's resolved call sites (skipping unresolved/dynamic ones).
+    pub fn resolved_callees(&self) -> impl Iterator<Item = NodeKey<'tcx>> {
+        self.call_sites().iter().filter_map(|site| {
+            match site.kind {
+                CallSiteKind::Resolved { callee } => Some(callee),
+                _ => None,
+            }
+        })
     }
 }
 
@@ -114,7 +127,7 @@ impl<'tcx> CallGraph<'tcx> {
     pub fn new(nodes: FxIndexMap<NodeKey<'tcx>, Node<'tcx>>) -> Self {
         let mut callers: UnordMap<_, Vec<_>> = UnordMap::default();
         for (&caller, node) in &nodes {
-            for callee in resolved_callees(node.call_sites()) {
+            for callee in node.resolved_callees() {
                 callers.entry(callee).or_default().push(caller);
             }
         }
@@ -133,17 +146,6 @@ impl<'tcx> CallGraph<'tcx> {
             }
         })
     }
-}
-
-pub fn resolved_callees<'tcx>(
-    call_sites: &[CallSite<'tcx>],
-) -> impl Iterator<Item = NodeKey<'tcx>> {
-    call_sites.iter().filter_map(|site| {
-        match site.kind {
-            CallSiteKind::Resolved { callee } => Some(callee),
-            _ => None,
-        }
-    })
 }
 
 impl<'tcx> fmt::Display for NodeKey<'tcx> {

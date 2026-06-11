@@ -1,9 +1,8 @@
 use flux_middle::{
-    call_graph::{CallGraph, CallSite, CallSiteKind, Node, NodeKey, resolved_callees},
+    call_graph::{CallGraph, CallSite, CallSiteKind, Node, NodeKey},
     global_env::GlobalEnv,
 };
-use rustc_data_structures::fx::FxIndexMap;
-use rustc_hash::FxHashSet;
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordSet};
 use rustc_hir::{
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE},
@@ -21,7 +20,7 @@ pub fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
     // Node-level worklist and visited set: the same DefId can appear both as a source item and as
     // distinct monomorphizations, each a separate [`NodeKey`].
     let mut worklist: Vec<NodeKey<'_>> = Vec::new();
-    let mut explored: FxHashSet<NodeKey<'_>> = FxHashSet::default();
+    let mut explored: UnordSet<NodeKey<'_>> = UnordSet::default();
 
     for root_local in tcx.iter_local_def_id() {
         let def_id = root_local.to_def_id();
@@ -37,7 +36,7 @@ pub fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
             continue;
         }
         let node = analyze_node(genv, key);
-        worklist.extend(resolved_callees(node.call_sites()));
+        worklist.extend(node.resolved_callees());
         nodes.insert(key, node);
     }
 
