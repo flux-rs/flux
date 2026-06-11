@@ -49,6 +49,7 @@ impl FluxMetadata {
         self,
         target_dir: &Utf8Path,
         include_pattern_prefix: Option<&Utf8Path>,
+        only_check: Option<&str>,
     ) -> Vec<String> {
         let mut flags = vec![];
         if let Some(true) = self.cache {
@@ -84,7 +85,9 @@ impl FluxMetadata {
         if let Some(v) = self.allow_uninterpreted_cast {
             flags.push(format!("-Fallow-uninterpreted-cast={v}"));
         }
-        if let Some(patterns) = self.include {
+        if let Some(only_check) = only_check {
+            flags.push(format!("-Finclude={only_check}"))
+        } else if let Some(patterns) = self.include {
             for pat in patterns {
                 if let Some(prefix) = include_pattern_prefix {
                     flags.push(format!("-Finclude={}", prepend_prefix_to_pattern(prefix, &pat)));
