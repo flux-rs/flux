@@ -75,6 +75,76 @@ pub fn report_fixpoint_errors(
     }
 }
 
+/// Report inferred annotations as suggestions (for non-interactive Wick mode)
+pub fn report_inferred_annotations(
+    genv: GlobalEnv,
+    solutions: &flux_infer::wkvars::WKVarSolutions,
+) {
+    use rustc_data_structures::fx::FxIndexMap;
+    
+    // Group solutions by function
+    let mut solutions_by_fn: FxIndexMap<DefId, Vec<(rty::WKVid, rty::Binder<rty::Expr>)>> = FxIndexMap::default();
+    
+    for (wkvid, solution) in &solutions.solutions {
+        if let Some(subst) = solution.into_wkvar_subst() {
+            solutions_by_fn
+                .entry(wkvid.parent_fn)
+                .or_default()
+                .push((wkvid.clone(), subst));
+        }
+    }
+    
+    // Create one diagnostic per function with all solutions combined
+    for (def_id, wkvar_solutions) in solutions_by_fn {
+        if wkvar_solutions.is_empty() {
+            continue;
+        }
+        
+        let fn_span = genv.tcx().def_span(def_id);
+        let fn_name = genv.tcx().def_path_str(def_id);
+        
+        // Create a help diagnostic with suggestion
+        let mut diag = genv.sess().dcx().handle().struct_help(
+            format!("Inferred annotation for `{}`", fn_name)
+        );
+        diag.span(fn_span);
+        
+        // Combine all wkvar solutions into a single substitution
+        let fn_sig = genv.fn_sig(def_id).unwrap();
+        let mut combined_subst_map = FxIndexMap::default();
+        for (wkvid, solution) in wkvar_solutions {
+            let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()).prettify());
+            combined_subst_map.insert(wkvid, pretty_solution);
+        }
+        
+        let mut wkvar_subst = WKVarSubst::new(combined_subst_map.into_iter().collect(), false);
+        let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
+        let fixed_fn_sig_snippet = format!(
+            "{:?}",
+            pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig)
+        );
+        let fn_first_line = fn_first_line(genv, def_id);
+        let fn_first_line_snippet = genv
+            .tcx()
+            .sess
+            .source_map()
+            .span_to_snippet(fn_first_line)
+            .unwrap_or_else(|_| panic!("No snippet for span {:?}", fn_first_line));
+        let prefix_spaces = &fn_first_line_snippet[..fn_first_line_snippet
+            .find(|c: char| !c.is_whitespace())
+            .unwrap_or(fn_first_line_snippet.len())];
+        
+        diag.span_suggestion(
+            fn_first_line,
+            "try adding the refinement",
+            format!("{}#[sig({})]\n{}", prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
+            Applicability::MaybeIncorrect,
+        );
+        
+        diag.emit();
+    }
+}
+
 pub fn check_fn(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,

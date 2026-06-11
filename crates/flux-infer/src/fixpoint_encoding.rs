@@ -727,10 +727,10 @@ where
                             let mut possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = FxIndexMap::default();
                             #[cfg(feature = "wick")]
                             if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
-                                println!(
-                                    "Looking for weak kvars that might solve {}",
-                                    flat_constraint.head,
-                                );
+                                // println!(
+                                //     "Looking for weak kvars that might solve {}",
+                                //     flat_constraint.head,
+                                // );
                                 let head_expr = match &flat_constraint.head {
                                     fixpoint::Pred::Expr(e) => Some(e.clone()),
                                     _ => None,

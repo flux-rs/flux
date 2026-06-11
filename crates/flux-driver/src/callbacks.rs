@@ -21,7 +21,7 @@ use flux_middle::{
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
 };
-use flux_refineck::{self as refineck, report_fixpoint_errors};
+use flux_refineck::{self as refineck, report_fixpoint_errors, report_inferred_annotations};
 use itertools::Itertools;
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
@@ -112,8 +112,8 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             .definitions()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
-        println!("-----------------------");
-        println!("Starting solution loop.");
+        // println!("-----------------------");
+        // println!("Starting solution loop.");
 
         let (solution, errors, user_interactions, iters) =
             match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 100, |local_id, errors| {let _ = report_fixpoint_errors(genv, local_id, errors);}) {
@@ -121,6 +121,10 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
                 Err(e) => panic!("Encountered error {:?}", e),
             };
 
+        // HACK: Non-interactive mode - report inferred annotations as diagnostics
+        println!("\n=== INFERRED ANNOTATIONS ===\n");
+        report_inferred_annotations(genv, &solution);
+        
         // println!("Solution loop finished.");
         let crate_name = genv.tcx().crate_name(LOCAL_CRATE);
         // println!("writing to {:?}", config::log_dir());
@@ -179,14 +183,17 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         //     println!(" fn_sig: {}", format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig)));
         // }
         // println!("Total solved: {}, total assumed: {}, total removed: {}, total wkvars: {}", total_solved, total_assumed, total_removed, total_wkvars);
+        println!("\n=== REMAINING ERRORS ===\n");
         if let Some((local_id, _)) = errors.last() {
             let local_id = *local_id;
             let errs = errors
                 .into_iter()
                 .flat_map(|(_, errs)| errs.into_iter())
                 .collect_vec();
-            println!("{} Remaining errors:", errs.len());
+            println!("{} remaining error(s)", errs.len());
             report_fixpoint_errors(genv, local_id, errs)?;
+        } else {
+            println!("No remaining errors!");
         }
 
         ck.cache.save().unwrap_or(());

@@ -563,8 +563,8 @@ impl WKVarSolutions {
                 rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
             let fixed_fn_sig_snippet =
                 format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
-            println!("Solution: fn {}", wkvar_fn_name);
-            println!("  {}", fixed_fn_sig_snippet);
+            // println!("Solution: fn {}", wkvar_fn_name);
+            // println!("  {}", fixed_fn_sig_snippet);
         }
 
         (stats_by_fn, num_nontrivial_real_wkvars, num_nontrivial_internal_wkvars)
@@ -1029,9 +1029,9 @@ where
                         //         vec![]
                         //     }
                         // };
-                        instantiations_message
-                            .push_str(&format!("Adding an instantiation for wkvar {:?}:\n", wkvid));
-                        instantiations_message.push_str(&format!("  {:?}\n", instantiation));
+                        // instantiations_message
+                        //     .push_str(&format!("Adding an instantiation for wkvar {:?}:\n", wkvid));
+                        // instantiations_message.push_str(&format!("  {:?}\n", instantiation));
                         // Record the solution in the NEW solutions, so that
                         // subsequent constraints aren't checked against it.
                         let solution = &mut new_solutions.solutions.get_mut(wkvid).unwrap();
@@ -1074,21 +1074,12 @@ where
         }
         i += 1;
 
-        for (local_id, err) in &all_errors {
-            report_errors(*local_id, err.clone());
-        }
-        println!("{}", instantiations_message);
-        // any_wkvar_change = new_solutions.prompt_user(genv, &mut user_interactions, &mut file_read_user_interactions) || any_wkvar_change;
+        // Print the instantiations found in this iteration (commented out for cleaner output)
+        // println!("{}", instantiations_message);
+        
+        // HACK: Non-interactive mode - just break when we can't infer more
         if !any_wkvar_change {
-            for (local_id, err) in &all_errors {
-                report_errors(*local_id, err.clone());
-            }
-            any_wkvar_change = any_wkvar_change
-                || new_solutions.prompt_user(
-                    genv,
-                    &mut user_interactions,
-                    &mut file_read_user_interactions,
-                );
+            break;
         }
 
         let _ = new_solutions.stats_by_fn(genv);

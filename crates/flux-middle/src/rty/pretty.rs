@@ -230,8 +230,9 @@ impl Pretty for FnSig {
             f,
             "fn({:?}) -> {:?}",
             join!(", ", self.inputs.iter().map(|input| input.shallow_canonicalize())),
-            &self.output
+            &self.output.skip_binder_ref().ret.shallow_canonicalize()
         )?;
+        // Print requires first
         let filtered_requires = self
             .requires
             .iter()
@@ -240,20 +241,10 @@ impl Pretty for FnSig {
         if !filtered_requires.is_empty() {
             w!(cx, f, " requires {:?}", join!(" && ", &filtered_requires))?;
         }
-        Ok(())
-    }
-}
-
-impl Pretty for Binder<FnOutput> {
-    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        format_fn_root_binder(self, cx, FnRootLayerType::FnRet, "exists", f)
-    }
-}
-
-impl Pretty for FnOutput {
-    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        w!(cx, f, "{:?}", &self.ret.shallow_canonicalize())?;
+        // Then print ensures from output
         let filtered_ensures = self
+            .output
+            .skip_binder_ref()
             .ensures
             .iter()
             .filter(|e| {
@@ -267,6 +258,19 @@ impl Pretty for FnOutput {
             w!(cx, f, " ensures {:?}", join!(" && ", &filtered_ensures))?;
         }
         Ok(())
+    }
+}
+
+impl Pretty for Binder<FnOutput> {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        format_fn_root_binder(self, cx, FnRootLayerType::FnRet, "exists", f)
+    }
+}
+
+impl Pretty for FnOutput {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Only print the return type, ensures are handled by FnSig
+        w!(cx, f, "{:?}", &self.ret.shallow_canonicalize())
     }
 }
 
@@ -458,7 +462,14 @@ impl Pretty for Ty {
                 w!(cx, f, "{:?}", self.shallow_canonicalize())
             }
             TyKind::Uninit => w!(cx, f, "uninit"),
-            TyKind::StrgRef(re, loc, ty) => w!(cx, f, "&{:?} strg <{:?}: {:?}>", re, loc, ty),
+            TyKind::StrgRef(re, loc, ty) => {
+                // Format as "name: &strg Type" instead of "&region strg <name: Type>"
+                if cx.hide_regions {
+                    w!(cx, f, "{:?}: &strg {:?}", loc, ty)
+                } else {
+                    w!(cx, f, "{:?}: &{:?} strg {:?}", loc, re, ty)
+                }
+            }
             TyKind::Ptr(pk, loc) => w!(cx, f, "ptr({:?}, {:?})", pk, loc),
             TyKind::Discr(adt_def, place) => {
                 w!(cx, f, "discr({:?}, {:?})", adt_def.did(), ^place)
@@ -920,7 +931,12 @@ impl PrettyNested for Ty {
             }
             TyKind::StrgRef(re, loc, ty) => {
                 let ty_d = ty.fmt_nested(cx)?;
-                let text = format!("&{:?} strg <{:?}: {}>", re, loc, ty_d.text);
+                // Format as "name: &strg Type" instead of "&region strg <name: Type>"
+                let text = if cx.hide_regions {
+                    format!("{:?}: &strg {}", loc, ty_d.text)
+                } else {
+                    format!("{:?}: &{:?} strg {}", loc, re, ty_d.text)
+                };
                 Ok(NestedString { text, children: ty_d.children, key: None })
             }
             TyKind::Blocked(ty) => {
