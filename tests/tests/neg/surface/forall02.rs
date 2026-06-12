@@ -25,3 +25,9 @@ pub fn test_ok() {
     assume_opaque_prop(100, 101);
     assert_opaque_prop(100);
 }
+
+#[flux::spec(fn() ensures opaque_prop(100))]
+pub fn test_fail() {
+    assume_opaque_prop(10, 11);
+    assert_opaque_prop(100); //~ ERROR refinement type
+}
