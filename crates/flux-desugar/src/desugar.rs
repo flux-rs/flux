@@ -1502,6 +1502,18 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         })
     }
 
+    fn desugar_quant_dom(&mut self, dom: &surface::QuantDom) -> fhir::QuantDom<'genv> {
+        match dom {
+            surface::QuantDom::Bounded(rng) => {
+                fhir::QuantDom::Bounded { start: rng.start, end: rng.end }
+            }
+            surface::QuantDom::Unbounded(sort) => {
+                let sort = self.desugar_sort(sort, None);
+                fhir::QuantDom::Unbounded(sort)
+            }
+        }
+    }
+
     fn desugar_expr(&mut self, expr: &surface::Expr) -> fhir::Expr<'genv> {
         let kind = match &expr.kind {
             surface::ExprKind::Path(path) => fhir::ExprKind::Var(self.desugar_epath(path)),
@@ -1535,15 +1547,15 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             surface::ExprKind::Constructor(path, args) => {
                 self.desugar_constructor(path.as_ref(), args)
             }
-            surface::ExprKind::Quant(kind, param, surface::QuantDom::Bounded(rng), body) => {
+            surface::ExprKind::Quant(kind, param, dom, body) => {
                 let kind = match kind {
                     surface::QuantKind::Exists => fhir::QuantKind::Exists,
                     surface::QuantKind::Forall => fhir::QuantKind::Forall,
                 };
                 let body = self.genv().alloc(self.desugar_expr(body));
                 let param = self.desugar_refine_param(param);
-                let rng = fhir::QuantDom::Bounded { start: rng.start, end: rng.end };
-                fhir::ExprKind::BoundedQuant(kind, param, rng, body)
+                let rng = self.desugar_quant_dom(dom);
+                fhir::ExprKind::Quant(kind, param, rng, body)
             }
             surface::ExprKind::Block(decls, body) => {
                 let decls = self.genv().alloc_slice_fill_iter(decls.iter().map(|decl| {

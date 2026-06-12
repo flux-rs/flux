@@ -608,7 +608,7 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
                 vis.visit_expr(&s.expr);
             }
         }
-        ExprKind::BoundedQuant(_, param, _, expr) => {
+        ExprKind::Quant(_, param, _, expr) => {
             vis.visit_refine_param(&param);
             vis.visit_expr(expr);
         }

@@ -739,7 +739,7 @@ pub enum ExprKind {
 #[derive(Debug)]
 pub enum QuantDom {
     Bounded(Range<usize>),
-    // Unbounded(Sort),
+    Unbounded(Sort),
 }
 
 #[derive(Debug)]

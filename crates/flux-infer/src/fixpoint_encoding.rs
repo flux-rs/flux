@@ -22,7 +22,6 @@ use flux_middle::{
     FixpointQueryKind,
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
-    fhir::QuantDom,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     pretty::{NestedString, PrettyCx, PrettyNested},
@@ -1772,10 +1771,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(_)
-            | rty::ExprKind::InternalFunc(_) => {
+            | rty::ExprKind::InternalFunc(_)
+            | rty::ExprKind::Quant(_, rty::QuantDom::Unbounded(_), _) => {
                 span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }
-            rty::ExprKind::BoundedQuant(kind, QuantDom::Bounded { start, end }, body) => {
+            rty::ExprKind::Quant(kind, rty::QuantDom::Bounded { start, end }, body) => {
                 let exprs = (*start..*end).map(|i| {
                     let arg = rty::Expr::constant(rty::Constant::from(i));
                     body.replace_bound_reft(&arg)

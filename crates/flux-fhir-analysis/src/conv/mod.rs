@@ -2092,6 +2092,16 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         }
     }
 
+    fn conv_quant_dom(&mut self, dom: fhir::QuantDom) -> QueryResult<rty::QuantDom> {
+        match dom {
+            fhir::QuantDom::Bounded { start, end } => Ok(rty::QuantDom::Bounded { start, end }),
+            fhir::QuantDom::Unbounded(sort) => {
+                let sort = self.conv_sort(&sort)?;
+                Ok(rty::QuantDom::Unbounded(sort))
+            }
+        }
+    }
+
     fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = ESpan::new(expr.span);
@@ -2169,12 +2179,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
                 body
             }
-            fhir::ExprKind::BoundedQuant(kind, param, rng, body) => {
+            fhir::ExprKind::Quant(kind, param, dom, body) => {
                 env.push_layer(Layer::list(self.results(), 0, &[param]));
                 let pred = self.conv_expr(env, body)?;
+                let dom = self.conv_quant_dom(dom)?;
                 let vars = env.pop_layer().into_bound_vars(self.genv())?;
                 let body = rty::Binder::bind_with_vars(pred, vars);
-                rty::Expr::bounded_quant(kind, rng, body)
+                rty::Expr::bounded_quant(kind, dom, body)
             }
             fhir::ExprKind::Record(flds) => {
                 let flds = flds
