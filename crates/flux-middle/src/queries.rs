@@ -612,7 +612,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     }
 
     pub fn call_graph(&'genv self, genv: GlobalEnv<'genv, 'tcx>) -> &'genv CallGraph<'tcx> {
-        self.call_graph.get_or_init(|| (self.providers.call_graph)(genv))
+        self.call_graph
+            .get_or_init(|| (self.providers.call_graph)(genv))
     }
 
     /// The no-panic inference result for the local crate, keyed by `NodeKey`.
