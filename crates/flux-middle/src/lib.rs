@@ -28,6 +28,7 @@ extern crate self as flux_middle;
 
 pub mod big_int;
 mod builtin_assoc_refts;
+pub mod call_graph;
 pub mod cstore;
 pub mod def_id;
 pub mod fhir;
