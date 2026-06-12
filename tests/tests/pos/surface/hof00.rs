@@ -13,7 +13,7 @@
     }
 
     fn pos_lam(n: int) -> bool {
-        cmp0(n, |x, y| x < y)
+        cmp0(n, |x, y| { x < y } )
     }
 
   )]
