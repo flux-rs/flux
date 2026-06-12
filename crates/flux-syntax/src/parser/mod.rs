@@ -1551,8 +1551,9 @@ fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let end = parse_int(cx)?;
     let body = parse_block(cx)?;
     let hi = cx.hi();
+    let dom = surface::QuantDom::Bounded(start..end);
     Ok(Expr {
-        kind: ExprKind::BoundedQuant(quant, param, start..end, Box::new(body)),
+        kind: ExprKind::Quant(quant, param, dom, Box::new(body)),
         node_id: cx.next_node_id(),
         span: cx.mk_span(lo, hi),
     })
