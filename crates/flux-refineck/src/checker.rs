@@ -963,11 +963,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         {
             let callee_no_panic = fn_sig.no_panic();
 
-            // Recover the resolved callee `Instance` from the call graph by the call-site location,
-            // then query the instance-keyed no-panic map. This lets us use the precise spec of a mono
-            // instance (e.g., `Vec::<i32>::push`) instead of only the identity instance's. A miss
-            // (unresolved trait call, dynamic dispatch, fn-pointer call, or a call site we can't
-            // locate because we are checking a promoted body) conservatively defaults to may-panic.
+            // Recover the resolved callee `NodeKey` from the call graph by the call-site location,
+            // then query the no-panic spec map.
             let body_def_id = match self.checker_id {
                 CheckerId::DefId(def_id) => Some(def_id.to_def_id()),
                 CheckerId::Promoted(..) => None,

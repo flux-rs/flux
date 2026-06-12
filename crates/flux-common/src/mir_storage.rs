@@ -44,10 +44,6 @@ pub unsafe fn store_mir_body<'tcx>(
 /// # Safety
 ///
 /// See the module level comment.
-///
-/// Unlike a plain `remove`, this does *not* consume the stored body: it returns a clone of the
-/// shared [`Rc`] and keeps the entry in place, so the body can be retrieved more than once (e.g.
-/// by both the checker and the no-panic call-graph provider).
 pub unsafe fn retrieve_mir_body<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
@@ -72,7 +68,10 @@ pub unsafe fn try_retrieve_mir_body<'tcx>(
 ) -> Option<Rc<BodyWithBorrowckFacts<'tcx>>> {
     let body_with_facts: Rc<BodyWithBorrowckFacts<'static>> =
         SHARED_STATE.with(|state| state.borrow().get(&def_id).map(Rc::clone))?;
-    // SAFETY: See the module level comment. `Rc<T>` is a thin pointer regardless of `T`, so the
-    // lifetime transmute does not change its layout.
-    Some(unsafe { std::mem::transmute(body_with_facts) })
+    // SAFETY: See the module level comment.
+    Some(unsafe {
+        std::mem::transmute::<Rc<BodyWithBorrowckFacts<'static>>, Rc<BodyWithBorrowckFacts<'tcx>>>(
+            body_with_facts,
+        )
+    })
 }

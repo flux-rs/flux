@@ -44,7 +44,7 @@ use rustc_hir::{
     def_id::{LOCAL_CRATE, LocalDefId},
 };
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::{InstanceKind, TyCtxt};
+use rustc_middle::ty::TyCtxt;
 use rustc_session::config::OutFileName;
 use rustc_span::{
     SourceFile, Span, StableSourceFileId,
@@ -360,6 +360,10 @@ impl<'tcx> CrateStore<'tcx> for CStore<'tcx> {
 }
 
 impl<'tcx> CrateMetadata<'tcx> {
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "we seed the call graph with non-dummy local def ids, so the traversal should never reach dummy extern spec items."
+    )]
     fn new(genv: GlobalEnv<'_, 'tcx>) -> Self {
         let mut local_tables = Tables::default();
         encode_def_ids(
@@ -377,15 +381,7 @@ impl<'tcx> CrateMetadata<'tcx> {
         local_tables.no_panic_specs = genv
             .inferred_no_panic_local()
             .items()
-            .filter(|(key, _)| {
-                key.def_id().is_local()
-                    && match key {
-                        NodeKey::Item(_) => true,
-                        NodeKey::Mono(instance) => {
-                            matches!(instance.def, InstanceKind::Item(_))
-                        }
-                    }
-            })
+            .filter(|(key, _)| key.is_local_item())
             .map(|(key, spec)| (*key, *spec))
             .collect();
 

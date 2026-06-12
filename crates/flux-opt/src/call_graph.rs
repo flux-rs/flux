@@ -22,6 +22,7 @@ pub fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
     let mut worklist: Vec<NodeKey<'_>> = Vec::new();
     let mut explored: UnordSet<NodeKey<'_>> = UnordSet::default();
 
+    // Seed the worklist with non-dummy local def ids.
     for root_local in genv.iter_local_def_id() {
         let def_id = root_local.to_def_id();
         if !tcx.def_kind(root_local).is_fn_like() || is_method_in_trait(tcx, def_id) {
@@ -63,7 +64,13 @@ fn analyze_node<'tcx>(genv: GlobalEnv<'_, 'tcx>, key: NodeKey<'tcx>) -> Node<'tc
     // because the checker recovers the resolved callee at a call site by `Location`, and those
     // locations must refer to the same (unoptimized) body the checker checks. See REPORT step 3.
     if let InstanceKind::Item(_) = instance.def {
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "we seed the call graph with non-dummy local def ids, so the traversal should never reach dummy extern spec items."
+        )]
         let call_sites = if let Some(local_def_id) = def_id.as_local() {
+            debug_assert!(!genv.maybe_extern_id(local_def_id).is_extern());
+
             // SAFETY: the call graph runs after rustc's analysis pass, so every local body has
             // been borrowchecked and stashed. `try_retrieve_mir_body` degrades to `None` (→ leaf)
             // for the rare local fn-like item rustc never borrowchecks.

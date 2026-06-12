@@ -60,6 +60,22 @@ impl<'tcx> NodeKey<'tcx> {
             NodeKey::Mono(instance) => instance,
         }
     }
+
+    /// Whether this key denotes a locally-defined function item — the source item itself or a
+    /// monomorphization of it. Excludes foreign defs and non-`Item` instances (drop glue, fn-ptr
+    /// shims, etc.), which never carry a meaningful spec. Used to decide which specs a crate owns
+    /// and serializes into its own metadata.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "is responsibility of who builds the graph to filter out dummy extern spec items."
+    )]
+    pub fn is_local_item(self) -> bool {
+        self.def_id().is_local()
+            && match self {
+                NodeKey::Item(_) => true,
+                NodeKey::Mono(instance) => matches!(instance.def, InstanceKind::Item(_)),
+            }
+    }
 }
 
 /// A single call site observed in a function's MIR body.
