@@ -86,7 +86,7 @@ impl FluxMetadata {
             flags.push(format!("-Fallow-uninterpreted-cast={v}"));
         }
         if let Some(only_check) = only_check {
-            flags.push(format!("-Finclude={only_check}"))
+            flags.push(format!("-Finclude={only_check}"));
         } else if let Some(patterns) = self.include {
             for pat in patterns {
                 if let Some(prefix) = include_pattern_prefix {
