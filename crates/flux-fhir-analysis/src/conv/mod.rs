@@ -2255,6 +2255,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let sort = rty::Sort::Int;
                 (rty::Expr::const_generic(def_id_to_param_const(genv, def_id)).at(espan), sort)
             }
+            fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(did)) => {
+                self.hyperlink(path.span, Some(genv.func_span(did)));
+                let sort = rty::Sort::Func(genv.func_sort(did));
+                (rty::Expr::global_func(rty::SpecFuncKind::Def(did)), sort)
+            }
+            fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf)) => {
+                let sort = THEORY_FUNCS.get(&itf).unwrap().sort.clone();
+                (rty::Expr::global_func(rty::SpecFuncKind::Thy(itf)), rty::Sort::Func(sort))
+            }
             _ => {
                 Err(self.emit(errors::InvalidRes { span: path.span, res_descr: path.res.descr() }))?
             }

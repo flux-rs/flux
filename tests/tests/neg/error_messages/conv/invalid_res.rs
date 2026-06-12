@@ -10,9 +10,6 @@ defs! {
 #[refined_by(p: int -> int)]
 struct S;
 
-#[sig(fn(S[add1]))] //~ ERROR refinement function not allowed in this position
-fn test(x: S) {}
-
 #[spec(fn() requires S(0))] //~ ERROR struct not allowed in this position
 fn foo() {}
 
