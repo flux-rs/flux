@@ -646,11 +646,8 @@ impl TVarSubst {
         } else {
             let a = a.shallow_canonicalize().as_ty_or_base();
             let b = b.shallow_canonicalize().as_ty_or_base();
-            match (a, b) {
-                (TyOrBase::Base(a_ctor), TyOrBase::Base(b_ctor)) => {
-                    self.subset_tys(&a_ctor, &b_ctor);
-                }
-                _ => {}
+            if let (TyOrBase::Base(a_ctor), TyOrBase::Base(b_ctor)) = (a, b) {
+                self.subset_tys(&a_ctor, &b_ctor);
             }
         }
     }

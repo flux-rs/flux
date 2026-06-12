@@ -476,21 +476,21 @@ fn panicking_parser(_s: &str) -> Result<(), String> {
 }
 
 fn default_pointerwidth(_s: &str) -> Result<PointerWidth, String> {
-    return Ok(PointerWidth::default());
+    Ok(PointerWidth::default())
 }
 
 fn default_overflowmode(_s: &str) -> Result<OverflowMode, String> {
-    return Ok(OverflowMode::default());
+    Ok(OverflowMode::default())
 }
 
 fn default_rawderefmode(_s: &str) -> Result<RawDerefMode, String> {
-    return Ok(RawDerefMode::default());
+    Ok(RawDerefMode::default())
 }
 
 fn default_smtsolver(_s: &str) -> Result<SmtSolver, String> {
-    return Ok(SmtSolver::default());
+    Ok(SmtSolver::default())
 }
 
 fn default_leanmode(_s: &str) -> Result<LeanMode, String> {
-    return Ok(LeanMode::default());
+    Ok(LeanMode::default())
 }
