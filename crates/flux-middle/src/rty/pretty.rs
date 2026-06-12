@@ -58,19 +58,23 @@ impl<T: Pretty> std::fmt::Debug for Binder<T> {
     }
 }
 
-fn format_fn_root_binder<T: Pretty + TypeVisitable>(
+/// Like [`format_fn_root_binder`] but takes a closure to produce the body string, allowing the
+/// caller to format multiple pieces (e.g. return type, requires, ensures) together under the same
+/// binder context so that bound variables get the correct `#` decorator.
+fn format_fn_root_binder_with<T: TypeVisitable>(
     binder: &Binder<T>,
     cx: &PrettyCx,
     fn_root_layer_type: FnRootLayerType,
     binder_name: &str,
     f: &mut fmt::Formatter<'_>,
+    fmt_body: impl FnOnce(&PrettyCx) -> String,
 ) -> fmt::Result {
     let vars = binder.vars();
     let redundant_bvars = binder.skip_binder_ref().redundant_bvars();
 
     cx.with_bound_vars_removable(vars, redundant_bvars, Some(fn_root_layer_type), || {
-        // First format the body, adding a dectorator (@ or #) to vars in indexes that we can.
-        let body = format_cx!(cx, "{:?}", binder.skip_binder_ref());
+        // First format the body, adding a decorator (@ or #) to vars in indexes that we can.
+        let body = fmt_body(cx);
 
         // Then remove any vars that we added a decorator to.
         //
@@ -83,6 +87,18 @@ fn format_fn_root_binder<T: Pretty + TypeVisitable>(
             let right = format!("> {}", body);
             cx.fmt_bound_vars(true, &left, &filtered_vars, &right, f)
         }
+    })
+}
+
+fn format_fn_root_binder<T: Pretty + TypeVisitable>(
+    binder: &Binder<T>,
+    cx: &PrettyCx,
+    fn_root_layer_type: FnRootLayerType,
+    binder_name: &str,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    format_fn_root_binder_with(binder, cx, fn_root_layer_type, binder_name, f, |cx| {
+        format_cx!(cx, "{:?}", binder.skip_binder_ref())
     })
 }
 
@@ -203,39 +219,41 @@ impl Pretty for PolyFuncSort {
 
 impl Pretty for FnSig {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        w!(
-            cx,
-            f,
-            "fn({:?}) -> {:?}",
-            join!(", ", self.inputs.iter().map(|input| input.shallow_canonicalize())),
-            &self.output.skip_binder_ref().ret.shallow_canonicalize()
-        )?;
-        // Print requires first
+        w!(cx, f, "fn({:?})", join!(", ", self.inputs.iter().map(|input| input.shallow_canonicalize())))?;
+        w!(cx, f, " -> ")?;
+        // Format requires *before* entering the output binder context: requires predicates
+        // reference FnArgs variables (from the outer PolyFnSig binder) and pushing the FnRet
+        // layer would shift their debruijn indices.
         let filtered_requires = self
             .requires
             .iter()
             .filter(|r| !r.is_trivially_true())
             .collect_vec();
-        if !filtered_requires.is_empty() {
-            w!(cx, f, " requires {:?}", join!(" && ", &filtered_requires))?;
-        }
-        // Then print ensures from output
-        let filtered_ensures = self
-            .output
-            .skip_binder_ref()
-            .ensures
-            .iter()
-            .filter(|e| {
-                match e {
+        let requires_str = if !filtered_requires.is_empty() {
+            format_cx!(cx, " requires {:?}", join!(" && ", &filtered_requires))
+        } else {
+            String::new()
+        };
+        // Format the return type and ensures within the output binder context so that bound
+        // variables in the output position get the correct `#` decorator.
+        let output = &self.output;
+        format_fn_root_binder_with(output, cx, FnRootLayerType::FnRet, "exists", f, |cx| {
+            let fn_output = output.skip_binder_ref();
+            let mut s = format_cx!(cx, "{:?}", &fn_output.ret.shallow_canonicalize());
+            s.push_str(&requires_str);
+            let filtered_ensures = fn_output
+                .ensures
+                .iter()
+                .filter(|e| match e {
                     Ensures::Pred(p) => !p.is_trivially_true(),
                     _ => true,
-                }
-            })
-            .collect_vec();
-        if !filtered_ensures.is_empty() {
-            w!(cx, f, " ensures {:?}", join!(" && ", &filtered_ensures))?;
-        }
-        Ok(())
+                })
+                .collect_vec();
+            if !filtered_ensures.is_empty() {
+                s.push_str(&format_cx!(cx, " ensures {:?}", join!(" && ", &filtered_ensures)));
+            }
+            s
+        })
     }
 }
 
@@ -247,8 +265,19 @@ impl Pretty for Binder<FnOutput> {
 
 impl Pretty for FnOutput {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Only print the return type; ensures are handled by FnSig
-        w!(cx, f, "{:?}", &self.ret.shallow_canonicalize())
+        w!(cx, f, "{:?}", &self.ret.shallow_canonicalize())?;
+        let filtered_ensures = self
+            .ensures
+            .iter()
+            .filter(|e| match e {
+                Ensures::Pred(p) => !p.is_trivially_true(),
+                _ => true,
+            })
+            .collect_vec();
+        if !filtered_ensures.is_empty() {
+            w!(cx, f, " ensures {:?}", join!(" && ", &filtered_ensures))?;
+        }
+        Ok(())
     }
 }
 
