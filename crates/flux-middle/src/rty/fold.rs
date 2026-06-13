@@ -1052,6 +1052,7 @@ impl TypeSuperVisitable for Expr {
                 e2.visit_with(visitor)
             }
             ExprKind::KVar(kvar) => kvar.visit_with(visitor),
+            ExprKind::WKVar(wkvar) => wkvar.visit_with(visitor),
             ExprKind::Alias(alias, args) => {
                 alias.visit_with(visitor)?;
                 args.visit_with(visitor)
@@ -1120,6 +1121,7 @@ impl TypeSuperFoldable for Expr {
             }
             ExprKind::Hole(kind) => Expr::hole(kind.try_fold_with(folder)?),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
+            ExprKind::WKVar(wkvar) => Expr::wkvar(wkvar.try_fold_with(folder)?),
             ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
             ExprKind::Quant(kind, dom, body) => {
                 Expr::quant(*kind, dom.try_fold_with(folder)?, body.try_fold_with(folder)?)
@@ -1147,6 +1149,17 @@ where
     }
 }
 
+impl<S, T> TypeVisitable for (S, T)
+where
+    S: TypeVisitable,
+    T: TypeVisitable,
+{
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.0.visit_with(visitor)?;
+        self.1.visit_with(visitor)
+    }
+}
+
 impl<T> TypeFoldable for List<T>
 where
     T: TypeFoldable,
@@ -1154,6 +1167,16 @@ where
 {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         self.iter().map(|t| t.try_fold_with(folder)).try_collect()
+    }
+}
+
+impl<S, T> TypeFoldable for (S, T)
+where
+    S: TypeFoldable,
+    T: TypeFoldable,
+{
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok((self.0.try_fold_with(folder)?, self.1.try_fold_with(folder)?))
     }
 }
 
