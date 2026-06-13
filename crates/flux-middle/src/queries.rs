@@ -994,7 +994,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         .skip_binder()
                         .refine(&Refiner::default_for_item(genv, def_id)?)?
                         .hoist_input_binders();
-
                     if genv.is_fn_call(def_id) {
                         let fn_once_id = tcx.require_lang_item(LangItem::FnOnce, DUMMY_SP);
 
@@ -1014,6 +1013,21 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         });
                     }
 
+                    // We only will add weak kvars if
+                    //   0. If suggestions are enabled.
+                    //   1. There are no weak kvars already
+                    //   2. The function does NOT have a `#[no_suggestions]` annotation
+                    //      in its parent.
+                    #[cfg(feature = "wick")]
+                    if genv.weak_kvars_for(def_id).is_none()
+                        && genv.resolve_id(def_id).as_maybe_extern().is_some()
+                        && def_id
+                            .as_local()
+                            .map(|local_id| !genv.no_suggestions(local_id))
+                            .unwrap_or(false)
+                    {
+                        poly_sig = poly_sig.add_weak_kvars(genv, def_id)?;
+                    }
                     Ok(rty::EarlyBinder(poly_sig))
                 },
             )
