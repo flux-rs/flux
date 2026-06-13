@@ -26,7 +26,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     pretty::{NestedString, PrettyCx, PrettyNested},
-    queries::{QueryErr, QueryResult},
+    queries::QueryResult,
     query_bug,
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List,
