@@ -25,6 +25,10 @@ middle_query_unsupported_at =
     use of unsupported {$kind}
     .note = this {$kind} has unsupported features
 
+middle_query_unsupported_quantifier =
+    use of unsupported quantifier
+    .note = try to use `proven_externally`
+
 middle_query_ignored_at =
     use of ignored {$kind} `{$name}`
     .label = help: try ignoring or trusting this code

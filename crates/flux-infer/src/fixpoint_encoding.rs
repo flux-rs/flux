@@ -22,6 +22,7 @@ use flux_middle::{
     FixpointQueryKind,
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
+    fhir::QuantKind,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     pretty::{NestedString, PrettyCx, PrettyNested},
@@ -1762,17 +1763,21 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 fixpoint::Expr::Var(self.declare_fun(*def_id))
             }
-            rty::ExprKind::Exists(expr) => {
+            rty::ExprKind::Exists(expr)
+            | rty::ExprKind::Quant(QuantKind::Exists, rty::QuantDom::Unbounded(_), expr) => {
                 let expr = self.body_to_fixpoint(expr, scx)?;
-                fixpoint::Expr::Exists(expr.0, Box::new(expr.1))
+                fixpoint::Expr::Quantifier(fixpoint::Quantifier::Exists, expr.0, Box::new(expr.1))
+            }
+            rty::ExprKind::Quant(QuantKind::Forall, rty::QuantDom::Unbounded(_), expr) => {
+                let expr = self.body_to_fixpoint(expr, scx)?;
+                fixpoint::Expr::Quantifier(fixpoint::Quantifier::Forall, expr.0, Box::new(expr.1))
             }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(_)
-            | rty::ExprKind::InternalFunc(_)
-            | rty::ExprKind::Quant(_, rty::QuantDom::Unbounded(_), _) => {
+            | rty::ExprKind::InternalFunc(_) => {
                 span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }
             rty::ExprKind::Quant(kind, rty::QuantDom::Bounded { start, end }, body) => {
