@@ -230,9 +230,7 @@ pub struct Flags {
         default_missing_value = "false"
     )]
     pub flux_verbose: bool,
-    /// If `true`, all code will have suggestions disabled. This is manifest by
-    /// no weak kvars being added to any signature. If you explicitly add a weak
-    /// kvar, it will still have suggestions given.
+    /// If `true`, all code will have suggestions disabled.
     #[arg(
         long = flux_arg!("no-suggestions"),
         num_args = 0..=1,
