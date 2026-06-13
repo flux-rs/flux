@@ -4,7 +4,9 @@ use clap::Args;
 pub use toml::Value;
 use tracing::Level;
 
-use crate::{IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver};
+use crate::{
+    Backend, IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver,
+};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
@@ -96,6 +98,8 @@ pub struct Flags {
         value_parser = default_smtsolver
     )]
     pub solver: SmtSolver,
+    /// Backend to use for constraint solving. One of `fixpoint` or `hornspec`.
+    pub backend: Backend,
     /// Enables qualifier scrapping in fixpoint
     #[arg(
         long = flux_arg!("scrape-quals"),
@@ -253,6 +257,7 @@ impl Default for Flags {
             scrape_quals: false,
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
+            backend: Backend::default(),
             smt_define_fun: false,
             annots: false,
             timings: false,
@@ -293,6 +298,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
+            "backend" => parse_backend(&mut flags.backend, value),
             "smt-define-fun" => parse_bool(&mut flags.smt_define_fun, value),
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
@@ -441,6 +447,16 @@ fn parse_solver(slot: &mut SmtSolver, v: Option<&str>) -> Result<(), &'static st
             Ok(())
         }
         _ => Err(SmtSolver::ERROR),
+    }
+}
+
+fn parse_backend(slot: &mut Backend, v: Option<&str>) -> Result<(), &'static str> {
+    match v {
+        Some(s) => {
+            *slot = s.parse()?;
+            Ok(())
+        }
+        _ => Err(Backend::ERROR),
     }
 }
 

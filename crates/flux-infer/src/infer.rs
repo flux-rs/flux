@@ -228,7 +228,13 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
         let cstr_variable_sorts = cstr.variable_sorts();
-        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
+        let task = fcx.create_task(
+            def_id,
+            cstr,
+            self.opts.scrape_quals,
+            solver,
+            liquid_fixpoint::Backend::Fixpoint,
+        )?;
 
         log_proof(self.genv, def_id)?;
         // Skip re-generation if task is already cached (same hash → same lean files on disk).
@@ -279,12 +285,16 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let backend = match self.opts.solver {
+        let solver = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
+        let horn_backend = match self.opts.backend {
+            flux_config::Backend::Fixpoint => liquid_fixpoint::Backend::Fixpoint,
+            flux_config::Backend::Hornspec => liquid_fixpoint::Backend::Hornspec,
+        };
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Horn(horn_backend));
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
 
         // skip checking trivial constraints
@@ -295,7 +305,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             return Ok(Answer::trivial());
         }
 
-        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
+        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver, horn_backend)?;
         let result = fcx.run_task(cache, def_id, kind, &task)?;
         Ok(fcx.result_to_answer(result))
     }
