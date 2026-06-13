@@ -22,10 +22,11 @@ use flux_middle::{
     FixpointQueryKind,
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
+    fhir::QuantKind,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     pretty::{NestedString, PrettyCx, PrettyNested},
-    queries::QueryResult,
+    queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List,
@@ -1762,9 +1763,31 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 fixpoint::Expr::Var(self.declare_fun(*def_id))
             }
-            rty::ExprKind::Exists(expr) => {
+            rty::ExprKind::Exists(expr)
+            | rty::ExprKind::Quant(QuantKind::Exists, rty::QuantDom::Unbounded(_), expr) => {
                 let expr = self.body_to_fixpoint(expr, scx)?;
-                fixpoint::Expr::Exists(expr.0, Box::new(expr.1))
+                fixpoint::Expr::Quantifier(fixpoint::Quantifier::Exists, expr.0, Box::new(expr.1))
+            }
+            rty::ExprKind::Quant(QuantKind::Forall, rty::QuantDom::Unbounded(_), expr) => {
+                if !matches!(self.backend, Backend::Lean) {
+                    let msg = "unbounded quantifiers only supported in external proofs";
+                    let span = self.def_span();
+                    return Err(QueryErr::Emitted(
+                        self.genv
+                            .sess()
+                            .dcx()
+                            .handle()
+                            .struct_span_err(span, msg)
+                            .emit(),
+                    ));
+                } else {
+                    let expr = self.body_to_fixpoint(expr, scx)?;
+                    fixpoint::Expr::Quantifier(
+                        fixpoint::Quantifier::Forall,
+                        expr.0,
+                        Box::new(expr.1),
+                    )
+                }
             }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
@@ -1774,8 +1797,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::InternalFunc(_) => {
                 span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }
-            rty::ExprKind::BoundedQuant(kind, rng, body) => {
-                let exprs = (rng.start..rng.end).map(|i| {
+            rty::ExprKind::Quant(kind, rty::QuantDom::Bounded { start, end }, body) => {
+                let exprs = (*start..*end).map(|i| {
                     let arg = rty::Expr::constant(rty::Constant::from(i));
                     body.replace_bound_reft(&arg)
                 });

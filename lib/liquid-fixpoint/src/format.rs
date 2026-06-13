@@ -8,7 +8,7 @@ use itertools::Itertools;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task,
-    Types,
+    Types, constraint::Quantifier,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -308,6 +308,15 @@ impl<T: Types> fmt::Display for Pred<T> {
     }
 }
 
+impl fmt::Display for Quantifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Quantifier::Exists => write!(f, "exists"),
+            Quantifier::Forall => write!(f, "forall"),
+        }
+    }
+}
+
 impl<T: Types> fmt::Display for Expr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -358,13 +367,8 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::IsCtor(ctor, e) => {
                 write!(f, "(is${} {})", ctor.display(), e)
             }
-            Expr::Exists(sorts, body) => {
-                write!(
-                    f,
-                    "(exists ({}) {})",
-                    sorts.iter().map(|binder| &binder.1).format(" "),
-                    body
-                )
+            Expr::Quantifier(q, sorts, body) => {
+                write!(f, "({} ({}) {})", q, sorts.iter().map(|binder| &binder.1).format(" "), body)
             }
         }
     }

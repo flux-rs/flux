@@ -430,22 +430,34 @@ where
                 let e = self.fixpoint_to_expr(fe)?;
                 Ok(rty::Expr::is_ctor(def_id, variant_idx, e))
             }
-            fixpoint::Expr::Exists(binder, body) => {
-                let mut vars = vec![];
-                let mut sorts = vec![];
-                for (var, sort) in binder {
-                    let fixpoint::Var::Local(local_var) = var else {
-                        return Err(FixpointParseError::WrongVarInBinder(*var));
-                    };
-                    vars.push(*local_var);
-                    sorts.push(self.fixpoint_to_sort(sort)?);
+            fixpoint::Expr::Quantifier(q, binder, body) => {
+                let expr = self.fixpoint_to_bind_expr(binder, body)?;
+                match q {
+                    fixpoint::Quantifier::Exists => Ok(rty::Expr::exists(expr)),
+                    fixpoint::Quantifier::Forall => Ok(rty::Expr::forall(expr)),
                 }
-                self.ecx.local_var_env.push_layer(vars);
-                let body = self.fixpoint_to_expr(body)?;
-                self.ecx.local_var_env.pop_layer();
-                Ok(rty::Expr::exists(Binder::bind_with_sorts(body, &sorts)))
             }
         }
+    }
+
+    fn fixpoint_to_bind_expr(
+        &mut self,
+        binder: &[(fixpoint::Var, fixpoint::Sort)],
+        body: &fixpoint::Expr,
+    ) -> Result<rty::Binder<rty::Expr>, FixpointParseError> {
+        let mut vars = vec![];
+        let mut sorts = vec![];
+        for (var, sort) in binder {
+            let fixpoint::Var::Local(local_var) = var else {
+                return Err(FixpointParseError::WrongVarInBinder(*var));
+            };
+            vars.push(*local_var);
+            sorts.push(self.fixpoint_to_sort(sort)?);
+        }
+        self.ecx.local_var_env.push_layer(vars);
+        let body = self.fixpoint_to_expr(body)?;
+        self.ecx.local_var_env.pop_layer();
+        Ok(Binder::bind_with_sorts(body, &sorts))
     }
 
     fn fixpoint_app_to_expr(

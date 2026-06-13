@@ -1515,7 +1515,7 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     } else if lookahead.peek(token::OpenBracket) {
         parse_prim_uif(cx)
     } else if lookahead.peek(kw::Exists) || lookahead.peek(kw::Forall) {
-        parse_bounded_quantifier(cx)
+        parse_quantifier(cx)
     } else {
         Err(lookahead.into_error())
     }
@@ -1531,10 +1531,29 @@ fn parse_prim_uif(cx: &mut ParseCtxt) -> ParseResult<Expr> {
 }
 
 /// ```text
-/// ⟨bounded_quant⟩ := forall ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block⟩
-///                  | exists ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block⟩
+/// ⟨quant_dom⟩ := ⟨int⟩..⟨int⟩
+///              | ⟨sort⟩
+///
 /// ```
-fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
+fn parse_quant_dom(cx: &mut ParseCtxt) -> ParseResult<surface::QuantDom> {
+    let mut lookahead = cx.lookahead1();
+    if lookahead.peek(AnyLit) {
+        let start = parse_int(cx)?;
+        cx.expect(token::DotDot)?;
+        let end = parse_int(cx)?;
+        Ok(surface::QuantDom::Bounded(start..end))
+    } else {
+        let sort = parse_sort(cx)?;
+        Ok(surface::QuantDom::Unbounded(sort))
+    }
+}
+
+/// ```text
+/// ⟨quant⟩ := forall ⟨refine_param⟩ in ⟨quant_dom⟩ ⟨block⟩
+///          | exists ⟨refine_param⟩ in ⟨quant_dom⟩ ⟨block⟩
+///
+/// ```
+fn parse_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let lo = cx.lo();
     let mut lookahead = cx.lookahead1();
     let quant = if lookahead.advance_if(kw::Forall) {
@@ -1546,13 +1565,11 @@ fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     };
     let param = parse_refine_param(cx, RequireSort::Maybe)?;
     cx.expect(kw::In)?;
-    let start = parse_int(cx)?;
-    cx.expect(token::DotDot)?;
-    let end = parse_int(cx)?;
+    let dom = parse_quant_dom(cx)?;
     let body = parse_block(cx)?;
     let hi = cx.hi();
     Ok(Expr {
-        kind: ExprKind::BoundedQuant(quant, param, start..end, Box::new(body)),
+        kind: ExprKind::Quant(quant, param, dom, Box::new(body)),
         node_id: cx.next_node_id(),
         span: cx.mk_span(lo, hi),
     })
