@@ -53,7 +53,10 @@ impl CargoFluxCommand {
                     // resulting diagnostic JSON for suggested_replacement spans, and applies them
                     // via rustfix. This is the same pipeline Clippy uses, just with RUSTC= instead
                     // of RUSTC_WORKSPACE_WRAPPER= on our side; the two env vars are independent.
-                    cmd.arg("fix");
+                    cmd.arg("fix")
+                       // Implies broken-code (since Flux errors are not
+                       // warnings, it wouldn't apply otherwise).
+                       .arg("--broken-code");
                 } else {
                     cmd.arg("check");
                 }
@@ -131,7 +134,10 @@ pub struct CompileOpts {
     #[arg(long, value_name = "PATTERN")]
     pub only_check: Option<String>,
 
-    /// Automatically apply Flux's suggested annotations to the source code.
+    /// Automatically apply Flux's suggested annotations to the source code
+    /// using 'cargo fix'.
+    ///
+    /// Implies --broken-code.
     #[arg(long)]
     pub fix: bool,
 
@@ -413,23 +419,16 @@ pub struct FixOpts {
     /// Don't require a staged git index when running `--fix`.
     #[arg(long, requires = "fix")]
     allow_staged: bool,
-
-    /// Apply fixes even if the code is broken (compilation errors).
-    #[arg(long, requires = "fix")]
-    broken_code: bool,
 }
 
 impl FixOpts {
     fn forward_args(&self, cmd: &mut Command) {
-        let FixOpts { allow_dirty, allow_staged, broken_code } = self;
+        let FixOpts { allow_dirty, allow_staged } = self;
         if *allow_dirty {
             cmd.arg("--allow-dirty");
         }
         if *allow_staged {
             cmd.arg("--allow-staged");
-        }
-        if *broken_code {
-            cmd.arg("--broken-code");
         }
     }
 }
