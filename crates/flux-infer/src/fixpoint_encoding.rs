@@ -1769,25 +1769,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::Expr::Quantifier(fixpoint::Quantifier::Exists, expr.0, Box::new(expr.1))
             }
             rty::ExprKind::Quant(QuantKind::Forall, rty::QuantDom::Unbounded(_), expr) => {
-                if !matches!(self.backend, Backend::Lean) {
-                    let msg = "unbounded quantifiers only supported in external proofs";
-                    let span = self.def_span();
-                    return Err(QueryErr::Emitted(
-                        self.genv
-                            .sess()
-                            .dcx()
-                            .handle()
-                            .struct_span_err(span, msg)
-                            .emit(),
-                    ));
-                } else {
-                    let expr = self.body_to_fixpoint(expr, scx)?;
-                    fixpoint::Expr::Quantifier(
-                        fixpoint::Quantifier::Forall,
-                        expr.0,
-                        Box::new(expr.1),
-                    )
-                }
+                let expr = self.body_to_fixpoint(expr, scx)?;
+                fixpoint::Expr::Quantifier(fixpoint::Quantifier::Forall, expr.0, Box::new(expr.1))
             }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)

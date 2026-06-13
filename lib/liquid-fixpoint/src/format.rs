@@ -368,7 +368,15 @@ impl<T: Types> fmt::Display for Expr<T> {
                 write!(f, "(is${} {})", ctor.display(), e)
             }
             Expr::Quantifier(q, sorts, body) => {
-                write!(f, "({} ({}) {})", q, sorts.iter().map(|binder| &binder.1).format(" "), body)
+                write!(
+                    f,
+                    "({} ({}) {})",
+                    q,
+                    sorts.iter().format_with(" ", |(name, sort), f| {
+                        f(&format_args!("({} {sort})", name.display()))
+                    }),
+                    body
+                )
             }
         }
     }
