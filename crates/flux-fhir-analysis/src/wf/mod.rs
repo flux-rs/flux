@@ -431,6 +431,13 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
         self.check_expr(&ret.idx, &expected);
     }
 
+    fn visit_fn_sig(&mut self, sig: &fhir::FnSig<'genv>) {
+        if let Some(no_panic_if) = &sig.no_panic_if {
+            self.check_expr(no_panic_if, &rty::Sort::Bool);
+        }
+        fhir::visit::walk_fn_sig(self, sig);
+    }
+
     fn visit_fn_decl(&mut self, decl: &fhir::FnDecl<'genv>) {
         fhir::visit::walk_fn_decl(self, decl);
         self.check_output_locs(decl);
