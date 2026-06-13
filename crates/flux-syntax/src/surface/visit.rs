@@ -11,8 +11,8 @@ use super::{
     Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstArgKind, ConstantInfo, ConstructorArg,
     Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput,
     FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft,
-    Indices, ItemKind, Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath,
-    QuantDom, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind,
+    Indices, ItemKind, Lit, Path, PathSegment, Qualifier, QuantDom, RefineArg, RefineParam, Sort,
+    SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind,
     VariantDef, VariantRet, WhereBoundPredicate,
 };
 use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn};
