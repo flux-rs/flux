@@ -1,7 +1,7 @@
 use std::fmt;
 
-use indexmap::IndexMap;
 use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
     BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
@@ -45,7 +45,7 @@ pub trait FromSexp<T: Types> {
 pub struct FromSexpWrapper<T: Types, Parser> {
     pub parser: Parser,
     pub _phantom: std::marker::PhantomData<T>,
-    scopes: Vec<IndexMap<String, T::Var>>,
+    scopes: Vec<FxIndexMap<String, T::Var>>,
 }
 
 type KvarSolution<T> = (Vec<(<T as Types>::Var, Sort<T>)>, Expr<T>);
@@ -210,7 +210,13 @@ where
             }
             Sexp::Atom(Atom::Q(s)) => Ok(Expr::Constant(Constant::String(self.parser.string(s)?))),
             Sexp::Atom(Atom::B(b)) => Ok(Expr::Constant(Constant::Boolean(*b))),
-            Sexp::Atom(Atom::I(i)) => Ok(Expr::Constant(Constant::Numeral(*i))),
+            Sexp::Atom(Atom::I(i)) => {
+                if *i >= 0 {
+                    Ok(Expr::Constant(Constant::Numeral(*i as u128)))
+                } else {
+                    Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral(-i as u128)))))
+                }
+            }
             Sexp::Atom(Atom::F(_f)) => {
                 unimplemented!("Float parsing not supported in fixpoint (see Constant::Real)")
             }
@@ -540,7 +546,7 @@ where
                 .try_collect()?;
             self.push_scope(&kvar_args);
 
-            let expr = self.parse_expr(body)?;
+            let expr = self.parse_expr(body)?.uncurry();
 
             let mut scope = self.pop_scope().unwrap();
             let bound = kvar_args
@@ -564,7 +570,7 @@ where
         );
     }
 
-    fn pop_scope(&mut self) -> Option<IndexMap<String, T::Var>> {
+    fn pop_scope(&mut self) -> Option<FxIndexMap<String, T::Var>> {
         self.scopes.pop()
     }
 

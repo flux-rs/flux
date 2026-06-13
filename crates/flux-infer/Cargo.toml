@@ -32,3 +32,4 @@ rustc_private = true
 
 [features]
 rust-fixpoint = ["liquid-fixpoint/rust-fixpoint"]
+wick = ["liquid-fixpoint/wick"]

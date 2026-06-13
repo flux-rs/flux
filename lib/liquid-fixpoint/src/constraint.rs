@@ -1,9 +1,10 @@
 use std::{collections::HashSet, hash::Hash};
 
 use derive_where::derive_where;
-use indexmap::IndexSet;
+use itertools::Itertools;
+use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 
-use crate::{ThyFunc, Types};
+use crate::{ConstDecl, ThyFunc, Types};
 
 #[derive_where(Hash, Clone, Debug)]
 pub struct Bind<T: Types> {
@@ -33,6 +34,8 @@ impl<T: Types> Constraint<T> {
         if cstrs.len() == 1 { cstrs.remove(0) } else { Self::Conj(cstrs) }
     }
 
+
+
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
     /// If `!c.is_concrete` then `c` is trivially satisfiable and we can avoid calling fixpoint.
     /// Returns the number of concrete, non-trivial head predicates in the constraint.
@@ -51,6 +54,249 @@ impl<T: Types> Constraint<T> {
         let mut count = 0;
         go(self, &mut count);
         count
+    }
+
+    /// Flattens a single constraint into a list of individual constraints which
+    /// may be checked for satisfiability.
+    ///
+    /// NOTE: Assumes and requires that all binder names are unique, i.e.
+    /// there is no shadowing (it is OK to have multiple binders of the same
+    /// name so long as they never are used, e.g. UNDERSCORE).
+    pub fn flatten<F1>(&self, is_underscore: F1) -> Vec<FlatConstraint<T>>
+    where
+        F1: Copy + Fn(&T::Var) -> bool,
+    {
+        match self {
+            Constraint::Pred(pred, tag) => {
+                vec![FlatConstraint {
+                    binders: vec![],
+                    assumptions: Default::default(),
+                    head: pred.clone(),
+                    tag: tag.clone(),
+                }]
+            }
+            Constraint::Conj(constrs) => {
+                constrs
+                    .iter()
+                    .flat_map(|constr| constr.flatten(is_underscore))
+                    .collect_vec()
+            }
+            Constraint::ForAll(bind, constr) => {
+                let mut flat_constrs = constr.flatten(is_underscore);
+                for constr in &mut flat_constrs {
+                    if !is_underscore(&bind.name) {
+                        constr.binders.push((bind.name.clone(), bind.sort.clone()));
+                    }
+                    for pred in &bind.preds {
+                        constr.add_assumption(pred.clone());
+                    }
+                    // if is_invariant(&bind.name) {
+                    //     constr.add_invariant(bind.pred.clone());
+                    // } else {
+                    //     constr.add_assumption(bind.pred.clone());
+                    // }
+                }
+                flat_constrs
+            }
+        }
+    }
+}
+
+pub type WKVarAndConstrs<T> = (WKVar<T>, FlatConstraint<T>, Vec<FlatConstraint<T>>);
+pub type VarSorts<T> = (<T as Types>::Var, Sort<T>);
+
+#[derive_where(Clone, Debug)]
+pub struct FlatConstraint<T: Types> {
+    /// All of the binders that come before the head.
+    ///
+    /// NOTE: There should be no duplicates among the binders which are used (so
+    /// e.g. UNDERSCORE appearing multiple times is OK).
+    pub binders: Vec<(T::Var, Sort<T>)>,
+    /// All of the assumptions (i.e. a flattened conjunction of predicates from
+    /// all of the binders)
+    pub assumptions: FxIndexSet<Pred<T>>,
+    pub head: Pred<T>,
+    #[derive_where(skip)]
+    pub tag: Option<T::Tag>,
+}
+
+impl<T: Types> FlatConstraint<T> {
+    /// Removes any binder corresponding to a given var. Returns the new
+    /// constraint along with the removed binders and their sorts.
+    ///
+    /// NOTE: Assumes that all binders are unique and therefore there are no
+    /// name clashes.
+    pub fn remove_binders(&self, vars: &HashSet<T::Var>) -> (Vec<ConstDecl<T>>, FlatConstraint<T>) {
+        let mut new_binders = self.binders.clone();
+        let removed_binders = new_binders
+            .extract_if(.., |(var, _sort)| vars.contains(var))
+            .map(|(var, sort)| ConstDecl { name: var, sort, comment: None })
+            .collect_vec();
+        let new_constraint = FlatConstraint {
+            binders: new_binders,
+            assumptions: self.assumptions.clone(),
+            head: self.head.clone(),
+            tag: self.tag.clone(),
+        };
+        (removed_binders, new_constraint)
+    }
+
+    pub fn add_assumption(&mut self, assumption: Pred<T>) {
+        match assumption {
+            a @ Pred::KVar(_, _) => {
+                self.assumptions.insert(a);
+            }
+            Pred::Expr(e) => {
+                self.assumptions
+                    .extend(e.as_conjunction().into_iter().map(|e| Pred::Expr(e)));
+            }
+        }
+    }
+
+    pub fn preconditions(&self) -> FxIndexSet<Pred<T>> {
+        // If we add invariants, this becomes the union of both invariatns and
+        // assumptions
+        self.assumptions.clone()
+    }
+
+    /// Each element of the output is a wkvar, the constraint it corresponds to,
+    /// and the other constraints which must also hold.
+    ///
+    /// We essentially "decompose" each assumption which contains a wkvar in
+    /// order to transform the constraint into one in which that wkvar is
+    /// exposed.
+    ///
+    /// These decompositions are of two forms.
+    /// 1. Hoisting existentials to the top level.
+    /// 2. Splitting disjuncts using the below property. When we split a
+    ///    disjunct, we generate other constraints. A more sophisticated
+    ///    analysis might try and solve multiple constraints simultaneously; if
+    ///    we were to do this, we would probably want to change how this
+    ///    algorithm works to avoid redundancy, e.g. by instead of generating
+    ///    ((wkvar, constr, other_constrs) outputs generating (all_constrs)
+    ///    outputs and letting consumers choose which wkvars to solve in each
+    ///    constr.
+    ///
+    /// ```
+    /// (p || q) => c
+    /// ==
+    /// (p => c) && (q => c)
+    /// ```
+    pub fn wkvars_and_constrs(&self) -> Vec<WKVarAndConstrs<T>>
+where {
+        let mut wkvars_and_constraints = self
+            .assumptions
+            .iter()
+            .flat_map(|assumption| {
+                assumption
+                    .wkvars_in_conj()
+                    .into_iter()
+                    .map(|wkvar| (wkvar, self.clone(), vec![]))
+            })
+            .collect_vec();
+        // Frontier elements:
+        //   (current assumption, current constraint, other constraints)
+        let mut frontier: Vec<_> = self
+            .assumptions
+            .iter()
+            .enumerate()
+            .filter_map(|(i, assumption)| {
+                if let Pred::Expr(assumption_expr) = assumption
+                    && assumption_expr.has_wkvar_reachable_by_split()
+                {
+                    let mut flat_constraint = self.clone();
+                    flat_constraint.assumptions.shift_remove_index(i);
+                    Some((assumption_expr.clone(), flat_constraint, vec![]))
+                } else {
+                    None
+                }
+            })
+            .collect_vec();
+        while let Some((e, mut constr, other_constrs)) = frontier.pop() {
+            match e {
+                // Base case: we reached a wkvar.
+                //   Record it alongside the constraint it is associated with
+                //   and the other constraints.
+                //
+                // NOTE: we don't need wkvars_in_conj because we explicitly
+                //       handle the And.
+                Expr::WKVar(wkvar) => {
+                    // NOTE: Technically this isn't necessary, so we don't add
+                    // the wkvar back to the assumptions. But for completeness
+                    // we might want to.
+                    //
+                    // constr.add_assumption(Pred::Expr(e));
+                    wkvars_and_constraints.push((wkvar, constr, other_constrs));
+                }
+                // In the And case, we add to the frontier each expression that
+                // is a wkvar or can reach a wkvar; whenever we do so, we also
+                // take all of the other expressions in the And and put them
+                // into the current constr's assumptions.
+                //
+                // We do this kind of annoying filter rather than just adding
+                // everything because it prevents us from cloning a bunch.
+                Expr::And(conjs) => {
+                    for (i, new_assumption) in conjs.iter().enumerate() {
+                        if !(matches!(new_assumption, Expr::WKVar(..))
+                            || new_assumption.has_wkvar_reachable_by_split())
+                        {
+                            continue;
+                        }
+                        let mut new_constr = constr.clone();
+                        for (j, other_new_assumption) in conjs.iter().enumerate() {
+                            if i == j {
+                                continue;
+                            }
+                            new_constr.add_assumption(Pred::Expr(other_new_assumption.clone()));
+                        }
+                        frontier.push((new_assumption.clone(), new_constr, other_constrs.clone()));
+                    }
+                }
+                // Hoist the exists and add it to the frontier.
+                //
+                // We assume that there is a wkvar reachable here, so we don't check.
+                Expr::Exists(_, _) => {
+                    let (new_vars, hoisted_e) = e.hoist_exists();
+                    constr.binders.extend(new_vars);
+                    frontier.push((hoisted_e, constr, other_constrs));
+                }
+                // This is where things get kind of complicated.
+                //
+                // Morally speaking what we are doing is translating the constraint
+                //     (disjunct1 || disjunct2 || ...) => constr
+                // into multiple constraints
+                //     disjunct1 => constr
+                //     disjunct2 => constr
+                //     ...
+                // but our frontier looks like
+                //     (current assumption, constr without that assumption, other constrs we're no longer looking at)
+                // So if there are N disjuncts, we'll push N items to the frontier:
+                //     (disjunct1, constr, (disjunct2 => constr) + (disjunct3 => constr) + ... + other_constrs)
+                // Except the same optimization applies where we won't consider a case where the disjunct
+                // has no wkvars in it.
+                Expr::Or(disjuncts) => {
+                    for (i, disjunct) in disjuncts.iter().enumerate() {
+                        if !(matches!(disjunct, Expr::WKVar(..))
+                            || disjunct.has_wkvar_reachable_by_split())
+                        {
+                            continue;
+                        }
+                        let mut new_other_constrs = other_constrs.clone();
+                        for (j, other_disjunct) in disjuncts.iter().enumerate() {
+                            if i == j {
+                                continue;
+                            }
+                            let mut new_other_constr = constr.clone();
+                            new_other_constr.add_assumption(Pred::Expr(other_disjunct.clone()));
+                            new_other_constrs.push(new_other_constr);
+                        }
+                        frontier.push((disjunct.clone(), constr.clone(), new_other_constrs));
+                    }
+                }
+                _ => {}
+            }
+        }
+        wkvars_and_constraints
     }
 }
 
@@ -89,7 +335,7 @@ pub struct DataField<T: Types> {
     pub sort: Sort<T>,
 }
 
-#[derive_where(Hash, Clone, Debug)]
+#[derive_where(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum Sort<T: Types> {
     Int,
     Bool,
@@ -207,14 +453,14 @@ impl<T: Types> FunSort<T> {
     }
 }
 
-#[derive_where(Hash, Clone, Debug)]
+#[derive_where(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum SortCtor<T: Types> {
     Set,
     Map,
     Data(T::Sort),
 }
 
-#[derive_where(Hash, Clone, Debug)]
+#[derive_where(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum Pred<T: Types> {
     KVar(T::KVar, Vec<Expr<T>>),
     Expr(Expr<T>),
@@ -233,6 +479,23 @@ impl<T: Types> Pred<T> {
     pub fn is_concrete(&self) -> bool {
         matches!(self, Pred::Expr(_))
     }
+
+    // Give all the weak kvars that appear as part of a top-level conjunction.
+    // This is a syntactic analysis.
+    pub fn wkvars_in_conj(&self) -> Vec<WKVar<T>> {
+        match self {
+            Pred::Expr(e) => e.wkvars_in_conj(),
+            Pred::KVar(..) => vec![],
+        }
+    }
+
+    /// Remove all wkvars, replacing them with true.
+    pub fn strip_wkvars(&self) -> Self {
+        match self {
+            Pred::Expr(e) => Pred::Expr(e.strip_wkvars()),
+            Pred::KVar(..) => self.clone(),
+        }
+    }
 }
 
 #[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
@@ -249,19 +512,13 @@ impl BinRel {
     pub const INEQUALITIES: [BinRel; 4] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
 }
 
-#[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
-pub struct BoundVar {
-    pub level: usize,
-    pub idx: usize,
+#[derive_where(PartialEq, Eq, Hash, Debug, Clone)]
+pub struct WKVar<T: Types> {
+    pub wkvid: T::Var,
+    pub args: Vec<Expr<T>>,
 }
 
-impl BoundVar {
-    pub fn new(level: usize, idx: usize) -> Self {
-        Self { level, idx }
-    }
-}
-
-#[derive_where(Hash, Clone, Debug)]
+#[derive_where(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum Expr<T: Types> {
     Constant(Constant<T>),
     Var(T::Var),
@@ -279,6 +536,12 @@ pub enum Expr<T: Types> {
     ThyFunc(ThyFunc),
     IsCtor(T::Var, Box<Self>),
     Quantifier(Quantifier, Vec<(T::Var, Sort<T>)>, Box<Self>),
+    /// NOTE: WKVars are for internal use and we serialize them as UIFs using
+    /// the var argument. We also don't emit WKVars that are in head position
+    /// when translating to fixpoint.
+    ///
+    /// In an ideal world fixpoint would deal with weak kvars itself.
+    WKVar(WKVar<T>),
 }
 
 impl<T: Types> From<Constant<T>> for Expr<T> {
@@ -288,6 +551,7 @@ impl<T: Types> From<Constant<T>> for Expr<T> {
 }
 
 impl<T: Types> Expr<T> {
+    pub const FALSE: Self = Expr::Constant(Constant::Boolean(false));
     pub const TRUE: Self = Expr::Constant(Constant::Boolean(true));
 
     pub const fn int(val: u128) -> Expr<T> {
@@ -355,11 +619,14 @@ impl<T: Types> Expr<T> {
                 }
                 expr.var_sorts_to_int();
             }
+            Expr::WKVar(_) => {
+                unimplemented!()
+            }
         }
     }
 
-    pub fn free_vars(&self) -> IndexSet<T::Var> {
-        let mut vars = IndexSet::new();
+    pub fn free_vars(&self) -> FxIndexSet<T::Var> {
+        let mut vars = FxIndexSet::default();
         match self {
             Expr::Constant(_) | Expr::ThyFunc(_) => {}
             Expr::Var(x) => {
@@ -414,6 +681,11 @@ impl<T: Types> Expr<T> {
                 }
                 vars.extend(inner);
             }
+            Expr::WKVar(WKVar { wkvid: _, args }) => {
+                for e in args {
+                    vars.extend(e.free_vars());
+                }
+            }
         };
         vars
     }
@@ -421,9 +693,219 @@ impl<T: Types> Expr<T> {
     pub fn is_trivially_true(&self) -> bool {
         matches!(self, Expr::Constant(Constant::Boolean(true)))
     }
+
+    pub fn substitute(&self, subst: &FxIndexMap<T::Var, Self>) -> Self {
+        match self {
+            Expr::Var(v) => subst.get(v).cloned().unwrap_or_else(|| self.clone()),
+            Expr::Constant(_) | Expr::ThyFunc(_) => self.clone(),
+            Expr::App(expr, sort_args, exprs, out_sort) => Expr::App(
+                Box::new(expr.substitute(subst)),
+                sort_args.clone(),
+                exprs.iter().map(|e| e.substitute(subst)).collect_vec(),
+                out_sort.clone(),
+            ),
+            Expr::Neg(expr) => Expr::Neg(Box::new(expr.substitute(subst))),
+            Expr::BinaryOp(bin_op, args) => Expr::BinaryOp(
+                *bin_op,
+                Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
+            ),
+            Expr::IfThenElse(args) => Expr::IfThenElse(Box::new([
+                args[0].substitute(subst),
+                args[1].substitute(subst),
+                args[2].substitute(subst),
+            ])),
+            Expr::And(exprs) => Expr::And(exprs.iter().map(|e| e.substitute(subst)).collect_vec()),
+            Expr::Or(exprs) => Expr::Or(exprs.iter().map(|e| e.substitute(subst)).collect_vec()),
+            Expr::Not(expr) => Expr::Not(Box::new(expr.substitute(subst))),
+            Expr::Imp(args) => {
+                Expr::Imp(Box::new([args[0].substitute(subst), args[1].substitute(subst)]))
+            }
+            Expr::Iff(args) => {
+                Expr::Iff(Box::new([args[0].substitute(subst), args[1].substitute(subst)]))
+            }
+            Expr::Atom(bin_rel, args) => Expr::Atom(
+                *bin_rel,
+                Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
+            ),
+            Expr::Let(var, args) => Expr::Let(
+                var.clone(),
+                Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
+            ),
+            Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.substitute(subst))),
+            Expr::Exists(sorts, expr) => Expr::Exists(sorts.clone(), Box::new(expr.substitute(subst))),
+            Expr::WKVar(WKVar { wkvid, args }) => Expr::WKVar(WKVar {
+                wkvid: wkvid.clone(),
+                args: args.iter().map(|e| e.substitute(subst)).collect_vec(),
+            }),
+        }
+    }
+
+    // Give all the weak kvars that appear as part of a top-level conjunction.
+    // This is a syntactic analysis.
+    pub fn wkvars_in_conj(&self) -> Vec<WKVar<T>> {
+        match self {
+            Expr::WKVar(wkvar) => vec![wkvar.clone()],
+            Expr::And(conj) => conj.iter().flat_map(|e| e.wkvars_in_conj()).collect(),
+            _ => vec![],
+        }
+    }
+
+    pub fn uncurry(&self) -> Self {
+        match self {
+            Expr::App(head, sort_args, args, out_sort) => {
+                let uncurried_head = head.uncurry();
+                let uncurried_args = args.iter().map(Expr::uncurry).collect_vec();
+                match uncurried_head {
+                    Expr::App(head_head, head_sort_args, mut head_args, _) => {
+                        head_args.extend(uncurried_args);
+                        let sort_args = match (head_sort_args, sort_args) {
+                            (Some(mut head_sort_args), Some(sort_args)) => {
+                                head_sort_args.extend(sort_args.clone());
+                                Some(head_sort_args)
+                            }
+                            _ => None,
+                        };
+                        Expr::App(head_head, sort_args, head_args, out_sort.clone())
+                    }
+                    Expr::WKVar(WKVar { wkvid, args: mut wkvar_args }) => {
+                        wkvar_args.extend(uncurried_args);
+                        Expr::WKVar(WKVar { wkvid, args: wkvar_args })
+                    }
+                    head => Expr::App(Box::new(head), sort_args.clone(), uncurried_args, out_sort.clone()),
+                }
+            }
+            Expr::Constant(_) | Expr::Var(_) | Expr::ThyFunc(_) => self.clone(),
+            Expr::Neg(expr) => Expr::Neg(Box::new(expr.uncurry())),
+            Expr::BinaryOp(bin_op, args) => {
+                Expr::BinaryOp(*bin_op, Box::new([args[0].uncurry(), args[1].uncurry()]))
+            }
+            Expr::IfThenElse(args) => Expr::IfThenElse(Box::new([
+                args[0].uncurry(),
+                args[1].uncurry(),
+                args[2].uncurry(),
+            ])),
+            Expr::And(exprs) => Expr::And(exprs.iter().map(Expr::uncurry).collect_vec()),
+            Expr::Or(exprs) => Expr::Or(exprs.iter().map(Expr::uncurry).collect_vec()),
+            Expr::Not(expr) => Expr::Not(Box::new(expr.uncurry())),
+            Expr::Imp(args) => Expr::Imp(Box::new([args[0].uncurry(), args[1].uncurry()])),
+            Expr::Iff(args) => Expr::Iff(Box::new([args[0].uncurry(), args[1].uncurry()])),
+            Expr::Atom(bin_rel, args) => {
+                Expr::Atom(*bin_rel, Box::new([args[0].uncurry(), args[1].uncurry()]))
+            }
+            Expr::Let(var, args) => {
+                Expr::Let(var.clone(), Box::new([args[0].uncurry(), args[1].uncurry()]))
+            }
+            Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.uncurry())),
+            Expr::Exists(sorts, expr) => Expr::Exists(sorts.clone(), Box::new(expr.uncurry())),
+            Expr::WKVar(WKVar { wkvid, args }) => Expr::WKVar(WKVar {
+                wkvid: wkvid.clone(),
+                args: args.iter().map(Expr::uncurry).collect_vec(),
+            }),
+        }
+    }
+
+    pub fn has_wkvar_reachable_by_split(&self) -> bool {
+        if !matches!(self, Expr::Exists(..) | Expr::Or(..) | Expr::And(..)) {
+            return false;
+        }
+        match self {
+            Expr::Or(exprs) => exprs.iter().any(|expr| {
+                matches!(expr, Expr::WKVar(..)) || expr.has_wkvar_reachable_by_split()
+            }),
+            Expr::Exists(_, expr) => {
+                !expr.wkvars_in_conj().is_empty() || expr.has_wkvar_reachable_by_split()
+            }
+            Expr::And(exprs) => exprs.iter().any(Expr::has_wkvar_reachable_by_split),
+            _ => false,
+        }
+    }
+
+    pub fn hoist_exists(&self) -> (Vec<VarSorts<T>>, Expr<T>) {
+        match self {
+            Expr::Exists(var_sorts, inner_e) => {
+                let mut vars = var_sorts.clone();
+                let (new_vars, hoisted_inner) = inner_e.hoist_exists();
+                vars.extend(new_vars);
+                (vars, hoisted_inner)
+            }
+            Expr::And(exprs) => {
+                let mut vars = vec![];
+                let expr = Expr::And(
+                    exprs
+                        .iter()
+                        .flat_map(|expr| {
+                            let (new_vars, hoisted_expr) = expr.hoist_exists();
+                            vars.extend(new_vars);
+                            match hoisted_expr {
+                                Expr::And(exprs) => exprs,
+                                expr => vec![expr],
+                            }
+                        })
+                        .collect(),
+                );
+                (vars, expr)
+            }
+            _ => (vec![], self.clone()),
+        }
+    }
+
+    pub fn as_conjunction(self) -> Vec<Self> {
+        match self {
+            Expr::And(exprs) => exprs,
+            expr => vec![expr],
+        }
+    }
+
+    pub fn strip_wkvars(&self) -> Self {
+        match self {
+            Expr::Constant(_) | Expr::Var(_) | Expr::ThyFunc(_) => self.clone(),
+            Expr::WKVar(..) => Expr::TRUE,
+            Expr::App(head, sort_args, args, out_sort) => Expr::App(
+                Box::new(head.strip_wkvars()),
+                sort_args.clone(),
+                args.iter().map(Expr::strip_wkvars).collect(),
+                out_sort.clone(),
+            ),
+            Expr::Neg(expr) => Expr::Neg(Box::new(expr.strip_wkvars())),
+            Expr::BinaryOp(bin_op, args) => Expr::BinaryOp(
+                *bin_op,
+                Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]),
+            ),
+            Expr::IfThenElse(args) => Expr::IfThenElse(Box::new([
+                args[0].strip_wkvars(),
+                args[1].strip_wkvars(),
+                args[2].strip_wkvars(),
+            ])),
+            Expr::And(exprs) => Expr::And(exprs.iter().map(Expr::strip_wkvars).collect_vec()),
+            Expr::Or(exprs) => Expr::Or(exprs.iter().map(Expr::strip_wkvars).collect_vec()),
+            Expr::Not(expr) => Expr::Not(Box::new(expr.strip_wkvars())),
+            Expr::Imp(args) => Expr::Imp(Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()])),
+            Expr::Iff(args) => Expr::Iff(Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()])),
+            Expr::Atom(bin_rel, args) => Expr::Atom(
+                *bin_rel,
+                Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]),
+            ),
+            Expr::Let(var, args) => Expr::Let(
+                var.clone(),
+                Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]),
+            ),
+            Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.strip_wkvars())),
+            Expr::Exists(sorts, expr) => Expr::Exists(sorts.clone(), Box::new(expr.strip_wkvars())),
+        }
+    }
+
+    pub fn total_num_disjuncts(&self) -> usize {
+        match self {
+            Expr::Or(disjuncts) => {
+                disjuncts.len() + disjuncts.iter().map(Expr::total_num_disjuncts).sum::<usize>()
+            }
+            Expr::And(conjuncts) => conjuncts.iter().map(Expr::total_num_disjuncts).sum(),
+            _ => 0,
+        }
+    }
 }
 
-#[derive_where(Hash, Clone, Debug)]
+#[derive_where(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum Constant<T: Types> {
     Numeral(u128),
     Real(T::Real),
