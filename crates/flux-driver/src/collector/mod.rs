@@ -111,7 +111,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         match &item.kind {
             ItemKind::Fn { .. } => {
                 if attrs.has_attrs() {
-                    let fn_sig = attrs.fn_sig();
+                    let (fn_sig, attr_span) =
+                        if let Some((sig, span)) = attrs.fn_sig_with_attr_span() {
+                            (Some(sig), Some(span))
+                        } else {
+                            (None, None)
+                        };
                     self.check_fn_sig_name(owner_id, fn_sig.as_ref())?;
                     let node_id = self.next_node_id();
                     self.insert_item(
@@ -122,6 +127,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                             node_id,
                         },
                     )?;
+                    if let Some(span) = attr_span {
+                        self.specs
+                            .set_spec_attr_span(owner_id.def_id.to_def_id(), span);
+                    }
                 }
             }
             ItemKind::Struct(_, _, variant) => {
@@ -172,13 +181,21 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind
             && attrs.has_attrs()
         {
-            let sig = attrs.fn_sig();
+            let (sig, attr_span) = if let Some((sig, span)) = attrs.fn_sig_with_attr_span() {
+                (Some(sig), Some(span))
+            } else {
+                (None, None)
+            };
             self.check_fn_sig_name(owner_id, sig.as_ref())?;
             let node_id = self.next_node_id();
             self.insert_trait_item(
                 owner_id,
                 surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
             )?;
+            if let Some(span) = attr_span {
+                self.specs
+                    .set_spec_attr_span(owner_id.def_id.to_def_id(), span);
+            }
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         Ok(())
@@ -192,13 +209,21 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let ImplItemKind::Fn(..) = &impl_item.kind
             && attrs.has_attrs()
         {
-            let sig = attrs.fn_sig();
+            let (sig, attr_span) = if let Some((sig, span)) = attrs.fn_sig_with_attr_span() {
+                (Some(sig), Some(span))
+            } else {
+                (None, None)
+            };
             self.check_fn_sig_name(owner_id, sig.as_ref())?;
             let node_id = self.next_node_id();
             self.insert_impl_item(
                 owner_id,
                 surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
             )?;
+            if let Some(span) = attr_span {
+                self.specs
+                    .set_spec_attr_span(owner_id.def_id.to_def_id(), span);
+            }
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         Ok(())
@@ -625,6 +650,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::AssumeParametric)?
             }
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
+            ("no_suggestions", hir::AttrArgs::Empty) => FluxAttrKind::NoSuggestions,
             ("specs", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_detached_specs, FluxAttrKind::DetachedSpecs)?
             }
@@ -749,6 +775,7 @@ enum FluxAttrKind {
     NoPanic,
     NoPanicIf(surface::Expr),
     AssumeParametric(Vec<Ident>),
+    NoSuggestions,
     /// See `detachXX.rs`
     DetachedSpecs(surface::DetachedSpecs),
 }
@@ -826,6 +853,21 @@ impl FluxAttrs {
             fn_sig.no_panic = read_attr!(self, NoPanicIf);
         }
         fn_sig
+    }
+
+    fn fn_sig_with_attr_span(&mut self) -> Option<(surface::FnSig, Span)> {
+        self.map
+            .swap_remove(attr_name!(FnSig))
+            .and_then(|mut attrs| {
+                attrs.pop().and_then(|attr| {
+                    if let FluxAttrKind::FnSig(mut sig) = attr.kind {
+                        sig.no_panic = read_attr!(self, NoPanicIf);
+                        Some((sig, attr.span))
+                    } else {
+                        None
+                    }
+                })
+            })
     }
 
     fn ty_alias(&mut self) -> Option<Box<surface::TyAlias>> {
@@ -907,6 +949,7 @@ impl FluxAttrs {
                 FluxAttrKind::ShouldFail => surface::Attr::ShouldFail,
                 FluxAttrKind::NoPanic => surface::Attr::NoPanic,
                 FluxAttrKind::AssumeParametric(names) => surface::Attr::AssumeParametric(names),
+                FluxAttrKind::NoSuggestions => surface::Attr::NoSuggestions,
                 FluxAttrKind::Opaque
                 | FluxAttrKind::Reflect
                 | FluxAttrKind::FnSig(_)
@@ -961,6 +1004,7 @@ impl FluxAttrKind {
             FluxAttrKind::NoPanic => attr_name!(NoPanic),
             FluxAttrKind::NoPanicIf(_) => attr_name!(NoPanicIf),
             FluxAttrKind::AssumeParametric(_) => attr_name!(AssumeParametric),
+            FluxAttrKind::NoSuggestions => attr_name!(NoSuggestions),
         }
     }
 }

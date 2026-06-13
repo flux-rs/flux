@@ -197,6 +197,7 @@ pub struct PrettyCx<'genv, 'tcx> {
     pub hide_refinements: bool,
     pub hide_regions: bool,
     pub hide_sorts: bool,
+    pub hide_default_args: bool,
     pub pretty_var_env: PrettyMap<Name>,
     pub bvar_env: BoundVarEnv,
     pub earlyparam_env: RefCell<Option<EarlyParamEnv>>,
@@ -227,6 +228,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             hide_refinements: false,
             hide_regions: false,
             hide_sorts: true,
+            hide_default_args: true,
             pretty_var_env: PrettyMap::new(),
             bvar_env: BoundVarEnv::default(),
             earlyparam_env: RefCell::new(None),
@@ -262,6 +264,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
                 hide_refinements,
                 hide_regions,
                 hide_sorts,
+                hide_default_args,
             ]
         );
     }

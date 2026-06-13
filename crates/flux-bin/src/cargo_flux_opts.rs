@@ -45,7 +45,21 @@ impl CargoFluxCommand {
     pub fn forward_args(&self, cmd: &mut Command, config_file: &Path) {
         match self {
             CargoFluxCommand::Check(check_opts) => {
-                cmd.arg("check");
+                if check_opts.fix {
+                    // `cargo fix` applies span_suggestion replacements written by flux-driver.
+                    //
+                    // Mechanism: cargo fix sets RUSTC_WORKSPACE_WRAPPER to a self-re-exec proxy
+                    // that runs flux-driver (our RUSTC) with --error-format=json, parses the
+                    // resulting diagnostic JSON for suggested_replacement spans, and applies them
+                    // via rustfix. This is the same pipeline Clippy uses, just with RUSTC= instead
+                    // of RUSTC_WORKSPACE_WRAPPER= on our side; the two env vars are independent.
+                    cmd.arg("fix")
+                        // Implies broken-code (since Flux errors are not
+                        // warnings, it wouldn't apply otherwise).
+                        .arg("--broken-code");
+                } else {
+                    cmd.arg("check");
+                }
                 check_opts.forward_args(cmd);
             }
             CargoFluxCommand::Build(build_opts) => {
@@ -119,11 +133,30 @@ pub struct CompileOpts {
     ///   <pattern>               — bare string treated as a glob
     #[arg(long, value_name = "PATTERN")]
     pub only_check: Option<String>,
+
+    /// Automatically apply Flux's suggested annotations to the source code
+    /// using 'cargo fix'.
+    ///
+    /// Implies --broken-code.
+    #[arg(long)]
+    pub fix: bool,
+
+    #[command(flatten)]
+    fix_opts: FixOpts,
 }
 
 impl CompileOpts {
     fn forward_args(&self, cmd: &mut Command) {
-        let CompileOpts { message_format, workspace, features, compilation, manifest, .. } = self;
+        let CompileOpts {
+            message_format,
+            workspace,
+            features,
+            compilation,
+            manifest,
+            fix: _,
+            fix_opts,
+            ..
+        } = self;
         if let Some(message_format) = &message_format {
             cmd.args(["--message-format", message_format]);
         }
@@ -131,10 +164,11 @@ impl CompileOpts {
         features.forward_args(cmd);
         compilation.forward_args(cmd);
         manifest.forward_args(cmd);
+        fix_opts.forward_args(cmd);
     }
 
     fn forward_to_metadata(&self, meta: &mut MetadataCommand) {
-        let CompileOpts { features, manifest, .. } = self;
+        let CompileOpts { features, manifest, fix: _, fix_opts: _, .. } = self;
         features.forward_to_metadata(meta);
         manifest.forward_to_metadata(meta);
     }
@@ -369,6 +403,32 @@ impl ManifestOptions {
         let ManifestOptions { manifest_path, offline: _ } = self;
         if let Some(manifest_path) = &manifest_path {
             meta.manifest_path(manifest_path);
+        }
+    }
+}
+
+/// Options forwarded verbatim to `cargo fix` when `--fix` is passed.
+/// These are ignored when running `cargo check`.
+#[derive(Default, Debug, clap::Args)]
+#[command(about = None, long_about = None, next_help_heading = "Fix Options")]
+pub struct FixOpts {
+    /// Don't require a clean git working directory when running `--fix`.
+    #[arg(long, requires = "fix")]
+    allow_dirty: bool,
+
+    /// Don't require a staged git index when running `--fix`.
+    #[arg(long, requires = "fix")]
+    allow_staged: bool,
+}
+
+impl FixOpts {
+    fn forward_args(&self, cmd: &mut Command) {
+        let FixOpts { allow_dirty, allow_staged } = self;
+        if *allow_dirty {
+            cmd.arg("--allow-dirty");
+        }
+        if *allow_staged {
+            cmd.arg("--allow-staged");
         }
     }
 }

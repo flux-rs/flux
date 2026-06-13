@@ -1,10 +1,11 @@
-use std::{collections::HashMap, iter};
+use std::iter;
 
 use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
     Assignments, BinRel, Types,
-    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
+    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier, WKVar},
     constraint_fragments::ConstraintFragments,
     graph::topological_sort_sccs,
 };
@@ -39,8 +40,8 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub(crate) fn kvar_mappings(&self) -> HashMap<T::KVar, Vec<Constraint<T>>> {
-        let mut kvar_to_fragments: HashMap<T::KVar, Vec<Constraint<T>>> = HashMap::new();
+    pub(crate) fn kvar_mappings(&self) -> FxIndexMap<T::KVar, Vec<Constraint<T>>> {
+        let mut kvar_to_fragments: FxIndexMap<T::KVar, Vec<Constraint<T>>> = FxIndexMap::default();
         for frag in self.depth_first_fragments() {
             if let Some(kvar) = frag.fragment_kvar_head() {
                 kvar_to_fragments
@@ -55,11 +56,11 @@ impl<T: Types> Constraint<T> {
     /// Computes the kvar dependency graph as an adjacency list.
     ///
     /// There's an edge $k0 -> $k1, if $k1 appears as an assumption when $k0 is a head.
-    pub(crate) fn kvar_dep_graph(&self) -> HashMap<T::KVar, Vec<T::KVar>> {
+    pub(crate) fn kvar_dep_graph(&self) -> FxIndexMap<T::KVar, Vec<T::KVar>> {
         fn go<T: Types>(
             cstr: &Constraint<T>,
             deps: &mut Vec<T::KVar>,
-            graph: &mut HashMap<T::KVar, Vec<T::KVar>>,
+            graph: &mut FxIndexMap<T::KVar, Vec<T::KVar>>,
         ) {
             match cstr {
                 Constraint::Pred(pred, _) => {
@@ -99,7 +100,7 @@ impl<T: Types> Constraint<T> {
             .into_iter()
             .rev()
             .flatten()
-            .flat_map(|kvid| kvar_to_fragments.remove(&kvid).unwrap())
+            .flat_map(|kvid| kvar_to_fragments.shift_remove(&kvid).unwrap())
             .collect()
     }
 
@@ -352,7 +353,7 @@ impl<T: Types> Pred<T> {
                                     .map(|arg| &arg.0)
                                     .zip(qualifier.1.iter().map(|arg_idx| &args[*arg_idx]))
                                     .fold(qualifier.0.body.clone(), |acc, e| {
-                                        acc.substitute(e.0, e.1)
+                                        acc.substitute_var(e.0, e.1)
                                     }),
                             )
                         })
@@ -383,7 +384,7 @@ impl<T: Types> Pred<T> {
                         .iter()
                         .map(|arg| &arg.0)
                         .zip(assignment.1.iter().map(|arg_idx| &args[*arg_idx]))
-                        .fold(assignment.0.body.clone(), |acc, e| acc.substitute(e.0, e.1)),
+                        .fold(assignment.0.body.clone(), |acc, e| acc.substitute_var(e.0, e.1)),
                 )
             }
             _ => panic!("Conjunctions should not occur here"),
@@ -465,10 +466,14 @@ impl<T: Types> Expr<T> {
             Expr::Exists(..) => {
                 todo!("unexpected! exists")
             }
+            Expr::WKVar(WKVar { wkvid: _, args }) => {
+                args.iter_mut()
+                    .for_each(|expr| expr.substitute_in_place(v_from, v_to));
+            }
         }
     }
 
-    pub(crate) fn substitute(&self, v_from: &T::Var, v_to: &Expr<T>) -> Self {
+    pub(crate) fn substitute_var(&self, v_from: &T::Var, v_to: &Expr<T>) -> Self {
         let mut new_expr = self.clone();
         new_expr.substitute_in_place(v_from, v_to);
         new_expr

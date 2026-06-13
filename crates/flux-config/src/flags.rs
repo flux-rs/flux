@@ -230,6 +230,13 @@ pub struct Flags {
         default_missing_value = "false"
     )]
     pub flux_verbose: bool,
+    /// If `true`, all code will have suggestions disabled.
+    #[arg(
+        long = flux_arg!("no-suggestions"),
+        num_args = 0..=1,
+        default_missing_value = "false"
+    )]
+    pub no_suggestions_default: bool,
 }
 
 impl Default for Flags {
@@ -266,6 +273,7 @@ impl Default for Flags {
             no_panic: false,
             std_extern_specs: false,
             flux_verbose: false,
+            no_suggestions_default: false,
         }
     }
 }
@@ -310,6 +318,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "no-panic" => parse_bool(&mut flags.no_panic, value),
             "std-extern-specs" => parse_bool(&mut flags.std_extern_specs, value),
             "flux-verbose" => parse_bool(&mut flags.flux_verbose, value),
+            "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
