@@ -226,7 +226,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         };
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
-        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
+        let (task, _) = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
 
         log_proof(self.genv, def_id)?;
         // Skip re-generation if task is already cached (same hash → same lean files on disk).
@@ -283,9 +283,10 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             return Ok(Answer::trivial());
         }
 
-        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
+        let (task, suggestion_ctx) =
+            fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
         let result = fcx.run_task(cache, def_id, kind, &task)?;
-        Ok(fcx.result_to_answer(result))
+        Ok(fcx.result_to_answer(result, suggestion_ctx))
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
