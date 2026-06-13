@@ -219,7 +219,12 @@ impl Pretty for PolyFuncSort {
 
 impl Pretty for FnSig {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        w!(cx, f, "fn({:?})", join!(", ", self.inputs.iter().map(|input| input.shallow_canonicalize())))?;
+        w!(
+            cx,
+            f,
+            "fn({:?})",
+            join!(", ", self.inputs.iter().map(|input| input.shallow_canonicalize()))
+        )?;
         w!(cx, f, " -> ")?;
         // Format requires *before* entering the output binder context: requires predicates
         // reference FnArgs variables (from the outer PolyFnSig binder) and pushing the FnRet
@@ -244,9 +249,11 @@ impl Pretty for FnSig {
             let filtered_ensures = fn_output
                 .ensures
                 .iter()
-                .filter(|e| match e {
-                    Ensures::Pred(p) => !p.is_trivially_true(),
-                    _ => true,
+                .filter(|e| {
+                    match e {
+                        Ensures::Pred(p) => !p.is_trivially_true(),
+                        _ => true,
+                    }
                 })
                 .collect_vec();
             if !filtered_ensures.is_empty() {
@@ -269,9 +276,11 @@ impl Pretty for FnOutput {
         let filtered_ensures = self
             .ensures
             .iter()
-            .filter(|e| match e {
-                Ensures::Pred(p) => !p.is_trivially_true(),
-                _ => true,
+            .filter(|e| {
+                match e {
+                    Ensures::Pred(p) => !p.is_trivially_true(),
+                    _ => true,
+                }
             })
             .collect_vec();
         if !filtered_ensures.is_empty() {
@@ -602,17 +611,16 @@ impl Pretty for BaseTy {
                             rustc_middle::ty::GenericParamDefKind::Type { has_default, .. } => {
                                 has_default
                             }
-                            rustc_middle::ty::GenericParamDefKind::Const { has_default, .. } => {
-                                has_default
-                            }
+                            rustc_middle::ty::GenericParamDefKind::Const {
+                                has_default, ..
+                            } => has_default,
                             _ => false,
                         };
                         if !has_default {
                             break;
                         }
-                        let earlier_args = tcx.mk_args_from_iter(
-                            args[..arg_idx].iter().map(|a| a.to_rustc(tcx)),
-                        );
+                        let earlier_args =
+                            tcx.mk_args_from_iter(args[..arg_idx].iter().map(|a| a.to_rustc(tcx)));
                         let default_ty = tcx.type_of(param.def_id).instantiate(tcx, earlier_args);
                         if arg.to_rustc(tcx) != rustc_middle::ty::GenericArg::from(default_ty) {
                             break;
