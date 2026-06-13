@@ -26,7 +26,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     pretty::{NestedString, PrettyCx, PrettyNested},
-    queries::QueryResult,
+    queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List,
@@ -1770,10 +1770,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             rty::ExprKind::Quant(QuantKind::Forall, rty::QuantDom::Unbounded(_), expr) => {
                 if !matches!(self.backend, Backend::Lean) {
-                    span_bug!(
-                        self.def_span(),
-                        "Unbounded quantifiers only supported for lean backend: `{expr:?}`"
-                    );
+                    let msg = "unbounded quantifiers only supported in external proofs";
+                    let span = self.def_span();
+                    return Err(QueryErr::Emitted(
+                        self.genv
+                            .sess()
+                            .dcx()
+                            .handle()
+                            .struct_span_err(span, msg)
+                            .emit(),
+                    ));
                 } else {
                     let expr = self.body_to_fixpoint(expr, scx)?;
                     fixpoint::Expr::Quantifier(
