@@ -2378,7 +2378,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             self.genv.resolve_id(wkvid.parent_fn),
             ResolvedDefId::Local(..) | ResolvedDefId::ExternSpec(..)
         ) {
-            return None;
+            unreachable!("should not ever trigger");
         }
         let key = ConstKey::WKVar(wkvid.clone(), self_args);
         let arg_sorts = self
