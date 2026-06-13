@@ -20,7 +20,7 @@ use bitflags::bitflags;
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
     ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, Lambda, Loc, Name, NameProvenance,
-    Path, PrettyMap, PrettyVar, QuantDom, RawPtrField, Real, SpecFuncKind, UnOp, Var,
+    Path, PrettyMap, PrettyVar, QuantDom, RawPtrField, Real, SpecFuncKind, UnOp, Var, WKVar, WKVid,
 };
 pub use flux_arc_interner::List;
 use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
@@ -1167,6 +1167,10 @@ impl Sort {
             }
         }
         go(self, &mut f, &mut vec![]);
+    }
+
+    pub fn is_param(&self) -> bool {
+        matches!(self, Self::Param(_))
     }
 }
 
