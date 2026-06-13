@@ -54,9 +54,9 @@ impl CargoFluxCommand {
                     // via rustfix. This is the same pipeline Clippy uses, just with RUSTC= instead
                     // of RUSTC_WORKSPACE_WRAPPER= on our side; the two env vars are independent.
                     cmd.arg("fix")
-                       // Implies broken-code (since Flux errors are not
-                       // warnings, it wouldn't apply otherwise).
-                       .arg("--broken-code");
+                        // Implies broken-code (since Flux errors are not
+                        // warnings, it wouldn't apply otherwise).
+                        .arg("--broken-code");
                 } else {
                     cmd.arg("check");
                 }
