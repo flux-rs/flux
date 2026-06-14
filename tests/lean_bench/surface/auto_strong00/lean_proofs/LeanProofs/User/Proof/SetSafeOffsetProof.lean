@@ -68,6 +68,8 @@ open SetSafeOffsetQualifs
 set_option maxHeartbeats 5000000
 def SetSafeOffset_proof : SetSafeOffset := by
   unfold SetSafeOffset
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

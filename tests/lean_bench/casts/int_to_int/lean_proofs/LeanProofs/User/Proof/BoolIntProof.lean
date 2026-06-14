@@ -68,6 +68,8 @@ open BoolIntQualifs
 set_option maxHeartbeats 5000000
 def BoolInt_proof : BoolInt := by
   unfold BoolInt
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

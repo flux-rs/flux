@@ -68,6 +68,8 @@ open MkSillyQualifs
 set_option maxHeartbeats 5000000
 def MkSilly_proof : MkSilly := by
   unfold MkSilly
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

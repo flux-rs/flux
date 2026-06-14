@@ -68,6 +68,8 @@ open Lib4MutQualifs
 set_option maxHeartbeats 5000000
 def Lib4Mut_proof : Lib4Mut := by
   unfold Lib4Mut
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

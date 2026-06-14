@@ -68,6 +68,8 @@ open MappendQualifs
 set_option maxHeartbeats 5000000
 def Mappend_proof : Mappend := by
   unfold Mappend
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

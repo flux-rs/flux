@@ -68,6 +68,8 @@ open UseStructQualifs
 set_option maxHeartbeats 5000000
 def UseStruct_proof : UseStruct := by
   unfold UseStruct
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

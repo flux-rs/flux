@@ -68,6 +68,8 @@ open MutFieldProjectionsQualifs
 set_option maxHeartbeats 5000000
 def MutFieldProjections_proof : MutFieldProjections := by
   unfold MutFieldProjections
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

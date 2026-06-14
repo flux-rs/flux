@@ -68,6 +68,8 @@ open UintUintLossless2Qualifs
 set_option maxHeartbeats 5000000
 def UintUintLossless2_proof : UintUintLossless2 := by
   unfold UintUintLossless2
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

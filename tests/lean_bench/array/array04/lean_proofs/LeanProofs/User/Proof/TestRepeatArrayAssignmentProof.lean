@@ -68,6 +68,8 @@ open TestRepeatArrayAssignmentQualifs
 set_option maxHeartbeats 5000000
 def TestRepeatArrayAssignment_proof : TestRepeatArrayAssignment := by
   unfold TestRepeatArrayAssignment
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

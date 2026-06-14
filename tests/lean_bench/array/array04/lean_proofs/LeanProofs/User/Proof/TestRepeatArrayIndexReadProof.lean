@@ -68,6 +68,8 @@ open TestRepeatArrayIndexReadQualifs
 set_option maxHeartbeats 5000000
 def TestRepeatArrayIndexRead_proof : TestRepeatArrayIndexRead := by
   unfold TestRepeatArrayIndexRead
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

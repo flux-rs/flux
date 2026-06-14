@@ -68,6 +68,8 @@ open TestAlignOfQualifs
 set_option maxHeartbeats 5000000
 def TestAlignOf_proof : TestAlignOf := by
   unfold TestAlignOf
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

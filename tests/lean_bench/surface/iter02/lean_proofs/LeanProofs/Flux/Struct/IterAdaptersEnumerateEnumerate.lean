@@ -8,9 +8,10 @@ namespace F
 @[ext]
 structure IterAdaptersEnumerateEnumerate (t0 : Type) [Inhabited t0] where
   mkIterAdaptersEnumerateEnumerate₀ ::
-    idx : Int
-    inner : t0
+    idx : Int 
+    inner : t0 
+  deriving Inhabited
+attribute [grind .] IterAdaptersEnumerateEnumerate.ext
 
-instance [Inhabited t0] : Inhabited (IterAdaptersEnumerateEnumerate t0) where
-  default := ⟨default, default⟩
+
 end F

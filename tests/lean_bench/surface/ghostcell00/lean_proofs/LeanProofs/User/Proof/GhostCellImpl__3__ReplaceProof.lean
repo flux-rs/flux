@@ -68,6 +68,8 @@ open GhostCellImpl3ReplaceQualifs
 set_option maxHeartbeats 5000000
 def GhostCellImpl__3__Replace_proof : GhostCellImpl__3__Replace := by
   unfold GhostCellImpl__3__Replace
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

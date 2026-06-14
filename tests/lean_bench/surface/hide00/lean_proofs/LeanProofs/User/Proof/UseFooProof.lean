@@ -68,6 +68,8 @@ open UseFooQualifs
 set_option maxHeartbeats 5000000
 def UseFoo_proof : UseFoo := by
   unfold UseFoo
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

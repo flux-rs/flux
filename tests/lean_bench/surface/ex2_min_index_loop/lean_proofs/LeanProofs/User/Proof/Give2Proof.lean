@@ -68,6 +68,8 @@ open Give2Qualifs
 set_option maxHeartbeats 5000000
 def Give2_proof : Give2 := by
   unfold Give2
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

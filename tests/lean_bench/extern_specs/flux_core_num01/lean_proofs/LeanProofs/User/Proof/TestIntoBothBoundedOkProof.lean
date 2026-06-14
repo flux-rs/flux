@@ -68,6 +68,8 @@ open TestIntoBothBoundedOkQualifs
 set_option maxHeartbeats 5000000
 def TestIntoBothBoundedOk_proof : TestIntoBothBoundedOk := by
   unfold TestIntoBothBoundedOk
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

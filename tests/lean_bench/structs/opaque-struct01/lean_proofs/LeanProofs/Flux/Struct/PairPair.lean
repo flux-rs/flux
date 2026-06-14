@@ -10,6 +10,8 @@ structure PairPair  where
   mkPairPair₀ ::
     a : Int 
     b : Int 
+  deriving Inhabited
+attribute [grind .] PairPair.ext
 
 
 end F

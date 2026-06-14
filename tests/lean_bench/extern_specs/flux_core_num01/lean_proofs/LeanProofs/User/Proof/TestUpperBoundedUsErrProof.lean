@@ -68,6 +68,8 @@ open TestUpperBoundedUsErrQualifs
 set_option maxHeartbeats 5000000
 def TestUpperBoundedUsErr_proof : TestUpperBoundedUsErr := by
   unfold TestUpperBoundedUsErr
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

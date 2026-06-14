@@ -68,6 +68,8 @@ open TestOkErrBranchQualifs
 set_option maxHeartbeats 5000000
 def TestOkErrBranch_proof : TestOkErrBranch := by
   unfold TestOkErrBranch
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

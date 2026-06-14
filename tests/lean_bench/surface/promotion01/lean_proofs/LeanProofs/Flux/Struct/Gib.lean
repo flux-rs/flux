@@ -8,6 +8,7 @@ namespace F
 inductive Gib  where
 |  mkGib₀ 
 |  mkGib₁ 
+deriving Inhabited
 
 
 end F

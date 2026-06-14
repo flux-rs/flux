@@ -10,6 +10,8 @@ structure S2  where
   mkS2₀ ::
     a : Int 
     b : Int 
+  deriving Inhabited
+attribute [grind .] S2.ext
 
 
 end F

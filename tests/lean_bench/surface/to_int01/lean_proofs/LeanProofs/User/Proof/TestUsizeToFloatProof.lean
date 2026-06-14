@@ -68,6 +68,8 @@ open TestUsizeToFloatQualifs
 set_option maxHeartbeats 5000000
 def TestUsizeToFloat_proof : TestUsizeToFloat := by
   unfold TestUsizeToFloat
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

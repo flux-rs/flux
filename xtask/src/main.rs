@@ -1,7 +1,7 @@
 #![feature(variant_count)]
 
 use std::{
-    fs::{self, create_dir_all, exists}, io, mem::variant_count, os::unix::fs::symlink, path::{Path, PathBuf}, process::{Command, ExitStatus}
+    fs::{self, create_dir_all, exists}, io, mem::variant_count, os::unix::fs::symlink, path::{Path, PathBuf}, process::{Command, ExitStatus}, time::Instant,
 };
 
 use anyhow::anyhow;
@@ -30,6 +30,8 @@ xflags::xflags! {
         cmd lean-bench {
             /// Only run tests containing `filter` as a substring.
             optional filter: String
+            /// Only run Flux type-checking (skip lean emission and lake build); writes flux_bench.time
+            optional --flux-only
         }
         /// Run the `flux` binary on the given input file.
         cmd run {
@@ -225,138 +227,171 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
     let mut successes = 0;
 
-    let mut enumerated_tests = test_files.iter().enumerate();
-    let Some((i, test_path)) = enumerated_tests.next() else { return Ok(()) };
-    let first_lean_dir: PathBuf;
-    {
-        let rel_path = pos_paths
-            .iter()
-            .map(|pos_path| {
-                test_path.strip_prefix(pos_path)
-            }).filter(Result::is_ok)
-            .next().unwrap().unwrap();
+    if args.flux_only {
+        // Flux-only mode: run flux type-checking without lean emission, time the total.
+        let t0 = Instant::now();
+        for (i, test_path) in test_files.iter().enumerate() {
+            let rel_path = pos_paths
+                .iter()
+                .filter_map(|pos_path| test_path.strip_prefix(pos_path).ok())
+                .next()
+                .unwrap();
 
-        // Create lean output dir: ./tests/lean_bench/<path>/<to>/<file>/
-        let mut lean_dir = lean_bench_dir.clone();
-        if let Some(parent) = rel_path.parent() {
-            if parent != Path::new("") {
-                lean_dir.push(parent);
+            eprint!("[{}/{}] Running: {} ... ", i + 1, test_files.len(), rel_path.display());
+
+            let rustc_flags = flux_dev::default_flags(&config.dst);
+            let result = Command::new(&flux_driver)
+                .args(&rustc_flags)
+                .arg(test_path)
+                .env(FLUX_SYSROOT, &config.dst)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::piped())
+                .output();
+
+            match result {
+                Ok(output) if output.status.success() => {
+                    eprintln!("OK");
+                    successes += 1;
+                }
+                Ok(output) => {
+                    eprintln!("ERROR");
+                    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                    failures.push((test_path.clone(), stderr));
+                }
+                Err(e) => {
+                    eprintln!("ERROR");
+                    failures.push((test_path.clone(), e.to_string()));
+                }
             }
         }
-        if let Some(stem) = rel_path.file_stem() {
-            lean_dir.push(stem);
-        }
+        let elapsed_ms = t0.elapsed().as_millis();
+        fs::write("flux_bench.time", format!("{elapsed_ms}\n"))?;
+        eprintln!("Flux time: {elapsed_ms}ms -> flux_bench.time");
+    } else {
+        // Full lean-bench mode: emit lean files and run lake build.
+        let mut enumerated_tests = test_files.iter().enumerate();
+        let Some((i, test_path)) = enumerated_tests.next() else { return Ok(()) };
+        let first_lean_dir: PathBuf;
+        {
+            let rel_path = pos_paths
+                .iter()
+                .filter_map(|pos_path| test_path.strip_prefix(pos_path).ok())
+                .next()
+                .unwrap();
 
-        eprint!("[{}/{}] Running: {} ... ", i + 1, test_files.len(), rel_path.display());
-
-        // Create the output directory
-        if let Err(e) = fs::create_dir_all(&lean_dir) {
-            eprintln!("ERROR");
-            failures.push((test_path.clone(), format!("Failed to create directory: {}", e)));
-            return Ok(())
-        }
-
-        // Build rustc flags
-        let mut rustc_flags = flux_dev::default_flags(&config.dst);
-        rustc_flags.push("-Flean=emit".to_string());
-        rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
-        first_lean_dir = std::path::absolute(lean_dir.join("lean_proofs"))?;
-
-        // Run the test
-        let result = Command::new(&flux_driver)
-            .args(&rustc_flags)
-            .arg(test_path)
-            .env(FLUX_SYSROOT, &config.dst)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::piped())
-            .output();
-
-        Command::new("lake")
-            .arg("build")
-            .current_dir(&first_lean_dir)
-            .output()?;
-
-        match result {
-            Ok(output) if output.status.success() => {
-                eprintln!("OK");
-                successes += 1;
+            let mut lean_dir = lean_bench_dir.clone();
+            if let Some(parent) = rel_path.parent() {
+                if parent != Path::new("") {
+                    lean_dir.push(parent);
+                }
             }
-            Ok(output) => {
+            if let Some(stem) = rel_path.file_stem() {
+                lean_dir.push(stem);
+            }
+
+            eprint!("[{}/{}] Running: {} ... ", i + 1, test_files.len(), rel_path.display());
+
+            if let Err(e) = fs::create_dir_all(&lean_dir) {
                 eprintln!("ERROR");
-                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-                failures.push((test_path.clone(), stderr));
+                failures.push((test_path.clone(), format!("Failed to create directory: {}", e)));
+                return Ok(())
             }
-            Err(e) => {
+
+            let mut rustc_flags = flux_dev::default_flags(&config.dst);
+            rustc_flags.push("-Flean=emit".to_string());
+            rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
+            first_lean_dir = std::path::absolute(lean_dir.join("lean_proofs"))?;
+
+            let result = Command::new(&flux_driver)
+                .args(&rustc_flags)
+                .arg(test_path)
+                .env(FLUX_SYSROOT, &config.dst)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::piped())
+                .output();
+
+            Command::new("lake")
+                .arg("build")
+                .current_dir(&first_lean_dir)
+                .output()?;
+
+            match result {
+                Ok(output) if output.status.success() => {
+                    eprintln!("OK");
+                    successes += 1;
+                }
+                Ok(output) => {
+                    eprintln!("ERROR");
+                    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                    failures.push((test_path.clone(), stderr));
+                }
+                Err(e) => {
+                    eprintln!("ERROR");
+                    failures.push((test_path.clone(), e.to_string()));
+                }
+            }
+        }
+
+        for (i, test_path) in enumerated_tests {
+            let rel_path = pos_paths
+                .iter()
+                .filter_map(|pos_path| test_path.strip_prefix(pos_path).ok())
+                .next()
+                .unwrap();
+
+            let mut lean_dir = lean_bench_dir.clone();
+            if let Some(parent) = rel_path.parent() {
+                if parent != Path::new("") {
+                    lean_dir.push(parent);
+                }
+            }
+            if let Some(stem) = rel_path.file_stem() {
+                lean_dir.push(stem);
+            }
+
+            eprint!("[{}/{}] Running: {} ... ", i + 1, test_files.len(), rel_path.display());
+
+            if let Err(e) = fs::create_dir_all(&lean_dir) {
                 eprintln!("ERROR");
-                failures.push((test_path.clone(), e.to_string()));
+                failures.push((test_path.clone(), format!("Failed to create directory: {}", e)));
+                continue;
             }
-        }
-    }
 
-    for (i, test_path) in enumerated_tests {
-        let rel_path = pos_paths
-            .iter()
-            .map(|pos_path| {
-                test_path.strip_prefix(pos_path)
-            }).filter(Result::is_ok)
-            .next().unwrap().unwrap();
+            let mut rustc_flags = flux_dev::default_flags(&config.dst);
+            rustc_flags.push("-Flean=emit".to_string());
+            rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
 
-        // Create lean output dir: ./tests/lean_bench/<path>/<to>/<file>/
-        let mut lean_dir = lean_bench_dir.clone();
-        if let Some(parent) = rel_path.parent() {
-            if parent != Path::new("") {
-                lean_dir.push(parent);
+            let result = Command::new(&flux_driver)
+                .args(&rustc_flags)
+                .arg(test_path)
+                .env(FLUX_SYSROOT, &config.dst)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::piped())
+                .output();
+
+            match result {
+                Ok(output) if output.status.success() => {
+                    eprintln!("OK");
+                    successes += 1;
+                }
+                Ok(output) => {
+                    eprintln!("ERROR");
+                    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                    failures.push((test_path.clone(), stderr));
+                }
+                Err(e) => {
+                    eprintln!("ERROR");
+                    failures.push((test_path.clone(), e.to_string()));
+                }
             }
-        }
-        if let Some(stem) = rel_path.file_stem() {
-            lean_dir.push(stem);
-        }
 
-        eprint!("[{}/{}] Running: {} ... ", i + 1, test_files.len(), rel_path.display());
-
-        // Create the output directory
-        if let Err(e) = fs::create_dir_all(&lean_dir) {
-            eprintln!("ERROR");
-            failures.push((test_path.clone(), format!("Failed to create directory: {}", e)));
-            continue;
-        }
-
-        // Build rustc flags
-        let mut rustc_flags = flux_dev::default_flags(&config.dst);
-        rustc_flags.push("-Flean=emit".to_string());
-        rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
-
-        // Run the test
-        let result = Command::new(&flux_driver)
-            .args(&rustc_flags)
-            .arg(test_path)
-            .env(FLUX_SYSROOT, &config.dst)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::piped())
-            .output();
-
-        match result {
-            Ok(output) if output.status.success() => {
-                eprintln!("OK");
-                successes += 1;
+            let dep_path = &lean_dir.join("lean_proofs").join(".lake").join("packages");
+            if exists(&dep_path)? {
+                remove_dir_all(&dep_path)?;
             }
-            Ok(output) => {
-                eprintln!("ERROR");
-                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-                failures.push((test_path.clone(), stderr));
-            }
-            Err(e) => {
-                eprintln!("ERROR");
-                failures.push((test_path.clone(), e.to_string()));
-            }
+            create_dir_all(&dep_path.parent().unwrap())?;
+            symlink(first_lean_dir.join(".lake").join("packages"), dep_path)?;
         }
-
-        let dep_path = &lean_dir.join("lean_proofs").join(".lake").join("packages");
-        if exists(&dep_path)? {
-            remove_dir_all(&dep_path)?;
-        }
-        create_dir_all(&dep_path.parent().unwrap())?;
-        symlink(first_lean_dir.join(".lake").join("packages"), dep_path)?;
     }
 
     // Print summary
@@ -373,11 +408,10 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         eprintln!("Failed tests:");
         for (path, _) in &failures {
             let rel_path = pos_paths
-            .iter()
-            .map(|pos_path| {
-                path.strip_prefix(pos_path)
-            }).filter(Result::is_ok)
-            .next().unwrap().unwrap();
+                .iter()
+                .filter_map(|pos_path| path.strip_prefix(pos_path).ok())
+                .next()
+                .unwrap();
             eprintln!("  - {}", rel_path.display());
         }
         eprintln!("{}", "=".repeat(60));

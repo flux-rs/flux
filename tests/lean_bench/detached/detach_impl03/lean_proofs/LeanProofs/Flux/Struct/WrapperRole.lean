@@ -8,6 +8,7 @@ namespace F
 inductive WrapperRole  where
 |  mkWrapperRole₀ 
 |  mkWrapperRole₁ 
+deriving Inhabited
 
 
 end F

@@ -68,6 +68,8 @@ open Test001ClientQualifs
 set_option maxHeartbeats 5000000
 def Test001Client_proof : Test001Client := by
   unfold Test001Client
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

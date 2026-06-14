@@ -8,6 +8,7 @@ namespace F
 inductive State  where
 |  mkState₀ 
 |  mkState₁ 
+deriving Inhabited
 
 
 end F

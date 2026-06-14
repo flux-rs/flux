@@ -68,6 +68,8 @@ open TestRepeatReturnPosQualifs
 set_option maxHeartbeats 5000000
 def TestRepeatReturnPos_proof : TestRepeatReturnPos := by
   unfold TestRepeatReturnPos
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

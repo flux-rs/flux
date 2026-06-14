@@ -68,6 +68,8 @@ open CloseOnMoveQualifs
 set_option maxHeartbeats 5000000
 def CloseOnMove_proof : CloseOnMove := by
   unfold CloseOnMove
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

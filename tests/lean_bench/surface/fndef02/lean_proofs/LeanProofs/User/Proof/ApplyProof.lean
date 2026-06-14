@@ -68,6 +68,8 @@ open ApplyQualifs
 set_option maxHeartbeats 5000000
 def Apply_proof : Apply := by
   unfold Apply
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

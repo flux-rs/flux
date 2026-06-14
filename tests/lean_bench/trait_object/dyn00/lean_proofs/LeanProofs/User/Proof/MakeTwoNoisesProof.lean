@@ -68,6 +68,8 @@ open MakeTwoNoisesQualifs
 set_option maxHeartbeats 5000000
 def MakeTwoNoises_proof : MakeTwoNoises := by
   unfold MakeTwoNoises
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

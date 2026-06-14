@@ -68,6 +68,8 @@ open TestUnwrapQualifs
 set_option maxHeartbeats 5000000
 def TestUnwrap_proof : TestUnwrap := by
   unfold TestUnwrap
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

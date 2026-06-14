@@ -68,6 +68,8 @@ open NeverQualifs
 set_option maxHeartbeats 5000000
 def Never_proof : Never := by
   unfold Never
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

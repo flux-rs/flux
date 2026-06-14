@@ -68,6 +68,8 @@ open TestSaturatingU32Qualifs
 set_option maxHeartbeats 5000000
 def TestSaturatingU32_proof : TestSaturatingU32 := by
   unfold TestSaturatingU32
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

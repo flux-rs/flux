@@ -68,6 +68,8 @@ open BooQualifs
 set_option maxHeartbeats 5000000
 def Boo_proof : Boo := by
   unfold Boo
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

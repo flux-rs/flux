@@ -68,6 +68,8 @@ open TestXorAQualifs
 set_option maxHeartbeats 5000000
 def TestXorA_proof : TestXorA := by
   unfold TestXorA
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

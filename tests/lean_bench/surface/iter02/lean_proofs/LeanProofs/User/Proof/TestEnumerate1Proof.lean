@@ -68,6 +68,8 @@ open TestEnumerate1Qualifs
 set_option maxHeartbeats 5000000
 def TestEnumerate1_proof : TestEnumerate1 := by
   unfold TestEnumerate1
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

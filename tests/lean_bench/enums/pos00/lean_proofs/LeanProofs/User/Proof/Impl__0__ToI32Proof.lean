@@ -68,6 +68,8 @@ open Impl0ToI32Qualifs
 set_option maxHeartbeats 5000000
 def Impl__0__ToI32_proof : Impl__0__ToI32 := by
   unfold Impl__0__ToI32
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

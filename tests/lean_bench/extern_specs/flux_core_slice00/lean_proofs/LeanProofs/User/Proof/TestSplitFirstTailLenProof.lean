@@ -68,6 +68,8 @@ open TestSplitFirstTailLenQualifs
 set_option maxHeartbeats 5000000
 def TestSplitFirstTailLen_proof : TestSplitFirstTailLen := by
   unfold TestSplitFirstTailLen
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

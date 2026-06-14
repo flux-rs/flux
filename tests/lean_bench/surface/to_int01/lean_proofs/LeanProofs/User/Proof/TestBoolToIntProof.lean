@@ -68,6 +68,8 @@ open TestBoolToIntQualifs
 set_option maxHeartbeats 5000000
 def TestBoolToInt_proof : TestBoolToInt := by
   unfold TestBoolToInt
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

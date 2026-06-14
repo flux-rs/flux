@@ -68,6 +68,8 @@ open IsFebDayQualifs
 set_option maxHeartbeats 5000000
 def IsFebDay_proof : IsFebDay := by
   unfold IsFebDay
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

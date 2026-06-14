@@ -68,6 +68,8 @@ open DirectQualifs
 set_option maxHeartbeats 5000000
 def Direct_proof : Direct := by
   unfold Direct
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

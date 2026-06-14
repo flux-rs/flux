@@ -10,6 +10,8 @@ structure Foo  where
   mkFoo₀ ::
     a : Int 
     b : Int 
+  deriving Inhabited
+attribute [grind .] Foo.ext
 
 
 end F

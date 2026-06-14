@@ -68,6 +68,8 @@ open NewThisQualifs
 set_option maxHeartbeats 5000000
 def NewThis_proof : NewThis := by
   unfold NewThis
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

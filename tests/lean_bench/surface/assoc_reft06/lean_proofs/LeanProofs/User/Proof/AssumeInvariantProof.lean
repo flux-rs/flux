@@ -68,6 +68,8 @@ open AssumeInvariantQualifs
 set_option maxHeartbeats 5000000
 def AssumeInvariant_proof : AssumeInvariant := by
   unfold AssumeInvariant
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

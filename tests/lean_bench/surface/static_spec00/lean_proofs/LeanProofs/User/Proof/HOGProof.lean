@@ -68,6 +68,8 @@ open HOGQualifs
 set_option maxHeartbeats 5000000
 def HOG_proof : HOG := by
   unfold HOG
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

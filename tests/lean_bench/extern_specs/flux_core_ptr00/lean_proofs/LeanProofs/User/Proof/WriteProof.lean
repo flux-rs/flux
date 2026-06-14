@@ -68,6 +68,8 @@ open WriteQualifs
 set_option maxHeartbeats 5000000
 def Write_proof : Write := by
   unfold Write
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

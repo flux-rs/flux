@@ -68,6 +68,8 @@ open TestSelectQualifs
 set_option maxHeartbeats 5000000
 def TestSelect_proof : TestSelect := by
   unfold TestSelect
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

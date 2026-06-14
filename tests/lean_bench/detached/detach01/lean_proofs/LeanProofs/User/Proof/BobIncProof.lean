@@ -68,6 +68,8 @@ open BobIncQualifs
 set_option maxHeartbeats 5000000
 def BobInc_proof : BobInc := by
   unfold BobInc
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

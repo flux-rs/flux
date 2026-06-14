@@ -68,6 +68,8 @@ open ProjectQualifs
 set_option maxHeartbeats 5000000
 def Project_proof : Project := by
   unfold Project
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

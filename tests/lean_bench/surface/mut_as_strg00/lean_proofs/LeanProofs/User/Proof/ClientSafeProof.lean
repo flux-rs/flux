@@ -68,6 +68,8 @@ open ClientSafeQualifs
 set_option maxHeartbeats 5000000
 def ClientSafe_proof : ClientSafe := by
   unfold ClientSafe
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

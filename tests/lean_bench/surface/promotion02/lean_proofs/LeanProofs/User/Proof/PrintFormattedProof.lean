@@ -68,6 +68,8 @@ open PrintFormattedQualifs
 set_option maxHeartbeats 5000000
 def PrintFormatted_proof : PrintFormatted := by
   unfold PrintFormatted
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

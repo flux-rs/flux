@@ -68,6 +68,8 @@ open DonaldQualifs
 set_option maxHeartbeats 5000000
 def Donald_proof : Donald := by
   unfold Donald
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

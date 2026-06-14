@@ -31,6 +31,10 @@ ACYCLIC_RE  = re.compile(
     r"info: .*/(\w+)Proof\.lean:\d+:\d+: \[solve_fixpoint\] Acyclic κ:\s*\[([^\]]*)\]"
 )
 CYCLIC_RE   = re.compile(r"\[solve_fixpoint\] Cyclic κ:\s*\[([^\]]*)\]")
+# fusion tactic eliminates acyclic κ's before solve_fixpoint; Acyclic κ list is now always [].
+FUSION_RE   = re.compile(
+    r"info: .*/(\w+)Proof\.lean:\d+:\d+: fusion: eliminated \d+ acyclic κ"
+)
 ERROR_RE    = re.compile(r"error: LeanProofs/User/Proof/(\w+)Proof\.lean:")
 DEF_RE      = re.compile(r"^def \S+ :=\s*$|^def \S+ := (.+)", re.MULTILINE)
 
@@ -66,12 +70,15 @@ def parse_chunk(lines: list[str]) -> tuple[dict[str, str], set[str]]:
     kappa_by_vc: dict[str, str] = {}
     failed_vcs: set[str] = set()
 
+    # fusion eliminates acyclic κ's before solve_fixpoint in the new tactic pipeline.
+    fusion_acyclic: set[str] = {m.group(1) for line in lines for m in [FUSION_RE.search(line)] if m}
+
     i = 0
     while i < len(lines):
         m = ACYCLIC_RE.search(lines[i])
         if m:
             vc = m.group(1)
-            acyclic = _items(m.group(2))
+            acyclic = _items(m.group(2)) or (["fusion"] if vc in fusion_acyclic else [])
             cyclic: list[str] = []
             if i + 1 < len(lines):
                 cm = CYCLIC_RE.search(lines[i + 1])
@@ -150,12 +157,12 @@ def main() -> None:
         vcs.append({"name": f"{test_rel}/{vc_name}", "trivial": trivial,
                     "kappa": kappa, "failed": failed})
 
-    time_path = log_path.parent / "lean_bench.time"
     suite: dict = {"suite": "Flux lean-bench", "vcs": vcs}
-    try:
-        suite["time_ms"] = int(time_path.read_text().strip())
-    except Exception:
-        pass
+    for key, fname in [("time_ms", "lean_bench.time"), ("flux_time_ms", "flux_bench.time")]:
+        try:
+            suite[key] = int((log_path.parent / fname).read_text().strip())
+        except Exception:
+            pass
 
     print(json.dumps([suite], indent=2))
 

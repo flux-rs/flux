@@ -68,6 +68,8 @@ open TestBvExtensionsQualifs
 set_option maxHeartbeats 5000000
 def TestBvExtensions_proof : TestBvExtensions := by
   unfold TestBvExtensions
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

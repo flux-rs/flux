@@ -68,6 +68,8 @@ open TestI64Qualifs
 set_option maxHeartbeats 5000000
 def TestI64_proof : TestI64 := by
   unfold TestI64
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

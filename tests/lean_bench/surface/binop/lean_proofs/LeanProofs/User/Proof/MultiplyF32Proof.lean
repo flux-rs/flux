@@ -68,6 +68,8 @@ open MultiplyF32Qualifs
 set_option maxHeartbeats 5000000
 def MultiplyF32_proof : MultiplyF32 := by
   unfold MultiplyF32
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

@@ -68,6 +68,8 @@ open TakeStrgQualifs
 set_option maxHeartbeats 5000000
 def TakeStrg_proof : TakeStrg := by
   unfold TakeStrg
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

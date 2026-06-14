@@ -68,6 +68,8 @@ open Foo3Qualifs
 set_option maxHeartbeats 5000000
 def Foo3_proof : Foo3 := by
   unfold Foo3
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

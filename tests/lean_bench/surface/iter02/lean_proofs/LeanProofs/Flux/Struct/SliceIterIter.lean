@@ -8,9 +8,10 @@ namespace F
 @[ext]
 structure SliceIterIter  where
   mkSliceIterIter₀ ::
-    idx : Int
-    len : Int
+    idx : Int 
+    len : Int 
+  deriving Inhabited
+attribute [grind .] SliceIterIter.ext
 
-instance : Inhabited SliceIterIter where
-  default := ⟨default, default⟩
+
 end F

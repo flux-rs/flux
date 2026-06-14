@@ -68,6 +68,8 @@ open Test01AssertQualifs
 set_option maxHeartbeats 5000000
 def Test01Assert_proof : Test01Assert := by
   unfold Test01Assert
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

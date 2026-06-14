@@ -68,6 +68,8 @@ open NilQualifs
 set_option maxHeartbeats 5000000
 def Nil_proof : Nil := by
   unfold Nil
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

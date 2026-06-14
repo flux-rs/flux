@@ -68,6 +68,8 @@ open BlobQualifs
 set_option maxHeartbeats 5000000
 def Blob_proof : Blob := by
   unfold Blob
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

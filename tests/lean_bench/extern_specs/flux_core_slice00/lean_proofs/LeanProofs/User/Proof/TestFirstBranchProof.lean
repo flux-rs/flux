@@ -68,6 +68,8 @@ open TestFirstBranchQualifs
 set_option maxHeartbeats 5000000
 def TestFirstBranch_proof : TestFirstBranch := by
   unfold TestFirstBranch
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

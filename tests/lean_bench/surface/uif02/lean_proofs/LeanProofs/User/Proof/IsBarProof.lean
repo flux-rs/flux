@@ -68,6 +68,8 @@ open IsBarQualifs
 set_option maxHeartbeats 5000000
 def IsBar_proof : IsBar := by
   unfold IsBar
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

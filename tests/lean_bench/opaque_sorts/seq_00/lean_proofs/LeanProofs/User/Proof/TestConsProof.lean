@@ -68,6 +68,8 @@ open TestConsQualifs
 set_option maxHeartbeats 5000000
 def TestCons_proof : TestCons := by
   unfold TestCons
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

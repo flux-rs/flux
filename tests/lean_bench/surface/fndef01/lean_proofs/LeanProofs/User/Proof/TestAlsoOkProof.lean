@@ -68,6 +68,8 @@ open TestAlsoOkQualifs
 set_option maxHeartbeats 5000000
 def TestAlsoOk_proof : TestAlsoOk := by
   unfold TestAlsoOk
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

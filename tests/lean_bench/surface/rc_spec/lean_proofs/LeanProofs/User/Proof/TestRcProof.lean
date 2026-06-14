@@ -68,6 +68,8 @@ open TestRcQualifs
 set_option maxHeartbeats 5000000
 def TestRc_proof : TestRc := by
   unfold TestRc
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

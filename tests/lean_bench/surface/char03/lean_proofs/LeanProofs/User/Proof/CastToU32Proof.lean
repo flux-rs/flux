@@ -68,6 +68,8 @@ open CastToU32Qualifs
 set_option maxHeartbeats 5000000
 def CastToU32_proof : CastToU32 := by
   unfold CastToU32
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

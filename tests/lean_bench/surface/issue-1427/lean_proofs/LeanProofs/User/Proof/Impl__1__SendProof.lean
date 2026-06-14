@@ -68,6 +68,8 @@ open Impl1SendQualifs
 set_option maxHeartbeats 5000000
 def Impl__1__Send_proof : Impl__1__Send := by
   unfold Impl__1__Send
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

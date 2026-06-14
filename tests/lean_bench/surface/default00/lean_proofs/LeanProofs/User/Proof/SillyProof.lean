@@ -68,6 +68,8 @@ open SillyQualifs
 set_option maxHeartbeats 5000000
 def Silly_proof : Silly := by
   unfold Silly
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

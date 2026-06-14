@@ -68,6 +68,8 @@ open IsNegQualifs
 set_option maxHeartbeats 5000000
 def IsNeg_proof : IsNeg := by
   unfold IsNeg
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

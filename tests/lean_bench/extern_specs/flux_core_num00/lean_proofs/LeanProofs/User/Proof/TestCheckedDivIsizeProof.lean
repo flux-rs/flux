@@ -68,6 +68,8 @@ open TestCheckedDivIsizeQualifs
 set_option maxHeartbeats 5000000
 def TestCheckedDivIsize_proof : TestCheckedDivIsize := by
   unfold TestCheckedDivIsize
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

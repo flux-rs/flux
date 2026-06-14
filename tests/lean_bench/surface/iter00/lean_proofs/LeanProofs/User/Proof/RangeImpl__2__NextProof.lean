@@ -68,6 +68,8 @@ open RangeImpl2NextQualifs
 set_option maxHeartbeats 5000000
 def RangeImpl__2__Next_proof : RangeImpl__2__Next := by
   unfold RangeImpl__2__Next
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

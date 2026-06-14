@@ -68,6 +68,8 @@ open LoopCQualifs
 set_option maxHeartbeats 5000000
 def LoopC_proof : LoopC := by
   unfold LoopC
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

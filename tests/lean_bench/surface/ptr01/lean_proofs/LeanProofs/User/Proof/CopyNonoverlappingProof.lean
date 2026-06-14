@@ -68,6 +68,8 @@ open CopyNonoverlappingQualifs
 set_option maxHeartbeats 5000000
 def CopyNonoverlapping_proof : CopyNonoverlapping := by
   unfold CopyNonoverlapping
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

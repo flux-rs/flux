@@ -68,6 +68,8 @@ open SumPairQualifs
 set_option maxHeartbeats 5000000
 def SumPair_proof : SumPair := by
   unfold SumPair
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

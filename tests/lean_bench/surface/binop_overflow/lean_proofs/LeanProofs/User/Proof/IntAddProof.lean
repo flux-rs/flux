@@ -68,6 +68,8 @@ open IntAddQualifs
 set_option maxHeartbeats 5000000
 def IntAdd_proof : IntAdd := by
   unfold IntAdd
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

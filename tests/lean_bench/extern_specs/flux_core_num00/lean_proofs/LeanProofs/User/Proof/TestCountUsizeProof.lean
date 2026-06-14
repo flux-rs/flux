@@ -68,6 +68,8 @@ open TestCountUsizeQualifs
 set_option maxHeartbeats 5000000
 def TestCountUsize_proof : TestCountUsize := by
   unfold TestCountUsize
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

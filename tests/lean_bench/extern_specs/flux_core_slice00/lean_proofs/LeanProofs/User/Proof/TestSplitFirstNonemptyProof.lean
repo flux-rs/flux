@@ -68,6 +68,8 @@ open TestSplitFirstNonemptyQualifs
 set_option maxHeartbeats 5000000
 def TestSplitFirstNonempty_proof : TestSplitFirstNonempty := by
   unfold TestSplitFirstNonempty
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

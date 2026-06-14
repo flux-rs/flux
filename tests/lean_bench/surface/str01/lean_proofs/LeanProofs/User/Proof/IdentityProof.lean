@@ -68,6 +68,8 @@ open IdentityQualifs
 set_option maxHeartbeats 5000000
 def Identity_proof : Identity := by
   unfold Identity
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

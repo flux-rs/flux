@@ -68,6 +68,8 @@ open IpaQualifs
 set_option maxHeartbeats 5000000
 def Ipa_proof : Ipa := by
   unfold Ipa
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

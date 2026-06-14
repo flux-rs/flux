@@ -10,6 +10,8 @@ structure S  where
   mkS₀ ::
     x : Int 
     y : Int 
+  deriving Inhabited
+attribute [grind .] S.ext
 
 
 end F

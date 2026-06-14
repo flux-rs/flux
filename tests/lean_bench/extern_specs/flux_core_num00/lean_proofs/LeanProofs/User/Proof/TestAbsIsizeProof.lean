@@ -68,6 +68,8 @@ open TestAbsIsizeQualifs
 set_option maxHeartbeats 5000000
 def TestAbsIsize_proof : TestAbsIsize := by
   unfold TestAbsIsize
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

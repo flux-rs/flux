@@ -10,6 +10,8 @@ structure Pred  where
   mkPred₀ ::
     is_atom : Prop 
     nnf : Prop 
+  deriving Inhabited
+attribute [grind .] Pred.ext
 
 
 end F

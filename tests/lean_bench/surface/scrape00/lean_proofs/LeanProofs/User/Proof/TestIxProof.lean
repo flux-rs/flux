@@ -68,6 +68,8 @@ open TestIxQualifs
 set_option maxHeartbeats 5000000
 def TestIx_proof : TestIx := by
   unfold TestIx
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

@@ -11,6 +11,8 @@ structure RingBuffer  where
     ring_len : Int 
     hd : Int 
     tl : Int 
+  deriving Inhabited
+attribute [grind .] RingBuffer.ext
 
 
 end F

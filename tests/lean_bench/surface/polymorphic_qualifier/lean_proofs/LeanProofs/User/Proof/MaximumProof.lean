@@ -61,10 +61,6 @@ def Le (v₀ : Int) (a'₁ : Int) : Prop :=
 def Le1 (v₀ : Int) (a'₁ : Int) : Prop :=
   (v₀ ≤ (a'₁ - 1))
 
-@[qualif]
-def App (v : Int) (p : Int → Prop) : Prop :=
-  p v
-
 end MaximumQualifs
 
 open MaximumQualifs
@@ -72,6 +68,8 @@ open MaximumQualifs
 set_option maxHeartbeats 5000000
 def Maximum_proof : Maximum := by
   unfold Maximum
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

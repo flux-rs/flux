@@ -68,11 +68,8 @@ open Impl0GetQualifs
 set_option maxHeartbeats 5000000
 def Impl__0__Get_proof : Impl__0__Get := by
   unfold Impl__0__Get
-  intro N M i j hin hjm hi hj hnm
-  apply Int.lt_of_lt_of_le (b := i * M + M) (by omega)
-  apply Int.le_trans (b := (N - 1) * M + M)
-  apply Int.add_le_add_right
-  rw [Int.mul_le_mul_right]
-  all_goals grind
+  try rewriteKs
+  try fusion
+  try solve_fixpoint
 
 end F

@@ -68,6 +68,8 @@ open IsNegMutQualifs
 set_option maxHeartbeats 5000000
 def IsNegMut_proof : IsNegMut := by
   unfold IsNegMut
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

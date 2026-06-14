@@ -68,6 +68,8 @@ open I64U32LosslessQualifs
 set_option maxHeartbeats 5000000
 def I64U32Lossless_proof : I64U32Lossless := by
   unfold I64U32Lossless
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

@@ -68,6 +68,8 @@ open TestStrgRefQualifs
 set_option maxHeartbeats 5000000
 def TestStrgRef_proof : TestStrgRef := by
   unfold TestStrgRef
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

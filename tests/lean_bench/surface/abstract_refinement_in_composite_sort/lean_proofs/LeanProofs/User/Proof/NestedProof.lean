@@ -68,6 +68,8 @@ open NestedQualifs
 set_option maxHeartbeats 5000000
 def Nested_proof : Nested := by
   unfold Nested
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

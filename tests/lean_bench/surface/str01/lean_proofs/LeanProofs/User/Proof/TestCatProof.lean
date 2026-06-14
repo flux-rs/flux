@@ -68,6 +68,8 @@ open TestCatQualifs
 set_option maxHeartbeats 5000000
 def TestCat_proof : TestCat := by
   unfold TestCat
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

@@ -68,6 +68,8 @@ open I32U32NonnegQualifs
 set_option maxHeartbeats 5000000
 def I32U32Nonneg_proof : I32U32Nonneg := by
   unfold I32U32Nonneg
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

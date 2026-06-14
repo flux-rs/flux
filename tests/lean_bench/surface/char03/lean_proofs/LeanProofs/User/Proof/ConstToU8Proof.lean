@@ -68,6 +68,8 @@ open ConstToU8Qualifs
 set_option maxHeartbeats 5000000
 def ConstToU8_proof : ConstToU8 := by
   unfold ConstToU8
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

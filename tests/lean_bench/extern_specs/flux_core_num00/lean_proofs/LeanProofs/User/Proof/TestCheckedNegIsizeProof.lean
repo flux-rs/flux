@@ -68,6 +68,8 @@ open TestCheckedNegIsizeQualifs
 set_option maxHeartbeats 5000000
 def TestCheckedNegIsize_proof : TestCheckedNegIsize := by
   unfold TestCheckedNegIsize
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

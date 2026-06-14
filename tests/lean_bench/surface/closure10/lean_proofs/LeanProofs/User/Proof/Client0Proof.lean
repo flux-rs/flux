@@ -68,6 +68,8 @@ open Client0Qualifs
 set_option maxHeartbeats 5000000
 def Client0_proof : Client0 := by
   unfold Client0
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

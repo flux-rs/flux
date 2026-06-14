@@ -68,6 +68,8 @@ open TestTakeSomeQualifs
 set_option maxHeartbeats 5000000
 def TestTakeSome_proof : TestTakeSome := by
   unfold TestTakeSome
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

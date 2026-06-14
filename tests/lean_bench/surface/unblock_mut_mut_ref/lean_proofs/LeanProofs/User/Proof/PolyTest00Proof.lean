@@ -68,6 +68,8 @@ open PolyTest00Qualifs
 set_option maxHeartbeats 5000000
 def PolyTest00_proof : PolyTest00 := by
   unfold PolyTest00
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

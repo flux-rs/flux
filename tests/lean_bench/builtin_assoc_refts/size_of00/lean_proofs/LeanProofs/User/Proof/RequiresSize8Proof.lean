@@ -68,6 +68,8 @@ open RequiresSize8Qualifs
 set_option maxHeartbeats 5000000
 def RequiresSize8_proof : RequiresSize8 := by
   unfold RequiresSize8
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

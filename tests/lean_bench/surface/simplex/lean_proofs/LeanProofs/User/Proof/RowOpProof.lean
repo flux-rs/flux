@@ -68,6 +68,8 @@ open RowOpQualifs
 set_option maxHeartbeats 5000000
 def RowOp_proof : RowOp := by
   unfold RowOp
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

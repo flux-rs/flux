@@ -68,6 +68,8 @@ open DoubleQualifs
 set_option maxHeartbeats 5000000
 def Double_proof : Double := by
   unfold Double
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

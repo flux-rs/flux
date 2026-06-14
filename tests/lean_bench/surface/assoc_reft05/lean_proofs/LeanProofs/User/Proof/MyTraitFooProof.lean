@@ -68,6 +68,8 @@ open MyTraitFooQualifs
 set_option maxHeartbeats 5000000
 def MyTraitFoo_proof : MyTraitFoo := by
   unfold MyTraitFoo
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

@@ -68,6 +68,8 @@ open BitwiseShlU32I32Qualifs
 set_option maxHeartbeats 5000000
 def BitwiseShlU32I32_proof : BitwiseShlU32I32 := by
   unfold BitwiseShlU32I32
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

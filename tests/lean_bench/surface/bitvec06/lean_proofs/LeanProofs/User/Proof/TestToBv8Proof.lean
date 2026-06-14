@@ -68,6 +68,8 @@ open TestToBv8Qualifs
 set_option maxHeartbeats 5000000
 def TestToBv8_proof : TestToBv8 := by
   unfold TestToBv8
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

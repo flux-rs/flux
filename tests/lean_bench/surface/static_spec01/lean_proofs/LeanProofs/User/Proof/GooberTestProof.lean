@@ -68,6 +68,8 @@ open GooberTestQualifs
 set_option maxHeartbeats 5000000
 def GooberTest_proof : GooberTest := by
   unfold GooberTest
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

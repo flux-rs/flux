@@ -68,6 +68,8 @@ open GatherQualifs
 set_option maxHeartbeats 5000000
 def Gather_proof : Gather := by
   unfold Gather
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

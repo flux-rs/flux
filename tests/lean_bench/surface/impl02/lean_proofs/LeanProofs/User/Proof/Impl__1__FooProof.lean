@@ -68,6 +68,8 @@ open Impl1FooQualifs
 set_option maxHeartbeats 5000000
 def Impl__1__Foo_proof : Impl__1__Foo := by
   unfold Impl__1__Foo
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

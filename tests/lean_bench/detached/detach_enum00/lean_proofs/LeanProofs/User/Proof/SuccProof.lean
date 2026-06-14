@@ -68,6 +68,8 @@ open SuccQualifs
 set_option maxHeartbeats 5000000
 def Succ_proof : Succ := by
   unfold Succ
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

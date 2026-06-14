@@ -68,6 +68,8 @@ open PushQualifs
 set_option maxHeartbeats 5000000
 def Push_proof : Push := by
   unfold Push
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

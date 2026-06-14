@@ -68,6 +68,8 @@ open ConstPartsConstrainedQualifs
 set_option maxHeartbeats 5000000
 def ConstPartsConstrained_proof : ConstPartsConstrained := by
   unfold ConstPartsConstrained
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

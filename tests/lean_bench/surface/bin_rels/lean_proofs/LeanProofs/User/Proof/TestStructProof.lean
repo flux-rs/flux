@@ -68,6 +68,8 @@ open TestStructQualifs
 set_option maxHeartbeats 5000000
 def TestStruct_proof : TestStruct := by
   unfold TestStruct
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

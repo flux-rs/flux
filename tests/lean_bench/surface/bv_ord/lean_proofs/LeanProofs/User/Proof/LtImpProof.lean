@@ -68,6 +68,8 @@ open LtImpQualifs
 set_option maxHeartbeats 5000000
 def LtImp_proof : LtImp := by
   unfold LtImp
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

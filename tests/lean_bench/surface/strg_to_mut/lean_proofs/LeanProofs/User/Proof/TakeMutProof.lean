@@ -68,6 +68,8 @@ open TakeMutQualifs
 set_option maxHeartbeats 5000000
 def TakeMut_proof : TakeMut := by
   unfold TakeMut
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

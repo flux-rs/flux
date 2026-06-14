@@ -68,7 +68,8 @@ open Impl0EnqueueQualifs
 set_option maxHeartbeats 5000000
 def Impl__0__Enqueue_proof : Impl__0__Enqueue := by
   unfold Impl__0__Enqueue
-  intro rb a hl hp hhp _ hhd1 hhd2 htl1 htl2
-  grind [Int.emod_lt_of_pos]
+  try rewriteKs
+  try fusion
+  try solve_fixpoint
 
 end F

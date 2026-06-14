@@ -68,6 +68,8 @@ open LogicalNotTQualifs
 set_option maxHeartbeats 5000000
 def LogicalNotT_proof : LogicalNotT := by
   unfold LogicalNotT
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

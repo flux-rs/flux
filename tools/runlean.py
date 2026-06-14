@@ -57,7 +57,7 @@ def run_lake_build(directory: Path) -> tuple[bool, str, list[str], int]:
         elapsed_ms = int((time.monotonic() - t0) * 1000)
         all_lines = result.stdout.splitlines()
         error_lines = [line for line in all_lines if line.startswith("error: ")]
-        kappa_lines = [line for line in all_lines if "[solve_fixpoint]" in line]
+        kappa_lines = [line for line in all_lines if "[solve_fixpoint]" in line or "fusion: eliminated" in line]
         has_error = result.returncode != 0 or len(error_lines) > 0
         error_output = "\n".join(error_lines) if error_lines else ""
         return (not has_error, error_output, kappa_lines, elapsed_ms)

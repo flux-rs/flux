@@ -68,6 +68,8 @@ open OrQualifs
 set_option maxHeartbeats 5000000
 def Or_proof : Or := by
   unfold Or
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

@@ -68,6 +68,8 @@ open TestModQualifs
 set_option maxHeartbeats 5000000
 def TestMod_proof : TestMod := by
   unfold TestMod
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

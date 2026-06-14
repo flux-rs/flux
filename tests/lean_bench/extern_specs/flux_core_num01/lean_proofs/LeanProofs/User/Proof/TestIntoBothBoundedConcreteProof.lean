@@ -68,6 +68,8 @@ open TestIntoBothBoundedConcreteQualifs
 set_option maxHeartbeats 5000000
 def TestIntoBothBoundedConcrete_proof : TestIntoBothBoundedConcrete := by
   unfold TestIntoBothBoundedConcrete
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

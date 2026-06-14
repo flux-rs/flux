@@ -68,6 +68,8 @@ open MkListQualifs
 set_option maxHeartbeats 5000000
 def MkList_proof : MkList := by
   unfold MkList
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

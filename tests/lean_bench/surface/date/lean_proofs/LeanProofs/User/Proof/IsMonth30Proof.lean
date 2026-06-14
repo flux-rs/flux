@@ -68,6 +68,8 @@ open IsMonth30Qualifs
 set_option maxHeartbeats 5000000
 def IsMonth30_proof : IsMonth30 := by
   unfold IsMonth30
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

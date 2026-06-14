@@ -68,6 +68,8 @@ open FillQualifs
 set_option maxHeartbeats 5000000
 def Fill_proof : Fill := by
   unfold Fill
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

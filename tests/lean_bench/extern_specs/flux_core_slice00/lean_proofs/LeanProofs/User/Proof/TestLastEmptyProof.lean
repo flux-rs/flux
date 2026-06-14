@@ -68,6 +68,8 @@ open TestLastEmptyQualifs
 set_option maxHeartbeats 5000000
 def TestLastEmpty_proof : TestLastEmpty := by
   unfold TestLastEmpty
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

@@ -68,6 +68,8 @@ open TestOrBothNoneQualifs
 set_option maxHeartbeats 5000000
 def TestOrBothNone_proof : TestOrBothNone := by
   unfold TestOrBothNone
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

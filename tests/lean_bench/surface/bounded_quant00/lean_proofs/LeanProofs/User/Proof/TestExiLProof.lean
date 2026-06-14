@@ -68,6 +68,8 @@ open TestExiLQualifs
 set_option maxHeartbeats 5000000
 def TestExiL_proof : TestExiL := by
   unfold TestExiL
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

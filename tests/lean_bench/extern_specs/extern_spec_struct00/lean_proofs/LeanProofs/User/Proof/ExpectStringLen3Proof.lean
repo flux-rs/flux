@@ -68,6 +68,8 @@ open ExpectStringLen3Qualifs
 set_option maxHeartbeats 5000000
 def ExpectStringLen3_proof : ExpectStringLen3 := by
   unfold ExpectStringLen3
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

@@ -68,6 +68,8 @@ open TestBothBoundedSuErrNegQualifs
 set_option maxHeartbeats 5000000
 def TestBothBoundedSuErrNeg_proof : TestBothBoundedSuErrNeg := by
   unfold TestBothBoundedSuErrNeg
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

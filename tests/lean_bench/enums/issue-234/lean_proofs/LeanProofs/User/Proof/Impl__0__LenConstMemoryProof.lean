@@ -72,6 +72,8 @@ open Impl0LenConstMemoryQualifs
 set_option maxHeartbeats 5000000
 def Impl__0__LenConstMemory_proof : Impl__0__LenConstMemory := by
   unfold Impl__0__LenConstMemory
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

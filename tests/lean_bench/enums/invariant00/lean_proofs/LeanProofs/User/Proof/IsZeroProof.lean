@@ -68,6 +68,8 @@ open IsZeroQualifs
 set_option maxHeartbeats 5000000
 def IsZero_proof : IsZero := by
   unfold IsZero
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

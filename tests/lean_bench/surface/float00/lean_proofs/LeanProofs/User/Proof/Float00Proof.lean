@@ -68,6 +68,8 @@ open Float00Qualifs
 set_option maxHeartbeats 5000000
 def Float00_proof : Float00 := by
   unfold Float00
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

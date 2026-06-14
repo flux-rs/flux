@@ -68,6 +68,8 @@ open TestBlahQualifs
 set_option maxHeartbeats 5000000
 def TestBlah_proof : TestBlah := by
   unfold TestBlah
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

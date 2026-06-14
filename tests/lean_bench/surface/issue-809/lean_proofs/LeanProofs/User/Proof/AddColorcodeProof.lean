@@ -68,6 +68,8 @@ open AddColorcodeQualifs
 set_option maxHeartbeats 5000000
 def AddColorcode_proof : AddColorcode := by
   unfold AddColorcode
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

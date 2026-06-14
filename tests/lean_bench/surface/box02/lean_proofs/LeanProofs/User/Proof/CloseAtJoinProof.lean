@@ -68,6 +68,8 @@ open CloseAtJoinQualifs
 set_option maxHeartbeats 5000000
 def CloseAtJoin_proof : CloseAtJoin := by
   unfold CloseAtJoin
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

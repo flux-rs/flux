@@ -68,6 +68,8 @@ open LogicalOrFfQualifs
 set_option maxHeartbeats 5000000
 def LogicalOrFf_proof : LogicalOrFf := by
   unfold LogicalOrFf
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

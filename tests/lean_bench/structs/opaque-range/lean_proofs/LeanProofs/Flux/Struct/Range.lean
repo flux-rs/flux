@@ -10,6 +10,8 @@ structure Range  where
   mkRange₀ ::
     a : Int 
     b : Int 
+  deriving Inhabited
+attribute [grind .] Range.ext
 
 
 end F

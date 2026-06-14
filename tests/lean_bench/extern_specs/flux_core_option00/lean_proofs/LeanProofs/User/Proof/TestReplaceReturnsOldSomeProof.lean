@@ -68,6 +68,8 @@ open TestReplaceReturnsOldSomeQualifs
 set_option maxHeartbeats 5000000
 def TestReplaceReturnsOldSome_proof : TestReplaceReturnsOldSome := by
   unfold TestReplaceReturnsOldSome
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

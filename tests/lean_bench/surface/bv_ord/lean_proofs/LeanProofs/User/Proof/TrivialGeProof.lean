@@ -68,6 +68,8 @@ open TrivialGeQualifs
 set_option maxHeartbeats 5000000
 def TrivialGe_proof : TrivialGe := by
   unfold TrivialGe
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

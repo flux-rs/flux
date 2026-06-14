@@ -68,6 +68,8 @@ open UintToFloatQualifs
 set_option maxHeartbeats 5000000
 def UintToFloat_proof : UintToFloat := by
   unfold UintToFloat
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F

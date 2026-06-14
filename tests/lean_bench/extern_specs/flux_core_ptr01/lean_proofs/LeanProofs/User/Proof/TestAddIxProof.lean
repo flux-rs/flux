@@ -68,6 +68,8 @@ open TestAddIxQualifs
 set_option maxHeartbeats 5000000
 def TestAddIx_proof : TestAddIx := by
   unfold TestAddIx
+  try rewriteKs
+  try fusion
   try solve_fixpoint
 
 end F
