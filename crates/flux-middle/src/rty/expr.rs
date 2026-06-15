@@ -1657,24 +1657,6 @@ pub(crate) mod pretty {
                 ExprKind::InternalFunc(func) => {
                     w!(cx, f, "{:?}", func)
                 }
-                // ExprKind::ForAll(expr) => {
-                //     let vars = expr.vars();
-                //     cx.with_bound_vars(vars, || {
-                //         if !vars.is_empty() {
-                //             cx.fmt_bound_vars(false, "∀", vars, ". ", f)?;
-                //         }
-                //         w!(cx, f, "{:?}", expr.skip_binder_ref())
-                //     })
-                // }
-                // ExprKind::Exists(expr) => {
-                //     let vars = expr.vars();
-                //     cx.with_bound_vars(vars, || {
-                //         if !vars.is_empty() {
-                //             cx.fmt_bound_vars(false, "∃", vars, ". ", f)?;
-                //         }
-                //         w!(cx, f, "{:?}", expr.skip_binder_ref())
-                //     })
-                // }
                 ExprKind::Quant(kind, dom, body) => {
                     let vars = body.vars();
                     cx.with_bound_vars(vars, || {
@@ -2050,20 +2032,7 @@ pub(crate) mod pretty {
                         let text = format!("{}{}", all_str, expr_d.text);
                         Ok(NestedString { text, children: expr_d.children, key: None })
                     })
-                } // ExprKind::ForAll(expr) => {
-                  //     cx.nested_with_bound_vars("∀", expr.vars(), None, |all_str| {
-                  //         let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
-                  //         let text = format!("{}{}", all_str, expr_d.text);
-                  //         Ok(NestedString { text, children: expr_d.children, key: None })
-                  //     })
-                  // }
-                  // ExprKind::Exists(expr) => {
-                  //     cx.nested_with_bound_vars("∀", expr.vars(), None, |all_str| {
-                  //         let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
-                  //         let text = format!("{}{}", all_str, expr_d.text);
-                  //         Ok(NestedString { text, children: expr_d.children, key: None })
-                  //     })
-                  // }
+                }
             }
         }
     }
