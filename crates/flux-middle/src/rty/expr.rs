@@ -321,7 +321,7 @@ impl Expr {
         ExprKind::Let(init, body).intern()
     }
 
-    pub fn bounded_quant(kind: fhir::QuantKind, dom: QuantDom, body: Binder<Expr>) -> Expr {
+    pub fn quant(kind: fhir::QuantKind, dom: QuantDom, body: Binder<Expr>) -> Expr {
         ExprKind::Quant(kind, dom, body).intern()
     }
 
@@ -760,7 +760,9 @@ pub enum SpecFuncKind {
     Def(FluxDefId),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable, TypeVisitable, TypeFoldable)]
+#[derive(
+    Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub enum QuantDom {
     Bounded { start: usize, end: usize },
     Unbounded(Sort),

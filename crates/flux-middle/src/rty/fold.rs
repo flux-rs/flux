@@ -1057,7 +1057,10 @@ impl TypeSuperVisitable for Expr {
                 args.visit_with(visitor)
             }
             ExprKind::Abs(body) => body.visit_with(visitor),
-            ExprKind::Quant(_, _, body) => body.visit_with(visitor),
+            ExprKind::Quant(_, dom, body) => {
+                dom.visit_with(visitor)?;
+                body.visit_with(visitor)
+            }
             ExprKind::ForAll(expr) => expr.visit_with(visitor),
             ExprKind::Exists(expr) => expr.visit_with(visitor),
             ExprKind::Let(init, body) => {
@@ -1121,7 +1124,7 @@ impl TypeSuperFoldable for Expr {
             ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
             ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
             ExprKind::Quant(kind, rng, body) => {
-                Expr::bounded_quant(*kind, rng.clone(), body.try_fold_with(folder)?)
+                Expr::quant(*kind, rng.try_fold_with(folder)?, body.try_fold_with(folder)?)
             }
             ExprKind::GlobalFunc(kind) => Expr::global_func(kind.clone()),
             ExprKind::InternalFunc(kind) => Expr::internal_func(kind.clone()),

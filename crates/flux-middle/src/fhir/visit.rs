@@ -7,7 +7,7 @@ use super::{
     StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef,
     VariantRet, WhereBoundPredicate,
 };
-use crate::fhir::{PrimOpProp, QPathExpr, SortDecl, StructKind};
+use crate::fhir::{PrimOpProp, QPathExpr, QuantDom, SortDecl, StructKind};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -186,6 +186,10 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_func_sort(&mut self, func: &FuncSort<'v>) {
         walk_func_sort(self, func);
+    }
+
+    fn visit_domain(&mut self, dom: &QuantDom<'v>) {
+        walk_domain(self, dom);
     }
 
     fn visit_expr(&mut self, expr: &Expr<'v>) {
@@ -564,6 +568,18 @@ pub fn walk_field_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &FieldExpr<'v>) {
     vis.visit_expr(&expr.expr);
 }
 
+pub fn walk_domain<'v, V: Visitor<'v>>(vis: &mut V, dom: &QuantDom<'v>) {
+    match dom {
+        QuantDom::Bounded { start, end } => {
+            vis.visit_literal(&Lit::Int(*start as u128));
+            vis.visit_literal(&Lit::Int(*end as u128));
+        }
+        QuantDom::Unbounded(sort) => {
+            vis.visit_sort(sort);
+        }
+    }
+}
+
 pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
     match expr.kind {
         ExprKind::Var(qpath) => walk_qpath_expr(vis, qpath),
@@ -608,7 +624,8 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
                 vis.visit_expr(&s.expr);
             }
         }
-        ExprKind::Quant(_, param, _, expr) => {
+        ExprKind::Quant(_, param, dom, expr) => {
+            vis.visit_domain(&dom);
             vis.visit_refine_param(&param);
             vis.visit_expr(expr);
         }

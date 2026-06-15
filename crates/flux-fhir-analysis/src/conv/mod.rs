@@ -2185,7 +2185,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let dom = self.conv_quant_dom(dom)?;
                 let vars = env.pop_layer().into_bound_vars(self.genv())?;
                 let body = rty::Binder::bind_with_vars(pred, vars);
-                rty::Expr::bounded_quant(kind, dom, body)
+                rty::Expr::quant(kind, dom, body)
             }
             fhir::ExprKind::Record(flds) => {
                 let flds = flds
