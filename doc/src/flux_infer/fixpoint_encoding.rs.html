@@ -271,7 +271,7 @@
 <a href=#271 id=271 data-nosnippet>271</a>
 <a href=#272 id=272 data-nosnippet>272</a><span class="attr">#[derive(Debug, Clone, Default)]
 <a href=#273 id=273 data-nosnippet>273</a></span><span class="kw">pub struct </span>Answer&lt;Tag&gt; {
-<a href=#274 id=274 data-nosnippet>274</a>    <span class="kw">pub </span>errors: Vec&lt;Tag&gt;,
+<a href=#274 id=274 data-nosnippet>274</a>    <span class="kw">pub </span>errors: Vec&lt;(Tag, TagIdx)&gt;,
 <a href=#275 id=275 data-nosnippet>275</a>    <span class="kw">pub </span>cut_solution: Solution,
 <a href=#276 id=276 data-nosnippet>276</a>    <span class="kw">pub </span>non_cut_solution: Solution,
 <a href=#277 id=277 data-nosnippet>277</a>}
@@ -714,8 +714,8 @@
 <a href=#714 id=714 data-nosnippet>714</a>                metrics::incr_metric(Metric::CsError, errors.len() <span class="kw">as </span>u32);
 <a href=#715 id=715 data-nosnippet>715</a>                errors
 <a href=#716 id=716 data-nosnippet>716</a>                    .into_iter()
-<a href=#717 id=717 data-nosnippet>717</a>                    .map(|err| <span class="self">self</span>.tags[err.tag])
-<a href=#718 id=718 data-nosnippet>718</a>                    .unique()
+<a href=#717 id=717 data-nosnippet>717</a>                    .map(|err| (<span class="self">self</span>.tags[err.tag], err.tag))
+<a href=#718 id=718 data-nosnippet>718</a>                    .unique_by(|(tag, <span class="kw">_</span>)| <span class="kw-2">*</span>tag)
 <a href=#719 id=719 data-nosnippet>719</a>                    .collect_vec()
 <a href=#720 id=720 data-nosnippet>720</a>            }
 <a href=#721 id=721 data-nosnippet>721</a>            FixpointStatus::Crash(err) =&gt; <span class="macro">span_bug!</span>(def_span, <span class="string">"fixpoint crash: {err:?}"</span>),
