@@ -1055,16 +1055,16 @@ where
             rty::ExprKind::KVar(kvar) => {
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
             }
-            rty::ExprKind::Quant(QuantKind::Forall, QuantDom::Unbounded, _)
-                if matches!(self.ecx.backend, Backend::Fixpoint) =>
-            {
-                // If a forall appears in assumptive position replace it with true. This is sound
-                // because we are weakening the context, i.e., anything true without the assumption
-                // should remain true after adding it. Note that this relies on the predicate
-                // appearing negatively. This is guaranteed by the surface syntax because foralls
-                // can only appear at the top-level in a requires clause.
-                preds.push(fixpoint::Pred::TRUE);
-            }
+            // CUT rty::ExprKind::Quant(QuantKind::Forall, QuantDom::Unbounded, _)
+            // CUT     if matches!(self.ecx.backend, Backend::Fixpoint) =>
+            // CUT {
+            // CUT     // If a forall appears in assumptive position replace it with true. This is sound
+            // CUT     // because we are weakening the context, i.e., anything true without the assumption
+            // CUT     // should remain true after adding it. Note that this relies on the predicate
+            // CUT     // appearing negatively. This is guaranteed by the surface syntax because foralls
+            // CUT     // can only appear at the top-level in a requires clause.
+            // CUT     preds.push(fixpoint::Pred::TRUE);
+            // CUT }
             _ => {
                 preds.push(fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?));
             }

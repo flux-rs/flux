@@ -821,9 +821,6 @@ pub enum ExprKind {
     /// and the places where we generate inference variable for them (where we do need to worry
     /// about the scope).
     Hole(HoleKind),
-    // CUT ForAll(Binder<Expr>),
-    /// Only for non-cuts solutions from fixpoint
-    // CUT Exists(Binder<Expr>),
     /// Is the expression constructed from constructor of the given DefId (which should be `reflected` Enum)
     IsCtor(DefId, VariantIdx, Expr),
 }
