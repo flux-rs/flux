@@ -33,7 +33,7 @@ use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, SolutionTrace},
+    fixpoint_encoding::{FixQueryCache, SolutionTrace, TagIdx},
     infer::{ConstrReason, SubtypeReason, Tag},
 };
 use flux_macros::fluent_messages;
@@ -42,12 +42,11 @@ use flux_middle::{
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
-    rty::{self, ESpan},
+    rty::{self},
 };
 use rustc_data_structures::unord::UnordMap;
-use rustc_errors::ErrorGuaranteed;
+use rustc_errors::{Diagnostic as _, ErrorGuaranteed};
 use rustc_hir::def_id::LocalDefId;
-use rustc_span::Span;
 
 use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_statements};
 
@@ -56,13 +55,13 @@ fluent_messages! { "../locales/en-US.ftl" }
 fn report_fixpoint_errors(
     genv: GlobalEnv,
     local_id: LocalDefId,
-    errors: Vec<Tag>,
+    errors: Vec<(Tag, TagIdx)>,
 ) -> Result<(), ErrorGuaranteed> {
     #[expect(clippy::collapsible_else_if, reason = "it looks better")]
     if genv.should_fail(local_id) {
         if errors.is_empty() { report_expected_neg(genv, local_id) } else { Ok(()) }
     } else {
-        if errors.is_empty() { Ok(()) } else { report_errors(genv, errors) }
+        if errors.is_empty() { Ok(()) } else { report_errors(genv, local_id, errors) }
     }
 }
 
@@ -197,46 +196,87 @@ pub fn check_fn(
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| Ok(()))
 }
 
-fn call_error(genv: GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
-    genv.sess()
-        .emit_err(errors::RefineError::call(span, dst_span))
-}
+fn report_errors(
+    genv: GlobalEnv,
+    local_id: LocalDefId,
+    errors: Vec<(Tag, TagIdx)>,
+) -> Result<(), ErrorGuaranteed> {
+    let log_path = if config::dump_constraint() {
+        let path = dbg::item_dump_path(genv.tcx(), local_id.to_def_id(), "smt2");
+        if path.exists() { Some(path) } else { None }
+    } else {
+        None
+    };
 
-fn ret_error(genv: GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
-    genv.sess()
-        .emit_err(errors::RefineError::ret(span, dst_span))
-}
-
-fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuaranteed> {
     let mut e = None;
-    for err in errors {
+    for (err, tag_idx) in errors {
         let span = err.src_span;
+        let emit = |mut diag: rustc_errors::Diag<'_, ErrorGuaranteed>| -> ErrorGuaranteed {
+            if let Some(path) = &log_path {
+                diag.arg("path", path.display().to_string());
+                diag.arg("tag", tag_idx.to_string());
+                diag.note(crate::fluent_generated::refineck_constraint_log_note);
+            }
+            diag.emit()
+        };
+        let dcx = genv.sess().dcx().handle();
         e = Some(match err.reason {
             ConstrReason::Call
             | ConstrReason::Subtype(SubtypeReason::Input)
             | ConstrReason::Subtype(SubtypeReason::Requires)
-            | ConstrReason::Predicate => call_error(genv, span, err.dst_span),
-            ConstrReason::Assign => genv.sess().emit_err(errors::AssignError { span }),
+            | ConstrReason::Predicate => {
+                emit(
+                    errors::RefineError::call(span, err.dst_span)
+                        .into_diag(dcx, rustc_errors::Level::Error),
+                )
+            }
+            ConstrReason::Assign => {
+                emit(errors::AssignError { span }.into_diag(dcx, rustc_errors::Level::Error))
+            }
             ConstrReason::Ret
             | ConstrReason::Subtype(SubtypeReason::Output)
-            | ConstrReason::Subtype(SubtypeReason::Ensures) => ret_error(genv, span, err.dst_span),
-            ConstrReason::Div => genv.sess().emit_err(errors::DivError { span }),
-            ConstrReason::Rem => genv.sess().emit_err(errors::RemError { span }),
-            ConstrReason::Goto(_) => genv.sess().emit_err(errors::GotoError { span }),
-            ConstrReason::Assert(msg) => genv.sess().emit_err(errors::AssertError { span, msg }),
-            ConstrReason::Fold | ConstrReason::FoldLocal => {
-                genv.sess()
-                    .emit_err(errors::FoldError::new(span, err.dst_span))
+            | ConstrReason::Subtype(SubtypeReason::Ensures) => {
+                emit(
+                    errors::RefineError::ret(span, err.dst_span)
+                        .into_diag(dcx, rustc_errors::Level::Error),
+                )
             }
-            ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
-            ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
-            ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
+            ConstrReason::Div => {
+                emit(errors::DivError { span }.into_diag(dcx, rustc_errors::Level::Error))
+            }
+            ConstrReason::Rem => {
+                emit(errors::RemError { span }.into_diag(dcx, rustc_errors::Level::Error))
+            }
+            ConstrReason::Goto(_) => {
+                emit(errors::GotoError { span }.into_diag(dcx, rustc_errors::Level::Error))
+            }
+            ConstrReason::Assert(msg) => {
+                emit(errors::AssertError { span, msg }.into_diag(dcx, rustc_errors::Level::Error))
+            }
+            ConstrReason::Fold | ConstrReason::FoldLocal => {
+                emit(
+                    errors::FoldError::new(span, err.dst_span)
+                        .into_diag(dcx, rustc_errors::Level::Error),
+                )
+            }
+            ConstrReason::Overflow => {
+                emit(errors::OverflowError { span }.into_diag(dcx, rustc_errors::Level::Error))
+            }
+            ConstrReason::Underflow => {
+                emit(errors::UnderflowError { span }.into_diag(dcx, rustc_errors::Level::Error))
+            }
+            ConstrReason::Other => {
+                emit(errors::UnknownError { span }.into_diag(dcx, rustc_errors::Level::Error))
+            }
             ConstrReason::NoPanic(callee, reason) => {
-                genv.sess().emit_err(errors::PanicError {
-                    span,
-                    callee: genv.tcx().def_path_debug_str(callee),
-                    reason: format!("{:?}", reason),
-                })
+                emit(
+                    errors::PanicError {
+                        span,
+                        callee: genv.tcx().def_path_debug_str(callee),
+                        reason: format!("{:?}", reason),
+                    }
+                    .into_diag(dcx, rustc_errors::Level::Error),
+                )
             }
         });
     }
