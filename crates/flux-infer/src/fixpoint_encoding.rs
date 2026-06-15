@@ -273,7 +273,7 @@ pub struct ParsedResult {
 
 #[derive(Debug, Clone, Default)]
 pub struct Answer<Tag> {
-    pub errors: Vec<Tag>,
+    pub errors: Vec<(Tag, TagIdx)>,
     pub cut_solution: Solution,
     pub non_cut_solution: Solution,
 }
@@ -716,8 +716,8 @@ where
                 metrics::incr_metric(Metric::CsError, errors.len() as u32);
                 errors
                     .into_iter()
-                    .map(|err| self.tags[err.tag])
-                    .unique()
+                    .map(|err| (self.tags[err.tag], err.tag))
+                    .unique_by(|(tag, _)| *tag)
                     .collect_vec()
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
