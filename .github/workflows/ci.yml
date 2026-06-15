@@ -29,6 +29,8 @@ jobs:
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.8.0
+        with:
+          cache-bin: false
 
       - name: Run tests
         run: |
@@ -113,25 +115,10 @@ jobs:
         run: |
           git clone https://github.com/flux-rs/flux-to-lean-demo
 
-      - name: Generate Lean Project
-        continue-on-error: true
+      - name: Run lean demo
         working-directory: flux-to-lean-demo
         run: |
-          cargo flux
-
-      - name: Copy proofs
-        working-directory: flux-to-lean-demo
-        run: |
-          cp -r LeanUserProofs/* lean_proofs/LeanProofs/User/
-
-      - name: Run lean
-        working-directory: flux-to-lean-demo
-        run: |
-          cd lean_proofs && lake build
-
-      - name: Check proofs in flux
-        run: |
-          cargo flux
+          bash runlean.sh
 
   rustfmt:
     runs-on: ubuntu-latest

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import type { RustcDiagnostic, RustcMessage, RustcSpan } from "../types";
+import { warn, error as logError } from "../utils/logger";
 
 /**
  * Convert rustc severity level to VS Code DiagnosticSeverity
@@ -62,7 +63,7 @@ function convertRelatedInformation(
                     );
                 } catch (error) {
                     // Skip invalid file paths
-                    console.warn(
+                    warn(
                         `Failed to create related information for ${span.file_name}:`,
                         error
                     );
@@ -179,7 +180,7 @@ export function convertRustcDiagnostic(
 
         return { uri, diagnostic: diag };
     } catch (error) {
-        console.error("Failed to convert rustc diagnostic:", error, rustcDiag);
+        logError("Failed to convert rustc diagnostic:", error, rustcDiag);
         return null;
     }
 }
@@ -245,7 +246,7 @@ export function updateDiagnosticsFromRustc(
                         rustcDiagnostics.push(diag);
                     }
                 } catch (parseError) {
-                    console.warn("Failed to parse rustc output line:", line, parseError);
+                    warn("Failed to parse rustc output line:", line, parseError);
                 }
             }
         }
@@ -266,6 +267,6 @@ export function updateDiagnosticsFromRustc(
             diagnosticCollection.set(uri, diagnostics);
         }
     } catch (error) {
-        console.error("Failed to update diagnostics from rustc output:", error);
+        logError("Failed to update diagnostics from rustc output:", error);
     }
 }

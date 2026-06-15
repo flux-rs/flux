@@ -84,8 +84,8 @@ fn const_to_z3<T: Types>(cnst: &Constant<T>) -> ast::Dynamic {
         Constant::Boolean(b) => ast::Bool::from_bool(*b).into(),
         Constant::String(strconst) => ast::String::from(strconst.display().to_string()).into(),
         Constant::BitVec(bv, size) => ast::BV::from_u64(*bv as u64, *size).into(),
-        Constant::Real(num) => {
-            ast::Real::from_rational_str(&num.to_string(), "1")
+        Constant::Real(r) => {
+            ast::Real::from_str(&r.display().to_string())
                 .unwrap()
                 .into()
         }

@@ -27,9 +27,8 @@ use flux_syntax::{
 };
 use hir::{ItemKind, def::DefKind};
 use itertools::{Either, Itertools};
-use rustc_data_structures::fx::FxIndexSet;
+use rustc_data_structures::{fx::FxIndexSet, unord::UnordSet};
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
-use rustc_hash::FxHashSet;
 use rustc_hir::{self as hir, OwnerId, def::Namespace};
 use rustc_span::{
     DUMMY_SP, Span,
@@ -50,7 +49,7 @@ fn collect_generics_in_params(
 ) -> FxIndexSet<DefId> {
     struct ParamCollector<'a> {
         resolver_output: &'a ResolverOutput,
-        found: FxHashSet<DefId>,
+        found: UnordSet<DefId>,
     }
     impl surface::visit::Visitor for ParamCollector<'_> {
         fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
@@ -63,7 +62,7 @@ fn collect_generics_in_params(
             surface::visit::walk_base_sort(self, bsort);
         }
     }
-    let mut vis = ParamCollector { resolver_output, found: FxHashSet::default() };
+    let mut vis = ParamCollector { resolver_output, found: UnordSet::new() };
     walk_list!(vis, visit_refine_param, params);
     genv.tcx()
         .generics_of(owner.resolved_id())
@@ -1200,13 +1199,21 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         path: &surface::Path,
         res: fhir::Res<!>,
     ) -> fhir::GenericArg<'genv> {
-        let kind = if let Res::Def(DefKind::ConstParam, def_id) = res {
+        let kind = self.desugar_const_path_to_const_arg_kind(path, res);
+        fhir::GenericArg::Const(fhir::ConstArg { kind, span: path.span })
+    }
+
+    fn desugar_const_path_to_const_arg_kind(
+        &mut self,
+        path: &surface::Path,
+        res: fhir::Res<!>,
+    ) -> fhir::ConstArgKind {
+        if let Res::Def(DefKind::ConstParam, def_id) = res {
             fhir::ConstArgKind::Param(def_id)
         } else {
             self.emit(errors::UnsupportedConstGenericArg::new(path.span, res.descr()));
             fhir::ConstArgKind::Infer
-        };
-        fhir::GenericArg::Const(fhir::ConstArg { kind, span: path.span })
+        }
     }
 
     /// This is the mega desugaring function [`surface::Ty`] -> [`fhir::Ty`].
@@ -1289,7 +1296,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
             surface::TyKind::Array(ty, len) => {
                 let ty = self.desugar_ty(ty);
-                let len = Self::desugar_const_arg(len);
+                let len = self.desugar_const_arg(len);
                 fhir::TyKind::Array(self.genv().alloc(ty), len)
             }
             surface::TyKind::ImplTrait(_, bounds) => self.desugar_impl_trait(bounds),
@@ -1298,9 +1305,15 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         fhir::Ty { kind, span }
     }
 
-    fn desugar_const_arg(const_arg: &surface::ConstArg) -> fhir::ConstArg {
-        let kind = match const_arg.kind {
-            surface::ConstArgKind::Lit(val) => fhir::ConstArgKind::Lit(val),
+    fn desugar_const_arg(&mut self, const_arg: &surface::ConstArg) -> fhir::ConstArg {
+        let kind = match &const_arg.kind {
+            surface::ConstArgKind::Lit(val) => fhir::ConstArgKind::Lit(*val),
+            surface::ConstArgKind::Path(path) => {
+                let res = self.resolver_output().path_res_map[&path.node_id]
+                    .full_res()
+                    .unwrap_or(Res::Err);
+                self.desugar_const_path_to_const_arg_kind(path, res)
+            }
             surface::ConstArgKind::Infer => fhir::ConstArgKind::Infer,
         };
         fhir::ConstArg { kind, span: const_arg.span }
@@ -1433,7 +1446,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn mk_lft_hole(&self) -> fhir::Lifetime {
-        fhir::Lifetime::Hole(self.next_fhir_id())
+        fhir::Lifetime(self.next_fhir_id())
     }
 
     fn desugar_indices(&mut self, idxs: &surface::Indices) -> fhir::Expr<'genv> {
@@ -1628,7 +1641,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let field_exprs = self
             .genv()
             .alloc_slice_fill_iter(field_exprs.iter().map(|field_expr| {
-                let e = self.desugar_expr(&field_expr.expr);
+                let e = self.desugar_refine_arg(&field_expr.expr);
                 fhir::FieldExpr {
                     ident: field_expr.ident,
                     expr: e,
@@ -1688,15 +1701,21 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     Err(err) => return fhir::ExprKind::Err(err),
                 };
                 match lit.suffix {
-                    Some(sym::int) => fhir::Lit::Int(n, Some(fhir::NumLitKind::Int)),
-                    Some(sym::real) => fhir::Lit::Int(n, Some(fhir::NumLitKind::Real)),
-                    None => fhir::Lit::Int(n, None),
+                    None => fhir::Lit::Int(n),
                     Some(suffix) => {
                         return fhir::ExprKind::Err(
                             self.emit(errors::InvalidNumericSuffix::new(span, suffix)),
                         );
                     }
                 }
+            }
+            surface::LitKind::Float => {
+                if let Some(suffix) = lit.suffix {
+                    return fhir::ExprKind::Err(
+                        self.emit(errors::InvalidNumericSuffix::new(span, suffix)),
+                    );
+                }
+                fhir::Lit::Real(lit.symbol)
             }
             surface::LitKind::Bool => fhir::Lit::Bool(lit.symbol == kw::True),
             surface::LitKind::Str => fhir::Lit::Str(lit.symbol),

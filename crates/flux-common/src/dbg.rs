@@ -2,7 +2,7 @@
 use std::{
     fmt, fs,
     io::{self, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use flux_config as config;
@@ -201,6 +201,10 @@ fn dump_base_name(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> String {
     format!("{crate_name}.{item_name}.{}", ext.as_ref())
 }
 
+pub fn item_dump_path(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> PathBuf {
+    config::log_dir().join(dump_base_name(tcx, def_id, ext))
+}
+
 #[macro_export]
 macro_rules! _debug_assert_eq3 {
     ($e1:expr, $e2:expr, $e3:expr) => {{
@@ -208,6 +212,16 @@ macro_rules! _debug_assert_eq3 {
     }};
 }
 pub use crate::_debug_assert_eq3 as debug_assert_eq3;
+
+#[macro_export]
+macro_rules! _log_verbose {
+    ($($arg:tt)*) => {
+        if config::verbose() {
+            eprintln!($($arg)*);
+        }
+    };
+}
+pub use crate::_log_verbose as log_verbose;
 
 pub fn as_subscript<T: ToString>(n: T) -> String {
     n.to_string()

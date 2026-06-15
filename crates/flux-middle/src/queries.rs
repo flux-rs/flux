@@ -27,6 +27,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
+    PanicSpec,
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
@@ -202,6 +203,7 @@ pub struct Providers {
     pub item_bounds:
         fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
     pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
+    pub inferred_no_panic: fn(GlobalEnv) -> UnordMap<DefId, PanicSpec>,
 }
 
 macro_rules! empty_query {
@@ -240,6 +242,7 @@ impl Default for Providers {
             constant_info: |_, _| empty_query!(),
             static_info: |_, _| empty_query!(),
             sort_decl_param_count: |_, _| empty_query!(),
+            inferred_no_panic: |_| empty_query!(),
         }
     }
 }
@@ -284,9 +287,10 @@ pub struct Queries<'genv, 'tcx> {
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
-    lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
+    assume_parametric_params: Cache<DefId, UnordSet<u32>>,
+    inferred_no_panic: Cache<CrateNum, Rc<UnordMap<DefId, PanicSpec>>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -325,9 +329,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             type_of: Default::default(),
             variants_of: Default::default(),
             fn_sig: Default::default(),
-            lower_late_bound_vars: Default::default(),
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
+            assume_parametric_params: Default::default(),
+            inferred_no_panic: Default::default(),
         }
     }
 
@@ -450,20 +455,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     .lower(genv.tcx())
                     .map_err(|err| QueryErr::unsupported(def_id, err.into_err()))?,
             ))
-        })
-    }
-
-    pub(crate) fn lower_late_bound_vars(
-        &self,
-        genv: GlobalEnv,
-        def_id: LocalDefId,
-    ) -> QueryResult<List<ty::BoundVariableKind>> {
-        run_with_cache(&self.lower_late_bound_vars, def_id, || {
-            let hir_id = genv.tcx().local_def_id_to_hir_id(def_id);
-            genv.tcx()
-                .late_bound_vars(hir_id)
-                .lower(genv.tcx())
-                .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err.into_err()))
         })
     }
 
@@ -613,6 +604,28 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
+    pub fn inferred_no_panic_crate(
+        &self,
+        genv: GlobalEnv,
+        krate: CrateNum,
+    ) -> Rc<UnordMap<DefId, PanicSpec>> {
+        // We can just make this `core` if we only care about that.
+        fn is_stdlib_crate(tcx: rustc_middle::ty::TyCtxt<'_>, krate: CrateNum) -> bool {
+            matches!(tcx.crate_name(krate).as_str(), "core" | "alloc" | "std")
+        }
+
+        run_with_cache(&self.inferred_no_panic, krate, || {
+            if krate == LOCAL_CRATE
+                || is_stdlib_crate(genv.tcx(), krate)
+                || !genv.cstore_has_crate(krate)
+            {
+                Rc::new((self.providers.inferred_no_panic)(genv))
+            } else {
+                genv.cstore().inferred_no_panic(krate)
+            }
+        })
+    }
+
     pub(crate) fn static_info(
         &self,
         genv: GlobalEnv,
@@ -666,6 +679,26 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 },
                 |def_id| genv.cstore().no_panic(def_id),
                 |_| false,
+            )
+        })
+    }
+
+    pub(crate) fn assume_parametric_params(&self, genv: GlobalEnv, def_id: DefId) -> UnordSet<u32> {
+        run_with_cache(&self.assume_parametric_params, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                self,
+                |def_id| {
+                    let tcx = genv.tcx();
+                    let generics = tcx.generics_of(def_id);
+                    genv.fhir_attr_map(def_id.local_id())
+                        .parametric_params()
+                        .iter()
+                        .map(|param_id| generics.param_def_id_to_index(tcx, *param_id).unwrap())
+                        .collect()
+                },
+                |def_id| genv.cstore().assume_parametric_params(def_id),
+                |_| UnordSet::default(),
             )
         })
     }

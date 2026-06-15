@@ -58,7 +58,7 @@ use rustc_data_structures::{
     unord::{UnordMap, UnordSet},
 };
 use rustc_hir::OwnerId;
-use rustc_macros::extension;
+use rustc_macros::{Decodable, Encodable, extension};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{
     Symbol,
@@ -67,6 +67,22 @@ use rustc_span::{
 };
 
 fluent_messages! { "../locales/en-US.ftl" }
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Encodable, Decodable)]
+pub enum PanicSpec {
+    WillNotPanic,
+    MightPanic(PanicReason),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum PanicReason {
+    Transitive,
+    UnresolvedCall(DefId),
+    DynamicDispatch,
+    SynthesizedPanic,
+    NotInCallGraph,
+    NoMIRAvailable,
+}
 
 pub struct TheoryFunc {
     pub name: Symbol,
@@ -492,6 +508,9 @@ pub struct ResolverOutput {
     /// The resolved list of local reveals per function
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
     pub reveal_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
+    /// The resolved type param `DefId`s for `#[assume_parametric(...)]` per function.
+    /// The [`NodeId`] corresponds to the surface item's `node_id`.
+    pub parametric_param_res_map: UnordMap<NodeId, Vec<DefId>>,
 }
 
 #[extension(pub trait PlaceExt)]

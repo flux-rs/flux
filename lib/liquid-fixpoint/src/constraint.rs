@@ -449,12 +449,7 @@ impl<T: Types> Expr<T> {
 #[derive_where(Hash, Clone, Debug)]
 pub enum Constant<T: Types> {
     Numeral(u128),
-    // Currently we only support parsing integers as decimals. We should extend this to allow
-    // rational numbers as a numer/denom.
-    //
-    // NOTE: If this type is updated, then update parse_expr in the parser
-    // (see the unimplemented!() related to float parsing).
-    Real(u128),
+    Real(T::Real),
     Boolean(bool),
     String(T::String),
     BitVec(u128, u32),

@@ -536,15 +536,16 @@ pub enum BaseTyKind {
     Ptr(Mutability, Box<Ty>),
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+#[derive(Debug)]
 pub struct ConstArg {
     pub kind: ConstArgKind,
     pub span: Span,
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+#[derive(Debug)]
 pub enum ConstArgKind {
     Lit(usize),
+    Path(Path),
     Infer,
 }
 
@@ -640,6 +641,8 @@ pub enum Attr {
     InferOpts(PartialInferOpts),
     /// A `#[no_panic]` attribute
     NoPanic,
+    /// A `#[assume_parametric(...)]` attribute
+    AssumeParametric(Vec<Ident>),
 }
 
 #[derive(Debug)]
@@ -680,7 +683,7 @@ pub enum GenericArgKind {
 #[derive(Debug)]
 pub struct FieldExpr {
     pub ident: Ident,
-    pub expr: Expr,
+    pub expr: RefineArg,
     pub span: Span,
     pub node_id: NodeId,
 }

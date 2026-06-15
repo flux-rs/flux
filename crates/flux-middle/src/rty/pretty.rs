@@ -275,7 +275,8 @@ impl Pretty for IdxFmt {
         let mut buf = String::new();
         match e.kind() {
             ExprKind::Ctor(ctor, flds)
-                if let Some(adt_sort_def) = cx.adt_sort_def_of(ctor.def_id())
+                if let Some((def_id, _)) = ctor.def_id_and_variant()
+                    && let Some(adt_sort_def) = cx.adt_sort_def_of(def_id)
                     && let Some(variant) = adt_sort_def.opt_struct_variant() =>
             {
                 let fields = iter::zip(variant.field_names(), flds)

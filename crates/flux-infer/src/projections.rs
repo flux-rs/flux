@@ -8,7 +8,7 @@ use flux_middle::{
     rty::{
         self, AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind,
         EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs, Region,
-        Sort, SubsetTy, SubsetTyCtor, Ty, TyKind,
+        Sort, SubsetTy, SubsetTyCtor, Ty, TyKind, TyOrBase,
         fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
         refining::Refiner,
         subst::{GenericsSubstDelegate, GenericsSubstFolder},
@@ -644,9 +644,11 @@ impl TVarSubst {
                 self.insert_generic_arg(param_ty.index, GenericArg::Ty(b.clone()));
             }
         } else {
-            let Some(a_bty) = a.as_bty_skipping_existentials() else { return };
-            let Some(b_bty) = b.as_bty_skipping_existentials() else { return };
-            self.btys(a_bty, b_bty);
+            let a = a.shallow_canonicalize().as_ty_or_base();
+            let b = b.shallow_canonicalize().as_ty_or_base();
+            if let (TyOrBase::Base(a_ctor), TyOrBase::Base(b_ctor)) = (a, b) {
+                self.subset_tys(&a_ctor, &b_ctor);
+            }
         }
     }
 

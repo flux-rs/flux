@@ -15,12 +15,12 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_middle::{
-    mir::{Location, Promoted, START_BLOCK},
+    mir::{BorrowKind, Location, Promoted, START_BLOCK},
     ty::TyCtxt,
 };
 
-type LocationMap = FxHashMap<Location, Vec<GhostStatement>>;
-type EdgeMap = FxHashMap<BasicBlock, FxHashMap<BasicBlock, Vec<GhostStatement>>>;
+type LocationMap = UnordMap<Location, Vec<GhostStatement>>;
+type EdgeMap = UnordMap<BasicBlock, FxHashMap<BasicBlock, Vec<GhostStatement>>>;
 
 /// A type to indicate _who_ the ghost statements are for: either a regular `DefId` (including closures)  a promoted body.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -125,11 +125,22 @@ impl GhostStatements {
 
     fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body_root: &BodyRoot<'tcx>) {
         for (location, borrows) in body_root.calculate_borrows_out_of_scope_at_location() {
-            let stmts = borrows.into_iter().map(|bidx| {
-                let borrow = body_root.borrow_data(bidx);
-                let place = lowering::lower_place(tcx, &borrow.borrowed_place()).unwrap();
-                GhostStatement::Unblock(place)
-            });
+            let stmts = borrows
+                .into_iter()
+                .filter(|bidx| {
+                    // Only mutable borrows of owned places ever block the place (via the
+                    // `ptr(mut, ℓ)` → `&mut` conversion in `TypeEnv::ptr_to_ref`). Shared and
+                    // fake borrows never block, so emitting an `Unblock` for them is at best a
+                    // no-op and at worst an ICE: the borrowed place may have been folded back to
+                    // a struct (e.g. `&s` live alongside `&s.b`), which `PlacesTree::unblock`
+                    // cannot traverse.
+                    matches!(body_root.borrow_data(*bidx).kind(), BorrowKind::Mut { .. })
+                })
+                .map(|bidx| {
+                    let borrow = body_root.borrow_data(bidx);
+                    let place = lowering::lower_place(tcx, &borrow.borrowed_place()).unwrap();
+                    GhostStatement::Unblock(place)
+                });
             self.at_location.entry(location).or_default().extend(stmts);
         }
     }

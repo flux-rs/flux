@@ -13,6 +13,7 @@ use flux_infer::{
     refine_tree::{Marker, RefineCtxtTrace},
 };
 use flux_middle::{
+    PanicSpec,
     global_env::GlobalEnv,
     pretty::PrettyCx,
     queries::{QueryResult, try_query},
@@ -37,8 +38,11 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _},
 };
 use itertools::{Itertools, izip};
-use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_data_structures::{
+    graph::dominators::Dominators,
+    unord::{UnordMap, UnordSet},
+};
+use rustc_hash::FxHashMap;
 use rustc_hir::{
     LangItem,
     def_id::{DefId, LocalDefId},
@@ -949,10 +953,33 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             && genv.def_kind(callee_def_id).is_fn_like()
         {
             let callee_no_panic = fn_sig.no_panic();
+            let callee_inferred_spec = genv.inferred_no_panic(callee_def_id);
+
+            // The call-graph and fixpoint iteration are over `Instance`s, but the output map only
+            // retains non-mono (identity) instances (that we can identify with a `DefId`). A concrete
+            // callee (e.g., `Vec::<i32>::push`) is a mono instance whose spec is not directly queryable
+            // via inferred_no_panic. However, if the caller is `WillNotPanic`, the fixpoint already
+            // accounted for all its concrete callees: any `MightPanic` callee would have propagated up
+            // and marked the caller `MightPanic(Transitive)`. So the caller's `WillNotPanic` proves all
+            // its concrete callees are no-panic, even those whose mono spec is absent from the output
+            // map. We could potentially key specs by `Instance`, but we also need to be able to recover
+            // the resolution to a mono-instance here.
+            let inferred_panic_expr = if let CheckerId::DefId(caller_id) = self.checker_id
+                && genv.inferred_no_panic(caller_id) == PanicSpec::WillNotPanic
+            {
+                Expr::tt()
+            } else if callee_inferred_spec == PanicSpec::WillNotPanic {
+                Expr::tt()
+            } else {
+                Expr::ff()
+            };
 
             at.check_pred(
-                Expr::implies(self.fn_sig.no_panic(), callee_no_panic),
-                ConstrReason::NoPanic(callee_def_id),
+                Expr::implies(
+                    self.fn_sig.no_panic(),
+                    Expr::or(callee_no_panic, inferred_panic_expr),
+                ),
+                ConstrReason::NoPanic(callee_def_id, callee_inferred_spec),
             );
         }
 
@@ -1269,6 +1296,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 span,
             )?;
             self.check_ret(&mut infcx, &mut env, span)
+        } else if let Some(real_target) = self.is_dummy_join(target) {
+            self.check_goto(infcx, env, span, real_target)
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, infcx, env, span, target)? {
                 self.queue.insert(target);
@@ -1277,6 +1306,65 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         } else {
             self.check_basic_block(infcx, env, target)
         }
+    }
+
+    /// A dummy-join-block is a BasicBlock that has
+    /// 1. MULTIPLE incoming edges,
+    /// 2. SINGLE outgoing edge,
+    /// 3. ONLY no-op statements, and
+    /// 4. NO ghosts statements.
+    ///
+    /// (1) is because we want to avoid "spurious joins"
+    /// but also, without it, we have problems with
+    /// degenerate loops like (e.g. `const_generics/loop.rs`).
+    ///
+    /// We can "skip" such blocks and jump straight to
+    /// the first (transitively reachable) non-dummy
+    /// successor, aka the "real" successor, which allows
+    /// us to avoid emitting KVars for spurious joins.
+    fn is_dummy_join(&self, bb: BasicBlock) -> Option<BasicBlock> {
+        if self.body.is_join_point(bb)
+            && self.body.basic_blocks[bb]
+                .statements
+                .iter()
+                .all(Statement::is_nop)
+            && let Some(TerminatorKind::Goto { target: real_target }) = &self.body.basic_blocks[bb]
+                .terminator
+                .as_ref()
+                .map(|terminator| &terminator.kind)
+            && self.no_ghosts_at(bb, *real_target)
+        {
+            Some(*real_target)
+        } else {
+            None
+        }
+    }
+
+    fn no_ghosts_at(&self, bb: BasicBlock, real_target: BasicBlock) -> bool {
+        let Some(ghosts) = self.inherited.ghost_stmts.get(&self.checker_id) else {
+            return true;
+        };
+
+        let mut res = ghosts
+            .statements_at(Point::Edge(bb, real_target))
+            .next()
+            .is_none();
+
+        let mut location = Location { block: bb, statement_index: 0 };
+        for _ in &self.body.basic_blocks[bb].statements {
+            res = res
+                && ghosts
+                    .statements_at(Point::BeforeLocation(location))
+                    .next()
+                    .is_none();
+            location = location.successor_within_block();
+        }
+        res = res
+            && ghosts
+                .statements_at(Point::BeforeLocation(location))
+                .next()
+                .is_none();
+        res
     }
 
     fn closure_template(
@@ -1999,6 +2087,7 @@ fn instantiate_args_for_fun_call(
     args: &ty::GenericArgs,
 ) -> QueryResult<Vec<rty::GenericArg>> {
     let params_in_clauses = collect_params_in_clauses(genv, callee_id);
+    let assumed_parametric_params = genv.assume_parametric_params(callee_id);
 
     let hole_refiner = Refiner::new_for_item(genv, caller_id, |bty| {
         let sort = bty.sort();
@@ -2017,8 +2106,9 @@ fn instantiate_args_for_fun_call(
         .enumerate()
         .map(|(idx, arg)| {
             let param = callee_generics.param_at(idx, genv)?;
-            let refiner =
-                if params_in_clauses.contains(&idx) { &default_refiner } else { &hole_refiner };
+            let is_parametric = !params_in_clauses.contains(&idx)
+                || assumed_parametric_params.contains(&(idx as u32));
+            let refiner = if is_parametric { &hole_refiner } else { &default_refiner };
             refiner.refine_generic_arg(&param, arg)
         })
         .collect()
@@ -2046,10 +2136,10 @@ fn instantiate_args_for_constructor(
         .collect()
 }
 
-fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize> {
+fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> UnordSet<usize> {
     let tcx = genv.tcx();
     struct Collector {
-        params: FxHashSet<usize>,
+        params: UnordSet<usize>,
     }
 
     impl rustc_middle::ty::TypeVisitor<TyCtxt<'_>> for Collector {
@@ -2060,7 +2150,7 @@ fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize>
             t.super_visit_with(self);
         }
     }
-    let mut vis = Collector { params: Default::default() };
+    let mut vis = Collector { params: UnordSet::new() };
 
     let span = genv.tcx().def_span(def_id);
     for (clause, _) in all_predicates_of(tcx, def_id) {

@@ -1,6 +1,9 @@
-use std::{path::Path, process::Command};
+use std::{collections::HashSet, path::Path, process::Command};
 
-use cargo_metadata::{MetadataCommand, camino::Utf8PathBuf};
+use cargo_metadata::{
+    Metadata, MetadataCommand, Package as CargoPackage, PackageId, camino::Utf8PathBuf,
+};
+use flux_config::flags::Flags;
 
 use crate::cargo_style;
 
@@ -12,7 +15,7 @@ pub enum Cli {
     /// Flux's integration with Cargo
     Flux {
         #[command(flatten)]
-        check_opts: CheckOpts,
+        check_opts: CompileOpts,
 
         #[command(subcommand)]
         command: Option<CargoFluxCommand>,
@@ -31,7 +34,9 @@ pub enum Cli {
 pub enum CargoFluxCommand {
     /// Check a local package and its dependencies for errors using Flux.
     /// This is the default command when no subcommand is provided.
-    Check(CheckOpts),
+    Check(CompileOpts),
+    /// Compile a local package and its dependencies using Flux.
+    Build(CompileOpts),
     /// Remove artifacts that cargo-flux has generated in the past
     Clean(CleanOpts),
 }
@@ -42,6 +47,10 @@ impl CargoFluxCommand {
             CargoFluxCommand::Check(check_opts) => {
                 cmd.arg("check");
                 check_opts.forward_args(cmd);
+            }
+            CargoFluxCommand::Build(build_opts) => {
+                cmd.arg("build");
+                build_opts.forward_args(cmd);
             }
             CargoFluxCommand::Clean(clean_opts) => {
                 cmd.arg("clean");
@@ -55,7 +64,7 @@ impl CargoFluxCommand {
     pub fn metadata(&self) -> MetadataCommand {
         let mut meta = cargo_metadata::MetadataCommand::new();
         match self {
-            CargoFluxCommand::Check(check_options) => {
+            CargoFluxCommand::Check(check_options) | CargoFluxCommand::Build(check_options) => {
                 check_options.forward_to_metadata(&mut meta);
             }
             CargoFluxCommand::Clean(clean_options) => {
@@ -64,10 +73,28 @@ impl CargoFluxCommand {
         }
         meta
     }
+
+    pub fn targeted_package_ids(&self, metadata: &Metadata) -> HashSet<PackageId> {
+        match self {
+            CargoFluxCommand::Check(opts) | CargoFluxCommand::Build(opts) => {
+                opts.targeted_package_ids(metadata)
+            }
+            CargoFluxCommand::Clean(opts) => opts.targeted_package_ids(metadata),
+        }
+    }
+
+    pub fn only_check(&self) -> Option<&str> {
+        match self {
+            CargoFluxCommand::Check(opts) | CargoFluxCommand::Build(opts) => {
+                opts.only_check.as_deref()
+            }
+            CargoFluxCommand::Clean(_) => None,
+        }
+    }
 }
 
 #[derive(clap::Args)]
-pub struct CheckOpts {
+pub struct CompileOpts {
     /// Error format [possible values: human, short, json, json-diagnostic-short, json-diagnostic-rendered-ansi, json-render-diagnostics]
     #[arg(long, value_name = "FMT")]
     message_format: Option<String>,
@@ -80,11 +107,23 @@ pub struct CheckOpts {
     compilation: CompilationOptions,
     #[command(flatten)]
     manifest: ManifestOptions,
+    #[command(flatten)]
+    flux_flags: Flags,
+
+    /// Only check items matching PATTERN (overrides include patterns from cargo.toml or flux.toml).
+    ///
+    /// Supported patterns:
+    ///   def:<name>              — match items whose name contains <name>
+    ///   span:<file>:<line>:<col> — match the item at a source location
+    ///   glob:<pattern>          — match files by glob (e.g. "glob:src/ascii/*.rs")
+    ///   <pattern>               — bare string treated as a glob
+    #[arg(long, value_name = "PATTERN")]
+    pub only_check: Option<String>,
 }
 
-impl CheckOpts {
+impl CompileOpts {
     fn forward_args(&self, cmd: &mut Command) {
-        let CheckOpts { message_format, workspace, features, compilation, manifest } = self;
+        let CompileOpts { message_format, workspace, features, compilation, manifest, .. } = self;
         if let Some(message_format) = &message_format {
             cmd.args(["--message-format", message_format]);
         }
@@ -95,10 +134,64 @@ impl CheckOpts {
     }
 
     fn forward_to_metadata(&self, meta: &mut MetadataCommand) {
-        let CheckOpts { features, manifest, .. } = self;
+        let CompileOpts { features, manifest, .. } = self;
         features.forward_to_metadata(meta);
         manifest.forward_to_metadata(meta);
     }
+
+    pub fn targeted_package_ids(&self, metadata: &Metadata) -> HashSet<PackageId> {
+        targeted_package_ids(&self.workspace, metadata)
+    }
+}
+
+fn package_matches_spec(package: &CargoPackage, spec: &str) -> bool {
+    if package.id.repr == spec {
+        return true;
+    }
+
+    if let Some((name, version)) = spec.rsplit_once('@') {
+        return package.name == name && package.version.to_string() == version;
+    }
+
+    package.name == spec
+}
+
+fn select_packages_by_spec<'a>(package: &Package, metadata: &'a Metadata) -> Vec<&'a CargoPackage> {
+    let workspace_packages = metadata.workspace_packages();
+    if !package.package.is_empty() {
+        workspace_packages
+            .into_iter()
+            .filter(|p| {
+                package
+                    .package
+                    .iter()
+                    .any(|spec| package_matches_spec(p, spec))
+            })
+            .collect()
+    } else if metadata.workspace_default_members.is_available() {
+        metadata.workspace_default_packages()
+    } else if let Some(root) = metadata.root_package() {
+        vec![root]
+    } else {
+        workspace_packages
+    }
+}
+
+fn targeted_package_ids(workspace: &Workspace, metadata: &Metadata) -> HashSet<PackageId> {
+    let mut packages = if workspace.workspace {
+        metadata.workspace_packages()
+    } else {
+        select_packages_by_spec(&workspace.package, metadata)
+    };
+
+    packages.retain(|p| {
+        !workspace
+            .exclude
+            .iter()
+            .any(|spec| package_matches_spec(p, spec))
+    });
+
+    packages.into_iter().map(|p| p.id.clone()).collect()
 }
 
 #[derive(clap::Args)]
@@ -123,6 +216,13 @@ impl CleanOpts {
         let CleanOpts { package: _, features, manifest } = self;
         features.forward_to_metadata(meta);
         manifest.forward_to_metadata(meta);
+    }
+
+    pub fn targeted_package_ids(&self, metadata: &Metadata) -> HashSet<PackageId> {
+        select_packages_by_spec(&self.package, metadata)
+            .into_iter()
+            .map(|p| p.id.clone())
+            .collect()
     }
 }
 
