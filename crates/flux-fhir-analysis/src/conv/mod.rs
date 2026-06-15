@@ -2095,10 +2095,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_quant_dom(&mut self, dom: fhir::QuantDom) -> QueryResult<rty::QuantDom> {
         match dom {
             fhir::QuantDom::Bounded { start, end } => Ok(rty::QuantDom::Bounded { start, end }),
-            fhir::QuantDom::Unbounded(sort) => {
-                let sort = self.conv_sort(&sort)?;
-                Ok(rty::QuantDom::Unbounded(sort))
-            }
+            fhir::QuantDom::Unbounded => Ok(rty::QuantDom::Unbounded),
         }
     }
 

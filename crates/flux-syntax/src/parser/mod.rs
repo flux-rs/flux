@@ -1531,27 +1531,10 @@ fn parse_prim_uif(cx: &mut ParseCtxt) -> ParseResult<Expr> {
 }
 
 /// ```text
-/// ⟨quant_dom⟩ := ⟨int⟩..⟨int⟩
-///              | ⟨sort⟩
-///
-/// ```
-fn parse_quant_dom(cx: &mut ParseCtxt) -> ParseResult<surface::QuantDom> {
-    let mut lookahead = cx.lookahead1();
-    if lookahead.peek(AnyLit) {
-        let start = parse_int(cx)?;
-        cx.expect(token::DotDot)?;
-        let end = parse_int(cx)?;
-        Ok(surface::QuantDom::Bounded(start..end))
-    } else {
-        let sort = parse_sort(cx)?;
-        Ok(surface::QuantDom::Unbounded(sort))
-    }
-}
-
-/// ```text
-/// ⟨quant⟩ := forall ⟨refine_param⟩ in ⟨quant_dom⟩ ⟨block⟩
-///          | exists ⟨refine_param⟩ in ⟨quant_dom⟩ ⟨block⟩
-///
+/// ⟨quant⟩ := forall ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block⟩
+///          | exists ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block⟩
+///          | forall ⟨refine_param⟩                 ⟨block⟩
+///          | exists ⟨refine_param⟩                 ⟨block⟩
 /// ```
 fn parse_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let lo = cx.lo();
@@ -1564,15 +1547,21 @@ fn parse_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
         return Err(lookahead.into_error());
     };
     let param = parse_refine_param(cx, RequireSort::Maybe)?;
-    cx.expect(kw::In)?;
-    let dom = parse_quant_dom(cx)?;
+
+    let mut lookahead = cx.lookahead1();
+    let dom = if lookahead.peek(kw::In) {
+        cx.expect(kw::In)?;
+        let start = parse_int(cx)?;
+        cx.expect(token::DotDot)?;
+        let end = parse_int(cx)?;
+        Some(start..end)
+    } else {
+        None
+    };
     let body = parse_block(cx)?;
     let hi = cx.hi();
-    Ok(Expr {
-        kind: ExprKind::Quant(quant, param, dom, Box::new(body)),
-        node_id: cx.next_node_id(),
-        span: cx.mk_span(lo, hi),
-    })
+    let kind = ExprKind::Quant(quant, param, dom, Box::new(body));
+    Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
 /// ```text

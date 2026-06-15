@@ -188,7 +188,7 @@ pub trait Visitor<'v>: Sized {
         walk_func_sort(self, func);
     }
 
-    fn visit_domain(&mut self, dom: &QuantDom<'v>) {
+    fn visit_domain(&mut self, dom: &QuantDom) {
         walk_domain(self, dom);
     }
 
@@ -568,15 +568,13 @@ pub fn walk_field_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &FieldExpr<'v>) {
     vis.visit_expr(&expr.expr);
 }
 
-pub fn walk_domain<'v, V: Visitor<'v>>(vis: &mut V, dom: &QuantDom<'v>) {
+pub fn walk_domain<'v, V: Visitor<'v>>(vis: &mut V, dom: &QuantDom) {
     match dom {
         QuantDom::Bounded { start, end } => {
             vis.visit_literal(&Lit::Int(*start as u128));
             vis.visit_literal(&Lit::Int(*end as u128));
         }
-        QuantDom::Unbounded(sort) => {
-            vis.visit_sort(sort);
-        }
+        QuantDom::Unbounded => {}
     }
 }
 

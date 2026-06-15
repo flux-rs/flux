@@ -30,7 +30,8 @@ use flux_middle::{
     query_bug,
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List,
-        NameProvenance, PrettyMap, PrettyVar, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
+        NameProvenance, PrettyMap, PrettyVar, QuantDom, SpecFuncKind, VariantIdx,
+        fold::TypeFoldable as _,
     },
 };
 use indexmap::IndexMap;
@@ -998,7 +999,7 @@ where
                 let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
-            rty::ExprKind::ForAll(pred) => {
+            rty::ExprKind::Quant(QuantKind::Forall, QuantDom::Unbounded, pred) => {
                 self.ecx
                     .local_var_env
                     .push_layer_with_fresh_names(pred.vars().len());
@@ -1054,7 +1055,9 @@ where
             rty::ExprKind::KVar(kvar) => {
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
             }
-            rty::ExprKind::ForAll(_) => {
+            rty::ExprKind::Quant(QuantKind::Forall, QuantDom::Unbounded, _)
+                if matches!(self.ecx.backend, Backend::Fixpoint) =>
+            {
                 // If a forall appears in assumptive position replace it with true. This is sound
                 // because we are weakening the context, i.e., anything true without the assumption
                 // should remain true after adding it. Note that this relies on the predicate
@@ -1763,23 +1766,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 fixpoint::Expr::Var(self.declare_fun(*def_id))
             }
-            rty::ExprKind::Exists(expr)
-            | rty::ExprKind::Quant(QuantKind::Exists, rty::QuantDom::Unbounded(_), expr) => {
-                let expr = self.body_to_fixpoint(expr, scx)?;
-                fixpoint::Expr::Quantifier(fixpoint::Quantifier::Exists, expr.0, Box::new(expr.1))
-            }
-            rty::ExprKind::Quant(QuantKind::Forall, rty::QuantDom::Unbounded(_), expr) => {
-                let expr = self.body_to_fixpoint(expr, scx)?;
-                fixpoint::Expr::Quantifier(fixpoint::Quantifier::Forall, expr.0, Box::new(expr.1))
-            }
-            rty::ExprKind::Hole(..)
-            | rty::ExprKind::KVar(_)
-            | rty::ExprKind::Local(_)
-            | rty::ExprKind::PathProj(..)
-            | rty::ExprKind::ForAll(_)
-            | rty::ExprKind::InternalFunc(_) => {
-                span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
-            }
             rty::ExprKind::Quant(kind, rty::QuantDom::Bounded { start, end }, body) => {
                 let exprs = (*start..*end).map(|i| {
                     let arg = rty::Expr::constant(rty::Constant::from(i));
@@ -1790,6 +1776,25 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     flux_middle::fhir::QuantKind::Exists => rty::Expr::or_from_iter(exprs),
                 };
                 self.expr_to_fixpoint(&expr, scx)?
+            }
+            rty::ExprKind::Quant(kind, rty::QuantDom::Unbounded, body)
+                if matches!(kind, flux_middle::fhir::QuantKind::Exists)
+                    || matches!(self.backend, Backend::Lean) =>
+            {
+                let expr = self.body_to_fixpoint(body, scx)?;
+                let kind = match kind {
+                    flux_middle::fhir::QuantKind::Forall => fixpoint::Quantifier::Forall,
+                    flux_middle::fhir::QuantKind::Exists => fixpoint::Quantifier::Exists,
+                };
+                fixpoint::Expr::Quantifier(kind, expr.0, Box::new(expr.1))
+            }
+            rty::ExprKind::Hole(..)
+            | rty::ExprKind::KVar(_)
+            | rty::ExprKind::Local(_)
+            | rty::ExprKind::PathProj(..)
+            | rty::ExprKind::Quant(..)
+            | rty::ExprKind::InternalFunc(_) => {
+                span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }
         };
         Ok(e)

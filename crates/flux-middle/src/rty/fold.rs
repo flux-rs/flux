@@ -1061,8 +1061,6 @@ impl TypeSuperVisitable for Expr {
                 dom.visit_with(visitor)?;
                 body.visit_with(visitor)
             }
-            ExprKind::ForAll(expr) => expr.visit_with(visitor),
-            ExprKind::Exists(expr) => expr.visit_with(visitor),
             ExprKind::Let(init, body) => {
                 init.visit_with(visitor)?;
                 body.visit_with(visitor)
@@ -1123,16 +1121,14 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Hole(kind) => Expr::hole(kind.try_fold_with(folder)?),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
             ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
-            ExprKind::Quant(kind, rng, body) => {
-                Expr::quant(*kind, rng.try_fold_with(folder)?, body.try_fold_with(folder)?)
+            ExprKind::Quant(kind, dom, body) => {
+                Expr::quant(*kind, dom.try_fold_with(folder)?, body.try_fold_with(folder)?)
             }
             ExprKind::GlobalFunc(kind) => Expr::global_func(kind.clone()),
             ExprKind::InternalFunc(kind) => Expr::internal_func(kind.clone()),
             ExprKind::Alias(alias, args) => {
                 Expr::alias(alias.try_fold_with(folder)?, args.try_fold_with(folder)?)
             }
-            ExprKind::ForAll(expr) => Expr::forall(expr.try_fold_with(folder)?),
-            ExprKind::Exists(expr) => Expr::exists(expr.try_fold_with(folder)?),
             ExprKind::Let(init, body) => {
                 Expr::let_(init.try_fold_with(folder)?, body.try_fold_with(folder)?)
             }

@@ -728,18 +728,12 @@ pub enum ExprKind {
     AssocReft(Box<Ty>, Path, Ident),
     IfThenElse(Box<[Expr; 3]>),
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
-    Quant(QuantKind, RefineParam, QuantDom, Box<Expr>),
+    Quant(QuantKind, RefineParam, Option<Range<usize>>, Box<Expr>),
     Block(Vec<LetDecl>, Box<Expr>),
     /// Set expression `#{ e1, e2, ..., en }`
     SetLiteral(Vec<Expr>),
     /// Tuple expression `(e1, e2, ..., en)`
     Tuple(Vec<Expr>),
-}
-
-#[derive(Debug)]
-pub enum QuantDom {
-    Bounded(Range<usize>),
-    Unbounded(Sort),
 }
 
 #[derive(Debug)]

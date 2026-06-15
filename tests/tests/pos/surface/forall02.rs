@@ -3,9 +3,7 @@
 
     #[hide]
     fn opaque_prop_in_range(lo: int, hi: int) -> bool {
-        forall i in int {
-            (lo <= i && i < hi) => opaque_prop(i)
-        }
+        forall i { (lo <= i && i < hi) => opaque_prop(i) }
     }
 )]
 

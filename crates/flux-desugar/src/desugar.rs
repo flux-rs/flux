@@ -1,6 +1,6 @@
 mod lift;
 
-use std::iter;
+use std::{iter, ops::Range};
 
 use flux_common::{
     bug, dbg,
@@ -1502,15 +1502,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         })
     }
 
-    fn desugar_quant_dom(&mut self, dom: &surface::QuantDom) -> fhir::QuantDom<'genv> {
+    fn desugar_quant_dom(&mut self, dom: &Option<Range<usize>>) -> fhir::QuantDom {
         match dom {
-            surface::QuantDom::Bounded(rng) => {
-                fhir::QuantDom::Bounded { start: rng.start, end: rng.end }
-            }
-            surface::QuantDom::Unbounded(sort) => {
-                let sort = self.desugar_sort(sort, None);
-                fhir::QuantDom::Unbounded(sort)
-            }
+            Some(rng) => fhir::QuantDom::Bounded { start: rng.start, end: rng.end },
+            None => fhir::QuantDom::Unbounded,
         }
     }
 

@@ -1044,9 +1044,9 @@ pub enum QuantKind {
 }
 
 #[derive(Clone, Copy)]
-pub enum QuantDom<'fhir> {
+pub enum QuantDom {
     Bounded { start: usize, end: usize },
-    Unbounded(Sort<'fhir>),
+    Unbounded,
 }
 
 #[derive(Clone, Copy)]
@@ -1062,7 +1062,7 @@ pub enum ExprKind<'fhir> {
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
-    Quant(QuantKind, RefineParam<'fhir>, QuantDom<'fhir>, &'fhir Expr<'fhir>),
+    Quant(QuantKind, RefineParam<'fhir>, QuantDom, &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
     SetLiteral(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
@@ -1571,11 +1571,11 @@ impl fmt::Debug for QuantKind {
     }
 }
 
-impl fmt::Debug for QuantDom<'_> {
+impl fmt::Debug for QuantDom {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            QuantDom::Bounded { start, end } => write!(f, "{start:?} .. {end:?}"),
-            QuantDom::Unbounded(sort) => write!(f, "{sort:?}"),
+            QuantDom::Bounded { start, end } => write!(f, "in {start:?} .. {end:?}"),
+            QuantDom::Unbounded => Ok(()),
         }
     }
 }
@@ -1628,7 +1628,7 @@ impl fmt::Debug for Expr<'_> {
                 }
             }
             ExprKind::Quant(kind, refine_param, dom, expr) => {
-                write!(f, "{kind:?} {refine_param:?} in {dom:?} {{ {expr:?} }}")
+                write!(f, "{kind:?} {refine_param:?} {dom:?} {{ {expr:?} }}")
             }
             ExprKind::Err(_) => write!(f, "err"),
             ExprKind::Block(decls, body) => {

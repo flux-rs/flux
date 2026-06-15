@@ -11,9 +11,9 @@ use super::{
     Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstArgKind, ConstantInfo, ConstructorArg,
     Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput,
     FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft,
-    Indices, ItemKind, Lit, Path, PathSegment, Qualifier, QuantDom, RefineArg, RefineParam, Sort,
-    SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind,
-    VariantDef, VariantRet, WhereBoundPredicate,
+    Indices, ItemKind, Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath,
+    SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef,
+    VariantRet, WhereBoundPredicate,
 };
 use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn};
 
@@ -620,11 +620,8 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
             }
             walk_list!(vis, visit_constructor_args, exprs);
         }
-        ExprKind::Quant(_, i, dom, e) => {
+        ExprKind::Quant(_, i, _, e) => {
             vis.visit_refine_param(i);
-            if let QuantDom::Unbounded(sort) = dom {
-                vis.visit_sort(sort);
-            }
             vis.visit_expr(e);
         }
         ExprKind::Block(decls, body) => {
