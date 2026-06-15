@@ -1,7 +1,7 @@
 #![feature(variant_count)]
 
 use std::{
-    fs::{self, create_dir_all, exists}, io, mem::variant_count, os::unix::fs::symlink, path::{Path, PathBuf}, process::{Command, ExitStatus}, time::Instant,
+    fs::{self, create_dir_all, exists}, io, mem::variant_count, os::unix::fs::symlink, path::{Path, PathBuf}, process::{Command, ExitStatus},
 };
 
 use anyhow::anyhow;
@@ -171,6 +171,33 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Parse `-Ftimings` stderr output and return total checker time in microseconds.
+/// Sums all "Total running time: X<unit>" lines (one per crate checked).
+fn parse_timings_us(stderr: &str) -> u64 {
+    let mut total: u64 = 0;
+    for line in stderr.lines() {
+        if let Some(rest) = line.strip_prefix("Total running time:") {
+            let rest = rest.trim();
+            // Units: µs, ms, s, m
+            let (val_str, multiplier): (&str, u64) = if let Some(s) = rest.strip_suffix("µs") {
+                (s.trim(), 1)
+            } else if let Some(s) = rest.strip_suffix("ms") {
+                (s.trim(), 1_000)
+            } else if let Some(s) = rest.strip_suffix('s') {
+                (s.trim(), 1_000_000)
+            } else if let Some(s) = rest.strip_suffix('m') {
+                (s.trim(), 60_000_000)
+            } else {
+                continue;
+            };
+            if let Ok(val) = val_str.parse::<f64>() {
+                total += (val * multiplier as f64) as u64;
+            }
+        }
+    }
+    total
+}
+
 fn collect_test_files(args: &LeanBench, paths: &[PathBuf]) -> Vec<PathBuf> {
     use walkdir::WalkDir;
     let mut res = vec![];
@@ -228,8 +255,10 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     let mut successes = 0;
 
     if args.flux_only {
-        // Flux-only mode: run flux type-checking without lean emission, time the total.
-        let t0 = Instant::now();
+        // Flux-only mode: run flux type-checking without lean emission.
+        // Pass -Ftimings so Flux emits its internal checker time per file;
+        // sum those up for an accurate measure that excludes cargo/rustc overhead.
+        let mut total_checker_us: u64 = 0;
         for (i, test_path) in test_files.iter().enumerate() {
             let rel_path = pos_paths
                 .iter()
@@ -239,7 +268,8 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
 
             eprint!("[{}/{}] Running: {} ... ", i + 1, test_files.len(), rel_path.display());
 
-            let rustc_flags = flux_dev::default_flags(&config.dst);
+            let mut rustc_flags = flux_dev::default_flags(&config.dst);
+            rustc_flags.push("-Ftimings".to_string());
             let result = Command::new(&flux_driver)
                 .args(&rustc_flags)
                 .arg(test_path)
@@ -249,14 +279,17 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
                 .output();
 
             match result {
-                Ok(output) if output.status.success() => {
-                    eprintln!("OK");
-                    successes += 1;
-                }
                 Ok(output) => {
-                    eprintln!("ERROR");
-                    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-                    failures.push((test_path.clone(), stderr));
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    // Sum all "Total running time: X<unit>" lines from -Ftimings output.
+                    total_checker_us += parse_timings_us(&stderr);
+                    if output.status.success() {
+                        eprintln!("OK");
+                        successes += 1;
+                    } else {
+                        eprintln!("ERROR");
+                        failures.push((test_path.clone(), stderr.into_owned()));
+                    }
                 }
                 Err(e) => {
                     eprintln!("ERROR");
@@ -264,9 +297,9 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
                 }
             }
         }
-        let elapsed_ms = t0.elapsed().as_millis();
+        let elapsed_ms = total_checker_us / 1000;
         fs::write("flux_bench.time", format!("{elapsed_ms}\n"))?;
-        eprintln!("Flux time: {elapsed_ms}ms -> flux_bench.time");
+        eprintln!("Flux checker time: {elapsed_ms}ms -> flux_bench.time");
     } else {
         // Full lean-bench mode: emit lean files and run lake build.
         let mut enumerated_tests = test_files.iter().enumerate();
