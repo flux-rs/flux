@@ -1546,7 +1546,7 @@ fn parse_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     } else {
         return Err(lookahead.into_error());
     };
-    let param = parse_refine_param(cx, RequireSort::Maybe)?;
+    let param = parse_refine_param(cx, RequireSort::No)?;
 
     let mut lookahead = cx.lookahead1();
     let dom = if lookahead.peek(kw::In) {
