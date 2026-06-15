@@ -1220,12 +1220,6 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                         diag.note(err.descr);
                         diag
                     }
-                    // QueryErr::UnboundedQuantifier { span } => {
-                    //     let mut diag = dcx
-                    //         .struct_span_err(cx_span, fluent::middle_query_unsupported_quantifier);
-                    //     diag.note(err.descr);
-                    //     diag
-                    // }
                     QueryErr::Ignored { def_id } => {
                         let mut diag =
                             dcx.struct_span_err(cx_span, fluent::middle_query_ignored_at);
