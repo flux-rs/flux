@@ -68,8 +68,6 @@ open Array00Qualifs
 set_option maxHeartbeats 5000000
 def Array00_proof : Array00 := by
   unfold Array00
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

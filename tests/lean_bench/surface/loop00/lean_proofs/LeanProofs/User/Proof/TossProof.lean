@@ -68,8 +68,6 @@ open TossQualifs
 set_option maxHeartbeats 5000000
 def Toss_proof : Toss := by
   unfold Toss
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

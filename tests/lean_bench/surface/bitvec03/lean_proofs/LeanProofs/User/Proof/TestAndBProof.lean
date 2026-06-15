@@ -68,8 +68,6 @@ open TestAndBQualifs
 set_option maxHeartbeats 5000000
 def TestAndB_proof : TestAndB := by
   unfold TestAndB
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

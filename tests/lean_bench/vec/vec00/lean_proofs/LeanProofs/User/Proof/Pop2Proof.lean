@@ -68,8 +68,6 @@ open Pop2Qualifs
 set_option maxHeartbeats 5000000
 def Pop2_proof : Pop2 := by
   unfold Pop2
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

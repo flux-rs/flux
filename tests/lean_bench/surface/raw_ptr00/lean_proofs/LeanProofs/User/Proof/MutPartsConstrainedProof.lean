@@ -68,8 +68,6 @@ open MutPartsConstrainedQualifs
 set_option maxHeartbeats 5000000
 def MutPartsConstrained_proof : MutPartsConstrained := by
   unfold MutPartsConstrained
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

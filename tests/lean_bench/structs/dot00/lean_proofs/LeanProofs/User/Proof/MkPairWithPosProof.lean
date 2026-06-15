@@ -68,8 +68,6 @@ open MkPairWithPosQualifs
 set_option maxHeartbeats 5000000
 def MkPairWithPos_proof : MkPairWithPos := by
   unfold MkPairWithPos
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

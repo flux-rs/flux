@@ -68,8 +68,6 @@ open TailQualifs
 set_option maxHeartbeats 5000000
 def Tail_proof : Tail := by
   unfold Tail
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open TestI32Qualifs
 set_option maxHeartbeats 5000000
 def TestI32_proof : TestI32 := by
   unfold TestI32
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

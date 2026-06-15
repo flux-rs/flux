@@ -68,8 +68,6 @@ open TestIterForLoopVec2Qualifs
 set_option maxHeartbeats 5000000
 def TestIterForLoopVec2_proof : TestIterForLoopVec2 := by
   unfold TestIterForLoopVec2
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

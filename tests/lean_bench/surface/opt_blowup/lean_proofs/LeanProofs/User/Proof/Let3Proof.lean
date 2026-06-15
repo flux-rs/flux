@@ -68,8 +68,6 @@ open Let3Qualifs
 set_option maxHeartbeats 5000000
 def Let3_proof : Let3 := by
   unfold Let3
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

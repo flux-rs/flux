@@ -68,8 +68,6 @@ open TestCharToIntQualifs
 set_option maxHeartbeats 5000000
 def TestCharToInt_proof : TestCharToInt := by
   unfold TestCharToInt
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open Impl3SendQualifs
 set_option maxHeartbeats 5000000
 def Impl__3__Send_proof : Impl__3__Send := by
   unfold Impl__3__Send
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

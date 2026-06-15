@@ -68,8 +68,6 @@ open TestWrappingUsizeQualifs
 set_option maxHeartbeats 5000000
 def TestWrappingUsize_proof : TestWrappingUsize := by
   unfold TestWrappingUsize
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

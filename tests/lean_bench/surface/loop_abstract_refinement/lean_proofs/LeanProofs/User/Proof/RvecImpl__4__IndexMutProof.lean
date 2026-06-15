@@ -72,8 +72,6 @@ open RvecImpl4IndexMutQualifs
 set_option maxHeartbeats 5000000
 def RvecImpl__4__IndexMut_proof : RvecImpl__4__IndexMut := by
   unfold RvecImpl__4__IndexMut
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

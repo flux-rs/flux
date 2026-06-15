@@ -68,8 +68,6 @@ open BobTest2Qualifs
 set_option maxHeartbeats 5000000
 def BobTest2_proof : BobTest2 := by
   unfold BobTest2
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

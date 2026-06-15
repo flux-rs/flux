@@ -68,8 +68,6 @@ open LtQualifs
 set_option maxHeartbeats 5000000
 def Lt_proof : Lt := by
   unfold Lt
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

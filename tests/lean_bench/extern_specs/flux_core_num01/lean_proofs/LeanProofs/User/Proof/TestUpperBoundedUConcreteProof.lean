@@ -68,8 +68,6 @@ open TestUpperBoundedUConcreteQualifs
 set_option maxHeartbeats 5000000
 def TestUpperBoundedUConcrete_proof : TestUpperBoundedUConcrete := by
   unfold TestUpperBoundedUConcrete
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

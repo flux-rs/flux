@@ -68,8 +68,6 @@ open TestGetMutInBoundsQualifs
 set_option maxHeartbeats 5000000
 def TestGetMutInBounds_proof : TestGetMutInBounds := by
   unfold TestGetMutInBounds
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

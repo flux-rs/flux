@@ -68,8 +68,6 @@ open Impl0LocationQualifs
 set_option maxHeartbeats 5000000
 def Impl__0__Location_proof : Impl__0__Location := by
   unfold Impl__0__Location
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

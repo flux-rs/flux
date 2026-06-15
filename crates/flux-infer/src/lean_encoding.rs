@@ -944,9 +944,7 @@ path = "/Users/petros/Documents/UCSD/Work/lean-fixpoint"
                 writeln!(f, "set_option maxHeartbeats 5000000")?;
                 writeln!(f, "def {proof_name} : {vc_name} := by")?;
                 writeln!(f, "  unfold {vc_name}")?;
-                writeln!(f, "  try rewriteKs")?;
-                writeln!(f, "  try fusion")?;
-                writeln!(f, "  try solve_fixpoint")
+                writeln!(f, "  solve_fixpoint_combo")
             })?;
             file.sync_all()?;
         }

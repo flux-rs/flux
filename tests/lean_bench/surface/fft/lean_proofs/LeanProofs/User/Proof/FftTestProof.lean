@@ -68,8 +68,6 @@ open FftTestQualifs
 set_option maxHeartbeats 5000000
 def FftTest_proof : FftTest := by
   unfold FftTest
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

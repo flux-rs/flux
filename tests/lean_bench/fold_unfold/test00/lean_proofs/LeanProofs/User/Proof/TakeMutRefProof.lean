@@ -68,8 +68,6 @@ open TakeMutRefQualifs
 set_option maxHeartbeats 5000000
 def TakeMutRef_proof : TakeMutRef := by
   unfold TakeMutRef
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open Test3Qualifs
 set_option maxHeartbeats 5000000
 def Test3_proof : Test3 := by
   unfold Test3
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

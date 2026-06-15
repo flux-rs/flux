@@ -68,8 +68,6 @@ open Impl0SuccQualifs
 set_option maxHeartbeats 5000000
 def Impl__0__Succ_proof : Impl__0__Succ := by
   unfold Impl__0__Succ
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

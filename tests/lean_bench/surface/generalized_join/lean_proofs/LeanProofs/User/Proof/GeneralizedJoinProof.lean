@@ -68,8 +68,6 @@ open GeneralizedJoinQualifs
 set_option maxHeartbeats 5000000
 def GeneralizedJoin_proof : GeneralizedJoin := by
   unfold GeneralizedJoin
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

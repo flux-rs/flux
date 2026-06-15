@@ -68,8 +68,6 @@ open TryGet8BytesQualifs
 set_option maxHeartbeats 5000000
 def TryGet8Bytes_proof : TryGet8Bytes := by
   unfold TryGet8Bytes
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

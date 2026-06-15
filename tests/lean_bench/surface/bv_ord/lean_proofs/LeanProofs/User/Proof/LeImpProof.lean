@@ -68,8 +68,6 @@ open LeImpQualifs
 set_option maxHeartbeats 5000000
 def LeImp_proof : LeImp := by
   unfold LeImp
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

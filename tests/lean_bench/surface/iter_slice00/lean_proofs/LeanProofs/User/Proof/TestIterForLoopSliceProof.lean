@@ -68,8 +68,6 @@ open TestIterForLoopSliceQualifs
 set_option maxHeartbeats 5000000
 def TestIterForLoopSlice_proof : TestIterForLoopSlice := by
   unfold TestIterForLoopSlice
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

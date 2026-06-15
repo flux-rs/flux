@@ -68,8 +68,6 @@ open ConstFieldProjectionsQualifs
 set_option maxHeartbeats 5000000
 def ConstFieldProjections_proof : ConstFieldProjections := by
   unfold ConstFieldProjections
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open DistQualifs
 set_option maxHeartbeats 5000000
 def Dist_proof : Dist := by
   unfold Dist
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

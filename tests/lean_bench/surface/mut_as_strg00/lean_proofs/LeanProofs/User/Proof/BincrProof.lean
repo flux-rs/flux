@@ -68,8 +68,6 @@ open BincrQualifs
 set_option maxHeartbeats 5000000
 def Bincr_proof : Bincr := by
   unfold Bincr
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

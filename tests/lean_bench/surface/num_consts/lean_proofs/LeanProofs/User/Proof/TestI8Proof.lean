@@ -68,8 +68,6 @@ open TestI8Qualifs
 set_option maxHeartbeats 5000000
 def TestI8_proof : TestI8 := by
   unfold TestI8
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

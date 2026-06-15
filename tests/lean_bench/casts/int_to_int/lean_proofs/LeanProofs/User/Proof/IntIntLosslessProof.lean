@@ -68,8 +68,6 @@ open IntIntLosslessQualifs
 set_option maxHeartbeats 5000000
 def IntIntLossless_proof : IntIntLossless := by
   unfold IntIntLossless
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

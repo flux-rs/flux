@@ -68,8 +68,6 @@ open TestAsRefQualifs
 set_option maxHeartbeats 5000000
 def TestAsRef_proof : TestAsRef := by
   unfold TestAsRef
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

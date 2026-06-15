@@ -68,8 +68,6 @@ open TestEQualifs
 set_option maxHeartbeats 5000000
 def TestE_proof : TestE := by
   unfold TestE
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open DivQualifs
 set_option maxHeartbeats 5000000
 def Div_proof : Div := by
   unfold Div
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

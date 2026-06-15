@@ -68,8 +68,6 @@ open Impl0GetXQualifs
 set_option maxHeartbeats 5000000
 def Impl__0__GetX_proof : Impl__0__GetX := by
   unfold Impl__0__GetX
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

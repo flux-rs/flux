@@ -68,8 +68,6 @@ open UintShrQualifs
 set_option maxHeartbeats 5000000
 def UintShr_proof : UintShr := by
   unfold UintShr
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

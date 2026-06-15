@@ -68,8 +68,6 @@ open TestLibQualifs
 set_option maxHeartbeats 5000000
 def TestLib_proof : TestLib := by
   unfold TestLib
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open TestMapFooQualifs
 set_option maxHeartbeats 5000000
 def TestMapFoo_proof : TestMapFoo := by
   unfold TestMapFoo
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

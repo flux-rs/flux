@@ -68,8 +68,6 @@ open RequiresAlignBelow16Qualifs
 set_option maxHeartbeats 5000000
 def RequiresAlignBelow16_proof : RequiresAlignBelow16 := by
   unfold RequiresAlignBelow16
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

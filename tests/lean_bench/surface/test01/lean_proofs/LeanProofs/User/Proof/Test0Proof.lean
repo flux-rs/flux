@@ -68,8 +68,6 @@ open Test0Qualifs
 set_option maxHeartbeats 5000000
 def Test0_proof : Test0 := by
   unfold Test0
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

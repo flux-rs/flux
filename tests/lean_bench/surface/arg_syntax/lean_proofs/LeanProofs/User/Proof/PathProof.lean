@@ -68,8 +68,6 @@ open PathQualifs
 set_option maxHeartbeats 5000000
 def Path_proof : Path := by
   unfold Path
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open XYImpl1GrompQualifs
 set_option maxHeartbeats 5000000
 def XYImpl__1__Gromp_proof : XYImpl__1__Gromp := by
   unfold XYImpl__1__Gromp
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

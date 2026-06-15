@@ -68,8 +68,6 @@ open TestAndNoneRightQualifs
 set_option maxHeartbeats 5000000
 def TestAndNoneRight_proof : TestAndNoneRight := by
   unfold TestAndNoneRight
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

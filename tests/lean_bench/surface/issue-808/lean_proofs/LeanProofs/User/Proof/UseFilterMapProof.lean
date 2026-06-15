@@ -68,8 +68,6 @@ open UseFilterMapQualifs
 set_option maxHeartbeats 5000000
 def UseFilterMap_proof : UseFilterMap := by
   unfold UseFilterMap
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

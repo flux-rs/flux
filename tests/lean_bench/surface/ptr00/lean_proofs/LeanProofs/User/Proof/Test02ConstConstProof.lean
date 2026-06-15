@@ -68,8 +68,6 @@ open Test02ConstConstQualifs
 set_option maxHeartbeats 5000000
 def Test02ConstConst_proof : Test02ConstConst := by
   unfold Test02ConstConst
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

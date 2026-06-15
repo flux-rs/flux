@@ -68,8 +68,6 @@ open TestSaturatingIsizeQualifs
 set_option maxHeartbeats 5000000
 def TestSaturatingIsize_proof : TestSaturatingIsize := by
   unfold TestSaturatingIsize
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open WriteIxI32Qualifs
 set_option maxHeartbeats 5000000
 def WriteIxI32_proof : WriteIxI32 := by
   unfold WriteIxI32
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

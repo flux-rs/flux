@@ -68,8 +68,6 @@ open DoitQualifs
 set_option maxHeartbeats 5000000
 def Doit_proof : Doit := by
   unfold Doit
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

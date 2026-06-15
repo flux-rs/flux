@@ -68,8 +68,6 @@ open Impl0EnableAppMpuQualifs
 set_option maxHeartbeats 5000000
 def Impl__0__EnableAppMpu_proof : Impl__0__EnableAppMpu := by
   unfold Impl__0__EnableAppMpu
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

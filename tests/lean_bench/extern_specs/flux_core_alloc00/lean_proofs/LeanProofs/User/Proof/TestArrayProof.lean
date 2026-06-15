@@ -68,8 +68,6 @@ open TestArrayQualifs
 set_option maxHeartbeats 5000000
 def TestArray_proof : TestArray := by
   unfold TestArray
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

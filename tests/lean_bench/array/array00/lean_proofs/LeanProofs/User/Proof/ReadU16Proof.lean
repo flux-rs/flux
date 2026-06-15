@@ -68,8 +68,6 @@ open ReadU16Qualifs
 set_option maxHeartbeats 5000000
 def ReadU16_proof : ReadU16 := by
   unfold ReadU16
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open GtQualifs
 set_option maxHeartbeats 5000000
 def Gt_proof : Gt := by
   unfold Gt
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open TestIndexAfterLenQualifs
 set_option maxHeartbeats 5000000
 def TestIndexAfterLen_proof : TestIndexAfterLen := by
   unfold TestIndexAfterLen
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

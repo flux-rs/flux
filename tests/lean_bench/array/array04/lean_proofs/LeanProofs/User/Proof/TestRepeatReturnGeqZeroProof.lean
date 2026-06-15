@@ -68,8 +68,6 @@ open TestRepeatReturnGeqZeroQualifs
 set_option maxHeartbeats 5000000
 def TestRepeatReturnGeqZero_proof : TestRepeatReturnGeqZero := by
   unfold TestRepeatReturnGeqZero
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

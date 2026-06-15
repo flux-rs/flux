@@ -68,8 +68,6 @@ open TestMapPreservesNoneQualifs
 set_option maxHeartbeats 5000000
 def TestMapPreservesNone_proof : TestMapPreservesNone := by
   unfold TestMapPreservesNone
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

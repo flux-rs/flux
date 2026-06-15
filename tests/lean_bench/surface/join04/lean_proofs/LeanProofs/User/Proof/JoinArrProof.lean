@@ -68,8 +68,6 @@ open JoinArrQualifs
 set_option maxHeartbeats 5000000
 def JoinArr_proof : JoinArr := by
   unfold JoinArr
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

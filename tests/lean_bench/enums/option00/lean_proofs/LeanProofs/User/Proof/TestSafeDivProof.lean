@@ -68,8 +68,6 @@ open TestSafeDivQualifs
 set_option maxHeartbeats 5000000
 def TestSafeDiv_proof : TestSafeDiv := by
   unfold TestSafeDiv
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

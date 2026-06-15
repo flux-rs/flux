@@ -68,8 +68,6 @@ open IncQualifs
 set_option maxHeartbeats 5000000
 def Inc_proof : Inc := by
   unfold Inc
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

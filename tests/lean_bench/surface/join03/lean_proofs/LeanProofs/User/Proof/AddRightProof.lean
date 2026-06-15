@@ -68,8 +68,6 @@ open AddRightQualifs
 set_option maxHeartbeats 5000000
 def AddRight_proof : AddRight := by
   unfold AddRight
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open TestAddMutExQualifs
 set_option maxHeartbeats 5000000
 def TestAddMutEx_proof : TestAddMutEx := by
   unfold TestAddMutEx
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

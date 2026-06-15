@@ -68,8 +68,6 @@ open TestFromInvalidQualifs
 set_option maxHeartbeats 5000000
 def TestFromInvalid_proof : TestFromInvalid := by
   unfold TestFromInvalid
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

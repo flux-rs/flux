@@ -68,8 +68,6 @@ open Impl0TryFromQualifs
 set_option maxHeartbeats 5000000
 def Impl__0__TryFrom_proof : Impl__0__TryFrom := by
   unfold Impl__0__TryFrom
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

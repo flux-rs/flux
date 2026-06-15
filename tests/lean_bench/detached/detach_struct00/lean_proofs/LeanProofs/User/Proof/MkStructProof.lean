@@ -68,8 +68,6 @@ open MkStructQualifs
 set_option maxHeartbeats 5000000
 def MkStruct_proof : MkStruct := by
   unfold MkStruct
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

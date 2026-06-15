@@ -68,8 +68,6 @@ open MyUnwrapQualifs
 set_option maxHeartbeats 5000000
 def MyUnwrap_proof : MyUnwrap := by
   unfold MyUnwrap
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

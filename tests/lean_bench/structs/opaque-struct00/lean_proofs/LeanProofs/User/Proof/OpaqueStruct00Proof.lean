@@ -68,8 +68,6 @@ open OpaqueStruct00Qualifs
 set_option maxHeartbeats 5000000
 def OpaqueStruct00_proof : OpaqueStruct00 := by
   unfold OpaqueStruct00
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

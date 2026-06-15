@@ -68,8 +68,6 @@ open TestFrogQualifs
 set_option maxHeartbeats 5000000
 def TestFrog_proof : TestFrog := by
   unfold TestFrog
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

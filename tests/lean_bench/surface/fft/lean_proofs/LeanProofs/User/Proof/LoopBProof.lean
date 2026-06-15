@@ -68,8 +68,6 @@ open LoopBQualifs
 set_option maxHeartbeats 5000000
 def LoopB_proof : LoopB := by
   unfold LoopB
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

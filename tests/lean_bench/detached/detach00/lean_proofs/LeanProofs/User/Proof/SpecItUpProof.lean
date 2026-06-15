@@ -68,8 +68,6 @@ open SpecItUpQualifs
 set_option maxHeartbeats 5000000
 def SpecItUp_proof : SpecItUp := by
   unfold SpecItUp
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

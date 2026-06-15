@@ -68,8 +68,6 @@ open MapQualifs
 set_option maxHeartbeats 5000000
 def Map_proof : Map := by
   unfold Map
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

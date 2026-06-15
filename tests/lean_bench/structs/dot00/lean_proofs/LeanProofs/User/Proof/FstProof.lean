@@ -68,8 +68,6 @@ open FstQualifs
 set_option maxHeartbeats 5000000
 def Fst_proof : Fst := by
   unfold Fst
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

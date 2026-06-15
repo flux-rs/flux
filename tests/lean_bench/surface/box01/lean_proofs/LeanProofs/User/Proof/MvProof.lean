@@ -68,8 +68,6 @@ open MvQualifs
 set_option maxHeartbeats 5000000
 def Mv_proof : Mv := by
   unfold Mv
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

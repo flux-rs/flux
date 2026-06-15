@@ -68,8 +68,6 @@ open TestRangeIndexInBoundsQualifs
 set_option maxHeartbeats 5000000
 def TestRangeIndexInBounds_proof : TestRangeIndexInBounds := by
   unfold TestRangeIndexInBounds
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open Unb1Qualifs
 set_option maxHeartbeats 5000000
 def Unb1_proof : Unb1 := by
   unfold Unb1
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F

@@ -68,8 +68,6 @@ open Hex00Qualifs
 set_option maxHeartbeats 5000000
 def Hex00_proof : Hex00 := by
   unfold Hex00
-  try rewriteKs
-  try fusion
-  try solve_fixpoint
+  solve_fixpoint_combo
 
 end F
