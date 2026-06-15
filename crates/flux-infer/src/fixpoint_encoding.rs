@@ -1778,9 +1778,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 self.expr_to_fixpoint(&expr, scx)?
             }
             rty::ExprKind::Quant(kind, rty::QuantDom::Unbounded, body)
-                // TODO(RJ): Do we need `Exists` in Backend::Fixpoint?
-                if matches!(kind, flux_middle::fhir::QuantKind::Exists)
-                    || matches!(self.backend, Backend::Lean) =>
+                if matches!(self.backend, Backend::Lean) =>
             {
                 let expr = self.body_to_fixpoint(body, scx)?;
                 let kind = match kind {
