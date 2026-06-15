@@ -760,7 +760,7 @@ pub enum SpecFuncKind {
     Def(FluxDefId),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable, TypeVisitable, TypeFoldable)]
 pub enum QuantDom {
     Bounded { start: usize, end: usize },
     Unbounded(Sort),
