@@ -1778,7 +1778,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 self.expr_to_fixpoint(&expr, scx)?
             }
             rty::ExprKind::Quant(kind, rty::QuantDom::Unbounded, body)
-                // TODO(RJ) Why do we need this exists in the fixpoint backend?
+                // TODO(RJ): Do we need `Exists` in Backend::Fixpoint?
                 if matches!(kind, flux_middle::fhir::QuantKind::Exists)
                     || matches!(self.backend, Backend::Lean) =>
             {
