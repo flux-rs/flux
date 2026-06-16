@@ -7,6 +7,7 @@ pub fn test_sub_oob(buf: &mut [i32; 2]) {
     let ptr = buf.as_mut_ptr();
     unsafe {
         std::ptr::write(ptr.sub(1), 10); //~ ERROR refinement type error
+                                        //~| ERROR refinement type error
     }
 }
 
