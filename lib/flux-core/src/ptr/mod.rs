@@ -45,19 +45,19 @@ macro_rules! ptr_specs {
         #[extern_spec(core::ptr)]
         impl<T> *$mutable T {
             #[spec(fn (me: *$mutable[@p] T, count: usize)
-                -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T)]
+                -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T requires count * T::size_of() <= p.size)]
             unsafe fn add(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
-                -> *$mutable[p.base, p.addr - count * T::size_of(), p.size + count * T::size_of()] T)]
+                -> *$mutable[p.base, p.addr - count * T::size_of(), p.size + count * T::size_of()] T requires count * T::size_of() <= p.size)]
             unsafe fn sub(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
-                -> *$mutable[p.base, p.addr + count, p.size - count] T)]
+                -> *$mutable[p.base, p.addr + count, p.size - count] T requires count <= p.size)]
             unsafe fn byte_add(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
-                -> *$mutable[p.base, p.addr - count, p.size + count] T)]
+                -> *$mutable[p.base, p.addr - count, p.size + count] T requires count <= p.size)]
             unsafe fn byte_sub(self, count: usize) -> Self;
         }
     };

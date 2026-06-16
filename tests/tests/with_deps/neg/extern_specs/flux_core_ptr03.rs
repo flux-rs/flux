@@ -28,5 +28,6 @@ pub fn test_byte_sub_oob(buf: &mut [i32; 2]) {
     unsafe {
         let ptr1 = ptr.byte_add(4);
         std::ptr::write(ptr1.byte_sub(8), 10); //~ ERROR refinement type error
+                                               //~| ERROR refinement type error
     }
 }
