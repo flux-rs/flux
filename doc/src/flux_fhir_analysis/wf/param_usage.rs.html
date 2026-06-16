@@ -124,7 +124,7 @@
 <a href=#124 id=124 data-nosnippet>124</a>            fhir::ExprKind::Abs(<span class="kw">_</span>, body) =&gt; {
 <a href=#125 id=125 data-nosnippet>125</a>                <span class="self">self</span>.check_func_params_uses(body, <span class="bool-val">true</span>);
 <a href=#126 id=126 data-nosnippet>126</a>            }
-<a href=#127 id=127 data-nosnippet>127</a>            fhir::ExprKind::BoundedQuant(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, body) =&gt; {
+<a href=#127 id=127 data-nosnippet>127</a>            fhir::ExprKind::Quant(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, body) =&gt; {
 <a href=#128 id=128 data-nosnippet>128</a>                <span class="self">self</span>.check_func_params_uses(body, <span class="bool-val">false</span>);
 <a href=#129 id=129 data-nosnippet>129</a>            }
 <a href=#130 id=130 data-nosnippet>130</a>            fhir::ExprKind::Record(exprs)

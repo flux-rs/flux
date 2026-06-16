@@ -728,7 +728,7 @@
 <a href=#728 id=728 data-nosnippet>728</a>    </span>AssocReft(Box&lt;Ty&gt;, Path, Ident),
 <a href=#729 id=729 data-nosnippet>729</a>    IfThenElse(Box&lt;[Expr; <span class="number">3</span>]&gt;),
 <a href=#730 id=730 data-nosnippet>730</a>    Constructor(<span class="prelude-ty">Option</span>&lt;ExprPath&gt;, Vec&lt;ConstructorArg&gt;),
-<a href=#731 id=731 data-nosnippet>731</a>    BoundedQuant(QuantKind, RefineParam, Range&lt;usize&gt;, Box&lt;Expr&gt;),
+<a href=#731 id=731 data-nosnippet>731</a>    Quant(QuantKind, RefineParam, <span class="prelude-ty">Option</span>&lt;Range&lt;usize&gt;&gt;, Box&lt;Expr&gt;),
 <a href=#732 id=732 data-nosnippet>732</a>    Block(Vec&lt;LetDecl&gt;, Box&lt;Expr&gt;),
 <a href=#733 id=733 data-nosnippet>733</a>    <span class="doccomment">/// Set expression `#{ e1, e2, ..., en }`
 <a href=#734 id=734 data-nosnippet>734</a>    </span>SetLiteral(Vec&lt;Expr&gt;),

@@ -147,7 +147,7 @@
 <a href=#147 id=147 data-nosnippet>147</a>        fixpoint::Expr::IfThenElse(inner) =&gt; {
 <a href=#148 id=148 data-nosnippet>148</a>            inner.iter().for_each(|expr| constant_deps(expr, acc));
 <a href=#149 id=149 data-nosnippet>149</a>        }
-<a href=#150 id=150 data-nosnippet>150</a>        fixpoint::Expr::Exists(<span class="kw">_</span>, inner)
+<a href=#150 id=150 data-nosnippet>150</a>        fixpoint::Expr::Quantifier(<span class="kw">_</span>, <span class="kw">_</span>, inner)
 <a href=#151 id=151 data-nosnippet>151</a>        | fixpoint::Expr::Neg(inner)
 <a href=#152 id=152 data-nosnippet>152</a>        | fixpoint::Expr::Not(inner)
 <a href=#153 id=153 data-nosnippet>153</a>        | fixpoint::Expr::IsCtor(<span class="kw">_</span>, inner) =&gt; {

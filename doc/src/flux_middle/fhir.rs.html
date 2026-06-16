@@ -1043,10 +1043,10 @@
 <a href=#1043 id=1043 data-nosnippet>1043</a>    Exists,
 <a href=#1044 id=1044 data-nosnippet>1044</a>}
 <a href=#1045 id=1045 data-nosnippet>1045</a>
-<a href=#1046 id=1046 data-nosnippet>1046</a><span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
-<a href=#1047 id=1047 data-nosnippet>1047</a></span><span class="kw">pub struct </span>Range {
-<a href=#1048 id=1048 data-nosnippet>1048</a>    <span class="kw">pub </span>start: usize,
-<a href=#1049 id=1049 data-nosnippet>1049</a>    <span class="kw">pub </span>end: usize,
+<a href=#1046 id=1046 data-nosnippet>1046</a><span class="attr">#[derive(Clone, Copy)]
+<a href=#1047 id=1047 data-nosnippet>1047</a></span><span class="kw">pub enum </span>QuantDom {
+<a href=#1048 id=1048 data-nosnippet>1048</a>    Bounded { start: usize, end: usize },
+<a href=#1049 id=1049 data-nosnippet>1049</a>    Unbounded,
 <a href=#1050 id=1050 data-nosnippet>1050</a>}
 <a href=#1051 id=1051 data-nosnippet>1051</a>
 <a href=#1052 id=1052 data-nosnippet>1052</a><span class="attr">#[derive(Clone, Copy)]
@@ -1062,7 +1062,7 @@
 <a href=#1062 id=1062 data-nosnippet>1062</a>    Alias(AliasReft&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;]),
 <a href=#1063 id=1063 data-nosnippet>1063</a>    IfThenElse(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
 <a href=#1064 id=1064 data-nosnippet>1064</a>    Abs(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
-<a href=#1065 id=1065 data-nosnippet>1065</a>    BoundedQuant(QuantKind, RefineParam&lt;<span class="lifetime">'fhir</span>&gt;, Range, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
+<a href=#1065 id=1065 data-nosnippet>1065</a>    Quant(QuantKind, RefineParam&lt;<span class="lifetime">'fhir</span>&gt;, QuantDom, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
 <a href=#1066 id=1066 data-nosnippet>1066</a>    Record(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;]),
 <a href=#1067 id=1067 data-nosnippet>1067</a>    SetLiteral(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;]),
 <a href=#1068 id=1068 data-nosnippet>1068</a>    Constructor(<span class="prelude-ty">Option</span>&lt;PathExpr&lt;<span class="lifetime">'fhir</span>&gt;&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[FieldExpr&lt;<span class="lifetime">'fhir</span>&gt;], <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Spread&lt;<span class="lifetime">'fhir</span>&gt;&gt;),
@@ -1571,161 +1571,170 @@
 <a href=#1571 id=1571 data-nosnippet>1571</a>    }
 <a href=#1572 id=1572 data-nosnippet>1572</a>}
 <a href=#1573 id=1573 data-nosnippet>1573</a>
-<a href=#1574 id=1574 data-nosnippet>1574</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Expr&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1574 id=1574 data-nosnippet>1574</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>QuantDom {
 <a href=#1575 id=1575 data-nosnippet>1575</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1576 id=1576 data-nosnippet>1576</a>        <span class="kw">match </span><span class="self">self</span>.kind {
-<a href=#1577 id=1577 data-nosnippet>1577</a>            ExprKind::Var(QPathExpr::Resolved(path, ..)) =&gt; <span class="macro">write!</span>(f, <span class="string">"{path:?}"</span>),
-<a href=#1578 id=1578 data-nosnippet>1578</a>            ExprKind::Var(QPathExpr::TypeRelative(qself, assoc)) =&gt; {
-<a href=#1579 id=1579 data-nosnippet>1579</a>                <span class="macro">write!</span>(f, <span class="string">"&lt;{qself:?}&gt;::{assoc}"</span>)
-<a href=#1580 id=1580 data-nosnippet>1580</a>            }
-<a href=#1581 id=1581 data-nosnippet>1581</a>            ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="macro">write!</span>(f, <span class="string">"({e1:?} {op:?} {e2:?})"</span>),
-<a href=#1582 id=1582 data-nosnippet>1582</a>            ExprKind::PrimApp(op, e1, e2) =&gt; <span class="macro">write!</span>(f, <span class="string">"[{op:?}]({e1:?}, {e2:?})"</span>),
-<a href=#1583 id=1583 data-nosnippet>1583</a>            ExprKind::UnaryOp(op, e) =&gt; <span class="macro">write!</span>(f, <span class="string">"{op:?}{e:?}"</span>),
-<a href=#1584 id=1584 data-nosnippet>1584</a>            ExprKind::Literal(lit) =&gt; <span class="macro">write!</span>(f, <span class="string">"{lit:?}"</span>),
-<a href=#1585 id=1585 data-nosnippet>1585</a>            ExprKind::App(uf, es) =&gt; <span class="macro">write!</span>(f, <span class="string">"{uf:?}({:?})"</span>, es.iter().format(<span class="string">", "</span>)),
-<a href=#1586 id=1586 data-nosnippet>1586</a>            ExprKind::Alias(alias, refine_args) =&gt; {
-<a href=#1587 id=1587 data-nosnippet>1587</a>                <span class="macro">write!</span>(f, <span class="string">"{alias:?}({:?})"</span>, refine_args.iter().format(<span class="string">", "</span>))
-<a href=#1588 id=1588 data-nosnippet>1588</a>            }
-<a href=#1589 id=1589 data-nosnippet>1589</a>            ExprKind::IfThenElse(p, e1, e2) =&gt; {
-<a href=#1590 id=1590 data-nosnippet>1590</a>                <span class="macro">write!</span>(f, <span class="string">"(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})"</span>)
-<a href=#1591 id=1591 data-nosnippet>1591</a>            }
-<a href=#1592 id=1592 data-nosnippet>1592</a>            ExprKind::Dot(var, fld) =&gt; <span class="macro">write!</span>(f, <span class="string">"{var:?}.{fld}"</span>),
-<a href=#1593 id=1593 data-nosnippet>1593</a>            ExprKind::Abs(params, body) =&gt; {
-<a href=#1594 id=1594 data-nosnippet>1594</a>                <span class="macro">write!</span>(
-<a href=#1595 id=1595 data-nosnippet>1595</a>                    f,
-<a href=#1596 id=1596 data-nosnippet>1596</a>                    <span class="string">"|{}| {body:?}"</span>,
-<a href=#1597 id=1597 data-nosnippet>1597</a>                    params.iter().format_with(<span class="string">", "</span>, |param, f| {
-<a href=#1598 id=1598 data-nosnippet>1598</a>                        f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{}: {:?}"</span>, param.name, param.sort))
-<a href=#1599 id=1599 data-nosnippet>1599</a>                    })
-<a href=#1600 id=1600 data-nosnippet>1600</a>                )
-<a href=#1601 id=1601 data-nosnippet>1601</a>            }
-<a href=#1602 id=1602 data-nosnippet>1602</a>            ExprKind::Record(flds) =&gt; {
-<a href=#1603 id=1603 data-nosnippet>1603</a>                <span class="macro">write!</span>(f, <span class="string">"{{ {:?} }}"</span>, flds.iter().format(<span class="string">", "</span>))
-<a href=#1604 id=1604 data-nosnippet>1604</a>            }
-<a href=#1605 id=1605 data-nosnippet>1605</a>            ExprKind::SetLiteral(elems) =&gt; {
-<a href=#1606 id=1606 data-nosnippet>1606</a>                <span class="macro">write!</span>(f, <span class="string">"#{{ {:?} }}"</span>, elems.iter().format(<span class="string">", "</span>))
-<a href=#1607 id=1607 data-nosnippet>1607</a>            }
-<a href=#1608 id=1608 data-nosnippet>1608</a>            ExprKind::Constructor(path, exprs, spread) =&gt; {
-<a href=#1609 id=1609 data-nosnippet>1609</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path
-<a href=#1610 id=1610 data-nosnippet>1610</a>                    &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(s) = spread
-<a href=#1611 id=1611 data-nosnippet>1611</a>                {
-<a href=#1612 id=1612 data-nosnippet>1612</a>                    <span class="macro">write!</span>(f, <span class="string">"{:?} {{ {:?}, ..{:?} }}"</span>, path, exprs.iter().format(<span class="string">", "</span>), s)
-<a href=#1613 id=1613 data-nosnippet>1613</a>                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(path) = path {
-<a href=#1614 id=1614 data-nosnippet>1614</a>                    <span class="macro">write!</span>(f, <span class="string">"{:?} {{ {:?} }}"</span>, path, exprs.iter().format(<span class="string">", "</span>))
-<a href=#1615 id=1615 data-nosnippet>1615</a>                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(s) = spread {
-<a href=#1616 id=1616 data-nosnippet>1616</a>                    <span class="macro">write!</span>(f, <span class="string">"{{ {:?} ..{:?} }}"</span>, exprs.iter().format(<span class="string">", "</span>), s)
-<a href=#1617 id=1617 data-nosnippet>1617</a>                } <span class="kw">else </span>{
-<a href=#1618 id=1618 data-nosnippet>1618</a>                    <span class="macro">write!</span>(f, <span class="string">"{{ {:?} }}"</span>, exprs.iter().format(<span class="string">", "</span>))
-<a href=#1619 id=1619 data-nosnippet>1619</a>                }
-<a href=#1620 id=1620 data-nosnippet>1620</a>            }
-<a href=#1621 id=1621 data-nosnippet>1621</a>            ExprKind::BoundedQuant(kind, refine_param, rng, expr) =&gt; {
-<a href=#1622 id=1622 data-nosnippet>1622</a>                <span class="macro">write!</span>(f, <span class="string">"{kind:?} {refine_param:?} in {}.. {} {{ {expr:?} }}"</span>, rng.start, rng.end)
-<a href=#1623 id=1623 data-nosnippet>1623</a>            }
-<a href=#1624 id=1624 data-nosnippet>1624</a>            ExprKind::Err(<span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"err"</span>),
-<a href=#1625 id=1625 data-nosnippet>1625</a>            ExprKind::Block(decls, body) =&gt; {
-<a href=#1626 id=1626 data-nosnippet>1626</a>                <span class="kw">for </span>decl <span class="kw">in </span>decls {
-<a href=#1627 id=1627 data-nosnippet>1627</a>                    <span class="macro">write!</span>(f, <span class="string">"let {:?} = {:?};"</span>, decl.param, decl.init)<span class="question-mark">?</span>;
+<a href=#1576 id=1576 data-nosnippet>1576</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#1577 id=1577 data-nosnippet>1577</a>            QuantDom::Bounded { start, end } =&gt; <span class="macro">write!</span>(f, <span class="string">"in {start:?} .. {end:?}"</span>),
+<a href=#1578 id=1578 data-nosnippet>1578</a>            QuantDom::Unbounded =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#1579 id=1579 data-nosnippet>1579</a>        }
+<a href=#1580 id=1580 data-nosnippet>1580</a>    }
+<a href=#1581 id=1581 data-nosnippet>1581</a>}
+<a href=#1582 id=1582 data-nosnippet>1582</a>
+<a href=#1583 id=1583 data-nosnippet>1583</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Expr&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1584 id=1584 data-nosnippet>1584</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1585 id=1585 data-nosnippet>1585</a>        <span class="kw">match </span><span class="self">self</span>.kind {
+<a href=#1586 id=1586 data-nosnippet>1586</a>            ExprKind::Var(QPathExpr::Resolved(path, ..)) =&gt; <span class="macro">write!</span>(f, <span class="string">"{path:?}"</span>),
+<a href=#1587 id=1587 data-nosnippet>1587</a>            ExprKind::Var(QPathExpr::TypeRelative(qself, assoc)) =&gt; {
+<a href=#1588 id=1588 data-nosnippet>1588</a>                <span class="macro">write!</span>(f, <span class="string">"&lt;{qself:?}&gt;::{assoc}"</span>)
+<a href=#1589 id=1589 data-nosnippet>1589</a>            }
+<a href=#1590 id=1590 data-nosnippet>1590</a>            ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="macro">write!</span>(f, <span class="string">"({e1:?} {op:?} {e2:?})"</span>),
+<a href=#1591 id=1591 data-nosnippet>1591</a>            ExprKind::PrimApp(op, e1, e2) =&gt; <span class="macro">write!</span>(f, <span class="string">"[{op:?}]({e1:?}, {e2:?})"</span>),
+<a href=#1592 id=1592 data-nosnippet>1592</a>            ExprKind::UnaryOp(op, e) =&gt; <span class="macro">write!</span>(f, <span class="string">"{op:?}{e:?}"</span>),
+<a href=#1593 id=1593 data-nosnippet>1593</a>            ExprKind::Literal(lit) =&gt; <span class="macro">write!</span>(f, <span class="string">"{lit:?}"</span>),
+<a href=#1594 id=1594 data-nosnippet>1594</a>            ExprKind::App(uf, es) =&gt; <span class="macro">write!</span>(f, <span class="string">"{uf:?}({:?})"</span>, es.iter().format(<span class="string">", "</span>)),
+<a href=#1595 id=1595 data-nosnippet>1595</a>            ExprKind::Alias(alias, refine_args) =&gt; {
+<a href=#1596 id=1596 data-nosnippet>1596</a>                <span class="macro">write!</span>(f, <span class="string">"{alias:?}({:?})"</span>, refine_args.iter().format(<span class="string">", "</span>))
+<a href=#1597 id=1597 data-nosnippet>1597</a>            }
+<a href=#1598 id=1598 data-nosnippet>1598</a>            ExprKind::IfThenElse(p, e1, e2) =&gt; {
+<a href=#1599 id=1599 data-nosnippet>1599</a>                <span class="macro">write!</span>(f, <span class="string">"(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})"</span>)
+<a href=#1600 id=1600 data-nosnippet>1600</a>            }
+<a href=#1601 id=1601 data-nosnippet>1601</a>            ExprKind::Dot(var, fld) =&gt; <span class="macro">write!</span>(f, <span class="string">"{var:?}.{fld}"</span>),
+<a href=#1602 id=1602 data-nosnippet>1602</a>            ExprKind::Abs(params, body) =&gt; {
+<a href=#1603 id=1603 data-nosnippet>1603</a>                <span class="macro">write!</span>(
+<a href=#1604 id=1604 data-nosnippet>1604</a>                    f,
+<a href=#1605 id=1605 data-nosnippet>1605</a>                    <span class="string">"|{}| {body:?}"</span>,
+<a href=#1606 id=1606 data-nosnippet>1606</a>                    params.iter().format_with(<span class="string">", "</span>, |param, f| {
+<a href=#1607 id=1607 data-nosnippet>1607</a>                        f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{}: {:?}"</span>, param.name, param.sort))
+<a href=#1608 id=1608 data-nosnippet>1608</a>                    })
+<a href=#1609 id=1609 data-nosnippet>1609</a>                )
+<a href=#1610 id=1610 data-nosnippet>1610</a>            }
+<a href=#1611 id=1611 data-nosnippet>1611</a>            ExprKind::Record(flds) =&gt; {
+<a href=#1612 id=1612 data-nosnippet>1612</a>                <span class="macro">write!</span>(f, <span class="string">"{{ {:?} }}"</span>, flds.iter().format(<span class="string">", "</span>))
+<a href=#1613 id=1613 data-nosnippet>1613</a>            }
+<a href=#1614 id=1614 data-nosnippet>1614</a>            ExprKind::SetLiteral(elems) =&gt; {
+<a href=#1615 id=1615 data-nosnippet>1615</a>                <span class="macro">write!</span>(f, <span class="string">"#{{ {:?} }}"</span>, elems.iter().format(<span class="string">", "</span>))
+<a href=#1616 id=1616 data-nosnippet>1616</a>            }
+<a href=#1617 id=1617 data-nosnippet>1617</a>            ExprKind::Constructor(path, exprs, spread) =&gt; {
+<a href=#1618 id=1618 data-nosnippet>1618</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path
+<a href=#1619 id=1619 data-nosnippet>1619</a>                    &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(s) = spread
+<a href=#1620 id=1620 data-nosnippet>1620</a>                {
+<a href=#1621 id=1621 data-nosnippet>1621</a>                    <span class="macro">write!</span>(f, <span class="string">"{:?} {{ {:?}, ..{:?} }}"</span>, path, exprs.iter().format(<span class="string">", "</span>), s)
+<a href=#1622 id=1622 data-nosnippet>1622</a>                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(path) = path {
+<a href=#1623 id=1623 data-nosnippet>1623</a>                    <span class="macro">write!</span>(f, <span class="string">"{:?} {{ {:?} }}"</span>, path, exprs.iter().format(<span class="string">", "</span>))
+<a href=#1624 id=1624 data-nosnippet>1624</a>                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(s) = spread {
+<a href=#1625 id=1625 data-nosnippet>1625</a>                    <span class="macro">write!</span>(f, <span class="string">"{{ {:?} ..{:?} }}"</span>, exprs.iter().format(<span class="string">", "</span>), s)
+<a href=#1626 id=1626 data-nosnippet>1626</a>                } <span class="kw">else </span>{
+<a href=#1627 id=1627 data-nosnippet>1627</a>                    <span class="macro">write!</span>(f, <span class="string">"{{ {:?} }}"</span>, exprs.iter().format(<span class="string">", "</span>))
 <a href=#1628 id=1628 data-nosnippet>1628</a>                }
-<a href=#1629 id=1629 data-nosnippet>1629</a>                <span class="macro">write!</span>(f, <span class="string">"{body:?}"</span>)
-<a href=#1630 id=1630 data-nosnippet>1630</a>            }
-<a href=#1631 id=1631 data-nosnippet>1631</a>            ExprKind::Tuple(exprs) =&gt; {
-<a href=#1632 id=1632 data-nosnippet>1632</a>                <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, exprs.iter().format(<span class="string">", "</span>))
-<a href=#1633 id=1633 data-nosnippet>1633</a>            }
-<a href=#1634 id=1634 data-nosnippet>1634</a>        }
-<a href=#1635 id=1635 data-nosnippet>1635</a>    }
-<a href=#1636 id=1636 data-nosnippet>1636</a>}
-<a href=#1637 id=1637 data-nosnippet>1637</a>
-<a href=#1638 id=1638 data-nosnippet>1638</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PathExpr&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#1639 id=1639 data-nosnippet>1639</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1640 id=1640 data-nosnippet>1640</a>        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.segments.iter().format(<span class="string">"::"</span>))
-<a href=#1641 id=1641 data-nosnippet>1641</a>    }
-<a href=#1642 id=1642 data-nosnippet>1642</a>}
-<a href=#1643 id=1643 data-nosnippet>1643</a>
-<a href=#1644 id=1644 data-nosnippet>1644</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Lit {
-<a href=#1645 id=1645 data-nosnippet>1645</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1646 id=1646 data-nosnippet>1646</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#1647 id=1647 data-nosnippet>1647</a>            Lit::Int(i) =&gt; <span class="macro">write!</span>(f, <span class="string">"{i}"</span>),
-<a href=#1648 id=1648 data-nosnippet>1648</a>            Lit::Real(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"{s}"</span>),
-<a href=#1649 id=1649 data-nosnippet>1649</a>            Lit::Bool(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
-<a href=#1650 id=1650 data-nosnippet>1650</a>            Lit::Str(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"\"{s:?}\""</span>),
-<a href=#1651 id=1651 data-nosnippet>1651</a>            Lit::Char(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"\'{c}\'"</span>),
-<a href=#1652 id=1652 data-nosnippet>1652</a>        }
-<a href=#1653 id=1653 data-nosnippet>1653</a>    }
-<a href=#1654 id=1654 data-nosnippet>1654</a>}
-<a href=#1655 id=1655 data-nosnippet>1655</a>
-<a href=#1656 id=1656 data-nosnippet>1656</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Sort&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#1657 id=1657 data-nosnippet>1657</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1658 id=1658 data-nosnippet>1658</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#1659 id=1659 data-nosnippet>1659</a>            Sort::Path(path) =&gt; <span class="macro">write!</span>(f, <span class="string">"{path:?}"</span>),
-<a href=#1660 id=1660 data-nosnippet>1660</a>            Sort::BitVec(w) =&gt; <span class="macro">write!</span>(f, <span class="string">"bitvec({w})"</span>),
-<a href=#1661 id=1661 data-nosnippet>1661</a>            Sort::Loc =&gt; <span class="macro">write!</span>(f, <span class="string">"loc"</span>),
-<a href=#1662 id=1662 data-nosnippet>1662</a>            Sort::Func(fsort) =&gt; <span class="macro">write!</span>(f, <span class="string">"{fsort:?}"</span>),
-<a href=#1663 id=1663 data-nosnippet>1663</a>            Sort::SortOf(bty) =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;{bty:?}&gt;::sort"</span>),
-<a href=#1664 id=1664 data-nosnippet>1664</a>            Sort::Tuple(sorts) =&gt; <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, sorts.iter().format(<span class="string">", "</span>)),
-<a href=#1665 id=1665 data-nosnippet>1665</a>            Sort::Infer =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
-<a href=#1666 id=1666 data-nosnippet>1666</a>            Sort::Err(<span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"err"</span>),
-<a href=#1667 id=1667 data-nosnippet>1667</a>        }
-<a href=#1668 id=1668 data-nosnippet>1668</a>    }
-<a href=#1669 id=1669 data-nosnippet>1669</a>}
-<a href=#1670 id=1670 data-nosnippet>1670</a>
-<a href=#1671 id=1671 data-nosnippet>1671</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>SortPath&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#1672 id=1672 data-nosnippet>1672</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1673 id=1673 data-nosnippet>1673</a>        <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, <span class="self">self</span>.res)<span class="question-mark">?</span>;
-<a href=#1674 id=1674 data-nosnippet>1674</a>        <span class="kw">if </span>!<span class="self">self</span>.args.is_empty() {
-<a href=#1675 id=1675 data-nosnippet>1675</a>            <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, <span class="self">self</span>.args.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
+<a href=#1629 id=1629 data-nosnippet>1629</a>            }
+<a href=#1630 id=1630 data-nosnippet>1630</a>            ExprKind::Quant(kind, refine_param, dom, expr) =&gt; {
+<a href=#1631 id=1631 data-nosnippet>1631</a>                <span class="macro">write!</span>(f, <span class="string">"{kind:?} {refine_param:?} {dom:?} {{ {expr:?} }}"</span>)
+<a href=#1632 id=1632 data-nosnippet>1632</a>            }
+<a href=#1633 id=1633 data-nosnippet>1633</a>            ExprKind::Err(<span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"err"</span>),
+<a href=#1634 id=1634 data-nosnippet>1634</a>            ExprKind::Block(decls, body) =&gt; {
+<a href=#1635 id=1635 data-nosnippet>1635</a>                <span class="kw">for </span>decl <span class="kw">in </span>decls {
+<a href=#1636 id=1636 data-nosnippet>1636</a>                    <span class="macro">write!</span>(f, <span class="string">"let {:?} = {:?};"</span>, decl.param, decl.init)<span class="question-mark">?</span>;
+<a href=#1637 id=1637 data-nosnippet>1637</a>                }
+<a href=#1638 id=1638 data-nosnippet>1638</a>                <span class="macro">write!</span>(f, <span class="string">"{body:?}"</span>)
+<a href=#1639 id=1639 data-nosnippet>1639</a>            }
+<a href=#1640 id=1640 data-nosnippet>1640</a>            ExprKind::Tuple(exprs) =&gt; {
+<a href=#1641 id=1641 data-nosnippet>1641</a>                <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, exprs.iter().format(<span class="string">", "</span>))
+<a href=#1642 id=1642 data-nosnippet>1642</a>            }
+<a href=#1643 id=1643 data-nosnippet>1643</a>        }
+<a href=#1644 id=1644 data-nosnippet>1644</a>    }
+<a href=#1645 id=1645 data-nosnippet>1645</a>}
+<a href=#1646 id=1646 data-nosnippet>1646</a>
+<a href=#1647 id=1647 data-nosnippet>1647</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PathExpr&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1648 id=1648 data-nosnippet>1648</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1649 id=1649 data-nosnippet>1649</a>        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.segments.iter().format(<span class="string">"::"</span>))
+<a href=#1650 id=1650 data-nosnippet>1650</a>    }
+<a href=#1651 id=1651 data-nosnippet>1651</a>}
+<a href=#1652 id=1652 data-nosnippet>1652</a>
+<a href=#1653 id=1653 data-nosnippet>1653</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Lit {
+<a href=#1654 id=1654 data-nosnippet>1654</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1655 id=1655 data-nosnippet>1655</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#1656 id=1656 data-nosnippet>1656</a>            Lit::Int(i) =&gt; <span class="macro">write!</span>(f, <span class="string">"{i}"</span>),
+<a href=#1657 id=1657 data-nosnippet>1657</a>            Lit::Real(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"{s}"</span>),
+<a href=#1658 id=1658 data-nosnippet>1658</a>            Lit::Bool(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
+<a href=#1659 id=1659 data-nosnippet>1659</a>            Lit::Str(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"\"{s:?}\""</span>),
+<a href=#1660 id=1660 data-nosnippet>1660</a>            Lit::Char(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"\'{c}\'"</span>),
+<a href=#1661 id=1661 data-nosnippet>1661</a>        }
+<a href=#1662 id=1662 data-nosnippet>1662</a>    }
+<a href=#1663 id=1663 data-nosnippet>1663</a>}
+<a href=#1664 id=1664 data-nosnippet>1664</a>
+<a href=#1665 id=1665 data-nosnippet>1665</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Sort&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1666 id=1666 data-nosnippet>1666</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1667 id=1667 data-nosnippet>1667</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#1668 id=1668 data-nosnippet>1668</a>            Sort::Path(path) =&gt; <span class="macro">write!</span>(f, <span class="string">"{path:?}"</span>),
+<a href=#1669 id=1669 data-nosnippet>1669</a>            Sort::BitVec(w) =&gt; <span class="macro">write!</span>(f, <span class="string">"bitvec({w})"</span>),
+<a href=#1670 id=1670 data-nosnippet>1670</a>            Sort::Loc =&gt; <span class="macro">write!</span>(f, <span class="string">"loc"</span>),
+<a href=#1671 id=1671 data-nosnippet>1671</a>            Sort::Func(fsort) =&gt; <span class="macro">write!</span>(f, <span class="string">"{fsort:?}"</span>),
+<a href=#1672 id=1672 data-nosnippet>1672</a>            Sort::SortOf(bty) =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;{bty:?}&gt;::sort"</span>),
+<a href=#1673 id=1673 data-nosnippet>1673</a>            Sort::Tuple(sorts) =&gt; <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, sorts.iter().format(<span class="string">", "</span>)),
+<a href=#1674 id=1674 data-nosnippet>1674</a>            Sort::Infer =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
+<a href=#1675 id=1675 data-nosnippet>1675</a>            Sort::Err(<span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"err"</span>),
 <a href=#1676 id=1676 data-nosnippet>1676</a>        }
-<a href=#1677 id=1677 data-nosnippet>1677</a>        <span class="prelude-val">Ok</span>(())
-<a href=#1678 id=1678 data-nosnippet>1678</a>    }
-<a href=#1679 id=1679 data-nosnippet>1679</a>}
-<a href=#1680 id=1680 data-nosnippet>1680</a>
-<a href=#1681 id=1681 data-nosnippet>1681</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>SortRes {
-<a href=#1682 id=1682 data-nosnippet>1682</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1683 id=1683 data-nosnippet>1683</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#1684 id=1684 data-nosnippet>1684</a>            SortRes::PrimSort(PrimSort::Bool) =&gt; <span class="macro">write!</span>(f, <span class="string">"bool"</span>),
-<a href=#1685 id=1685 data-nosnippet>1685</a>            SortRes::PrimSort(PrimSort::Int) =&gt; <span class="macro">write!</span>(f, <span class="string">"int"</span>),
-<a href=#1686 id=1686 data-nosnippet>1686</a>            SortRes::PrimSort(PrimSort::Real) =&gt; <span class="macro">write!</span>(f, <span class="string">"real"</span>),
-<a href=#1687 id=1687 data-nosnippet>1687</a>            SortRes::PrimSort(PrimSort::Char) =&gt; <span class="macro">write!</span>(f, <span class="string">"char"</span>),
-<a href=#1688 id=1688 data-nosnippet>1688</a>            SortRes::PrimSort(PrimSort::Str) =&gt; <span class="macro">write!</span>(f, <span class="string">"str"</span>),
-<a href=#1689 id=1689 data-nosnippet>1689</a>            SortRes::PrimSort(PrimSort::Set) =&gt; <span class="macro">write!</span>(f, <span class="string">"Set"</span>),
-<a href=#1690 id=1690 data-nosnippet>1690</a>            SortRes::PrimSort(PrimSort::Map) =&gt; <span class="macro">write!</span>(f, <span class="string">"Map"</span>),
-<a href=#1691 id=1691 data-nosnippet>1691</a>            SortRes::PrimSort(PrimSort::RawPtr) =&gt; <span class="macro">write!</span>(f, <span class="string">"ptr"</span>),
-<a href=#1692 id=1692 data-nosnippet>1692</a>            SortRes::SortParam(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"@{n}"</span>),
-<a href=#1693 id=1693 data-nosnippet>1693</a>            SortRes::TyParam(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
-<a href=#1694 id=1694 data-nosnippet>1694</a>            SortRes::SelfParam { trait_id } =&gt; {
-<a href=#1695 id=1695 data-nosnippet>1695</a>                <span class="macro">write!</span>(f, <span class="string">"{}::Self::sort"</span>, def_id_to_string(<span class="kw-2">*</span>trait_id))
-<a href=#1696 id=1696 data-nosnippet>1696</a>            }
-<a href=#1697 id=1697 data-nosnippet>1697</a>            SortRes::SelfAlias { alias_to } =&gt; {
-<a href=#1698 id=1698 data-nosnippet>1698</a>                <span class="macro">write!</span>(f, <span class="string">"{}::Self::sort"</span>, def_id_to_string(<span class="kw-2">*</span>alias_to))
-<a href=#1699 id=1699 data-nosnippet>1699</a>            }
-<a href=#1700 id=1700 data-nosnippet>1700</a>            SortRes::SelfParamAssoc { ident: assoc, .. } =&gt; {
-<a href=#1701 id=1701 data-nosnippet>1701</a>                <span class="macro">write!</span>(f, <span class="string">"Self::{assoc}"</span>)
-<a href=#1702 id=1702 data-nosnippet>1702</a>            }
-<a href=#1703 id=1703 data-nosnippet>1703</a>            SortRes::User(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, def_id.name()),
-<a href=#1704 id=1704 data-nosnippet>1704</a>            SortRes::Adt(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
-<a href=#1705 id=1705 data-nosnippet>1705</a>        }
-<a href=#1706 id=1706 data-nosnippet>1706</a>    }
-<a href=#1707 id=1707 data-nosnippet>1707</a>}
-<a href=#1708 id=1708 data-nosnippet>1708</a>
-<a href=#1709 id=1709 data-nosnippet>1709</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PolyFuncSort&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#1710 id=1710 data-nosnippet>1710</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1711 id=1711 data-nosnippet>1711</a>        <span class="kw">if </span><span class="self">self</span>.params &gt; <span class="number">0 </span>{
-<a href=#1712 id=1712 data-nosnippet>1712</a>            <span class="macro">write!</span>(f, <span class="string">"for&lt;{}&gt;{:?}"</span>, <span class="self">self</span>.params, <span class="self">self</span>.fsort)
-<a href=#1713 id=1713 data-nosnippet>1713</a>        } <span class="kw">else </span>{
-<a href=#1714 id=1714 data-nosnippet>1714</a>            <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, <span class="self">self</span>.fsort)
-<a href=#1715 id=1715 data-nosnippet>1715</a>        }
-<a href=#1716 id=1716 data-nosnippet>1716</a>    }
-<a href=#1717 id=1717 data-nosnippet>1717</a>}
-<a href=#1718 id=1718 data-nosnippet>1718</a>
-<a href=#1719 id=1719 data-nosnippet>1719</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>FuncSort&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#1720 id=1720 data-nosnippet>1720</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1721 id=1721 data-nosnippet>1721</a>        <span class="kw">match </span><span class="self">self</span>.inputs() {
-<a href=#1722 id=1722 data-nosnippet>1722</a>            [input] =&gt; {
-<a href=#1723 id=1723 data-nosnippet>1723</a>                <span class="macro">write!</span>(f, <span class="string">"{:?} -&gt; {:?}"</span>, input, <span class="self">self</span>.output())
-<a href=#1724 id=1724 data-nosnippet>1724</a>            }
-<a href=#1725 id=1725 data-nosnippet>1725</a>            inputs =&gt; {
-<a href=#1726 id=1726 data-nosnippet>1726</a>                <span class="macro">write!</span>(f, <span class="string">"({:?}) -&gt; {:?}"</span>, inputs.iter().format(<span class="string">", "</span>), <span class="self">self</span>.output())
-<a href=#1727 id=1727 data-nosnippet>1727</a>            }
-<a href=#1728 id=1728 data-nosnippet>1728</a>        }
-<a href=#1729 id=1729 data-nosnippet>1729</a>    }
-<a href=#1730 id=1730 data-nosnippet>1730</a>}
+<a href=#1677 id=1677 data-nosnippet>1677</a>    }
+<a href=#1678 id=1678 data-nosnippet>1678</a>}
+<a href=#1679 id=1679 data-nosnippet>1679</a>
+<a href=#1680 id=1680 data-nosnippet>1680</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>SortPath&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1681 id=1681 data-nosnippet>1681</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1682 id=1682 data-nosnippet>1682</a>        <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, <span class="self">self</span>.res)<span class="question-mark">?</span>;
+<a href=#1683 id=1683 data-nosnippet>1683</a>        <span class="kw">if </span>!<span class="self">self</span>.args.is_empty() {
+<a href=#1684 id=1684 data-nosnippet>1684</a>            <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, <span class="self">self</span>.args.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
+<a href=#1685 id=1685 data-nosnippet>1685</a>        }
+<a href=#1686 id=1686 data-nosnippet>1686</a>        <span class="prelude-val">Ok</span>(())
+<a href=#1687 id=1687 data-nosnippet>1687</a>    }
+<a href=#1688 id=1688 data-nosnippet>1688</a>}
+<a href=#1689 id=1689 data-nosnippet>1689</a>
+<a href=#1690 id=1690 data-nosnippet>1690</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>SortRes {
+<a href=#1691 id=1691 data-nosnippet>1691</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1692 id=1692 data-nosnippet>1692</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#1693 id=1693 data-nosnippet>1693</a>            SortRes::PrimSort(PrimSort::Bool) =&gt; <span class="macro">write!</span>(f, <span class="string">"bool"</span>),
+<a href=#1694 id=1694 data-nosnippet>1694</a>            SortRes::PrimSort(PrimSort::Int) =&gt; <span class="macro">write!</span>(f, <span class="string">"int"</span>),
+<a href=#1695 id=1695 data-nosnippet>1695</a>            SortRes::PrimSort(PrimSort::Real) =&gt; <span class="macro">write!</span>(f, <span class="string">"real"</span>),
+<a href=#1696 id=1696 data-nosnippet>1696</a>            SortRes::PrimSort(PrimSort::Char) =&gt; <span class="macro">write!</span>(f, <span class="string">"char"</span>),
+<a href=#1697 id=1697 data-nosnippet>1697</a>            SortRes::PrimSort(PrimSort::Str) =&gt; <span class="macro">write!</span>(f, <span class="string">"str"</span>),
+<a href=#1698 id=1698 data-nosnippet>1698</a>            SortRes::PrimSort(PrimSort::Set) =&gt; <span class="macro">write!</span>(f, <span class="string">"Set"</span>),
+<a href=#1699 id=1699 data-nosnippet>1699</a>            SortRes::PrimSort(PrimSort::Map) =&gt; <span class="macro">write!</span>(f, <span class="string">"Map"</span>),
+<a href=#1700 id=1700 data-nosnippet>1700</a>            SortRes::PrimSort(PrimSort::RawPtr) =&gt; <span class="macro">write!</span>(f, <span class="string">"ptr"</span>),
+<a href=#1701 id=1701 data-nosnippet>1701</a>            SortRes::SortParam(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"@{n}"</span>),
+<a href=#1702 id=1702 data-nosnippet>1702</a>            SortRes::TyParam(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
+<a href=#1703 id=1703 data-nosnippet>1703</a>            SortRes::SelfParam { trait_id } =&gt; {
+<a href=#1704 id=1704 data-nosnippet>1704</a>                <span class="macro">write!</span>(f, <span class="string">"{}::Self::sort"</span>, def_id_to_string(<span class="kw-2">*</span>trait_id))
+<a href=#1705 id=1705 data-nosnippet>1705</a>            }
+<a href=#1706 id=1706 data-nosnippet>1706</a>            SortRes::SelfAlias { alias_to } =&gt; {
+<a href=#1707 id=1707 data-nosnippet>1707</a>                <span class="macro">write!</span>(f, <span class="string">"{}::Self::sort"</span>, def_id_to_string(<span class="kw-2">*</span>alias_to))
+<a href=#1708 id=1708 data-nosnippet>1708</a>            }
+<a href=#1709 id=1709 data-nosnippet>1709</a>            SortRes::SelfParamAssoc { ident: assoc, .. } =&gt; {
+<a href=#1710 id=1710 data-nosnippet>1710</a>                <span class="macro">write!</span>(f, <span class="string">"Self::{assoc}"</span>)
+<a href=#1711 id=1711 data-nosnippet>1711</a>            }
+<a href=#1712 id=1712 data-nosnippet>1712</a>            SortRes::User(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, def_id.name()),
+<a href=#1713 id=1713 data-nosnippet>1713</a>            SortRes::Adt(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
+<a href=#1714 id=1714 data-nosnippet>1714</a>        }
+<a href=#1715 id=1715 data-nosnippet>1715</a>    }
+<a href=#1716 id=1716 data-nosnippet>1716</a>}
+<a href=#1717 id=1717 data-nosnippet>1717</a>
+<a href=#1718 id=1718 data-nosnippet>1718</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PolyFuncSort&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1719 id=1719 data-nosnippet>1719</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1720 id=1720 data-nosnippet>1720</a>        <span class="kw">if </span><span class="self">self</span>.params &gt; <span class="number">0 </span>{
+<a href=#1721 id=1721 data-nosnippet>1721</a>            <span class="macro">write!</span>(f, <span class="string">"for&lt;{}&gt;{:?}"</span>, <span class="self">self</span>.params, <span class="self">self</span>.fsort)
+<a href=#1722 id=1722 data-nosnippet>1722</a>        } <span class="kw">else </span>{
+<a href=#1723 id=1723 data-nosnippet>1723</a>            <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, <span class="self">self</span>.fsort)
+<a href=#1724 id=1724 data-nosnippet>1724</a>        }
+<a href=#1725 id=1725 data-nosnippet>1725</a>    }
+<a href=#1726 id=1726 data-nosnippet>1726</a>}
+<a href=#1727 id=1727 data-nosnippet>1727</a>
+<a href=#1728 id=1728 data-nosnippet>1728</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>FuncSort&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1729 id=1729 data-nosnippet>1729</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1730 id=1730 data-nosnippet>1730</a>        <span class="kw">match </span><span class="self">self</span>.inputs() {
+<a href=#1731 id=1731 data-nosnippet>1731</a>            [input] =&gt; {
+<a href=#1732 id=1732 data-nosnippet>1732</a>                <span class="macro">write!</span>(f, <span class="string">"{:?} -&gt; {:?}"</span>, input, <span class="self">self</span>.output())
+<a href=#1733 id=1733 data-nosnippet>1733</a>            }
+<a href=#1734 id=1734 data-nosnippet>1734</a>            inputs =&gt; {
+<a href=#1735 id=1735 data-nosnippet>1735</a>                <span class="macro">write!</span>(f, <span class="string">"({:?}) -&gt; {:?}"</span>, inputs.iter().format(<span class="string">", "</span>), <span class="self">self</span>.output())
+<a href=#1736 id=1736 data-nosnippet>1736</a>            }
+<a href=#1737 id=1737 data-nosnippet>1737</a>        }
+<a href=#1738 id=1738 data-nosnippet>1738</a>    }
+<a href=#1739 id=1739 data-nosnippet>1739</a>}
 </code></pre></div></section></main></body></html>

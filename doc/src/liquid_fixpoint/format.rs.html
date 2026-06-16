@@ -8,7 +8,7 @@
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use crate</span>::{
 <a href=#9 id=9 data-nosnippet>9</a>    BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
 <a href=#10 id=10 data-nosnippet>10</a>    FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task,
-<a href=#11 id=11 data-nosnippet>11</a>    Types,
+<a href=#11 id=11 data-nosnippet>11</a>    Types, constraint::Quantifier,
 <a href=#12 id=12 data-nosnippet>12</a>};
 <a href=#13 id=13 data-nosnippet>13</a>
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fmt_constraint&lt;T: Types&gt;(
@@ -308,157 +308,169 @@
 <a href=#308 id=308 data-nosnippet>308</a>    }
 <a href=#309 id=309 data-nosnippet>309</a>}
 <a href=#310 id=310 data-nosnippet>310</a>
-<a href=#311 id=311 data-nosnippet>311</a><span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Expr&lt;T&gt; {
+<a href=#311 id=311 data-nosnippet>311</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>Quantifier {
 <a href=#312 id=312 data-nosnippet>312</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
 <a href=#313 id=313 data-nosnippet>313</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#314 id=314 data-nosnippet>314</a>            Expr::Constant(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"{c}"</span>),
-<a href=#315 id=315 data-nosnippet>315</a>            Expr::Var(x) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, x.display()),
-<a href=#316 id=316 data-nosnippet>316</a>            Expr::App(func, _sort_args, args, _out_sort) =&gt; {
-<a href=#317 id=317 data-nosnippet>317</a>                <span class="macro">write!</span>(f, <span class="string">"({func} {})"</span>, args.iter().format(<span class="string">" "</span>))
-<a href=#318 id=318 data-nosnippet>318</a>            }
-<a href=#319 id=319 data-nosnippet>319</a>            Expr::Neg(e) =&gt; {
-<a href=#320 id=320 data-nosnippet>320</a>                <span class="macro">write!</span>(f, <span class="string">"(- {e})"</span>)
-<a href=#321 id=321 data-nosnippet>321</a>            }
-<a href=#322 id=322 data-nosnippet>322</a>            Expr::BinaryOp(op, exprs) =&gt; {
-<a href=#323 id=323 data-nosnippet>323</a>                <span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;**</span>exprs;
-<a href=#324 id=324 data-nosnippet>324</a>                <span class="macro">write!</span>(f, <span class="string">"({op} {e1} {e2})"</span>)
-<a href=#325 id=325 data-nosnippet>325</a>            }
-<a href=#326 id=326 data-nosnippet>326</a>            Expr::IfThenElse(exprs) =&gt; {
-<a href=#327 id=327 data-nosnippet>327</a>                <span class="kw">let </span>[p, e1, e2] = <span class="kw-2">&amp;**</span>exprs;
-<a href=#328 id=328 data-nosnippet>328</a>                <span class="macro">write!</span>(f, <span class="string">"(if {p} {e1} {e2})"</span>)
-<a href=#329 id=329 data-nosnippet>329</a>            }
-<a href=#330 id=330 data-nosnippet>330</a>            Expr::And(exprs) =&gt; {
-<a href=#331 id=331 data-nosnippet>331</a>                <span class="macro">write!</span>(f, <span class="string">"(and {})"</span>, exprs.iter().format(<span class="string">" "</span>))
-<a href=#332 id=332 data-nosnippet>332</a>            }
-<a href=#333 id=333 data-nosnippet>333</a>            Expr::Or(exprs) =&gt; {
-<a href=#334 id=334 data-nosnippet>334</a>                <span class="macro">write!</span>(f, <span class="string">"(or {})"</span>, exprs.iter().format(<span class="string">" "</span>))
-<a href=#335 id=335 data-nosnippet>335</a>            }
-<a href=#336 id=336 data-nosnippet>336</a>            Expr::Not(e) =&gt; {
-<a href=#337 id=337 data-nosnippet>337</a>                <span class="macro">write!</span>(f, <span class="string">"(not {e})"</span>)
+<a href=#314 id=314 data-nosnippet>314</a>            Quantifier::Exists =&gt; <span class="macro">write!</span>(f, <span class="string">"exists"</span>),
+<a href=#315 id=315 data-nosnippet>315</a>            Quantifier::Forall =&gt; <span class="macro">write!</span>(f, <span class="string">"forall"</span>),
+<a href=#316 id=316 data-nosnippet>316</a>        }
+<a href=#317 id=317 data-nosnippet>317</a>    }
+<a href=#318 id=318 data-nosnippet>318</a>}
+<a href=#319 id=319 data-nosnippet>319</a>
+<a href=#320 id=320 data-nosnippet>320</a><span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Expr&lt;T&gt; {
+<a href=#321 id=321 data-nosnippet>321</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#322 id=322 data-nosnippet>322</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#323 id=323 data-nosnippet>323</a>            Expr::Constant(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"{c}"</span>),
+<a href=#324 id=324 data-nosnippet>324</a>            Expr::Var(x) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, x.display()),
+<a href=#325 id=325 data-nosnippet>325</a>            Expr::App(func, _sort_args, args, _out_sort) =&gt; {
+<a href=#326 id=326 data-nosnippet>326</a>                <span class="macro">write!</span>(f, <span class="string">"({func} {})"</span>, args.iter().format(<span class="string">" "</span>))
+<a href=#327 id=327 data-nosnippet>327</a>            }
+<a href=#328 id=328 data-nosnippet>328</a>            Expr::Neg(e) =&gt; {
+<a href=#329 id=329 data-nosnippet>329</a>                <span class="macro">write!</span>(f, <span class="string">"(- {e})"</span>)
+<a href=#330 id=330 data-nosnippet>330</a>            }
+<a href=#331 id=331 data-nosnippet>331</a>            Expr::BinaryOp(op, exprs) =&gt; {
+<a href=#332 id=332 data-nosnippet>332</a>                <span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;**</span>exprs;
+<a href=#333 id=333 data-nosnippet>333</a>                <span class="macro">write!</span>(f, <span class="string">"({op} {e1} {e2})"</span>)
+<a href=#334 id=334 data-nosnippet>334</a>            }
+<a href=#335 id=335 data-nosnippet>335</a>            Expr::IfThenElse(exprs) =&gt; {
+<a href=#336 id=336 data-nosnippet>336</a>                <span class="kw">let </span>[p, e1, e2] = <span class="kw-2">&amp;**</span>exprs;
+<a href=#337 id=337 data-nosnippet>337</a>                <span class="macro">write!</span>(f, <span class="string">"(if {p} {e1} {e2})"</span>)
 <a href=#338 id=338 data-nosnippet>338</a>            }
-<a href=#339 id=339 data-nosnippet>339</a>            Expr::Imp(exprs) =&gt; {
-<a href=#340 id=340 data-nosnippet>340</a>                <span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;**</span>exprs;
-<a href=#341 id=341 data-nosnippet>341</a>                <span class="macro">write!</span>(f, <span class="string">"(=&gt; {e1} {e2})"</span>)
-<a href=#342 id=342 data-nosnippet>342</a>            }
-<a href=#343 id=343 data-nosnippet>343</a>            Expr::Iff(exprs) =&gt; {
-<a href=#344 id=344 data-nosnippet>344</a>                <span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;**</span>exprs;
-<a href=#345 id=345 data-nosnippet>345</a>                <span class="macro">write!</span>(f, <span class="string">"(&lt;=&gt; {e1} {e2})"</span>)
-<a href=#346 id=346 data-nosnippet>346</a>            }
-<a href=#347 id=347 data-nosnippet>347</a>            Expr::Atom(rel, exprs) =&gt; {
-<a href=#348 id=348 data-nosnippet>348</a>                <span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;**</span>exprs;
-<a href=#349 id=349 data-nosnippet>349</a>                <span class="macro">write!</span>(f, <span class="string">"({rel} {e1} {e2})"</span>)
-<a href=#350 id=350 data-nosnippet>350</a>            }
-<a href=#351 id=351 data-nosnippet>351</a>            Expr::Let(name, exprs) =&gt; {
-<a href=#352 id=352 data-nosnippet>352</a>                <span class="comment">// Fixpoint only support one binder per let expressions, but it parses a singleton
-<a href=#353 id=353 data-nosnippet>353</a>                // list of binders to be forward-compatible
-<a href=#354 id=354 data-nosnippet>354</a>                </span><span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;**</span>exprs;
-<a href=#355 id=355 data-nosnippet>355</a>                <span class="macro">write!</span>(f, <span class="string">"(let (({} {e1})) {e2})"</span>, name.display())
-<a href=#356 id=356 data-nosnippet>356</a>            }
-<a href=#357 id=357 data-nosnippet>357</a>            Expr::ThyFunc(thy_func) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, thy_func),
-<a href=#358 id=358 data-nosnippet>358</a>            Expr::IsCtor(ctor, e) =&gt; {
-<a href=#359 id=359 data-nosnippet>359</a>                <span class="macro">write!</span>(f, <span class="string">"(is${} {})"</span>, ctor.display(), e)
-<a href=#360 id=360 data-nosnippet>360</a>            }
-<a href=#361 id=361 data-nosnippet>361</a>            Expr::Exists(sorts, body) =&gt; {
-<a href=#362 id=362 data-nosnippet>362</a>                <span class="macro">write!</span>(
-<a href=#363 id=363 data-nosnippet>363</a>                    f,
-<a href=#364 id=364 data-nosnippet>364</a>                    <span class="string">"(exists ({}) {})"</span>,
-<a href=#365 id=365 data-nosnippet>365</a>                    sorts.iter().map(|binder| <span class="kw-2">&amp;</span>binder.<span class="number">1</span>).format(<span class="string">" "</span>),
-<a href=#366 id=366 data-nosnippet>366</a>                    body
-<a href=#367 id=367 data-nosnippet>367</a>                )
-<a href=#368 id=368 data-nosnippet>368</a>            }
-<a href=#369 id=369 data-nosnippet>369</a>        }
-<a href=#370 id=370 data-nosnippet>370</a>    }
-<a href=#371 id=371 data-nosnippet>371</a>}
-<a href=#372 id=372 data-nosnippet>372</a>
-<a href=#373 id=373 data-nosnippet>373</a><span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Constant&lt;T&gt; {
-<a href=#374 id=374 data-nosnippet>374</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#375 id=375 data-nosnippet>375</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#376 id=376 data-nosnippet>376</a>            Constant::Numeral(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{n}"</span>),
-<a href=#377 id=377 data-nosnippet>377</a>            Constant::Real(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, n.display()),
-<a href=#378 id=378 data-nosnippet>378</a>            Constant::Boolean(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
-<a href=#379 id=379 data-nosnippet>379</a>            Constant::String(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, s.display()),
-<a href=#380 id=380 data-nosnippet>380</a>            Constant::BitVec(i, sz) =&gt; {
-<a href=#381 id=381 data-nosnippet>381</a>                <span class="kw">if </span>sz.is_multiple_of(<span class="number">4</span>) {
-<a href=#382 id=382 data-nosnippet>382</a>                    <span class="macro">write!</span>(f, <span class="string">"(lit \"#x{i:00$x}\" (BitVec Size{sz}))"</span>, (sz / <span class="number">4</span>) <span class="kw">as </span>usize)
-<a href=#383 id=383 data-nosnippet>383</a>                } <span class="kw">else </span>{
-<a href=#384 id=384 data-nosnippet>384</a>                    <span class="macro">write!</span>(f, <span class="string">"(lit \"#b{i:00$x}\" (BitVec Size{sz}))"</span>, <span class="kw-2">*</span>sz <span class="kw">as </span>usize)
-<a href=#385 id=385 data-nosnippet>385</a>                }
-<a href=#386 id=386 data-nosnippet>386</a>            }
-<a href=#387 id=387 data-nosnippet>387</a>        }
-<a href=#388 id=388 data-nosnippet>388</a>    }
-<a href=#389 id=389 data-nosnippet>389</a>}
-<a href=#390 id=390 data-nosnippet>390</a>
-<a href=#391 id=391 data-nosnippet>391</a><span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Qualifier&lt;T&gt; {
-<a href=#392 id=392 data-nosnippet>392</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#393 id=393 data-nosnippet>393</a>        <span class="macro">write!</span>(
-<a href=#394 id=394 data-nosnippet>394</a>            f,
-<a href=#395 id=395 data-nosnippet>395</a>            <span class="string">"(qualif {} ({}) ({}))"</span>,
-<a href=#396 id=396 data-nosnippet>396</a>            <span class="self">self</span>.name,
-<a href=#397 id=397 data-nosnippet>397</a>            <span class="self">self</span>.args.iter().format_with(<span class="string">" "</span>, |(name, sort), f| {
-<a href=#398 id=398 data-nosnippet>398</a>                f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"({} {sort})"</span>, name.display()))
-<a href=#399 id=399 data-nosnippet>399</a>            }),
-<a href=#400 id=400 data-nosnippet>400</a>            <span class="self">self</span>.body
-<a href=#401 id=401 data-nosnippet>401</a>        )
-<a href=#402 id=402 data-nosnippet>402</a>    }
-<a href=#403 id=403 data-nosnippet>403</a>}
-<a href=#404 id=404 data-nosnippet>404</a>
-<a href=#405 id=405 data-nosnippet>405</a><span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>FunDef&lt;T&gt; {
-<a href=#406 id=406 data-nosnippet>406</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#407 id=407 data-nosnippet>407</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span><span class="self">self</span>.body {
-<a href=#408 id=408 data-nosnippet>408</a>            <span class="macro">write!</span>(
-<a href=#409 id=409 data-nosnippet>409</a>                f,
-<a href=#410 id=410 data-nosnippet>410</a>                <span class="string">"(define_fun {} ({}) {} ({}))"</span>,
-<a href=#411 id=411 data-nosnippet>411</a>                <span class="self">self</span>.name.display(),
-<a href=#412 id=412 data-nosnippet>412</a>                iter::zip(<span class="kw-2">&amp;</span>body.args, <span class="kw-2">&amp;</span><span class="self">self</span>.sort.inputs).format_with(<span class="string">" "</span>, |(name, sort), f| {
-<a href=#413 id=413 data-nosnippet>413</a>                    f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"({} {sort})"</span>, name.display()))
-<a href=#414 id=414 data-nosnippet>414</a>                }),
-<a href=#415 id=415 data-nosnippet>415</a>                <span class="self">self</span>.sort.output,
-<a href=#416 id=416 data-nosnippet>416</a>                body.expr
-<a href=#417 id=417 data-nosnippet>417</a>            )<span class="question-mark">?</span>;
-<a href=#418 id=418 data-nosnippet>418</a>        } <span class="kw">else </span>{
-<a href=#419 id=419 data-nosnippet>419</a>            <span class="macro">write!</span>(f, <span class="string">"(constant {} {})"</span>, <span class="self">self</span>.name.display(), <span class="self">self</span>.sort)<span class="question-mark">?</span>;
-<a href=#420 id=420 data-nosnippet>420</a>        }
-<a href=#421 id=421 data-nosnippet>421</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(comment) = <span class="kw-2">&amp;</span><span class="self">self</span>.comment {
-<a href=#422 id=422 data-nosnippet>422</a>            <span class="macro">write!</span>(f, <span class="string">"  ;; {comment}"</span>)<span class="question-mark">?</span>;
-<a href=#423 id=423 data-nosnippet>423</a>        }
-<a href=#424 id=424 data-nosnippet>424</a>        <span class="prelude-val">Ok</span>(())
-<a href=#425 id=425 data-nosnippet>425</a>    }
-<a href=#426 id=426 data-nosnippet>426</a>}
-<a href=#427 id=427 data-nosnippet>427</a>
-<a href=#428 id=428 data-nosnippet>428</a><span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>FunSort&lt;T&gt; {
-<a href=#429 id=429 data-nosnippet>429</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#430 id=430 data-nosnippet>430</a>        <span class="macro">write!</span>(f, <span class="string">"(func {} ({}) {})"</span>, <span class="self">self</span>.params, <span class="self">self</span>.inputs.iter().format(<span class="string">" "</span>), <span class="self">self</span>.output)
-<a href=#431 id=431 data-nosnippet>431</a>    }
-<a href=#432 id=432 data-nosnippet>432</a>}
-<a href=#433 id=433 data-nosnippet>433</a>
-<a href=#434 id=434 data-nosnippet>434</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>BinOp {
-<a href=#435 id=435 data-nosnippet>435</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#436 id=436 data-nosnippet>436</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#437 id=437 data-nosnippet>437</a>            BinOp::Add =&gt; <span class="macro">write!</span>(f, <span class="string">"+"</span>),
-<a href=#438 id=438 data-nosnippet>438</a>            BinOp::Sub =&gt; <span class="macro">write!</span>(f, <span class="string">"-"</span>),
-<a href=#439 id=439 data-nosnippet>439</a>            BinOp::Mul =&gt; <span class="macro">write!</span>(f, <span class="string">"*"</span>),
-<a href=#440 id=440 data-nosnippet>440</a>            BinOp::Div =&gt; <span class="macro">write!</span>(f, <span class="string">"/"</span>),
-<a href=#441 id=441 data-nosnippet>441</a>            BinOp::Mod =&gt; <span class="macro">write!</span>(f, <span class="string">"mod"</span>),
-<a href=#442 id=442 data-nosnippet>442</a>        }
+<a href=#339 id=339 data-nosnippet>339</a>            Expr::And(exprs) =&gt; {
+<a href=#340 id=340 data-nosnippet>340</a>                <span class="macro">write!</span>(f, <span class="string">"(and {})"</span>, exprs.iter().format(<span class="string">" "</span>))
+<a href=#341 id=341 data-nosnippet>341</a>            }
+<a href=#342 id=342 data-nosnippet>342</a>            Expr::Or(exprs) =&gt; {
+<a href=#343 id=343 data-nosnippet>343</a>                <span class="macro">write!</span>(f, <span class="string">"(or {})"</span>, exprs.iter().format(<span class="string">" "</span>))
+<a href=#344 id=344 data-nosnippet>344</a>            }
+<a href=#345 id=345 data-nosnippet>345</a>            Expr::Not(e) =&gt; {
+<a href=#346 id=346 data-nosnippet>346</a>                <span class="macro">write!</span>(f, <span class="string">"(not {e})"</span>)
+<a href=#347 id=347 data-nosnippet>347</a>            }
+<a href=#348 id=348 data-nosnippet>348</a>            Expr::Imp(exprs) =&gt; {
+<a href=#349 id=349 data-nosnippet>349</a>                <span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;**</span>exprs;
+<a href=#350 id=350 data-nosnippet>350</a>                <span class="macro">write!</span>(f, <span class="string">"(=&gt; {e1} {e2})"</span>)
+<a href=#351 id=351 data-nosnippet>351</a>            }
+<a href=#352 id=352 data-nosnippet>352</a>            Expr::Iff(exprs) =&gt; {
+<a href=#353 id=353 data-nosnippet>353</a>                <span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;**</span>exprs;
+<a href=#354 id=354 data-nosnippet>354</a>                <span class="macro">write!</span>(f, <span class="string">"(&lt;=&gt; {e1} {e2})"</span>)
+<a href=#355 id=355 data-nosnippet>355</a>            }
+<a href=#356 id=356 data-nosnippet>356</a>            Expr::Atom(rel, exprs) =&gt; {
+<a href=#357 id=357 data-nosnippet>357</a>                <span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;**</span>exprs;
+<a href=#358 id=358 data-nosnippet>358</a>                <span class="macro">write!</span>(f, <span class="string">"({rel} {e1} {e2})"</span>)
+<a href=#359 id=359 data-nosnippet>359</a>            }
+<a href=#360 id=360 data-nosnippet>360</a>            Expr::Let(name, exprs) =&gt; {
+<a href=#361 id=361 data-nosnippet>361</a>                <span class="comment">// Fixpoint only support one binder per let expressions, but it parses a singleton
+<a href=#362 id=362 data-nosnippet>362</a>                // list of binders to be forward-compatible
+<a href=#363 id=363 data-nosnippet>363</a>                </span><span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;**</span>exprs;
+<a href=#364 id=364 data-nosnippet>364</a>                <span class="macro">write!</span>(f, <span class="string">"(let (({} {e1})) {e2})"</span>, name.display())
+<a href=#365 id=365 data-nosnippet>365</a>            }
+<a href=#366 id=366 data-nosnippet>366</a>            Expr::ThyFunc(thy_func) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, thy_func),
+<a href=#367 id=367 data-nosnippet>367</a>            Expr::IsCtor(ctor, e) =&gt; {
+<a href=#368 id=368 data-nosnippet>368</a>                <span class="macro">write!</span>(f, <span class="string">"(is${} {})"</span>, ctor.display(), e)
+<a href=#369 id=369 data-nosnippet>369</a>            }
+<a href=#370 id=370 data-nosnippet>370</a>            Expr::Quantifier(q, sorts, body) =&gt; {
+<a href=#371 id=371 data-nosnippet>371</a>                <span class="macro">write!</span>(
+<a href=#372 id=372 data-nosnippet>372</a>                    f,
+<a href=#373 id=373 data-nosnippet>373</a>                    <span class="string">"({} ({}) {})"</span>,
+<a href=#374 id=374 data-nosnippet>374</a>                    q,
+<a href=#375 id=375 data-nosnippet>375</a>                    sorts.iter().format_with(<span class="string">" "</span>, |(name, sort), f| {
+<a href=#376 id=376 data-nosnippet>376</a>                        f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"({} {sort})"</span>, name.display()))
+<a href=#377 id=377 data-nosnippet>377</a>                    }),
+<a href=#378 id=378 data-nosnippet>378</a>                    body
+<a href=#379 id=379 data-nosnippet>379</a>                )
+<a href=#380 id=380 data-nosnippet>380</a>            }
+<a href=#381 id=381 data-nosnippet>381</a>        }
+<a href=#382 id=382 data-nosnippet>382</a>    }
+<a href=#383 id=383 data-nosnippet>383</a>}
+<a href=#384 id=384 data-nosnippet>384</a>
+<a href=#385 id=385 data-nosnippet>385</a><span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Constant&lt;T&gt; {
+<a href=#386 id=386 data-nosnippet>386</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#387 id=387 data-nosnippet>387</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#388 id=388 data-nosnippet>388</a>            Constant::Numeral(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{n}"</span>),
+<a href=#389 id=389 data-nosnippet>389</a>            Constant::Real(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, n.display()),
+<a href=#390 id=390 data-nosnippet>390</a>            Constant::Boolean(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
+<a href=#391 id=391 data-nosnippet>391</a>            Constant::String(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, s.display()),
+<a href=#392 id=392 data-nosnippet>392</a>            Constant::BitVec(i, sz) =&gt; {
+<a href=#393 id=393 data-nosnippet>393</a>                <span class="kw">if </span>sz.is_multiple_of(<span class="number">4</span>) {
+<a href=#394 id=394 data-nosnippet>394</a>                    <span class="macro">write!</span>(f, <span class="string">"(lit \"#x{i:00$x}\" (BitVec Size{sz}))"</span>, (sz / <span class="number">4</span>) <span class="kw">as </span>usize)
+<a href=#395 id=395 data-nosnippet>395</a>                } <span class="kw">else </span>{
+<a href=#396 id=396 data-nosnippet>396</a>                    <span class="macro">write!</span>(f, <span class="string">"(lit \"#b{i:00$x}\" (BitVec Size{sz}))"</span>, <span class="kw-2">*</span>sz <span class="kw">as </span>usize)
+<a href=#397 id=397 data-nosnippet>397</a>                }
+<a href=#398 id=398 data-nosnippet>398</a>            }
+<a href=#399 id=399 data-nosnippet>399</a>        }
+<a href=#400 id=400 data-nosnippet>400</a>    }
+<a href=#401 id=401 data-nosnippet>401</a>}
+<a href=#402 id=402 data-nosnippet>402</a>
+<a href=#403 id=403 data-nosnippet>403</a><span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Qualifier&lt;T&gt; {
+<a href=#404 id=404 data-nosnippet>404</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#405 id=405 data-nosnippet>405</a>        <span class="macro">write!</span>(
+<a href=#406 id=406 data-nosnippet>406</a>            f,
+<a href=#407 id=407 data-nosnippet>407</a>            <span class="string">"(qualif {} ({}) ({}))"</span>,
+<a href=#408 id=408 data-nosnippet>408</a>            <span class="self">self</span>.name,
+<a href=#409 id=409 data-nosnippet>409</a>            <span class="self">self</span>.args.iter().format_with(<span class="string">" "</span>, |(name, sort), f| {
+<a href=#410 id=410 data-nosnippet>410</a>                f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"({} {sort})"</span>, name.display()))
+<a href=#411 id=411 data-nosnippet>411</a>            }),
+<a href=#412 id=412 data-nosnippet>412</a>            <span class="self">self</span>.body
+<a href=#413 id=413 data-nosnippet>413</a>        )
+<a href=#414 id=414 data-nosnippet>414</a>    }
+<a href=#415 id=415 data-nosnippet>415</a>}
+<a href=#416 id=416 data-nosnippet>416</a>
+<a href=#417 id=417 data-nosnippet>417</a><span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>FunDef&lt;T&gt; {
+<a href=#418 id=418 data-nosnippet>418</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#419 id=419 data-nosnippet>419</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span><span class="self">self</span>.body {
+<a href=#420 id=420 data-nosnippet>420</a>            <span class="macro">write!</span>(
+<a href=#421 id=421 data-nosnippet>421</a>                f,
+<a href=#422 id=422 data-nosnippet>422</a>                <span class="string">"(define_fun {} ({}) {} ({}))"</span>,
+<a href=#423 id=423 data-nosnippet>423</a>                <span class="self">self</span>.name.display(),
+<a href=#424 id=424 data-nosnippet>424</a>                iter::zip(<span class="kw-2">&amp;</span>body.args, <span class="kw-2">&amp;</span><span class="self">self</span>.sort.inputs).format_with(<span class="string">" "</span>, |(name, sort), f| {
+<a href=#425 id=425 data-nosnippet>425</a>                    f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"({} {sort})"</span>, name.display()))
+<a href=#426 id=426 data-nosnippet>426</a>                }),
+<a href=#427 id=427 data-nosnippet>427</a>                <span class="self">self</span>.sort.output,
+<a href=#428 id=428 data-nosnippet>428</a>                body.expr
+<a href=#429 id=429 data-nosnippet>429</a>            )<span class="question-mark">?</span>;
+<a href=#430 id=430 data-nosnippet>430</a>        } <span class="kw">else </span>{
+<a href=#431 id=431 data-nosnippet>431</a>            <span class="macro">write!</span>(f, <span class="string">"(constant {} {})"</span>, <span class="self">self</span>.name.display(), <span class="self">self</span>.sort)<span class="question-mark">?</span>;
+<a href=#432 id=432 data-nosnippet>432</a>        }
+<a href=#433 id=433 data-nosnippet>433</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(comment) = <span class="kw-2">&amp;</span><span class="self">self</span>.comment {
+<a href=#434 id=434 data-nosnippet>434</a>            <span class="macro">write!</span>(f, <span class="string">"  ;; {comment}"</span>)<span class="question-mark">?</span>;
+<a href=#435 id=435 data-nosnippet>435</a>        }
+<a href=#436 id=436 data-nosnippet>436</a>        <span class="prelude-val">Ok</span>(())
+<a href=#437 id=437 data-nosnippet>437</a>    }
+<a href=#438 id=438 data-nosnippet>438</a>}
+<a href=#439 id=439 data-nosnippet>439</a>
+<a href=#440 id=440 data-nosnippet>440</a><span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>FunSort&lt;T&gt; {
+<a href=#441 id=441 data-nosnippet>441</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#442 id=442 data-nosnippet>442</a>        <span class="macro">write!</span>(f, <span class="string">"(func {} ({}) {})"</span>, <span class="self">self</span>.params, <span class="self">self</span>.inputs.iter().format(<span class="string">" "</span>), <span class="self">self</span>.output)
 <a href=#443 id=443 data-nosnippet>443</a>    }
 <a href=#444 id=444 data-nosnippet>444</a>}
 <a href=#445 id=445 data-nosnippet>445</a>
-<a href=#446 id=446 data-nosnippet>446</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>BinRel {
+<a href=#446 id=446 data-nosnippet>446</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>BinOp {
 <a href=#447 id=447 data-nosnippet>447</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
 <a href=#448 id=448 data-nosnippet>448</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#449 id=449 data-nosnippet>449</a>            BinRel::Eq =&gt; <span class="macro">write!</span>(f, <span class="string">"="</span>),
-<a href=#450 id=450 data-nosnippet>450</a>            BinRel::Ne =&gt; <span class="macro">write!</span>(f, <span class="string">"!="</span>),
-<a href=#451 id=451 data-nosnippet>451</a>            BinRel::Gt =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;"</span>),
-<a href=#452 id=452 data-nosnippet>452</a>            BinRel::Ge =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;="</span>),
-<a href=#453 id=453 data-nosnippet>453</a>            BinRel::Lt =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;"</span>),
-<a href=#454 id=454 data-nosnippet>454</a>            BinRel::Le =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;="</span>),
-<a href=#455 id=455 data-nosnippet>455</a>        }
-<a href=#456 id=456 data-nosnippet>456</a>    }
-<a href=#457 id=457 data-nosnippet>457</a>}
-<a href=#458 id=458 data-nosnippet>458</a>
-<a href=#459 id=459 data-nosnippet>459</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>BinOp {
-<a href=#460 id=460 data-nosnippet>460</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#461 id=461 data-nosnippet>461</a>        fmt::Display::fmt(<span class="self">self</span>, f)
-<a href=#462 id=462 data-nosnippet>462</a>    }
-<a href=#463 id=463 data-nosnippet>463</a>}
+<a href=#449 id=449 data-nosnippet>449</a>            BinOp::Add =&gt; <span class="macro">write!</span>(f, <span class="string">"+"</span>),
+<a href=#450 id=450 data-nosnippet>450</a>            BinOp::Sub =&gt; <span class="macro">write!</span>(f, <span class="string">"-"</span>),
+<a href=#451 id=451 data-nosnippet>451</a>            BinOp::Mul =&gt; <span class="macro">write!</span>(f, <span class="string">"*"</span>),
+<a href=#452 id=452 data-nosnippet>452</a>            BinOp::Div =&gt; <span class="macro">write!</span>(f, <span class="string">"/"</span>),
+<a href=#453 id=453 data-nosnippet>453</a>            BinOp::Mod =&gt; <span class="macro">write!</span>(f, <span class="string">"mod"</span>),
+<a href=#454 id=454 data-nosnippet>454</a>        }
+<a href=#455 id=455 data-nosnippet>455</a>    }
+<a href=#456 id=456 data-nosnippet>456</a>}
+<a href=#457 id=457 data-nosnippet>457</a>
+<a href=#458 id=458 data-nosnippet>458</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>BinRel {
+<a href=#459 id=459 data-nosnippet>459</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#460 id=460 data-nosnippet>460</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#461 id=461 data-nosnippet>461</a>            BinRel::Eq =&gt; <span class="macro">write!</span>(f, <span class="string">"="</span>),
+<a href=#462 id=462 data-nosnippet>462</a>            BinRel::Ne =&gt; <span class="macro">write!</span>(f, <span class="string">"!="</span>),
+<a href=#463 id=463 data-nosnippet>463</a>            BinRel::Gt =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;"</span>),
+<a href=#464 id=464 data-nosnippet>464</a>            BinRel::Ge =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;="</span>),
+<a href=#465 id=465 data-nosnippet>465</a>            BinRel::Lt =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;"</span>),
+<a href=#466 id=466 data-nosnippet>466</a>            BinRel::Le =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;="</span>),
+<a href=#467 id=467 data-nosnippet>467</a>        }
+<a href=#468 id=468 data-nosnippet>468</a>    }
+<a href=#469 id=469 data-nosnippet>469</a>}
+<a href=#470 id=470 data-nosnippet>470</a>
+<a href=#471 id=471 data-nosnippet>471</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>BinOp {
+<a href=#472 id=472 data-nosnippet>472</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#473 id=473 data-nosnippet>473</a>        fmt::Display::fmt(<span class="self">self</span>, f)
+<a href=#474 id=474 data-nosnippet>474</a>    }
+<a href=#475 id=475 data-nosnippet>475</a>}
 </code></pre></div></section></main></body></html>
