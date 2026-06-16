@@ -12,11 +12,21 @@
             i == n
         }
     }
+
+     fn sorted_all(noob:int) -> bool {
+        forall i:int in 0 .. 4 {
+            magic(i, noob)
+        }
+    }
 }]
 
 #[flux::trusted]
 #[flux::sig(fn(x:i32, y:i32) ensures magic(x, y))]
 pub fn do_magic(_x: i32, _y: i32) {}
+
+#[flux::trusted]
+#[flux::sig(fn(x:i32, y:i32) ensures magic(x, y))]
+pub fn do_sorted_magic(_x: i32, _y: i32) {}
 
 // forall tests ----------------------------------------------------------------
 

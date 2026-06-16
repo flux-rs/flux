@@ -323,8 +323,18 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let fsort = self.instantiate_func_sort(expr, poly_fsort);
                 self.synth_app(fsort, args, expr.span)
             }
-            fhir::ExprKind::Quant(.., body) => {
+            fhir::ExprKind::Quant(_, param, dom, body) => {
                 self.check_expr(body, &rty::Sort::Bool)?;
+                if let fhir::QuantDom::Bounded { .. } = dom {
+                    let sort = self.param_sort(param.id);
+                    let sort = self.resolve_vars_if_possible(&sort);
+                    if !matches!(sort, rty::Sort::Int) {
+                        return Err(
+                            self.emit_err(errors::IllSortedQuantifier::new(param.span, sort))
+                        );
+                    }
+                }
+
                 Ok(rty::Sort::Bool)
             }
             fhir::ExprKind::Alias(_alias_reft, args) => {
