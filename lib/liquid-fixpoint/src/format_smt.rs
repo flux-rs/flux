@@ -401,13 +401,19 @@ fn fmt_expr_smt<T: Types>(expr: &Expr<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
         Expr::Constant(c) => fmt_constant_smt(c, f),
         Expr::Var(x) => write!(f, "{}", x.display()),
         Expr::App(func, _sort_args, args, _out_sort) => {
-            write!(f, "(")?;
-            fmt_expr_smt(func, f)?;
-            for arg in args {
-                write!(f, " ")?;
-                fmt_expr_smt(arg, f)?;
+            if args.is_empty() {
+                // 0-arity application: emit just the function name without parens
+                // to avoid confusing parsers (e.g., hornspec/Z3 fixedpoint)
+                fmt_expr_smt(func, f)
+            } else {
+                write!(f, "(")?;
+                fmt_expr_smt(func, f)?;
+                for arg in args {
+                    write!(f, " ")?;
+                    fmt_expr_smt(arg, f)?;
+                }
+                write!(f, ")")
             }
-            write!(f, ")")
         }
         Expr::Neg(e) => {
             write!(f, "(- ")?;
