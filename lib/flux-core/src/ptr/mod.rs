@@ -8,7 +8,7 @@
         p.addr >= p.base && num_bytes <= p.size && p.size >= 0
     }
 
-    // Guarantees (in order of precenence):
+    // Guarantees (in order of precedence):
     // - A null pointer is never valid
     // - For memory accesses of size zero, every non-null pointer is valid for reads/writes.
     // - Memory accesses of size zero are always valid
@@ -31,7 +31,7 @@
     // `*const T` must be aligned to `align_of::<T>()`). However, most
     // functions require their arguments to be properly aligned,
     // and will explicitly state this requirement in their documentation.
-    // Notable exceptions to this are `read_unaligned` and `write_unaligned.`
+    // Notable exceptions to this are `read_unaligned` and `write_unaligned`.
     // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L54-L59
     fn aligned(p: ptr, alignment: int) -> bool { p.addr % alignment == 0 }
 }]
@@ -88,7 +88,7 @@ unsafe fn read_unaligned<T>(src: *const T) -> T;
 
 #[cfg(flux)]
 #[extern_spec(core::ptr)]
-// - `dst` must be valid for writes  or `T` must be a ZST.
+// - `dst` must be valid for writes or `T` must be a ZST.
 // - `dst` must be properly aligned. Use `write_unaligned` if this is not the case.
 // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L1843-L1846
 #[spec(fn (dst: *mut[@p] T, src: T) requires
@@ -97,7 +97,7 @@ unsafe fn write<T>(dst: *mut T, src: T);
 
 #[cfg(flux)]
 #[extern_spec(core::ptr)]
-// - `dst` must be valid for writes  or `T` must be a ZST.
+// - `dst` must be valid for writes or `T` must be a ZST.
 // - `dst` must be properly aligned. Use `write_unaligned` if this is not the case.
 // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L1843-L1846
 #[spec(fn (dst: *mut[@p] T, src: T) requires valid_zst(p, T::size_of()))]
