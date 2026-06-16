@@ -100,6 +100,11 @@ fhir_analysis_invalid_cast =
     .label = invalid cast
     .note = use `allow_uninterpreted_cast` to enable this cast
 
+fhir_analysis_ill_sorted_quantifier =
+    bounded quantification requires `int`-sorted binders
+    .label = invalid sort
+    .note = binder inferred to have incompatible sort `{$sort}`
+
 # Structural Compatibility
 
 fhir_analysis_incompatible_refinement =

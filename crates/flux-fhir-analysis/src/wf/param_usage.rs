@@ -124,7 +124,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
             fhir::ExprKind::Abs(_, body) => {
                 self.check_func_params_uses(body, true);
             }
-            fhir::ExprKind::BoundedQuant(_, _, _, body) => {
+            fhir::ExprKind::Quant(_, _, _, body) => {
                 self.check_func_params_uses(body, false);
             }
             fhir::ExprKind::Record(exprs)

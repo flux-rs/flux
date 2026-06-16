@@ -728,7 +728,7 @@ pub enum ExprKind {
     AssocReft(Box<Ty>, Path, Ident),
     IfThenElse(Box<[Expr; 3]>),
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
-    BoundedQuant(QuantKind, RefineParam, Range<usize>, Box<Expr>),
+    Quant(QuantKind, RefineParam, Option<Range<usize>>, Box<Expr>),
     Block(Vec<LetDecl>, Box<Expr>),
     /// Set expression `#{ e1, e2, ..., en }`
     SetLiteral(Vec<Expr>),

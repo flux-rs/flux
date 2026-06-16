@@ -307,7 +307,7 @@ pub enum Expr<T: Types> {
     Let(T::Var, Box<[Self; 2]>),
     ThyFunc(ThyFunc),
     IsCtor(T::Var, Box<Self>),
-    Exists(Vec<(T::Var, Sort<T>)>, Box<Self>),
+    Quantifier(Quantifier, Vec<(T::Var, Sort<T>)>, Box<Self>),
 }
 
 impl<T: Types> From<Constant<T>> for Expr<T> {
@@ -376,7 +376,7 @@ impl<T: Types> Expr<T> {
             Expr::IsCtor(_v, expr) => {
                 expr.var_sorts_to_int();
             }
-            Expr::Exists(binder, expr) => {
+            Expr::Quantifier(_, binder, expr) => {
                 for (_, sort) in binder {
                     sort.free_var_sorts_to_int();
                 }
@@ -434,7 +434,7 @@ impl<T: Types> Expr<T> {
                 // bother with `v`.
                 vars.extend(expr.free_vars());
             }
-            Expr::Exists(binder, expr) => {
+            Expr::Quantifier(_, binder, expr) => {
                 let mut inner = expr.free_vars();
                 for (var, _sort) in binder {
                     inner.swap_remove(var);
@@ -469,4 +469,10 @@ pub enum BinOp {
     Mul,
     Div,
     Mod,
+}
+
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
+pub enum Quantifier {
+    Exists,
+    Forall,
 }

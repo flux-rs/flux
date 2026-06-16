@@ -244,7 +244,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::Alias(..)
             | fhir::ExprKind::Var(..)
             | fhir::ExprKind::Literal(..)
-            | fhir::ExprKind::BoundedQuant(..)
+            | fhir::ExprKind::Quant(..)
             | fhir::ExprKind::Block(..)
             | fhir::ExprKind::Constructor(..)
             | fhir::ExprKind::PrimApp(..) => {}
@@ -323,7 +323,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let fsort = self.instantiate_func_sort(expr, poly_fsort);
                 self.synth_app(fsort, args, expr.span)
             }
-            fhir::ExprKind::BoundedQuant(.., body) => {
+            fhir::ExprKind::Quant(_, param, dom, body) => {
+                let sort = self.param_sort(param.id);
+                if let fhir::QuantDom::Bounded { .. } = dom
+                    && self.try_equate(&sort, &rty::Sort::Int).is_none()
+                {
+                    return Err(self.emit_err(errors::IllSortedQuantifier::new(param.span, sort)));
+                }
                 self.check_expr(body, &rty::Sort::Bool)?;
                 Ok(rty::Sort::Bool)
             }

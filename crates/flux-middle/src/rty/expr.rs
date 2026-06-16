@@ -321,8 +321,8 @@ impl Expr {
         ExprKind::Let(init, body).intern()
     }
 
-    pub fn bounded_quant(kind: fhir::QuantKind, rng: fhir::Range, body: Binder<Expr>) -> Expr {
-        ExprKind::BoundedQuant(kind, rng, body).intern()
+    pub fn quant(kind: fhir::QuantKind, dom: QuantDom, body: Binder<Expr>) -> Expr {
+        ExprKind::Quant(kind, dom, body).intern()
     }
 
     pub fn hole(kind: HoleKind) -> Expr {
@@ -338,11 +338,11 @@ impl Expr {
     }
 
     pub fn forall(expr: Binder<Expr>) -> Expr {
-        ExprKind::ForAll(expr).intern()
+        ExprKind::Quant(fhir::QuantKind::Forall, QuantDom::Unbounded, expr).intern()
     }
 
     pub fn exists(expr: Binder<Expr>) -> Expr {
-        ExprKind::Exists(expr).intern()
+        ExprKind::Quant(fhir::QuantKind::Exists, QuantDom::Unbounded, expr).intern()
     }
 
     pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -440,7 +440,7 @@ impl Expr {
     /// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
     /// when printed. This is used to avoid unnecessary parenthesis when pretty printing.
     pub fn is_atom(&self) -> bool {
-        !matches!(self.kind(), ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
+        !matches!(self.kind(), ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::Quant(..))
     }
 
     /// Simple syntactic check to see if the expression is a trivially true predicate. This is used
@@ -760,6 +760,14 @@ pub enum SpecFuncKind {
     Def(FluxDefId),
 }
 
+#[derive(
+    Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable, TypeVisitable, TypeFoldable,
+)]
+pub enum QuantDom {
+    Bounded { start: usize, end: usize },
+    Unbounded,
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
 pub enum ExprKind {
     Var(Var),
@@ -798,7 +806,7 @@ pub enum ExprKind {
     Abs(Lambda),
 
     /// Bounded quantifiers `exists i in 0..4 { pred(i) }` and `forall i in 0..4 { pred(i) }`.
-    BoundedQuant(fhir::QuantKind, fhir::Range, Binder<Expr>),
+    Quant(fhir::QuantKind, QuantDom, Binder<Expr>),
     /// A hole is an expression that must be inferred either *semantically* by generating a kvar or
     /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or
     /// syntactically depends on the position it appears: only holes appearing in predicate position
@@ -813,9 +821,6 @@ pub enum ExprKind {
     /// and the places where we generate inference variable for them (where we do need to worry
     /// about the scope).
     Hole(HoleKind),
-    ForAll(Binder<Expr>),
-    /// Only for non-cuts solutions from fixpoint
-    Exists(Binder<Expr>),
     /// Is the expression constructed from constructor of the given DefId (which should be `reflected` Enum)
     IsCtor(DefId, VariantIdx, Expr),
 }
@@ -1495,6 +1500,15 @@ pub(crate) mod pretty {
         }
     }
 
+    impl Pretty for QuantDom {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                QuantDom::Bounded { start, end } => w!(cx, f, "in {} .. {}", ^start, ^end),
+                QuantDom::Unbounded => Ok(()),
+            }
+        }
+    }
+
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let e = if cx.simplify_exprs {
@@ -1640,36 +1654,10 @@ pub(crate) mod pretty {
                 ExprKind::InternalFunc(func) => {
                     w!(cx, f, "{:?}", func)
                 }
-                ExprKind::ForAll(expr) => {
-                    let vars = expr.vars();
-                    cx.with_bound_vars(vars, || {
-                        if !vars.is_empty() {
-                            cx.fmt_bound_vars(false, "∀", vars, ". ", f)?;
-                        }
-                        w!(cx, f, "{:?}", expr.skip_binder_ref())
-                    })
-                }
-                ExprKind::Exists(expr) => {
-                    let vars = expr.vars();
-                    cx.with_bound_vars(vars, || {
-                        if !vars.is_empty() {
-                            cx.fmt_bound_vars(false, "∃", vars, ". ", f)?;
-                        }
-                        w!(cx, f, "{:?}", expr.skip_binder_ref())
-                    })
-                }
-                ExprKind::BoundedQuant(kind, rng, body) => {
+                ExprKind::Quant(kind, dom, body) => {
                     let vars = body.vars();
                     cx.with_bound_vars(vars, || {
-                        w!(
-                            cx,
-                            f,
-                            "{:?} {}..{} {{ {:?} }}",
-                            kind,
-                            ^rng.start,
-                            ^rng.end,
-                            body.skip_binder_ref()
-                        )
+                        w!(cx, f, "{:?} {:?} {{ {:?} }}", kind, dom, body.skip_binder_ref())
                     })
                 }
                 ExprKind::Let(init, body) => {
@@ -2029,29 +2017,15 @@ pub(crate) mod pretty {
                         Ok(NestedString { text, children: body.children, key: None })
                     })
                 }
-                ExprKind::BoundedQuant(kind, rng, body) => {
+                ExprKind::Quant(kind, dom, body) => {
                     let left = match kind {
                         fhir::QuantKind::Forall => "∀",
                         fhir::QuantKind::Exists => "∃",
                     };
-                    let right = Some(format!(" in {}..{}", rng.start, rng.end));
+                    let right = Some(format!(" {:?}", dom));
 
                     cx.nested_with_bound_vars(left, body.vars(), right, |all_str| {
                         let expr_d = body.as_ref().skip_binder().fmt_nested(cx)?;
-                        let text = format!("{}{}", all_str, expr_d.text);
-                        Ok(NestedString { text, children: expr_d.children, key: None })
-                    })
-                }
-                ExprKind::ForAll(expr) => {
-                    cx.nested_with_bound_vars("∀", expr.vars(), None, |all_str| {
-                        let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
-                        let text = format!("{}{}", all_str, expr_d.text);
-                        Ok(NestedString { text, children: expr_d.children, key: None })
-                    })
-                }
-                ExprKind::Exists(expr) => {
-                    cx.nested_with_bound_vars("∀", expr.vars(), None, |all_str| {
-                        let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
                         let text = format!("{}{}", all_str, expr_d.text);
                         Ok(NestedString { text, children: expr_d.children, key: None })
                     })

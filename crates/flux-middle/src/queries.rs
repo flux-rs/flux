@@ -82,7 +82,6 @@ pub enum QueryErr {
         trait_id: DefId,
         name: Symbol,
     },
-
     /// An operation tried to access the internals of an opaque struct.
     OpaqueStruct {
         struct_id: DefId,
