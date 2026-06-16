@@ -8,6 +8,6 @@ pub fn test(buf: &mut [u32; 2]) {
     unsafe {
         std::ptr::write(ptr.add(0), 10);
         std::ptr::write(ptr.add(1), 20);
-        std::ptr::write(ptr.add(2), 30); //~ ERROR: refinement type error
+        std::ptr::write(ptr.add(2), 30); //~ ERROR refinement type error
     }
 }

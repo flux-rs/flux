@@ -1,5 +1,3 @@
-use flux_attrs::*;
-
 extern crate flux_core;
 
 #[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}) -> i32)]
