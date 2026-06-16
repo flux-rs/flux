@@ -325,13 +325,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             fhir::ExprKind::Quant(_, param, dom, body) => {
                 let sort = self.param_sort(param.id);
-                if self.try_equate(sort, &rty::Sort::Int).is_none() {
-                    return Err(
-                            self.emit_err(errors::IllSortedQuantifier::new(param.span, sort))
-                    );
+                if let fhir::QuantDom::Bounded { .. } = dom
+                    && self.try_equate(&sort, &rty::Sort::Int).is_none()
+                {
+                    return Err(self.emit_err(errors::IllSortedQuantifier::new(param.span, sort)));
                 }
                 self.check_expr(body, &rty::Sort::Bool)?;
-
                 Ok(rty::Sort::Bool)
             }
             fhir::ExprKind::Alias(_alias_reft, args) => {
