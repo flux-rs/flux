@@ -1,37 +1,37 @@
 extern crate flux_core;
 
-#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && size > 1}))]
+#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && size > 8 && addr != 0 && addr % 4 == 0}))]
 pub fn test_add_ex(ptr: *const i32) {
     unsafe {
         let _val0 = std::ptr::read(ptr.add(0));
-        let _val1 = std::ptr::read(ptr.add(1));
+        let _val1 = std::ptr::read(ptr.add(1)); //~ ERROR: refinement type error
         let _val2 = std::ptr::read(ptr.add(2)); //~ ERROR: refinement type error
     }
 }
 
-#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && size == 2}))]
+#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && size == 8 && addr != 0 && addr % 4 == 0}))]
 pub fn test_add_ix(ptr: *const i32) {
     unsafe {
         let _val0 = std::ptr::read(ptr.add(0));
-        let _val1 = std::ptr::read(ptr.add(1));
+        let _val1 = std::ptr::read(ptr.add(1)); //~ ERROR: refinement type error
         let _val2 = std::ptr::read(ptr.add(2)); //~ ERROR: refinement type error
     }
 }
 
-#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && size > 1}))]
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && size > 20 && addr != 0 && addr % 4 == 0}))]
 pub fn test_add_mut_ex(ptr: *mut i32) {
     unsafe {
         std::ptr::write(ptr.add(0), 10);
-        std::ptr::write(ptr.add(1), 20);
+        std::ptr::write(ptr.add(1), 20); //~ ERROR: refinement type error
         std::ptr::write(ptr.add(2), 30); //~ ERROR: refinement type error
     }
 }
 
-#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && size == 2}))]
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && size == 8 && addr != 0 && addr % 4 == 0}))]
 pub fn test_add_mut_ix(ptr: *mut i32) {
     unsafe {
         std::ptr::write(ptr.add(0), 10);
-        std::ptr::write(ptr.add(1), 20);
+        std::ptr::write(ptr.add(1), 20); //~ ERROR: refinement type error
         std::ptr::write(ptr.add(2), 30); //~ ERROR: refinement type error
     }
 }
