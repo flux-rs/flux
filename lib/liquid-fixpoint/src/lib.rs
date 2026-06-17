@@ -192,7 +192,7 @@ pub struct ConstDecl<T: Types> {
     pub comment: Option<String>,
 }
 
-#[derive_where(Hash)]
+#[derive_where(Hash, Clone)]
 pub struct FunDef<T: Types> {
     pub name: T::Var,
     pub args: Vec<(T::Var, Sort<T>)>,
@@ -202,7 +202,7 @@ pub struct FunDef<T: Types> {
     pub comment: Option<String>,
 }
 
-#[derive_where(Hash)]
+#[derive_where(Hash, Clone)]
 pub struct Task<T: Types> {
     #[derive_where(skip)]
     pub comments: Vec<String>,

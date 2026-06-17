@@ -689,6 +689,35 @@ where
             }
         }
 
+        // Under the wick feature, always also run a hornspec task in parallel (regardless of the
+        // primary backend) and print whether it agrees. This is a diagnostic / evaluation tool.
+        #[cfg(feature = "wick")]
+        {
+            let mut hornspec_task = task.clone();
+            // Strip wkvar ConstDecls (only needed for fixpoint backend)
+            hornspec_task.constants.retain(|c| !matches!(c.name, fixpoint::Var::WKVar(..)));
+            hornspec_task.backend = liquid_fixpoint::Backend::Hornspec;
+            let hornspec_task = adt_flatten::flatten_task(hornspec_task);
+            if config::dump_constraint() {
+                dbg::dump_item_info(self.genv.tcx(), id, "horn", liquid_fixpoint::SmtFormatter(&hornspec_task)).unwrap();
+            }
+            match hornspec_task.run() {
+                Ok(result) => {
+                    println!(
+                        "[hornspec] {}: {}",
+                        self.genv.tcx().def_path_str(id),
+                        if result.status.is_safe() { "safe" } else { "unsafe" }
+                    );
+                }
+                Err(err) => {
+                    println!(
+                        "[hornspec] {}: error - {err}",
+                        self.genv.tcx().def_path_str(id),
+                    );
+                }
+            }
+        }
+
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
         #[cfg(feature = "wick")]
         let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
