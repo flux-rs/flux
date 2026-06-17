@@ -624,6 +624,12 @@ where
         let mut constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
         constants.extend(define_constants);
 
+        // For hornspec, wkvars are declared via WKVarDecl (declare-fun), not as ConstDecl
+        // (declare-const with a function sort). Strip them from constants to avoid double-declaration.
+        if matches!(horn_backend, liquid_fixpoint::Backend::Hornspec) {
+            constants.retain(|c| !matches!(c.name, fixpoint::Var::WKVar(..)));
+        }
+
         #[cfg(feature = "wick")]
         let constants_without_inequalities = constants.clone();
 
