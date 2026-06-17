@@ -1747,6 +1747,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             CastKind::FloatToInt
             | CastKind::IntToFloat
+            | CastKind::FloatToFloat
             | CastKind::PtrToPtr
             | CastKind::PointerCoercion(mir::PointerCast::MutToConstPointer)
             | CastKind::PointerCoercion(mir::PointerCast::ClosureFnPointer)
