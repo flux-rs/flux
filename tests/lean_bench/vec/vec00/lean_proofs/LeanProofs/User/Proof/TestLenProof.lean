@@ -66,7 +66,7 @@ end TestLenQualifs
 open TestLenQualifs
 
 set_option maxHeartbeats 5000000
-def TestLen_proof : TestLen := by
+#time def TestLen_proof : TestLen := by
   unfold TestLen
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end AssertTerminatorTestQualifs
 open AssertTerminatorTestQualifs
 
 set_option maxHeartbeats 5000000
-def AssertTerminatorTest_proof : AssertTerminatorTest := by
+#time def AssertTerminatorTest_proof : AssertTerminatorTest := by
   unfold AssertTerminatorTest
   solve_fixpoint_combo
 

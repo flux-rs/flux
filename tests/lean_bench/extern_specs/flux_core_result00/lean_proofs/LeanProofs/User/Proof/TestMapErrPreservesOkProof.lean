@@ -66,7 +66,7 @@ end TestMapErrPreservesOkQualifs
 open TestMapErrPreservesOkQualifs
 
 set_option maxHeartbeats 5000000
-def TestMapErrPreservesOk_proof : TestMapErrPreservesOk := by
+#time def TestMapErrPreservesOk_proof : TestMapErrPreservesOk := by
   unfold TestMapErrPreservesOk
   solve_fixpoint_combo
 

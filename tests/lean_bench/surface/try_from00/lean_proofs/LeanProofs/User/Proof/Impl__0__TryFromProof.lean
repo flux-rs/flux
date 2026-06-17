@@ -66,7 +66,7 @@ end Impl0TryFromQualifs
 open Impl0TryFromQualifs
 
 set_option maxHeartbeats 5000000
-def Impl__0__TryFrom_proof : Impl__0__TryFrom := by
+#time def Impl__0__TryFrom_proof : Impl__0__TryFrom := by
   unfold Impl__0__TryFrom
   solve_fixpoint_combo
 

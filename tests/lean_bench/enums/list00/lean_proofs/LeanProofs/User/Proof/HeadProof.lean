@@ -66,7 +66,7 @@ end HeadQualifs
 open HeadQualifs
 
 set_option maxHeartbeats 5000000
-def Head_proof : Head := by
+#time def Head_proof : Head := by
   unfold Head
   solve_fixpoint_combo
 

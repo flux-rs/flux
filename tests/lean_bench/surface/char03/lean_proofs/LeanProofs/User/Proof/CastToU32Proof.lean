@@ -66,7 +66,7 @@ end CastToU32Qualifs
 open CastToU32Qualifs
 
 set_option maxHeartbeats 5000000
-def CastToU32_proof : CastToU32 := by
+#time def CastToU32_proof : CastToU32 := by
   unfold CastToU32
   solve_fixpoint_combo
 

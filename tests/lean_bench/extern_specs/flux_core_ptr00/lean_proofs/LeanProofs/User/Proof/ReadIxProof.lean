@@ -66,7 +66,7 @@ end ReadIxQualifs
 open ReadIxQualifs
 
 set_option maxHeartbeats 5000000
-def ReadIx_proof : ReadIx := by
+#time def ReadIx_proof : ReadIx := by
   unfold ReadIx
   solve_fixpoint_combo
 

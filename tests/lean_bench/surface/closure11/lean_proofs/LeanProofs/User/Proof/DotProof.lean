@@ -66,7 +66,7 @@ end DotQualifs
 open DotQualifs
 
 set_option maxHeartbeats 5000000
-def Dot_proof : Dot := by
+#time def Dot_proof : Dot := by
   unfold Dot
   solve_fixpoint_combo
 

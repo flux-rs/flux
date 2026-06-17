@@ -66,7 +66,7 @@ end CopyNonoverlappingQualifs
 open CopyNonoverlappingQualifs
 
 set_option maxHeartbeats 5000000
-def CopyNonoverlapping_proof : CopyNonoverlapping := by
+#time def CopyNonoverlapping_proof : CopyNonoverlapping := by
   unfold CopyNonoverlapping
   solve_fixpoint_combo
 

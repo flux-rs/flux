@@ -66,7 +66,7 @@ end NormalizeCentersQualifs
 open NormalizeCentersQualifs
 
 set_option maxHeartbeats 5000000
-def NormalizeCenters_proof : NormalizeCenters := by
+#time def NormalizeCenters_proof : NormalizeCenters := by
   unfold NormalizeCenters
   solve_fixpoint_combo
 

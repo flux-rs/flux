@@ -66,7 +66,7 @@ end TestForeachQualifs
 open TestForeachQualifs
 
 set_option maxHeartbeats 5000000
-def TestForeach_proof : TestForeach := by
+#time def TestForeach_proof : TestForeach := by
   unfold TestForeach
   solve_fixpoint_combo
 

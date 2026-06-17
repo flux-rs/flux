@@ -66,7 +66,7 @@ end GooberIDXSQualifs
 open GooberIDXSQualifs
 
 set_option maxHeartbeats 5000000
-def GooberIDXS_proof : GooberIDXS := by
+#time def GooberIDXS_proof : GooberIDXS := by
   unfold GooberIDXS
   solve_fixpoint_combo
 

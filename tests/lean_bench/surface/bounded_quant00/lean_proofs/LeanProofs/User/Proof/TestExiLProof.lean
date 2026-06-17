@@ -66,7 +66,7 @@ end TestExiLQualifs
 open TestExiLQualifs
 
 set_option maxHeartbeats 5000000
-def TestExiL_proof : TestExiL := by
+#time def TestExiL_proof : TestExiL := by
   unfold TestExiL
   solve_fixpoint_combo
 

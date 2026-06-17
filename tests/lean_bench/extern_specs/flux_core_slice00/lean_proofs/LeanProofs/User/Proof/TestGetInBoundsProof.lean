@@ -66,7 +66,7 @@ end TestGetInBoundsQualifs
 open TestGetInBoundsQualifs
 
 set_option maxHeartbeats 5000000
-def TestGetInBounds_proof : TestGetInBounds := by
+#time def TestGetInBounds_proof : TestGetInBounds := by
   unfold TestGetInBounds
   solve_fixpoint_combo
 

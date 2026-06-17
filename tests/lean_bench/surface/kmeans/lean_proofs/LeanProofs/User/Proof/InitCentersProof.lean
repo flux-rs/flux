@@ -66,7 +66,7 @@ end InitCentersQualifs
 open InitCentersQualifs
 
 set_option maxHeartbeats 5000000
-def InitCenters_proof : InitCenters := by
+#time def InitCenters_proof : InitCenters := by
   unfold InitCenters
   solve_fixpoint_combo
 

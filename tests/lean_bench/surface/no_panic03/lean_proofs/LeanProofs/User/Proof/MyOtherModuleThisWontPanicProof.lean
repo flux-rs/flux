@@ -66,7 +66,7 @@ end MyOtherModuleThisWontPanicQualifs
 open MyOtherModuleThisWontPanicQualifs
 
 set_option maxHeartbeats 5000000
-def MyOtherModuleThisWontPanic_proof : MyOtherModuleThisWontPanic := by
+#time def MyOtherModuleThisWontPanic_proof : MyOtherModuleThisWontPanic := by
   unfold MyOtherModuleThisWontPanic
   solve_fixpoint_combo
 

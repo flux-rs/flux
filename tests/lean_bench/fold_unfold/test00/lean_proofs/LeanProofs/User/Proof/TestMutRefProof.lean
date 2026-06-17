@@ -66,7 +66,7 @@ end TestMutRefQualifs
 open TestMutRefQualifs
 
 set_option maxHeartbeats 5000000
-def TestMutRef_proof : TestMutRef := by
+#time def TestMutRef_proof : TestMutRef := by
   unfold TestMutRef
   solve_fixpoint_combo
 

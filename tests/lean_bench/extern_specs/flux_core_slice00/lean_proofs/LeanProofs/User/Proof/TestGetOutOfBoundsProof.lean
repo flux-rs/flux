@@ -66,7 +66,7 @@ end TestGetOutOfBoundsQualifs
 open TestGetOutOfBoundsQualifs
 
 set_option maxHeartbeats 5000000
-def TestGetOutOfBounds_proof : TestGetOutOfBounds := by
+#time def TestGetOutOfBounds_proof : TestGetOutOfBounds := by
   unfold TestGetOutOfBounds
   solve_fixpoint_combo
 

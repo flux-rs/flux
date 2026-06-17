@@ -66,7 +66,7 @@ end LenQualifs
 open LenQualifs
 
 set_option maxHeartbeats 5000000
-def Len_proof : Len := by
+#time def Len_proof : Len := by
   unfold Len
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end LowercaseQualifs
 open LowercaseQualifs
 
 set_option maxHeartbeats 5000000
-def Lowercase_proof : Lowercase := by
+#time def Lowercase_proof : Lowercase := by
   unfold Lowercase
   solve_fixpoint_combo
 

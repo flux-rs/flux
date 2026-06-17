@@ -66,7 +66,7 @@ end IpaQualifs
 open IpaQualifs
 
 set_option maxHeartbeats 5000000
-def Ipa_proof : Ipa := by
+#time def Ipa_proof : Ipa := by
   unfold Ipa
   solve_fixpoint_combo
 

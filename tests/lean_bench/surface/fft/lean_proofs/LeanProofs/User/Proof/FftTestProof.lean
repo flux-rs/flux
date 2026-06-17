@@ -66,7 +66,7 @@ end FftTestQualifs
 open FftTestQualifs
 
 set_option maxHeartbeats 5000000
-def FftTest_proof : FftTest := by
+#time def FftTest_proof : FftTest := by
   unfold FftTest
   solve_fixpoint_combo
 

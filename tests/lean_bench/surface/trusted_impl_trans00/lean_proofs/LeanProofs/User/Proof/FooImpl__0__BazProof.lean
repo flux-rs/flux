@@ -66,7 +66,7 @@ end FooImpl0BazQualifs
 open FooImpl0BazQualifs
 
 set_option maxHeartbeats 5000000
-def FooImpl__0__Baz_proof : FooImpl__0__Baz := by
+#time def FooImpl__0__Baz_proof : FooImpl__0__Baz := by
   unfold FooImpl__0__Baz
   solve_fixpoint_combo
 

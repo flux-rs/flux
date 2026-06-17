@@ -66,7 +66,7 @@ end ExpectStringLen3Qualifs
 open ExpectStringLen3Qualifs
 
 set_option maxHeartbeats 5000000
-def ExpectStringLen3_proof : ExpectStringLen3 := by
+#time def ExpectStringLen3_proof : ExpectStringLen3 := by
   unfold ExpectStringLen3
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end ApplyClosureToAnimalQualifs
 open ApplyClosureToAnimalQualifs
 
 set_option maxHeartbeats 5000000
-def ApplyClosureToAnimal_proof : ApplyClosureToAnimal := by
+#time def ApplyClosureToAnimal_proof : ApplyClosureToAnimal := by
   unfold ApplyClosureToAnimal
   solve_fixpoint_combo
 

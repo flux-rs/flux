@@ -66,7 +66,7 @@ end UseStructQualifs
 open UseStructQualifs
 
 set_option maxHeartbeats 5000000
-def UseStruct_proof : UseStruct := by
+#time def UseStruct_proof : UseStruct := by
   unfold UseStruct
   solve_fixpoint_combo
 

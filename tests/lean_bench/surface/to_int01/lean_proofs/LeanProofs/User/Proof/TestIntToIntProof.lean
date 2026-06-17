@@ -66,7 +66,7 @@ end TestIntToIntQualifs
 open TestIntToIntQualifs
 
 set_option maxHeartbeats 5000000
-def TestIntToInt_proof : TestIntToInt := by
+#time def TestIntToInt_proof : TestIntToInt := by
   unfold TestIntToInt
   solve_fixpoint_combo
 

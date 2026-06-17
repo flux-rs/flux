@@ -66,7 +66,7 @@ end AssignWordQualifs
 open AssignWordQualifs
 
 set_option maxHeartbeats 5000000
-def AssignWord_proof : AssignWord := by
+#time def AssignWord_proof : AssignWord := by
   unfold AssignWord
   solve_fixpoint_combo
 

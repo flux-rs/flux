@@ -66,7 +66,7 @@ end MyModuleTest00Qualifs
 open MyModuleTest00Qualifs
 
 set_option maxHeartbeats 5000000
-def MyModuleTest00_proof : MyModuleTest00 := by
+#time def MyModuleTest00_proof : MyModuleTest00 := by
   unfold MyModuleTest00
   solve_fixpoint_combo
 

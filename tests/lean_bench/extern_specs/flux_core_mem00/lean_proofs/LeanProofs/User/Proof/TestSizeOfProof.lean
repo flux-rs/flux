@@ -66,7 +66,7 @@ end TestSizeOfQualifs
 open TestSizeOfQualifs
 
 set_option maxHeartbeats 5000000
-def TestSizeOf_proof : TestSizeOf := by
+#time def TestSizeOf_proof : TestSizeOf := by
   unfold TestSizeOf
   solve_fixpoint_combo
 

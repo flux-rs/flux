@@ -66,7 +66,7 @@ end IntAddQualifs
 open IntAddQualifs
 
 set_option maxHeartbeats 5000000
-def IntAdd_proof : IntAdd := by
+#time def IntAdd_proof : IntAdd := by
   unfold IntAdd
   solve_fixpoint_combo
 

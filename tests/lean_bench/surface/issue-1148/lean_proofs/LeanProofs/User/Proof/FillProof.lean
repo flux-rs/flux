@@ -66,7 +66,7 @@ end FillQualifs
 open FillQualifs
 
 set_option maxHeartbeats 5000000
-def Fill_proof : Fill := by
+#time def Fill_proof : Fill := by
   unfold Fill
   solve_fixpoint_combo
 

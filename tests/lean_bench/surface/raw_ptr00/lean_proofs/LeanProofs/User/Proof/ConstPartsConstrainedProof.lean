@@ -66,7 +66,7 @@ end ConstPartsConstrainedQualifs
 open ConstPartsConstrainedQualifs
 
 set_option maxHeartbeats 5000000
-def ConstPartsConstrained_proof : ConstPartsConstrained := by
+#time def ConstPartsConstrained_proof : ConstPartsConstrained := by
   unfold ConstPartsConstrained
   solve_fixpoint_combo
 

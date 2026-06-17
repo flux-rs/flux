@@ -66,7 +66,7 @@ end WatermelonQualifs
 open WatermelonQualifs
 
 set_option maxHeartbeats 5000000
-def Watermelon_proof : Watermelon := by
+#time def Watermelon_proof : Watermelon := by
   unfold Watermelon
   solve_fixpoint_combo
 

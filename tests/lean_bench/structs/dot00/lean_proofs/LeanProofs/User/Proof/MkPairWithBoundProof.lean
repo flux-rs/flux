@@ -66,7 +66,7 @@ end MkPairWithBoundQualifs
 open MkPairWithBoundQualifs
 
 set_option maxHeartbeats 5000000
-def MkPairWithBound_proof : MkPairWithBound := by
+#time def MkPairWithBound_proof : MkPairWithBound := by
   unfold MkPairWithBound
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end TestAndThenNoneInputQualifs
 open TestAndThenNoneInputQualifs
 
 set_option maxHeartbeats 5000000
-def TestAndThenNoneInput_proof : TestAndThenNoneInput := by
+#time def TestAndThenNoneInput_proof : TestAndThenNoneInput := by
   unfold TestAndThenNoneInput
   solve_fixpoint_combo
 

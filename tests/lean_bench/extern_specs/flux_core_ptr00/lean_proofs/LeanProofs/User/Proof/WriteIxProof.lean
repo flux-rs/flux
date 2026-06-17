@@ -66,7 +66,7 @@ end WriteIxQualifs
 open WriteIxQualifs
 
 set_option maxHeartbeats 5000000
-def WriteIx_proof : WriteIx := by
+#time def WriteIx_proof : WriteIx := by
   unfold WriteIx
   solve_fixpoint_combo
 

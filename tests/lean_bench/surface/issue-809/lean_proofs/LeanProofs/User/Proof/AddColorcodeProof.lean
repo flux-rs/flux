@@ -66,7 +66,7 @@ end AddColorcodeQualifs
 open AddColorcodeQualifs
 
 set_option maxHeartbeats 5000000
-def AddColorcode_proof : AddColorcode := by
+#time def AddColorcode_proof : AddColorcode := by
   unfold AddColorcode
   solve_fixpoint_combo
 

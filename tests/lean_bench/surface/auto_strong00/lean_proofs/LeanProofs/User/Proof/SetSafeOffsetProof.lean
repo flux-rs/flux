@@ -66,7 +66,7 @@ end SetSafeOffsetQualifs
 open SetSafeOffsetQualifs
 
 set_option maxHeartbeats 5000000
-def SetSafeOffset_proof : SetSafeOffset := by
+#time def SetSafeOffset_proof : SetSafeOffset := by
   unfold SetSafeOffset
   solve_fixpoint_combo
 

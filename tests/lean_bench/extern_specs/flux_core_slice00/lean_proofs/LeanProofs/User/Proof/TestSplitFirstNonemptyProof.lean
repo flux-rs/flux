@@ -66,7 +66,7 @@ end TestSplitFirstNonemptyQualifs
 open TestSplitFirstNonemptyQualifs
 
 set_option maxHeartbeats 5000000
-def TestSplitFirstNonempty_proof : TestSplitFirstNonempty := by
+#time def TestSplitFirstNonempty_proof : TestSplitFirstNonempty := by
   unfold TestSplitFirstNonempty
   solve_fixpoint_combo
 

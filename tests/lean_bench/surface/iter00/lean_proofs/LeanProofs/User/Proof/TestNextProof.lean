@@ -66,7 +66,7 @@ end TestNextQualifs
 open TestNextQualifs
 
 set_option maxHeartbeats 5000000
-def TestNext_proof : TestNext := by
+#time def TestNext_proof : TestNext := by
   unfold TestNext
   solve_fixpoint_combo
 

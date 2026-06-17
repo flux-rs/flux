@@ -66,7 +66,7 @@ end WriteQualifs
 open WriteQualifs
 
 set_option maxHeartbeats 5000000
-def Write_proof : Write := by
+#time def Write_proof : Write := by
   unfold Write
   solve_fixpoint_combo
 

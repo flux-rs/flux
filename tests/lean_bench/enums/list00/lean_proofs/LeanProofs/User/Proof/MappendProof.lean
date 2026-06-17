@@ -66,7 +66,7 @@ end MappendQualifs
 open MappendQualifs
 
 set_option maxHeartbeats 5000000
-def Mappend_proof : Mappend := by
+#time def Mappend_proof : Mappend := by
   unfold Mappend
   solve_fixpoint_combo
 

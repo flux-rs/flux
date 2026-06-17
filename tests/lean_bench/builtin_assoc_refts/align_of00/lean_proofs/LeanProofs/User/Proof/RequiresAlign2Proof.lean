@@ -66,7 +66,7 @@ end RequiresAlign2Qualifs
 open RequiresAlign2Qualifs
 
 set_option maxHeartbeats 5000000
-def RequiresAlign2_proof : RequiresAlign2 := by
+#time def RequiresAlign2_proof : RequiresAlign2 := by
   unfold RequiresAlign2
   solve_fixpoint_combo
 

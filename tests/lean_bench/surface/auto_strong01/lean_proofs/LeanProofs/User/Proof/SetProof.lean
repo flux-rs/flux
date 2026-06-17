@@ -66,7 +66,7 @@ end SetQualifs
 open SetQualifs
 
 set_option maxHeartbeats 5000000
-def Set_proof : Set := by
+#time def Set_proof : Set := by
   unfold Set
   solve_fixpoint_combo
 

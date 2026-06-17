@@ -66,7 +66,7 @@ end TestVecOfNatQualifs
 open TestVecOfNatQualifs
 
 set_option maxHeartbeats 5000000
-def TestVecOfNat_proof : TestVecOfNat := by
+#time def TestVecOfNat_proof : TestVecOfNat := by
   unfold TestVecOfNat
   solve_fixpoint_combo
 

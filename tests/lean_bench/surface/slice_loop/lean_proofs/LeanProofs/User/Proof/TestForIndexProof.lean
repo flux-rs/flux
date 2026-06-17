@@ -66,7 +66,7 @@ end TestForIndexQualifs
 open TestForIndexQualifs
 
 set_option maxHeartbeats 5000000
-def TestForIndex_proof : TestForIndex := by
+#time def TestForIndex_proof : TestForIndex := by
   unfold TestForIndex
   solve_fixpoint_combo
 

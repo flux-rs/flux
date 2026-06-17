@@ -66,7 +66,7 @@ end TestReplaceReturnsOldSomeQualifs
 open TestReplaceReturnsOldSomeQualifs
 
 set_option maxHeartbeats 5000000
-def TestReplaceReturnsOldSome_proof : TestReplaceReturnsOldSome := by
+#time def TestReplaceReturnsOldSome_proof : TestReplaceReturnsOldSome := by
   unfold TestReplaceReturnsOldSome
   solve_fixpoint_combo
 

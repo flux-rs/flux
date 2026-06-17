@@ -66,7 +66,7 @@ end MyModuleImpl0DoSomethingQualifs
 open MyModuleImpl0DoSomethingQualifs
 
 set_option maxHeartbeats 5000000
-def MyModuleImpl__0__DoSomething_proof : MyModuleImpl__0__DoSomething := by
+#time def MyModuleImpl__0__DoSomething_proof : MyModuleImpl__0__DoSomething := by
   unfold MyModuleImpl__0__DoSomething
   solve_fixpoint_combo
 

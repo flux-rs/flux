@@ -66,7 +66,7 @@ end LoopCQualifs
 open LoopCQualifs
 
 set_option maxHeartbeats 5000000
-def LoopC_proof : LoopC := by
+#time def LoopC_proof : LoopC := by
   unfold LoopC
   solve_fixpoint_combo
 

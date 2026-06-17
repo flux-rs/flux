@@ -66,7 +66,7 @@ end Impl0LenQualifs
 open Impl0LenQualifs
 
 set_option maxHeartbeats 5000000
-def Impl__0__Len_proof : Impl__0__Len := by
+#time def Impl__0__Len_proof : Impl__0__Len := by
   unfold Impl__0__Len
   solve_fixpoint_combo
 

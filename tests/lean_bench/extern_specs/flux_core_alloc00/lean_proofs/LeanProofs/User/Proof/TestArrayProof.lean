@@ -66,7 +66,7 @@ end TestArrayQualifs
 open TestArrayQualifs
 
 set_option maxHeartbeats 5000000
-def TestArray_proof : TestArray := by
+#time def TestArray_proof : TestArray := by
   unfold TestArray
   solve_fixpoint_combo
 

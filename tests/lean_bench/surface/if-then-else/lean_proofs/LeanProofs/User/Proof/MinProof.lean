@@ -66,7 +66,7 @@ end MinQualifs
 open MinQualifs
 
 set_option maxHeartbeats 5000000
-def Min_proof : Min := by
+#time def Min_proof : Min := by
   unfold Min
   solve_fixpoint_combo
 

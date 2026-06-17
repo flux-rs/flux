@@ -66,7 +66,7 @@ end InitRatioIQualifs
 open InitRatioIQualifs
 
 set_option maxHeartbeats 5000000
-def InitRatioI_proof : InitRatioI := by
+#time def InitRatioI_proof : InitRatioI := by
   unfold InitRatioI
   solve_fixpoint_combo
 

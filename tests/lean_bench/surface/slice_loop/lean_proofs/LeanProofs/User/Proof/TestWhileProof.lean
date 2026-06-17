@@ -66,7 +66,7 @@ end TestWhileQualifs
 open TestWhileQualifs
 
 set_option maxHeartbeats 5000000
-def TestWhile_proof : TestWhile := by
+#time def TestWhile_proof : TestWhile := by
   unfold TestWhile
   solve_fixpoint_combo
 

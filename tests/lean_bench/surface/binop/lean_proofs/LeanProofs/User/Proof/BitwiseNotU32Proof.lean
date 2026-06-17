@@ -66,7 +66,7 @@ end BitwiseNotU32Qualifs
 open BitwiseNotU32Qualifs
 
 set_option maxHeartbeats 5000000
-def BitwiseNotU32_proof : BitwiseNotU32 := by
+#time def BitwiseNotU32_proof : BitwiseNotU32 := by
   unfold BitwiseNotU32
   solve_fixpoint_combo
 

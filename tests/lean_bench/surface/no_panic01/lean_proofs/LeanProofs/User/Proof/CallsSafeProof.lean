@@ -66,7 +66,7 @@ end CallsSafeQualifs
 open CallsSafeQualifs
 
 set_option maxHeartbeats 5000000
-def CallsSafe_proof : CallsSafe := by
+#time def CallsSafe_proof : CallsSafe := by
   unfold CallsSafe
   solve_fixpoint_combo
 

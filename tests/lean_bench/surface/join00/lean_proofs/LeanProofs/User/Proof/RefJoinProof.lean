@@ -66,7 +66,7 @@ end RefJoinQualifs
 open RefJoinQualifs
 
 set_option maxHeartbeats 5000000
-def RefJoin_proof : RefJoin := by
+#time def RefJoin_proof : RefJoin := by
   unfold RefJoin
   solve_fixpoint_combo
 

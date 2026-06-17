@@ -66,7 +66,7 @@ end MainQualifs
 open MainQualifs
 
 set_option maxHeartbeats 5000000
-def Main_proof : Main := by
+#time def Main_proof : Main := by
   unfold Main
   solve_fixpoint_combo
 

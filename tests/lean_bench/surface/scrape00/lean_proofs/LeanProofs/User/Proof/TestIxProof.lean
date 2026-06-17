@@ -66,7 +66,7 @@ end TestIxQualifs
 open TestIxQualifs
 
 set_option maxHeartbeats 5000000
-def TestIx_proof : TestIx := by
+#time def TestIx_proof : TestIx := by
   unfold TestIx
   solve_fixpoint_combo
 

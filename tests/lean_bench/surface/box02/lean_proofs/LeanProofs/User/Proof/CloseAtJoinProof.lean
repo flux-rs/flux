@@ -66,7 +66,7 @@ end CloseAtJoinQualifs
 open CloseAtJoinQualifs
 
 set_option maxHeartbeats 5000000
-def CloseAtJoin_proof : CloseAtJoin := by
+#time def CloseAtJoin_proof : CloseAtJoin := by
   unfold CloseAtJoin
   solve_fixpoint_combo
 

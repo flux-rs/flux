@@ -66,7 +66,7 @@ end RangeImpl0NewQualifs
 open RangeImpl0NewQualifs
 
 set_option maxHeartbeats 5000000
-def RangeImpl__0__New_proof : RangeImpl__0__New := by
+#time def RangeImpl__0__New_proof : RangeImpl__0__New := by
   unfold RangeImpl__0__New
   solve_fixpoint_combo
 

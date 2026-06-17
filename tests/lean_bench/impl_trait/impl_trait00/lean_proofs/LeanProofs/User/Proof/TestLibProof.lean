@@ -66,7 +66,7 @@ end TestLibQualifs
 open TestLibQualifs
 
 set_option maxHeartbeats 5000000
-def TestLib_proof : TestLib := by
+#time def TestLib_proof : TestLib := by
   unfold TestLib
   solve_fixpoint_combo
 

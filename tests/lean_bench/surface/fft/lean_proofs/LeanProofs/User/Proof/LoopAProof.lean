@@ -66,7 +66,7 @@ end LoopAQualifs
 open LoopAQualifs
 
 set_option maxHeartbeats 5000000
-def LoopA_proof : LoopA := by
+#time def LoopA_proof : LoopA := by
   unfold LoopA
   solve_fixpoint_combo
 

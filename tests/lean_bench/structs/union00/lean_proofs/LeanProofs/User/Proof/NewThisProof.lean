@@ -66,7 +66,7 @@ end NewThisQualifs
 open NewThisQualifs
 
 set_option maxHeartbeats 5000000
-def NewThis_proof : NewThis := by
+#time def NewThis_proof : NewThis := by
   unfold NewThis
   solve_fixpoint_combo
 

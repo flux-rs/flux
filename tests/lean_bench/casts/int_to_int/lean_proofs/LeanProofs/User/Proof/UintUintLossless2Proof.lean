@@ -66,7 +66,7 @@ end UintUintLossless2Qualifs
 open UintUintLossless2Qualifs
 
 set_option maxHeartbeats 5000000
-def UintUintLossless2_proof : UintUintLossless2 := by
+#time def UintUintLossless2_proof : UintUintLossless2 := by
   unfold UintUintLossless2
   solve_fixpoint_combo
 

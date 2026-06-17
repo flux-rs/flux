@@ -66,7 +66,7 @@ end TestSkipSliceQualifs
 open TestSkipSliceQualifs
 
 set_option maxHeartbeats 5000000
-def TestSkipSlice_proof : TestSkipSlice := by
+#time def TestSkipSlice_proof : TestSkipSlice := by
   unfold TestSkipSlice
   solve_fixpoint_combo
 

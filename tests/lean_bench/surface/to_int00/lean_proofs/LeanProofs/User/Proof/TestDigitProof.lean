@@ -66,7 +66,7 @@ end TestDigitQualifs
 open TestDigitQualifs
 
 set_option maxHeartbeats 5000000
-def TestDigit_proof : TestDigit := by
+#time def TestDigit_proof : TestDigit := by
   unfold TestDigit
   solve_fixpoint_combo
 

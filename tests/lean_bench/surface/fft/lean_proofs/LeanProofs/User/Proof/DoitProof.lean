@@ -66,7 +66,7 @@ end DoitQualifs
 open DoitQualifs
 
 set_option maxHeartbeats 5000000
-def Doit_proof : Doit := by
+#time def Doit_proof : Doit := by
   unfold Doit
   solve_fixpoint_combo
 

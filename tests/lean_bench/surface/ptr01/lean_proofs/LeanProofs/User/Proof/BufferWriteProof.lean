@@ -66,7 +66,7 @@ end BufferWriteQualifs
 open BufferWriteQualifs
 
 set_option maxHeartbeats 5000000
-def BufferWrite_proof : BufferWrite := by
+#time def BufferWrite_proof : BufferWrite := by
   unfold BufferWrite
   solve_fixpoint_combo
 

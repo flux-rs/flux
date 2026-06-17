@@ -66,7 +66,7 @@ end DepartVarQualifs
 open DepartVarQualifs
 
 set_option maxHeartbeats 5000000
-def DepartVar_proof : DepartVar := by
+#time def DepartVar_proof : DepartVar := by
   unfold DepartVar
   solve_fixpoint_combo
 

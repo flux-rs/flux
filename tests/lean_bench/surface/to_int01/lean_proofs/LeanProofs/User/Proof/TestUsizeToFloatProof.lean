@@ -66,7 +66,7 @@ end TestUsizeToFloatQualifs
 open TestUsizeToFloatQualifs
 
 set_option maxHeartbeats 5000000
-def TestUsizeToFloat_proof : TestUsizeToFloat := by
+#time def TestUsizeToFloat_proof : TestUsizeToFloat := by
   unfold TestUsizeToFloat
   solve_fixpoint_combo
 

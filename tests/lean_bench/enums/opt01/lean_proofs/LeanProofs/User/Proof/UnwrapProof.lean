@@ -66,7 +66,7 @@ end UnwrapQualifs
 open UnwrapQualifs
 
 set_option maxHeartbeats 5000000
-def Unwrap_proof : Unwrap := by
+#time def Unwrap_proof : Unwrap := by
   unfold Unwrap
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end LtImpQualifs
 open LtImpQualifs
 
 set_option maxHeartbeats 5000000
-def LtImp_proof : LtImp := by
+#time def LtImp_proof : LtImp := by
   unfold LtImp
   solve_fixpoint_combo
 

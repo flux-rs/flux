@@ -66,7 +66,7 @@ end HOGQualifs
 open HOGQualifs
 
 set_option maxHeartbeats 5000000
-def HOG_proof : HOG := by
+#time def HOG_proof : HOG := by
   unfold HOG
   solve_fixpoint_combo
 

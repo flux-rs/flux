@@ -66,7 +66,7 @@ end GhostCellImpl3ReplaceQualifs
 open GhostCellImpl3ReplaceQualifs
 
 set_option maxHeartbeats 5000000
-def GhostCellImpl__3__Replace_proof : GhostCellImpl__3__Replace := by
+#time def GhostCellImpl__3__Replace_proof : GhostCellImpl__3__Replace := by
   unfold GhostCellImpl__3__Replace
   solve_fixpoint_combo
 

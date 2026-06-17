@@ -66,7 +66,7 @@ end TestAndNoneRightQualifs
 open TestAndNoneRightQualifs
 
 set_option maxHeartbeats 5000000
-def TestAndNoneRight_proof : TestAndNoneRight := by
+#time def TestAndNoneRight_proof : TestAndNoneRight := by
   unfold TestAndNoneRight
   solve_fixpoint_combo
 

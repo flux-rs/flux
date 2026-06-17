@@ -66,7 +66,7 @@ end FQualifs
 open FQualifs
 
 set_option maxHeartbeats 5000000
-def F_proof : F := by
+#time def F_proof : F := by
   unfold F
   solve_fixpoint_combo
 

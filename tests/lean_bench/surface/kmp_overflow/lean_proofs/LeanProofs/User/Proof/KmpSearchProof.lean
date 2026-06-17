@@ -66,7 +66,7 @@ end KmpSearchQualifs
 open KmpSearchQualifs
 
 set_option maxHeartbeats 5000000
-def KmpSearch_proof : KmpSearch := by
+#time def KmpSearch_proof : KmpSearch := by
   unfold KmpSearch
   solve_fixpoint_combo
 

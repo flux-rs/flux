@@ -66,7 +66,7 @@ end TestGetMutInBoundsQualifs
 open TestGetMutInBoundsQualifs
 
 set_option maxHeartbeats 5000000
-def TestGetMutInBounds_proof : TestGetMutInBounds := by
+#time def TestGetMutInBounds_proof : TestGetMutInBounds := by
   unfold TestGetMutInBounds
   solve_fixpoint_combo
 

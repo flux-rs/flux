@@ -66,7 +66,7 @@ end TestCheckedIsizeQualifs
 open TestCheckedIsizeQualifs
 
 set_option maxHeartbeats 5000000
-def TestCheckedIsize_proof : TestCheckedIsize := by
+#time def TestCheckedIsize_proof : TestCheckedIsize := by
   unfold TestCheckedIsize
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end TestBothBoundedErrHighQualifs
 open TestBothBoundedErrHighQualifs
 
 set_option maxHeartbeats 5000000
-def TestBothBoundedErrHigh_proof : TestBothBoundedErrHigh := by
+#time def TestBothBoundedErrHigh_proof : TestBothBoundedErrHigh := by
   unfold TestBothBoundedErrHigh
   solve_fixpoint_combo
 

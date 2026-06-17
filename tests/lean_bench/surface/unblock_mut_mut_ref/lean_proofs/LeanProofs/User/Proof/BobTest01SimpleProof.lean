@@ -66,7 +66,7 @@ end BobTest01SimpleQualifs
 open BobTest01SimpleQualifs
 
 set_option maxHeartbeats 5000000
-def BobTest01Simple_proof : BobTest01Simple := by
+#time def BobTest01Simple_proof : BobTest01Simple := by
   unfold BobTest01Simple
   solve_fixpoint_combo
 

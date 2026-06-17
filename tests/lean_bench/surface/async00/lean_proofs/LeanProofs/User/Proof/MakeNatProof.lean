@@ -66,7 +66,7 @@ end MakeNatQualifs
 open MakeNatQualifs
 
 set_option maxHeartbeats 5000000
-def MakeNat_proof : MakeNat := by
+#time def MakeNat_proof : MakeNat := by
   unfold MakeNat
   solve_fixpoint_combo
 

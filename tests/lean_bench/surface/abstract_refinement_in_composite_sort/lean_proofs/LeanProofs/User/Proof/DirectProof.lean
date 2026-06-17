@@ -66,7 +66,7 @@ end DirectQualifs
 open DirectQualifs
 
 set_option maxHeartbeats 5000000
-def Direct_proof : Direct := by
+#time def Direct_proof : Direct := by
   unfold Direct
   solve_fixpoint_combo
 

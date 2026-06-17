@@ -66,7 +66,7 @@ end LogicalOrFfQualifs
 open LogicalOrFfQualifs
 
 set_option maxHeartbeats 5000000
-def LogicalOrFf_proof : LogicalOrFf := by
+#time def LogicalOrFf_proof : LogicalOrFf := by
   unfold LogicalOrFf
   solve_fixpoint_combo
 

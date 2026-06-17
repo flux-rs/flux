@@ -66,7 +66,7 @@ end MultiplyF32Qualifs
 open MultiplyF32Qualifs
 
 set_option maxHeartbeats 5000000
-def MultiplyF32_proof : MultiplyF32 := by
+#time def MultiplyF32_proof : MultiplyF32 := by
   unfold MultiplyF32
   solve_fixpoint_combo
 

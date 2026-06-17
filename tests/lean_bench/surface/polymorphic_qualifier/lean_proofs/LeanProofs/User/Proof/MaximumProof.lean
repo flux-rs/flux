@@ -66,7 +66,7 @@ end MaximumQualifs
 open MaximumQualifs
 
 set_option maxHeartbeats 5000000
-def Maximum_proof : Maximum := by
+#time def Maximum_proof : Maximum := by
   unfold Maximum
   solve_fixpoint_combo
 

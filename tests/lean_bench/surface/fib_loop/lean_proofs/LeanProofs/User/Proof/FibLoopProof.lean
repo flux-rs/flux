@@ -66,7 +66,7 @@ end FibLoopQualifs
 open FibLoopQualifs
 
 set_option maxHeartbeats 5000000
-def FibLoop_proof : FibLoop := by
+#time def FibLoop_proof : FibLoop := by
   unfold FibLoop
   solve_fixpoint_combo
 

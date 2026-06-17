@@ -66,7 +66,7 @@ end MinIndexQualifs
 open MinIndexQualifs
 
 set_option maxHeartbeats 5000000
-def MinIndex_proof : MinIndex := by
+#time def MinIndex_proof : MinIndex := by
   unfold MinIndex
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end SetDebugQueueQualifs
 open SetDebugQueueQualifs
 
 set_option maxHeartbeats 5000000
-def SetDebugQueue_proof : SetDebugQueue := by
+#time def SetDebugQueue_proof : SetDebugQueue := by
   unfold SetDebugQueue
   solve_fixpoint_combo
 

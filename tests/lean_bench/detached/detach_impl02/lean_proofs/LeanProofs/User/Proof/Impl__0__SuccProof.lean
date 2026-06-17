@@ -66,7 +66,7 @@ end Impl0SuccQualifs
 open Impl0SuccQualifs
 
 set_option maxHeartbeats 5000000
-def Impl__0__Succ_proof : Impl__0__Succ := by
+#time def Impl__0__Succ_proof : Impl__0__Succ := by
   unfold Impl__0__Succ
   solve_fixpoint_combo
 

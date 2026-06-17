@@ -66,7 +66,7 @@ end XYImpl0NewQualifs
 open XYImpl0NewQualifs
 
 set_option maxHeartbeats 5000000
-def XYImpl__0__New_proof : XYImpl__0__New := by
+#time def XYImpl__0__New_proof : XYImpl__0__New := by
   unfold XYImpl__0__New
   solve_fixpoint_combo
 

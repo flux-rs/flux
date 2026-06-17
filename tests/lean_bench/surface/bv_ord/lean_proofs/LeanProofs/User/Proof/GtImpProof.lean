@@ -66,7 +66,7 @@ end GtImpQualifs
 open GtImpQualifs
 
 set_option maxHeartbeats 5000000
-def GtImp_proof : GtImp := by
+#time def GtImp_proof : GtImp := by
   unfold GtImp
   solve_fixpoint_combo
 

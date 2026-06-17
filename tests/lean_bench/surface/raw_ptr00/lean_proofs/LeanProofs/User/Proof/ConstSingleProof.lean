@@ -66,7 +66,7 @@ end ConstSingleQualifs
 open ConstSingleQualifs
 
 set_option maxHeartbeats 5000000
-def ConstSingle_proof : ConstSingle := by
+#time def ConstSingle_proof : ConstSingle := by
   unfold ConstSingle
   solve_fixpoint_combo
 

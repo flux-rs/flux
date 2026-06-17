@@ -66,7 +66,7 @@ end TestFirstMutBranchQualifs
 open TestFirstMutBranchQualifs
 
 set_option maxHeartbeats 5000000
-def TestFirstMutBranch_proof : TestFirstMutBranch := by
+#time def TestFirstMutBranch_proof : TestFirstMutBranch := by
   unfold TestFirstMutBranch
   solve_fixpoint_combo
 

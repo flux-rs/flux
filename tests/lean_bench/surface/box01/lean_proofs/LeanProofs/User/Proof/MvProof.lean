@@ -66,7 +66,7 @@ end MvQualifs
 open MvQualifs
 
 set_option maxHeartbeats 5000000
-def Mv_proof : Mv := by
+#time def Mv_proof : Mv := by
   unfold Mv
   solve_fixpoint_combo
 

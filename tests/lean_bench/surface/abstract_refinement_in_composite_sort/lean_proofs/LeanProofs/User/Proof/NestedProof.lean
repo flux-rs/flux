@@ -66,7 +66,7 @@ end NestedQualifs
 open NestedQualifs
 
 set_option maxHeartbeats 5000000
-def Nested_proof : Nested := by
+#time def Nested_proof : Nested := by
   unfold Nested
   solve_fixpoint_combo
 

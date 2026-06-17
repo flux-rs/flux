@@ -66,7 +66,7 @@ end GoofyQualifs
 open GoofyQualifs
 
 set_option maxHeartbeats 5000000
-def Goofy_proof : Goofy := by
+#time def Goofy_proof : Goofy := by
   unfold Goofy
   solve_fixpoint_combo
 

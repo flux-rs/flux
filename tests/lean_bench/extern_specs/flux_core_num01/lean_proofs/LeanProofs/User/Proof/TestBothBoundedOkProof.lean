@@ -66,7 +66,7 @@ end TestBothBoundedOkQualifs
 open TestBothBoundedOkQualifs
 
 set_option maxHeartbeats 5000000
-def TestBothBoundedOk_proof : TestBothBoundedOk := by
+#time def TestBothBoundedOk_proof : TestBothBoundedOk := by
   unfold TestBothBoundedOk
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end GooberTestQualifs
 open GooberTestQualifs
 
 set_option maxHeartbeats 5000000
-def GooberTest_proof : GooberTest := by
+#time def GooberTest_proof : GooberTest := by
   unfold GooberTest
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end TestAlsoOkQualifs
 open TestAlsoOkQualifs
 
 set_option maxHeartbeats 5000000
-def TestAlsoOk_proof : TestAlsoOk := by
+#time def TestAlsoOk_proof : TestAlsoOk := by
   unfold TestAlsoOk
   solve_fixpoint_combo
 

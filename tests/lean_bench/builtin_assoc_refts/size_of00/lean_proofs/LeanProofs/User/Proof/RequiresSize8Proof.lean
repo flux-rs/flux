@@ -66,7 +66,7 @@ end RequiresSize8Qualifs
 open RequiresSize8Qualifs
 
 set_option maxHeartbeats 5000000
-def RequiresSize8_proof : RequiresSize8 := by
+#time def RequiresSize8_proof : RequiresSize8 := by
   unfold RequiresSize8
   solve_fixpoint_combo
 

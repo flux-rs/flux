@@ -66,7 +66,7 @@ end MyModAddQualifs
 open MyModAddQualifs
 
 set_option maxHeartbeats 5000000
-def MyModAdd_proof : MyModAdd := by
+#time def MyModAdd_proof : MyModAdd := by
   unfold MyModAdd
   solve_fixpoint_combo
 

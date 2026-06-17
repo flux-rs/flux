@@ -66,7 +66,7 @@ end TestU16Qualifs
 open TestU16Qualifs
 
 set_option maxHeartbeats 5000000
-def TestU16_proof : TestU16 := by
+#time def TestU16_proof : TestU16 := by
   unfold TestU16
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end PolyTest00Qualifs
 open PolyTest00Qualifs
 
 set_option maxHeartbeats 5000000
-def PolyTest00_proof : PolyTest00 := by
+#time def PolyTest00_proof : PolyTest00 := by
   unfold PolyTest00
   solve_fixpoint_combo
 

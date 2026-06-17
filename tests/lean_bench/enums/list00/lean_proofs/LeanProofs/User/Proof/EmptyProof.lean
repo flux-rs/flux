@@ -66,7 +66,7 @@ end EmptyQualifs
 open EmptyQualifs
 
 set_option maxHeartbeats 5000000
-def Empty_proof : Empty := by
+#time def Empty_proof : Empty := by
   unfold Empty
   solve_fixpoint_combo
 

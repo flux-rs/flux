@@ -66,7 +66,7 @@ end Foo3Qualifs
 open Foo3Qualifs
 
 set_option maxHeartbeats 5000000
-def Foo3_proof : Foo3 := by
+#time def Foo3_proof : Foo3 := by
   unfold Foo3
   solve_fixpoint_combo
 

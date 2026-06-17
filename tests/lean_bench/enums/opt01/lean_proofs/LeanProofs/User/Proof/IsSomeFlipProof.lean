@@ -66,7 +66,7 @@ end IsSomeFlipQualifs
 open IsSomeFlipQualifs
 
 set_option maxHeartbeats 5000000
-def IsSomeFlip_proof : IsSomeFlip := by
+#time def IsSomeFlip_proof : IsSomeFlip := by
   unfold IsSomeFlip
   solve_fixpoint_combo
 

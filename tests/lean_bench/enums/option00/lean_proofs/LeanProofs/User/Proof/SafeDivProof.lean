@@ -66,7 +66,7 @@ end SafeDivQualifs
 open SafeDivQualifs
 
 set_option maxHeartbeats 5000000
-def SafeDiv_proof : SafeDiv := by
+#time def SafeDiv_proof : SafeDiv := by
   unfold SafeDiv
   solve_fixpoint_combo
 

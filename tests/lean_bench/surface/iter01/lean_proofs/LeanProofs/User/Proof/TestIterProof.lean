@@ -66,7 +66,7 @@ end TestIterQualifs
 open TestIterQualifs
 
 set_option maxHeartbeats 5000000
-def TestIter_proof : TestIter := by
+#time def TestIter_proof : TestIter := by
   unfold TestIter
   solve_fixpoint_combo
 

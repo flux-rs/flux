@@ -66,7 +66,7 @@ end Hex00Qualifs
 open Hex00Qualifs
 
 set_option maxHeartbeats 5000000
-def Hex00_proof : Hex00 := by
+#time def Hex00_proof : Hex00 := by
   unfold Hex00
   solve_fixpoint_combo
 

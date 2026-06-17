@@ -66,7 +66,7 @@ end TestErrQualifs
 open TestErrQualifs
 
 set_option maxHeartbeats 5000000
-def TestErr_proof : TestErr := by
+#time def TestErr_proof : TestErr := by
   unfold TestErr
   solve_fixpoint_combo
 

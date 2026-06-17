@@ -66,7 +66,7 @@ end TestIterForLoopVec2Qualifs
 open TestIterForLoopVec2Qualifs
 
 set_option maxHeartbeats 5000000
-def TestIterForLoopVec2_proof : TestIterForLoopVec2 := by
+#time def TestIterForLoopVec2_proof : TestIterForLoopVec2 := by
   unfold TestIterForLoopVec2
   solve_fixpoint_combo
 

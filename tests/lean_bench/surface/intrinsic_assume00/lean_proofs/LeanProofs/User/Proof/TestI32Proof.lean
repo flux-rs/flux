@@ -66,7 +66,7 @@ end TestI32Qualifs
 open TestI32Qualifs
 
 set_option maxHeartbeats 5000000
-def TestI32_proof : TestI32 := by
+#time def TestI32_proof : TestI32 := by
   unfold TestI32
   solve_fixpoint_combo
 

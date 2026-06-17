@@ -66,7 +66,7 @@ end FloatToUintQualifs
 open FloatToUintQualifs
 
 set_option maxHeartbeats 5000000
-def FloatToUint_proof : FloatToUint := by
+#time def FloatToUint_proof : FloatToUint := by
   unfold FloatToUint
   solve_fixpoint_combo
 

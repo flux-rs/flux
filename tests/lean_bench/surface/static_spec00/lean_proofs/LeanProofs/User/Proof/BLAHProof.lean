@@ -66,7 +66,7 @@ end BLAHQualifs
 open BLAHQualifs
 
 set_option maxHeartbeats 5000000
-def BLAH_proof : BLAH := by
+#time def BLAH_proof : BLAH := by
   unfold BLAH
   solve_fixpoint_combo
 

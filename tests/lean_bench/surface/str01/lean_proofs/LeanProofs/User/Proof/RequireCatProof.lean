@@ -66,7 +66,7 @@ end RequireCatQualifs
 open RequireCatQualifs
 
 set_option maxHeartbeats 5000000
-def RequireCat_proof : RequireCat := by
+#time def RequireCat_proof : RequireCat := by
   unfold RequireCat
   solve_fixpoint_combo
 

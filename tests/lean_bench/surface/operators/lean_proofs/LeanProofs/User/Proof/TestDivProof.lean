@@ -66,7 +66,7 @@ end TestDivQualifs
 open TestDivQualifs
 
 set_option maxHeartbeats 5000000
-def TestDiv_proof : TestDiv := by
+#time def TestDiv_proof : TestDiv := by
   unfold TestDiv
   solve_fixpoint_combo
 

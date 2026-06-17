@@ -66,7 +66,7 @@ end TestSplitAtCheckedOutOfBoundsQualifs
 open TestSplitAtCheckedOutOfBoundsQualifs
 
 set_option maxHeartbeats 5000000
-def TestSplitAtCheckedOutOfBounds_proof : TestSplitAtCheckedOutOfBounds := by
+#time def TestSplitAtCheckedOutOfBounds_proof : TestSplitAtCheckedOutOfBounds := by
   unfold TestSplitAtCheckedOutOfBounds
   solve_fixpoint_combo
 

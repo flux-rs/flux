@@ -66,7 +66,7 @@ end TestExpectErrQualifs
 open TestExpectErrQualifs
 
 set_option maxHeartbeats 5000000
-def TestExpectErr_proof : TestExpectErr := by
+#time def TestExpectErr_proof : TestExpectErr := by
   unfold TestExpectErr
   solve_fixpoint_combo
 

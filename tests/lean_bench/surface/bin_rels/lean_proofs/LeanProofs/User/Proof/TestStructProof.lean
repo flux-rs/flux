@@ -66,7 +66,7 @@ end TestStructQualifs
 open TestStructQualifs
 
 set_option maxHeartbeats 5000000
-def TestStruct_proof : TestStruct := by
+#time def TestStruct_proof : TestStruct := by
   unfold TestStruct
   solve_fixpoint_combo
 

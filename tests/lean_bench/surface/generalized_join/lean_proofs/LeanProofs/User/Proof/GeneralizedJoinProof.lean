@@ -66,7 +66,7 @@ end GeneralizedJoinQualifs
 open GeneralizedJoinQualifs
 
 set_option maxHeartbeats 5000000
-def GeneralizedJoin_proof : GeneralizedJoin := by
+#time def GeneralizedJoin_proof : GeneralizedJoin := by
   unfold GeneralizedJoin
   solve_fixpoint_combo
 

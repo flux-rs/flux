@@ -66,7 +66,7 @@ end TestNeg00Qualifs
 open TestNeg00Qualifs
 
 set_option maxHeartbeats 5000000
-def TestNeg00_proof : TestNeg00 := by
+#time def TestNeg00_proof : TestNeg00 := by
   unfold TestNeg00
   solve_fixpoint_combo
 

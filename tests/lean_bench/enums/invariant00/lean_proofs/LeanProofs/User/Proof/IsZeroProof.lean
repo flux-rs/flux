@@ -66,7 +66,7 @@ end IsZeroQualifs
 open IsZeroQualifs
 
 set_option maxHeartbeats 5000000
-def IsZero_proof : IsZero := by
+#time def IsZero_proof : IsZero := by
   unfold IsZero
   solve_fixpoint_combo
 

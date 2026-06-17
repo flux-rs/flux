@@ -70,7 +70,7 @@ end Impl0LenConstMemoryQualifs
 open Impl0LenConstMemoryQualifs
 
 set_option maxHeartbeats 5000000
-def Impl__0__LenConstMemory_proof : Impl__0__LenConstMemory := by
+#time def Impl__0__LenConstMemory_proof : Impl__0__LenConstMemory := by
   unfold Impl__0__LenConstMemory
   solve_fixpoint_combo
 

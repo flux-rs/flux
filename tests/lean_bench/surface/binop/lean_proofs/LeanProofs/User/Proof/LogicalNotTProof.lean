@@ -66,7 +66,7 @@ end LogicalNotTQualifs
 open LogicalNotTQualifs
 
 set_option maxHeartbeats 5000000
-def LogicalNotT_proof : LogicalNotT := by
+#time def LogicalNotT_proof : LogicalNotT := by
   unfold LogicalNotT
   solve_fixpoint_combo
 

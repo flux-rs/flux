@@ -66,7 +66,7 @@ end Lib4MutQualifs
 open Lib4MutQualifs
 
 set_option maxHeartbeats 5000000
-def Lib4Mut_proof : Lib4Mut := by
+#time def Lib4Mut_proof : Lib4Mut := by
   unfold Lib4Mut
   solve_fixpoint_combo
 

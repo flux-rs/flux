@@ -66,7 +66,7 @@ end KmeansQualifs
 open KmeansQualifs
 
 set_option maxHeartbeats 5000000
-def Kmeans_proof : Kmeans := by
+#time def Kmeans_proof : Kmeans := by
   unfold Kmeans
   solve_fixpoint_combo
 

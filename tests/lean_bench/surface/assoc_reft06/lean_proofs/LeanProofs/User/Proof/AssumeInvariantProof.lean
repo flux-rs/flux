@@ -66,7 +66,7 @@ end AssumeInvariantQualifs
 open AssumeInvariantQualifs
 
 set_option maxHeartbeats 5000000
-def AssumeInvariant_proof : AssumeInvariant := by
+#time def AssumeInvariant_proof : AssumeInvariant := by
   unfold AssumeInvariant
   solve_fixpoint_combo
 

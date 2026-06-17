@@ -66,7 +66,7 @@ end FloatToIntQualifs
 open FloatToIntQualifs
 
 set_option maxHeartbeats 5000000
-def FloatToInt_proof : FloatToInt := by
+#time def FloatToInt_proof : FloatToInt := by
   unfold FloatToInt
   solve_fixpoint_combo
 

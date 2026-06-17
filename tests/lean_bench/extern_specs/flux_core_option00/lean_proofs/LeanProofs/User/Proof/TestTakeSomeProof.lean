@@ -66,7 +66,7 @@ end TestTakeSomeQualifs
 open TestTakeSomeQualifs
 
 set_option maxHeartbeats 5000000
-def TestTakeSome_proof : TestTakeSome := by
+#time def TestTakeSome_proof : TestTakeSome := by
   unfold TestTakeSome
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end TestOrAQualifs
 open TestOrAQualifs
 
 set_option maxHeartbeats 5000000
-def TestOrA_proof : TestOrA := by
+#time def TestOrA_proof : TestOrA := by
   unfold TestOrA
   solve_fixpoint_combo
 

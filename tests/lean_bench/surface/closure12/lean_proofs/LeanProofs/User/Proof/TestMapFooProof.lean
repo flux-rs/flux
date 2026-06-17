@@ -66,7 +66,7 @@ end TestMapFooQualifs
 open TestMapFooQualifs
 
 set_option maxHeartbeats 5000000
-def TestMapFoo_proof : TestMapFoo := by
+#time def TestMapFoo_proof : TestMapFoo := by
   unfold TestMapFoo
   solve_fixpoint_combo
 

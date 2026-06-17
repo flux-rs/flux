@@ -66,7 +66,7 @@ end OkQualifs
 open OkQualifs
 
 set_option maxHeartbeats 5000000
-def Ok_proof : Ok := by
+#time def Ok_proof : Ok := by
   unfold Ok
   solve_fixpoint_combo
 

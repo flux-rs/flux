@@ -66,7 +66,7 @@ end GeImpQualifs
 open GeImpQualifs
 
 set_option maxHeartbeats 5000000
-def GeImp_proof : GeImp := by
+#time def GeImp_proof : GeImp := by
   unfold GeImp
   solve_fixpoint_combo
 

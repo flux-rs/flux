@@ -66,7 +66,7 @@ end FirstQualifs
 open FirstQualifs
 
 set_option maxHeartbeats 5000000
-def First_proof : First := by
+#time def First_proof : First := by
   unfold First
   solve_fixpoint_combo
 

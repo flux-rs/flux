@@ -66,7 +66,7 @@ end BarQualifs
 open BarQualifs
 
 set_option maxHeartbeats 5000000
-def Bar_proof : Bar := by
+#time def Bar_proof : Bar := by
   unfold Bar
   solve_fixpoint_combo
 

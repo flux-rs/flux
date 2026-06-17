@@ -66,7 +66,7 @@ end BcopyQualifs
 open BcopyQualifs
 
 set_option maxHeartbeats 5000000
-def Bcopy_proof : Bcopy := by
+#time def Bcopy_proof : Bcopy := by
   unfold Bcopy
   solve_fixpoint_combo
 

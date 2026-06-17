@@ -66,7 +66,7 @@ end Impl7RouteQualifs
 open Impl7RouteQualifs
 
 set_option maxHeartbeats 5000000
-def Impl__7__Route_proof : Impl__7__Route := by
+#time def Impl__7__Route_proof : Impl__7__Route := by
   unfold Impl__7__Route
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end Test1Qualifs
 open Test1Qualifs
 
 set_option maxHeartbeats 5000000
-def Test1_proof : Test1 := by
+#time def Test1_proof : Test1 := by
   unfold Test1
   solve_fixpoint_combo
 

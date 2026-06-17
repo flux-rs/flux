@@ -66,7 +66,7 @@ end FiveQualifs
 open FiveQualifs
 
 set_option maxHeartbeats 5000000
-def Five_proof : Five := by
+#time def Five_proof : Five := by
   unfold Five
   solve_fixpoint_combo
 

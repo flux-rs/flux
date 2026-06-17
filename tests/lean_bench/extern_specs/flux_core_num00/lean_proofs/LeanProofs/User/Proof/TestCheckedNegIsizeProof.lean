@@ -66,7 +66,7 @@ end TestCheckedNegIsizeQualifs
 open TestCheckedNegIsizeQualifs
 
 set_option maxHeartbeats 5000000
-def TestCheckedNegIsize_proof : TestCheckedNegIsize := by
+#time def TestCheckedNegIsize_proof : TestCheckedNegIsize := by
   unfold TestCheckedNegIsize
   solve_fixpoint_combo
 

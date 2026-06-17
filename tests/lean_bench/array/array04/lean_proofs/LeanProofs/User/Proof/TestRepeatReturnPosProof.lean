@@ -66,7 +66,7 @@ end TestRepeatReturnPosQualifs
 open TestRepeatReturnPosQualifs
 
 set_option maxHeartbeats 5000000
-def TestRepeatReturnPos_proof : TestRepeatReturnPos := by
+#time def TestRepeatReturnPos_proof : TestRepeatReturnPos := by
   unfold TestRepeatReturnPos
   solve_fixpoint_combo
 

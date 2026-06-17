@@ -66,7 +66,7 @@ end TestBarEqQualifs
 open TestBarEqQualifs
 
 set_option maxHeartbeats 5000000
-def TestBarEq_proof : TestBarEq := by
+#time def TestBarEq_proof : TestBarEq := by
   unfold TestBarEq
   solve_fixpoint_combo
 

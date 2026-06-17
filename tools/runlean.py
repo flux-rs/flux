@@ -13,7 +13,6 @@ import argparse
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 
@@ -46,7 +45,6 @@ def run_lake_build(directory: Path) -> tuple[bool, str, list[str], int]:
     Returns (success, error_output, kappa_lines, elapsed_ms).
     """
     try:
-        t0 = time.monotonic()
         result = subprocess.run(
             ["lake", "build"],
             cwd=directory,
@@ -54,19 +52,26 @@ def run_lake_build(directory: Path) -> tuple[bool, str, list[str], int]:
             text=True,
             timeout=300,  # 5 minute timeout per directory
         )
-        elapsed_ms = int((time.monotonic() - t0) * 1000)
         all_lines = result.stdout.splitlines()
         error_lines = [line for line in all_lines if line.startswith("error: ")]
         kappa_lines = [line for line in all_lines if "[solve_fixpoint]" in line or "fusion: eliminated" in line]
+        time_lines = [line for line in all_lines if "time: " in line and line.strip().startswith("info:")]
+        proof_ms = 0
+        for tline in time_lines:
+            # format: "info: file:line:col: time: 123ms"
+            try:
+                proof_ms += int(tline.rsplit("time: ", 1)[1].removesuffix("ms"))
+            except (ValueError, IndexError):
+                pass
         has_error = result.returncode != 0 or len(error_lines) > 0
         error_output = "\n".join(error_lines) if error_lines else ""
-        return (not has_error, error_output, kappa_lines, elapsed_ms)
+        return (not has_error, error_output, kappa_lines, time_lines, proof_ms)
     except subprocess.TimeoutExpired:
-        return (False, "Timeout expired (5 minutes)", [], 300_000)
+        return (False, "Timeout expired (5 minutes)", [], [], 300_000)
     except FileNotFoundError:
-        return (False, "lake command not found", [], 0)
+        return (False, "lake command not found", [], [], 0)
     except Exception as e:
-        return (False, str(e), [], 0)
+        return (False, str(e), [], [], 0)
 
 
 def main():
@@ -118,8 +123,8 @@ def main():
 
         print(f"[{visited_count}/{len(lean_dirs)}] Building: {relative_path} ... ", end="", flush=True)
 
-        success, error_output, kappa_lines, elapsed_ms = run_lake_build(lean_dir)
-        total_ms += elapsed_ms
+        success, error_output, kappa_lines, time_lines, proof_ms = run_lake_build(lean_dir)
+        total_ms += proof_ms
 
         if success:
             print("OK")
@@ -131,6 +136,8 @@ def main():
                     print(f"    {err.strip()}")
         for kline in kappa_lines:
             print(f"    {kline.strip()}")
+        for tline in time_lines:
+            print(f"    {tline.strip()}")
 
     # Write timing file next to where lean_bench_log.txt lands (cwd).
     time_path = Path.cwd() / "lean_bench.time"

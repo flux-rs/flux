@@ -66,7 +66,7 @@ end CastToU16Qualifs
 open CastToU16Qualifs
 
 set_option maxHeartbeats 5000000
-def CastToU16_proof : CastToU16 := by
+#time def CastToU16_proof : CastToU16 := by
   unfold CastToU16
   solve_fixpoint_combo
 

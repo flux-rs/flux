@@ -66,7 +66,7 @@ end TestAddMutExQualifs
 open TestAddMutExQualifs
 
 set_option maxHeartbeats 5000000
-def TestAddMutEx_proof : TestAddMutEx := by
+#time def TestAddMutEx_proof : TestAddMutEx := by
   unfold TestAddMutEx
   solve_fixpoint_combo
 

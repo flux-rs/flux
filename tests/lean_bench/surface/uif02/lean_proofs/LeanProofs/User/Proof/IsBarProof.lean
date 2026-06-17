@@ -66,7 +66,7 @@ end IsBarQualifs
 open IsBarQualifs
 
 set_option maxHeartbeats 5000000
-def IsBar_proof : IsBar := by
+#time def IsBar_proof : IsBar := by
   unfold IsBar
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end TestTakeReturnMatchesOriginalQualifs
 open TestTakeReturnMatchesOriginalQualifs
 
 set_option maxHeartbeats 5000000
-def TestTakeReturnMatchesOriginal_proof : TestTakeReturnMatchesOriginal := by
+#time def TestTakeReturnMatchesOriginal_proof : TestTakeReturnMatchesOriginal := by
   unfold TestTakeReturnMatchesOriginal
   solve_fixpoint_combo
 

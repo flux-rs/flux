@@ -66,7 +66,7 @@ end IntIntLosslessQualifs
 open IntIntLosslessQualifs
 
 set_option maxHeartbeats 5000000
-def IntIntLossless_proof : IntIntLossless := by
+#time def IntIntLossless_proof : IntIntLossless := by
   unfold IntIntLossless
   solve_fixpoint_combo
 

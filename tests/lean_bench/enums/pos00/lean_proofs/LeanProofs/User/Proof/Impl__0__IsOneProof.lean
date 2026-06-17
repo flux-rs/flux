@@ -66,7 +66,7 @@ end Impl0IsOneQualifs
 open Impl0IsOneQualifs
 
 set_option maxHeartbeats 5000000
-def Impl__0__IsOne_proof : Impl__0__IsOne := by
+#time def Impl__0__IsOne_proof : Impl__0__IsOne := by
   unfold Impl__0__IsOne
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end BillQualifs
 open BillQualifs
 
 set_option maxHeartbeats 5000000
-def Bill_proof : Bill := by
+#time def Bill_proof : Bill := by
   unfold Bill
   solve_fixpoint_combo
 

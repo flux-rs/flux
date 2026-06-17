@@ -66,7 +66,7 @@ end I16U16LosslessQualifs
 open I16U16LosslessQualifs
 
 set_option maxHeartbeats 5000000
-def I16U16Lossless_proof : I16U16Lossless := by
+#time def I16U16Lossless_proof : I16U16Lossless := by
   unfold I16U16Lossless
   solve_fixpoint_combo
 

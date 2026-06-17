@@ -66,7 +66,7 @@ end TestCharToIntQualifs
 open TestCharToIntQualifs
 
 set_option maxHeartbeats 5000000
-def TestCharToInt_proof : TestCharToInt := by
+#time def TestCharToInt_proof : TestCharToInt := by
   unfold TestCharToInt
   solve_fixpoint_combo
 

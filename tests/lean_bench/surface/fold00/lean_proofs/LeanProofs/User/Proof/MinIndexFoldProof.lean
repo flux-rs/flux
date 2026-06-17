@@ -66,7 +66,7 @@ end MinIndexFoldQualifs
 open MinIndexFoldQualifs
 
 set_option maxHeartbeats 5000000
-def MinIndexFold_proof : MinIndexFold := by
+#time def MinIndexFold_proof : MinIndexFold := by
   unfold MinIndexFold
   solve_fixpoint_combo
 

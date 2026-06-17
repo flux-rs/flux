@@ -66,7 +66,7 @@ end FstQualifs
 open FstQualifs
 
 set_option maxHeartbeats 5000000
-def Fst_proof : Fst := by
+#time def Fst_proof : Fst := by
   unfold Fst
   solve_fixpoint_combo
 

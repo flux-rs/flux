@@ -66,7 +66,7 @@ end WrapIndexQualifs
 open WrapIndexQualifs
 
 set_option maxHeartbeats 5000000
-def WrapIndex_proof : WrapIndex := by
+#time def WrapIndex_proof : WrapIndex := by
   unfold WrapIndex
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end HeapSortQualifs
 open HeapSortQualifs
 
 set_option maxHeartbeats 5000000
-def HeapSort_proof : HeapSort := by
+#time def HeapSort_proof : HeapSort := by
   unfold HeapSort
   solve_fixpoint_combo
 

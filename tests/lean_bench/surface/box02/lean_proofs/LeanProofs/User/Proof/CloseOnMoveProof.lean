@@ -66,7 +66,7 @@ end CloseOnMoveQualifs
 open CloseOnMoveQualifs
 
 set_option maxHeartbeats 5000000
-def CloseOnMove_proof : CloseOnMove := by
+#time def CloseOnMove_proof : CloseOnMove := by
   unfold CloseOnMove
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end DistQualifs
 open DistQualifs
 
 set_option maxHeartbeats 5000000
-def Dist_proof : Dist := by
+#time def Dist_proof : Dist := by
   unfold Dist
   solve_fixpoint_combo
 

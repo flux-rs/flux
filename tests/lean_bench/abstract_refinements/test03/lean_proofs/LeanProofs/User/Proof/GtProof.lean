@@ -66,7 +66,7 @@ end GtQualifs
 open GtQualifs
 
 set_option maxHeartbeats 5000000
-def Gt_proof : Gt := by
+#time def Gt_proof : Gt := by
   unfold Gt
   solve_fixpoint_combo
 

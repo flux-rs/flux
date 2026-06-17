@@ -66,7 +66,7 @@ end DonaldQualifs
 open DonaldQualifs
 
 set_option maxHeartbeats 5000000
-def Donald_proof : Donald := by
+#time def Donald_proof : Donald := by
   unfold Donald
   solve_fixpoint_combo
 

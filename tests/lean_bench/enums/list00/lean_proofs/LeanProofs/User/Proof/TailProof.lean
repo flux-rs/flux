@@ -66,7 +66,7 @@ end TailQualifs
 open TailQualifs
 
 set_option maxHeartbeats 5000000
-def Tail_proof : Tail := by
+#time def Tail_proof : Tail := by
   unfold Tail
   solve_fixpoint_combo
 

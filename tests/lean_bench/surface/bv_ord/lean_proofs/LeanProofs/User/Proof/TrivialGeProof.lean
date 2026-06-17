@@ -66,7 +66,7 @@ end TrivialGeQualifs
 open TrivialGeQualifs
 
 set_option maxHeartbeats 5000000
-def TrivialGe_proof : TrivialGe := by
+#time def TrivialGe_proof : TrivialGe := by
   unfold TrivialGe
   solve_fixpoint_combo
 

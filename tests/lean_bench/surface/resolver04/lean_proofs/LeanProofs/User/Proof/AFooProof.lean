@@ -66,7 +66,7 @@ end AFooQualifs
 open AFooQualifs
 
 set_option maxHeartbeats 5000000
-def AFoo_proof : AFoo := by
+#time def AFoo_proof : AFoo := by
   unfold AFoo
   solve_fixpoint_combo
 

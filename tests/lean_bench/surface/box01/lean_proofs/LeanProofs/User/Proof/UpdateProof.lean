@@ -66,7 +66,7 @@ end UpdateQualifs
 open UpdateQualifs
 
 set_option maxHeartbeats 5000000
-def Update_proof : Update := by
+#time def Update_proof : Update := by
   unfold Update
   solve_fixpoint_combo
 

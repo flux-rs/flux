@@ -66,7 +66,7 @@ end XYImpl1GrompQualifs
 open XYImpl1GrompQualifs
 
 set_option maxHeartbeats 5000000
-def XYImpl__1__Gromp_proof : XYImpl__1__Gromp := by
+#time def XYImpl__1__Gromp_proof : XYImpl__1__Gromp := by
   unfold XYImpl__1__Gromp
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end CloseAtReturnQualifs
 open CloseAtReturnQualifs
 
 set_option maxHeartbeats 5000000
-def CloseAtReturn_proof : CloseAtReturn := by
+#time def CloseAtReturn_proof : CloseAtReturn := by
   unfold CloseAtReturn
   solve_fixpoint_combo
 

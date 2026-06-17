@@ -66,7 +66,7 @@ end TestStringLen3Qualifs
 open TestStringLen3Qualifs
 
 set_option maxHeartbeats 5000000
-def TestStringLen3_proof : TestStringLen3 := by
+#time def TestStringLen3_proof : TestStringLen3 := by
   unfold TestStringLen3
   solve_fixpoint_combo
 

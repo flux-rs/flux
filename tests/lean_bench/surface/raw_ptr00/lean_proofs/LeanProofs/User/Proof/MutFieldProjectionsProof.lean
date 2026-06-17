@@ -66,7 +66,7 @@ end MutFieldProjectionsQualifs
 open MutFieldProjectionsQualifs
 
 set_option maxHeartbeats 5000000
-def MutFieldProjections_proof : MutFieldProjections := by
+#time def MutFieldProjections_proof : MutFieldProjections := by
   unfold MutFieldProjections
   solve_fixpoint_combo
 

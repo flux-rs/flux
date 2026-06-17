@@ -66,7 +66,7 @@ end FillVecMapQualifs
 open FillVecMapQualifs
 
 set_option maxHeartbeats 5000000
-def FillVecMap_proof : FillVecMap := by
+#time def FillVecMap_proof : FillVecMap := by
   unfold FillVecMap
   solve_fixpoint_combo
 

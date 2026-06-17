@@ -66,7 +66,7 @@ end Impl5UpcastQualifs
 open Impl5UpcastQualifs
 
 set_option maxHeartbeats 5000000
-def Impl__5__Upcast_proof : Impl__5__Upcast := by
+#time def Impl__5__Upcast_proof : Impl__5__Upcast := by
   unfold Impl__5__Upcast
   solve_fixpoint_combo
 

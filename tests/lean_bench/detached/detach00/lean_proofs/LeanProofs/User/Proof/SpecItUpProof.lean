@@ -66,7 +66,7 @@ end SpecItUpQualifs
 open SpecItUpQualifs
 
 set_option maxHeartbeats 5000000
-def SpecItUp_proof : SpecItUp := by
+#time def SpecItUp_proof : SpecItUp := by
   unfold SpecItUp
   solve_fixpoint_combo
 

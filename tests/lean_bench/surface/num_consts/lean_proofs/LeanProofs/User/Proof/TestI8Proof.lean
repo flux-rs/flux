@@ -66,7 +66,7 @@ end TestI8Qualifs
 open TestI8Qualifs
 
 set_option maxHeartbeats 5000000
-def TestI8_proof : TestI8 := by
+#time def TestI8_proof : TestI8 := by
   unfold TestI8
   solve_fixpoint_combo
 

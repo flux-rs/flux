@@ -66,7 +66,7 @@ end TestEnumer2Qualifs
 open TestEnumer2Qualifs
 
 set_option maxHeartbeats 5000000
-def TestEnumer2_proof : TestEnumer2 := by
+#time def TestEnumer2_proof : TestEnumer2 := by
   unfold TestEnumer2
   solve_fixpoint_combo
 

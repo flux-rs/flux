@@ -66,7 +66,7 @@ end TestAndThenNonePropagatesQualifs
 open TestAndThenNonePropagatesQualifs
 
 set_option maxHeartbeats 5000000
-def TestAndThenNonePropagates_proof : TestAndThenNonePropagates := by
+#time def TestAndThenNonePropagates_proof : TestAndThenNonePropagates := by
   unfold TestAndThenNonePropagates
   solve_fixpoint_combo
 

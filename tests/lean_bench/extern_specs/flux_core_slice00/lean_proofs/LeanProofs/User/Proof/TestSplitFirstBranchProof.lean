@@ -66,7 +66,7 @@ end TestSplitFirstBranchQualifs
 open TestSplitFirstBranchQualifs
 
 set_option maxHeartbeats 5000000
-def TestSplitFirstBranch_proof : TestSplitFirstBranch := by
+#time def TestSplitFirstBranch_proof : TestSplitFirstBranch := by
   unfold TestSplitFirstBranch
   solve_fixpoint_combo
 

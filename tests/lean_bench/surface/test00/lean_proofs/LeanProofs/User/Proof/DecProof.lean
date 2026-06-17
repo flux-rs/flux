@@ -66,7 +66,7 @@ end DecQualifs
 open DecQualifs
 
 set_option maxHeartbeats 5000000
-def Dec_proof : Dec := by
+#time def Dec_proof : Dec := by
   unfold Dec
   solve_fixpoint_combo
 

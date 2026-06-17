@@ -66,7 +66,7 @@ end BobARRQualifs
 open BobARRQualifs
 
 set_option maxHeartbeats 5000000
-def BobARR_proof : BobARR := by
+#time def BobARR_proof : BobARR := by
   unfold BobARR
   solve_fixpoint_combo
 

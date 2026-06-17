@@ -66,7 +66,7 @@ end TestBvExtensionsQualifs
 open TestBvExtensionsQualifs
 
 set_option maxHeartbeats 5000000
-def TestBvExtensions_proof : TestBvExtensions := by
+#time def TestBvExtensions_proof : TestBvExtensions := by
   unfold TestBvExtensions
   solve_fixpoint_combo
 

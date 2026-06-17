@@ -66,7 +66,7 @@ end SubtractF32Qualifs
 open SubtractF32Qualifs
 
 set_option maxHeartbeats 5000000
-def SubtractF32_proof : SubtractF32 := by
+#time def SubtractF32_proof : SubtractF32 := by
   unfold SubtractF32
   solve_fixpoint_combo
 

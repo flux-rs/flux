@@ -66,7 +66,7 @@ end BurpiQualifs
 open BurpiQualifs
 
 set_option maxHeartbeats 5000000
-def Burpi_proof : Burpi := by
+#time def Burpi_proof : Burpi := by
   unfold Burpi
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end UnsignedToUsizeQualifs
 open UnsignedToUsizeQualifs
 
 set_option maxHeartbeats 5000000
-def UnsignedToUsize_proof : UnsignedToUsize := by
+#time def UnsignedToUsize_proof : UnsignedToUsize := by
   unfold UnsignedToUsize
   solve_fixpoint_combo
 

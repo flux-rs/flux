@@ -66,7 +66,7 @@ end Impl0TakeStrgQualifs
 open Impl0TakeStrgQualifs
 
 set_option maxHeartbeats 5000000
-def Impl__0__TakeStrg_proof : Impl__0__TakeStrg := by
+#time def Impl__0__TakeStrg_proof : Impl__0__TakeStrg := by
   unfold Impl__0__TakeStrg
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end I32U32NonnegQualifs
 open I32U32NonnegQualifs
 
 set_option maxHeartbeats 5000000
-def I32U32Nonneg_proof : I32U32Nonneg := by
+#time def I32U32Nonneg_proof : I32U32Nonneg := by
   unfold I32U32Nonneg
   solve_fixpoint_combo
 

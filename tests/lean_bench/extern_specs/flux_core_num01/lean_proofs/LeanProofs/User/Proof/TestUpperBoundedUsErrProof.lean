@@ -66,7 +66,7 @@ end TestUpperBoundedUsErrQualifs
 open TestUpperBoundedUsErrQualifs
 
 set_option maxHeartbeats 5000000
-def TestUpperBoundedUsErr_proof : TestUpperBoundedUsErr := by
+#time def TestUpperBoundedUsErr_proof : TestUpperBoundedUsErr := by
   unfold TestUpperBoundedUsErr
   solve_fixpoint_combo
 

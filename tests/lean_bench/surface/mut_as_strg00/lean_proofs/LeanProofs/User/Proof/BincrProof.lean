@@ -66,7 +66,7 @@ end BincrQualifs
 open BincrQualifs
 
 set_option maxHeartbeats 5000000
-def Bincr_proof : Bincr := by
+#time def Bincr_proof : Bincr := by
   unfold Bincr
   solve_fixpoint_combo
 

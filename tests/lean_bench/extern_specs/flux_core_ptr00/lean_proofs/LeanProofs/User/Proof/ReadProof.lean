@@ -66,7 +66,7 @@ end ReadQualifs
 open ReadQualifs
 
 set_option maxHeartbeats 5000000
-def Read_proof : Read := by
+#time def Read_proof : Read := by
   unfold Read
   solve_fixpoint_combo
 

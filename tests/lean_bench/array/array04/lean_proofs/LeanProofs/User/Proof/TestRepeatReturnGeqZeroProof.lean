@@ -66,7 +66,7 @@ end TestRepeatReturnGeqZeroQualifs
 open TestRepeatReturnGeqZeroQualifs
 
 set_option maxHeartbeats 5000000
-def TestRepeatReturnGeqZero_proof : TestRepeatReturnGeqZero := by
+#time def TestRepeatReturnGeqZero_proof : TestRepeatReturnGeqZero := by
   unfold TestRepeatReturnGeqZero
   solve_fixpoint_combo
 

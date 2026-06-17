@@ -66,7 +66,7 @@ end AssertTrueQualifs
 open AssertTrueQualifs
 
 set_option maxHeartbeats 5000000
-def AssertTrue_proof : AssertTrue := by
+#time def AssertTrue_proof : AssertTrue := by
   unfold AssertTrue
   solve_fixpoint_combo
 

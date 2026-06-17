@@ -66,7 +66,7 @@ end IsSomeQualifs
 open IsSomeQualifs
 
 set_option maxHeartbeats 5000000
-def IsSome_proof : IsSome := by
+#time def IsSome_proof : IsSome := by
   unfold IsSome
   solve_fixpoint_combo
 

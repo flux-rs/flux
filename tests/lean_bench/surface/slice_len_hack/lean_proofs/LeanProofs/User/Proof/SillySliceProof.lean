@@ -66,7 +66,7 @@ end SillySliceQualifs
 open SillySliceQualifs
 
 set_option maxHeartbeats 5000000
-def SillySlice_proof : SillySlice := by
+#time def SillySlice_proof : SillySlice := by
   unfold SillySlice
   solve_fixpoint_combo
 

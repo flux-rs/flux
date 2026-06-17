@@ -74,7 +74,7 @@ end DummyQualifs
 open DummyQualifs
 
 set_option maxHeartbeats 5000000
-def Dummy_proof : Dummy := by
+#time def Dummy_proof : Dummy := by
   unfold Dummy
   solve_fixpoint_combo
 

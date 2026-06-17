@@ -66,7 +66,7 @@ end ProjectQualifs
 open ProjectQualifs
 
 set_option maxHeartbeats 5000000
-def Project_proof : Project := by
+#time def Project_proof : Project := by
   unfold Project
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end IsMonth30Qualifs
 open IsMonth30Qualifs
 
 set_option maxHeartbeats 5000000
-def IsMonth30_proof : IsMonth30 := by
+#time def IsMonth30_proof : IsMonth30 := by
   unfold IsMonth30
   solve_fixpoint_combo
 

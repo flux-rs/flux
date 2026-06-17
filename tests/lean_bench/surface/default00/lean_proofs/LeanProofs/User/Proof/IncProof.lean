@@ -66,7 +66,7 @@ end IncQualifs
 open IncQualifs
 
 set_option maxHeartbeats 5000000
-def Inc_proof : Inc := by
+#time def Inc_proof : Inc := by
   unfold Inc
   solve_fixpoint_combo
 

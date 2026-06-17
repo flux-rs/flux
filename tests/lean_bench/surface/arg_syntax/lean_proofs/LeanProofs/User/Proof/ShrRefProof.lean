@@ -66,7 +66,7 @@ end ShrRefQualifs
 open ShrRefQualifs
 
 set_option maxHeartbeats 5000000
-def ShrRef_proof : ShrRef := by
+#time def ShrRef_proof : ShrRef := by
   unfold ShrRef
   solve_fixpoint_combo
 

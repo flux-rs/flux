@@ -66,7 +66,7 @@ end RunClosureQualifs
 open RunClosureQualifs
 
 set_option maxHeartbeats 5000000
-def RunClosure_proof : RunClosure := by
+#time def RunClosure_proof : RunClosure := by
   unfold RunClosure
   solve_fixpoint_combo
 

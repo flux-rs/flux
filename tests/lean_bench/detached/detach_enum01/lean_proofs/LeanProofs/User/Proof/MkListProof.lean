@@ -66,7 +66,7 @@ end MkListQualifs
 open MkListQualifs
 
 set_option maxHeartbeats 5000000
-def MkList_proof : MkList := by
+#time def MkList_proof : MkList := by
   unfold MkList
   solve_fixpoint_combo
 

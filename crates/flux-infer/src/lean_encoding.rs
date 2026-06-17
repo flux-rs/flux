@@ -942,7 +942,7 @@ path = "/Users/petros/Documents/UCSD/Work/lean-fixpoint"
                     writeln!(f, "open {qualifier_namespace}\n")?;
                 }
                 writeln!(f, "set_option maxHeartbeats 5000000")?;
-                writeln!(f, "def {proof_name} : {vc_name} := by")?;
+                writeln!(f, "#time def {proof_name} : {vc_name} := by")?;
                 writeln!(f, "  unfold {vc_name}")?;
                 writeln!(f, "  solve_fixpoint_combo")
             })?;

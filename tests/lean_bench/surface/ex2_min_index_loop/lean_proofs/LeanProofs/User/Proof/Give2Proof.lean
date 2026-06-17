@@ -66,7 +66,7 @@ end Give2Qualifs
 open Give2Qualifs
 
 set_option maxHeartbeats 5000000
-def Give2_proof : Give2 := by
+#time def Give2_proof : Give2 := by
   unfold Give2
   solve_fixpoint_combo
 

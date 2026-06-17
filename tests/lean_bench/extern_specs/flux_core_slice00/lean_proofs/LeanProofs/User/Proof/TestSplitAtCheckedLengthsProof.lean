@@ -66,7 +66,7 @@ end TestSplitAtCheckedLengthsQualifs
 open TestSplitAtCheckedLengthsQualifs
 
 set_option maxHeartbeats 5000000
-def TestSplitAtCheckedLengths_proof : TestSplitAtCheckedLengths := by
+#time def TestSplitAtCheckedLengths_proof : TestSplitAtCheckedLengths := by
   unfold TestSplitAtCheckedLengths
   solve_fixpoint_combo
 

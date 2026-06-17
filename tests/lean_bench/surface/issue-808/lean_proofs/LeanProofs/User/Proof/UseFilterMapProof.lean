@@ -66,7 +66,7 @@ end UseFilterMapQualifs
 open UseFilterMapQualifs
 
 set_option maxHeartbeats 5000000
-def UseFilterMap_proof : UseFilterMap := by
+#time def UseFilterMap_proof : UseFilterMap := by
   unfold UseFilterMap
   solve_fixpoint_combo
 

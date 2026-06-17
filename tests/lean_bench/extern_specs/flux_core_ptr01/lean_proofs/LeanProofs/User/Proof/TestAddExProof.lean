@@ -66,7 +66,7 @@ end TestAddExQualifs
 open TestAddExQualifs
 
 set_option maxHeartbeats 5000000
-def TestAddEx_proof : TestAddEx := by
+#time def TestAddEx_proof : TestAddEx := by
   unfold TestAddEx
   solve_fixpoint_combo
 

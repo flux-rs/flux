@@ -66,7 +66,7 @@ end TakesClosureQualifs
 open TakesClosureQualifs
 
 set_option maxHeartbeats 5000000
-def TakesClosure_proof : TakesClosure := by
+#time def TakesClosure_proof : TakesClosure := by
   unfold TakesClosure
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end TestShl32Qualifs
 open TestShl32Qualifs
 
 set_option maxHeartbeats 5000000
-def TestShl32_proof : TestShl32 := by
+#time def TestShl32_proof : TestShl32 := by
   unfold TestShl32
   solve_fixpoint_combo
 

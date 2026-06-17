@@ -66,7 +66,7 @@ end TestMapSliceQualifs
 open TestMapSliceQualifs
 
 set_option maxHeartbeats 5000000
-def TestMapSlice_proof : TestMapSlice := by
+#time def TestMapSlice_proof : TestMapSlice := by
   unfold TestMapSlice
   solve_fixpoint_combo
 

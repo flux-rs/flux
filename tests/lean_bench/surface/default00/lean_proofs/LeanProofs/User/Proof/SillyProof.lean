@@ -66,7 +66,7 @@ end SillyQualifs
 open SillyQualifs
 
 set_option maxHeartbeats 5000000
-def Silly_proof : Silly := by
+#time def Silly_proof : Silly := by
   unfold Silly
   solve_fixpoint_combo
 

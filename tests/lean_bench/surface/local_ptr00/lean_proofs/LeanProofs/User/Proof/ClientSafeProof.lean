@@ -66,7 +66,7 @@ end ClientSafeQualifs
 open ClientSafeQualifs
 
 set_option maxHeartbeats 5000000
-def ClientSafe_proof : ClientSafe := by
+#time def ClientSafe_proof : ClientSafe := by
   unfold ClientSafe
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end ApplyQualifs
 open ApplyQualifs
 
 set_option maxHeartbeats 5000000
-def Apply_proof : Apply := by
+#time def Apply_proof : Apply := by
   unfold Apply
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end GenRangeQualifs
 open GenRangeQualifs
 
 set_option maxHeartbeats 5000000
-def GenRange_proof : GenRange := by
+#time def GenRange_proof : GenRange := by
   unfold GenRange
   solve_fixpoint_combo
 

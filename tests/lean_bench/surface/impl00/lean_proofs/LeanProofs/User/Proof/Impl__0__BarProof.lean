@@ -66,7 +66,7 @@ end Impl0BarQualifs
 open Impl0BarQualifs
 
 set_option maxHeartbeats 5000000
-def Impl__0__Bar_proof : Impl__0__Bar := by
+#time def Impl__0__Bar_proof : Impl__0__Bar := by
   unfold Impl__0__Bar
   solve_fixpoint_combo
 

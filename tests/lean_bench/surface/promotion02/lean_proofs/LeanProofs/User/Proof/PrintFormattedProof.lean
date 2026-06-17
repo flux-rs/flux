@@ -66,7 +66,7 @@ end PrintFormattedQualifs
 open PrintFormattedQualifs
 
 set_option maxHeartbeats 5000000
-def PrintFormatted_proof : PrintFormatted := by
+#time def PrintFormatted_proof : PrintFormatted := by
   unfold PrintFormatted
   solve_fixpoint_combo
 

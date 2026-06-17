@@ -66,7 +66,7 @@ end TestRepeatArrayIndexReadQualifs
 open TestRepeatArrayIndexReadQualifs
 
 set_option maxHeartbeats 5000000
-def TestRepeatArrayIndexRead_proof : TestRepeatArrayIndexRead := by
+#time def TestRepeatArrayIndexRead_proof : TestRepeatArrayIndexRead := by
   unfold TestRepeatArrayIndexRead
   solve_fixpoint_combo
 

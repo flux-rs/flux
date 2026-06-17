@@ -66,7 +66,7 @@ end ReadExampleQualifs
 open ReadExampleQualifs
 
 set_option maxHeartbeats 5000000
-def ReadExample_proof : ReadExample := by
+#time def ReadExample_proof : ReadExample := by
   unfold ReadExample
   solve_fixpoint_combo
 

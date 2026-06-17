@@ -66,7 +66,7 @@ end FooConcreteQualifs
 open FooConcreteQualifs
 
 set_option maxHeartbeats 5000000
-def FooConcrete_proof : FooConcrete := by
+#time def FooConcrete_proof : FooConcrete := by
   unfold FooConcrete
   solve_fixpoint_combo
 

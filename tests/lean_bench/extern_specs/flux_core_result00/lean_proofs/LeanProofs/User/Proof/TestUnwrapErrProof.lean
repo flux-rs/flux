@@ -66,7 +66,7 @@ end TestUnwrapErrQualifs
 open TestUnwrapErrQualifs
 
 set_option maxHeartbeats 5000000
-def TestUnwrapErr_proof : TestUnwrapErr := by
+#time def TestUnwrapErr_proof : TestUnwrapErr := by
   unfold TestUnwrapErr
   solve_fixpoint_combo
 

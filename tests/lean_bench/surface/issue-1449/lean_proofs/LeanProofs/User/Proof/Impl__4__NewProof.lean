@@ -66,7 +66,7 @@ end Impl4NewQualifs
 open Impl4NewQualifs
 
 set_option maxHeartbeats 5000000
-def Impl__4__New_proof : Impl__4__New := by
+#time def Impl__4__New_proof : Impl__4__New := by
   unfold Impl__4__New
   solve_fixpoint_combo
 

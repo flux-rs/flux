@@ -66,7 +66,7 @@ end TestLayoutNewQualifs
 open TestLayoutNewQualifs
 
 set_option maxHeartbeats 5000000
-def TestLayoutNew_proof : TestLayoutNew := by
+#time def TestLayoutNew_proof : TestLayoutNew := by
   unfold TestLayoutNew
   solve_fixpoint_combo
 

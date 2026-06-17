@@ -66,7 +66,7 @@ end BkSillyQualifs
 open BkSillyQualifs
 
 set_option maxHeartbeats 5000000
-def BkSilly_proof : BkSilly := by
+#time def BkSilly_proof : BkSilly := by
   unfold BkSilly
   solve_fixpoint_combo
 

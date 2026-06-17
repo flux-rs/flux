@@ -66,7 +66,7 @@ end MkStructQualifs
 open MkStructQualifs
 
 set_option maxHeartbeats 5000000
-def MkStruct_proof : MkStruct := by
+#time def MkStruct_proof : MkStruct := by
   unfold MkStruct
   solve_fixpoint_combo
 

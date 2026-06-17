@@ -66,7 +66,7 @@ end Test01AssertQualifs
 open Test01AssertQualifs
 
 set_option maxHeartbeats 5000000
-def Test01Assert_proof : Test01Assert := by
+#time def Test01Assert_proof : Test01Assert := by
   unfold Test01Assert
   solve_fixpoint_combo
 

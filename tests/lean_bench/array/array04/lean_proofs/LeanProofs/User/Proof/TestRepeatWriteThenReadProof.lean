@@ -66,7 +66,7 @@ end TestRepeatWriteThenReadQualifs
 open TestRepeatWriteThenReadQualifs
 
 set_option maxHeartbeats 5000000
-def TestRepeatWriteThenRead_proof : TestRepeatWriteThenRead := by
+#time def TestRepeatWriteThenRead_proof : TestRepeatWriteThenRead := by
   unfold TestRepeatWriteThenRead
   solve_fixpoint_combo
 

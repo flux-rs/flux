@@ -66,7 +66,7 @@ end FROGQualifs
 open FROGQualifs
 
 set_option maxHeartbeats 5000000
-def FROG_proof : FROG := by
+#time def FROG_proof : FROG := by
   unfold FROG
   solve_fixpoint_combo
 

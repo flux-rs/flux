@@ -66,7 +66,7 @@ end TestOkOrNoneQualifs
 open TestOkOrNoneQualifs
 
 set_option maxHeartbeats 5000000
-def TestOkOrNone_proof : TestOkOrNone := by
+#time def TestOkOrNone_proof : TestOkOrNone := by
   unfold TestOkOrNone
   solve_fixpoint_combo
 

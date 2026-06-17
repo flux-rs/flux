@@ -66,7 +66,7 @@ end BitwiseOrQualifs
 open BitwiseOrQualifs
 
 set_option maxHeartbeats 5000000
-def BitwiseOr_proof : BitwiseOr := by
+#time def BitwiseOr_proof : BitwiseOr := by
   unfold BitwiseOr
   solve_fixpoint_combo
 

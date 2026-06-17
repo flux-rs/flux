@@ -66,7 +66,7 @@ end Lib1Qualifs
 open Lib1Qualifs
 
 set_option maxHeartbeats 5000000
-def Lib1_proof : Lib1 := by
+#time def Lib1_proof : Lib1 := by
   unfold Lib1
   solve_fixpoint_combo
 

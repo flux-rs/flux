@@ -66,7 +66,7 @@ end TestOkOrBranchQualifs
 open TestOkOrBranchQualifs
 
 set_option maxHeartbeats 5000000
-def TestOkOrBranch_proof : TestOkOrBranch := by
+#time def TestOkOrBranch_proof : TestOkOrBranch := by
   unfold TestOkOrBranch
   solve_fixpoint_combo
 

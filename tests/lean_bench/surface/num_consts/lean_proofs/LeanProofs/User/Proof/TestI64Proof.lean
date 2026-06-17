@@ -66,7 +66,7 @@ end TestI64Qualifs
 open TestI64Qualifs
 
 set_option maxHeartbeats 5000000
-def TestI64_proof : TestI64 := by
+#time def TestI64_proof : TestI64 := by
   unfold TestI64
   solve_fixpoint_combo
 

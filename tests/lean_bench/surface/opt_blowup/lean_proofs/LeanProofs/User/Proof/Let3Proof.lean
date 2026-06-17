@@ -66,7 +66,7 @@ end Let3Qualifs
 open Let3Qualifs
 
 set_option maxHeartbeats 5000000
-def Let3_proof : Let3 := by
+#time def Let3_proof : Let3 := by
   unfold Let3
   solve_fixpoint_combo
 

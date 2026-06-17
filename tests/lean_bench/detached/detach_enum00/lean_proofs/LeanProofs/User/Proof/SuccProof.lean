@@ -66,7 +66,7 @@ end SuccQualifs
 open SuccQualifs
 
 set_option maxHeartbeats 5000000
-def Succ_proof : Succ := by
+#time def Succ_proof : Succ := by
   unfold Succ
   solve_fixpoint_combo
 

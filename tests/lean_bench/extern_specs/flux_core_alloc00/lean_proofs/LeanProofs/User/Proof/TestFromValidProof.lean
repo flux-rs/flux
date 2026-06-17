@@ -66,7 +66,7 @@ end TestFromValidQualifs
 open TestFromValidQualifs
 
 set_option maxHeartbeats 5000000
-def TestFromValid_proof : TestFromValid := by
+#time def TestFromValid_proof : TestFromValid := by
   unfold TestFromValid
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end TestSelectQualifs
 open TestSelectQualifs
 
 set_option maxHeartbeats 5000000
-def TestSelect_proof : TestSelect := by
+#time def TestSelect_proof : TestSelect := by
   unfold TestSelect
   solve_fixpoint_combo
 

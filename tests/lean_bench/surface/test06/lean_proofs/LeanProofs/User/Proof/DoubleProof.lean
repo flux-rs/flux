@@ -66,7 +66,7 @@ end DoubleQualifs
 open DoubleQualifs
 
 set_option maxHeartbeats 5000000
-def Double_proof : Double := by
+#time def Double_proof : Double := by
   unfold Double
   solve_fixpoint_combo
 

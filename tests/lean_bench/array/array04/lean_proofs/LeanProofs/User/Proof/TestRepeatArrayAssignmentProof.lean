@@ -66,7 +66,7 @@ end TestRepeatArrayAssignmentQualifs
 open TestRepeatArrayAssignmentQualifs
 
 set_option maxHeartbeats 5000000
-def TestRepeatArrayAssignment_proof : TestRepeatArrayAssignment := by
+#time def TestRepeatArrayAssignment_proof : TestRepeatArrayAssignment := by
   unfold TestRepeatArrayAssignment
   solve_fixpoint_combo
 

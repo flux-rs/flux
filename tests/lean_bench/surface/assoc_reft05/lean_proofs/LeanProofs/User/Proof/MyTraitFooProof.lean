@@ -66,7 +66,7 @@ end MyTraitFooQualifs
 open MyTraitFooQualifs
 
 set_option maxHeartbeats 5000000
-def MyTraitFoo_proof : MyTraitFoo := by
+#time def MyTraitFoo_proof : MyTraitFoo := by
   unfold MyTraitFoo
   solve_fixpoint_combo
 

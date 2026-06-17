@@ -66,7 +66,7 @@ end ConstToU8Qualifs
 open ConstToU8Qualifs
 
 set_option maxHeartbeats 5000000
-def ConstToU8_proof : ConstToU8 := by
+#time def ConstToU8_proof : ConstToU8 := by
   unfold ConstToU8
   solve_fixpoint_combo
 

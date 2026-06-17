@@ -66,7 +66,7 @@ end CloneQualifs
 open CloneQualifs
 
 set_option maxHeartbeats 5000000
-def Clone_proof : Clone := by
+#time def Clone_proof : Clone := by
   unfold Clone
   solve_fixpoint_combo
 

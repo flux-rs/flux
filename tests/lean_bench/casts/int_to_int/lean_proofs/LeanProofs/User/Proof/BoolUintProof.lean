@@ -66,7 +66,7 @@ end BoolUintQualifs
 open BoolUintQualifs
 
 set_option maxHeartbeats 5000000
-def BoolUint_proof : BoolUint := by
+#time def BoolUint_proof : BoolUint := by
   unfold BoolUint
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end TestIterForLoopSliceQualifs
 open TestIterForLoopSliceQualifs
 
 set_option maxHeartbeats 5000000
-def TestIterForLoopSlice_proof : TestIterForLoopSlice := by
+#time def TestIterForLoopSlice_proof : TestIterForLoopSlice := by
   unfold TestIterForLoopSlice
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end TestOr8Qualifs
 open TestOr8Qualifs
 
 set_option maxHeartbeats 5000000
-def TestOr8_proof : TestOr8 := by
+#time def TestOr8_proof : TestOr8 := by
   unfold TestOr8
   solve_fixpoint_combo
 

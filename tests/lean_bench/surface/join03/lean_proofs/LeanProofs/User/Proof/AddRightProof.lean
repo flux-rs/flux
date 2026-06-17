@@ -66,7 +66,7 @@ end AddRightQualifs
 open AddRightQualifs
 
 set_option maxHeartbeats 5000000
-def AddRight_proof : AddRight := by
+#time def AddRight_proof : AddRight := by
   unfold AddRight
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end Impl0Test00Qualifs
 open Impl0Test00Qualifs
 
 set_option maxHeartbeats 5000000
-def Impl__0__Test00_proof : Impl__0__Test00 := by
+#time def Impl__0__Test00_proof : Impl__0__Test00 := by
   unfold Impl__0__Test00
   solve_fixpoint_combo
 

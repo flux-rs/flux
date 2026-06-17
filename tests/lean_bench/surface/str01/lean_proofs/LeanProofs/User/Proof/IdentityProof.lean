@@ -66,7 +66,7 @@ end IdentityQualifs
 open IdentityQualifs
 
 set_option maxHeartbeats 5000000
-def Identity_proof : Identity := by
+#time def Identity_proof : Identity := by
   unfold Identity
   solve_fixpoint_combo
 

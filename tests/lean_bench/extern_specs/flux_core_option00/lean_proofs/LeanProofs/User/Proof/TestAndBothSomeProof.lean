@@ -66,7 +66,7 @@ end TestAndBothSomeQualifs
 open TestAndBothSomeQualifs
 
 set_option maxHeartbeats 5000000
-def TestAndBothSome_proof : TestAndBothSome := by
+#time def TestAndBothSome_proof : TestAndBothSome := by
   unfold TestAndBothSome
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end SubQualifs
 open SubQualifs
 
 set_option maxHeartbeats 5000000
-def Sub_proof : Sub := by
+#time def Sub_proof : Sub := by
   unfold Sub
   solve_fixpoint_combo
 

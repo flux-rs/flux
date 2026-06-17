@@ -66,7 +66,7 @@ end CheckInvariantQualifs
 open CheckInvariantQualifs
 
 set_option maxHeartbeats 5000000
-def CheckInvariant_proof : CheckInvariant := by
+#time def CheckInvariant_proof : CheckInvariant := by
   unfold CheckInvariant
   solve_fixpoint_combo
 

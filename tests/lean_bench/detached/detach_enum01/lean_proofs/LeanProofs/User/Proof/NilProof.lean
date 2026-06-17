@@ -66,7 +66,7 @@ end NilQualifs
 open NilQualifs
 
 set_option maxHeartbeats 5000000
-def Nil_proof : Nil := by
+#time def Nil_proof : Nil := by
   unfold Nil
   solve_fixpoint_combo
 

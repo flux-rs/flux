@@ -66,7 +66,7 @@ end TestSaturatingIsizeQualifs
 open TestSaturatingIsizeQualifs
 
 set_option maxHeartbeats 5000000
-def TestSaturatingIsize_proof : TestSaturatingIsize := by
+#time def TestSaturatingIsize_proof : TestSaturatingIsize := by
   unfold TestSaturatingIsize
   solve_fixpoint_combo
 

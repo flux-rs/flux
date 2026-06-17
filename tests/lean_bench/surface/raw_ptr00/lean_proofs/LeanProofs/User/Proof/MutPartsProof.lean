@@ -66,7 +66,7 @@ end MutPartsQualifs
 open MutPartsQualifs
 
 set_option maxHeartbeats 5000000
-def MutParts_proof : MutParts := by
+#time def MutParts_proof : MutParts := by
   unfold MutParts
   solve_fixpoint_combo
 

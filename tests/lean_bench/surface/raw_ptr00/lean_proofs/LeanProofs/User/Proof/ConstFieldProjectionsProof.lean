@@ -66,7 +66,7 @@ end ConstFieldProjectionsQualifs
 open ConstFieldProjectionsQualifs
 
 set_option maxHeartbeats 5000000
-def ConstFieldProjections_proof : ConstFieldProjections := by
+#time def ConstFieldProjections_proof : ConstFieldProjections := by
   unfold ConstFieldProjections
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end OpaqueStruct00Qualifs
 open OpaqueStruct00Qualifs
 
 set_option maxHeartbeats 5000000
-def OpaqueStruct00_proof : OpaqueStruct00 := by
+#time def OpaqueStruct00_proof : OpaqueStruct00 := by
   unfold OpaqueStruct00
   solve_fixpoint_combo
 

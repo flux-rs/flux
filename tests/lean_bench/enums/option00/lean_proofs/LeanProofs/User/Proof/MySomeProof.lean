@@ -66,7 +66,7 @@ end MySomeQualifs
 open MySomeQualifs
 
 set_option maxHeartbeats 5000000
-def MySome_proof : MySome := by
+#time def MySome_proof : MySome := by
   unfold MySome
   solve_fixpoint_combo
 

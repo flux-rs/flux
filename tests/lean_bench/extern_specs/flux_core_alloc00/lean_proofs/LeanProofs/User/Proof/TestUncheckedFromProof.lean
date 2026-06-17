@@ -66,7 +66,7 @@ end TestUncheckedFromQualifs
 open TestUncheckedFromQualifs
 
 set_option maxHeartbeats 5000000
-def TestUncheckedFrom_proof : TestUncheckedFrom := by
+#time def TestUncheckedFrom_proof : TestUncheckedFrom := by
   unfold TestUncheckedFrom
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end IdQualifs
 open IdQualifs
 
 set_option maxHeartbeats 5000000
-def Id_proof : Id := by
+#time def Id_proof : Id := by
   unfold Id
   solve_fixpoint_combo
 

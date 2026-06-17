@@ -66,7 +66,7 @@ end Impl0BloopQualifs
 open Impl0BloopQualifs
 
 set_option maxHeartbeats 5000000
-def Impl__0__Bloop_proof : Impl__0__Bloop := by
+#time def Impl__0__Bloop_proof : Impl__0__Bloop := by
   unfold Impl__0__Bloop
   solve_fixpoint_combo
 

@@ -66,7 +66,7 @@ end GetQualifs
 open GetQualifs
 
 set_option maxHeartbeats 5000000
-def Get_proof : Get := by
+#time def Get_proof : Get := by
   unfold Get
   solve_fixpoint_combo
 
