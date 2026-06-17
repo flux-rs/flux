@@ -905,7 +905,8 @@ pub struct Constraint {
     pub kvgen: KVarGen,
     pub query_kind: FixpointQueryKind,
     pub scrape_quals: bool,
-    pub backend: SmtSolver,
+    pub solver: SmtSolver,
+    pub backend: liquid_fixpoint::Backend,
 }
 
 pub type Constraints = Vec<Constraint>;
@@ -1011,6 +1012,7 @@ where
                 fcstr,
                 cstr.query_kind,
                 cstr.scrape_quals,
+                cstr.solver,
                 cstr.backend,
             )?;
             for error in &fixpoint_answer.errors {

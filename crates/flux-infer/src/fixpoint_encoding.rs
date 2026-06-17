@@ -576,6 +576,7 @@ where
         kind: FixpointQueryKind,
         scrape_quals: bool,
         solver: SmtSolver,
+        horn_backend: liquid_fixpoint::Backend,
     ) -> QueryResult<Answer<Tag>> {
         // skip checking trivial constraints
         let count = constraint.concrete_head_count();
@@ -653,16 +654,33 @@ where
             comments: self.comments.clone(),
             constants,
             kvars,
+            wkvars: self.ecx.wkvars.values().cloned().collect_vec(),
             define_funs,
             constraint,
             qualifiers,
             scrape_quals,
             solver,
+            backend: horn_backend,
             data_decls: data_decls.clone(),
         };
+
+        // For hornspec, flatten ADT/Tuple sorts into scalars so we don't emit
+        // declare-datatypes (which hornspec doesn't support).
+        let task = match horn_backend {
+            liquid_fixpoint::Backend::Hornspec => adt_flatten::flatten_task(task),
+            liquid_fixpoint::Backend::Fixpoint => task,
+        };
+
         let id = def_id.resolved_id();
         if config::dump_constraint() {
-            dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
+            match horn_backend {
+                liquid_fixpoint::Backend::Fixpoint => {
+                    dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
+                }
+                liquid_fixpoint::Backend::Hornspec => {
+                    dbg::dump_item_info(self.genv.tcx(), id, "horn", liquid_fixpoint::SmtFormatter(&task)).unwrap();
+                }
+            }
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
@@ -1587,6 +1605,8 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     local_var_env: LocalVarEnv,
     const_env: ConstEnv<'tcx>,
+    /// WKVar declarations collected for the hornspec backend.
+    wkvars: FxIndexMap<rty::WKVid, fixpoint::WKVarDecl>,
     errors: Errors<'genv>,
     /// Id of the item being checked. This is a [`MaybeExternId`] because we may be encoding
     /// invariants for an extern spec on an enum.
@@ -1600,6 +1620,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             genv,
             local_var_env: LocalVarEnv::new(),
             const_env: Default::default(),
+            wkvars: Default::default(),
             errors: Errors::new(genv.sess()),
             def_id,
             infcx: genv
@@ -2374,9 +2395,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         .collect();
                     let name =
                         fixpoint::Var::WKVar(Symbol::intern(&sanitized_name), wkvid.id.as_u32());
-                    let func_sort = rty::FuncSort::new(arg_sorts, rty::Sort::Bool).to_poly();
+                    let func_sort = rty::FuncSort::new(arg_sorts.clone(), rty::Sort::Bool).to_poly();
                     let sort = scx.func_sort_to_fixpoint(&func_sort);
                     self.const_env.wkvar_map_rev.insert(name, key);
+                    // Also record as WKVarDecl for hornspec backend
+                    self.wkvars.entry(wkvid.clone()).or_insert_with(|| {
+                        let sorts = arg_sorts.iter().map(|s| scx.sort_to_fixpoint(s)).collect_vec();
+                        fixpoint::WKVarDecl { wkvid: name, comment: format!("weak kvar: {:?}", name), sorts }
+                    });
                     fixpoint::ConstDecl { name, comment, sort }
                 })
                 .name
@@ -2706,6 +2732,486 @@ fn parse_wkvars(expr: &mut fixpoint::Expr) {
             }
         }
         Expr::BoundVar(..) => {}
+    }
+}
+
+/// Post-processing pass that flattens ADT/Tuple sorts into scalars for the hornspec backend.
+///
+/// Single-constructor ADTs and tuples are isomorphic to the product of their fields.
+/// This pass exploits that by expanding each ADT-typed position (ForAll binding, KVar argument)
+/// into multiple scalar positions — one per leaf field. Constructors and projections are
+/// eliminated: constructors become argument splicing, projections become leaf-variable selection.
+mod adt_flatten {
+    use std::collections::HashMap;
+
+    use super::fixpoint::{self, DataSort, LocalVar, Var};
+    use liquid_fixpoint::{
+        Bind, Constraint, DataDecl, Expr, KVarDecl, Pred, Sort, SortCtor, WKVarDecl,
+    };
+
+    type FixTypes = fixpoint::fixpoint_generated::FixpointTypes;
+
+    /// For each DataSort, stores the leaf sorts that it flattens to.
+    struct FlatLayout {
+        leaves: HashMap<DataSort, Vec<Sort<FixTypes>>>,
+        field_ranges: HashMap<(DataSort, u32), (usize, usize)>,
+    }
+
+    impl FlatLayout {
+        fn build(data_decls: &[DataDecl<FixTypes>]) -> Self {
+            let mut leaves: HashMap<DataSort, Vec<Sort<FixTypes>>> = HashMap::new();
+            let mut field_ranges: HashMap<(DataSort, u32), (usize, usize)> = HashMap::new();
+
+            let mut changed = true;
+            while changed {
+                changed = false;
+                for decl in data_decls {
+                    if leaves.contains_key(&decl.name) {
+                        continue;
+                    }
+                    if decl.ctors.len() != 1 {
+                        panic!(
+                            "adt_flatten: multi-constructor ADT {:?} not supported for hornspec",
+                            decl.name
+                        );
+                    }
+                    let ctor = &decl.ctors[0];
+                    let mut all_resolved = true;
+                    let mut decl_leaves = Vec::new();
+                    let mut decl_field_ranges = Vec::new();
+                    for (i, field) in ctor.fields.iter().enumerate() {
+                        let offset = decl_leaves.len();
+                        match Self::leaf_sorts_of(&field.sort, &leaves) {
+                            Some(field_leaves) => {
+                                let width = field_leaves.len();
+                                decl_leaves.extend(field_leaves);
+                                decl_field_ranges.push((i as u32, offset, width));
+                            }
+                            None => {
+                                all_resolved = false;
+                                break;
+                            }
+                        }
+                    }
+                    if all_resolved {
+                        for (field, offset, width) in decl_field_ranges {
+                            field_ranges.insert((decl.name.clone(), field), (offset, width));
+                        }
+                        leaves.insert(decl.name.clone(), decl_leaves);
+                        changed = true;
+                    }
+                }
+            }
+
+            for decl in data_decls {
+                if !leaves.contains_key(&decl.name) {
+                    panic!(
+                        "adt_flatten: could not resolve flat layout for {:?} \
+                         (recursive ADTs are not supported)",
+                        decl.name
+                    );
+                }
+            }
+
+            FlatLayout { leaves, field_ranges }
+        }
+
+        fn leaf_sorts_of(
+            sort: &Sort<FixTypes>,
+            known: &HashMap<DataSort, Vec<Sort<FixTypes>>>,
+        ) -> Option<Vec<Sort<FixTypes>>> {
+            match sort {
+                Sort::App(SortCtor::Data(ds), _args) => known.get(ds).cloned(),
+                _ => Some(vec![sort.clone()]),
+            }
+        }
+
+        fn flatten_sort(&self, sort: &Sort<FixTypes>) -> Vec<Sort<FixTypes>> {
+            match sort {
+                Sort::App(SortCtor::Data(ds), _args) => {
+                    self.leaves
+                        .get(ds)
+                        .unwrap_or_else(|| {
+                            panic!("adt_flatten: unknown DataSort {ds:?} during flatten_sort")
+                        })
+                        .clone()
+                }
+                _ => vec![sort.clone()],
+            }
+        }
+
+        fn is_adt_sort(&self, sort: &Sort<FixTypes>) -> bool {
+            matches!(sort, Sort::App(SortCtor::Data(ds), _) if self.leaves.contains_key(ds))
+        }
+
+        fn field_range(&self, ds: &DataSort, field: u32) -> (usize, usize) {
+            *self
+                .field_ranges
+                .get(&(ds.clone(), field))
+                .unwrap_or_else(|| panic!("adt_flatten: no field range for ({ds:?}, {field})"))
+        }
+    }
+
+    #[derive(Clone)]
+    struct VarExpansion {
+        leaf_vars: Vec<LocalVar>,
+    }
+
+    struct Flattener {
+        layout: FlatLayout,
+        var_map: HashMap<Var, VarExpansion>,
+        next_local: u32,
+    }
+
+    impl Flattener {
+        fn fresh_local(&mut self) -> LocalVar {
+            let v = LocalVar::from_u32(self.next_local);
+            self.next_local += 1;
+            v
+        }
+
+        fn expand_binding(
+            &mut self,
+            name: Var,
+            sort: &Sort<FixTypes>,
+        ) -> Vec<(Var, Sort<FixTypes>)> {
+            let leaf_sorts = self.layout.flatten_sort(sort);
+            if leaf_sorts.len() == 1 && !self.layout.is_adt_sort(sort) {
+                return vec![(name, sort.clone())];
+            }
+            let mut leaf_vars = Vec::with_capacity(leaf_sorts.len());
+            let mut bindings = Vec::with_capacity(leaf_sorts.len());
+            for leaf_sort in &leaf_sorts {
+                let lv = self.fresh_local();
+                leaf_vars.push(lv);
+                bindings.push((Var::Local(lv), leaf_sort.clone()));
+            }
+            self.var_map.insert(name, VarExpansion { leaf_vars });
+            bindings
+        }
+
+        fn expr_to_leaves(&self, expr: Expr<FixTypes>) -> Vec<Expr<FixTypes>> {
+            match expr {
+                Expr::Var(ref v) => {
+                    if let Some(expansion) = self.var_map.get(v) {
+                        expansion
+                            .leaf_vars
+                            .iter()
+                            .map(|lv| Expr::Var(Var::Local(*lv)))
+                            .collect()
+                    } else {
+                        vec![expr]
+                    }
+                }
+                // Our App is (func, sort_args, args) — 3 fields (no out_sort)
+                Expr::App(func, sort_args, args) => {
+                    match *func {
+                        Expr::Var(Var::DataProj { adt_id, field }) => {
+                            assert_eq!(args.len(), 1, "DataProj should have exactly 1 argument");
+                            let inner_leaves =
+                                self.expr_to_leaves(args.into_iter().next().unwrap());
+                            let ds = DataSort::Adt(adt_id);
+                            let (offset, width) = self.layout.field_range(&ds, field);
+                            inner_leaves[offset..offset + width].to_vec()
+                        }
+                        Expr::Var(Var::TupleProj { arity, field }) => {
+                            assert_eq!(args.len(), 1, "TupleProj should have exactly 1 argument");
+                            let inner_leaves =
+                                self.expr_to_leaves(args.into_iter().next().unwrap());
+                            let ds = DataSort::Tuple(arity);
+                            let (offset, width) = self.layout.field_range(&ds, field);
+                            inner_leaves[offset..offset + width].to_vec()
+                        }
+                        Expr::Var(Var::DataCtor(..)) => {
+                            args.into_iter().flat_map(|a| self.expr_to_leaves(a)).collect()
+                        }
+                        Expr::Var(Var::TupleCtor { .. }) => {
+                            args.into_iter().flat_map(|a| self.expr_to_leaves(a)).collect()
+                        }
+                        other_func => {
+                            let func = Box::new(self.rewrite_scalar_expr(other_func));
+                            let args =
+                                args.into_iter().map(|a| self.rewrite_scalar_expr(a)).collect();
+                            vec![Expr::App(func, sort_args, args)]
+                        }
+                    }
+                }
+                Expr::IsCtor(_, _) => {
+                    vec![Expr::Constant(liquid_fixpoint::Constant::Boolean(true))]
+                }
+                other => vec![self.rewrite_scalar_expr(other)],
+            }
+        }
+
+        fn rewrite_scalar_expr(&self, expr: Expr<FixTypes>) -> Expr<FixTypes> {
+            match expr {
+                Expr::Var(ref v) => {
+                    if self.var_map.contains_key(v) {
+                        panic!(
+                            "adt_flatten: ADT variable {v:?} used in scalar context \
+                             (expected projection or KVar arg)"
+                        );
+                    }
+                    expr
+                }
+                Expr::App(..) => {
+                    let leaves = self.expr_to_leaves(expr);
+                    assert_eq!(
+                        leaves.len(),
+                        1,
+                        "adt_flatten: App expression in scalar context produced multiple leaves"
+                    );
+                    leaves.into_iter().next().unwrap()
+                }
+                Expr::IsCtor(_, _) => Expr::Constant(liquid_fixpoint::Constant::Boolean(true)),
+                Expr::Constant(_) | Expr::ThyFunc(_) | Expr::BoundVar(_) => expr,
+                Expr::Neg(e) => Expr::Neg(Box::new(self.rewrite_scalar_expr(*e))),
+                Expr::Not(e) => Expr::Not(Box::new(self.rewrite_scalar_expr(*e))),
+                Expr::BinaryOp(op, operands) => {
+                    let [e1, e2] = *operands;
+                    Expr::BinaryOp(
+                        op,
+                        Box::new([self.rewrite_scalar_expr(e1), self.rewrite_scalar_expr(e2)]),
+                    )
+                }
+                Expr::Imp(operands) => {
+                    let [e1, e2] = *operands;
+                    Expr::Imp(Box::new([
+                        self.rewrite_scalar_expr(e1),
+                        self.rewrite_scalar_expr(e2),
+                    ]))
+                }
+                Expr::Iff(operands) => {
+                    let [e1, e2] = *operands;
+                    Expr::Iff(Box::new([
+                        self.rewrite_scalar_expr(e1),
+                        self.rewrite_scalar_expr(e2),
+                    ]))
+                }
+                Expr::Atom(rel, operands) => {
+                    let [e1, e2] = *operands;
+                    let leaves1 = self.expr_to_leaves(e1);
+                    let leaves2 = self.expr_to_leaves(e2);
+                    if leaves1.len() == 1 && leaves2.len() == 1 {
+                        Expr::Atom(
+                            rel,
+                            Box::new([
+                                leaves1.into_iter().next().unwrap(),
+                                leaves2.into_iter().next().unwrap(),
+                            ]),
+                        )
+                    } else {
+                        assert_eq!(
+                            leaves1.len(),
+                            leaves2.len(),
+                            "adt_flatten: mismatched ADT comparison widths"
+                        );
+                        Expr::And(
+                            leaves1
+                                .into_iter()
+                                .zip(leaves2)
+                                .map(|(l, r)| Expr::Atom(rel, Box::new([l, r])))
+                                .collect(),
+                        )
+                    }
+                }
+                Expr::IfThenElse(operands) => {
+                    let [p, e1, e2] = *operands;
+                    Expr::IfThenElse(Box::new([
+                        self.rewrite_scalar_expr(p),
+                        self.rewrite_scalar_expr(e1),
+                        self.rewrite_scalar_expr(e2),
+                    ]))
+                }
+                Expr::And(es) => {
+                    Expr::And(es.into_iter().map(|e| self.rewrite_scalar_expr(e)).collect())
+                }
+                Expr::Or(es) => {
+                    Expr::Or(es.into_iter().map(|e| self.rewrite_scalar_expr(e)).collect())
+                }
+                Expr::Let(var, exprs) => {
+                    let [init, body] = *exprs;
+                    Expr::Let(
+                        var,
+                        Box::new([self.rewrite_scalar_expr(init), self.rewrite_scalar_expr(body)]),
+                    )
+                }
+                Expr::Exists(sorts, body) => {
+                    // Our Exists has anonymous sort-only binders (no var names)
+                    let new_sorts: Vec<_> = sorts
+                        .into_iter()
+                        .flat_map(|s| self.layout.flatten_sort(&s))
+                        .collect();
+                    Expr::Exists(new_sorts, Box::new(self.rewrite_scalar_expr(*body)))
+                }
+                Expr::WKVar(wkvar) => {
+                    let args = wkvar
+                        .args
+                        .into_iter()
+                        .flat_map(|a| self.expr_to_leaves(a))
+                        .collect();
+                    Expr::WKVar(liquid_fixpoint::WKVar { wkvid: wkvar.wkvid, args })
+                }
+            }
+        }
+
+        fn rewrite_pred(&self, pred: Pred<FixTypes>) -> Pred<FixTypes> {
+            match pred {
+                Pred::And(preds) => {
+                    Pred::And(preds.into_iter().map(|p| self.rewrite_pred(p)).collect())
+                }
+                Pred::KVar(kvid, args) => {
+                    // Our Pred::KVar args are Vec<T::Var>, not Vec<Expr<T>>.
+                    // Expand any ADT-typed var references via var_map.
+                    let new_args: Vec<Var> = args
+                        .into_iter()
+                        .flat_map(|v| {
+                            if let Some(expansion) = self.var_map.get(&v) {
+                                expansion.leaf_vars.iter().map(|lv| Var::Local(*lv)).collect()
+                            } else {
+                                vec![v]
+                            }
+                        })
+                        .collect();
+                    Pred::KVar(kvid, new_args)
+                }
+                Pred::Expr(e) => Pred::Expr(self.rewrite_scalar_expr(e)),
+            }
+        }
+
+        fn rewrite_constraint(&mut self, cstr: Constraint<FixTypes>) -> Constraint<FixTypes> {
+            match cstr {
+                Constraint::Pred(pred, tag) => Constraint::Pred(self.rewrite_pred(pred), tag),
+                Constraint::Conj(cstrs) => {
+                    Constraint::Conj(cstrs.into_iter().map(|c| self.rewrite_constraint(c)).collect())
+                }
+                Constraint::ForAll(bind, inner) => {
+                    if self.layout.is_adt_sort(&bind.sort) {
+                        let expanded = self.expand_binding(bind.name, &bind.sort);
+                        let pred = self.rewrite_pred(bind.pred);
+                        let inner = self.rewrite_constraint(*inner);
+                        expanded.into_iter().rev().fold(inner, |acc, (var, sort)| {
+                            Constraint::ForAll(
+                                Bind { name: var, sort, pred: pred.clone() },
+                                Box::new(acc),
+                            )
+                        })
+                    } else {
+                        let pred = self.rewrite_pred(bind.pred);
+                        let inner = self.rewrite_constraint(*inner);
+                        Constraint::ForAll(
+                            Bind { name: bind.name, sort: bind.sort, pred },
+                            Box::new(inner),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fn find_max_local(task: &fixpoint::Task) -> u32 {
+        let mut max_local: u32 = 0;
+
+        fn scan_var(v: &Var, max: &mut u32) {
+            if let Var::Local(lv) = v {
+                *max = (*max).max(lv.as_u32());
+            }
+        }
+
+        fn scan_expr(e: &Expr<FixTypes>, max: &mut u32) {
+            match e {
+                Expr::Var(v) => scan_var(v, max),
+                Expr::App(func, _, args) => {
+                    scan_expr(func, max);
+                    args.iter().for_each(|a| scan_expr(a, max));
+                }
+                Expr::Neg(e) | Expr::Not(e) | Expr::IsCtor(_, e) => scan_expr(e, max),
+                Expr::BinaryOp(_, es) | Expr::Imp(es) | Expr::Iff(es) | Expr::Atom(_, es) => {
+                    es.iter().for_each(|e| scan_expr(e, max));
+                }
+                Expr::IfThenElse(es) => es.iter().for_each(|e| scan_expr(e, max)),
+                Expr::And(es) | Expr::Or(es) => es.iter().for_each(|e| scan_expr(e, max)),
+                Expr::Let(v, es) => {
+                    scan_var(v, max);
+                    es.iter().for_each(|e| scan_expr(e, max));
+                }
+                Expr::Exists(_sorts, body) => {
+                    // Our Exists has anonymous sorts only (no bound var names to scan)
+                    scan_expr(body, max);
+                }
+                Expr::WKVar(wk) => {
+                    scan_var(&wk.wkvid, max);
+                    wk.args.iter().for_each(|a| scan_expr(a, max));
+                }
+                Expr::Constant(_) | Expr::ThyFunc(_) | Expr::BoundVar(_) => {}
+            }
+        }
+
+        fn scan_pred(p: &Pred<FixTypes>, max: &mut u32) {
+            match p {
+                Pred::And(ps) => ps.iter().for_each(|p| scan_pred(p, max)),
+                // Our Pred::KVar args are Vec<Var>, not Vec<Expr>
+                Pred::KVar(_, args) => args.iter().for_each(|a| scan_var(a, max)),
+                Pred::Expr(e) => scan_expr(e, max),
+            }
+        }
+
+        fn scan_constraint(c: &Constraint<FixTypes>, max: &mut u32) {
+            match c {
+                Constraint::Pred(p, _) => scan_pred(p, max),
+                Constraint::Conj(cs) => cs.iter().for_each(|c| scan_constraint(c, max)),
+                Constraint::ForAll(bind, inner) => {
+                    scan_var(&bind.name, max);
+                    scan_pred(&bind.pred, max);
+                    scan_constraint(inner, max);
+                }
+            }
+        }
+
+        scan_constraint(&task.constraint, &mut max_local);
+        max_local
+    }
+
+    pub fn flatten_task(mut task: fixpoint::Task) -> fixpoint::Task {
+        if task.data_decls.is_empty() {
+            return task;
+        }
+
+        let layout = FlatLayout::build(&task.data_decls);
+        let next_local = find_max_local(&task) + 1;
+
+        let mut flattener = Flattener { layout, var_map: HashMap::new(), next_local };
+
+        task.kvars = task
+            .kvars
+            .into_iter()
+            .map(|kvar| {
+                let sorts = kvar
+                    .sorts
+                    .into_iter()
+                    .flat_map(|s| flattener.layout.flatten_sort(&s))
+                    .collect();
+                KVarDecl { kvid: kvar.kvid, sorts, comment: kvar.comment }
+            })
+            .collect();
+
+        task.wkvars = task
+            .wkvars
+            .into_iter()
+            .map(|wkvar| {
+                let sorts = wkvar
+                    .sorts
+                    .into_iter()
+                    .flat_map(|s| flattener.layout.flatten_sort(&s))
+                    .collect();
+                WKVarDecl { wkvid: wkvar.wkvid, sorts, comment: wkvar.comment }
+            })
+            .collect();
+
+        task.constraint = flattener.rewrite_constraint(task.constraint);
+        task.data_decls.clear();
+
+        task
     }
 }
 

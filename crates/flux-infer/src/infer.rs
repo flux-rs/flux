@@ -247,9 +247,13 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let backend = match self.opts.solver {
+        let solver = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
+        };
+        let horn_backend = match self.opts.backend {
+            flux_config::Backend::Fixpoint => liquid_fixpoint::Backend::Fixpoint,
+            flux_config::Backend::Hornspec => liquid_fixpoint::Backend::Hornspec,
         };
         constraints.push(Constraint {
             def_id,
@@ -257,7 +261,8 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             kvgen: kvars.clone(),
             query_kind: kind,
             scrape_quals: self.opts.scrape_quals,
-            backend,
+            solver,
+            backend: horn_backend,
         });
 
         // let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);

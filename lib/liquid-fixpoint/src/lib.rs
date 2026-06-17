@@ -22,6 +22,8 @@ mod constraint_with_env;
 #[cfg(any(feature = "rust-fixpoint", feature = "wick"))]
 mod cstr2smt2;
 mod format;
+mod format_smt;
+mod hornspec;
 #[cfg(any(feature = "rust-fixpoint", feature = "wick"))]
 mod graph;
 pub mod parser;
@@ -44,6 +46,7 @@ pub use constraint::{
     BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FlatConstraint, Pred, Qualifier, Sort, SortCtor, SortDecl, WKVar,
 };
+pub use format_smt::SmtFormatter;
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
@@ -131,6 +134,7 @@ macro_rules! declare_types {
             pub type Constraint = $crate::Constraint<FixpointTypes>;
             pub type FlatConstraint = $crate::FlatConstraint<FixpointTypes>;
             pub type KVarDecl = $crate::KVarDecl<FixpointTypes>;
+            pub type WKVarDecl = $crate::WKVarDecl<FixpointTypes>;
             pub type ConstDecl = $crate::ConstDecl<FixpointTypes>;
             pub type FunDef = $crate::FunDef<FixpointTypes>;
             pub type Task = $crate::Task<FixpointTypes>;
@@ -206,10 +210,12 @@ pub struct Task<T: Types> {
     pub data_decls: Vec<DataDecl<T>>,
     pub define_funs: Vec<FunDef<T>>,
     pub kvars: Vec<KVarDecl<T>>,
+    pub wkvars: Vec<WKVarDecl<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
     pub scrape_quals: bool,
     pub solver: SmtSolver,
+    pub backend: Backend,
 }
 
 #[derive(Clone, Copy, Hash)]
@@ -225,6 +231,15 @@ impl fmt::Display for SmtSolver {
             SmtSolver::CVC5 => write!(f, "cvc5"),
         }
     }
+}
+
+/// Backend to use for constraint solving.
+#[derive(Clone, Copy, Hash)]
+pub enum Backend {
+    /// Use the liquid-fixpoint binary
+    Fixpoint,
+    /// Use hornspec with the SMT-LIB HORN CHC format
+    Hornspec,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -331,6 +346,14 @@ pub struct KVarDecl<T: Types> {
     pub comment: String,
 }
 
+#[derive_where(Debug, Clone, Hash)]
+pub struct WKVarDecl<T: Types> {
+    pub wkvid: T::Var,
+    pub sorts: Vec<Sort<T>>,
+    #[derive_where(skip)]
+    pub comment: String,
+}
+
 impl<T: Types> Task<T> {
     pub fn hash_with_default(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
@@ -338,8 +361,19 @@ impl<T: Types> Task<T> {
         hasher.finish()
     }
 
-    #[cfg(feature = "rust-fixpoint")]
     pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
+        match self.backend {
+            Backend::Fixpoint => self.run_fixpoint(),
+            Backend::Hornspec => self.run_hornspec(),
+        }
+    }
+
+    fn run_hornspec(&self) -> io::Result<FixpointResult<T::Tag>> {
+        hornspec::run_hornspec(self)
+    }
+
+    #[cfg(feature = "rust-fixpoint")]
+    fn run_fixpoint(&self) -> io::Result<FixpointResult<T::Tag>> {
         let mut cstr_with_env = ConstraintWithEnv::new(
             self.data_decls.clone(),
             self.kvars.clone(),
@@ -355,7 +389,7 @@ impl<T: Types> Task<T> {
     }
 
     #[cfg(not(feature = "rust-fixpoint"))]
-    pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
+    fn run_fixpoint(&self) -> io::Result<FixpointResult<T::Tag>> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
