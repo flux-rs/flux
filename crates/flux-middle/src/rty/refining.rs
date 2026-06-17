@@ -710,7 +710,12 @@ impl TypeFolder for WeakKVarInserter {
                     .collect();
                 BaseTy::Adt(adt_def.clone(), new_args)
             }
-            _ => bty.super_fold_with(self),
+            // For these specific btys, we will recur and add wkvars
+            BaseTy::Ref(..) | BaseTy::Tuple(..) | BaseTy::Array(..) | BaseTy::Slice(..) => {
+                bty.super_fold_with(self)
+            }
+            // By default we will not recur on the bty to add wkvars
+            _ => bty.clone(),
         }
     }
 }

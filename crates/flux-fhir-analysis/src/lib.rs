@@ -585,7 +585,8 @@ fn variants_of(
 }
 
 fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    match genv.fhir_node(def_id.local_id())? {
+    let fhir_node = genv.fhir_node(def_id.local_id())?;
+    match &fhir_node {
         fhir::Node::Item(Item { kind: ItemKind::Fn(fhir_fn_sig, ..), .. })
         | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fhir_fn_sig), .. })
         | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fhir_fn_sig), .. })
@@ -603,7 +604,9 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             if fn_sig.vars().is_empty() {
                 fn_sig = fn_sig.hoist_input_binders();
             }
-            if weak_kvars_empty && !genv.no_suggestions(def_id.local_id()) {
+            if weak_kvars_empty && !genv.no_suggestions(def_id.local_id())
+                && !matches!(fhir_node, fhir::Node::TraitItem(..) | fhir::Node::ForeignItem(..) | fhir::Node::ImplItem(..))
+            {
                 // println!("adding wkvars for {:?}", def_id);
                 fn_sig = fn_sig.hoist_input_binders();
                 let id = match def_id {

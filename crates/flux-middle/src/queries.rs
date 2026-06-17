@@ -874,6 +874,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     //   2. The function does NOT have a `#[no_suggestions]` annotation
                     //      in its parent.
                     if genv.weak_kvars_for(def_id).is_none()
+                        && genv.resolve_id(def_id).as_maybe_extern().is_some()
                         && def_id
                             .as_local()
                             .map(|local_id| !genv.no_suggestions(local_id))
