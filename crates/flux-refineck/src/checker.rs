@@ -60,6 +60,7 @@ use rustc_span::{
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{
+    checker::mir::RawPtrKind,
     ghost_statements::{CheckerId, GhostStatement, GhostStatements, Point},
     primops,
     queue::WorkQueue,
@@ -1512,8 +1513,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // ignore any refinements on the type stored at place
                 let ty = &env.lookup_rust_ty(genv, place).with_span(stmt_span)?;
                 let ty = self.refine_default(ty).with_span(stmt_span)?;
-                let ty = BaseTy::RawPtr(ty, kind.to_mutbl_lossy()).to_ty();
-                Ok(ty)
+                raw_ptr_with_size(kind, ty)
             }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
@@ -2094,6 +2094,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn refine_with_holes<T: Refine>(&self, ty: &T) -> QueryResult<<T as Refine>::Output> {
         ty.refine(&Refiner::with_holes(self.genv, self.checker_id.root_id().to_def_id())?)
     }
+}
+
+/// Given a `Ty` and a `RawPtrKind`, creates a raw pointer to `Ty` with "size = 1"
+/// see test `fn ref_to_ptr_read` in `crates/flux/tests/tests/with_deps/pos/extern_specs/flux_core_ptr01.rs`
+fn raw_ptr_with_size(kind: &RawPtrKind, ty: Ty) -> Result<Ty> {
+    let bty = BaseTy::RawPtr(ty, kind.to_mutbl_lossy());
+    let nu = Expr::nu();
+    let base =
+        Expr::field_proj(nu.clone(), rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
+    let addr =
+        Expr::field_proj(nu.clone(), rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
+    let size = Expr::field_proj(nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
+    let pred = Expr::and(Expr::eq(base, addr), Expr::eq(size, Expr::constant(Constant::ONE)));
+
+    let ty = Ty::exists_with_constr(bty, pred);
+    Ok(ty)
 }
 
 fn instantiate_args_for_fun_call(
