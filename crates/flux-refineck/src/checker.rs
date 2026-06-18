@@ -1754,10 +1754,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             CastKind::PointerCoercion(mir::PointerCast::Unsize) => {
                 self.check_unsize_cast(infcx, env, stmt_span, from, to)?
             }
+            CastKind::PointerCoercion(mir::PointerCast::MutToConstPointer) => {
+                match from.kind() {
+                    TyKind::Indexed(BaseTy::RawPtr(inner_ty, Mutability::Mut), idx) => {
+                        Ty::indexed(BaseTy::RawPtr(inner_ty.clone(), Mutability::Not), idx.clone())
+                    }
+                    _ => self.refine_default(to)?,
+                }
+            }
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::PtrToPtr
-            | CastKind::PointerCoercion(mir::PointerCast::MutToConstPointer)
             | CastKind::PointerCoercion(mir::PointerCast::ClosureFnPointer)
             | CastKind::PointerWithExposedProvenance => self.refine_default(to)?,
             CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer) => {
