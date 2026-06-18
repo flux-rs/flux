@@ -726,7 +726,6 @@ where
                 metrics::TimingKind::HornspecQuery {
                     def_id: id,
                     outcome: hs_outcome,
-                    chc_count: count,
                     error_count: fixpoint_error_count,
                 },
                 hs_start.elapsed(),
