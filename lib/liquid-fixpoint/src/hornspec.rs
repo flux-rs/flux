@@ -27,7 +27,9 @@ use crate::{
 /// Run hornspec on the given task and parse the output.
 pub(crate) fn run_hornspec<T: Types>(task: &Task<T>) -> io::Result<FixpointResult<T::Tag>> {
     // Spawn hornspec binary, piping input via stdin
-    let mut child = Command::new("hornspec")
+    let mut child = Command::new("timeout")
+        .arg("5s")
+        .arg("hornspec")
         .arg("--skip-maximal")
         .arg("-")
         .stdin(Stdio::piped())
@@ -43,6 +45,15 @@ pub(crate) fn run_hornspec<T: Types>(task: &Task<T>) -> io::Result<FixpointResul
     }
 
     let output = child.wait_with_output()?;
+
+    // Timeout
+    if output.status.code() == Some(124) {
+        return Ok(FixpointResult {
+            status: FixpointStatus::Timeout,
+            solution: vec![],
+            non_cuts_solution: vec![],
+        });
+    }
 
     if !output.status.success() && output.stdout.is_empty() {
         let stderr = std::str::from_utf8(&output.stderr)

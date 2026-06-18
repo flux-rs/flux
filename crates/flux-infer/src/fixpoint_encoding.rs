@@ -713,7 +713,11 @@ where
                 dbg::dump_item_info(self.genv.tcx(), id, "horn", liquid_fixpoint::SmtFormatter(&hornspec_task)).unwrap();
             }
             let hs_start = std::time::Instant::now();
-            let hs_safe = matches!(hornspec_task.run(), Ok(r) if r.status.is_safe());
+            let hs_res = hornspec_task.run();
+            let hs_safe = match hs_res {
+                Err(e) => panic!("got error {:?}", e),
+                Ok(r)  => r.status.is_safe(),
+            };
             metrics::record(
                 metrics::TimingKind::HornspecQuery { def_id: id, safe: hs_safe },
                 hs_start.elapsed(),
@@ -904,6 +908,7 @@ where
                         .collect_vec()
                     }
                     FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
+                    FixpointStatus::Timeout => span_bug!(def_span, "timeout (impossible unless running hornspec)"),
                 };
                 Ok(Answer { errors, solution })
             },

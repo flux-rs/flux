@@ -252,6 +252,7 @@ pub enum FixpointStatus<Tag> {
     Safe(Stats),
     Unsafe(Stats, Vec<Error<Tag>>),
     Crash(CrashInfo),
+    Timeout,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -297,6 +298,8 @@ impl<Tag> FixpointStatus<Tag> {
             (FR::Crash(info1), FR::Crash(info2)) => FR::Crash(info1.merge(info2)),
             (FR::Crash(info), _) => FR::Crash(info),
             (_, FR::Crash(info)) => FR::Crash(info),
+            (FR::Timeout, _) => FR::Timeout,
+            (_, FR::Timeout) => FR::Timeout,
         }
     }
 }
