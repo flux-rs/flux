@@ -719,7 +719,7 @@ where
                     liquid_fixpoint::FixpointStatus::Timeout => metrics::HornspecOutcome::Timeout,
                     _ => metrics::HornspecOutcome::Unsafe,
                 },
-                Err(_) => metrics::HornspecOutcome::Unsafe,
+                Err(e) => panic!("hornspec failed: {e}"),
             };
             metrics::record(
                 metrics::TimingKind::HornspecQuery { def_id: id, outcome: hs_outcome },
