@@ -636,19 +636,22 @@ where
         // The rust fixpoint implementation does not yet support polymorphic functions.
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
+        // Hornspec also doesn't support polymorphism, so skip for that backend too.
         #[cfg(not(feature = "rust-fixpoint"))]
-        for rel in fixpoint::BinRel::INEQUALITIES {
-            // ∀a. a -> a -> bool
-            let sort = fixpoint::Sort::mk_func(
-                1,
-                [fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
-                fixpoint::Sort::Bool,
-            );
-            constants.push(fixpoint::ConstDecl {
-                name: fixpoint::Var::UIFRel(rel),
-                sort,
-                comment: None,
-            });
+        if matches!(horn_backend, liquid_fixpoint::Backend::Fixpoint) {
+            for rel in fixpoint::BinRel::INEQUALITIES {
+                // ∀a. a -> a -> bool
+                let sort = fixpoint::Sort::mk_func(
+                    1,
+                    [fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
+                    fixpoint::Sort::Bool,
+                );
+                constants.push(fixpoint::ConstDecl {
+                    name: fixpoint::Var::UIFRel(rel),
+                    sort,
+                    comment: None,
+                });
+            }
         }
 
         // We are done encoding expressions. Check if there are any errors.
@@ -694,8 +697,12 @@ where
         #[cfg(feature = "wick")]
         {
             let mut hornspec_task = task.clone();
-            // Strip wkvar ConstDecls (only needed for fixpoint backend)
-            hornspec_task.constants.retain(|c| !matches!(c.name, fixpoint::Var::WKVar(..)));
+            // Strip constants that fixpoint needs but hornspec doesn't support:
+            // - UIFRel: polymorphic comparison operators (hornspec has no polymorphism)
+            // - WKVar: declared via WKVarDecl instead for hornspec
+            hornspec_task.constants.retain(|c| {
+                !matches!(c.name, fixpoint::Var::WKVar(..) | fixpoint::Var::UIFRel(..))
+            });
             hornspec_task.backend = liquid_fixpoint::Backend::Hornspec;
             let hornspec_task = adt_flatten::flatten_task(hornspec_task);
             if config::dump_constraint() {
