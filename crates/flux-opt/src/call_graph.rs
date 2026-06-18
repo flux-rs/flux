@@ -1,128 +1,92 @@
-use std::fmt;
-
-use flux_middle::global_env::GlobalEnv;
-use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
-use rustc_hash::FxHashSet;
+use flux_middle::{
+    call_graph::{CallGraph, CallSite, CallSiteKind, Node, NodeKey},
+    global_env::GlobalEnv,
+};
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordSet};
 use rustc_hir::{
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE},
 };
 use rustc_middle::{
     mir::{Location, TerminatorKind, UnwindAction},
-    ty::{EarlyBinder, GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt, TypingEnv},
+    ty::{EarlyBinder, Instance, InstanceKind, TyCtxt, TypingEnv},
 };
 
-/// A single call site observed in a function's MIR body.
-#[derive(Debug, Clone)]
-pub(crate) struct CallSite<'tcx> {
-    pub(crate) location: Location,
-    pub(crate) kind: CallSiteKind<'tcx>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum CallSiteKind<'tcx> {
-    /// `Call` terminator that resolved to a concrete `Instance`
-    /// (potentionally monomorphized)
-    Resolved { callee: Instance<'tcx> },
-    /// Synthetic edge from an `Assert` terminator with a reachable unwind path —
-    /// represents the implicit call to `core::panicking::panic`.
-    SynthesizedPanic,
-    /// `Call` terminator on a `FnDef` where `Instance::try_resolve` failed.
-    Unresolved { def_id: DefId },
-    /// `Call` terminator on a non-`FnDef` type (function pointer, closure).
-    DynamicDispatch,
-}
-
-/// Classification of a node in the call graph.
-#[derive(Debug, Clone)]
-pub(crate) enum NodeKind {
-    /// MIR was available and walked.
-    /// `is_mono` is true when the instance is a concrete monomorphization
-    /// (args differ from the identity args). False for the source-level item.
-    Analyzed { is_mono: bool },
-    /// External crate function — panic spec looked up from crate metadata.
-    ExternalCrate,
-    /// Function with no analyzable body (no Rust body by design, MIR unavailable,
-    /// or a non-`Item` instance such as a shim or virtual dispatch stub).
-    /// Conservatively treated as `MightPanic`.
-    Leaf(DefKind),
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct NodeInfo<'tcx> {
-    pub(crate) kind: NodeKind,
-    /// Call sites observed in this function's MIR body. Non-empty only for
-    /// `NodeKind::Analyzed` nodes.
-    pub(crate) call_sites: Vec<CallSite<'tcx>>,
-}
-
-pub(crate) struct CallGraph<'tcx> {
-    pub(crate) nodes: FxIndexMap<Instance<'tcx>, NodeInfo<'tcx>>,
-    pub(crate) callers: UnordMap<Instance<'tcx>, Vec<Instance<'tcx>>>,
-}
-
-impl<'tcx> CallGraph<'tcx> {
-    fn build_callers(&mut self) {
-        for (&caller, info) in &self.nodes {
-            for callee in resolved_callees(&info.call_sites) {
-                self.callers.entry(callee).or_default().push(caller);
-            }
-        }
-    }
-}
-
-pub(crate) fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
+pub fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
     let tcx = genv.tcx();
 
-    let mut graph = CallGraph { nodes: FxIndexMap::default(), callers: UnordMap::default() };
+    let mut nodes: FxIndexMap<NodeKey<'_>, Node<'_>> = FxIndexMap::default();
 
-    // Instance-level worklist and visited set to handle the same DefId being
-    // called with different concrete type args.
-    let mut worklist: Vec<Instance<'_>> = Vec::new();
-    let mut explored: FxHashSet<Instance<'_>> = FxHashSet::default();
+    // Node-level worklist and visited set: the same DefId can appear both as a source item and as
+    // distinct monomorphizations, each a separate [`NodeKey`].
+    let mut worklist: Vec<NodeKey<'_>> = Vec::new();
+    let mut explored: UnordSet<NodeKey<'_>> = UnordSet::default();
 
-    for root_local in tcx.iter_local_def_id() {
+    // Seed the worklist with non-dummy local def ids.
+    for root_local in genv.iter_local_def_id() {
         let def_id = root_local.to_def_id();
         if !tcx.def_kind(root_local).is_fn_like() || is_method_in_trait(tcx, def_id) {
             continue;
         }
-        worklist.push(Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id)));
+        // Roots are the items as written in source.
+        worklist.push(NodeKey::Item(def_id));
     }
 
-    while let Some(instance) = worklist.pop() {
-        if !explored.insert(instance) {
+    while let Some(key) = worklist.pop() {
+        if !explored.insert(key) {
             continue;
         }
+        let node = analyze_node(genv, key);
+        worklist.extend(node.resolved_callees());
+        nodes.insert(key, node);
+    }
 
-        let def_id = instance.def_id();
+    CallGraph::new(nodes)
+}
 
-        // External non-stdlib callees: treat as a leaf and record for spec lookup.
-        if !should_include_in_call_graph(genv, def_id.krate) {
-            graph
-                .nodes
-                .insert(instance, NodeInfo { kind: NodeKind::ExternalCrate, call_sites: vec![] });
-            continue;
-        }
+/// Classifies the node identified by `key` into a call-graph [`Node`], walking its body for call
+/// sites when one is available.
+fn analyze_node<'tcx>(genv: GlobalEnv<'_, 'tcx>, key: NodeKey<'tcx>) -> Node<'tcx> {
+    let tcx = genv.tcx();
+    let def_id = key.def_id();
 
-        if let InstanceKind::Item(_) = instance.def
-            && tcx.is_mir_available(def_id)
-        {
-            let call_sites = item_callees(tcx, instance);
-            worklist.extend(resolved_callees(&call_sites));
-            let is_mono = !is_identity_instance(tcx, instance);
-            graph
-                .nodes
-                .insert(instance, NodeInfo { kind: NodeKind::Analyzed { is_mono }, call_sites });
+    // External non-stdlib callees looked up from crate metadata.
+    if !should_include_in_call_graph(genv, def_id.krate) {
+        return Node::ExternalCrate;
+    }
+
+    let instance = key.instance(tcx);
+
+    // Only `Item` instances have a walkable Rust body; shims / virtual stubs are leaves.
+    //
+    // For **local** functions we walk the unoptimized borrowck body (stashed by the `mir_borrowck`
+    // override) rather than `tcx.instance_mir`, which would give us *optimized* MIR. This matters
+    // because the checker recovers the resolved callee at a call site by `Location`, and those
+    // locations must refer to the same (unoptimized) body the checker checks. See REPORT step 3.
+    if let InstanceKind::Item(_) = instance.def {
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "we seed the call graph with non-dummy local def ids, so the traversal should never reach dummy extern spec items."
+        )]
+        let call_sites = if let Some(local_def_id) = def_id.as_local() {
+            debug_assert!(!genv.maybe_extern_id(local_def_id).is_extern());
+
+            // SAFETY: the call graph runs after rustc's analysis pass, so every local body has
+            // been borrowchecked and stashed. `try_retrieve_mir_body` degrades to `None` (→ leaf)
+            // for the rare local fn-like item rustc never borrowchecks.
+            unsafe { flux_common::mir_storage::try_retrieve_mir_body(tcx, local_def_id) }
+                .map(|facts| callees_in_body(tcx, instance, &facts.body))
+        } else if tcx.is_mir_available(def_id) {
+            Some(callees_in_body(tcx, instance, tcx.instance_mir(instance.def)))
         } else {
-            graph.nodes.insert(
-                instance,
-                NodeInfo { kind: NodeKind::Leaf(tcx.def_kind(def_id)), call_sites: vec![] },
-            );
+            None
+        };
+        if let Some(call_sites) = call_sites {
+            return Node::Analyzed { call_sites };
         }
     }
 
-    graph.build_callers();
-    graph
+    Node::Leaf(tcx.def_kind(def_id))
 }
 
 fn is_method_in_trait<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> bool {
@@ -131,23 +95,6 @@ fn is_method_in_trait<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> bool {
         matches!(tcx.associated_item(def_id).container, rustc_middle::ty::AssocContainer::Trait)
     } else {
         false
-    }
-}
-
-fn is_identity_instance<'tcx>(tcx: TyCtxt<'tcx>, instance: Instance<'tcx>) -> bool {
-    let identity = GenericArgs::identity_for_item(tcx, instance.def_id());
-    instance.args == identity
-}
-
-/// If `instance` is an `InstanceKind::Item` whose args still contain abstract type/const
-/// parameters (i.e., we are inside a generic caller), normalize it to its identity instance so
-/// all call sites for the same generic function fold into one graph node.
-fn normalize_abstract_args<'tcx>(tcx: TyCtxt<'tcx>, instance: Instance<'tcx>) -> Instance<'tcx> {
-    if matches!(instance.def, InstanceKind::Item(_)) && instance.args.has_param() {
-        let def_id = instance.def_id();
-        Instance::new_raw(def_id, GenericArgs::identity_for_item(tcx, def_id))
-    } else {
-        instance
     }
 }
 
@@ -178,10 +125,16 @@ fn callees_in_body<'tcx>(
         let terminator = bb_data.terminator();
         let location = Location { block: bb, statement_index: bb_data.statements.len() };
 
-        match &terminator.kind {
+        let kind = match &terminator.kind {
             TerminatorKind::Call { func, .. } => {
                 let ty = func.ty(&body.local_decls, tcx);
-                // Apply the caller's concrete type args to get the concrete callee type.
+                // The unoptimized borrowck body still carries region inference vars (`ReVar`),
+                // which `instantiate_mir_and_normalize_erasing_regions` would panic on. Erase
+                // regions up front — we only need the callee's type/const args to resolve it.
+                let ty = tcx.erase_and_anonymize_regions(ty);
+                // If we are inside a generic caller that we have monomorphized to a particular `Instance`,
+                // we apply the caller's concrete args to get the concrete callee type. For generic callers
+                // where `Instance` remains polymorphic (i.e., it has identity args) this is a no-op.
                 let ty = caller.instantiate_mir_and_normalize_erasing_regions(
                     tcx,
                     typing_env,
@@ -192,92 +145,23 @@ fn callees_in_body<'tcx>(
                     rustc_middle::ty::TyKind::FnDef(callee_def_id, callee_args) => {
                         match Instance::try_resolve(tcx, typing_env, *callee_def_id, callee_args) {
                             Ok(Some(instance)) => {
-                                let instance = normalize_abstract_args(tcx, instance);
-                                call_sites.push(CallSite {
-                                    location,
-                                    kind: CallSiteKind::Resolved { callee: instance },
-                                });
+                                CallSiteKind::Resolved { callee: NodeKey::from_instance(instance) }
                             }
-                            _ => {
-                                call_sites.push(CallSite {
-                                    location,
-                                    kind: CallSiteKind::Unresolved { def_id: *callee_def_id },
-                                });
-                            }
+                            _ => CallSiteKind::Unresolved { def_id: *callee_def_id },
                         }
                     }
-                    _ => {
-                        call_sites.push(CallSite { location, kind: CallSiteKind::DynamicDispatch });
-                    }
+                    _ => CallSiteKind::DynamicDispatch,
                 }
             }
             TerminatorKind::Assert { unwind, .. }
                 if !matches!(unwind, UnwindAction::Unreachable) =>
             {
-                call_sites.push(CallSite { location, kind: CallSiteKind::SynthesizedPanic });
+                CallSiteKind::SynthesizedPanic
             }
-            _ => {}
-        }
+            _ => continue,
+        };
+        call_sites.push(CallSite { location, kind });
     }
 
     call_sites
-}
-
-/// Call sites of a worklist instance. After normalization all non-mono instances on the worklist
-/// are identity instances, so `instance_mir` returns the unspecialized body.
-fn item_callees<'tcx>(tcx: TyCtxt<'tcx>, instance: Instance<'tcx>) -> Vec<CallSite<'tcx>> {
-    callees_in_body(tcx, instance, tcx.instance_mir(instance.def))
-}
-
-pub(crate) fn resolved_callees<'tcx>(
-    call_sites: &[CallSite<'tcx>],
-) -> impl Iterator<Item = Instance<'tcx>> {
-    call_sites.iter().filter_map(|site| {
-        match site.kind {
-            CallSiteKind::Resolved { callee } => Some(callee),
-            _ => None,
-        }
-    })
-}
-
-impl fmt::Display for NodeKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            NodeKind::Analyzed { is_mono } => {
-                if *is_mono {
-                    write!(f, "Analyzed(mono)")
-                } else {
-                    write!(f, "Analyzed")
-                }
-            }
-            NodeKind::ExternalCrate => write!(f, "ExternalCrate"),
-            NodeKind::Leaf(kind) => write!(f, "Leaf({kind:?})"),
-        }
-    }
-}
-
-impl<'tcx> fmt::Display for CallSiteKind<'tcx> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CallSiteKind::Resolved { callee } => write!(f, "-> {callee}"),
-            CallSiteKind::SynthesizedPanic => write!(f, "-> panic"),
-            CallSiteKind::Unresolved { def_id: method } => write!(f, "-> trait {method:?}"),
-            CallSiteKind::DynamicDispatch => write!(f, "-> <dynamic>"),
-        }
-    }
-}
-
-impl<'tcx> fmt::Display for CallGraph<'tcx> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "call graph ({} nodes):", self.nodes.len())?;
-        let mut nodes: Vec<_> = self.nodes.iter().collect();
-        nodes.sort_by_key(|(inst, _)| format!("{inst}"));
-        for (instance, info) in nodes {
-            writeln!(f, "  {instance} [{}]:", info.kind)?;
-            for site in &info.call_sites {
-                writeln!(f, "    {} at {:?}", site.kind, site.location)?;
-            }
-        }
-        Ok(())
-    }
 }

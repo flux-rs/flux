@@ -111,7 +111,7 @@ impl GhostStatements {
                 };
 
             fold_unfold::add_ghost_statements(&mut stmts, genv, body, fn_sig.as_ref())?;
-            points_to::add_ghost_statements(&mut stmts, genv, &body.rustc_body, fn_sig.as_ref())?;
+            points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
             // We only add unblock statements for the main body because borrows in promoted constants
             // have to be live in the main body so they never go out of scope in the promoted body.
             if !checker_id.is_promoted() {
@@ -190,7 +190,7 @@ impl GhostStatements {
 
     pub(crate) fn dump_ghost_mir<'tcx>(&self, tcx: TyCtxt<'tcx>, body: &Body<'tcx>) {
         use rustc_middle::mir::{PassWhere, pretty::MirDumper};
-        if let Some(dumper) = MirDumper::new(tcx, "ghost", &body.rustc_body) {
+        if let Some(dumper) = MirDumper::new(tcx, "ghost", body.rustc_body()) {
             dumper
                 .set_extra_data(&|pass, w| {
                     match pass {
@@ -221,7 +221,7 @@ impl GhostStatements {
                     }
                     Ok(())
                 })
-                .dump_mir(&body.rustc_body);
+                .dump_mir(body.rustc_body());
         }
     }
 }

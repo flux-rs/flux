@@ -13,7 +13,7 @@ use flux_infer::{
     refine_tree::{Marker, RefineCtxtTrace},
 };
 use flux_middle::{
-    PanicSpec,
+    PanicReason, PanicSpec,
     global_env::GlobalEnv,
     pretty::PrettyCx,
     queries::{QueryResult, try_query},
@@ -663,8 +663,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             bug::track_span(span, || {
                 dbg::terminator!("start", terminator, infcx, env);
 
-                let successors =
-                    self.check_terminator(&mut infcx, &mut env, terminator, last_stmt_span)?;
+                let successors = self.check_terminator(
+                    &mut infcx,
+                    &mut env,
+                    terminator,
+                    location,
+                    last_stmt_span,
+                )?;
                 dbg::terminator!("end", terminator, infcx, env);
 
                 self.markers[bb] = Some(infcx.marker());
@@ -746,6 +751,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         terminator: &Terminator<'tcx>,
+        location: Location,
         last_stmt_span: Option<Span>,
     ) -> Result<Vec<(BasicBlock, Guard)>> {
         let source_info = terminator.source_info;
@@ -795,6 +801,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             infcx,
                             env,
                             terminator_span,
+                            Some(location),
                             Some(*resolved_id),
                             fn_sig,
                             &generic_args,
@@ -812,6 +819,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                                 infcx,
                                 env,
                                 terminator_span,
+                                Some(location),
                                 None,
                                 EarlyBinder(fn_sig.clone()),
                                 &[],
@@ -888,6 +896,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         span: Span,
+        location: Option<Location>,
         callee_def_id: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
@@ -953,22 +962,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             && genv.def_kind(callee_def_id).is_fn_like()
         {
             let callee_no_panic = fn_sig.no_panic();
-            let callee_inferred_spec = genv.inferred_no_panic(callee_def_id);
 
-            // The call-graph and fixpoint iteration are over `Instance`s, but the output map only
-            // retains non-mono (identity) instances (that we can identify with a `DefId`). A concrete
-            // callee (e.g., `Vec::<i32>::push`) is a mono instance whose spec is not directly queryable
-            // via inferred_no_panic. However, if the caller is `WillNotPanic`, the fixpoint already
-            // accounted for all its concrete callees: any `MightPanic` callee would have propagated up
-            // and marked the caller `MightPanic(Transitive)`. So the caller's `WillNotPanic` proves all
-            // its concrete callees are no-panic, even those whose mono spec is absent from the output
-            // map. We could potentially key specs by `Instance`, but we also need to be able to recover
-            // the resolution to a mono-instance here.
-            let inferred_panic_expr = if let CheckerId::DefId(caller_id) = self.checker_id
-                && genv.inferred_no_panic(caller_id) == PanicSpec::WillNotPanic
-            {
-                Expr::tt()
-            } else if callee_inferred_spec == PanicSpec::WillNotPanic {
+            // Recover the resolved callee `NodeKey` from the call graph by the call-site location,
+            // then query the no-panic spec map.
+            let body_def_id = match self.checker_id {
+                CheckerId::DefId(def_id) => Some(def_id.to_def_id()),
+                CheckerId::Promoted(..) => None,
+            };
+            let callee_inferred_spec = body_def_id
+                .zip(location)
+                .and_then(|(body_def_id, location)| {
+                    genv.call_graph().resolved_callee(body_def_id, location)
+                })
+                .map(|key| genv.inferred_no_panic_key(key))
+                .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph));
+
+            let inferred_panic_expr = if callee_inferred_spec == PanicSpec::WillNotPanic {
                 Expr::tt()
             } else {
                 Expr::ff()
@@ -1558,7 +1567,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     args,
                 )
                 .with_span(stmt_span)?;
-                self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals)
+                self.check_call(infcx, env, stmt_span, None, Some(*def_id), sig, &args, &actuals)
                     .map(|resolved_call| resolved_call.output)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
