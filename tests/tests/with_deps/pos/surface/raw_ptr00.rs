@@ -29,8 +29,3 @@ pub fn const_short_field_projections(_ptr: *const i32) {}
 
 #[flux::spec(fn(*mut{p: p.base == p.base && p.addr == p.addr && p.size == p.size} i32))]
 pub fn mut_short_field_projections(_ptr: *mut i32) {}
-
-
-fn ref_to_ptr_read(z: i32) -> i32 {
-    ptr::read(&z)
-}
