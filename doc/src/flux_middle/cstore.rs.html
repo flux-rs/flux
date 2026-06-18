@@ -4,11 +4,11 @@
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>rustc_hir::def_id::CrateNum;
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>rustc_span::def_id::DefId;
 <a href=#6 id=6 data-nosnippet>6</a>
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use crate</span>::{PanicSpec, def_id::FluxDefId, queries::QueryResult, rty};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use crate</span>::{PanicSpec, call_graph::NodeKey, def_id::FluxDefId, queries::QueryResult, rty};
 <a href=#8 id=8 data-nosnippet>8</a>
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">pub type </span>OptResult&lt;T&gt; = <span class="prelude-ty">Option</span>&lt;QueryResult&lt;T&gt;&gt;;
 <a href=#10 id=10 data-nosnippet>10</a>
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">pub trait </span>CrateStore {
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">pub trait </span>CrateStore&lt;<span class="lifetime">'tcx</span>&gt; {
 <a href=#12 id=12 data-nosnippet>12</a>    <span class="kw">fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;;
 <a href=#13 id=13 data-nosnippet>13</a>    <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AdtDef&gt;;
 <a href=#14 id=14 data-nosnippet>14</a>    <span class="kw">fn </span>adt_sort_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AdtSortDef&gt;;
@@ -39,9 +39,9 @@
 <a href=#39 id=39 data-nosnippet>39</a>    <span class="kw">fn </span>sort_decl_param_count(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: FluxDefId) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt;;
 <a href=#40 id=40 data-nosnippet>40</a>    <span class="kw">fn </span>no_panic(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;bool&gt;;
 <a href=#41 id=41 data-nosnippet>41</a>    <span class="kw">fn </span>assume_parametric_params(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;UnordSet&lt;u32&gt;&gt;;
-<a href=#42 id=42 data-nosnippet>42</a>    <span class="kw">fn </span>inferred_no_panic(<span class="kw-2">&amp;</span><span class="self">self</span>, krate: CrateNum) -&gt; Rc&lt;UnordMap&lt;DefId, PanicSpec&gt;&gt;;
+<a href=#42 id=42 data-nosnippet>42</a>    <span class="kw">fn </span>inferred_no_panic(<span class="kw-2">&amp;</span><span class="self">self</span>, krate: CrateNum) -&gt; Rc&lt;UnordMap&lt;NodeKey&lt;<span class="lifetime">'tcx</span>&gt;, PanicSpec&gt;&gt;;
 <a href=#43 id=43 data-nosnippet>43</a>    <span class="kw">fn </span>has_crate(<span class="kw-2">&amp;</span><span class="self">self</span>, krate: CrateNum) -&gt; bool;
 <a href=#44 id=44 data-nosnippet>44</a>}
 <a href=#45 id=45 data-nosnippet>45</a>
-<a href=#46 id=46 data-nosnippet>46</a><span class="kw">pub type </span>CrateStoreDyn = <span class="kw">dyn </span>CrateStore;
+<a href=#46 id=46 data-nosnippet>46</a><span class="kw">pub type </span>CrateStoreDyn&lt;<span class="lifetime">'tcx</span>&gt; = <span class="kw">dyn </span>CrateStore&lt;<span class="lifetime">'tcx</span>&gt; + <span class="lifetime">'tcx</span>;
 </code></pre></div></section></main></body></html>

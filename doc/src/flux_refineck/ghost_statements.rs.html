@@ -111,7 +111,7 @@
 <a href=#111 id=111 data-nosnippet>111</a>                };
 <a href=#112 id=112 data-nosnippet>112</a>
 <a href=#113 id=113 data-nosnippet>113</a>            fold_unfold::add_ghost_statements(<span class="kw-2">&amp;mut </span>stmts, genv, body, fn_sig.as_ref())<span class="question-mark">?</span>;
-<a href=#114 id=114 data-nosnippet>114</a>            points_to::add_ghost_statements(<span class="kw-2">&amp;mut </span>stmts, genv, <span class="kw-2">&amp;</span>body.rustc_body, fn_sig.as_ref())<span class="question-mark">?</span>;
+<a href=#114 id=114 data-nosnippet>114</a>            points_to::add_ghost_statements(<span class="kw-2">&amp;mut </span>stmts, genv, body.rustc_body(), fn_sig.as_ref())<span class="question-mark">?</span>;
 <a href=#115 id=115 data-nosnippet>115</a>            <span class="comment">// We only add unblock statements for the main body because borrows in promoted constants
 <a href=#116 id=116 data-nosnippet>116</a>            // have to be live in the main body so they never go out of scope in the promoted body.
 <a href=#117 id=117 data-nosnippet>117</a>            </span><span class="kw">if </span>!checker_id.is_promoted() {
@@ -190,7 +190,7 @@
 <a href=#190 id=190 data-nosnippet>190</a>
 <a href=#191 id=191 data-nosnippet>191</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>dump_ghost_mir&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;, body: <span class="kw-2">&amp;</span>Body&lt;<span class="lifetime">'tcx</span>&gt;) {
 <a href=#192 id=192 data-nosnippet>192</a>        <span class="kw">use </span>rustc_middle::mir::{PassWhere, pretty::MirDumper};
-<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(dumper) = MirDumper::new(tcx, <span class="string">"ghost"</span>, <span class="kw-2">&amp;</span>body.rustc_body) {
+<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(dumper) = MirDumper::new(tcx, <span class="string">"ghost"</span>, body.rustc_body()) {
 <a href=#194 id=194 data-nosnippet>194</a>            dumper
 <a href=#195 id=195 data-nosnippet>195</a>                .set_extra_data(<span class="kw-2">&amp;</span>|pass, w| {
 <a href=#196 id=196 data-nosnippet>196</a>                    <span class="kw">match </span>pass {
@@ -221,7 +221,7 @@
 <a href=#221 id=221 data-nosnippet>221</a>                    }
 <a href=#222 id=222 data-nosnippet>222</a>                    <span class="prelude-val">Ok</span>(())
 <a href=#223 id=223 data-nosnippet>223</a>                })
-<a href=#224 id=224 data-nosnippet>224</a>                .dump_mir(<span class="kw-2">&amp;</span>body.rustc_body);
+<a href=#224 id=224 data-nosnippet>224</a>                .dump_mir(body.rustc_body());
 <a href=#225 id=225 data-nosnippet>225</a>        }
 <a href=#226 id=226 data-nosnippet>226</a>    }
 <a href=#227 id=227 data-nosnippet>227</a>}

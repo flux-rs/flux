@@ -86,7 +86,7 @@
 <a href=#86 id=86 data-nosnippet>86</a>            flags.push(<span class="macro">format!</span>(<span class="string">"-Fallow-uninterpreted-cast={v}"</span>));
 <a href=#87 id=87 data-nosnippet>87</a>        }
 <a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(only_check) = only_check {
-<a href=#89 id=89 data-nosnippet>89</a>            flags.push(<span class="macro">format!</span>(<span class="string">"-Finclude={only_check}"</span>))
+<a href=#89 id=89 data-nosnippet>89</a>            flags.push(<span class="macro">format!</span>(<span class="string">"-Finclude={only_check}"</span>));
 <a href=#90 id=90 data-nosnippet>90</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(patterns) = <span class="self">self</span>.include {
 <a href=#91 id=91 data-nosnippet>91</a>            <span class="kw">for </span>pat <span class="kw">in </span>patterns {
 <a href=#92 id=92 data-nosnippet>92</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(prefix) = include_pattern_prefix {

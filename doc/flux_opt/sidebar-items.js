@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["infer_no_panics","inferred_no_panic","initial_spec","provide","run_fixpoint"],"mod":["call_graph"]};
+window.SIDEBAR_ITEMS = {"fn":["inferred_no_panic","initial_spec","provide"],"mod":["call_graph"]};

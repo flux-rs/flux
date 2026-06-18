@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CallSiteKind","Node","NodeKey"],"struct":["CallGraph","CallSite"]};
