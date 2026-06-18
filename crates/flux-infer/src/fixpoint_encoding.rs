@@ -692,28 +692,32 @@ where
             }
         }
 
-        // Under the wick feature, always also run a hornspec task in parallel (regardless of the
-        // primary backend) and print whether it agrees. This is a diagnostic / evaluation tool.
+        // Under the wick feature, build the hornspec task now (before the fixpoint run consumes
+        // ownership of `task`) so we can run it later if fixpoint fails.
         #[cfg(feature = "wick")]
-        {
-            let mut hornspec_task = task.clone();
-            // Strip constants that fixpoint needs but hornspec doesn't support:
-            // - UIFRel: polymorphic comparison operators (hornspec has no polymorphism)
-            // - WKVar: declared via WKVarDecl instead for hornspec
-            hornspec_task.constants.retain(|c| {
+        let hornspec_task = {
+            let mut t = task.clone();
+            t.constants.retain(|c| {
                 !matches!(c.name, fixpoint::Var::WKVar(..) | fixpoint::Var::UIFRel(..))
             });
-            hornspec_task.backend = liquid_fixpoint::Backend::Hornspec;
-            let hornspec_task = adt_flatten::flatten_task(hornspec_task);
+            t.backend = liquid_fixpoint::Backend::Hornspec;
+            adt_flatten::flatten_task(t)
+        };
+
+        let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
+
+        // Only run hornspec if the primary fixpoint task reported a failure.
+        #[cfg(feature = "wick")]
+        if !result.status.is_safe() {
             if config::dump_constraint() {
                 dbg::dump_item_info(self.genv.tcx(), id, "horn", liquid_fixpoint::SmtFormatter(&hornspec_task)).unwrap();
             }
             match hornspec_task.run() {
-                Ok(result) => {
+                Ok(hs_result) => {
                     println!(
                         "[hornspec] {}: {}",
                         self.genv.tcx().def_path_str(id),
-                        if result.status.is_safe() { "safe" } else { "unsafe" }
+                        if hs_result.status.is_safe() { "safe" } else { "unsafe" }
                     );
                 }
                 Err(err) => {
@@ -724,8 +728,6 @@ where
                 }
             }
         }
-
-        let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
         #[cfg(feature = "wick")]
         let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
         #[cfg(not(feature = "wick"))]
