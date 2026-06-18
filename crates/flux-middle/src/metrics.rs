@@ -103,6 +103,8 @@ pub enum TimingKind {
     FixpointQuery(DefId, FixpointQueryKind),
     /// Time taken to generate fixes for a query
     RefinementHint(LocalDefId),
+    /// Time taken to run a hornspec query; carries whether it returned safe
+    HornspecQuery { def_id: DefId, safe: bool },
 }
 
 #[derive(Serialize)]
@@ -152,7 +154,6 @@ pub fn refinement_hint_timings() -> (HashMap<DefId, FnTiming>, Duration) {
                 timings_by_fn.entry(def_id).or_default().query += timing.duration;
             }
             TimingKind::Total => {
-                // This should only appear once
                 total = timing.duration;
             }
             _ => {}
@@ -171,6 +172,8 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     let mut queries = vec![];
     let mut total = Duration::from_secs(0);
     let mut total_reft_hint = Duration::from_secs(0);
+    let mut hornspec_durations: Vec<Duration> = vec![];
+    let mut hornspec_safe: u32 = 0;
     for timing in timings {
         match timing.kind {
             TimingKind::CheckFn(local_def_id) => {
@@ -182,11 +185,16 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
                 queries.push((key, timing.duration));
             }
             TimingKind::Total => {
-                // This should only appear once
                 total = timing.duration;
             }
             TimingKind::RefinementHint(_) => {
                 total_reft_hint += timing.duration;
+            }
+            TimingKind::HornspecQuery { safe, .. } => {
+                hornspec_durations.push(timing.duration);
+                if safe {
+                    hornspec_safe += 1;
+                }
             }
         }
     }
@@ -196,7 +204,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     queries.sort_by_key(snd);
     queries.reverse();
 
-    print_report(&functions, total, total_reft_hint);
+    print_report(&functions, total, total_reft_hint, &hornspec_durations, hornspec_safe);
     dump_timings(
         tcx,
         TimingsDump {
@@ -213,7 +221,13 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     )
 }
 
-fn print_report(functions: &[(String, Duration)], total: Duration, total_reft_hint: Duration) {
+fn print_report(
+    functions: &[(String, Duration)],
+    total: Duration,
+    total_reft_hint: Duration,
+    hornspec_durations: &[Duration],
+    hornspec_safe: u32,
+) {
     let stats = stats(&functions.iter().map(snd).collect_vec());
     eprintln!();
     eprintln!("───────────────────── Timing Report ────────────────────────");
@@ -224,6 +238,18 @@ fn print_report(functions: &[(String, Duration)], total: Duration, total_reft_hi
     eprintln!("Max:                {:>40}", fmt_duration(stats.max));
     eprintln!("Mean:               {:>40}", fmt_duration(stats.mean));
     eprintln!("Std. Dev.:          {:>40}", fmt_duration(stats.standard_deviation));
+
+    if !hornspec_durations.is_empty() {
+        let total_hornspec: Duration = hornspec_durations.iter().sum();
+        let mean_hornspec = total_hornspec / hornspec_durations.len() as u32;
+        eprintln!("────────────────────────────────────────────────────────────");
+        eprintln!(
+            "Hornspec runs:      {:>40}",
+            format!("{hornspec_safe}/{}", hornspec_durations.len()),
+        );
+        eprintln!("Hornspec total:     {:>40}", fmt_duration(total_hornspec));
+        eprintln!("Hornspec mean:      {:>40}", fmt_duration(mean_hornspec));
+    }
 
     let top5 = functions.iter().take(5).cloned().collect_vec();
     if !top5.is_empty() {
@@ -270,6 +296,15 @@ pub fn time_it<R>(kind: TimingKind, f: impl FnOnce() -> R) -> R {
         .unwrap()
         .push(Entry { duration: start.elapsed(), kind });
     r
+}
+
+/// Record a pre-timed entry directly. Useful when the kind depends on the
+/// result of the computation (e.g. HornspecQuery carries `safe: bool`).
+pub fn record(kind: TimingKind, duration: Duration) {
+    if !config::timings() {
+        return;
+    }
+    TIMINGS.lock().unwrap().push(Entry { duration, kind });
 }
 
 fn stats(durations: &[Duration]) -> TimingStats {

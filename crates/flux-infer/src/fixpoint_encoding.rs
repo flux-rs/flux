@@ -712,21 +712,12 @@ where
             if config::dump_constraint() {
                 dbg::dump_item_info(self.genv.tcx(), id, "horn", liquid_fixpoint::SmtFormatter(&hornspec_task)).unwrap();
             }
-            match hornspec_task.run() {
-                Ok(hs_result) => {
-                    println!(
-                        "[hornspec] {}: {}",
-                        self.genv.tcx().def_path_str(id),
-                        if hs_result.status.is_safe() { "safe" } else { "unsafe" }
-                    );
-                }
-                Err(err) => {
-                    println!(
-                        "[hornspec] {}: error - {err}",
-                        self.genv.tcx().def_path_str(id),
-                    );
-                }
-            }
+            let hs_start = std::time::Instant::now();
+            let hs_safe = matches!(hornspec_task.run(), Ok(r) if r.status.is_safe());
+            metrics::record(
+                metrics::TimingKind::HornspecQuery { def_id: id, safe: hs_safe },
+                hs_start.elapsed(),
+            );
         }
         #[cfg(feature = "wick")]
         let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
