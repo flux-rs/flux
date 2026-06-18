@@ -103,8 +103,15 @@ pub enum TimingKind {
     FixpointQuery(DefId, FixpointQueryKind),
     /// Time taken to generate fixes for a query
     RefinementHint(LocalDefId),
-    /// Time taken to run a hornspec query; carries whether it returned safe
-    HornspecQuery { def_id: DefId, safe: bool },
+    /// Time taken to run a hornspec query; carries the outcome
+    HornspecQuery { def_id: DefId, outcome: HornspecOutcome },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum HornspecOutcome {
+    Safe,
+    Unsafe,
+    Timeout,
 }
 
 #[derive(Serialize)]
@@ -174,6 +181,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     let mut total_reft_hint = Duration::from_secs(0);
     let mut hornspec_durations: Vec<Duration> = vec![];
     let mut hornspec_safe: u32 = 0;
+    let mut hornspec_timeout: u32 = 0;
     for timing in timings {
         match timing.kind {
             TimingKind::CheckFn(local_def_id) => {
@@ -190,10 +198,12 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
             TimingKind::RefinementHint(_) => {
                 total_reft_hint += timing.duration;
             }
-            TimingKind::HornspecQuery { safe, .. } => {
+            TimingKind::HornspecQuery { outcome, .. } => {
                 hornspec_durations.push(timing.duration);
-                if safe {
-                    hornspec_safe += 1;
+                match outcome {
+                    HornspecOutcome::Safe => hornspec_safe += 1,
+                    HornspecOutcome::Timeout => hornspec_timeout += 1,
+                    HornspecOutcome::Unsafe => {}
                 }
             }
         }
@@ -204,7 +214,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     queries.sort_by_key(snd);
     queries.reverse();
 
-    print_report(&functions, total, total_reft_hint, &hornspec_durations, hornspec_safe);
+    print_report(&functions, total, total_reft_hint, &hornspec_durations, hornspec_safe, hornspec_timeout);
     dump_timings(
         tcx,
         TimingsDump {
@@ -227,6 +237,7 @@ fn print_report(
     total_reft_hint: Duration,
     hornspec_durations: &[Duration],
     hornspec_safe: u32,
+    hornspec_timeout: u32,
 ) {
     let stats = stats(&functions.iter().map(snd).collect_vec());
     eprintln!();
@@ -244,9 +255,12 @@ fn print_report(
         let mean_hornspec = total_hornspec / hornspec_durations.len() as u32;
         eprintln!("────────────────────────────────────────────────────────────");
         eprintln!(
-            "Hornspec runs:      {:>40}",
+            "Hornspec safe:      {:>40}",
             format!("{hornspec_safe}/{}", hornspec_durations.len()),
         );
+        if hornspec_timeout > 0 {
+            eprintln!("Hornspec timeouts:  {:>40}", hornspec_timeout);
+        }
         eprintln!("Hornspec total:     {:>40}", fmt_duration(total_hornspec));
         eprintln!("Hornspec mean:      {:>40}", fmt_duration(mean_hornspec));
     }
