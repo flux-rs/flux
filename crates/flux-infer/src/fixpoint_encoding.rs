@@ -708,7 +708,8 @@ where
 
         // Only run hornspec if the primary fixpoint task reported a failure.
         #[cfg(feature = "wick")]
-        if !result.status.is_safe() {
+        if let liquid_fixpoint::FixpointStatus::Unsafe(_, ref errors) = result.status {
+            let fixpoint_error_count = errors.len();
             if config::dump_constraint() {
                 dbg::dump_item_info(self.genv.tcx(), id, "horn", liquid_fixpoint::SmtFormatter(&hornspec_task)).unwrap();
             }
@@ -722,7 +723,12 @@ where
                 Err(e) => panic!("hornspec failed: {e}"),
             };
             metrics::record(
-                metrics::TimingKind::HornspecQuery { def_id: id, outcome: hs_outcome },
+                metrics::TimingKind::HornspecQuery {
+                    def_id: id,
+                    outcome: hs_outcome,
+                    chc_count: count,
+                    error_count: fixpoint_error_count,
+                },
                 hs_start.elapsed(),
             );
         }
