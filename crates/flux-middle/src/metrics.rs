@@ -103,8 +103,18 @@ pub enum TimingKind {
     FixpointQuery(DefId, FixpointQueryKind),
     /// Time taken to generate fixes for a query
     RefinementHint(LocalDefId),
-    /// Time taken to run a hornspec query; carries the outcome
-    HornspecQuery { def_id: DefId, outcome: HornspecOutcome, error_count: usize },
+    /// Stats for a CHC that fixpoint failed to verify: hornspec outcome, timing,
+    /// and how many of its errors wick/hornspec found solutions for.
+    FailedCHCStats {
+        def_id: DefId,
+        outcome: HornspecOutcome,
+        /// Total errors fixpoint reported for this CHC
+        error_count: usize,
+        /// Errors for which wick found at least one solution
+        wick_solved: usize,
+        /// Errors covered by hornspec (error_count if hornspec said safe, else 0)
+        hornspec_solved: usize,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -183,6 +193,8 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     let mut hornspec_safe: u32 = 0;
     let mut hornspec_timeout: u32 = 0;
     let mut hornspec_total_errors: usize = 0;
+    let mut hornspec_solved_errors: usize = 0;
+    let mut wick_solved_errors: usize = 0;
     for timing in timings {
         match timing.kind {
             TimingKind::CheckFn(local_def_id) => {
@@ -199,9 +211,11 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
             TimingKind::RefinementHint(_) => {
                 total_reft_hint += timing.duration;
             }
-            TimingKind::HornspecQuery { outcome, error_count, .. } => {
+            TimingKind::FailedCHCStats { outcome, error_count, wick_solved, hornspec_solved, .. } => {
                 hornspec_durations.push(timing.duration);
                 hornspec_total_errors += error_count;
+                wick_solved_errors += wick_solved;
+                hornspec_solved_errors += hornspec_solved;
                 match outcome {
                     HornspecOutcome::Safe => hornspec_safe += 1,
                     HornspecOutcome::Timeout => hornspec_timeout += 1,
@@ -216,7 +230,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     queries.sort_by_key(snd);
     queries.reverse();
 
-    print_report(&functions, total, total_reft_hint, &hornspec_durations, hornspec_safe, hornspec_timeout, hornspec_total_errors);
+    print_report(&functions, total, total_reft_hint, &hornspec_durations, hornspec_safe, hornspec_timeout, hornspec_total_errors, hornspec_solved_errors, wick_solved_errors);
     dump_timings(
         tcx,
         TimingsDump {
@@ -241,6 +255,8 @@ fn print_report(
     hornspec_safe: u32,
     hornspec_timeout: u32,
     hornspec_total_errors: usize,
+    hornspec_solved_errors: usize,
+    wick_solved_errors: usize,
 ) {
     let stats = stats(&functions.iter().map(snd).collect_vec());
     eprintln!();
@@ -262,6 +278,14 @@ fn print_report(
             eprintln!("Hornspec timeouts:  {:>40}", hornspec_timeout);
         }
         eprintln!("Hornspec errors:    {:>40}", hornspec_total_errors);
+        eprintln!(
+            "Hornspec solved:    {:>40}",
+            format!("{hornspec_solved_errors}/{hornspec_total_errors}"),
+        );
+        eprintln!(
+            "Wick solved:        {:>40}",
+            format!("{wick_solved_errors}/{hornspec_total_errors}"),
+        );
         eprintln!("Hornspec total:     {:>40}", fmt_duration(total_hornspec));
         eprintln!("Hornspec mean:      {:>40}", fmt_duration(mean_hornspec));
     }

@@ -706,37 +706,12 @@ where
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
 
-        // Only run hornspec if the primary fixpoint task reported a failure.
-        #[cfg(feature = "wick")]
-        if let liquid_fixpoint::FixpointStatus::Unsafe(_, ref errors) = result.status {
-            let fixpoint_error_count = errors.len();
-            if config::dump_constraint() {
-                dbg::dump_item_info(self.genv.tcx(), id, "horn", liquid_fixpoint::SmtFormatter(&hornspec_task)).unwrap();
-            }
-            let hs_start = std::time::Instant::now();
-            let hs_outcome = match hornspec_task.run() {
-                Ok(r) => match r.status {
-                    liquid_fixpoint::FixpointStatus::Safe(_) => metrics::HornspecOutcome::Safe,
-                    liquid_fixpoint::FixpointStatus::Timeout => metrics::HornspecOutcome::Timeout,
-                    _ => metrics::HornspecOutcome::Unsafe,
-                },
-                Err(e) => panic!("hornspec failed: {e}"),
-            };
-            metrics::record(
-                metrics::TimingKind::HornspecQuery {
-                    def_id: id,
-                    outcome: hs_outcome,
-                    error_count: fixpoint_error_count,
-                },
-                hs_start.elapsed(),
-            );
-        }
         #[cfg(feature = "wick")]
         let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
         #[cfg(not(feature = "wick"))]
         let (_fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
 
-        time_it::<QueryResult<Answer<Tag>>>(
+        let answer = time_it::<QueryResult<Answer<Tag>>>(
             TimingKind::RefinementHint(def_id.as_local().unwrap()),
             || {
                 #[cfg(feature = "wick")]
@@ -920,7 +895,47 @@ where
                 };
                 Ok(Answer { errors, solution })
             },
-        )
+        );
+
+        // Run hornspec on failing CHCs and record combined wick+hornspec stats.
+        #[cfg(feature = "wick")]
+        if let liquid_fixpoint::FixpointStatus::Unsafe(_, ref errors) = result.status {
+            let error_count = errors.len();
+            // Count errors for which wick found at least one solution.
+            let wick_solved = answer.as_ref().map_or(0, |a| {
+                a.errors.iter().filter(|e| !e.possible_solutions.is_empty()).count()
+            });
+            if config::dump_constraint() {
+                dbg::dump_item_info(self.genv.tcx(), id, "horn", liquid_fixpoint::SmtFormatter(&hornspec_task)).unwrap();
+            }
+            let hs_start = std::time::Instant::now();
+            let hs_outcome = match hornspec_task.run() {
+                Ok(r) => match r.status {
+                    liquid_fixpoint::FixpointStatus::Safe(_) => metrics::HornspecOutcome::Safe,
+                    liquid_fixpoint::FixpointStatus::Timeout => metrics::HornspecOutcome::Timeout,
+                    _ => metrics::HornspecOutcome::Unsafe,
+                },
+                Err(e) => panic!("hornspec failed: {e}"),
+            };
+            // Hornspec solved = all errors in this CHC if hornspec says safe, else 0.
+            let hornspec_solved = if matches!(hs_outcome, metrics::HornspecOutcome::Safe) {
+                error_count
+            } else {
+                0
+            };
+            metrics::record(
+                metrics::TimingKind::FailedCHCStats {
+                    def_id: id,
+                    outcome: hs_outcome,
+                    error_count,
+                    wick_solved,
+                    hornspec_solved,
+                },
+                hs_start.elapsed(),
+            );
+        }
+
+        answer
     }
 
     fn parse_kvar_solutions(
