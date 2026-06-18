@@ -671,9 +671,52 @@ fn fmt_data_ctor_smt<T: Types>(ctor: &DataCtor<T>, f: &mut fmt::Formatter<'_>) -
 }
 
 fn fmt_const_decl<T: Types>(decl: &ConstDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "(declare-const {} ", decl.name.display())?;
-    fmt_sort_smt(&decl.sort, f)?;
-    writeln!(f, ")")
+    // If the sort is a function type, emit declare-fun rather than declare-const,
+    // since hornspec (and SMT-LIB HORN in general) doesn't support applying a
+    // declare-const of function sort.
+    if is_func_sort(&decl.sort) {
+        let mut inputs = Vec::new();
+        let output = collect_func_inputs(&decl.sort, &mut inputs);
+        write!(f, "(declare-fun {} (", decl.name.display())?;
+        for (i, input) in inputs.iter().enumerate() {
+            if i > 0 {
+                write!(f, " ")?;
+            }
+            fmt_sort_smt(input, f)?;
+        }
+        write!(f, ") ")?;
+        fmt_sort_smt(output, f)?;
+        writeln!(f, ")")
+    } else {
+        write!(f, "(declare-const {} ", decl.name.display())?;
+        fmt_sort_smt(&decl.sort, f)?;
+        writeln!(f, ")")
+    }
+}
+
+fn is_func_sort<T: Types>(sort: &Sort<T>) -> bool {
+    match sort {
+        Sort::Func(_) => true,
+        Sort::Abs(_, inner) => is_func_sort(inner),
+        _ => false,
+    }
+}
+
+/// Unfold a right-nested `Sort::Func` chain, collecting input sorts into
+/// `inputs` and returning the final output sort.
+fn collect_func_inputs<'a, T: Types>(
+    sort: &'a Sort<T>,
+    inputs: &mut Vec<&'a Sort<T>>,
+) -> &'a Sort<T> {
+    match sort {
+        Sort::Func(fsort) => {
+            let [input, output] = &**fsort;
+            inputs.push(input);
+            collect_func_inputs(output, inputs)
+        }
+        Sort::Abs(_, inner) => collect_func_inputs(inner, inputs),
+        _ => sort,
+    }
 }
 
 fn fmt_fun_def<T: Types>(fun: &FunDef<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
