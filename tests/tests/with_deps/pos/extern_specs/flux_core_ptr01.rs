@@ -31,3 +31,7 @@ pub fn test_add_mut_ix(ptr: *mut i32) {
         std::ptr::write(ptr.add(1), 20);
     }
 }
+
+pub fn ref_to_ptr_read(z: i32) -> i32 {
+    unsafe { std::ptr::read(&z) }
+}
