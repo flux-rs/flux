@@ -34,6 +34,12 @@
     // Notable exceptions to this are `read_unaligned` and `write_unaligned`.
     // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L54-L59
     fn aligned_to(p: ptr, alignment: int) -> bool { p.addr % alignment == 0 }
+
+    // Two byte ranges of equal length starting at p and q do not overlap.
+    // Trivially true when num_bytes == 0 (empty intervals never intersect).
+    fn nonoverlapping(p: ptr, q: ptr, num_bytes: int) -> bool {
+        p.addr + num_bytes <= q.addr || q.addr + num_bytes <= p.addr
+    }
 }]
 
 use flux_attrs::*;
@@ -110,3 +116,27 @@ unsafe fn write_unaligned<T>(dst: *mut T, src: T);
 #[spec(fn (dst: *mut[@p] T, val: u8, count: usize) requires
     valid(p, count * T::size_of()) && aligned_to(p, T::align_of()))]
 unsafe fn write_bytes<T>(dst: *mut T, val: u8, count: usize);
+
+#[extern_spec(core::ptr)]
+// - `src` must be valid for reads of `count * size_of::<T>()` bytes, or that number must be 0.
+// - `dst` must be valid for writes of `count * size_of::<T>()` bytes, or that number must be 0.
+// - Both `src` and `dst` must be properly aligned, even for zero-size copies.
+// Overlap between `src` and `dst` is permitted (memmove semantics).
+// See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L627
+#[spec(fn (src: *const[@src_p] T, dst: *mut[@dst_p] T, count: usize) requires
+    valid(src_p, count * T::size_of()) && aligned_to(src_p, T::align_of()) &&
+    valid(dst_p, count * T::size_of()) && aligned_to(dst_p, T::align_of()))]
+unsafe fn copy<T>(src: *const T, dst: *mut T, count: usize);
+
+#[extern_spec(core::ptr)]
+// - `src` must be valid for reads of `count * size_of::<T>()` bytes, or that number must be 0.
+// - `dst` must be valid for writes of `count * size_of::<T>()` bytes, or that number must be 0.
+// - Both `src` and `dst` must be properly aligned, even for zero-size copies.
+// - The byte ranges `[src, src + count * size_of::<T>())` and `[dst, dst + count * size_of::<T>())`
+//   must not overlap.
+// See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L530
+#[spec(fn (src: *const[@src_p] T, dst: *mut[@dst_p] T, count: usize) requires
+    valid(src_p, count * T::size_of()) && aligned_to(src_p, T::align_of()) &&
+    valid(dst_p, count * T::size_of()) && aligned_to(dst_p, T::align_of()) &&
+    nonoverlapping(src_p, dst_p, count * T::size_of()))]
+unsafe fn copy_nonoverlapping<T>(src: *const T, dst: *mut T, count: usize);
