@@ -63,6 +63,11 @@ macro_rules! ptr_specs {
                 -> *$mutable[p.base, p.addr - count, p.size + count] T
                     requires count <= p.addr - p.base)]
             unsafe fn byte_sub(self, count: usize) -> Self;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L22
+            #[no_panic]
+            #[spec(fn (me: *$mutable[@p] T) -> bool[p.addr == 0])]
+            fn is_null(self) -> bool;
         }
     };
 }
