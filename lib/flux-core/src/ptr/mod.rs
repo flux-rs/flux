@@ -102,7 +102,6 @@ unsafe fn write<T>(dst: *mut T, src: T);
 #[cfg(flux)]
 #[extern_spec(core::ptr)]
 // - `dst` must be valid for writes or `T` must be a ZST.
-// - `dst` must be properly aligned. Use `write_unaligned` if this is not the case.
 // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L1843-L1846
 #[spec(fn (dst: *mut[@p] T, src: T) requires valid(p, T::size_of()))]
 unsafe fn write_unaligned<T>(dst: *mut T, src: T);
