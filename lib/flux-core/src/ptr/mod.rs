@@ -132,6 +132,12 @@ ptr_specs!(
         requires valid(p, T::size_of()) && aligned_to(p, T::align_of()))]
     unsafe fn write(self, val: T)
     where
+        T: Sized;,
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/mut_ptr.rs#L1490
+    #[spec(fn (me: *mut[@p] T, src: T) -> T
+        requires valid(p, T::size_of()) && aligned_to(p, T::align_of()))]
+    unsafe fn replace(self, src: T) -> T
+    where
         T: Sized;
 );
 

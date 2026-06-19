@@ -34,3 +34,8 @@ fn test_write_method(ptr: *mut i32, value: i32) {
                           //~| ERROR refinement type error
     }
 }
+
+fn test_replace_method(ptr: *mut i32, value: i32) -> i32 {
+    unsafe { ptr.replace(value) } //~ ERROR refinement type error
+                                  //~| ERROR refinement type error
+}
