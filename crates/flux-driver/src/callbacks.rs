@@ -265,7 +265,6 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             metrics::incr_metric_if(is_fn_with_body, Metric::FnIgnored);
             return Ok(());
         }
-
         if !self.genv.included(def_id) {
             metrics::incr_metric_if(is_fn_with_body, Metric::FnTrusted);
             return Ok(());
