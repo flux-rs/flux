@@ -83,6 +83,22 @@ macro_rules! ptr_specs {
                 -> *$mutable[p.base, p.addr + count, p.size - count] T
                     requires count <= p.size && p.addr + count >= p.base)]
             unsafe fn byte_offset(self, count: isize) -> Self;
+
+            // - Both `self` and `origin` must be derived from a pointer to the same allocation,
+            //   and the memory range between them must be in bounds of that allocation.
+            //   (`p.base == op.base` captures same-allocation provenance; `addr >= base` for
+            //   each captures the in-bounds requirement from below.)
+            // - The distance between the pointers in bytes must be an exact multiple of
+            //   `size_of::<T>()`, so that it corresponds to a whole number of elements.
+            // - `T` must not be a ZST; the function panics via `assert!(0 < size_of::<T>())`.
+            // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L614-L628
+            #[spec(fn (me: *$mutable[@p] T, origin: *const[@op] T) -> isize[(p.addr - op.addr) / T::size_of()]
+                requires p.base == op.base &&
+                         p.addr >= p.base && op.addr >= op.base &&
+                         (p.addr - op.addr) % T::size_of() == 0 &&
+                         T::size_of() > 0)]
+            unsafe fn offset_from(self, origin: *const T) -> isize
+            where T: Sized;
         }
     };
 }
