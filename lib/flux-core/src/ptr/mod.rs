@@ -36,7 +36,6 @@
     fn aligned_to(p: ptr, alignment: int) -> bool { p.addr % alignment == 0 }
 
     // Two byte ranges of equal length starting at p and q do not overlap.
-    // Trivially true when num_bytes == 0 (empty intervals never intersect).
     fn nonoverlapping(p: ptr, q: ptr, num_bytes: int) -> bool {
         p.addr + num_bytes <= q.addr || q.addr + num_bytes <= p.addr
     }
@@ -140,3 +139,25 @@ unsafe fn copy<T>(src: *const T, dst: *mut T, count: usize);
     valid(dst_p, count * T::size_of()) && aligned_to(dst_p, T::align_of()) &&
     nonoverlapping(src_p, dst_p, count * T::size_of()))]
 unsafe fn copy_nonoverlapping<T>(src: *const T, dst: *mut T, count: usize);
+
+#[extern_spec(core::ptr)]
+// - Both `x` and `y` must be valid for both reads and writes of `size_of::<T>()` bytes.
+// - Both `x` and `y` must be properly aligned, even if `T` has size 0.
+// Overlap between `x` and `y` is permitted.
+// See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L1316
+#[spec(fn (x: *mut[@xp] T, y: *mut[@yp] T) requires
+    valid(xp, T::size_of()) && aligned_to(xp, T::align_of()) &&
+    valid(yp, T::size_of()) && aligned_to(yp, T::align_of()))]
+unsafe fn swap<T>(x: *mut T, y: *mut T);
+
+#[extern_spec(core::ptr)]
+// - Both `x` and `y` must be valid for both reads and writes of `count * size_of::<T>()` bytes.
+// - Both `x` and `y` must be properly aligned, even for zero-size swaps.
+// - The byte ranges `[x, x + count * size_of::<T>())` and `[y, y + count * size_of::<T>())`
+//   must not overlap.
+// See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L1380
+#[spec(fn (x: *mut[@xp] T, y: *mut[@yp] T, count: usize) requires
+    valid(xp, count * T::size_of()) && aligned_to(xp, T::align_of()) &&
+    valid(yp, count * T::size_of()) && aligned_to(yp, T::align_of()) &&
+    nonoverlapping(xp, yp, count * T::size_of()))]
+unsafe fn swap_nonoverlapping<T>(x: *mut T, y: *mut T, count: usize);
