@@ -110,3 +110,12 @@ unsafe fn write<T>(dst: *mut T, src: T);
 // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L1843-L1846
 #[spec(fn (dst: *mut[@p] T, src: T) requires valid(p, T::size_of()))]
 unsafe fn write_unaligned<T>(dst: *mut T, src: T);
+
+#[cfg(flux)]
+#[extern_spec(core::ptr)]
+// - `dst` must be valid for writes of `count * size_of::<T>()` bytes.
+// - `dst` must be properly aligned to `align_of::<T>()`, even for zero-size writes.
+// See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L701
+#[spec(fn (dst: *mut[@p] T, val: u8, count: usize) requires
+    valid(p, count * T::size_of()) && aligned_to(p, T::align_of()))]
+unsafe fn write_bytes<T>(dst: *mut T, val: u8, count: usize);
