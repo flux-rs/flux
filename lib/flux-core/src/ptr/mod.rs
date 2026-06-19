@@ -71,6 +71,12 @@ macro_rules! ptr_specs {
             #[no_panic]
             #[spec(fn (me: *$mutable[@p] T) -> bool[p.addr == 0])]
             fn is_null(self) -> bool;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L349
+            #[spec(fn (me: *$mutable[@p] T, count: isize)
+                -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
+                    requires count * T::size_of() <= p.size && p.addr + count * T::size_of() >= p.base)]
+            unsafe fn offset(self, count: isize) -> Self;
         }
     };
 }

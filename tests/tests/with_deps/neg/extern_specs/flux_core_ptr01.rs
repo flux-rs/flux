@@ -37,3 +37,21 @@ pub fn test_add_mut_ix(ptr: *mut i32) {
         std::ptr::write(ptr.add(2), 30); //~ ERROR refinement type error
     }
 }
+
+// --- offset (signed count) ---
+
+// forward offset past end: size == 4 holds only one i32; offset(2) needs 8 bytes
+#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && addr > 0 && size == 4 && addr % 4 == 0}))]
+pub fn test_offset_forward_too_far(ptr: *const i32) {
+    unsafe {
+        let _ = ptr.offset(2); //~ ERROR refinement type error
+    }
+}
+
+// backward offset before base: addr == base means no room behind the pointer
+#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr == base && size >= 4 && addr % 4 == 0}))]
+pub fn test_offset_backward_past_base(ptr: *const i32) {
+    unsafe {
+        let _ = ptr.offset(-1); //~ ERROR refinement type error
+    }
+}
