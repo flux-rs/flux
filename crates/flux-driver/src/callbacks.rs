@@ -331,13 +331,11 @@ fn trigger_queries(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult {
             genv.generics_of(def_id)?;
             genv.predicates_of(def_id)?;
             genv.refinement_generics_of(def_id)?;
-            genv.assoc_refinements_of(def_id)?;
         }
         DefKind::Impl { .. } => {
             genv.generics_of(def_id)?;
             genv.predicates_of(def_id)?;
             genv.refinement_generics_of(def_id)?;
-            genv.assoc_refinements_of(def_id)?;
         }
         DefKind::Fn | DefKind::AssocFn => {
             genv.generics_of(def_id)?;
