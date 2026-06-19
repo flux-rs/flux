@@ -265,13 +265,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             metrics::incr_metric_if(is_fn_with_body, Metric::FnIgnored);
             return Ok(());
         }
-        // Make sure to trigger queries for non-ignored items, EVEN those that are NOT included
-        trigger_queries(genv, def_id).emit(&genv)?;
 
         if !self.genv.included(def_id) {
             metrics::incr_metric_if(is_fn_with_body, Metric::FnTrusted);
             return Ok(());
         }
+
+        trigger_queries(genv, def_id).emit(&genv)?;
 
         match kind {
             DefKind::Fn | DefKind::AssocFn => {
@@ -331,11 +331,13 @@ fn trigger_queries(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult {
             genv.generics_of(def_id)?;
             genv.predicates_of(def_id)?;
             genv.refinement_generics_of(def_id)?;
+            genv.assoc_refinements_of(def_id)?;
         }
         DefKind::Impl { .. } => {
             genv.generics_of(def_id)?;
             genv.predicates_of(def_id)?;
             genv.refinement_generics_of(def_id)?;
+            genv.assoc_refinements_of(def_id)?;
         }
         DefKind::Fn | DefKind::AssocFn => {
             genv.generics_of(def_id)?;
