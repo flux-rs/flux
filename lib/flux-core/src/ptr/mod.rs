@@ -36,10 +36,8 @@
     fn aligned_to(p: ptr, alignment: int) -> bool { p.addr % alignment == 0 }
 }]
 
-#[cfg(flux)]
 use flux_attrs::*;
 
-#[cfg(flux)]
 macro_rules! ptr_specs {
     ($mutable:tt) => {
         #[extern_spec(core::ptr)]
@@ -72,13 +70,10 @@ macro_rules! ptr_specs {
     };
 }
 
-#[cfg(flux)]
 ptr_specs!(const);
 
-#[cfg(flux)]
 ptr_specs!(mut);
 
-#[cfg(flux)]
 #[extern_spec(core::ptr)]
 // - `src` must be valid for reads or `T` must be a ZST.
 // - `src` must be properly aligned. Use `read_unaligned` if this is not the case.
@@ -87,7 +82,6 @@ ptr_specs!(mut);
     valid(p, T::size_of()) && aligned_to(p, T::align_of()))]
 unsafe fn read<T>(src: *const T) -> T;
 
-#[cfg(flux)]
 #[extern_spec(core::ptr)]
 #[spec(fn (src: *const[@p] T) -> T requires valid(p, T::size_of()))]
 // - `src` must be valid for reads.
@@ -95,7 +89,6 @@ unsafe fn read<T>(src: *const T) -> T;
 // TODO: Why are the rules for ZSTs different here?
 unsafe fn read_unaligned<T>(src: *const T) -> T;
 
-#[cfg(flux)]
 #[extern_spec(core::ptr)]
 // - `dst` must be valid for writes or `T` must be a ZST.
 // - `dst` must be properly aligned. Use `write_unaligned` if this is not the case.
@@ -104,14 +97,12 @@ unsafe fn read_unaligned<T>(src: *const T) -> T;
     valid(p, T::size_of()) && aligned_to(p, T::align_of()))]
 unsafe fn write<T>(dst: *mut T, src: T);
 
-#[cfg(flux)]
 #[extern_spec(core::ptr)]
 // - `dst` must be valid for writes or `T` must be a ZST.
 // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L1843-L1846
 #[spec(fn (dst: *mut[@p] T, src: T) requires valid(p, T::size_of()))]
 unsafe fn write_unaligned<T>(dst: *mut T, src: T);
 
-#[cfg(flux)]
 #[extern_spec(core::ptr)]
 // - `dst` must be valid for writes of `count * size_of::<T>()` bytes.
 // - `dst` must be properly aligned to `align_of::<T>()`, even for zero-size writes.
