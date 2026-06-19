@@ -44,7 +44,7 @@
 use flux_attrs::*;
 
 macro_rules! ptr_specs {
-    ($mutable:tt) => {
+    ($mutable:tt $(, $($extra:tt)*)?) => {
         #[extern_spec(core::ptr)]
         impl<T> *$mutable T {
             #[spec(fn (me: *$mutable[@p] T, count: usize)
@@ -111,13 +111,29 @@ macro_rules! ptr_specs {
                          T::size_of() > 0)]
             unsafe fn offset_from_unsigned(self, origin: *const T) -> usize
             where T: Sized;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/const_ptr.rs#L1166
+            #[spec(fn (me: *$mutable[@p] T) -> T
+                requires valid(p, T::size_of()) && aligned_to(p, T::align_of()))]
+            unsafe fn read(self) -> T
+            where T: Sized;
+
+            $($($extra)*)?
         }
     };
 }
 
 ptr_specs!(const);
 
-ptr_specs!(mut);
+ptr_specs!(
+    mut,
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/mut_ptr.rs#L1413
+    #[spec(fn (me: *mut[@p] T, val: T)
+        requires valid(p, T::size_of()) && aligned_to(p, T::align_of()))]
+    unsafe fn write(self, val: T)
+    where
+        T: Sized;
+);
 
 #[extern_spec(core::ptr)]
 // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L828

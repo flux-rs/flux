@@ -20,3 +20,17 @@ fn test_write_i32(ptr: *mut i32, value: i32) {
                                      //~| ERROR refinement type error
     }
 }
+
+// --- method forms ---
+
+fn test_read_method(x: *const i32) -> i32 {
+    unsafe { x.read() } //~ ERROR refinement type error
+                        //~| ERROR refinement type error
+}
+
+fn test_write_method(ptr: *mut i32, value: i32) {
+    unsafe {
+        ptr.write(value); //~ ERROR refinement type error
+                          //~| ERROR refinement type error
+    }
+}
