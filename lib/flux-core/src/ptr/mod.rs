@@ -99,6 +99,18 @@ macro_rules! ptr_specs {
                          T::size_of() > 0)]
             unsafe fn offset_from(self, origin: *const T) -> isize
             where T: Sized;
+
+            // - All safety conditions of `offset_from` apply.
+            // - Additionally, `self` must be greater than or equal to `origin`.
+            // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L770
+            #[spec(fn (me: *$mutable[@p] T, origin: *const[@op] T) -> usize[(p.addr - op.addr) / T::size_of()]
+                requires p.base == op.base &&
+                         p.addr >= p.base && op.addr >= op.base &&
+                         p.addr >= op.addr &&
+                         (p.addr - op.addr) % T::size_of() == 0 &&
+                         T::size_of() > 0)]
+            unsafe fn offset_from_unsigned(self, origin: *const T) -> usize
+            where T: Sized;
         }
     };
 }

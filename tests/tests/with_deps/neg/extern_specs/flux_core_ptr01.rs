@@ -86,3 +86,15 @@ pub fn test_offset_from_zst(p: *const (), q: *const ()) {
         let _ = p.offset_from(q); //~ ERROR refinement type error
     }
 }
+
+// --- offset_from_unsigned ---
+
+// origin is ahead of self: violates p.addr >= op.addr (all other preconditions are satisfied).
+// aq = ap + 4 ensures (ap - aq) % 4 = (-4) % 4 = 0 in SMT-lib.
+#[flux::spec(fn (p: {*const[@bp, @ap, @sp] i32 | ap >= bp && sp >= 0},
+                  q: {*const[@bq, @aq, @sq] i32 | bq == bp && aq == ap + 4 && sq >= 0}))]
+pub fn test_offset_from_unsigned_reversed(p: *const i32, q: *const i32) {
+    unsafe {
+        let _ = p.offset_from_unsigned(q); //~ ERROR refinement type error
+    }
+}

@@ -115,3 +115,46 @@ pub fn test_offset_from_mut(buf: &mut [i32; 4]) {
         assert(diff == 2);
     }
 }
+
+// --- offset_from_unsigned ---
+
+// forward distance: returns usize, same arithmetic as offset_from for self >= origin
+pub fn test_offset_from_unsigned_pos(buf: &[i32; 4]) {
+    let ptr = buf.as_ptr();
+    unsafe {
+        let p1 = ptr.add(1);
+        let p2 = ptr.add(3);
+        let diff = p2.offset_from_unsigned(p1);
+        assert(diff == 2);
+    }
+}
+
+// self == origin: distance is zero
+pub fn test_offset_from_unsigned_zero(buf: &[i32; 4]) {
+    let ptr = buf.as_ptr();
+    unsafe {
+        let p = ptr.add(2);
+        let diff = p.offset_from_unsigned(p);
+        assert(diff == 0);
+    }
+}
+
+// offset_from_unsigned inverts add: p.add(n).offset_from_unsigned(p) == n
+pub fn test_offset_from_unsigned_roundtrip(buf: &[i32; 4]) {
+    let ptr = buf.as_ptr();
+    unsafe {
+        let p2 = ptr.add(2);
+        assert(p2.offset_from_unsigned(ptr) == 2);
+    }
+}
+
+// *mut T case
+pub fn test_offset_from_unsigned_mut(buf: &mut [i32; 4]) {
+    let ptr = buf.as_mut_ptr();
+    unsafe {
+        let p1 = ptr.add(1);
+        let p2 = ptr.add(3);
+        let diff = p2.offset_from_unsigned(p1);
+        assert(diff == 2);
+    }
+}
