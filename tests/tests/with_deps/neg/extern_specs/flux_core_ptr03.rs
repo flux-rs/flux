@@ -32,3 +32,21 @@ pub fn test_byte_sub_oob(buf: &mut [i32; 2]) {
                                                //~| ERROR refinement type error
     }
 }
+
+// --- byte_offset ---
+
+// forward too far: count(9) > size(8)
+pub fn test_byte_offset_forward_oob(buf: &mut [i32; 2]) {
+    let ptr = buf.as_mut_ptr();
+    unsafe {
+        let _ = ptr.byte_offset(9); //~ ERROR refinement type error
+    }
+}
+
+// backward before base: fresh ptr has addr == base, so addr + (-1) < base
+pub fn test_byte_offset_backward_oob(buf: &mut [i32; 2]) {
+    let ptr = buf.as_mut_ptr();
+    unsafe {
+        let _ = ptr.byte_offset(-1); //~ ERROR refinement type error
+    }
+}

@@ -77,6 +77,12 @@ macro_rules! ptr_specs {
                 -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
                     requires count * T::size_of() <= p.size && p.addr + count * T::size_of() >= p.base)]
             unsafe fn offset(self, count: isize) -> Self;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L471
+            #[spec(fn (me: *$mutable[@p] T, count: isize)
+                -> *$mutable[p.base, p.addr + count, p.size - count] T
+                    requires count <= p.size && p.addr + count >= p.base)]
+            unsafe fn byte_offset(self, count: isize) -> Self;
         }
     };
 }
