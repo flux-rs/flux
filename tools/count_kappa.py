@@ -32,9 +32,9 @@ from kappa_classify import classify, parse_invocations
 # Per-test log delimiter.
 BUILDING_RE = re.compile(r"\[\d+/\d+\] Building: (.+?) \.\.\.")
 
-# Merged log: extract vc_name from info lines on proof files.
+# Merged log: extract test_path and vc_name from info lines on proof files.
 MERGED_PROOF_RE = re.compile(
-    r"^info:\s+\S+/User/Proof/(\w+)Proof\.lean:\d+:\d+:\s+(.*)"
+    r"^info:\s+(\S+)/User/Proof/(\w+)Proof\.lean:\d+:\d+:\s+(.*)"
 )
 
 
@@ -94,46 +94,52 @@ def count_merged(text: str):
     }
     details: list[tuple[str, int | None, str]] = []
 
-    # Per-VC: list of (acyclic, cyclic) invocation pairs.
+    # Per-VC: list of (acyclic, cyclic) invocation pairs, keyed by '<test_path>/<VCName>'.
     vc_invocations: dict[str, list[tuple[list[str], list[str]]]] = {}
     pending_acyclic: dict[str, list[str]] = {}
+
+    CYCLIC_BARE_RE = re.compile(r"^\[solve_fixpoint\] Cyclic κ:\s*\[([^\]]*)\]")
 
     def _items(raw: str) -> list[str]:
         return [k.strip() for k in raw.split(",") if k.strip()]
 
-    for line in text.splitlines():
+    all_lines = text.splitlines()
+    i = 0
+    while i < len(all_lines):
+        line = all_lines[i]
         m = MERGED_PROOF_RE.match(line)
         if not m:
+            i += 1
             continue
-        vc_name, message = m.group(1), m.group(2)
+        test_path, vc_name, message = m.group(1), m.group(2), m.group(3)
+        key = f"{test_path}/{vc_name}"
 
         if "[solve_fixpoint] Acyclic" in message:
-            raw = re.search(r"\[([^\]]*)\]", message)
-            pending_acyclic[vc_name] = _items(raw.group(1)) if raw else []
-
-        elif "[solve_fixpoint] Cyclic" in message:
-            raw = re.search(r"\[([^\]]*)\]", message)
-            cyclic = _items(raw.group(1)) if raw else []
-            acyclic = pending_acyclic.pop(vc_name, [])
-            vc_invocations.setdefault(vc_name, []).append((acyclic, cyclic))
+            raw = re.search(r"κ:\s*\[([^\]]*)\]", message)
+            acyclic = _items(raw.group(1)) if raw else []
+            # Cyclic line immediately follows without an info: prefix.
+            cyclic: list[str] = []
+            if i + 1 < len(all_lines):
+                cm = CYCLIC_BARE_RE.match(all_lines[i + 1])
+                if cm:
+                    cyclic = _items(cm.group(1))
+                    i += 1
+            vc_invocations.setdefault(key, []).append((acyclic, cyclic))
 
         elif "fusion: eliminated" in message:
-            # fusion counts as an acyclic invocation with no solve_fixpoint pair
-            vc_invocations.setdefault(vc_name, []).append((["fusion"], []))
+            vc_invocations.setdefault(key, []).append((["fusion"], []))
 
-    # Flush unmatched Acyclic lines.
-    for vc_name, acyclic in pending_acyclic.items():
-        vc_invocations.setdefault(vc_name, []).append((acyclic, []))
+        i += 1
 
-    for vc_name, invocations in sorted(vc_invocations.items()):
+    for key, invocations in sorted(vc_invocations.items()):
         if not invocations:
             tally["none"] += 1
-            details.append((vc_name, None, "none"))
+            details.append((key, None, "none"))
         else:
             for i, (acyclic, cyclic) in enumerate(invocations):
                 label = classify(acyclic, cyclic)
                 tally[label] += 1
-                details.append((vc_name, i, label))
+                details.append((key, i, label))
 
     return tally, details
 

@@ -32,9 +32,10 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT     = Path(__file__).resolve().parent.parent
-DEFAULT_BENCH = REPO_ROOT / "tests" / "lean_bench"
-DEFAULT_LOG   = REPO_ROOT / "lean_bench_log.txt"
+REPO_ROOT      = Path(__file__).resolve().parent.parent
+DEFAULT_BENCH  = REPO_ROOT / "tests" / "lean_bench"
+DEFAULT_MERGED = REPO_ROOT / "lean_bench_merged"
+DEFAULT_LOG    = REPO_ROOT / "lean_bench_log.txt"
 
 DEF_RE = re.compile(r"^def \S+ :=\s*$|^def \S+ := (.+)", re.MULTILINE)
 
@@ -180,67 +181,89 @@ def run_pertest(bench_root: Path, log_path: Path) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 LEAN_LINE_RE = re.compile(
-    r"^(?:info|error):\s+(\S+/User/Proof/(\w+)Proof\.lean):\d+:\d+:\s+(.*)"
+    r"^(?:info|error):\s+((\S+)/User/Proof/(\w+)Proof\.lean):\d+:\d+:\s+(.*)"
 )
 LAKE_FAIL_RE = re.compile(r"^✖\s+\[\d+/\d+\]\s+Building\s+([\w.]+)")
 ACYCLIC_RE_M = re.compile(r"\[solve_fixpoint\] Acyclic κ:\s*\[([^\]]*)\]")
 CYCLIC_RE_M  = re.compile(r"\[solve_fixpoint\] Cyclic κ:\s*\[([^\]]*)\]")
 
 
+def _vc_key(test_path: str, vc_name: str) -> str:
+    """Unique key: '<cat>/<test>/<VCName>' (e.g. 'Vec/Vec00/TestIsEmpty')."""
+    return f"{test_path}/{vc_name}"
+
+
 def parse_merged_log(log_path: Path) -> dict[str, dict]:
     """
     Parse the raw `lake build` log from the merged project.
 
-    Returns dict keyed by vc_name:
+    Returns dict keyed by '<cat>/<test>/<VCName>':
       {"failed": bool, "acyclic": [...], "cyclic": [...], "fusion": bool}
     """
     vcs: dict[str, dict] = {}
 
-    def _get(name: str) -> dict:
-        if name not in vcs:
-            vcs[name] = {"failed": False, "acyclic": [], "cyclic": [],
-                         "fusion": False}
-        return vcs[name]
+    def _get(key: str) -> dict:
+        if key not in vcs:
+            vcs[key] = {"failed": False, "acyclic": [], "cyclic": [],
+                        "fusion": False}
+        return vcs[key]
 
-    pending_acyclic: dict[str, list[str]] = {}
+    CYCLIC_BARE_RE = re.compile(r"^\[solve_fixpoint\] Cyclic κ:\s*\[([^\]]*)\]")
 
-    for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines():
+    all_lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    i = 0
+    while i < len(all_lines):
+        line = all_lines[i]
+
         # Lake-level failure marker.
         lf = LAKE_FAIL_RE.match(line)
         if lf:
             module = lf.group(1)
-            # e.g. AbstractRefinements.Test00.User.Proof.MaxProof
-            if "Proof" in module:
-                last = module.rsplit(".", 1)[-1]
-                if last.endswith("Proof"):
-                    _get(last[:-5])["failed"] = True
+            # e.g. Vec.Vec00.User.Proof.TestIsEmptyProof
+            parts = module.split(".")
+            try:
+                proof_idx = next(j for j, p in enumerate(parts) if p == "Proof")
+                vc_name = parts[proof_idx + 1]
+                if vc_name.endswith("Proof"):
+                    vc_name = vc_name[:-5]
+                test_path = "/".join(parts[:proof_idx - 1])  # skip "User"
+                _get(_vc_key(test_path, vc_name))["failed"] = True
+            except (StopIteration, IndexError):
+                pass
+            i += 1
             continue
 
         # Lean info/error line referencing a Proof file.
         lm = LEAN_LINE_RE.match(line)
         if not lm:
+            i += 1
             continue
         level_char = line.split(":", 1)[0]
-        fpath, vc_name, message = lm.group(1), lm.group(2), lm.group(3)
+        # group(1)=full fpath, group(2)=cat/test path, group(3)=VCName, group(4)=message
+        test_path, vc_name, message = lm.group(2), lm.group(3), lm.group(4)
+        key = _vc_key(test_path, vc_name)
 
         if level_char == "error":
-            _get(vc_name)["failed"] = True
+            _get(key)["failed"] = True
+            i += 1
             continue
 
         if "[solve_fixpoint] Acyclic" in message:
-            raw = re.search(r"\[([^\]]*)\]", message)
-            pending_acyclic[vc_name] = _items(raw.group(1)) if raw else []
-        elif "[solve_fixpoint] Cyclic" in message:
-            raw = re.search(r"\[([^\]]*)\]", message)
-            cyclic = _items(raw.group(1)) if raw else []
-            acyclic = pending_acyclic.pop(vc_name, [])
-            _get(vc_name)["acyclic"].extend(acyclic)
-            _get(vc_name)["cyclic"].extend(cyclic)
+            raw = re.search(r"κ:\s*\[([^\]]*)\]", message)
+            acyclic = _items(raw.group(1)) if raw else []
+            # Cyclic line immediately follows without an info: prefix.
+            cyclic: list[str] = []
+            if i + 1 < len(all_lines):
+                cm = CYCLIC_BARE_RE.match(all_lines[i + 1])
+                if cm:
+                    cyclic = _items(cm.group(1))
+                    i += 1
+            _get(key)["acyclic"].extend(acyclic)
+            _get(key)["cyclic"].extend(cyclic)
         elif "fusion: eliminated" in message:
-            _get(vc_name)["fusion"] = True
+            _get(key)["fusion"] = True
 
-    for vc_name, acyclic in pending_acyclic.items():
-        _get(vc_name)["acyclic"].extend(acyclic)
+        i += 1
 
     return vcs
 
@@ -254,7 +277,7 @@ def run_merged(merged_dir: Path, log_path: Path) -> list[dict]:
         vc_name = vc_path.stem
         trivial = is_trivially_true(vc_path)
 
-        # Derive a human-readable test_id from the path, e.g.:
+        # Derive test_id from path, e.g.:
         # .../AbstractRefinements/Test00/Flux/VC/Max.lean -> AbstractRefinements/Test00
         try:
             rel_parts = vc_path.relative_to(merged_dir).parts
@@ -263,7 +286,8 @@ def run_merged(merged_dir: Path, log_path: Path) -> list[dict]:
         except (ValueError, IndexError):
             test_id = str(vc_path.parent.parent.parent)
 
-        info = vc_info.get(vc_name, {})
+        key = _vc_key(test_id, vc_name)
+        info = vc_info.get(key, {})
         acyclic = info.get("acyclic", [])
         cyclic  = info.get("cyclic", [])
         # fusion eliminates acyclic κ before solve_fixpoint; treat as acyclic.
@@ -304,6 +328,10 @@ def main() -> None:
         help="Log file (merged mode, default: lean_bench_log.txt)",
     )
     args = parser.parse_args()
+
+    # Auto-detect merged mode when called with no arguments.
+    if not args.merged and not args.bench_root and DEFAULT_MERGED.is_dir():
+        args.merged = str(DEFAULT_MERGED)
 
     if args.merged:
         merged_dir = Path(args.merged).resolve()

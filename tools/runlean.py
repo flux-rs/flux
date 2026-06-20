@@ -149,16 +149,19 @@ LAKE_MODULE_RE = re.compile(
 #   info: AbstractRefinements/Test00/User/Proof/MaxProof.lean:30:4: [solve_fixpoint] ...
 #   error: AbstractRefinements/Test00/User/Proof/MaxProof.lean:30:4: ...
 LEAN_LINE_RE = re.compile(
-    r"^(info|error|warning):\s+(\S+\.lean):\d+:\d+:\s+(.*)"
+    r"^(info|error|warning):\s+((\S+)/User/Proof/(\w+)Proof\.lean):\d+:\d+:\s+(.*)"
 )
 
-# Extract VC name from a proof path component, e.g. "MaxProof.lean" -> "Max"
-PROOF_FILE_RE = re.compile(r"(\w+)Proof\.lean$")
+# Extract VC key from a proof path: "<cat>/<test>/<VCName>"
+PROOF_MODULE_RE = re.compile(r"([\w/]+)/User/Proof/(\w+)Proof")
 
 
-def _vc_name_from_proof_path(path_str: str) -> str | None:
-    m = PROOF_FILE_RE.search(path_str)
-    return m.group(1) if m else None
+def _vc_key_from_proof_path(path_str: str) -> str | None:
+    """Return '<cat>/<test>/<VCName>' from a proof file path or module name."""
+    m = PROOF_MODULE_RE.search(path_str)
+    if m:
+        return f"{m.group(1)}/{m.group(2)}"
+    return None
 
 
 def run_lake_build_merged(merged_dir: Path):
@@ -184,104 +187,99 @@ def parse_merged_output(lines: list[str]) -> dict:
     """
     Parse raw `lake build` stdout from a merged project.
 
-    Returns a dict keyed by vc_name with:
+    Returns a dict keyed by '<cat>/<test>/<VCName>' with:
       {
         "failed": bool,
         "acyclic": list[str],
         "cyclic": list[str],
         "fusion_acyclic": bool,
         "time_ms": int,
-        "kappa_lines": list[str],   # raw lines for the log
+        "kappa_lines": list[str],
         "time_lines": list[str],
       }
     """
     vcs: dict[str, dict] = {}
 
-    def _get(name: str) -> dict:
-        if name not in vcs:
-            vcs[name] = {
+    def _get(key: str) -> dict:
+        if key not in vcs:
+            vcs[key] = {
                 "failed": False, "acyclic": [], "cyclic": [],
                 "fusion_acyclic": False, "time_ms": 0,
                 "kappa_lines": [], "time_lines": [],
             }
-        return vcs[name]
+        return vcs[key]
 
-    # Track modules that Lake reports as failed (✖).
+    CYCLIC_BARE_RE = re.compile(r"^\[solve_fixpoint\] Cyclic κ:\s*\[([^\]]*)\]")
     failed_modules: set[str] = set()
 
-    # We need to pair Acyclic/Cyclic κ lines in document order per VC.
-    # Keep a pending acyclic list per vc_name.
-    pending_acyclic: dict[str, list[str]] = {}
+    i = 0
+    while i < len(lines):
+        line = lines[i]
 
-    for line in lines:
         # Lake module status line.
         mlm = LAKE_MODULE_RE.match(line)
         if mlm:
             status, module = mlm.group(1), mlm.group(2)
             if status == "✖":
                 failed_modules.add(module)
+            i += 1
             continue
 
         # Lean info/error/warning line.
         lm = LEAN_LINE_RE.match(line)
         if not lm:
+            i += 1
             continue
-        level, fpath, message = lm.group(1), lm.group(2), lm.group(3)
+        # group(1)=level, group(2)=full fpath, group(3)=test_path, group(4)=VCName, group(5)=message
+        level, test_path, vc_name, message = lm.group(1), lm.group(3), lm.group(4), lm.group(5)
 
-        vc_name = _vc_name_from_proof_path(fpath)
-        if vc_name is None:
-            continue
-
-        vc = _get(vc_name)
+        key = f"{test_path}/{vc_name}"
+        vc = _get(key)
 
         if level == "error":
             vc["failed"] = True
+            i += 1
             continue
 
         if level != "info":
+            i += 1
             continue
 
-        # [solve_fixpoint] Acyclic κ
         if "[solve_fixpoint] Acyclic" in message:
-            raw = re.search(r"\[([^\]]*)\]", message)
+            raw = re.search(r"κ:\s*\[([^\]]*)\]", message)
             acyclic = _items(raw.group(1)) if raw else []
-            pending_acyclic[vc_name] = acyclic
-            vc["kappa_lines"].append(line)
-            continue
-
-        # [solve_fixpoint] Cyclic κ
-        if "[solve_fixpoint] Cyclic" in message:
-            raw = re.search(r"\[([^\]]*)\]", message)
-            cyclic = _items(raw.group(1)) if raw else []
-            acyclic = pending_acyclic.pop(vc_name, [])
+            # Cyclic line immediately follows without an info: prefix.
+            cyclic: list[str] = []
+            if i + 1 < len(lines):
+                cm = CYCLIC_BARE_RE.match(lines[i + 1])
+                if cm:
+                    cyclic = _items(cm.group(1))
+                    i += 1
             vc["acyclic"].extend(acyclic)
             vc["cyclic"].extend(cyclic)
             vc["kappa_lines"].append(line)
+            i += 1
             continue
 
-        # fusion: eliminated N acyclic κ
         if "fusion: eliminated" in message:
             vc["fusion_acyclic"] = True
             vc["kappa_lines"].append(line)
+            i += 1
             continue
 
-        # #time output
         if "time: " in message:
             tm = re.search(r"time:\s*(\d+)ms", message)
             if tm:
                 vc["time_ms"] += int(tm.group(1))
                 vc["time_lines"].append(line)
 
-    # Flush any unmatched pending Acyclic lines (no Cyclic followed).
-    for vc_name, acyclic in pending_acyclic.items():
-        _get(vc_name)["acyclic"].extend(acyclic)
+        i += 1
 
-    # Apply Lake-level failures: if Lake reports ✖ for a proof module, mark failed.
+    # Apply Lake-level failures from ✖ lines.
     for module in failed_modules:
-        # Module like AbstractRefinements.Test00.User.Proof.MaxProof
-        vc_name = _vc_name_from_proof_path(module.replace(".", "/") + ".lean")
-        if vc_name:
-            _get(vc_name)["failed"] = True
+        key = _vc_key_from_proof_path(module.replace(".", "/"))
+        if key:
+            _get(key)["failed"] = True
 
     return vcs
 
@@ -298,7 +296,7 @@ def run_merged(merged_dir: Path, verbose: bool) -> None:
 
     vcs = parse_merged_output(lines)
 
-    failed_vcs = [n for n, v in vcs.items() if v["failed"]]
+    failed_vcs = [k for k, v in vcs.items() if v["failed"]]
 
     Path.cwd().joinpath("lean_bench.time").write_text(f"{wall_ms}\n")
 
