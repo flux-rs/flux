@@ -1,0 +1,7 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Vec",
+ "isModule": false,
+ "importArts": {},
+ "dynlibs": []}

@@ -1,0 +1,31 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["05d5f424c758c02a.olean"],
+  "i": "493361ae8301af9e.ilean",
+  "c": "63dbe1d1a21aabac.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/ImplTrait.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ImplTrait.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ImplTrait.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/ImplTrait.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/ImplTrait.setup.json --json",
+   "level": "trace"}],
+ "inputs":
+ [["ImplTrait:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports", "00000000000006bb"]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/ImplTrait.lean",
+   "21c42906adea99f5"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: ImplTrait", "03eca3ec7e1fce7d"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "32385c031aef7c80"}

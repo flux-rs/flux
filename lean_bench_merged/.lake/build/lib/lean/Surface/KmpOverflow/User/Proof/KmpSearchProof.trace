@@ -1,0 +1,272 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["db14c1c252cbebd0.olean"],
+  "i": "9807fe53972e5bfb.ilean",
+  "c": "1b3768c6e7c8f1e3.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/KmpOverflow/User/Proof/KmpSearchProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/KmpOverflow/User/Proof/KmpSearchProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/KmpOverflow/User/Proof/KmpSearchProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/KmpOverflow/User/Proof/KmpSearchProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/KmpOverflow/User/Proof/KmpSearchProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:69:0: time: 23023ms",
+   "level": "info"},
+  {"message":
+   "Surface/KmpOverflow/User/Proof/KmpSearchProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1, k2, k3, k4, k6, k5]\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₃, ((((z0 = a'₃ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 => ∃ a'₃, ((((z0 = a'₃ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve] --- k2 ---\n[solve]   sol = ∃ a'₅, (((((z0 = a'₅ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 z6 => ∃ a'₅, (((((z0 = a'₅ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6\n[solve] --- k3 ---\n[solve]   sol = ∃ v₀, v₀ < z1 ∧ ((((((z0 = v₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 z6 z7 =>\n  ∃ v₀, v₀ < z1 ∧ ((((((z0 = v₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7\n[solve] --- k4 ---\n[solve]   sol = (z4 ≠ 0 ∧\n    ∃ a'₈,\n      (∃ v₀, v₀ < z1 ∧ ((((((a'₈ = v₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n        a'₈ ≥ 0 ∧\n          a'₈ ≤ 18446744073709551615 ∧\n            ((((((z0 = a'₈ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n  ¬z4 ≠ 0 ∧ ((((((z0 = 0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 z6 z7 =>\n  (z4 ≠ 0 ∧\n      ∃ a'₈,\n        (∃ v₀, v₀ < z1 ∧ ((((((a'₈ = v₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n          a'₈ ≥ 0 ∧\n            a'₈ ≤ 18446744073709551615 ∧\n              ((((((z0 = a'₈ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n    ¬z4 ≠ 0 ∧ ((((((z0 = 0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7\n[solve] --- k6 ---\n[solve]   sol = z5 ≠ 0 ∧ ((((((z0 = z5 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7 ∨\n  ¬z5 ≠ 0 ∧ ((((((z0 = z3 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 z6 z7 =>\n  z5 ≠ 0 ∧ ((((((z0 = z5 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7 ∨\n    ¬z5 ≠ 0 ∧ ((((((z0 = z3 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7\n[solve] --- k5 ---\n[solve]   sol = (z7 ≠ z8 ∧\n    ∃ p_i₁,\n      ((z5 ≠ 0 ∧\n            ∃ a'₈,\n              (∃ v₀,\n                  v₀ < z2 ∧\n                    ((((((a'₈ = v₀ ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8) ∧\n                a'₈ ≥ 0 ∧\n                  a'₈ ≤ 18446744073709551615 ∧\n                    ((((((p_i₁ = a'₈ ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8) ∨\n          ¬z5 ≠ 0 ∧ ((((((p_i₁ = 0 ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8) ∧\n        (((((((z0 = p_i₁ ∧ z1 = 0) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8) ∨\n  ¬z7 ≠ z8 ∧\n    ∃ result_idx₁,\n      (z6 ≠ 0 ∧ ((((((result_idx₁ = z6 ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8 ∨\n          ¬z6 ≠ 0 ∧\n            ((((((result_idx₁ = z4 ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8) ∧\n        ¬z5 + 1 ≥ z2 ∧\n          (((((((z0 = z5 + 1 ∧ z1 = result_idx₁) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n            z8 = z8\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 z6 z7 z8 =>\n  (z7 ≠ z8 ∧\n      ∃ p_i₁,\n        ((z5 ≠ 0 ∧\n              ∃ a'₈,\n                (∃ v₀,\n                    v₀ < z2 ∧\n                      ((((((a'₈ = v₀ ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8) ∧\n                  a'₈ ≥ 0 ∧\n                    a'₈ ≤ 18446744073709551615 ∧\n                      ((((((p_i₁ = a'₈ ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8) ∨\n            ¬z5 ≠ 0 ∧ ((((((p_i₁ = 0 ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8) ∧\n          (((((((z0 = p_i₁ ∧ z1 = 0) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8) ∨\n    ¬z7 ≠ z8 ∧\n      ∃ result_idx₁,\n        (z6 ≠ 0 ∧ ((((((result_idx₁ = z6 ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8 ∨\n            ¬z6 ≠ 0 ∧\n              ((((((result_idx₁ = z4 ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧ z8 = z8) ∧\n          ¬z5 + 1 ≥ z2 ∧\n            (((((((z0 = z5 + 1 ∧ z1 = result_idx₁) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n              z8 = z8\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = ((((((((((((((((((((((((((z0 ≥ 0 ∧ z1 ≥ 0) ∧ z2 ≥ 0) ∧ z3 ≥ 0) ∧ z4 ≥ 0) ∧ z3 > z1) ∧ z4 > z1) ∧ z4 > z2) ∧ z3 > 0) ∧\n                                      z4 > 0) ∧\n                                    z1 < z3) ∧\n                                  z1 < z4) ∧\n                                z2 < z4) ∧\n                              z0 ≤ z4) ∧\n                            z1 ≤ z3) ∧\n                          z1 ≤ z4) ∧\n                        z2 ≤ z0) ∧\n                      z2 ≤ z4) ∧\n                    z3 ≤ z4) ∧\n                  z0 ≥ z2) ∧\n                z3 ≥ z1) ∧\n              z4 ≥ z0) ∧\n            z4 ≥ z1) ∧\n          z4 ≥ z2) ∧\n        z4 ≥ z3) ∧\n      z1 ≤ z3 - 1) ∧\n    z1 ≤ z4 - 1) ∧\n  z2 ≤ z4 - 1",
+   "level": "info"}],
+ "inputs":
+ [["Surface.KmpOverflow.User.Proof.KmpSearchProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.KmpOverflow.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.KmpOverflow.Flux.Prelude:importAllArts", "a4d452a6e40bc598"],
+        ["Surface.KmpOverflow.Flux.VC.KmpSearch transitive imports (legacy)",
+         "58d8fc939d7fff0e"],
+        ["Surface.KmpOverflow.Flux.VC.KmpSearch:importAllArts",
+         "828367d283252976"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/KmpOverflow/User/Proof/KmpSearchProof.lean",
+   "72ea81bacb4a28be"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.KmpOverflow.User.Proof.KmpSearchProof",
+   "92aa7c50e6ae0b66"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "ae3bc10204739a03"}

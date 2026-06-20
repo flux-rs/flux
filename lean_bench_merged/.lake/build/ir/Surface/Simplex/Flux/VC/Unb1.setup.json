@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Simplex.Flux.VC.Unb1",
+ "isModule": false,
+ "importArts":
+ {"Surface.Simplex.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Simplex/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Structs.Issue578.Flux.VC.Assert",
+ "isModule": false,
+ "importArts":
+ {"Structs.Issue578.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/Issue578/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,12 @@
+import Detached.DetachImpl00.Flux.Prelude
+open Classical
+set_option linter.unusedVariables false
+
+
+namespace F
+
+
+
+def TestA := 
+ True
+end F

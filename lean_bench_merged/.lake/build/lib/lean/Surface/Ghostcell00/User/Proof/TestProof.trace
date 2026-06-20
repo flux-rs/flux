@@ -1,0 +1,112 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["ec9a68660e1522d4.olean"],
+  "i": "972ec3c19f6584df.ilean",
+  "c": "e30f284cb84b3ab3.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Ghostcell00/User/Proof/TestProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Ghostcell00/User/Proof/TestProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Ghostcell00/User/Proof/TestProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Ghostcell00/User/Proof/TestProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Ghostcell00/User/Proof/TestProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:69:0: time: 1116ms",
+   "level": "info"},
+  {"message":
+   "Surface/Ghostcell00/User/Proof/TestProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k3]\n[solve_fixpoint] Cyclic κ:  [k0, k1, k2]\n[solve] --- k3 ---\n[solve]   sol = ∃ a'₇, ?k0 a'₇ z1 ∧ ((z0 = a'₇ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 => ∃ a'₇, ?k0 a'₇ z1 ∧ ((z0 = a'₇ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve_fixpoint] --- PA on cyclic κ's [k0, k1, k2] ---\n[solve_fixpoint]   PA sol for k0 = z0 > 0 ∧ z0 ≥ 0\n[solve_fixpoint]   PA sol for k1 = z0 > 0 ∧ z0 ≥ 0\n[solve_fixpoint]   PA sol for k2 = ((z0 > 0 ∧ z2 > 0) ∧ z0 ≥ 0) ∧ z2 ≥ 0",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Ghostcell00.User.Proof.TestProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Ghostcell00.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Ghostcell00.Flux.Prelude:importAllArts", "d0400a9679c3eadc"],
+        ["Surface.Ghostcell00.Flux.VC.Test transitive imports (legacy)",
+         "12b49fd8a1e0753a"],
+        ["Surface.Ghostcell00.Flux.VC.Test:importAllArts",
+         "1f047ab559df0491"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Ghostcell00/User/Proof/TestProof.lean",
+   "5968f9618d0552ca"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Ghostcell00.User.Proof.TestProof", "e922d3a27d621637"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "b37d94a9dbf11a3c"}

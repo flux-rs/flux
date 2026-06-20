@@ -1,0 +1,53 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["aec4bb5b2bddc9e3.olean"],
+  "i": "39427adaac00ce6a.ilean",
+  "c": "034f0e9df6b99d2c.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Enums/List00/User/Proof/MappendProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/List00/User/Proof/MappendProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/List00/User/Proof/MappendProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Enums/List00/User/Proof/MappendProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Enums/List00/User/Proof/MappendProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Enums/List00/User/Proof/MappendProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/List00/User/Proof/MappendProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Enums/List00/User/Proof/MappendProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Enums/List00/User/Proof/MappendProof.lean:69:0: time: 129ms",
+   "level": "info"},
+  {"message":
+   "Enums/List00/User/Proof/MappendProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z1 = 0 ∧ (z0 = z2 ∧ z1 = z1) ∧ z2 = z2 ∨\n  ∃ n₀, z1 = n₀ + 1 ∧ ∃ a'₁, n₀ ≥ 0 ∧ n₀ + z2 ≥ 0 ∧ (z0 = n₀ + z2 + 1 ∧ z1 = z1) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 =>\n  z1 = 0 ∧ (z0 = z2 ∧ z1 = z1) ∧ z2 = z2 ∨\n    ∃ n₀, z1 = n₀ + 1 ∧ ∃ a'₁, n₀ ≥ 0 ∧ n₀ + z2 ≥ 0 ∧ (z0 = n₀ + z2 + 1 ∧ z1 = z1) ∧ z2 = z2",
+   "level": "info"}],
+ "inputs":
+ [["Enums.List00.User.Proof.MappendProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Enums.List00.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Enums.List00.Flux.Prelude:importAllArts", "366119eb1d9d8fc4"],
+        ["Enums.List00.Flux.VC.Mappend transitive imports (legacy)",
+         "40e42739e9867018"],
+        ["Enums.List00.Flux.VC.Mappend:importAllArts", "a39b07fdbc0500e7"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Enums/List00/User/Proof/MappendProof.lean",
+   "2e4a79d87f1abc17"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Enums.List00.User.Proof.MappendProof", "69910925e55717b1"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "86243d2bf1bd7b55"}

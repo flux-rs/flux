@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.StaticSpec01.Flux.VC.GooberTest",
+ "isModule": false,
+ "importArts":
+ {"Surface.StaticSpec01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/StaticSpec01/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.AssocReft06.Flux.VC.CheckInvariant",
+ "isModule": false,
+ "importArts":
+ {"Surface.AssocReft06.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/AssocReft06/Flux/Prelude.olean"]},
+ "dynlibs": []}

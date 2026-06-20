@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.IfThenElse.Flux.VC.Min",
+ "isModule": false,
+ "importArts":
+ {"Surface.IfThenElse.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/IfThenElse/Flux/Prelude.olean"]},
+ "dynlibs": []}

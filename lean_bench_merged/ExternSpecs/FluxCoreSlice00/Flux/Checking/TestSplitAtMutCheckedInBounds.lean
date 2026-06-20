@@ -1,0 +1,4 @@
+import ExternSpecs.FluxCoreSlice00.Flux.VC.TestSplitAtMutCheckedInBounds
+import ExternSpecs.FluxCoreSlice00.User.Proof.TestSplitAtMutCheckedInBoundsProof
+
+#check (F.TestSplitAtMutCheckedInBounds_proof : F.TestSplitAtMutCheckedInBounds)

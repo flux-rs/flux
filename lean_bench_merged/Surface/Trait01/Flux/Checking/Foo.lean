@@ -1,0 +1,4 @@
+import Surface.Trait01.Flux.VC.Foo
+import Surface.Trait01.User.Proof.FooProof
+
+#check (F.Foo_proof : F.Foo)

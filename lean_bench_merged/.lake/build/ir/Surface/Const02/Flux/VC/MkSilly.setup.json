@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Const02.Flux.VC.MkSilly",
+ "isModule": false,
+ "importArts":
+ {"Surface.Const02.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Const02/Flux/Prelude.olean"],
+  "Surface.Const02.Flux.Fun.FORTYTWO":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Const02/Flux/Fun/FORTYTWO.olean"]},
+ "dynlibs": []}

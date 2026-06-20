@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Join03.Flux.Struct.Pair",
+ "isModule": false,
+ "importArts":
+ {"Surface.Join03.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Join03/Flux/Prelude.olean"]},
+ "dynlibs": []}

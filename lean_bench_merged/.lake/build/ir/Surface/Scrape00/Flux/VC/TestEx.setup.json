@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Scrape00.Flux.VC.TestEx",
+ "isModule": false,
+ "importArts":
+ {"Surface.Scrape00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Scrape00/Flux/Prelude.olean"]},
+ "dynlibs": []}

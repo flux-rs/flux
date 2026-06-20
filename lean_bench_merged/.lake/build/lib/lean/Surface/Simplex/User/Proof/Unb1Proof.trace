@@ -1,0 +1,206 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["fa0f6edbbdf585a6.olean"],
+  "i": "1db15c3e012a3da4.ilean",
+  "c": "bcb2e5eb2fcaf0c4.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Simplex/User/Proof/Unb1Proof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Simplex/User/Proof/Unb1Proof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Simplex/User/Proof/Unb1Proof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Simplex/User/Proof/Unb1Proof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Simplex/User/Proof/Unb1Proof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/Simplex/User/Proof/Unb1Proof.lean:69:0: time: 7977ms",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/Unb1Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1]\n[solve_fixpoint] Cyclic κ:  [k0, k2]\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₁,\n  ¬a'₁ ∧ ((z0 = z0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = a'₁ ∨\n    a'₁ ∧ ∃ i₀, ?k2 i₀ z0 z1 z2 True ∧ i₀ < z0 ∧ ∃ a'₃, ¬a'₃ ∧ ((z0 = z0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ a'₁,\n    ¬a'₁ ∧ ((z0 = z0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = a'₁ ∨\n      a'₁ ∧ ∃ i₀, ?k2 i₀ z0 z1 z2 True ∧ i₀ < z0 ∧ ∃ a'₃, ¬a'₃ ∧ ((z0 = z0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True\n[solve_fixpoint] --- PA on cyclic κ's [k0, k2] ---\n[solve_fixpoint]   PA sol for k0 = ((((((z2 ≥ z0 ∧ z0 > 0) ∧ z1 > 0) ∧ z2 > 0) ∧ z0 ≥ 0) ∧ z1 ≥ 0) ∧ z2 ≥ 0) ∧ z0 ≤ z2\n[solve_fixpoint]   PA sol for k2 = ((((((((((((((z1 ≥ z0 ∧ z2 ≥ z3) ∧ z0 > 0) ∧ z1 > 0) ∧ z2 > 0) ∧ z3 > 0) ∧ z0 ≥ 0) ∧ z1 ≥ 0) ∧ z2 ≥ 0) ∧ z3 ≥ 0) ∧\n            z3 < z2) ∧\n          z0 ≤ z1) ∧\n        z3 ≤ z2) ∧\n      z4) ∧\n    z2 > z3) ∧\n  z3 ≤ z2 - 1",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Simplex.User.Proof.Unb1Proof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Simplex.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Simplex.Flux.Prelude:importAllArts", "40310b272ae7bbe1"],
+        ["Surface.Simplex.Flux.VC.Unb1 transitive imports (legacy)",
+         "5cce4a22b7fff904"],
+        ["Surface.Simplex.Flux.VC.Unb1:importAllArts", "0cd19fb7ba8e2143"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Simplex/User/Proof/Unb1Proof.lean",
+   "832c9baf72ddfeaf"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Simplex.User.Proof.Unb1Proof", "15e4d8496707a8e2"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "4fec59e12d0ccd98"}

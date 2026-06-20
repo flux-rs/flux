@@ -1,0 +1,71 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["03e59523fa5e49c2.olean"],
+  "i": "370b813c93064581.ilean",
+  "c": "ad378f0932b4a885.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Iter00/User/Proof/RangeImpl__2__NextProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Iter00/User/Proof/RangeImpl__2__NextProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Iter00/User/Proof/RangeImpl__2__NextProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Iter00/User/Proof/RangeImpl__2__NextProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean:69:0: time: 81ms",
+   "level": "info"},
+  {"message":
+   "Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ((z0 = z3 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 => ((z0 = z3 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Iter00.User.Proof.RangeImpl__2__NextProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Iter00.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Iter00.Flux.Prelude:importAllArts", "5175bc3a90dc242e"],
+        ["Surface.Iter00.Flux.VC.RangeImpl__2__Next transitive imports (legacy)",
+         "8f876b43f5daa073"],
+        ["Surface.Iter00.Flux.VC.RangeImpl__2__Next:importAllArts",
+         "e164d1c08b4640c9"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Iter00/User/Proof/RangeImpl__2__NextProof.lean",
+   "407bb289f4aa8022"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Iter00.User.Proof.RangeImpl__2__NextProof",
+   "1bc435e8a028f858"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "df2f08c7546b8468"}

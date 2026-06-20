@@ -1,0 +1,144 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["1a218ad28d0503ef.olean"],
+  "i": "6a556a6e0e1b161f.ilean",
+  "c": "aabce5d195489555.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:69:0: time: 2680ms",
+   "level": "info"},
+  {"message":
+   "Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1, k2, k3]\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₂, ((z0 = a'₂ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 => ∃ a'₂, ((z0 = a'₂ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve] --- k2 ---\n[solve]   sol = ∃ a'₄, (((z0 = a'₄ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4\n[solve]   lam = fun z0 z1 z2 z3 z4 => ∃ a'₄, (((z0 = a'₄ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4\n[solve] --- k3 ---\n[solve]   sol = ¬z4 < z5 ∧ ((((z0 = z2 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5 ∨\n  z4 < z5 ∧ ((((z0 = z3 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 =>\n  ¬z4 < z5 ∧ ((((z0 = z2 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5 ∨\n    z4 < z5 ∧ ((((z0 = z3 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = (((((((((((z0 ≤ z2 - 1 ∧ z2 > z0) ∧ z0 ≤ z1) ∧ z0 ≤ z2) ∧ z1 ≤ z2) ∧ z1 ≥ z0) ∧ z2 ≥ z0) ∧ z2 ≥ z1) ∧ z0 ≥ 0) ∧\n        z1 ≥ 0) ∧\n      z2 ≥ 0) ∧\n    z0 < z2) ∧\n  z2 > 0",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Ex2MinIndexLoop.User.Proof.MinIndexProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Ex2MinIndexLoop.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Ex2MinIndexLoop.Flux.Prelude:importAllArts",
+         "c7b0fe7b555fb210"],
+        ["Surface.Ex2MinIndexLoop.Flux.VC.MinIndex transitive imports (legacy)",
+         "54608f98bc0f31ec"],
+        ["Surface.Ex2MinIndexLoop.Flux.VC.MinIndex:importAllArts",
+         "e5328ee33208648e"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Ex2MinIndexLoop/User/Proof/MinIndexProof.lean",
+   "2b33bd2309949ec6"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Ex2MinIndexLoop.User.Proof.MinIndexProof",
+   "ba9805e2cfe9d04d"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "8b7dd93b5d006740"}

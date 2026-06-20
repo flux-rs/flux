@@ -1,0 +1,326 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["6ce6fe2dae0310f5.olean"],
+  "i": "d05d5077570892f0.ilean",
+  "c": "c2eb9beffd7aaa1b.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Kmp/User/Proof/KmpTableProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Kmp/User/Proof/KmpTableProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Kmp/User/Proof/KmpTableProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Kmp/User/Proof/KmpTableProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Kmp/User/Proof/KmpTableProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/Kmp/User/Proof/KmpTableProof.lean:69:0: time: 198873ms",
+   "level": "info"},
+  {"message":
+   "Surface/Kmp/User/Proof/KmpTableProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k3, k4, k5, k6, k8, k7, k9, k11, k10]\n[solve_fixpoint] Cyclic κ:  [k1, k2]\n[solve] --- k0 ---\n[solve]   sol = z0 = 0 ∧ z1 = z1\n[solve]   lam = fun z0 z1 => z0 = 0 ∧ z1 = z1\n[solve] --- k3 ---\n[solve]   sol = ∃ a'₄, ((z0 = a'₄ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 => ∃ a'₄, ((z0 = a'₄ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve] --- k4 ---\n[solve]   sol = ∃ a'₆, (((z0 = a'₆ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4\n[solve]   lam = fun z0 z1 z2 z3 z4 => ∃ a'₆, (((z0 = a'₆ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4\n[solve] --- k5 ---\n[solve]   sol = ∃ a'₈, ?k2 a'₈ z2 z3 z1 ∧ ((((z0 = a'₈ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 => ∃ a'₈, ?k2 a'₈ z2 z3 z1 ∧ ((((z0 = a'₈ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve] --- k6 ---\n[solve]   sol = (z4 ≠ 0 ∧\n    ∃ a'₉,\n      (∃ a'₈, ?k2 a'₈ z3 z4 z2 ∧ ((((a'₉ = a'₈ ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧\n        a'₉ ≥ 0 ∧ (((((z0 = z3 ∧ z1 = a'₉) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∨\n  ¬z4 ≠ 0 ∧ (((((z0 = z3 + 1 ∧ z1 = z4) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 z6 =>\n  (z4 ≠ 0 ∧\n      ∃ a'₉,\n        (∃ a'₈, ?k2 a'₈ z3 z4 z2 ∧ ((((a'₉ = a'₈ ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧\n          a'₉ ≥ 0 ∧ (((((z0 = z3 ∧ z1 = a'₉) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∨\n    ¬z4 ≠ 0 ∧ (((((z0 = z3 + 1 ∧ z1 = z4) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6\n[solve] --- k8 ---\n[solve]   sol = (∃ a'₁₁, ?k2 a'₁₁ z2 z3 z1 ∧ ((((z0 = a'₁₁ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∨\n  ((((z0 = 0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 =>\n  (∃ a'₁₁, ?k2 a'₁₁ z2 z3 z1 ∧ ((((z0 = a'₁₁ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∨\n    ((((z0 = 0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve] --- k7 ---\n[solve]   sol = (z5 ≠ 0 ∧\n    ∃ a'₉,\n      (∃ a'₈, ?k2 a'₈ z4 z5 z3 ∧ ((((a'₉ = a'₈ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n        a'₉ ≥ 0 ∧\n          ∃ a'₁₀,\n            ?k2 a'₁₀ z4 z5 z3 ∧\n              ((((((z0 = a'₁₀ ∧ z1 = z4) ∧ z2 = a'₉) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n  ¬z5 ≠ 0 ∧\n    ∃ a'₁₂,\n      ((∃ a'₁₁, ?k2 a'₁₁ z4 z5 z3 ∧ ((((a'₁₂ = a'₁₁ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n          ((((a'₁₂ = 0 ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n        ((((((z0 = a'₁₂ ∧ z1 = z4 + 1) ∧ z2 = z5) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 z6 z7 =>\n  (z5 ≠ 0 ∧\n      ∃ a'₉,\n        (∃ a'₈, ?k2 a'₈ z4 z5 z3 ∧ ((((a'₉ = a'₈ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n          a'₉ ≥ 0 ∧\n            ∃ a'₁₀,\n              ?k2 a'₁₀ z4 z5 z3 ∧\n                ((((((z0 = a'₁₀ ∧ z1 = z4) ∧ z2 = a'₉) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n    ¬z5 ≠ 0 ∧\n      ∃ a'₁₂,\n        ((∃ a'₁₁, ?k2 a'₁₁ z4 z5 z3 ∧ ((((a'₁₂ = a'₁₁ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n            ((((a'₁₂ = 0 ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n          ((((((z0 = a'₁₂ ∧ z1 = z4 + 1) ∧ z2 = z5) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7\n[solve] --- k9 ---\n[solve]   sol = (z5 ≠ z6 ∧\n    ∃ i₁ j₁,\n      ((z4 ≠ 0 ∧\n            ∃ a'₉,\n              (∃ a'₈, ?k2 a'₈ z3 z4 z2 ∧ ((((a'₉ = a'₈ ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧\n                a'₉ ≥ 0 ∧ (((((i₁ = z3 ∧ j₁ = a'₉) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∨\n          ¬z4 ≠ 0 ∧ (((((i₁ = z3 + 1 ∧ j₁ = z4) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧\n        (((((z0 = i₁ ∧ z1 = j₁) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∨\n  ¬z5 ≠ z6 ∧ (((((z0 = z3 + 1 ∧ z1 = z4 + 1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 z6 =>\n  (z5 ≠ z6 ∧\n      ∃ i₁ j₁,\n        ((z4 ≠ 0 ∧\n              ∃ a'₉,\n                (∃ a'₈, ?k2 a'₈ z3 z4 z2 ∧ ((((a'₉ = a'₈ ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧\n                  a'₉ ≥ 0 ∧ (((((i₁ = z3 ∧ j₁ = a'₉) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∨\n            ¬z4 ≠ 0 ∧ (((((i₁ = z3 + 1 ∧ j₁ = z4) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧\n          (((((z0 = i₁ ∧ z1 = j₁) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∨\n    ¬z5 ≠ z6 ∧ (((((z0 = z3 + 1 ∧ z1 = z4 + 1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6\n[solve] --- k11 ---\n[solve]   sol = (∃ a'₁₆, ?k2 a'₁₆ z2 z3 z1 ∧ ((((z0 = a'₁₆ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∨\n  ((((z0 = z3 + 1 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 =>\n  (∃ a'₁₆, ?k2 a'₁₆ z2 z3 z1 ∧ ((((z0 = a'₁₆ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∨\n    ((((z0 = z3 + 1 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve] --- k10 ---\n[solve]   sol = (z6 ≠ z7 ∧\n    ∃ i₁ j₁,\n      ((z5 ≠ 0 ∧\n            ∃ a'₉,\n              (∃ a'₈, ?k2 a'₈ z4 z5 z3 ∧ ((((a'₉ = a'₈ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n                a'₉ ≥ 0 ∧ (((((i₁ = z4 ∧ j₁ = a'₉) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n          ¬z5 ≠ 0 ∧ (((((i₁ = z4 + 1 ∧ j₁ = z5) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n        ∃ a'₁₅,\n          ((z5 ≠ 0 ∧\n                ∃ a'₉,\n                  (∃ a'₈, ?k2 a'₈ z4 z5 z3 ∧ ((((a'₉ = a'₈ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n                    a'₉ ≥ 0 ∧\n                      ∃ a'₁₀,\n                        ?k2 a'₁₀ z4 z5 z3 ∧\n                          ((((((a'₁₅ = a'₁₀ ∧ i₁ = z4) ∧ j₁ = a'₉) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧\n                            z7 = z7) ∨\n              ¬z5 ≠ 0 ∧\n                ∃ a'₁₂,\n                  ((∃ a'₁₁, ?k2 a'₁₁ z4 z5 z3 ∧ ((((a'₁₂ = a'₁₁ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n                      ((((a'₁₂ = 0 ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n                    ((((((a'₁₅ = a'₁₂ ∧ i₁ = z4 + 1) ∧ j₁ = z5) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n            ((((((z0 = a'₁₅ ∧ z1 = i₁) ∧ z2 = j₁) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n  ¬z6 ≠ z7 ∧\n    ∃ a'₁₇,\n      ((∃ a'₁₆, ?k2 a'₁₆ z4 z5 z3 ∧ ((((a'₁₇ = a'₁₆ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n          ((((a'₁₇ = z5 + 1 ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n        ((((((z0 = a'₁₇ ∧ z1 = z4 + 1) ∧ z2 = z5 + 1) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 z6 z7 =>\n  (z6 ≠ z7 ∧\n      ∃ i₁ j₁,\n        ((z5 ≠ 0 ∧\n              ∃ a'₉,\n                (∃ a'₈, ?k2 a'₈ z4 z5 z3 ∧ ((((a'₉ = a'₈ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n                  a'₉ ≥ 0 ∧ (((((i₁ = z4 ∧ j₁ = a'₉) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n            ¬z5 ≠ 0 ∧ (((((i₁ = z4 + 1 ∧ j₁ = z5) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n          ∃ a'₁₅,\n            ((z5 ≠ 0 ∧\n                  ∃ a'₉,\n                    (∃ a'₈, ?k2 a'₈ z4 z5 z3 ∧ ((((a'₉ = a'₈ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n                      a'₉ ≥ 0 ∧\n                        ∃ a'₁₀,\n                          ?k2 a'₁₀ z4 z5 z3 ∧\n                            ((((((a'₁₅ = a'₁₀ ∧ i₁ = z4) ∧ j₁ = a'₉) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧\n                              z7 = z7) ∨\n                ¬z5 ≠ 0 ∧\n                  ∃ a'₁₂,\n                    ((∃ a'₁₁,\n                          ?k2 a'₁₁ z4 z5 z3 ∧ ((((a'₁₂ = a'₁₁ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n                        ((((a'₁₂ = 0 ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n                      ((((((a'₁₅ = a'₁₂ ∧ i₁ = z4 + 1) ∧ j₁ = z5) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧\n                        z7 = z7) ∧\n              ((((((z0 = a'₁₅ ∧ z1 = i₁) ∧ z2 = j₁) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n    ¬z6 ≠ z7 ∧\n      ∃ a'₁₇,\n        ((∃ a'₁₆, ?k2 a'₁₆ z4 z5 z3 ∧ ((((a'₁₇ = a'₁₆ ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∨\n            ((((a'₁₇ = z5 + 1 ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7) ∧\n          ((((((z0 = a'₁₇ ∧ z1 = z4 + 1) ∧ z2 = z5 + 1) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = z7\n[solve_fixpoint] --- PA on cyclic κ's [k1, k2] ---\n[solve_fixpoint]   PA sol for k1 = (((((((((((((((z0 ≤ z2 ∧ z1 ≤ z0) ∧ z1 ≤ z2) ∧ z0 ≥ z1) ∧ z2 ≥ z0) ∧ z2 ≥ z1) ∧ z0 > z1) ∧ z2 > z1) ∧ z1 ≤ z0 - 1) ∧\n                z1 ≤ z2 - 1) ∧\n              z1 < z0) ∧\n            z1 < z2) ∧\n          z0 ≥ 0) ∧\n        z1 ≥ 0) ∧\n      z2 ≥ 0) ∧\n    z0 > 0) ∧\n  z2 > 0\n[solve_fixpoint]   PA sol for k2 = ((((((((((((((((((((((((((z0 ≤ z1 ∧ z0 ≤ z3) ∧ z1 ≤ z3) ∧ z2 ≤ z1) ∧ z2 ≤ z3) ∧ z1 ≥ z0) ∧ z1 ≥ z2) ∧ z3 ≥ z0) ∧\n                                        z3 ≥ z1) ∧\n                                      z3 ≥ z2) ∧\n                                    z1 > z0) ∧\n                                  z1 > z2) ∧\n                                z3 > z0) ∧\n                              z3 > z2) ∧\n                            z0 ≤ z1 - 1) ∧\n                          z0 ≤ z3 - 1) ∧\n                        z2 ≤ z1 - 1) ∧\n                      z2 ≤ z3 - 1) ∧\n                    z0 < z1) ∧\n                  z0 < z3) ∧\n                z2 < z1) ∧\n              z2 < z3) ∧\n            z0 ≥ 0) ∧\n          z1 ≥ 0) ∧\n        z2 ≥ 0) ∧\n      z3 ≥ 0) ∧\n    z1 > 0) ∧\n  z3 > 0\n[solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  [k2, k1]\n[solve_fixpoint] --- PA on cyclic κ's [k2, k1] ---\n[solve_fixpoint]   PA sol for k2 = ((((((((((((((((((((((((((z0 ≤ z1 ∧ z0 ≤ z3) ∧ z1 ≤ z3) ∧ z2 ≤ z1) ∧ z2 ≤ z3) ∧ z1 ≥ z0) ∧ z1 ≥ z2) ∧ z3 ≥ z0) ∧\n                                        z3 ≥ z1) ∧\n                                      z3 ≥ z2) ∧\n                                    z1 > z0) ∧\n                                  z1 > z2) ∧\n                                z3 > z0) ∧\n                              z3 > z2) ∧\n                            z0 ≤ z1 - 1) ∧\n                          z0 ≤ z3 - 1) ∧\n                        z2 ≤ z1 - 1) ∧\n                      z2 ≤ z3 - 1) ∧\n                    z0 < z1) ∧\n                  z0 < z3) ∧\n                z2 < z1) ∧\n              z2 < z3) ∧\n            z0 ≥ 0) ∧\n          z1 ≥ 0) ∧\n        z2 ≥ 0) ∧\n      z3 ≥ 0) ∧\n    z1 > 0) ∧\n  z3 > 0\n[solve_fixpoint]   PA sol for k1 = (((((((((((((((z0 ≤ z2 ∧ z1 ≤ z0) ∧ z1 ≤ z2) ∧ z0 ≥ z1) ∧ z2 ≥ z0) ∧ z2 ≥ z1) ∧ z0 > z1) ∧ z2 > z1) ∧ z1 ≤ z0 - 1) ∧\n                z1 ≤ z2 - 1) ∧\n              z1 < z0) ∧\n            z1 < z2) ∧\n          z0 ≥ 0) ∧\n        z1 ≥ 0) ∧\n      z2 ≥ 0) ∧\n    z0 > 0) ∧\n  z2 > 0",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Kmp.User.Proof.KmpTableProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Kmp.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Kmp.Flux.Prelude:importAllArts", "69bd252dfc86f383"],
+        ["Surface.Kmp.Flux.VC.KmpTable transitive imports (legacy)",
+         "7d4cb9f93ea69a21"],
+        ["Surface.Kmp.Flux.VC.KmpTable:importAllArts", "0f50e8d2e1e04639"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Kmp/User/Proof/KmpTableProof.lean",
+   "c5d760baa6ec8fc8"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Kmp.User.Proof.KmpTableProof", "36c85420b9594504"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "f784982a6016b35e"}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.StringSpec.Flux.VC.TestString",
+ "isModule": false,
+ "importArts":
+ {"Surface.StringSpec.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/StringSpec/Flux/Prelude.olean"]},
+ "dynlibs": []}

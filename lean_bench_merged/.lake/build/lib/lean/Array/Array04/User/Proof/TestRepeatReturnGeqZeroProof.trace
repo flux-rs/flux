@@ -1,0 +1,53 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["cca4c5fbdcab071e.olean"],
+  "i": "6a471f2bddc8ba30.ilean",
+  "c": "7759e5f39d724e92.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Array/Array04/User/Proof/TestRepeatReturnGeqZeroProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Array/Array04/User/Proof/TestRepeatReturnGeqZeroProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Array/Array04/User/Proof/TestRepeatReturnGeqZeroProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Array/Array04/User/Proof/TestRepeatReturnGeqZeroProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Array/Array04/User/Proof/TestRepeatReturnGeqZeroProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Array/Array04/User/Proof/TestRepeatReturnGeqZeroProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Array/Array04/User/Proof/TestRepeatReturnGeqZeroProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Array/Array04/User/Proof/TestRepeatReturnGeqZeroProof.lean:69:0: time: 12ms",
+   "level": "info"},
+  {"message":
+   "Array/Array04/User/Proof/TestRepeatReturnGeqZeroProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = 0\n[solve]   lam = fun z0 => z0 = 0",
+   "level": "info"}],
+ "inputs":
+ [["Array.Array04.User.Proof.TestRepeatReturnGeqZeroProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Array.Array04.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Array.Array04.Flux.Prelude:importAllArts", "38cb79e90997dc20"],
+        ["Array.Array04.Flux.VC.TestRepeatReturnGeqZero transitive imports (legacy)",
+         "294b356ff97c64c5"],
+        ["Array.Array04.Flux.VC.TestRepeatReturnGeqZero:importAllArts",
+         "6284d81cb950f890"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Array/Array04/User/Proof/TestRepeatReturnGeqZeroProof.lean",
+   "a628271a7f1072a2"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Array.Array04.User.Proof.TestRepeatReturnGeqZeroProof",
+   "7cea913b6cf2edf5"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "5ce58ea026bf5c52"}

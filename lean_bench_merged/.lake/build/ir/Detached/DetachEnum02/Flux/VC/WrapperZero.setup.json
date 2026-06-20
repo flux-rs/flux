@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Detached.DetachEnum02.Flux.VC.WrapperZero",
+ "isModule": false,
+ "importArts":
+ {"Detached.DetachEnum02.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Detached/DetachEnum02/Flux/Prelude.olean"]},
+ "dynlibs": []}

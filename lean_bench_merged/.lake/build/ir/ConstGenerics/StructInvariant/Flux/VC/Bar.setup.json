@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "ConstGenerics.StructInvariant.Flux.VC.Bar",
+ "isModule": false,
+ "importArts":
+ {"ConstGenerics.StructInvariant.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ConstGenerics/StructInvariant/Flux/Prelude.olean"]},
+ "dynlibs": []}

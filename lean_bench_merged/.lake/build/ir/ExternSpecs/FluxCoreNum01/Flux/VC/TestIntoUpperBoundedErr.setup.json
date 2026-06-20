@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "ExternSpecs.FluxCoreNum01.Flux.VC.TestIntoUpperBoundedErr",
+ "isModule": false,
+ "importArts":
+ {"ExternSpecs.FluxCoreNum01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxCoreNum01/Flux/Prelude.olean"],
+  "ExternSpecs.FluxCoreNum01.Flux.Fun.NumImpl8MAX":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxCoreNum01/Flux/Fun/NumImpl8MAX.olean"]},
+ "dynlibs": []}

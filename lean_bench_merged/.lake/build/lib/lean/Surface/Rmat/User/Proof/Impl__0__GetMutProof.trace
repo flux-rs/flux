@@ -1,0 +1,56 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["6f327f2f4766cef6.olean"],
+  "i": "c632429aa2c9129c.ilean",
+  "c": "6084179322023c56.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Rmat/User/Proof/Impl__0__GetMutProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Rmat/User/Proof/Impl__0__GetMutProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Rmat/User/Proof/Impl__0__GetMutProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Rmat/User/Proof/Impl__0__GetMutProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Rmat/User/Proof/Impl__0__GetMutProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Rmat/User/Proof/Impl__0__GetMutProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Rmat/User/Proof/Impl__0__GetMutProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Rmat/User/Proof/Impl__0__GetMutProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Rmat/User/Proof/Impl__0__GetMutProof.lean:69:0: time: 60ms",
+   "level": "info"},
+  {"message":
+   "Surface/Rmat/User/Proof/Impl__0__GetMutProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₂, a'₂ = z2 ∧ (((z0 = a'₂ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4\n[solve]   lam = fun z0 z1 z2 z3 z4 => ∃ a'₂, a'₂ = z2 ∧ (((z0 = a'₂ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Rmat.User.Proof.Impl__0__GetMutProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Rmat.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Rmat.Flux.Prelude:importAllArts", "51b9ce9a9d10beb6"],
+        ["Surface.Rmat.Flux.VC.Impl__0__GetMut transitive imports (legacy)",
+         "0d83fb3c4652b703"],
+        ["Surface.Rmat.Flux.VC.Impl__0__GetMut:importAllArts",
+         "5a6b09786fba4eeb"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Rmat/User/Proof/Impl__0__GetMutProof.lean",
+   "501a2014eb45ca62"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Rmat.User.Proof.Impl__0__GetMutProof",
+   "4c63fa4101b6961f"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "eb31ac544e6da07c"}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Box03.Flux.VC.MutRefBox",
+ "isModule": false,
+ "importArts":
+ {"Surface.Box03.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Box03/Flux/Prelude.olean"]},
+ "dynlibs": []}

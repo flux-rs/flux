@@ -1,0 +1,56 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["76e3ce80ee269657.olean"],
+  "i": "c773b1481bf3ef2b.ilean",
+  "c": "945f38485e3786fd.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Bitvec05/User/Proof/TheoremPow2OctetProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Bitvec05/User/Proof/TheoremPow2OctetProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Bitvec05/User/Proof/TheoremPow2OctetProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Bitvec05/User/Proof/TheoremPow2OctetProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Bitvec05/User/Proof/TheoremPow2OctetProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Bitvec05/User/Proof/TheoremPow2OctetProof.lean:71:2: aesop: failed to prove the goal after exhaustive search.",
+   "level": "warning"},
+  {"message":
+   "Surface/Bitvec05/User/Proof/TheoremPow2OctetProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Bitvec05/User/Proof/TheoremPow2OctetProof.lean:71:2: [solve_fixpoint] closed by: bv_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Bitvec05/User/Proof/TheoremPow2OctetProof.lean:69:0: time: 995ms",
+   "level": "info"},
+  {"message":
+   "Surface/Bitvec05/User/Proof/TheoremPow2OctetProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Bitvec05.User.Proof.TheoremPow2OctetProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Bitvec05.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Bitvec05.Flux.Prelude:importAllArts", "70428cac01257a24"],
+        ["Surface.Bitvec05.Flux.VC.TheoremPow2Octet transitive imports (legacy)",
+         "9354eb299c54215b"],
+        ["Surface.Bitvec05.Flux.VC.TheoremPow2Octet:importAllArts",
+         "b314cfaf8de90773"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Bitvec05/User/Proof/TheoremPow2OctetProof.lean",
+   "f44c9e14580ed6b9"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Bitvec05.User.Proof.TheoremPow2OctetProof",
+   "ef8ab2bdcaf5518b"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "083109515922a8ac"}

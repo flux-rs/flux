@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.CloneSpec.Flux.VC.TestClone",
+ "isModule": false,
+ "importArts":
+ {"Surface.CloneSpec.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/CloneSpec/Flux/Prelude.olean"]},
+ "dynlibs": []}

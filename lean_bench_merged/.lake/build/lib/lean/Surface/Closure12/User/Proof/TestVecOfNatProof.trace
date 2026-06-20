@@ -1,0 +1,59 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["ce58590cfcb9d9a9.olean"],
+  "i": "1d4c875cde754c40.ilean",
+  "c": "d7784c8a683ef53c.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Closure12/User/Proof/TestVecOfNatProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure12/User/Proof/TestVecOfNatProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure12/User/Proof/TestVecOfNatProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Closure12/User/Proof/TestVecOfNatProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Closure12/User/Proof/TestVecOfNatProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Closure12/User/Proof/TestVecOfNatProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/TestVecOfNatProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/TestVecOfNatProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/TestVecOfNatProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/TestVecOfNatProof.lean:69:0: time: 345ms",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/TestVecOfNatProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k2]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ v₀, (0 ≤ v₀ ∧ v₀ < z1) ∧ z0 = v₀ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ v₀, (0 ≤ v₀ ∧ v₀ < z1) ∧ z0 = v₀ ∧ z1 = z1\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₀, (∃ v₀, (0 ≤ v₀ ∧ v₀ < z2) ∧ a'₀ = v₀ ∧ z2 = z2) ∧ a'₀ ≥ 0 ∧ (z0 = 10 ∧ z1 = a'₀) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 => ∃ a'₀, (∃ v₀, (0 ≤ v₀ ∧ v₀ < z2) ∧ a'₀ = v₀ ∧ z2 = z2) ∧ a'₀ ≥ 0 ∧ (z0 = 10 ∧ z1 = a'₀) ∧ z2 = z2\n[solve] --- k2 ---\n[solve]   sol = ∃ v₀,\n  (0 ≤ v₀ ∧ v₀ < z1) ∧\n    ∃ a'₂,\n      (∃ a'₀, (∃ v₀, (0 ≤ v₀ ∧ v₀ < z1) ∧ a'₀ = v₀ ∧ z1 = z1) ∧ a'₀ ≥ 0 ∧ (a'₂ = 10 ∧ v₀ = a'₀) ∧ z1 = z1) ∧\n        z0 = a'₂ ∧ z1 = z1\n[solve]   lam = fun z0 z1 =>\n  ∃ v₀,\n    (0 ≤ v₀ ∧ v₀ < z1) ∧\n      ∃ a'₂,\n        (∃ a'₀, (∃ v₀, (0 ≤ v₀ ∧ v₀ < z1) ∧ a'₀ = v₀ ∧ z1 = z1) ∧ a'₀ ≥ 0 ∧ (a'₂ = 10 ∧ v₀ = a'₀) ∧ z1 = z1) ∧\n          z0 = a'₂ ∧ z1 = z1",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Closure12.User.Proof.TestVecOfNatProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Closure12.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Closure12.Flux.Prelude:importAllArts", "8012cc92d9774ac2"],
+        ["Surface.Closure12.Flux.VC.TestVecOfNat transitive imports (legacy)",
+         "53df0dc308f5fc7d"],
+        ["Surface.Closure12.Flux.VC.TestVecOfNat:importAllArts",
+         "f6c8e0b95d836fb7"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Closure12/User/Proof/TestVecOfNatProof.lean",
+   "faaafb2ca62b7561"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Closure12.User.Proof.TestVecOfNatProof",
+   "2406809fecdc2000"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "ac0c5d11500ac65e"}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.LoopAbstractRefinement.Flux.VC.Impl__2__Collision",
+ "isModule": false,
+ "importArts":
+ {"Surface.LoopAbstractRefinement.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/LoopAbstractRefinement/Flux/Prelude.olean"]},
+ "dynlibs": []}

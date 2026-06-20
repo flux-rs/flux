@@ -1,0 +1,80 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["e2284e7c3c636ec0.olean"],
+  "i": "5e42befc686b429c.ilean",
+  "c": "b6393bfac875a7be.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:75:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:75:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:75:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:75:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:75:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:75:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:75:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:75:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:75:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:75:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:75:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:73:0: time: 765ms",
+   "level": "info"},
+  {"message":
+   "Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean:73:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = (((z0 = z2 - z1 ∧ z1 = z2 - z0) ∧ z1 ≤ z2) ∧ z0 ≥ 0) ∧ z2 ≥ z1",
+   "level": "info"}],
+ "inputs":
+ [["Enums.Issue234.User.Proof.Impl__0__LenConstMemoryProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Enums.Issue234.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Enums.Issue234.Flux.Prelude:importAllArts", "136f8098c0aa4663"],
+        ["Enums.Issue234.Flux.VC.Impl__0__LenConstMemory transitive imports (legacy)",
+         "14deadf5b84b033f"],
+        ["Enums.Issue234.Flux.VC.Impl__0__LenConstMemory:importAllArts",
+         "35a8cd37454d0c6e"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Enums/Issue234/User/Proof/Impl__0__LenConstMemoryProof.lean",
+   "5a380681c19fe194"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Enums.Issue234.User.Proof.Impl__0__LenConstMemoryProof",
+   "4344d8e6ecff4eb5"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "14da77984e3a5ad5"}

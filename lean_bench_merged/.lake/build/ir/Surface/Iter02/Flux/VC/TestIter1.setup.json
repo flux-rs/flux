@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Iter02.Flux.VC.TestIter1",
+ "isModule": false,
+ "importArts":
+ {"Surface.Iter02.Flux.Struct.SliceIterIter":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Iter02/Flux/Struct/SliceIterIter.olean"],
+  "Surface.Iter02.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Iter02/Flux/Prelude.olean"]},
+ "dynlibs": []}

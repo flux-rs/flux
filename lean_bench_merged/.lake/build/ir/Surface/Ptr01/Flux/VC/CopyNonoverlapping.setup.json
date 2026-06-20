@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Ptr01.Flux.VC.CopyNonoverlapping",
+ "isModule": false,
+ "importArts":
+ {"Surface.Ptr01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Ptr01/Flux/Prelude.olean"]},
+ "dynlibs": []}

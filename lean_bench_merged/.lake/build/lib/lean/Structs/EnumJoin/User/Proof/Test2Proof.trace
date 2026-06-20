@@ -1,0 +1,60 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["4a27ad39b0dc09c2.olean"],
+  "i": "41163c0c29df5e74.ilean",
+  "c": "f85878a476bd8fc4.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Structs/EnumJoin/User/Proof/Test2Proof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/EnumJoin/User/Proof/Test2Proof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/EnumJoin/User/Proof/Test2Proof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Structs/EnumJoin/User/Proof/Test2Proof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Structs/EnumJoin/User/Proof/Test2Proof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Structs/EnumJoin/User/Proof/Test2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Structs/EnumJoin/User/Proof/Test2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Structs/EnumJoin/User/Proof/Test2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Structs/EnumJoin/User/Proof/Test2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Structs/EnumJoin/User/Proof/Test2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Structs/EnumJoin/User/Proof/Test2Proof.lean:69:0: time: 192ms",
+   "level": "info"},
+  {"message":
+   "Structs/EnumJoin/User/Proof/Test2Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = (∃ a'₀, a'₀ = 0 ∧ z0 = a'₀) ∨ ∃ a'₁ a'₂, a'₂ = 0 ∧ z0 = a'₂\n[solve]   lam = fun z0 => (∃ a'₀, a'₀ = 0 ∧ z0 = a'₀) ∨ ∃ a'₁ a'₂, a'₂ = 0 ∧ z0 = a'₂\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₃, a'₃ = 0 ∧ ((∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∨ ∃ a'₁ a'₂, a'₂ = 0 ∧ a'₃ = a'₂) ∧ ((∃ v₀, v₀ ≥ 0 ∧ z0 = v₀) ∨ z0 = 0)\n[solve]   lam = fun z0 =>\n  ∃ a'₃, a'₃ = 0 ∧ ((∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∨ ∃ a'₁ a'₂, a'₂ = 0 ∧ a'₃ = a'₂) ∧ ((∃ v₀, v₀ ≥ 0 ∧ z0 = v₀) ∨ z0 = 0)",
+   "level": "info"}],
+ "inputs":
+ [["Structs.EnumJoin.User.Proof.Test2Proof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Structs.EnumJoin.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Structs.EnumJoin.Flux.Prelude:importAllArts", "47d368fcd0393e34"],
+        ["Structs.EnumJoin.Flux.VC.Test2 transitive imports (legacy)",
+         "d43157d1d993225d"],
+        ["Structs.EnumJoin.Flux.VC.Test2:importAllArts",
+         "de98a57bd7abd4fd"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Structs/EnumJoin/User/Proof/Test2Proof.lean",
+   "f7690eaacf459c84"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Structs.EnumJoin.User.Proof.Test2Proof", "915b1d0bc16f20c8"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "fdc5bc203ce9fde6"}

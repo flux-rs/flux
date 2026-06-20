@@ -1,0 +1,1 @@
+import TraitObject.AssocType.Basic

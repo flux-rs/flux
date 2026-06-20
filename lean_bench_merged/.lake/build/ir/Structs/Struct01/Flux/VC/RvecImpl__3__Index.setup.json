@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Structs.Struct01.Flux.VC.RvecImpl__3__Index",
+ "isModule": false,
+ "importArts":
+ {"Structs.Struct01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/Struct01/Flux/Prelude.olean"]},
+ "dynlibs": []}

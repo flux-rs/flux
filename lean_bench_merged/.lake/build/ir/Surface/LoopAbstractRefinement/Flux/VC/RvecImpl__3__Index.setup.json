@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.LoopAbstractRefinement.Flux.VC.RvecImpl__3__Index",
+ "isModule": false,
+ "importArts":
+ {"Surface.LoopAbstractRefinement.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/LoopAbstractRefinement/Flux/Prelude.olean"]},
+ "dynlibs": []}

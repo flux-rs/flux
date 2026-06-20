@@ -1,0 +1,56 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["ea117691316cccde.olean"],
+  "i": "02a5456f1ed360ff.ilean",
+  "c": "dee6b52db3d3cf2b.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Array/Array04/User/Proof/TestRepeatWriteThenReadProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Array/Array04/User/Proof/TestRepeatWriteThenReadProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Array/Array04/User/Proof/TestRepeatWriteThenReadProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Array/Array04/User/Proof/TestRepeatWriteThenReadProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Array/Array04/User/Proof/TestRepeatWriteThenReadProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Array/Array04/User/Proof/TestRepeatWriteThenReadProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Array/Array04/User/Proof/TestRepeatWriteThenReadProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Array/Array04/User/Proof/TestRepeatWriteThenReadProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Array/Array04/User/Proof/TestRepeatWriteThenReadProof.lean:69:0: time: 43ms",
+   "level": "info"},
+  {"message":
+   "Array/Array04/User/Proof/TestRepeatWriteThenReadProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = 42 ∨ z0 = 100\n[solve]   lam = fun z0 => z0 = 42 ∨ z0 = 100",
+   "level": "info"}],
+ "inputs":
+ [["Array.Array04.User.Proof.TestRepeatWriteThenReadProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Array.Array04.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Array.Array04.Flux.Prelude:importAllArts", "38cb79e90997dc20"],
+        ["Array.Array04.Flux.VC.TestRepeatWriteThenRead transitive imports (legacy)",
+         "294b356ff97c64c5"],
+        ["Array.Array04.Flux.VC.TestRepeatWriteThenRead:importAllArts",
+         "71e8948175d157e6"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Array/Array04/User/Proof/TestRepeatWriteThenReadProof.lean",
+   "1de7a1e890ad0e5e"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Array.Array04.User.Proof.TestRepeatWriteThenReadProof",
+   "315303eaa2efee7d"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "11fc7a254b79967e"}

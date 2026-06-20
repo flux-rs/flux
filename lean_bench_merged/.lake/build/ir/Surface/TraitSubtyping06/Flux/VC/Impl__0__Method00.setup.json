@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.TraitSubtyping06.Flux.VC.Impl__0__Method00",
+ "isModule": false,
+ "importArts":
+ {"Surface.TraitSubtyping06.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/TraitSubtyping06/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "AbstractRefinements.Test03.Flux.VC.Gt",
+ "isModule": false,
+ "importArts":
+ {"AbstractRefinements.Test03.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/AbstractRefinements/Test03/Flux/Prelude.olean"]},
+ "dynlibs": []}

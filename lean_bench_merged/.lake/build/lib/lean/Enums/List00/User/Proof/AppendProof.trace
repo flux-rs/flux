@@ -1,0 +1,68 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["d744e96d4d0d9e02.olean"],
+  "i": "8db05cb5c8b864b4.ilean",
+  "c": "9815972de6f3a80e.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Enums/List00/User/Proof/AppendProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/List00/User/Proof/AppendProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/List00/User/Proof/AppendProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Enums/List00/User/Proof/AppendProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Enums/List00/User/Proof/AppendProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Enums/List00/User/Proof/AppendProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/List00/User/Proof/AppendProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/List00/User/Proof/AppendProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/List00/User/Proof/AppendProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/List00/User/Proof/AppendProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/List00/User/Proof/AppendProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Enums/List00/User/Proof/AppendProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Enums/List00/User/Proof/AppendProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Enums/List00/User/Proof/AppendProof.lean:69:0: time: 321ms",
+   "level": "info"},
+  {"message":
+   "Enums/List00/User/Proof/AppendProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1, k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k1 ---\n[solve]   sol = (((z0 = z3 + z2 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4\n[solve]   lam = fun z0 z1 z2 z3 z4 => (((z0 = z3 + z2 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4\n[solve] --- k0 ---\n[solve]   sol = z1 = 0 ∧ (z0 = z2 ∧ z1 = z1) ∧ z2 = z2 ∨\n  ∃ n₀,\n    z1 = n₀ + 1 ∧\n      ∃ a'₁,\n        n₀ ≥ 0 ∧\n          n₀ + z2 ≥ 0 ∧\n            ∃ a'₂,\n              ((((a'₂ = n₀ + z2 ∧ z1 = z1) ∧ z2 = z2) ∧ n₀ = n₀) ∧ a'₁ = a'₁) ∧\n                a'₂ ≥ 0 ∧ (z0 = a'₂ + 1 ∧ z1 = z1) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 =>\n  z1 = 0 ∧ (z0 = z2 ∧ z1 = z1) ∧ z2 = z2 ∨\n    ∃ n₀,\n      z1 = n₀ + 1 ∧\n        ∃ a'₁,\n          n₀ ≥ 0 ∧\n            n₀ + z2 ≥ 0 ∧\n              ∃ a'₂,\n                ((((a'₂ = n₀ + z2 ∧ z1 = z1) ∧ z2 = z2) ∧ n₀ = n₀) ∧ a'₁ = a'₁) ∧\n                  a'₂ ≥ 0 ∧ (z0 = a'₂ + 1 ∧ z1 = z1) ∧ z2 = z2",
+   "level": "info"}],
+ "inputs":
+ [["Enums.List00.User.Proof.AppendProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Enums.List00.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Enums.List00.Flux.Prelude:importAllArts", "366119eb1d9d8fc4"],
+        ["Enums.List00.Flux.VC.Append transitive imports (legacy)",
+         "40e42739e9867018"],
+        ["Enums.List00.Flux.VC.Append:importAllArts", "230cad4938ae36ee"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Enums/List00/User/Proof/AppendProof.lean",
+   "2c9f5469d1dad2a9"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Enums.List00.User.Proof.AppendProof", "da67929cd4f5cd11"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "d3f1dfd701cb80ba"}

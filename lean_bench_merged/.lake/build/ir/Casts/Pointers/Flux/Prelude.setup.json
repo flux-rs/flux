@@ -1,0 +1,7 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Casts.Pointers.Flux.Prelude",
+ "isModule": false,
+ "importArts": {},
+ "dynlibs": []}

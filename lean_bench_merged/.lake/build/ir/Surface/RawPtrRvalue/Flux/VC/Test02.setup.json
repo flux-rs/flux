@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.RawPtrRvalue.Flux.VC.Test02",
+ "isModule": false,
+ "importArts":
+ {"Surface.RawPtrRvalue.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/RawPtrRvalue/Flux/Prelude.olean"]},
+ "dynlibs": []}

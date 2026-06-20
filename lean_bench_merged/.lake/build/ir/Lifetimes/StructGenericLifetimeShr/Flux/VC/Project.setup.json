@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Lifetimes.StructGenericLifetimeShr.Flux.VC.Project",
+ "isModule": false,
+ "importArts":
+ {"Lifetimes.StructGenericLifetimeShr.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Lifetimes/StructGenericLifetimeShr/Flux/Prelude.olean"]},
+ "dynlibs": []}

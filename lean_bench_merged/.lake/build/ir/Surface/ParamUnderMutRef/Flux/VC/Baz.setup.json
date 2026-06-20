@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.ParamUnderMutRef.Flux.VC.Baz",
+ "isModule": false,
+ "importArts":
+ {"Surface.ParamUnderMutRef.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/ParamUnderMutRef/Flux/Prelude.olean"]},
+ "dynlibs": []}

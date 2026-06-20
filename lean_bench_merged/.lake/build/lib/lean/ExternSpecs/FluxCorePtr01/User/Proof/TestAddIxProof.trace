@@ -1,0 +1,66 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["f6251b1ef7faa37a.olean"],
+  "i": "c9f39d89aaa842fc.ilean",
+  "c": "a7330866c830cd7c.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.lean:69:0: time: 117ms",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₀, ((z0 = a'₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 => ∃ a'₀, ((z0 = a'₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₁, (∃ a'₀, ((a'₁ = a'₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ ((z0 = a'₁ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ a'₁, (∃ a'₀, ((a'₁ = a'₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ ((z0 = a'₁ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3",
+   "level": "info"}],
+ "inputs":
+ [["ExternSpecs.FluxCorePtr01.User.Proof.TestAddIxProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["ExternSpecs.FluxCorePtr01.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["ExternSpecs.FluxCorePtr01.Flux.Prelude:importAllArts",
+         "817d6387676f1492"],
+        ["ExternSpecs.FluxCorePtr01.Flux.VC.TestAddIx transitive imports (legacy)",
+         "f8019843a6b7ccdf"],
+        ["ExternSpecs.FluxCorePtr01.Flux.VC.TestAddIx:importAllArts",
+         "745999cfe0997df3"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/ExternSpecs/FluxCorePtr01/User/Proof/TestAddIxProof.lean",
+   "b7a7242d897efd2a"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: ExternSpecs.FluxCorePtr01.User.Proof.TestAddIxProof",
+   "7e8e1bbb9fb7f6a4"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "859997896d182750"}

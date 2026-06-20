@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Issue1505.Flux.VC.Test",
+ "isModule": false,
+ "importArts":
+ {"Surface.Issue1505.User.Fun.Foo":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Issue1505/User/Fun/Foo.olean"],
+  "Surface.Issue1505.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Issue1505/Flux/Prelude.olean"]},
+ "dynlibs": []}

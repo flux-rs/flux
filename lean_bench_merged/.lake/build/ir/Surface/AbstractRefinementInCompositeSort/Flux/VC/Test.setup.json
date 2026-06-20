@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.AbstractRefinementInCompositeSort.Flux.VC.Test",
+ "isModule": false,
+ "importArts":
+ {"Surface.AbstractRefinementInCompositeSort.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/AbstractRefinementInCompositeSort/Flux/Prelude.olean"]},
+ "dynlibs": []}

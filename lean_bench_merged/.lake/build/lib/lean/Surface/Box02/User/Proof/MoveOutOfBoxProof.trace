@@ -1,0 +1,65 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["19f262fd5583b665.olean"],
+  "i": "d6886337d1cff7ef.ilean",
+  "c": "b7e6bb545a8d641a.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Box02/User/Proof/MoveOutOfBoxProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Box02/User/Proof/MoveOutOfBoxProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Box02/User/Proof/MoveOutOfBoxProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Box02/User/Proof/MoveOutOfBoxProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Box02/User/Proof/MoveOutOfBoxProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Box02/User/Proof/MoveOutOfBoxProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Box02/User/Proof/MoveOutOfBoxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Box02/User/Proof/MoveOutOfBoxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Box02/User/Proof/MoveOutOfBoxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Box02/User/Proof/MoveOutOfBoxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Box02/User/Proof/MoveOutOfBoxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Box02/User/Proof/MoveOutOfBoxProof.lean:69:0: time: 59ms",
+   "level": "info"},
+  {"message":
+   "Surface/Box02/User/Proof/MoveOutOfBoxProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k2, k3]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = 0\n[solve]   lam = fun z0 => z0 = 0\n[solve] --- k1 ---\n[solve]   sol = (∃ a'₀, a'₀ = 0 ∧ z0 = a'₀) ∨ z0 = 0\n[solve]   lam = fun z0 => (∃ a'₀, a'₀ = 0 ∧ z0 = a'₀) ∨ z0 = 0\n[solve] --- k2 ---\n[solve]   sol = ∃ a'₁, a'₁ = 0 ∧ z0 = a'₁\n[solve]   lam = fun z0 => ∃ a'₁, a'₁ = 0 ∧ z0 = a'₁\n[solve] --- k3 ---\n[solve]   sol = ∃ a'₂, ((∃ a'₀, a'₀ = 0 ∧ a'₂ = a'₀) ∨ a'₂ = 0) ∧ z0 = a'₂\n[solve]   lam = fun z0 => ∃ a'₂, ((∃ a'₀, a'₀ = 0 ∧ a'₂ = a'₀) ∨ a'₂ = 0) ∧ z0 = a'₂",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Box02.User.Proof.MoveOutOfBoxProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Box02.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Box02.Flux.Prelude:importAllArts", "a32fb2342ebf7f6b"],
+        ["Surface.Box02.Flux.VC.MoveOutOfBox transitive imports (legacy)",
+         "b376bf3729d0fd96"],
+        ["Surface.Box02.Flux.VC.MoveOutOfBox:importAllArts",
+         "6b69368a15242cee"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Box02/User/Proof/MoveOutOfBoxProof.lean",
+   "65846eb81bfa03e9"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Box02.User.Proof.MoveOutOfBoxProof",
+   "19137177f56f1149"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "098a0319b4be6455"}

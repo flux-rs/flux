@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "UserQualifiers.WellFormed.Flux.VC.Dummy",
+ "isModule": false,
+ "importArts":
+ {"UserQualifiers.WellFormed.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/UserQualifiers/WellFormed/Flux/Prelude.olean"]},
+ "dynlibs": []}

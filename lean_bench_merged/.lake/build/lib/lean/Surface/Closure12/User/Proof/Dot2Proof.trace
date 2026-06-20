@@ -1,0 +1,57 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["2f2ee2b95d1b42b7.olean"],
+  "i": "78cf8ebdedb5fe94.ilean",
+  "c": "885f496f080d22c2.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Closure12/User/Proof/Dot2Proof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure12/User/Proof/Dot2Proof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure12/User/Proof/Dot2Proof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Closure12/User/Proof/Dot2Proof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Closure12/User/Proof/Dot2Proof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Closure12/User/Proof/Dot2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/Dot2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/Dot2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/Dot2Proof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message": "Surface/Closure12/User/Proof/Dot2Proof.lean:69:0: time: 108ms",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/Dot2Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ item₀, (0 ≤ item₀ ∧ item₀ < z1) ∧ z0 = item₀ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ item₀, (0 ≤ item₀ ∧ item₀ < z1) ∧ z0 = item₀ ∧ z1 = z1\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₁, (z0 = a'₁ ∧ z1 = z1) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 => ∃ a'₁, (z0 = a'₁ ∧ z1 = z1) ∧ z2 = z2",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Closure12.User.Proof.Dot2Proof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Closure12.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Closure12.Flux.Prelude:importAllArts", "8012cc92d9774ac2"],
+        ["Surface.Closure12.Flux.VC.Dot2 transitive imports (legacy)",
+         "53df0dc308f5fc7d"],
+        ["Surface.Closure12.Flux.VC.Dot2:importAllArts",
+         "eeddaa9545aee4e8"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Closure12/User/Proof/Dot2Proof.lean",
+   "f922bf4c6c7a9705"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Closure12.User.Proof.Dot2Proof", "368e388a2f16c860"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "91e374835c0df6ef"}

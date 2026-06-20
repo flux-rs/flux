@@ -1,0 +1,53 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["37c08a0ff274860d.olean"],
+  "i": "bfc2e7ddff5654be.ilean",
+  "c": "8fbbf520387065f4.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/BvOrd/User/Proof/GtImpProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/BvOrd/User/Proof/GtImpProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/BvOrd/User/Proof/GtImpProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/BvOrd/User/Proof/GtImpProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/BvOrd/User/Proof/GtImpProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/BvOrd/User/Proof/GtImpProof.lean:71:2: aesop: failed to prove the goal after exhaustive search.",
+   "level": "warning"},
+  {"message":
+   "Surface/BvOrd/User/Proof/GtImpProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/BvOrd/User/Proof/GtImpProof.lean:71:2: [solve_fixpoint] closed by: bv_decide",
+   "level": "info"},
+  {"message": "Surface/BvOrd/User/Proof/GtImpProof.lean:69:0: time: 1202ms",
+   "level": "info"},
+  {"message":
+   "Surface/BvOrd/User/Proof/GtImpProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
+   "level": "info"}],
+ "inputs":
+ [["Surface.BvOrd.User.Proof.GtImpProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.BvOrd.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.BvOrd.Flux.Prelude:importAllArts", "e4282dae9fe34617"],
+        ["Surface.BvOrd.Flux.VC.GtImp transitive imports (legacy)",
+         "32c2756a8c99669e"],
+        ["Surface.BvOrd.Flux.VC.GtImp:importAllArts", "f03c8336c1224c4e"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/BvOrd/User/Proof/GtImpProof.lean",
+   "91a259d992500ab5"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.BvOrd.User.Proof.GtImpProof", "e444f1dff67efe8a"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "6c300475f5832fb5"}

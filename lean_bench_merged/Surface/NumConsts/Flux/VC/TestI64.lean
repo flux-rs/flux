@@ -1,0 +1,16 @@
+import Surface.NumConsts.Flux.Prelude
+import Surface.NumConsts.Flux.Fun.NumImpl3MIN
+import Surface.NumConsts.Flux.Fun.NumImpl3MAX
+open Classical
+set_option linter.unusedVariables false
+
+
+namespace F
+
+
+
+def TestI64 := 
+ (((-9223372036854775808) = num_impl_3_MIN)) ∧
+ ((9223372036854775807 = num_impl_3_MAX))
+ 
+end F

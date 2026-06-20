@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Trait01a.Flux.VC.Foo",
+ "isModule": false,
+ "importArts":
+ {"Surface.Trait01a.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Trait01a/Flux/Prelude.olean"]},
+ "dynlibs": []}

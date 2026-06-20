@@ -1,0 +1,60 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["46f51b8050d0f63d.olean"],
+  "i": "fbed6e6f8e864edf.ilean",
+  "c": "838e768ce4527590.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Iter01/User/Proof/TestIterProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Iter01/User/Proof/TestIterProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Iter01/User/Proof/TestIterProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Iter01/User/Proof/TestIterProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Iter01/User/Proof/TestIterProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestIterProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestIterProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestIterProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestIterProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestIterProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/Iter01/User/Proof/TestIterProof.lean:69:0: time: 277ms",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestIterProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  [k2]\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₀, a'₀ = 0 ∧ z0 = a'₀\n[solve]   lam = fun z0 => ∃ a'₀, a'₀ = 0 ∧ z0 = a'₀\n[solve] --- k1 ---\n[solve]   sol = (∃ v₀, 0 ≤ v₀ ∧ z0 = v₀) ∨ ∃ a'₂, a'₂ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₂ = a'₀) ∧ ∃ a'₄, ?k2 a'₄ ∧ ∃ a'₅, ?k2 a'₅ ∧ z0 = a'₅\n[solve]   lam = fun z0 =>\n  (∃ v₀, 0 ≤ v₀ ∧ z0 = v₀) ∨ ∃ a'₂, a'₂ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₂ = a'₀) ∧ ∃ a'₄, ?k2 a'₄ ∧ ∃ a'₅, ?k2 a'₅ ∧ z0 = a'₅\n[solve_fixpoint] --- PA on cyclic κ's [k2] ---\n[solve_fixpoint]   PA sol for k2 = z0 ≥ 0",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Iter01.User.Proof.TestIterProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Iter01.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Iter01.Flux.Prelude:importAllArts", "fefc952fc2f39d23"],
+        ["Surface.Iter01.Flux.VC.TestIter transitive imports (legacy)",
+         "1c9d96924061b9da"],
+        ["Surface.Iter01.Flux.VC.TestIter:importAllArts",
+         "918a857bddd75f52"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Iter01/User/Proof/TestIterProof.lean",
+   "abe1387051469551"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Iter01.User.Proof.TestIterProof", "80730d35fa3d346c"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "a1bed22cd0cc830b"}

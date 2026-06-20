@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Division.Flux.VC.DivUnsigned",
+ "isModule": false,
+ "importArts":
+ {"Surface.Division.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Division/Flux/Prelude.olean"]},
+ "dynlibs": []}

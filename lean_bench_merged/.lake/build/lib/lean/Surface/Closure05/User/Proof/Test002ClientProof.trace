@@ -1,0 +1,56 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["74d01bcc55de58ea.olean"],
+  "i": "78f037c87e61275d.ilean",
+  "c": "a12be3de63dbe402.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Closure05/User/Proof/Test002ClientProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure05/User/Proof/Test002ClientProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure05/User/Proof/Test002ClientProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Closure05/User/Proof/Test002ClientProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Closure05/User/Proof/Test002ClientProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Closure05/User/Proof/Test002ClientProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Closure05/User/Proof/Test002ClientProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Closure05/User/Proof/Test002ClientProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Closure05/User/Proof/Test002ClientProof.lean:69:0: time: 295ms",
+   "level": "info"},
+  {"message":
+   "Surface/Closure05/User/Proof/Test002ClientProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ v₀, 0 ≤ v₀ ∧ ∃ v₁, 0 ≤ v₁ ∧ z0 = v₀ ∧ z1 = v₁\n[solve]   lam = fun z0 z1 => ∃ v₀, 0 ≤ v₀ ∧ ∃ v₁, 0 ≤ v₁ ∧ z0 = v₀ ∧ z1 = v₁\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₀ a'₁, (∃ v₀, 0 ≤ v₀ ∧ ∃ v₁, 0 ≤ v₁ ∧ a'₀ = v₀ ∧ a'₁ = v₁) ∧ (z0 = a'₀ + a'₁ + 10 ∧ z1 = a'₀) ∧ z2 = a'₁\n[solve]   lam = fun z0 z1 z2 =>\n  ∃ a'₀ a'₁, (∃ v₀, 0 ≤ v₀ ∧ ∃ v₁, 0 ≤ v₁ ∧ a'₀ = v₀ ∧ a'₁ = v₁) ∧ (z0 = a'₀ + a'₁ + 10 ∧ z1 = a'₀) ∧ z2 = a'₁",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Closure05.User.Proof.Test002ClientProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Closure05.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Closure05.Flux.Prelude:importAllArts", "89bdc94d74507ca7"],
+        ["Surface.Closure05.Flux.VC.Test002Client transitive imports (legacy)",
+         "ce0ec55c6bc1cca1"],
+        ["Surface.Closure05.Flux.VC.Test002Client:importAllArts",
+         "b14e7418ac20bf05"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Closure05/User/Proof/Test002ClientProof.lean",
+   "3da0214fba7ce8d8"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Closure05.User.Proof.Test002ClientProof",
+   "5f3fdb1f234b8078"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "9a2e5d7b193821ce"}

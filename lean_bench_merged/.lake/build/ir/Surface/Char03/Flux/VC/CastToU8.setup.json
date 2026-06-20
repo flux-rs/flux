@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Char03.Flux.VC.CastToU8",
+ "isModule": false,
+ "importArts":
+ {"Surface.Char03.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Char03/Flux/Prelude.olean"]},
+ "dynlibs": []}

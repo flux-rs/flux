@@ -1,0 +1,78 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["f038b4a4dd5a0161.olean"],
+  "i": "e4ab78edaa2569e8.ilean",
+  "c": "cfc78b06613b2604.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Issue258/User/Proof/Test03Proof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Issue258/User/Proof/Test03Proof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Issue258/User/Proof/Test03Proof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Issue258/User/Proof/Test03Proof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Issue258/User/Proof/Test03Proof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/Issue258/User/Proof/Test03Proof.lean:69:0: time: 450ms",
+   "level": "info"},
+  {"message":
+   "Surface/Issue258/User/Proof/Test03Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k2, k3, k4, k5, k6, k7, k8, k9]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = 1\n[solve]   lam = fun z0 => z0 = 1\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₀, a'₀ = 0 ∧ z0 = a'₀\n[solve]   lam = fun z0 => ∃ a'₀, a'₀ = 0 ∧ z0 = a'₀\n[solve] --- k2 ---\n[solve]   sol = ∃ a'₁, a'₁ = 1 ∧ z0 = a'₁\n[solve]   lam = fun z0 => ∃ a'₁, a'₁ = 1 ∧ z0 = a'₁\n[solve] --- k3 ---\n[solve]   sol = ∃ a'₂, a'₂ = 0 ∧ z0 = a'₂\n[solve]   lam = fun z0 => ∃ a'₂, a'₂ = 0 ∧ z0 = a'₂\n[solve] --- k4 ---\n[solve]   sol = ∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ z0 = a'₄\n[solve]   lam = fun z0 => ∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ z0 = a'₄\n[solve] --- k5 ---\n[solve]   sol = ∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₅, (∃ a'₁, a'₁ = 1 ∧ a'₅ = a'₁) ∧ z0 = a'₅\n[solve]   lam = fun z0 => ∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₅, (∃ a'₁, a'₁ = 1 ∧ a'₅ = a'₁) ∧ z0 = a'₅\n[solve] --- k6 ---\n[solve]   sol = ∃ a'₆, a'₆ = 0 ∧ z0 = a'₆\n[solve]   lam = fun z0 => ∃ a'₆, a'₆ = 0 ∧ z0 = a'₆\n[solve] --- k7 ---\n[solve]   sol = ∃ a'₇, a'₇ = 0 ∧ (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧ ∃ a'₈, a'₈ = 0 ∧ z0 = a'₈\n[solve]   lam = fun z0 => ∃ a'₇, a'₇ = 0 ∧ (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧ ∃ a'₈, a'₈ = 0 ∧ z0 = a'₈\n[solve] --- k8 ---\n[solve]   sol = ∃ a'₇,\n  a'₇ = 0 ∧\n    (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧\n      ∃ a'₉,\n        a'₉ = 0 ∧\n          (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ a'₉ = a'₄) ∧ ∃ a'₁₀, a'₁₀ = 0 ∧ z0 = a'₁₀\n[solve]   lam = fun z0 =>\n  ∃ a'₇,\n    a'₇ = 0 ∧\n      (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧\n        ∃ a'₉,\n          a'₉ = 0 ∧\n            (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ a'₉ = a'₄) ∧ ∃ a'₁₀, a'₁₀ = 0 ∧ z0 = a'₁₀\n[solve] --- k9 ---\n[solve]   sol = ∃ a'₇,\n  a'₇ = 0 ∧\n    (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧\n      ∃ a'₉,\n        a'₉ = 0 ∧\n          (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ a'₉ = a'₄) ∧\n            ∃ a'₁₁,\n              (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₅, (∃ a'₁, a'₁ = 1 ∧ a'₅ = a'₁) ∧ a'₁₁ = a'₅) ∧\n                z0 = a'₁₁\n[solve]   lam = fun z0 =>\n  ∃ a'₇,\n    a'₇ = 0 ∧\n      (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧\n        ∃ a'₉,\n          a'₉ = 0 ∧\n            (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ a'₉ = a'₄) ∧\n              ∃ a'₁₁,\n                (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₅, (∃ a'₁, a'₁ = 1 ∧ a'₅ = a'₁) ∧ a'₁₁ = a'₅) ∧\n                  z0 = a'₁₁",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Issue258.User.Proof.Test03Proof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Issue258.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Issue258.Flux.Prelude:importAllArts", "7317cbc1ee94f430"],
+        ["Surface.Issue258.Flux.VC.Test03 transitive imports (legacy)",
+         "7f618fa6a70290b9"],
+        ["Surface.Issue258.Flux.VC.Test03:importAllArts",
+         "10e995c4331e7886"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Issue258/User/Proof/Test03Proof.lean",
+   "96a54434de902622"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Issue258.User.Proof.Test03Proof", "d21d5d53bbbd9b6b"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "7b638e906019ddf3"}

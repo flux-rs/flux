@@ -1,0 +1,143 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["2e63f6dfd64ef507.olean"],
+  "i": "867fac0c036a8709.ilean",
+  "c": "31c627bb670658bf.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/ForRange00/User/Proof/MickeyProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/ForRange00/User/Proof/MickeyProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/ForRange00/User/Proof/MickeyProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/ForRange00/User/Proof/MickeyProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/ForRange00/User/Proof/MickeyProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:69:0: time: 2441ms",
+   "level": "info"},
+  {"message":
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = (((((((((((((z0 ≤ z1 ∧ z0 ≤ z2) ∧ z1 ≤ z2) ∧ z2 ≤ z1) ∧ z1 = z2) ∧ z2 = z1) ∧ z1 ≥ z0) ∧ z1 ≥ z2) ∧ z2 ≥ z0) ∧\n            z2 ≥ z1) ∧\n          z0 ≥ 0) ∧\n        z1 ≥ 0) ∧\n      z2 ≥ 0) ∧\n    z1 > 0) ∧\n  z2 > 0",
+   "level": "info"}],
+ "inputs":
+ [["Surface.ForRange00.User.Proof.MickeyProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.ForRange00.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.ForRange00.Flux.Prelude:importAllArts", "d9fc1e9df52a4ea9"],
+        ["Surface.ForRange00.Flux.VC.Mickey transitive imports (legacy)",
+         "644781b47278ca80"],
+        ["Surface.ForRange00.Flux.VC.Mickey:importAllArts",
+         "7cb9b850f8a17118"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/ForRange00/User/Proof/MickeyProof.lean",
+   "9475ec7ae87f8412"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.ForRange00.User.Proof.MickeyProof",
+   "9a5360b533e2c7fd"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "44151d152ac51fd4"}

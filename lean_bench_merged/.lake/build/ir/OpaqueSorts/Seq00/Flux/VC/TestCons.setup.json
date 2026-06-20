@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "OpaqueSorts.Seq00.Flux.VC.TestCons",
+ "isModule": false,
+ "importArts":
+ {"OpaqueSorts.Seq00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/OpaqueSorts/Seq00/Flux/Prelude.olean"]},
+ "dynlibs": []}

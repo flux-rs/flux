@@ -1,0 +1,68 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["6e435a0994ee4740.olean"],
+  "i": "f1065d61d71a9a3d.ilean",
+  "c": "ada7b05a86c13984.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Issue809/User/Proof/AddColorcodeProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Issue809/User/Proof/AddColorcodeProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Issue809/User/Proof/AddColorcodeProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Issue809/User/Proof/AddColorcodeProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Issue809/User/Proof/AddColorcodeProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Issue809/User/Proof/AddColorcodeProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Issue809/User/Proof/AddColorcodeProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Issue809/User/Proof/AddColorcodeProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Issue809/User/Proof/AddColorcodeProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue809/User/Proof/AddColorcodeProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Issue809/User/Proof/AddColorcodeProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue809/User/Proof/AddColorcodeProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Issue809/User/Proof/AddColorcodeProof.lean:69:0: time: 591ms",
+   "level": "info"},
+  {"message":
+   "Surface/Issue809/User/Proof/AddColorcodeProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k2, k0, k1, k3]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k2 ---\n[solve]   sol = ∃ a'₃, z0 = a'₃ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ a'₃, z0 = a'₃ ∧ z1 = z1\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧ z0 = a'₁ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧ z0 = a'₁ ∧ z1 = z1\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₀,\n  (∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z2 = z2) ∧ a'₀ = a'₁ ∧ z2 = z2) ∧\n    a'₀ ≥ 0 ∧\n      (z2 = 1 ∧ (z0 = a'₀ + 1 ∧ z1 = a'₀) ∧ z2 = z2 ∨\n        z2 = 2 ∧ (z0 = a'₀ + 2 ∧ z1 = a'₀) ∧ z2 = z2 ∨ z2 = 3 ∧ (z0 = a'₀ + 3 ∧ z1 = a'₀) ∧ z2 = z2)\n[solve]   lam = fun z0 z1 z2 =>\n  ∃ a'₀,\n    (∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z2 = z2) ∧ a'₀ = a'₁ ∧ z2 = z2) ∧\n      a'₀ ≥ 0 ∧\n        (z2 = 1 ∧ (z0 = a'₀ + 1 ∧ z1 = a'₀) ∧ z2 = z2 ∨\n          z2 = 2 ∧ (z0 = a'₀ + 2 ∧ z1 = a'₀) ∧ z2 = z2 ∨ z2 = 3 ∧ (z0 = a'₀ + 3 ∧ z1 = a'₀) ∧ z2 = z2)\n[solve] --- k3 ---\n[solve]   sol = ∃ a'₁,\n  (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧\n    ∃ a'₂,\n      (∃ a'₀,\n          (∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧ a'₀ = a'₁ ∧ z1 = z1) ∧\n            a'₀ ≥ 0 ∧\n              (z1 = 1 ∧ (a'₂ = a'₀ + 1 ∧ a'₁ = a'₀) ∧ z1 = z1 ∨\n                z1 = 2 ∧ (a'₂ = a'₀ + 2 ∧ a'₁ = a'₀) ∧ z1 = z1 ∨ z1 = 3 ∧ (a'₂ = a'₀ + 3 ∧ a'₁ = a'₀) ∧ z1 = z1)) ∧\n        z0 = a'₂ ∧ z1 = z1\n[solve]   lam = fun z0 z1 =>\n  ∃ a'₁,\n    (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧\n      ∃ a'₂,\n        (∃ a'₀,\n            (∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧ a'₀ = a'₁ ∧ z1 = z1) ∧\n              a'₀ ≥ 0 ∧\n                (z1 = 1 ∧ (a'₂ = a'₀ + 1 ∧ a'₁ = a'₀) ∧ z1 = z1 ∨\n                  z1 = 2 ∧ (a'₂ = a'₀ + 2 ∧ a'₁ = a'₀) ∧ z1 = z1 ∨ z1 = 3 ∧ (a'₂ = a'₀ + 3 ∧ a'₁ = a'₀) ∧ z1 = z1)) ∧\n          z0 = a'₂ ∧ z1 = z1",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Issue809.User.Proof.AddColorcodeProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Issue809.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Issue809.Flux.Prelude:importAllArts", "fe5d96f1eb91d50d"],
+        ["Surface.Issue809.Flux.VC.AddColorcode transitive imports (legacy)",
+         "a3a2be9e780df796"],
+        ["Surface.Issue809.Flux.VC.AddColorcode:importAllArts",
+         "98494985256c63fe"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Issue809/User/Proof/AddColorcodeProof.lean",
+   "13027953943b8072"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Issue809.User.Proof.AddColorcodeProof",
+   "e7b4e8d40a8e36a9"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "9838db53057457e1"}

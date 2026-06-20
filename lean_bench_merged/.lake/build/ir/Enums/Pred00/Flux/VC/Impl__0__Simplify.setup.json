@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Enums.Pred00.Flux.VC.Impl__0__Simplify",
+ "isModule": false,
+ "importArts":
+ {"Enums.Pred00.Flux.Struct.Pred":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/Pred00/Flux/Struct/Pred.olean"],
+  "Enums.Pred00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/Pred00/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Structs.Union00.Flux.VC.Bob",
+ "isModule": false,
+ "importArts":
+ {"Structs.Union00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/Union00/Flux/Prelude.olean"]},
+ "dynlibs": []}

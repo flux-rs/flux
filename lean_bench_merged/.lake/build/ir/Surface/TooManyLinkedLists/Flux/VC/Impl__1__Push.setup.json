@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.TooManyLinkedLists.Flux.VC.Impl__1__Push",
+ "isModule": false,
+ "importArts":
+ {"Surface.TooManyLinkedLists.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/TooManyLinkedLists/Flux/Prelude.olean"]},
+ "dynlibs": []}

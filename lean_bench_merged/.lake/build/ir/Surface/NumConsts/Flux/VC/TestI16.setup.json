@@ -1,0 +1,13 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.NumConsts.Flux.VC.TestI16",
+ "isModule": false,
+ "importArts":
+ {"Surface.NumConsts.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/NumConsts/Flux/Prelude.olean"],
+  "Surface.NumConsts.Flux.Fun.NumImpl1MIN":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/NumConsts/Flux/Fun/NumImpl1MIN.olean"],
+  "Surface.NumConsts.Flux.Fun.NumImpl1MAX":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/NumConsts/Flux/Fun/NumImpl1MAX.olean"]},
+ "dynlibs": []}

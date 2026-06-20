@@ -1,0 +1,53 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["83671ab91bc8c9a3.olean"],
+  "i": "40eca3cff3b44807.ilean",
+  "c": "0f8c824f9233d160.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Box01/User/Proof/IncBoxProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Box01/User/Proof/IncBoxProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Box01/User/Proof/IncBoxProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Box01/User/Proof/IncBoxProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Box01/User/Proof/IncBoxProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Box01/User/Proof/IncBoxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Box01/User/Proof/IncBoxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Box01/User/Proof/IncBoxProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/Box01/User/Proof/IncBoxProof.lean:69:0: time: 30ms",
+   "level": "info"},
+  {"message":
+   "Surface/Box01/User/Proof/IncBoxProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = z1 + 1 ∧ z1 = z1\n[solve]   lam = fun z0 z1 => z0 = z1 + 1 ∧ z1 = z1",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Box01.User.Proof.IncBoxProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Box01.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Box01.Flux.Prelude:importAllArts", "cad32e75c1d90cb2"],
+        ["Surface.Box01.Flux.VC.IncBox transitive imports (legacy)",
+         "b4951397f8b1d237"],
+        ["Surface.Box01.Flux.VC.IncBox:importAllArts", "8d2077de2fdb34dd"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Box01/User/Proof/IncBoxProof.lean",
+   "e298de749ca9e016"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Box01.User.Proof.IncBoxProof", "0efbfcec5b33833f"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "f1a400a12cfe44a3"}

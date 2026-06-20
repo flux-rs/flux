@@ -1,0 +1,12 @@
+import Surface.Loop00.Flux.Prelude
+open Classical
+set_option linter.unusedVariables false
+
+
+namespace F
+
+
+
+def Toss := 
+ True
+end F

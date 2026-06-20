@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Vec.Vec00.Flux.VC.TestPush",
+ "isModule": false,
+ "importArts":
+ {"Vec.Vec00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Vec/Vec00/Flux/Prelude.olean"]},
+ "dynlibs": []}

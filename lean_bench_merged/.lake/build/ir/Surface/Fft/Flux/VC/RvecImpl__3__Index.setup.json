@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Fft.Flux.VC.RvecImpl__3__Index",
+ "isModule": false,
+ "importArts":
+ {"Surface.Fft.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Fft/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Casts.Pointers.Flux.VC.Foo",
+ "isModule": false,
+ "importArts":
+ {"Casts.Pointers.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Casts/Pointers/Flux/Prelude.olean"]},
+ "dynlibs": []}

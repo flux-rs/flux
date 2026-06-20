@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Structs.OpaqueRange.Flux.VC.Test",
+ "isModule": false,
+ "importArts":
+ {"Structs.OpaqueRange.Flux.Struct.Range":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/OpaqueRange/Flux/Struct/Range.olean"],
+  "Structs.OpaqueRange.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/OpaqueRange/Flux/Prelude.olean"]},
+ "dynlibs": []}

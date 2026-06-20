@@ -1,0 +1,53 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["62f44645e4d2ea04.olean"],
+  "i": "2871a79318b72324.ilean",
+  "c": "3f5e3788be52ebb5.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Simplex/User/Proof/InitRatioCProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Simplex/User/Proof/InitRatioCProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Simplex/User/Proof/InitRatioCProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Simplex/User/Proof/InitRatioCProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Simplex/User/Proof/InitRatioCProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Simplex/User/Proof/InitRatioCProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/InitRatioCProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/InitRatioCProof.lean:69:0: time: 44ms",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/InitRatioCProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Simplex.User.Proof.InitRatioCProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Simplex.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Simplex.Flux.Prelude:importAllArts", "40310b272ae7bbe1"],
+        ["Surface.Simplex.Flux.VC.InitRatioC transitive imports (legacy)",
+         "5cce4a22b7fff904"],
+        ["Surface.Simplex.Flux.VC.InitRatioC:importAllArts",
+         "4d25f2e9aa28eda2"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Simplex/User/Proof/InitRatioCProof.lean",
+   "712351bebec8ea1d"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Simplex.User.Proof.InitRatioCProof",
+   "0f9a381c65ae440c"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "fa9d9b4daaf29e0a"}

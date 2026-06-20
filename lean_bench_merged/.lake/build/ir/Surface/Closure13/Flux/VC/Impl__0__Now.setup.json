@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Closure13.Flux.VC.Impl__0__Now",
+ "isModule": false,
+ "importArts":
+ {"Surface.Closure13.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure13/Flux/Prelude.olean"]},
+ "dynlibs": []}

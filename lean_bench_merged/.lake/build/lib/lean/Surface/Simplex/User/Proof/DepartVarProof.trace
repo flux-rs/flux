@@ -1,0 +1,317 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["d7bba29efbdcaa21.olean"],
+  "i": "fc63c85d21a11f21.ilean",
+  "c": "9f53026d7d70b7fc.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Simplex/User/Proof/DepartVarProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Simplex/User/Proof/DepartVarProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Simplex/User/Proof/DepartVarProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Simplex/User/Proof/DepartVarProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Simplex/User/Proof/DepartVarProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:69:0: time: 19263ms",
+   "level": "info"},
+  {"message":
+   "Surface/Simplex/User/Proof/DepartVarProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k2, k1]\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve] --- k2 ---\n[solve]   sol = ∃ a'₄,\n  a'₄ ∧\n    ∃ a'₅,\n      ¬a'₅ ∧ (((((((z0 = z5 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = True) ∧ z8 = a'₅ ∨\n        a'₅ ∧ (((((((z0 = z6 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = True) ∧ z8 = True\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 z6 z7 z8 =>\n  ∃ a'₄,\n    a'₄ ∧\n      ∃ a'₅,\n        ¬a'₅ ∧\n            (((((((z0 = z5 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = True) ∧ z8 = a'₅ ∨\n          a'₅ ∧\n            (((((((z0 = z6 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = True) ∧ z8 = True\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₄,\n  ¬a'₄ ∧ ((((((z0 = z5 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = a'₄ ∨\n    a'₄ ∧\n      ∃ a'₅ i₁,\n        (∃ a'₄,\n            a'₄ ∧\n              ∃ a'₅_1,\n                ¬a'₅_1 ∧\n                    (((((((i₁ = z5 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ True = True) ∧\n                      a'₅ = a'₅_1 ∨\n                  a'₅_1 ∧\n                    (((((((i₁ = z6 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ True = True) ∧\n                      a'₅ = True) ∧\n          ((((((z0 = i₁ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = True\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 z6 z7 =>\n  ∃ a'₄,\n    ¬a'₄ ∧ ((((((z0 = z5 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = a'₄ ∨\n      a'₄ ∧\n        ∃ a'₅ i₁,\n          (∃ a'₄,\n              a'₄ ∧\n                ∃ a'₅_1,\n                  ¬a'₅_1 ∧\n                      (((((((i₁ = z5 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ True = True) ∧\n                        a'₅ = a'₅_1 ∨\n                    a'₅_1 ∧\n                      (((((((i₁ = z6 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ True = True) ∧\n                        a'₅ = True) ∧\n            ((((((z0 = i₁ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∧ z6 = z6) ∧ z7 = True\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = (((((((((((((((((((((((((((((((((((((((z1 > z0 ∧ z1 > z5) ∧ z2 > z0) ∧ z2 > z5) ∧ z3 > z4) ∧ z0 < z1) ∧ z0 < z2) ∧\n                                                                    z4 < z3) ∧\n                                                                  z5 < z1) ∧\n                                                                z5 < z2) ∧\n                                                              z0 ≤ z1) ∧\n                                                            z0 ≤ z2) ∧\n                                                          z1 ≤ z2) ∧\n                                                        z4 ≤ z3) ∧\n                                                      z5 ≤ z0) ∧\n                                                    z5 ≤ z1) ∧\n                                                  z5 ≤ z2) ∧\n                                                z0 ≥ 0) ∧\n                                              z1 ≥ 0) ∧\n                                            z2 ≥ 0) ∧\n                                          z3 ≥ 0) ∧\n                                        z4 ≥ 0) ∧\n                                      z5 ≥ 0) ∧\n                                    z0 ≤ z1 - 1) ∧\n                                  z0 ≤ z2 - 1) ∧\n                                z4 ≤ z3 - 1) ∧\n                              z5 ≤ z1 - 1) ∧\n                            z5 ≤ z2 - 1) ∧\n                          z0 > 0) ∧\n                        z1 > 0) ∧\n                      z2 > 0) ∧\n                    z3 > 0) ∧\n                  z4 > 0) ∧\n                z5 > 0) ∧\n              z0 ≥ z5) ∧\n            z1 ≥ z0) ∧\n          z1 ≥ z5) ∧\n        z2 ≥ z0) ∧\n      z2 ≥ z1) ∧\n    z2 ≥ z5) ∧\n  z3 ≥ z4",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Simplex.User.Proof.DepartVarProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Simplex.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Simplex.Flux.Prelude:importAllArts", "40310b272ae7bbe1"],
+        ["Surface.Simplex.Flux.VC.DepartVar transitive imports (legacy)",
+         "5cce4a22b7fff904"],
+        ["Surface.Simplex.Flux.VC.DepartVar:importAllArts",
+         "a656080f4d155a4d"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Simplex/User/Proof/DepartVarProof.lean",
+   "86c408f7f3f571f4"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Simplex.User.Proof.DepartVarProof",
+   "e16b14717c611ccd"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "49e68cf9c4862169"}

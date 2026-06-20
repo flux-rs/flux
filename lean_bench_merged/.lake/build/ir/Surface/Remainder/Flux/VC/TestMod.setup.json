@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Remainder.Flux.VC.TestMod",
+ "isModule": false,
+ "importArts":
+ {"Surface.Remainder.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Remainder/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.ReadRef.Flux.VC.Assert",
+ "isModule": false,
+ "importArts":
+ {"Surface.ReadRef.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/ReadRef/Flux/Prelude.olean"]},
+ "dynlibs": []}

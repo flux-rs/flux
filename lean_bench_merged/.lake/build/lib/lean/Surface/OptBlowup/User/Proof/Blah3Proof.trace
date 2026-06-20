@@ -1,0 +1,72 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["221a1fd80ee7ea51.olean"],
+  "i": "8208d8a463f90e99.ilean",
+  "c": "b832459a6b7995ee.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/OptBlowup/User/Proof/Blah3Proof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/OptBlowup/User/Proof/Blah3Proof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/OptBlowup/User/Proof/Blah3Proof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/OptBlowup/User/Proof/Blah3Proof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/OptBlowup/User/Proof/Blah3Proof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Blah3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Blah3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Blah3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Blah3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Blah3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Blah3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Blah3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Blah3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Blah3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/OptBlowup/User/Proof/Blah3Proof.lean:69:0: time: 165ms",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Blah3Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k2, k3]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ v₀, z1 < v₀ ∧ z0 = v₀ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ v₀, z1 < v₀ ∧ z0 = v₀ ∧ z1 = z1\n[solve] --- k1 ---\n[solve]   sol = ∃ v₁, z2 < v₁ ∧ (z0 = v₁ ∧ z1 = z1) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 => ∃ v₁, z2 < v₁ ∧ (z0 = v₁ ∧ z1 = z1) ∧ z2 = z2\n[solve] --- k2 ---\n[solve]   sol = ∃ v₂, z3 < v₂ ∧ ((z0 = v₂ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 => ∃ v₂, z3 < v₂ ∧ ((z0 = v₂ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve] --- k3 ---\n[solve]   sol = (((z0 = z4 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4\n[solve]   lam = fun z0 z1 z2 z3 z4 => (((z0 = z4 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4",
+   "level": "info"}],
+ "inputs":
+ [["Surface.OptBlowup.User.Proof.Blah3Proof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.OptBlowup.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.OptBlowup.Flux.Prelude:importAllArts", "41c8608a8b403fe8"],
+        ["Surface.OptBlowup.Flux.VC.Blah3 transitive imports (legacy)",
+         "99b480bb33972d2e"],
+        ["Surface.OptBlowup.Flux.VC.Blah3:importAllArts",
+         "87ef22cca3fc4556"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/OptBlowup/User/Proof/Blah3Proof.lean",
+   "37e1f9a288ab1c3d"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.OptBlowup.User.Proof.Blah3Proof", "2059e7b7e26be4f3"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "3d59c36f53eaa911"}

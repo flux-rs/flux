@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "ExternSpecs.FluxCoreMem00.Flux.VC.TestAlignOf",
+ "isModule": false,
+ "importArts":
+ {"ExternSpecs.FluxCoreMem00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxCoreMem00/Flux/Prelude.olean"]},
+ "dynlibs": []}

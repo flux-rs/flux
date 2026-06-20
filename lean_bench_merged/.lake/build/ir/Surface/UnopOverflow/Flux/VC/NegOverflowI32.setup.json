@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.UnopOverflow.Flux.VC.NegOverflowI32",
+ "isModule": false,
+ "importArts":
+ {"Surface.UnopOverflow.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/UnopOverflow/Flux/Prelude.olean"],
+  "Surface.UnopOverflow.Flux.Fun.NumImpl2MIN":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/UnopOverflow/Flux/Fun/NumImpl2MIN.olean"]},
+ "dynlibs": []}

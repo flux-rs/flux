@@ -1,0 +1,7 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Vec.VecGet.Flux.Prelude",
+ "isModule": false,
+ "importArts": {},
+ "dynlibs": []}

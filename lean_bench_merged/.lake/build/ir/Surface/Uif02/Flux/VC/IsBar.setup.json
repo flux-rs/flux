@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Uif02.Flux.VC.IsBar",
+ "isModule": false,
+ "importArts":
+ {"Surface.Uif02.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Uif02/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "BuiltinAssocRefts.AlignOf00.Flux.VC.Test02",
+ "isModule": false,
+ "importArts":
+ {"BuiltinAssocRefts.AlignOf00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/BuiltinAssocRefts/AlignOf00/Flux/Prelude.olean"]},
+ "dynlibs": []}

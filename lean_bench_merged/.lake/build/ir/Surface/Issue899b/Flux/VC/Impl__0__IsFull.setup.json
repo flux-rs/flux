@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Issue899b.Flux.VC.Impl__0__IsFull",
+ "isModule": false,
+ "importArts":
+ {"Surface.Issue899b.Flux.Struct.RingBuffer":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Issue899b/Flux/Struct/RingBuffer.olean"],
+  "Surface.Issue899b.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Issue899b/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,13 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "ExternSpecs.FluxCoreAlloc00.Flux.VC.TestFromValidUnwrap",
+ "isModule": false,
+ "importArts":
+ {"ExternSpecs.FluxCoreAlloc00.Flux.Struct.AllocLayoutLayout":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxCoreAlloc00/Flux/Struct/AllocLayoutLayout.olean"],
+  "ExternSpecs.FluxCoreAlloc00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxCoreAlloc00/Flux/Prelude.olean"],
+  "ExternSpecs.FluxCoreAlloc00.Flux.Fun.NumImpl5MAX":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxCoreAlloc00/Flux/Fun/NumImpl5MAX.olean"]},
+ "dynlibs": []}

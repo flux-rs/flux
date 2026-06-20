@@ -1,0 +1,59 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["fa303160aef1ae98.olean"],
+  "i": "becef56fd67c9c1b.ilean",
+  "c": "60e108b4d1d94605.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Async01/User/Proof/BarProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Async01/User/Proof/BarProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Async01/User/Proof/BarProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Async01/User/Proof/BarProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Async01/User/Proof/BarProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Async01/User/Proof/BarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Async01/User/Proof/BarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Async01/User/Proof/BarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Async01/User/Proof/BarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Async01/User/Proof/BarProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/Async01/User/Proof/BarProof.lean:69:0: time: 68ms",
+   "level": "info"},
+  {"message":
+   "Surface/Async01/User/Proof/BarProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ¬z1 > 10 ∧ z0 = 0 ∧ z1 = z1 ∨ z1 > 10 ∧ z0 = 1 ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ¬z1 > 10 ∧ z0 = 0 ∧ z1 = z1 ∨ z1 > 10 ∧ z0 = 1 ∧ z1 = z1",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Async01.User.Proof.BarProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Async01.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Async01.Flux.Prelude:importAllArts", "b1ec42ca16d29c6f"],
+        ["Surface.Async01.Flux.VC.Bar transitive imports (legacy)",
+         "780d1dcf828f00e9"],
+        ["Surface.Async01.Flux.VC.Bar:importAllArts", "3163ebf42787b61a"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Async01/User/Proof/BarProof.lean",
+   "bac21a5cacf6348d"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Async01.User.Proof.BarProof", "6e10b278e197b1b7"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "a60f68542cbc331c"}

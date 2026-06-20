@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.BitvecConst01.Flux.VC.Test1",
+ "isModule": false,
+ "importArts":
+ {"Surface.BitvecConst01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/BitvecConst01/Flux/Prelude.olean"],
+  "Surface.BitvecConst01.Flux.Fun.START":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/BitvecConst01/Flux/Fun/START.olean"]},
+ "dynlibs": []}

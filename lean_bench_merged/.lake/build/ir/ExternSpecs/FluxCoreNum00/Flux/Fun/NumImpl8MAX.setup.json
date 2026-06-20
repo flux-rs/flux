@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "ExternSpecs.FluxCoreNum00.Flux.Fun.NumImpl8MAX",
+ "isModule": false,
+ "importArts":
+ {"ExternSpecs.FluxCoreNum00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxCoreNum00/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "RefinedAssocType.RefinedAssocType00.Flux.VC.Test01",
+ "isModule": false,
+ "importArts":
+ {"RefinedAssocType.RefinedAssocType00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/RefinedAssocType/RefinedAssocType00/Flux/Prelude.olean"]},
+ "dynlibs": []}

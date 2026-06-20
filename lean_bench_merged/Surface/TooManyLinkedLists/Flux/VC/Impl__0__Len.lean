@@ -1,0 +1,21 @@
+import Surface.TooManyLinkedLists.Flux.Prelude
+open Classical
+set_option linter.unusedVariables false
+
+
+namespace F
+
+
+
+def Impl__0__Len := 
+ ∀ (n₀ : Int),
+  (n₀ ≥ 0) ->
+   ((n₀ = 0) ->
+    (0 = n₀)) ∧
+   (∀ (n₁ : Int),
+    (n₀ = (n₁ + 1)) ->
+     (n₁ ≥ 0) ->
+      ∀ (a'₁ : Int),
+       ((1 + n₁) = n₀))
+   
+end F

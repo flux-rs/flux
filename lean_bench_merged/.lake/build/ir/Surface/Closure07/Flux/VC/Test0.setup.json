@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Closure07.Flux.VC.Test0",
+ "isModule": false,
+ "importArts":
+ {"Surface.Closure07.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure07/Flux/Prelude.olean"]},
+ "dynlibs": []}

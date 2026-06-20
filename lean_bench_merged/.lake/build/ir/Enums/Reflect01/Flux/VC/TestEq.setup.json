@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Enums.Reflect01.Flux.VC.TestEq",
+ "isModule": false,
+ "importArts":
+ {"Enums.Reflect01.Flux.Struct.State":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/Reflect01/Flux/Struct/State.olean"],
+  "Enums.Reflect01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/Reflect01/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Literals00.Flux.VC.Hex01",
+ "isModule": false,
+ "importArts":
+ {"Surface.Literals00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Literals00/Flux/Prelude.olean"]},
+ "dynlibs": []}

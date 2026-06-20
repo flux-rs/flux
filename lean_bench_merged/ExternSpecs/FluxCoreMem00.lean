@@ -1,0 +1,1 @@
+import ExternSpecs.FluxCoreMem00.Basic

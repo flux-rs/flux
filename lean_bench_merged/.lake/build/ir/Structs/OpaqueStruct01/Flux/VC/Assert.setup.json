@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Structs.OpaqueStruct01.Flux.VC.Assert",
+ "isModule": false,
+ "importArts":
+ {"Structs.OpaqueStruct01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/OpaqueStruct01/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,69 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["131213ea77dc680d.olean"],
+  "i": "83abf1ec7cb0fde0.ilean",
+  "c": "c52d766ff7c5cf8c.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Iter01/User/Proof/TestLoopProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Iter01/User/Proof/TestLoopProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Iter01/User/Proof/TestLoopProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Iter01/User/Proof/TestLoopProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Iter01/User/Proof/TestLoopProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestLoopProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestLoopProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestLoopProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestLoopProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestLoopProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestLoopProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestLoopProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestLoopProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/Iter01/User/Proof/TestLoopProof.lean:69:0: time: 380ms",
+   "level": "info"},
+  {"message":
+   "Surface/Iter01/User/Proof/TestLoopProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k3]\n[solve_fixpoint] Cyclic κ:  [k2]\n[solve] --- k0 ---\n[solve]   sol = ∃ v₀, 0 ≤ v₀ ∧ z0 = v₀ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ v₀, 0 ≤ v₀ ∧ z0 = v₀ ∧ z1 = z1\n[solve] --- k1 ---\n[solve]   sol = z0 = z0\n[solve]   lam = fun z0 => z0 = z0\n[solve] --- k3 ---\n[solve]   sol = ∃ a'₃, ?k2 a'₃ z1 ∧ z0 = a'₃ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ a'₃, ?k2 a'₃ z1 ∧ z0 = a'₃ ∧ z1 = z1\n[solve_fixpoint] --- PA on cyclic κ's [k2] ---\n[solve_fixpoint]   PA sol for k2 = z0 ≥ 0 ∧ z1 ≥ 0",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Iter01.User.Proof.TestLoopProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Iter01.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Iter01.Flux.Prelude:importAllArts", "fefc952fc2f39d23"],
+        ["Surface.Iter01.Flux.VC.TestLoop transitive imports (legacy)",
+         "1c9d96924061b9da"],
+        ["Surface.Iter01.Flux.VC.TestLoop:importAllArts",
+         "c91fe97c46a422ca"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Iter01/User/Proof/TestLoopProof.lean",
+   "f004b3eef6daf090"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Iter01.User.Proof.TestLoopProof", "e06d1deda696a8b5"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "f20a1c15ffef2cbf"}

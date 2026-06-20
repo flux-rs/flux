@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Enums.Reflect01.Flux.Struct.State",
+ "isModule": false,
+ "importArts":
+ {"Enums.Reflect01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/Reflect01/Flux/Prelude.olean"]},
+ "dynlibs": []}

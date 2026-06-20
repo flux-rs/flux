@@ -1,0 +1,57 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["8ab99bc8b11a88c4.olean"],
+  "i": "68486a388863e23b.ilean",
+  "c": "a64db51e186b16ac.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Structs/OpaqueStruct01/User/Proof/OpaqueStruct01Proof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/OpaqueStruct01/User/Proof/OpaqueStruct01Proof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/OpaqueStruct01/User/Proof/OpaqueStruct01Proof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Structs/OpaqueStruct01/User/Proof/OpaqueStruct01Proof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Structs/OpaqueStruct01/User/Proof/OpaqueStruct01Proof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Structs/OpaqueStruct01/User/Proof/OpaqueStruct01Proof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Structs/OpaqueStruct01/User/Proof/OpaqueStruct01Proof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Structs/OpaqueStruct01/User/Proof/OpaqueStruct01Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Structs/OpaqueStruct01/User/Proof/OpaqueStruct01Proof.lean:69:0: time: 182ms",
+   "level": "info"},
+  {"message":
+   "Structs/OpaqueStruct01/User/Proof/OpaqueStruct01Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ p₀ b₀,\n  ¬b₀ ∧ (((z0 = 1 ∧ z1 = 2) ∧ z2 = p₀.a) ∧ z3 = p₀.b) ∧ z4 = b₀ ∨\n    b₀ ∧ (((z0 = 0 ∧ z1 = 1) ∧ z2 = p₀.a) ∧ z3 = p₀.b) ∧ z4 = True\n[solve]   lam = fun z0 z1 z2 z3 z4 =>\n  ∃ p₀ b₀,\n    ¬b₀ ∧ (((z0 = 1 ∧ z1 = 2) ∧ z2 = p₀.a) ∧ z3 = p₀.b) ∧ z4 = b₀ ∨\n      b₀ ∧ (((z0 = 0 ∧ z1 = 1) ∧ z2 = p₀.a) ∧ z3 = p₀.b) ∧ z4 = True",
+   "level": "info"}],
+ "inputs":
+ [["Structs.OpaqueStruct01.User.Proof.OpaqueStruct01Proof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Structs.OpaqueStruct01.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Structs.OpaqueStruct01.Flux.Prelude:importAllArts",
+         "d693302732e364d0"],
+        ["Structs.OpaqueStruct01.Flux.VC.OpaqueStruct01 transitive imports (legacy)",
+         "8a387701714c4824"],
+        ["Structs.OpaqueStruct01.Flux.VC.OpaqueStruct01:importAllArts",
+         "e536cced825846ec"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Structs/OpaqueStruct01/User/Proof/OpaqueStruct01Proof.lean",
+   "cdf2c05eca741962"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Structs.OpaqueStruct01.User.Proof.OpaqueStruct01Proof",
+   "bfc620cfd10e4e53"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "b62f60e88fc4778c"}

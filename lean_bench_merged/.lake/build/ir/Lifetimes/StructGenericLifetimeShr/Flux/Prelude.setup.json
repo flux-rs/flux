@@ -1,0 +1,7 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Lifetimes.StructGenericLifetimeShr.Flux.Prelude",
+ "isModule": false,
+ "importArts": {},
+ "dynlibs": []}

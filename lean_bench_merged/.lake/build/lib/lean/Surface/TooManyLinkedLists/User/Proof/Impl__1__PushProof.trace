@@ -1,0 +1,63 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["035fb6fe8788decd.olean"],
+  "i": "b96854e39c18d294.ilean",
+  "c": "52bea35d418a8a38.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.lean:69:0: time: 70ms",
+   "level": "info"},
+  {"message":
+   "Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = (z0 = z1 ∧ z1 = z1) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 => (z0 = z1 ∧ z1 = z1) ∧ z2 = z2",
+   "level": "info"}],
+ "inputs":
+ [["Surface.TooManyLinkedLists.User.Proof.Impl__1__PushProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.TooManyLinkedLists.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.TooManyLinkedLists.Flux.Prelude:importAllArts",
+         "851be45eebbb06f4"],
+        ["Surface.TooManyLinkedLists.Flux.VC.Impl__1__Push transitive imports (legacy)",
+         "863aa80b2f52c8f7"],
+        ["Surface.TooManyLinkedLists.Flux.VC.Impl__1__Push:importAllArts",
+         "af2a4fdf450abafe"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/TooManyLinkedLists/User/Proof/Impl__1__PushProof.lean",
+   "bb1d5d9825624f2e"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.TooManyLinkedLists.User.Proof.Impl__1__PushProof",
+   "5c9334aec39265de"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "0d0acfe7e828c238"}

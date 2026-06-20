@@ -1,0 +1,56 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["85036ec46dae337e.olean"],
+  "i": "73147ef23fd2ad98.ilean",
+  "c": "6219a38646195291.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Lifetimes/ListMutRef/User/Proof/Impl__0__GetMutProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Lifetimes/ListMutRef/User/Proof/Impl__0__GetMutProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Lifetimes/ListMutRef/User/Proof/Impl__0__GetMutProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Lifetimes/ListMutRef/User/Proof/Impl__0__GetMutProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Lifetimes/ListMutRef/User/Proof/Impl__0__GetMutProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Lifetimes/ListMutRef/User/Proof/Impl__0__GetMutProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Lifetimes/ListMutRef/User/Proof/Impl__0__GetMutProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Lifetimes/ListMutRef/User/Proof/Impl__0__GetMutProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Lifetimes/ListMutRef/User/Proof/Impl__0__GetMutProof.lean:69:0: time: 31ms",
+   "level": "info"},
+  {"message":
+   "Lifetimes/ListMutRef/User/Proof/Impl__0__GetMutProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
+   "level": "info"}],
+ "inputs":
+ [["Lifetimes.ListMutRef.User.Proof.Impl__0__GetMutProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Lifetimes.ListMutRef.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Lifetimes.ListMutRef.Flux.Prelude:importAllArts", "a7e55cef56799496"],
+        ["Lifetimes.ListMutRef.Flux.VC.Impl__0__GetMut transitive imports (legacy)",
+         "894d50e7a7f26e6e"],
+        ["Lifetimes.ListMutRef.Flux.VC.Impl__0__GetMut:importAllArts",
+         "eb8272fde31ce8ce"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Lifetimes/ListMutRef/User/Proof/Impl__0__GetMutProof.lean",
+   "9e9e32ae1d85f8d6"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Lifetimes.ListMutRef.User.Proof.Impl__0__GetMutProof",
+   "54f01d669e9a3cb4"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "cd861da019f5ee12"}

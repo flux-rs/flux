@@ -1,0 +1,7 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "ExternSpecs.FluxCoreNum00.Flux.Prelude",
+ "isModule": false,
+ "importArts": {},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "ImplTrait.ParentGenerics.Flux.VC.Test00",
+ "isModule": false,
+ "importArts":
+ {"ImplTrait.ParentGenerics.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ImplTrait/ParentGenerics/Flux/Prelude.olean"]},
+ "dynlibs": []}

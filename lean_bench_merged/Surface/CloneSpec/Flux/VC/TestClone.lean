@@ -1,0 +1,12 @@
+import Surface.CloneSpec.Flux.Prelude
+open Classical
+set_option linter.unusedVariables false
+
+
+namespace F
+
+
+
+def TestClone := 
+ (("bob" = "bob") = True)
+end F

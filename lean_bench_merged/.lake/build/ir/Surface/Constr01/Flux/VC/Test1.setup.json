@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Constr01.Flux.VC.Test1",
+ "isModule": false,
+ "importArts":
+ {"Surface.Constr01.Flux.Struct.Foo":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Constr01/Flux/Struct/Foo.olean"],
+  "Surface.Constr01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Constr01/Flux/Prelude.olean"]},
+ "dynlibs": []}

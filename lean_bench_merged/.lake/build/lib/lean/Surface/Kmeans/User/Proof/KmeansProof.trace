@@ -1,0 +1,86 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["8779bcc24656e968.olean"],
+  "i": "140f370ed558f5b3.ilean",
+  "c": "084ec2fa2fb9dd4a.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Kmeans/User/Proof/KmeansProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Kmeans/User/Proof/KmeansProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Kmeans/User/Proof/KmeansProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Kmeans/User/Proof/KmeansProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Kmeans/User/Proof/KmeansProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/Kmeans/User/Proof/KmeansProof.lean:69:0: time: 2013ms",
+   "level": "info"},
+  {"message":
+   "Surface/Kmeans/User/Proof/KmeansProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1]\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve] --- k1 ---\n[solve]   sol = (∃ a'₂, a'₂ = z2 ∧ ((((z0 = a'₂ ∧ z1 = 0) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∨\n  ∃ i₀,\n    ?k0 i₀ z2 z3 z4 z5 ∧\n      i₀ < z5 ∧ ∃ a'₆, a'₆ = z2 ∧ ((((z0 = a'₆ ∧ z1 = i₀ + 1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve]   lam = fun z0 z1 z2 z3 z4 z5 =>\n  (∃ a'₂, a'₂ = z2 ∧ ((((z0 = a'₂ ∧ z1 = 0) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5) ∨\n    ∃ i₀,\n      ?k0 i₀ z2 z3 z4 z5 ∧\n        i₀ < z5 ∧ ∃ a'₆, a'₆ = z2 ∧ ((((z0 = a'₆ ∧ z1 = i₀ + 1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4) ∧ z5 = z5\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = (((z0 ≥ 0 ∧ z1 ≥ 0) ∧ z2 ≥ 0) ∧ z3 ≥ 0) ∧ z2 > 0",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Kmeans.User.Proof.KmeansProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Kmeans.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Kmeans.Flux.Prelude:importAllArts", "f4f1e5b08ee675f1"],
+        ["Surface.Kmeans.Flux.VC.Kmeans transitive imports (legacy)",
+         "a655e69ab32adc7f"],
+        ["Surface.Kmeans.Flux.VC.Kmeans:importAllArts", "1fd526cf72026036"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Kmeans/User/Proof/KmeansProof.lean",
+   "45707014904cd541"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Kmeans.User.Proof.KmeansProof", "d96de949c788d8f9"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "3d1828f4517328e7"}

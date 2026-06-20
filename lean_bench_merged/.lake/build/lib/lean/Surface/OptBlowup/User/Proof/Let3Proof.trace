@@ -1,0 +1,63 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["a049e26ceef61a21.olean"],
+  "i": "4ddf273cb2f7958a.ilean",
+  "c": "d0dbcbd8f90a6e19.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/OptBlowup/User/Proof/Let3Proof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/OptBlowup/User/Proof/Let3Proof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/OptBlowup/User/Proof/Let3Proof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/OptBlowup/User/Proof/Let3Proof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/OptBlowup/User/Proof/Let3Proof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Let3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Let3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Let3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Let3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Let3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Let3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/OptBlowup/User/Proof/Let3Proof.lean:69:0: time: 77ms",
+   "level": "info"},
+  {"message":
+   "Surface/OptBlowup/User/Proof/Let3Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = (((z0 = z4 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4\n[solve]   lam = fun z0 z1 z2 z3 z4 => (((z0 = z4 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ z4 = z4",
+   "level": "info"}],
+ "inputs":
+ [["Surface.OptBlowup.User.Proof.Let3Proof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.OptBlowup.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.OptBlowup.Flux.Prelude:importAllArts", "41c8608a8b403fe8"],
+        ["Surface.OptBlowup.Flux.VC.Let3 transitive imports (legacy)",
+         "99b480bb33972d2e"],
+        ["Surface.OptBlowup.Flux.VC.Let3:importAllArts",
+         "6ae8cacdd1a8c5e3"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/OptBlowup/User/Proof/Let3Proof.lean",
+   "ab85c06622f2da83"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.OptBlowup.User.Proof.Let3Proof", "0bd12c3680cbab9f"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "0760f2476bec48e0"}

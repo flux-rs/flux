@@ -1,0 +1,53 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["7ce2904c7935c3be.olean"],
+  "i": "a336973fd186b7cf.ilean",
+  "c": "420e19b172feafac.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Enums/Opt01/User/Proof/IsSomeProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/Opt01/User/Proof/IsSomeProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/Opt01/User/Proof/IsSomeProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Enums/Opt01/User/Proof/IsSomeProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Enums/Opt01/User/Proof/IsSomeProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Enums/Opt01/User/Proof/IsSomeProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Enums/Opt01/User/Proof/IsSomeProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Enums/Opt01/User/Proof/IsSomeProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Enums/Opt01/User/Proof/IsSomeProof.lean:69:0: time: 108ms",
+   "level": "info"},
+  {"message":
+   "Enums/Opt01/User/Proof/IsSomeProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ b₀, b₀ = False ∧ (z0 = False ∧ z1 = False) ∧ z2 = b₀ ∨ b₀ = True ∧ ∃ a'₀, (z0 = True ∧ z1 = True) ∧ z2 = b₀\n[solve]   lam = fun z0 z1 z2 =>\n  ∃ b₀, b₀ = False ∧ (z0 = False ∧ z1 = False) ∧ z2 = b₀ ∨ b₀ = True ∧ ∃ a'₀, (z0 = True ∧ z1 = True) ∧ z2 = b₀",
+   "level": "info"}],
+ "inputs":
+ [["Enums.Opt01.User.Proof.IsSomeProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Enums.Opt01.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Enums.Opt01.Flux.Prelude:importAllArts", "f9ed2496daa5b774"],
+        ["Enums.Opt01.Flux.VC.IsSome transitive imports (legacy)",
+         "326e2f59a368a34f"],
+        ["Enums.Opt01.Flux.VC.IsSome:importAllArts", "0db89856c094b84b"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Enums/Opt01/User/Proof/IsSomeProof.lean",
+   "c1af1e8f18b9f759"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Enums.Opt01.User.Proof.IsSomeProof", "cf7db78dfdb72105"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "d8d95f1c773c7d1d"}

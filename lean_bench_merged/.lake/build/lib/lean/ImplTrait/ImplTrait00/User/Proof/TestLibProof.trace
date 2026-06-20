@@ -1,0 +1,57 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["1a6152d11f2b93bb.olean"],
+  "i": "c017958c63b4897e.ilean",
+  "c": "f4820eeb37df4e46.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/ImplTrait/ImplTrait00/User/Proof/TestLibProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ImplTrait/ImplTrait00/User/Proof/TestLibProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ImplTrait/ImplTrait00/User/Proof/TestLibProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/ImplTrait/ImplTrait00/User/Proof/TestLibProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/ImplTrait/ImplTrait00/User/Proof/TestLibProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "ImplTrait/ImplTrait00/User/Proof/TestLibProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "ImplTrait/ImplTrait00/User/Proof/TestLibProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ImplTrait/ImplTrait00/User/Proof/TestLibProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ImplTrait/ImplTrait00/User/Proof/TestLibProof.lean:69:0: time: 35ms",
+   "level": "info"},
+  {"message":
+   "ImplTrait/ImplTrait00/User/Proof/TestLibProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = 10\n[solve]   lam = fun z0 => z0 = 10\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₀, a'₀ = 10 ∧ z0 = a'₀\n[solve]   lam = fun z0 => ∃ a'₀, a'₀ = 10 ∧ z0 = a'₀",
+   "level": "info"}],
+ "inputs":
+ [["ImplTrait.ImplTrait00.User.Proof.TestLibProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["ImplTrait.ImplTrait00.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["ImplTrait.ImplTrait00.Flux.Prelude:importAllArts",
+         "0a5083bd04c5c330"],
+        ["ImplTrait.ImplTrait00.Flux.VC.TestLib transitive imports (legacy)",
+         "db9913f4ca13fe53"],
+        ["ImplTrait.ImplTrait00.Flux.VC.TestLib:importAllArts",
+         "f99de16580e6efc7"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/ImplTrait/ImplTrait00/User/Proof/TestLibProof.lean",
+   "b965e5f3746560db"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: ImplTrait.ImplTrait00.User.Proof.TestLibProof",
+   "2f52492cca64ec0e"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "3f39636413f2fd04"}

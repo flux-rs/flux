@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.PrimopPropLet.Flux.VC.Foo",
+ "isModule": false,
+ "importArts":
+ {"Surface.PrimopPropLet.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/PrimopPropLet/Flux/Prelude.olean"],
+  "Surface.PrimopPropLet.Flux.Const.PrimOpBitShlInt":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/PrimopPropLet/Flux/Const/PrimOpBitShlInt.olean"]},
+ "dynlibs": []}

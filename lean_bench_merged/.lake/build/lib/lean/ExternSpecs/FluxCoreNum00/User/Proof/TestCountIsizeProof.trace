@@ -1,0 +1,66 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["6123d96c2bb60689.olean"],
+  "i": "dfe66dd0707173a8.ilean",
+  "c": "1a19b119960facb2.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.lean:69:0: time: 86ms",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
+   "level": "info"}],
+ "inputs":
+ [["ExternSpecs.FluxCoreNum00.User.Proof.TestCountIsizeProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["ExternSpecs.FluxCoreNum00.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["ExternSpecs.FluxCoreNum00.Flux.Prelude:importAllArts",
+         "2839b25fcf167924"],
+        ["ExternSpecs.FluxCoreNum00.Flux.VC.TestCountIsize transitive imports (legacy)",
+         "400da83358bfcaf7"],
+        ["ExternSpecs.FluxCoreNum00.Flux.VC.TestCountIsize:importAllArts",
+         "1c5ade339839cce8"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/ExternSpecs/FluxCoreNum00/User/Proof/TestCountIsizeProof.lean",
+   "abcc20bc44f5d312"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: ExternSpecs.FluxCoreNum00.User.Proof.TestCountIsizeProof",
+   "ee8b03d44531e6b8"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "31fb6ea6266bab85"}

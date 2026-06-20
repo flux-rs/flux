@@ -1,0 +1,57 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["20f3c8e65a27206a.olean"],
+  "i": "c08f1f125e8a779e.ilean",
+  "c": "89ccad95a1f053b9.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Detached/DetachImpl02/User/Proof/Impl__1__FromProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Detached/DetachImpl02/User/Proof/Impl__1__FromProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Detached/DetachImpl02/User/Proof/Impl__1__FromProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Detached/DetachImpl02/User/Proof/Impl__1__FromProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Detached/DetachImpl02/User/Proof/Impl__1__FromProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Detached/DetachImpl02/User/Proof/Impl__1__FromProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Detached/DetachImpl02/User/Proof/Impl__1__FromProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Detached/DetachImpl02/User/Proof/Impl__1__FromProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Detached/DetachImpl02/User/Proof/Impl__1__FromProof.lean:69:0: time: 33ms",
+   "level": "info"},
+  {"message":
+   "Detached/DetachImpl02/User/Proof/Impl__1__FromProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
+   "level": "info"}],
+ "inputs":
+ [["Detached.DetachImpl02.User.Proof.Impl__1__FromProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Detached.DetachImpl02.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Detached.DetachImpl02.Flux.Prelude:importAllArts",
+         "d3199cd8394b9541"],
+        ["Detached.DetachImpl02.Flux.VC.Impl__1__From transitive imports (legacy)",
+         "483cfba8ed4d7721"],
+        ["Detached.DetachImpl02.Flux.VC.Impl__1__From:importAllArts",
+         "0cd83fd697cd1178"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Detached/DetachImpl02/User/Proof/Impl__1__FromProof.lean",
+   "3ad28dd2ae798201"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Detached.DetachImpl02.User.Proof.Impl__1__FromProof",
+   "c1663c5d84e1b465"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "c8d252779d0543f0"}

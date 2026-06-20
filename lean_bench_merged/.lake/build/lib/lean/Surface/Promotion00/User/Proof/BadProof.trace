@@ -1,0 +1,60 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["7ec14d536d2245c3.olean"],
+  "i": "2df5a6fec9ab96fd.ilean",
+  "c": "89784a7029aa370b.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Promotion00/User/Proof/BadProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Promotion00/User/Proof/BadProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Promotion00/User/Proof/BadProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Promotion00/User/Proof/BadProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Promotion00/User/Proof/BadProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Promotion00/User/Proof/BadProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Promotion00/User/Proof/BadProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Promotion00/User/Proof/BadProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Promotion00/User/Proof/BadProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/Promotion00/User/Proof/BadProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/Promotion00/User/Proof/BadProof.lean:69:0: time: 85ms",
+   "level": "info"},
+  {"message":
+   "Surface/Promotion00/User/Proof/BadProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k2, k3]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₀, a'₀ = 0 ∧ z0 = a'₀\n[solve]   lam = fun z0 => ∃ a'₀, a'₀ = 0 ∧ z0 = a'₀\n[solve] --- k1 ---\n[solve]   sol = z0 = 0\n[solve]   lam = fun z0 => z0 = 0\n[solve] --- k2 ---\n[solve]   sol = ∃ a'₁, a'₁ = 0 ∧ z0 = a'₁\n[solve]   lam = fun z0 => ∃ a'₁, a'₁ = 0 ∧ z0 = a'₁\n[solve] --- k3 ---\n[solve]   sol = z0 = 0\n[solve]   lam = fun z0 => z0 = 0",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Promotion00.User.Proof.BadProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Promotion00.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Promotion00.Flux.Prelude:importAllArts", "8c9ce3efb42d490d"],
+        ["Surface.Promotion00.Flux.VC.Bad transitive imports (legacy)",
+         "9732c38717193ada"],
+        ["Surface.Promotion00.Flux.VC.Bad:importAllArts",
+         "7b55c1a5102a3c26"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Promotion00/User/Proof/BadProof.lean",
+   "2e88eae66b2bffd7"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Promotion00.User.Proof.BadProof", "59072d9cd00b9e22"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "95c2b08342b9ecc6"}

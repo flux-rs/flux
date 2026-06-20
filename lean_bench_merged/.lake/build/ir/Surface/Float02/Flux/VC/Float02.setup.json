@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Float02.Flux.VC.Float02",
+ "isModule": false,
+ "importArts":
+ {"Surface.Float02.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Float02/Flux/Prelude.olean"]},
+ "dynlibs": []}

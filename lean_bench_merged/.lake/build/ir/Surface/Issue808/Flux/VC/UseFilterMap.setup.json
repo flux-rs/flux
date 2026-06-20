@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Issue808.Flux.VC.UseFilterMap",
+ "isModule": false,
+ "importArts":
+ {"Surface.Issue808.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Issue808/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Structs.Dot01.Flux.Struct.Pair",
+ "isModule": false,
+ "importArts":
+ {"Structs.Dot01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/Dot01/Flux/Prelude.olean"]},
+ "dynlibs": []}

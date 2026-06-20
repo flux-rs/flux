@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Structs.SimpleEnumConstructor.Flux.VC.Test",
+ "isModule": false,
+ "importArts":
+ {"Structs.SimpleEnumConstructor.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/SimpleEnumConstructor/Flux/Prelude.olean"]},
+ "dynlibs": []}

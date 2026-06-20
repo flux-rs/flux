@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.IntrinsicAssume00.Flux.VC.TestI32",
+ "isModule": false,
+ "importArts":
+ {"Surface.IntrinsicAssume00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/IntrinsicAssume00/Flux/Prelude.olean"]},
+ "dynlibs": []}

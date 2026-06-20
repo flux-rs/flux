@@ -1,0 +1,73 @@
+import LeanFixpoint
+import Enums.Reflect01.Flux.Prelude
+import Enums.Reflect01.Flux.VC.TestEq
+open Classical
+set_option linter.unusedVariables false
+
+
+namespace F
+
+namespace TestEqQualifs
+
+@[qualif]
+def EqTrue (v₀ : Prop) : Prop :=
+  v₀
+
+@[qualif]
+def EqFalse (v₀ : Prop) : Prop :=
+  (¬v₀)
+
+@[qualif]
+def EqZero (v₀ : Int) : Prop :=
+  (v₀ = 0)
+
+@[qualif]
+def GtZero (v₀ : Int) : Prop :=
+  (v₀ > 0)
+
+@[qualif]
+def GeZero (v₀ : Int) : Prop :=
+  (v₀ ≥ 0)
+
+@[qualif]
+def LtZero (v₀ : Int) : Prop :=
+  (v₀ < 0)
+
+@[qualif]
+def LeZero (v₀ : Int) : Prop :=
+  (v₀ ≤ 0)
+
+@[qualif]
+def Eq (v₀ : Int) (a'₁ : Int) : Prop :=
+  (v₀ = a'₁)
+
+@[qualif]
+def Gt (v₀ : Int) (a'₁ : Int) : Prop :=
+  (v₀ > a'₁)
+
+@[qualif]
+def Ge (v₀ : Int) (a'₁ : Int) : Prop :=
+  (v₀ ≥ a'₁)
+
+@[qualif]
+def Lt (v₀ : Int) (a'₁ : Int) : Prop :=
+  (v₀ < a'₁)
+
+@[qualif]
+def Le (v₀ : Int) (a'₁ : Int) : Prop :=
+  (v₀ ≤ a'₁)
+
+@[qualif]
+def Le1 (v₀ : Int) (a'₁ : Int) : Prop :=
+  (v₀ ≤ (a'₁ - 1))
+
+end TestEqQualifs
+
+open TestEqQualifs
+
+set_option maxHeartbeats 5000000
+#time def TestEq_proof : TestEq := by
+  unfold TestEq
+  solve_fixpoint_combo
+
+end F

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Bitvec07.Flux.VC.TestShl32",
+ "isModule": false,
+ "importArts":
+ {"Surface.Bitvec07.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Bitvec07/Flux/Prelude.olean"]},
+ "dynlibs": []}

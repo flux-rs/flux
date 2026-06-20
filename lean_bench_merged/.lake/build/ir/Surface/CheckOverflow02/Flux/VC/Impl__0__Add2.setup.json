@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.CheckOverflow02.Flux.VC.Impl__0__Add2",
+ "isModule": false,
+ "importArts":
+ {"Surface.CheckOverflow02.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/CheckOverflow02/Flux/Prelude.olean"],
+  "Surface.CheckOverflow02.Flux.Fun.MAX":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/CheckOverflow02/Flux/Fun/MAX.olean"]},
+ "dynlibs": []}

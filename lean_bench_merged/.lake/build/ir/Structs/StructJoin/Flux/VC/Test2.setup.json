@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Structs.StructJoin.Flux.VC.Test2",
+ "isModule": false,
+ "importArts":
+ {"Structs.StructJoin.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/StructJoin/Flux/Prelude.olean"]},
+ "dynlibs": []}

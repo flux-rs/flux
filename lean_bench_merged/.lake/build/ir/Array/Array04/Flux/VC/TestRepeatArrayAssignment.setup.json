@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Array.Array04.Flux.VC.TestRepeatArrayAssignment",
+ "isModule": false,
+ "importArts":
+ {"Array.Array04.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Array/Array04/Flux/Prelude.olean"]},
+ "dynlibs": []}

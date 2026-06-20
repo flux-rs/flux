@@ -1,0 +1,59 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["248656106de181cf.olean"],
+  "i": "97e159e3b54eabc9.ilean",
+  "c": "3a32e7dfdc19ab72.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Closure12/User/Proof/FillVecMapProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure12/User/Proof/FillVecMapProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure12/User/Proof/FillVecMapProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Closure12/User/Proof/FillVecMapProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Closure12/User/Proof/FillVecMapProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Closure12/User/Proof/FillVecMapProof.lean:71:2: rewriteKs: already in optimal order",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/FillVecMapProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/FillVecMapProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/FillVecMapProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/FillVecMapProof.lean:69:0: time: 8596ms",
+   "level": "info"},
+  {"message":
+   "Surface/Closure12/User/Proof/FillVecMapProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1, k2, k3]\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve] --- k1 ---\n[solve]   sol = ∃ c0 n₀ f₀, n₀ ≥ 0 ∧ ∃ item₀, (0 ≤ item₀ ∧ item₀ < n₀) ∧ (z0 = item₀ ∧ z1 = n₀) ∧ z2 = f₀\n[solve]   lam = fun z0 z1 z2 => ∃ c0 n₀ f₀, n₀ ≥ 0 ∧ ∃ item₀, (0 ≤ item₀ ∧ item₀ < n₀) ∧ (z0 = item₀ ∧ z1 = n₀) ∧ z2 = f₀\n[solve] --- k2 ---\n[solve]   sol = ∃ c0 n₀ f₀,\n  n₀ ≥ 0 ∧\n    ∃ a'₁,\n      (∃ c0 n₀_1 f₀_1, n₀_1 ≥ 0 ∧ ∃ item₀, (0 ≤ item₀ ∧ item₀ < n₀_1) ∧ (a'₁ = item₀ ∧ n₀ = n₀_1) ∧ f₀ = f₀_1) ∧\n        a'₁ ≥ 0 ∧ ∃ a'₂, ?k0 a'₂ n₀ f₀ ∧ ((z0 = a'₂ ∧ z1 = n₀) ∧ z2 = f₀) ∧ z3 = a'₁\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ c0 n₀ f₀,\n    n₀ ≥ 0 ∧\n      ∃ a'₁,\n        (∃ c0 n₀_1 f₀_1, n₀_1 ≥ 0 ∧ ∃ item₀, (0 ≤ item₀ ∧ item₀ < n₀_1) ∧ (a'₁ = item₀ ∧ n₀ = n₀_1) ∧ f₀ = f₀_1) ∧\n          a'₁ ≥ 0 ∧ ∃ a'₂, ?k0 a'₂ n₀ f₀ ∧ ((z0 = a'₂ ∧ z1 = n₀) ∧ z2 = f₀) ∧ z3 = a'₁\n[solve] --- k3 ---\n[solve]   sol = ∃ c0 n₀ f₀, n₀ ≥ 0 ∧ ((∃ a'₅, ?k0 a'₅ n₀ f₀ ∧ (z0 = a'₅ ∧ z1 = n₀) ∧ z2 = f₀) ∨ ∃ a'₇, (z0 = a'₇ ∧ z1 = n₀) ∧ z2 = f₀)\n[solve]   lam = fun z0 z1 z2 =>\n  ∃ c0 n₀ f₀, n₀ ≥ 0 ∧ ((∃ a'₅, ?k0 a'₅ n₀ f₀ ∧ (z0 = a'₅ ∧ z1 = n₀) ∧ z2 = f₀) ∨ ∃ a'₇, (z0 = a'₇ ∧ z1 = n₀) ∧ z2 = f₀)\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = z1 ≥ 0\n[solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = z1 ≥ 0",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Closure12.User.Proof.FillVecMapProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Closure12.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Closure12.Flux.Prelude:importAllArts", "8012cc92d9774ac2"],
+        ["Surface.Closure12.Flux.VC.FillVecMap transitive imports (legacy)",
+         "53df0dc308f5fc7d"],
+        ["Surface.Closure12.Flux.VC.FillVecMap:importAllArts",
+         "8d6c756f573a16a6"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Closure12/User/Proof/FillVecMapProof.lean",
+   "faefcab42aa602dd"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Closure12.User.Proof.FillVecMapProof",
+   "3228b9510b11393f"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "3de5dff8a3a06179"}

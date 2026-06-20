@@ -1,0 +1,73 @@
+import LeanFixpoint
+import Structs.Dot00.Flux.Prelude
+import Structs.Dot00.Flux.VC.MkPair2
+open Classical
+set_option linter.unusedVariables false
+
+
+namespace F
+
+namespace MkPair2Qualifs
+
+@[qualif]
+def EqTrue (a'₀ : Prop) : Prop :=
+  a'₀
+
+@[qualif]
+def EqFalse (a'₀ : Prop) : Prop :=
+  (¬a'₀)
+
+@[qualif]
+def EqZero (a'₀ : Int) : Prop :=
+  (a'₀ = 0)
+
+@[qualif]
+def GtZero (a'₀ : Int) : Prop :=
+  (a'₀ > 0)
+
+@[qualif]
+def GeZero (a'₀ : Int) : Prop :=
+  (a'₀ ≥ 0)
+
+@[qualif]
+def LtZero (a'₀ : Int) : Prop :=
+  (a'₀ < 0)
+
+@[qualif]
+def LeZero (a'₀ : Int) : Prop :=
+  (a'₀ ≤ 0)
+
+@[qualif]
+def Eq (a'₀ : Int) (a'₁ : Int) : Prop :=
+  (a'₀ = a'₁)
+
+@[qualif]
+def Gt (a'₀ : Int) (a'₁ : Int) : Prop :=
+  (a'₀ > a'₁)
+
+@[qualif]
+def Ge (a'₀ : Int) (a'₁ : Int) : Prop :=
+  (a'₀ ≥ a'₁)
+
+@[qualif]
+def Lt (a'₀ : Int) (a'₁ : Int) : Prop :=
+  (a'₀ < a'₁)
+
+@[qualif]
+def Le (a'₀ : Int) (a'₁ : Int) : Prop :=
+  (a'₀ ≤ a'₁)
+
+@[qualif]
+def Le1 (a'₀ : Int) (a'₁ : Int) : Prop :=
+  (a'₀ ≤ (a'₁ - 1))
+
+end MkPair2Qualifs
+
+open MkPair2Qualifs
+
+set_option maxHeartbeats 5000000
+#time def MkPair2_proof : MkPair2 := by
+  unfold MkPair2
+  solve_fixpoint_combo
+
+end F

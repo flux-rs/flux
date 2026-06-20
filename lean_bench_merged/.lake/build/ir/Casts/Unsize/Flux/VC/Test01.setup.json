@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Casts.Unsize.Flux.VC.Test01",
+ "isModule": false,
+ "importArts":
+ {"Casts.Unsize.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Casts/Unsize/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,57 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["ab1f559e7c413dbc.olean"],
+  "i": "63da815d21f38de1.ilean",
+  "c": "5c3b8372329e466f.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/ExternSpecs/FluxAllocVec00/User/Proof/TestProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxAllocVec00/User/Proof/TestProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ExternSpecs/FluxAllocVec00/User/Proof/TestProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/ExternSpecs/FluxAllocVec00/User/Proof/TestProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/ExternSpecs/FluxAllocVec00/User/Proof/TestProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "ExternSpecs/FluxAllocVec00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxAllocVec00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxAllocVec00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxAllocVec00/User/Proof/TestProof.lean:69:0: time: 58ms",
+   "level": "info"},
+  {"message":
+   "ExternSpecs/FluxAllocVec00/User/Proof/TestProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ v₁, v₁ > 0 ∧ z0 = v₁ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ v₁, v₁ > 0 ∧ z0 = v₁ ∧ z1 = z1",
+   "level": "info"}],
+ "inputs":
+ [["ExternSpecs.FluxAllocVec00.User.Proof.TestProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["ExternSpecs.FluxAllocVec00.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["ExternSpecs.FluxAllocVec00.Flux.Prelude:importAllArts",
+         "1210dd2904c0b6b5"],
+        ["ExternSpecs.FluxAllocVec00.Flux.VC.Test transitive imports (legacy)",
+         "dfa29aced0b13b50"],
+        ["ExternSpecs.FluxAllocVec00.Flux.VC.Test:importAllArts",
+         "f7b4843e96c398e7"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/ExternSpecs/FluxAllocVec00/User/Proof/TestProof.lean",
+   "164b23a438804670"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: ExternSpecs.FluxAllocVec00.User.Proof.TestProof",
+   "3c25c8494c7c066b"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "485b8a7af101e1e6"}

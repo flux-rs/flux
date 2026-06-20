@@ -1,0 +1,62 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["e58a46baea1625cc.olean"],
+  "i": "6b5292c35d456cf5.ilean",
+  "c": "e035b0e3c9b7d9be.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/StringSpec/User/Proof/TestStringProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/StringSpec/User/Proof/TestStringProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/StringSpec/User/Proof/TestStringProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/StringSpec/User/Proof/TestStringProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/StringSpec/User/Proof/TestStringProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/StringSpec/User/Proof/TestStringProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/StringSpec/User/Proof/TestStringProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/StringSpec/User/Proof/TestStringProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/StringSpec/User/Proof/TestStringProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/StringSpec/User/Proof/TestStringProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/StringSpec/User/Proof/TestStringProof.lean:69:0: time: 33ms",
+   "level": "info"},
+  {"message":
+   "Surface/StringSpec/User/Proof/TestStringProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
+   "level": "info"}],
+ "inputs":
+ [["Surface.StringSpec.User.Proof.TestStringProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.StringSpec.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.StringSpec.Flux.Prelude:importAllArts", "7f5bf05af4f95308"],
+        ["Surface.StringSpec.Flux.VC.TestString transitive imports (legacy)",
+         "68b8628e813c079d"],
+        ["Surface.StringSpec.Flux.VC.TestString:importAllArts",
+         "3f8bc64569e434c0"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/StringSpec/User/Proof/TestStringProof.lean",
+   "68b9c740ced620a2"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.StringSpec.User.Proof.TestStringProof",
+   "712e4ce7d8951a95"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "3b444b5ed4972c93"}

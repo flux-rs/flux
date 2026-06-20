@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Issue809.Flux.VC.AddColorcode",
+ "isModule": false,
+ "importArts":
+ {"Surface.Issue809.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Issue809/Flux/Prelude.olean"]},
+ "dynlibs": []}

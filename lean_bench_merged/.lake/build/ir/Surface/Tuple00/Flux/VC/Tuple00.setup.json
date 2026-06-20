@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Tuple00.Flux.VC.Tuple00",
+ "isModule": false,
+ "importArts":
+ {"Surface.Tuple00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Tuple00/Flux/Prelude.olean"]},
+ "dynlibs": []}

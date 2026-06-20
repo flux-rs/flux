@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.AssertTerminator.Flux.VC.AssertTerminatorTest",
+ "isModule": false,
+ "importArts":
+ {"Surface.AssertTerminator.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/AssertTerminator/Flux/Prelude.olean"]},
+ "dynlibs": []}

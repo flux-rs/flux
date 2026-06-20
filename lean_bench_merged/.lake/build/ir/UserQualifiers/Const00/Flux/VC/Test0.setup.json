@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "UserQualifiers.Const00.Flux.VC.Test0",
+ "isModule": false,
+ "importArts":
+ {"UserQualifiers.Const00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/UserQualifiers/Const00/Flux/Prelude.olean"],
+  "UserQualifiers.Const00.Flux.Fun.FORTYTWO":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/UserQualifiers/Const00/Flux/Fun/FORTYTWO.olean"]},
+ "dynlibs": []}

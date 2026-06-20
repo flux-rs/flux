@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Join04.Flux.VC.JoinArr",
+ "isModule": false,
+ "importArts":
+ {"Surface.Join04.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Join04/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Detached.DetachImpl06.Flux.VC.XYImpl__0__New",
+ "isModule": false,
+ "importArts":
+ {"Detached.DetachImpl06.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Detached/DetachImpl06/Flux/Prelude.olean"]},
+ "dynlibs": []}

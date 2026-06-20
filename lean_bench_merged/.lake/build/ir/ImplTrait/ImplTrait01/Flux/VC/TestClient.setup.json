@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "ImplTrait.ImplTrait01.Flux.VC.TestClient",
+ "isModule": false,
+ "importArts":
+ {"ImplTrait.ImplTrait01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/ImplTrait/ImplTrait01/Flux/Prelude.olean"]},
+ "dynlibs": []}

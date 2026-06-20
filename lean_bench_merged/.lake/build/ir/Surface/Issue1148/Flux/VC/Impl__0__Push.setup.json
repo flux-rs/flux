@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.Issue1148.Flux.VC.Impl__0__Push",
+ "isModule": false,
+ "importArts":
+ {"Surface.Issue1148.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Issue1148/Flux/Prelude.olean"]},
+ "dynlibs": []}

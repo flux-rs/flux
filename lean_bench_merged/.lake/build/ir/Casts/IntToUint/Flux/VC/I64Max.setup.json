@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Casts.IntToUint.Flux.VC.I64Max",
+ "isModule": false,
+ "importArts":
+ {"Casts.IntToUint.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Casts/IntToUint/Flux/Prelude.olean"]},
+ "dynlibs": []}

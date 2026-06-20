@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.ExplicitVariantVal.Flux.VC.Max",
+ "isModule": false,
+ "importArts":
+ {"Surface.ExplicitVariantVal.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/ExplicitVariantVal/Flux/Prelude.olean"]},
+ "dynlibs": []}

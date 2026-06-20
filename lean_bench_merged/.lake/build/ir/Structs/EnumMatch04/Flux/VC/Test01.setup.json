@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Structs.EnumMatch04.Flux.VC.Test01",
+ "isModule": false,
+ "importArts":
+ {"Structs.EnumMatch04.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Structs/EnumMatch04/Flux/Prelude.olean"]},
+ "dynlibs": []}

@@ -1,0 +1,57 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["5c35257a63b0e53f.olean"],
+  "i": "28bd6f5eb53bb2f5.ilean",
+  "c": "b63b69a9efbdd1f3.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/ReadLoop/User/Proof/RefJoinProof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/ReadLoop/User/Proof/RefJoinProof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/ReadLoop/User/Proof/RefJoinProof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/ReadLoop/User/Proof/RefJoinProof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/ReadLoop/User/Proof/RefJoinProof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/ReadLoop/User/Proof/RefJoinProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
+   "level": "info"},
+  {"message":
+   "Surface/ReadLoop/User/Proof/RefJoinProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/ReadLoop/User/Proof/RefJoinProof.lean:71:2: [solve_fixpoint] closed by: aesop",
+   "level": "info"},
+  {"message":
+   "Surface/ReadLoop/User/Proof/RefJoinProof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/ReadLoop/User/Proof/RefJoinProof.lean:69:0: time: 240ms",
+   "level": "info"},
+  {"message":
+   "Surface/ReadLoop/User/Proof/RefJoinProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1]\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve] --- k1 ---\n[solve]   sol = ∃ b₀ r₀, ?k0 r₀ b₀ ∧ b₀ ∧ (z0 = 1 ∧ z1 = True) ∧ z2 = r₀\n[solve]   lam = fun z0 z1 z2 => ∃ b₀ r₀, ?k0 r₀ b₀ ∧ b₀ ∧ (z0 = 1 ∧ z1 = True) ∧ z2 = r₀\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = z0 ≥ 0",
+   "level": "info"}],
+ "inputs":
+ [["Surface.ReadLoop.User.Proof.RefJoinProof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.ReadLoop.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.ReadLoop.Flux.Prelude:importAllArts", "ed74d31b638afba6"],
+        ["Surface.ReadLoop.Flux.VC.RefJoin transitive imports (legacy)",
+         "3447fb4393a0328b"],
+        ["Surface.ReadLoop.Flux.VC.RefJoin:importAllArts",
+         "ffb61a492650ceac"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/ReadLoop/User/Proof/RefJoinProof.lean",
+   "6bfda90d55fd3167"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.ReadLoop.User.Proof.RefJoinProof", "739f70e9ea19987d"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "90bc9f49285a85c7"}

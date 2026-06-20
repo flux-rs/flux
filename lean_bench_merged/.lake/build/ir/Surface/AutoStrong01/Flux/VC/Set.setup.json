@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.AutoStrong01.Flux.VC.Set",
+ "isModule": false,
+ "importArts":
+ {"Surface.AutoStrong01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/AutoStrong01/Flux/Prelude.olean"]},
+ "dynlibs": []}

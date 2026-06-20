@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.PolymorphicQualifier.Flux.VC.Maximum",
+ "isModule": false,
+ "importArts":
+ {"Surface.PolymorphicQualifier.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/PolymorphicQualifier/Flux/Prelude.olean"]},
+ "dynlibs": []}

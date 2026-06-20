@@ -1,0 +1,1 @@
+import RefinedAssocType.RefinedAssocType00.Basic

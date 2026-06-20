@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Enums.List00.Flux.VC.Append",
+ "isModule": false,
+ "importArts":
+ {"Enums.List00.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Enums/List00/Flux/Prelude.olean"]},
+ "dynlibs": []}

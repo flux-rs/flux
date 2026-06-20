@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Constructors.Test05.Flux.VC.Foo2",
+ "isModule": false,
+ "importArts":
+ {"Constructors.Test05.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Constructors/Test05/Flux/Prelude.olean"]},
+ "dynlibs": []}

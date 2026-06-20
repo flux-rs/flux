@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Detached.DetachImpl04.Flux.VC.Test",
+ "isModule": false,
+ "importArts":
+ {"Detached.DetachImpl04.Flux.Struct.WrapperRole":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Detached/DetachImpl04/Flux/Struct/WrapperRole.olean"],
+  "Detached.DetachImpl04.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Detached/DetachImpl04/Flux/Prelude.olean"]},
+ "dynlibs": []}

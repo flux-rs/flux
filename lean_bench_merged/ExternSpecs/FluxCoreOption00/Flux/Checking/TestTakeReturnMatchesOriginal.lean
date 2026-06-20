@@ -1,0 +1,4 @@
+import ExternSpecs.FluxCoreOption00.Flux.VC.TestTakeReturnMatchesOriginal
+import ExternSpecs.FluxCoreOption00.User.Proof.TestTakeReturnMatchesOriginalProof
+
+#check (F.TestTakeReturnMatchesOriginal_proof : F.TestTakeReturnMatchesOriginal)

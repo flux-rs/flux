@@ -1,0 +1,60 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["11b7d8734ac1217c.olean"],
+  "i": "fc9d3b022ab82130.ilean",
+  "c": "d43d710bdd940174.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Date/User/Proof/IsMonth30Proof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Date/User/Proof/IsMonth30Proof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Date/User/Proof/IsMonth30Proof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Date/User/Proof/IsMonth30Proof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Date/User/Proof/IsMonth30Proof.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "Surface/Date/User/Proof/IsMonth30Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Date/User/Proof/IsMonth30Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Date/User/Proof/IsMonth30Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Date/User/Proof/IsMonth30Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message":
+   "Surface/Date/User/Proof/IsMonth30Proof.lean:71:2: [solve_fixpoint] closed by: grind",
+   "level": "info"},
+  {"message": "Surface/Date/User/Proof/IsMonth30Proof.lean:69:0: time: 71ms",
+   "level": "info"},
+  {"message":
+   "Surface/Date/User/Proof/IsMonth30Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 ≠ 4 ∧ (z0 ≠ 6 ∧ ¬z0 ≠ 9 ∧ z0 = z0 ∨ ¬z0 ≠ 6 ∧ z0 = z0) ∨ ¬z0 ≠ 4 ∧ z0 = z0\n[solve]   lam = fun z0 => z0 ≠ 4 ∧ (z0 ≠ 6 ∧ ¬z0 ≠ 9 ∧ z0 = z0 ∨ ¬z0 ≠ 6 ∧ z0 = z0) ∨ ¬z0 ≠ 4 ∧ z0 = z0",
+   "level": "info"}],
+ "inputs":
+ [["Surface.Date.User.Proof.IsMonth30Proof:deps",
+   [["deps",
+     [["lean_bench_all/LeanBenchAll:extraDep",
+       [["@lean_bench_all:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+        ["LeanFixpoint:importAllArts", "966b57a491420331"],
+        ["Surface.Date.Flux.Prelude transitive imports (legacy)",
+         "00000000000006bb"],
+        ["Surface.Date.Flux.Prelude:importAllArts", "05caba5784531296"],
+        ["Surface.Date.Flux.VC.IsMonth30 transitive imports (legacy)",
+         "f7e0688b59305e31"],
+        ["Surface.Date.Flux.VC.IsMonth30:importAllArts",
+         "98c5f01abb7dae3b"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.0, commit 513160ea59dfd60defec325636bbc5215a8a6e7e",
+   "76ce528f9bbd32d8"],
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Date/User/Proof/IsMonth30Proof.lean",
+   "fc23705069cca055"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Surface.Date.User.Proof.IsMonth30Proof", "1413655db2b8d3f9"],
+  ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "5ef8887cb684ac1e"}

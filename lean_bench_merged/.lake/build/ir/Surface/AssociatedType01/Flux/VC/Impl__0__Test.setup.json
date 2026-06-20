@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "lean_bench_all",
+ "options": {},
+ "name": "Surface.AssociatedType01.Flux.VC.Impl__0__Test",
+ "isModule": false,
+ "importArts":
+ {"Surface.AssociatedType01.Flux.Prelude":
+  ["/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/AssociatedType01/Flux/Prelude.olean"]},
+ "dynlibs": []}
