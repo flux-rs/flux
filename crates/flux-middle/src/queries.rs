@@ -28,6 +28,7 @@ use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
     PanicSpec,
+    call_graph::{CallGraph, NodeKey},
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
@@ -82,7 +83,6 @@ pub enum QueryErr {
         trait_id: DefId,
         name: Symbol,
     },
-
     /// An operation tried to access the internals of an opaque struct.
     OpaqueStruct {
         struct_id: DefId,
@@ -203,7 +203,9 @@ pub struct Providers {
     pub item_bounds:
         fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
     pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
-    pub inferred_no_panic: fn(GlobalEnv) -> UnordMap<DefId, PanicSpec>,
+    pub call_graph: for<'genv, 'tcx> fn(GlobalEnv<'genv, 'tcx>) -> CallGraph<'tcx>,
+    pub inferred_no_panic:
+        for<'genv, 'tcx> fn(GlobalEnv<'genv, 'tcx>) -> UnordMap<NodeKey<'tcx>, PanicSpec>,
 }
 
 macro_rules! empty_query {
@@ -242,6 +244,7 @@ impl Default for Providers {
             constant_info: |_, _| empty_query!(),
             static_info: |_, _| empty_query!(),
             sort_decl_param_count: |_, _| empty_query!(),
+            call_graph: |_| empty_query!(),
             inferred_no_panic: |_| empty_query!(),
         }
     }
@@ -290,7 +293,9 @@ pub struct Queries<'genv, 'tcx> {
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
     assume_parametric_params: Cache<DefId, UnordSet<u32>>,
-    inferred_no_panic: Cache<CrateNum, Rc<UnordMap<DefId, PanicSpec>>>,
+    call_graph: OnceCell<CallGraph<'tcx>>,
+    /// The no-panic inference result for the local crate, keyed by `NodeKey`.
+    inferred_no_panic: OnceCell<Rc<UnordMap<NodeKey<'tcx>, PanicSpec>>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -332,6 +337,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
             assume_parametric_params: Default::default(),
+            call_graph: Default::default(),
             inferred_no_panic: Default::default(),
         }
     }
@@ -604,26 +610,19 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub fn inferred_no_panic_crate(
-        &self,
-        genv: GlobalEnv,
-        krate: CrateNum,
-    ) -> Rc<UnordMap<DefId, PanicSpec>> {
-        // We can just make this `core` if we only care about that.
-        fn is_stdlib_crate(tcx: rustc_middle::ty::TyCtxt<'_>, krate: CrateNum) -> bool {
-            matches!(tcx.crate_name(krate).as_str(), "core" | "alloc" | "std")
-        }
+    pub fn call_graph(&'genv self, genv: GlobalEnv<'genv, 'tcx>) -> &'genv CallGraph<'tcx> {
+        self.call_graph
+            .get_or_init(|| (self.providers.call_graph)(genv))
+    }
 
-        run_with_cache(&self.inferred_no_panic, krate, || {
-            if krate == LOCAL_CRATE
-                || is_stdlib_crate(genv.tcx(), krate)
-                || !genv.cstore_has_crate(krate)
-            {
-                Rc::new((self.providers.inferred_no_panic)(genv))
-            } else {
-                genv.cstore().inferred_no_panic(krate)
-            }
-        })
+    /// The no-panic inference result for the local crate, keyed by `NodeKey`.
+    pub fn inferred_no_panic(
+        &'genv self,
+        genv: GlobalEnv<'genv, 'tcx>,
+    ) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec>> {
+        self.inferred_no_panic
+            .get_or_init(|| Rc::new((self.providers.inferred_no_panic)(genv)))
+            .clone()
     }
 
     pub(crate) fn static_info(

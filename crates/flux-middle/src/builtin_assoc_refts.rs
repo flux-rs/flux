@@ -47,12 +47,12 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                     AssocRefinements {
                         items: List::from_arr([
                             AssocReft::new(
-                                FluxDefId::new(def_id, sym::size_of),
+                                FluxDefId::new(sized_id, sym::size_of),
                                 false,
                                 tcx.def_span(sized_id),
                             ),
                             AssocReft::new(
-                                FluxDefId::new(def_id, sym::align_of),
+                                FluxDefId::new(sized_id, sym::align_of),
                                 false,
                                 tcx.def_span(sized_id),
                             ),

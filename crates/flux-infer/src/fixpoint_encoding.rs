@@ -17,17 +17,18 @@ use flux_middle::{
     FixpointQueryKind,
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
+    fhir::QuantKind,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     pretty::{NestedString, PrettyCx, PrettyNested},
-    queries::QueryResult,
+    queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List,
-        NameProvenance, PrettyMap, PrettyVar, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
+        NameProvenance, PrettyMap, PrettyVar, QuantDom, SpecFuncKind, VariantIdx,
+        fold::TypeFoldable as _,
     },
 };
-use indexmap::IndexMap;
 use itertools::Itertools;
 use liquid_fixpoint::{
     FixpointStatus, KVarBind, SmtSolver, VerificationResult,
@@ -192,11 +193,21 @@ pub mod fixpoint {
         }
     }
 
+    #[derive(Hash, Clone, Debug)]
+    pub struct SymReal(pub Symbol);
+
+    impl FixpointFmt for SymReal {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+
     liquid_fixpoint::declare_types! {
         type Sort = DataSort;
         type KVar = KVid;
         type Var = Var;
         type String = SymStr;
+        type Real = SymReal;
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
@@ -254,7 +265,7 @@ pub struct ParsedResult {
 
 #[derive(Debug, Clone, Default)]
 pub struct Answer<Tag> {
-    pub errors: Vec<Tag>,
+    pub errors: Vec<(Tag, TagIdx)>,
     pub cut_solution: Solution,
     pub non_cut_solution: Solution,
 }
@@ -697,8 +708,8 @@ where
                 metrics::incr_metric(Metric::CsError, errors.len() as u32);
                 errors
                     .into_iter()
-                    .map(|err| self.tags[err.tag])
-                    .unique()
+                    .map(|err| (self.tags[err.tag], err.tag))
+                    .unique_by(|(tag, _)| *tag)
                     .collect_vec()
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
@@ -975,7 +986,7 @@ where
                 let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
-            rty::ExprKind::ForAll(pred) => {
+            rty::ExprKind::Quant(QuantKind::Forall, QuantDom::Unbounded, pred) => {
                 self.ecx
                     .local_var_env
                     .push_layer_with_fresh_names(pred.vars().len());
@@ -1030,14 +1041,6 @@ where
             }
             rty::ExprKind::KVar(kvar) => {
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
-            }
-            rty::ExprKind::ForAll(_) => {
-                // If a forall appears in assumptive position replace it with true. This is sound
-                // because we are weakening the context, i.e., anything true without the assumption
-                // should remain true after adding it. Note that this relies on the predicate
-                // appearing negatively. This is guaranteed by the surface syntax because foralls
-                // can only appear at the top-level in a requires clause.
-                preds.push(fixpoint::Pred::TRUE);
             }
             _ => {
                 preds.push(fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?));
@@ -1094,7 +1097,7 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
                 fixpoint::Constant::Numeral(i.abs()).into()
             }
         }
-        rty::Constant::Real(r) => fixpoint::Constant::Real(r.0).into(),
+        rty::Constant::Real(r) => fixpoint::Constant::Real(fixpoint::SymReal(r.0)).into(),
         rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b).into(),
         rty::Constant::Char(c) => fixpoint::Constant::Numeral(u128::from(c)).into(),
         rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)).into(),
@@ -1692,20 +1695,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 fixpoint::Expr::Var(self.declare_fun(*def_id))
             }
-            rty::ExprKind::Exists(expr) => {
-                let expr = self.body_to_fixpoint(expr, scx)?;
-                fixpoint::Expr::Exists(expr.0, Box::new(expr.1))
-            }
-            rty::ExprKind::Hole(..)
-            | rty::ExprKind::KVar(_)
-            | rty::ExprKind::Local(_)
-            | rty::ExprKind::PathProj(..)
-            | rty::ExprKind::ForAll(_)
-            | rty::ExprKind::InternalFunc(_) => {
-                span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
-            }
-            rty::ExprKind::BoundedQuant(kind, rng, body) => {
-                let exprs = (rng.start..rng.end).map(|i| {
+            rty::ExprKind::Quant(kind, rty::QuantDom::Bounded { start, end }, body) => {
+                let exprs = (*start..*end).map(|i| {
                     let arg = rty::Expr::constant(rty::Constant::from(i));
                     body.replace_bound_reft(&arg)
                 });
@@ -1714,6 +1705,35 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     flux_middle::fhir::QuantKind::Exists => rty::Expr::or_from_iter(exprs),
                 };
                 self.expr_to_fixpoint(&expr, scx)?
+            }
+            rty::ExprKind::Quant(kind, rty::QuantDom::Unbounded, body)
+                if matches!(self.backend, Backend::Lean) =>
+            {
+                let expr = self.body_to_fixpoint(body, scx)?;
+                let kind = match kind {
+                    flux_middle::fhir::QuantKind::Forall => fixpoint::Quantifier::Forall,
+                    flux_middle::fhir::QuantKind::Exists => fixpoint::Quantifier::Exists,
+                };
+                fixpoint::Expr::Quantifier(kind, expr.0, Box::new(expr.1))
+            }
+            rty::ExprKind::Quant(..) => {
+                let span = expr.span().map_or(self.def_span(), |s| s.span);
+                let msg = "unbounded quantifiers are only supported with the lean backend; try `proven_externally`";
+                let err = self
+                    .genv
+                    .sess()
+                    .dcx()
+                    .handle()
+                    .struct_span_err(span, msg)
+                    .emit();
+                return Err(QueryErr::Emitted(err));
+            }
+            rty::ExprKind::Hole(..)
+            | rty::ExprKind::KVar(_)
+            | rty::ExprKind::Local(_)
+            | rty::ExprKind::PathProj(..)
+            | rty::ExprKind::InternalFunc(_) => {
+                span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }
         };
         Ok(e)

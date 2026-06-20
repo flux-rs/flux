@@ -2067,29 +2067,35 @@ fn prim_ty_to_bty(prim_ty: rustc_hir::PrimTy) -> rty::BaseTy {
 impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_lit(&self, lit: fhir::Lit, fhir_id: FhirId, span: Span) -> QueryResult<rty::Constant> {
         match lit {
-            fhir::Lit::Int(n, kind) => {
-                match kind {
-                    Some(fhir::NumLitKind::Int) => Ok(rty::Constant::from(n)),
-                    Some(fhir::NumLitKind::Real) => Ok(rty::Constant::Real(rty::Real(n))),
-                    None => {
-                        let sort = self.results().node_sort(fhir_id);
-                        if let rty::Sort::BitVec(bvsize) = sort {
-                            if let rty::BvSize::Fixed(size) = bvsize
-                                && (n == 0 || n.ilog2() < size)
-                            {
-                                Ok(rty::Constant::BitVec(n, size))
-                            } else {
-                                Err(self.emit(errors::InvalidBitVectorConstant::new(span, sort)))?
-                            }
-                        } else {
-                            Ok(rty::Constant::from(n))
-                        }
+            fhir::Lit::Int(n) => {
+                let sort = self.results().node_sort(fhir_id);
+                if let rty::Sort::BitVec(bvsize) = sort {
+                    if let rty::BvSize::Fixed(size) = bvsize
+                        && (n == 0 || n.ilog2() < size)
+                    {
+                        Ok(rty::Constant::BitVec(n, size))
+                    } else {
+                        Err(self.emit(errors::InvalidBitVectorConstant::new(span, sort)))?
                     }
+                } else if sort == rty::Sort::Real {
+                    // Sort inference allows Int literals to unify with Real, but we require
+                    // explicit float syntax to avoid silently producing a mistyped constant.
+                    Err(self.emit(errors::IntLiteralInRealContext::new(span, n)))?
+                } else {
+                    Ok(rty::Constant::from(n))
                 }
             }
+            fhir::Lit::Real(sym) => Ok(rty::Constant::Real(rty::Real(sym))),
             fhir::Lit::Bool(b) => Ok(rty::Constant::from(b)),
             fhir::Lit::Str(s) => Ok(rty::Constant::from(s)),
             fhir::Lit::Char(c) => Ok(rty::Constant::from(c)),
+        }
+    }
+
+    fn conv_quant_dom(&mut self, dom: fhir::QuantDom) -> QueryResult<rty::QuantDom> {
+        match dom {
+            fhir::QuantDom::Bounded { start, end } => Ok(rty::QuantDom::Bounded { start, end }),
+            fhir::QuantDom::Unbounded => Ok(rty::QuantDom::Unbounded),
         }
     }
 
@@ -2170,12 +2176,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
                 body
             }
-            fhir::ExprKind::BoundedQuant(kind, param, rng, body) => {
+            fhir::ExprKind::Quant(kind, param, dom, body) => {
                 env.push_layer(Layer::list(self.results(), 0, &[param]));
                 let pred = self.conv_expr(env, body)?;
+                let dom = self.conv_quant_dom(dom)?;
                 let vars = env.pop_layer().into_bound_vars(self.genv())?;
                 let body = rty::Binder::bind_with_vars(pred, vars);
-                rty::Expr::bounded_quant(kind, rng, body)
+                rty::Expr::quant(kind, dom, body)
             }
             fhir::ExprKind::Record(flds) => {
                 let flds = flds
@@ -3166,6 +3173,21 @@ mod errors {
     pub(super) struct GenericsOnForeignTy {
         #[primary_span]
         pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_int_literal_in_real_context, code = E0999)]
+    pub struct IntLiteralInRealContext {
+        #[primary_span]
+        #[label]
+        span: Span,
+        n: u128,
+    }
+
+    impl IntLiteralInRealContext {
+        pub(crate) fn new(span: Span, n: u128) -> Self {
+            Self { span, n }
+        }
     }
 
     #[derive(Diagnostic)]

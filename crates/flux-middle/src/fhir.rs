@@ -1043,10 +1043,10 @@ pub enum QuantKind {
     Exists,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
-pub struct Range {
-    pub start: usize,
-    pub end: usize,
+#[derive(Clone, Copy)]
+pub enum QuantDom {
+    Bounded { start: usize, end: usize },
+    Unbounded,
 }
 
 #[derive(Clone, Copy)]
@@ -1062,7 +1062,7 @@ pub enum ExprKind<'fhir> {
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
-    BoundedQuant(QuantKind, RefineParam<'fhir>, Range, &'fhir Expr<'fhir>),
+    Quant(QuantKind, RefineParam<'fhir>, QuantDom, &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
     SetLiteral(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
@@ -1084,14 +1084,9 @@ pub struct LetDecl<'fhir> {
 }
 
 #[derive(Clone, Copy)]
-pub enum NumLitKind {
-    Int,
-    Real,
-}
-
-#[derive(Clone, Copy)]
 pub enum Lit {
-    Int(u128, Option<NumLitKind>),
+    Int(u128),
+    Real(Symbol),
     Bool(bool),
     Str(Symbol),
     Char(char),
@@ -1576,6 +1571,15 @@ impl fmt::Debug for QuantKind {
     }
 }
 
+impl fmt::Debug for QuantDom {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            QuantDom::Bounded { start, end } => write!(f, "in {start:?} .. {end:?}"),
+            QuantDom::Unbounded => Ok(()),
+        }
+    }
+}
+
 impl fmt::Debug for Expr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
@@ -1623,8 +1627,8 @@ impl fmt::Debug for Expr<'_> {
                     write!(f, "{{ {:?} }}", exprs.iter().format(", "))
                 }
             }
-            ExprKind::BoundedQuant(kind, refine_param, rng, expr) => {
-                write!(f, "{kind:?} {refine_param:?} in {}.. {} {{ {expr:?} }}", rng.start, rng.end)
+            ExprKind::Quant(kind, refine_param, dom, expr) => {
+                write!(f, "{kind:?} {refine_param:?} {dom:?} {{ {expr:?} }}")
             }
             ExprKind::Err(_) => write!(f, "err"),
             ExprKind::Block(decls, body) => {
@@ -1649,8 +1653,8 @@ impl fmt::Debug for PathExpr<'_> {
 impl fmt::Debug for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Lit::Int(i, Some(NumLitKind::Real)) => write!(f, "{i}real"),
-            Lit::Int(i, _) => write!(f, "{i}"),
+            Lit::Int(i) => write!(f, "{i}"),
+            Lit::Real(s) => write!(f, "{s}"),
             Lit::Bool(b) => write!(f, "{b}"),
             Lit::Str(s) => write!(f, "\"{s:?}\""),
             Lit::Char(c) => write!(f, "\'{c}\'"),

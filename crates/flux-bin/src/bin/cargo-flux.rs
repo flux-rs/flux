@@ -44,7 +44,7 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     let metadata = cargo_flux_cmd.metadata().cargo_path(&cargo_path).exec()?;
     let sysroot = flux_sysroot_dir();
     let flux_driver_path = get_flux_driver_path(&sysroot)?;
-    let config_file = write_cargo_config(metadata, &sysroot)?;
+    let config_file = write_cargo_config(metadata, &sysroot, &cargo_flux_cmd)?;
 
     let mut cargo_command = Command::new("cargo");
 
@@ -65,6 +65,7 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
 fn write_cargo_config(
     metadata: Metadata,
     sysroot: &std::path::Path,
+    cargo_flux_cmd: &CargoFluxCommand,
 ) -> anyhow::Result<NamedTempFile> {
     let flux_flags: Option<Vec<String>> = if let Ok(flags) = env::var("FLUXFLAGS") {
         Some(flags.split(" ").map(Into::into).collect())
@@ -79,6 +80,7 @@ fn write_cargo_config(
     if flux_toml.get_bool("enabled").is_ok() {
         return Err(anyhow!("`enabled` cannot be set in `flux.toml`"));
     }
+    let targeted_package_ids = cargo_flux_cmd.targeted_package_ids(&metadata);
 
     let mut file = NamedTempFile::new()?;
     {
@@ -118,6 +120,7 @@ incremental = false
                     .strip_prefix(&metadata.workspace_root)
                     .ok()
                     .and_then(Utf8Path::parent);
+
                 let sysroot_flag = format!("-Fsysroot={}", sysroot.display());
                 write!(
                     w,
@@ -127,10 +130,16 @@ rustflags = [{:?}]
                         "#,
                     package.id,
                     flux_metadata
-                        .into_flags(&metadata.target_directory, manifest_dir_relative_to_workspace)
+                        .into_flags(
+                            &metadata.target_directory,
+                            manifest_dir_relative_to_workspace,
+                            cargo_flux_cmd
+                                .only_check()
+                                .filter(|_| targeted_package_ids.contains(&package.id))
+                        )
                         .iter()
                         .chain(flux_flags.iter().flatten())
-                        .map(|s| s.as_ref())
+                        .map(|s| s.as_str())
                         .chain(["-Fverify=on", "-Ffull-compilation=on", sysroot_flag.as_str()])
                         .format(", ")
                 )?;

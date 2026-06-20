@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use flux_arc_interner::List;
 use flux_common::result::ResultExt;
 use flux_errors::FluxSession;
@@ -35,7 +37,7 @@ use super::{
     },
 };
 use crate::{
-    mir::{BodyRoot, CallKind, ConstOperand},
+    mir::{BodyKind, BodyRoot, CallKind, ConstOperand},
     ty::{
         AliasTy, ExistentialTraitRef, GenericArgs, ProjectionPredicate, Region,
         RegionOutlivesPredicate,
@@ -144,29 +146,32 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         tcx: TyCtxt<'tcx>,
         sess: &'sess FluxSession,
         def_id: LocalDefId,
-        body_with_facts: BodyWithBorrowckFacts<'tcx>,
+        body_with_facts: Rc<BodyWithBorrowckFacts<'tcx>>,
     ) -> Result<BodyRoot<'tcx>, ErrorGuaranteed> {
         let infcx = tcx
             .infer_ctxt()
             .with_next_trait_solver(true)
             .build(TypingMode::analysis_in_body(tcx, def_id));
-        let rustc_body = body_with_facts.body;
-        let def_id = rustc_body.source.def_id();
+        let def_id = body_with_facts.body.source.def_id();
 
-        let body = Self::lower_rustc_body(tcx, &infcx, sess, def_id, rustc_body)?;
+        let body =
+            Self::lower_rustc_body(tcx, &infcx, sess, def_id, &body_with_facts, BodyKind::Main)?;
         let promoted = body_with_facts
             .promoted
-            .into_iter()
-            .map(|rustc_promoted| Self::lower_rustc_body(tcx, &infcx, sess, def_id, rustc_promoted))
+            .indices()
+            .map(|promoted| {
+                Self::lower_rustc_body(
+                    tcx,
+                    &infcx,
+                    sess,
+                    def_id,
+                    &body_with_facts,
+                    BodyKind::Promoted(promoted),
+                )
+            })
             .try_collect()?;
 
-        let body_root = BodyRoot::new(
-            body_with_facts.borrow_set,
-            body_with_facts.region_inference_context,
-            infcx,
-            body,
-            promoted,
-        );
+        let body_root = BodyRoot::new(body_with_facts, infcx, body, promoted);
         Ok(body_root)
     }
 
@@ -175,11 +180,13 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         infcx: &InferCtxt<'tcx>,
         sess: &'sess FluxSession,
         def_id: DefId,
-        body: rustc_mir::Body<'tcx>,
+        facts: &Rc<BodyWithBorrowckFacts<'tcx>>,
+        kind: BodyKind,
     ) -> Result<Body<'tcx>, ErrorGuaranteed> {
+        let body = kind.select_body(facts);
         let selcx = SelectionContext::new(infcx);
         let param_env = tcx.param_env(def_id);
-        let mut lower = MirLoweringCtxt { tcx, selcx, param_env, sess, rustc_mir: &body };
+        let mut lower = MirLoweringCtxt { tcx, selcx, param_env, sess, rustc_mir: body };
 
         let basic_blocks = body
             .basic_blocks
@@ -193,7 +200,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        Ok(Body::new(basic_blocks, local_decls, body))
+        Ok(Body::new(basic_blocks, local_decls, Rc::clone(facts), kind))
     }
 
     fn lower_basic_block_data(
@@ -544,6 +551,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::CastKind::IntToInt => Some(CastKind::IntToInt),
             rustc_mir::CastKind::IntToFloat => Some(CastKind::IntToFloat),
             rustc_mir::CastKind::FloatToInt => Some(CastKind::FloatToInt),
+            rustc_mir::CastKind::FloatToFloat => Some(CastKind::FloatToFloat),
             rustc_mir::CastKind::PtrToPtr => Some(CastKind::PtrToPtr),
             rustc_mir::CastKind::PointerCoercion(ptr_coercion, _) => {
                 Some(CastKind::PointerCoercion(self.lower_pointer_coercion(ptr_coercion)?))

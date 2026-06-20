@@ -147,7 +147,7 @@ fn constant_deps(expr: &fixpoint::Expr, acc: &mut FxIndexSet<fixpoint::Var>) {
         fixpoint::Expr::IfThenElse(inner) => {
             inner.iter().for_each(|expr| constant_deps(expr, acc));
         }
-        fixpoint::Expr::Exists(_, inner)
+        fixpoint::Expr::Quantifier(_, _, inner)
         | fixpoint::Expr::Neg(inner)
         | fixpoint::Expr::Not(inner)
         | fixpoint::Expr::IsCtor(_, inner) => {
@@ -542,7 +542,7 @@ path = "/Users/petros/Documents/UCSD/Work/lean-fixpoint"
     }
 
     fn generate_lake_project_if_not_present(&self) -> io::Result<()> {
-        let path = project_path(self.genv, FileKind::User);
+        let path = project_path(self.genv, FileKind::User).join("lakefile.toml");
         if !path.exists() {
             Command::new("lake")
                 .current_dir(self.genv.lean_parent_dir())

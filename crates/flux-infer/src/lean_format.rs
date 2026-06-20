@@ -11,7 +11,7 @@ use flux_middle::{
     rty::{PrettyMap, PrettyVar},
 };
 use itertools::Itertools;
-use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
+use liquid_fixpoint::{FixpointFmt, Identifier, Quantifier, ThyFunc};
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use rustc_hir::def_id::DefId;
 
@@ -399,7 +399,7 @@ impl LeanFmt for Expr {
                     Constant::Numeral(n) => write!(f, "{n}",),
                     Constant::Boolean(b) => write!(f, "{}", if *b { "True" } else { "False" }),
                     Constant::String(s) => write!(f, "{}", s.display()),
-                    Constant::Real(n) => write!(f, "{n}.0"),
+                    Constant::Real(n) => write!(f, "{}", n.display()),
                     Constant::BitVec(bv, size) => write!(f, "{}#{}", bv, size),
                 }
             }
@@ -532,8 +532,11 @@ impl LeanFmt for Expr {
             Expr::IsCtor(..) => {
                 todo!("not yet implemented: datatypes in lean")
             }
-            Expr::Exists(bind, expr) => {
-                write!(f, "(∃ ")?;
+            Expr::Quantifier(q, bind, expr) => {
+                match q {
+                    Quantifier::Exists => write!(f, "(∃ ")?,
+                    Quantifier::Forall => write!(f, "(∀ ")?,
+                };
                 for (var, sort) in bind {
                     write!(f, "(")?;
                     var.lean_fmt(f, cx)?;

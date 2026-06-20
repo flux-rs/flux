@@ -5,6 +5,7 @@ use itertools::Itertools;
 
 use crate::{
     BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
+    constraint::Quantifier,
     sexp::{Atom, ParseError as SexpParseError, Sexp},
 };
 
@@ -368,6 +369,7 @@ where
             _ => Err(ParseError::err("Expected list for binary operation")),
         }
     }
+
     fn parse_exists(&mut self, items: &[Sexp]) -> Result<Expr<T>, ParseError> {
         let [Sexp::List(var_sorts), body] = items else {
             return Err(ParseError::err("Expected list for vars and sorts in exists"));
@@ -397,7 +399,7 @@ where
             .zip(sorts)
             .map(|(name, sort)| (scope.swap_remove(name).unwrap(), sort))
             .collect();
-        Ok(Expr::Exists(bound, Box::new(body)))
+        Ok(Expr::Quantifier(Quantifier::Exists, bound, Box::new(body)))
     }
 
     fn parse_let(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
@@ -706,6 +708,7 @@ impl Types for StringTypes {
     type Var = String;
     type Tag = String;
     type String = String;
+    type Real = String;
 }
 
 impl FromSexp<StringTypes> for StringTypes {

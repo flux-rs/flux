@@ -238,8 +238,6 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             }
         }
 
-        let _ = fcx.run_task(cache, def_id, FixpointQueryKind::Body, &task)?;
-
         fcx.generate_lean_files(def_id, task)
     }
 
