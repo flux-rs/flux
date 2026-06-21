@@ -1711,7 +1711,13 @@ fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
 ///         |  ⟨base_sort⟩ -> ⟨base_sort⟩
 /// ```
 fn parse_sort(cx: &mut ParseCtxt) -> ParseResult<Sort> {
-    if cx.peek(token::OpenParen) {
+    if cx.advance_if(kw::Fn) {
+        // fn ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩
+        let inputs = parens(cx, Comma, parse_base_sort)?;
+        cx.expect(token::RArrow)?;
+        let output = parse_base_sort(cx)?;
+        Ok(Sort::Func { inputs, output })
+    } else if cx.peek(token::OpenParen) {
         // ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩ | ( ⟨base_sort⟩,* )
         let inputs = parens(cx, Comma, parse_base_sort)?;
         if cx.advance_if(token::RArrow) {
