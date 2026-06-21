@@ -70,7 +70,7 @@ pub fn test_offset_from_diff_base(p: *const i32, q: *const i32) {
 
 // non-element-aligned distance: q is 1 byte ahead of p, but T = i32 requires a multiple of 4
 #[flux::spec(fn (p: {*const[@bp, @ap, @sp] i32 | ap >= bp && sp >= 0},
-                  q: {*const[@bq, @aq, @sq] i32 | bq == bp && aq == ap + 1}))]
+                  q: {*const[@bq, @aq, @sq] i32 | bq == bp && aq == ap + 1 && sq >= 0}))]
 pub fn test_offset_from_unaligned(p: *const i32, q: *const i32) {
     unsafe {
         let _ = q.offset_from(p); //~ ERROR refinement type error

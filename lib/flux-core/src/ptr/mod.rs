@@ -1,44 +1,46 @@
 #![flux::defs {
-    // The provenance of the pointer is used to determine which allocation it
-    // is derived from; a pointer is dereferenceable if the memory range of
-    // the given size starting at the pointer is entirely contained within the
-    // bounds of that allocation.
-    // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L21-L25
+    // The memory range [addr, addr + num_bytes) is entirely contained within
+    // the pointer's allocation. In our model this is: addr >= base (not before
+    // the start) and num_bytes <= size (num_bytes remaining bytes fit before
+    // the end). The `size >= 0` guard rules out pointers already past the end.
+    // See: https://doc.rust-lang.org/std/ptr/index.html#safety
     fn dereferenceable(p: ptr, num_bytes: int) -> bool {
         p.addr >= p.base && num_bytes <= p.size && p.size >= 0
     }
 
-    // Guarantees (in order of precedence):
-    // - A null pointer is never valid
-    // - For memory accesses of size zero, every non-null pointer is valid for reads/writes.
-    // - Memory accesses of size zero are always valid
-    // - A valid pointer is dereferenceable
-    // See: https://doc.rust-lang.org/std/ptr/index.html#safety
+    // Non-null and dereferenceable for `num_bytes` bytes. This is the strict
+    // validity predicate with no ZST exception: null is never valid, even for
+    // zero-sized accesses. Used as a building block for `valid` below.
     fn valid_no_zst(p: ptr, num_bytes: int) -> bool {
         p.addr != 0 && dereferenceable(p, num_bytes)
     }
 
-    // The above is only partially true: for operations that don't convert
-    // pointers into references (such as read and write), zero-sized
-    // reads/writes of null pointers are valid
-    // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L41-L46
+    // Validity for raw-pointer operations (ptr::read, ptr::write, etc.).
+    // The Rust docs note that read and write allow null pointers when the
+    // total access size is zero (i.e., T is a ZST); for all other accesses
+    // the pointer must be non-null and dereferenceable.
+    // See: https://doc.rust-lang.org/std/ptr/index.html#safety
     fn valid(p: ptr, num_bytes: int) -> bool {
         num_bytes == 0 || valid_no_zst(p, num_bytes)
     }
 
-    // Valid raw pointers as defined above are not necessarily properly aligned
-    // (where “proper” alignment is defined by the pointee type, i.e.,
-    // `*const T` must be aligned to `align_of::<T>()`). However, most
-    // functions require their arguments to be properly aligned,
-    // and will explicitly state this requirement in their documentation.
-    // Notable exceptions to this are `read_unaligned` and `write_unaligned`.
-    // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L54-L59
+    // The pointer's address is a multiple of `alignment`. Most read/write
+    // functions require proper alignment (align_of::<T>()); the notable
+    // exceptions are read_unaligned and write_unaligned.
+    // See: https://doc.rust-lang.org/std/ptr/index.html#alignment
     fn aligned_to(p: ptr, alignment: int) -> bool { p.addr % alignment == 0 }
 
-    // Two byte ranges of equal length starting at p and q do not overlap.
+    // The byte ranges [p.addr, p.addr + num_bytes) and [q.addr, q.addr + num_bytes)
+    // do not overlap.
     fn nonoverlapping(p: ptr, q: ptr, num_bytes: int) -> bool {
         p.addr + num_bytes <= q.addr || q.addr + num_bytes <= p.addr
     }
+
+    // The pointer itself lies within its allocation: addr >= base and size >= 0.
+    // One-past-the-end pointers (size == 0) satisfy this — they are valid
+    // starting points for pointer arithmetic but cannot be dereferenced.
+    // Required as a precondition for all pointer arithmetic methods.
+    fn in_bounds(p: ptr) -> bool { dereferenceable(p, 0) }
 }]
 
 use flux_attrs::*;
@@ -49,22 +51,22 @@ macro_rules! ptr_specs {
         impl<T> *$mutable T {
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
-                    requires count * T::size_of() <= p.size)]
+                    requires in_bounds(p) && count * T::size_of() <= p.size)]
             unsafe fn add(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr - count * T::size_of(), p.size + count * T::size_of()] T
-                    requires count * T::size_of() <= p.addr - p.base)]
+                    requires in_bounds(p) && count * T::size_of() <= p.addr - p.base)]
             unsafe fn sub(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr + count, p.size - count] T
-                    requires count <= p.size)]
+                    requires in_bounds(p) && count <= p.size)]
             unsafe fn byte_add(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr - count, p.size + count] T
-                    requires count <= p.addr - p.base)]
+                    requires in_bounds(p) && count <= p.addr - p.base)]
             unsafe fn byte_sub(self, count: usize) -> Self;
 
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L22
@@ -75,13 +77,13 @@ macro_rules! ptr_specs {
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L349
             #[spec(fn (me: *$mutable[@p] T, count: isize)
                 -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
-                    requires count * T::size_of() <= p.size && p.addr + count * T::size_of() >= p.base)]
+                    requires in_bounds(p) && count * T::size_of() <= p.size && p.addr + count * T::size_of() >= p.base)]
             unsafe fn offset(self, count: isize) -> Self;
 
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L471
             #[spec(fn (me: *$mutable[@p] T, count: isize)
                 -> *$mutable[p.base, p.addr + count, p.size - count] T
-                    requires count <= p.size && p.addr + count >= p.base)]
+                    requires in_bounds(p) && count <= p.size && p.addr + count >= p.base)]
             unsafe fn byte_offset(self, count: isize) -> Self;
 
             // - Both `self` and `origin` must be derived from a pointer to the same allocation,
@@ -94,7 +96,7 @@ macro_rules! ptr_specs {
             // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L614-L628
             #[spec(fn (me: *$mutable[@p] T, origin: *const[@op] T) -> isize[(p.addr - op.addr) / T::size_of()]
                 requires p.base == op.base &&
-                         p.addr >= p.base && op.addr >= op.base &&
+                         in_bounds(p) && in_bounds(op) &&
                          (p.addr - op.addr) % T::size_of() == 0 &&
                          T::size_of() > 0)]
             unsafe fn offset_from(self, origin: *const T) -> isize
@@ -105,7 +107,7 @@ macro_rules! ptr_specs {
             // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L770
             #[spec(fn (me: *$mutable[@p] T, origin: *const[@op] T) -> usize[(p.addr - op.addr) / T::size_of()]
                 requires p.base == op.base &&
-                         p.addr >= p.base && op.addr >= op.base &&
+                         in_bounds(p) && in_bounds(op) &&
                          p.addr >= op.addr &&
                          (p.addr - op.addr) % T::size_of() == 0 &&
                          T::size_of() > 0)]
