@@ -125,6 +125,8 @@ macro_rules! ptr_specs {
 
 ptr_specs!(const);
 
+// Rustfmt likes inserting a comma in here that breaks compilation, so we disable it for this macro invocation
+#[rustfmt::skip]
 ptr_specs!(
     mut,
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/mut_ptr.rs#L1413
