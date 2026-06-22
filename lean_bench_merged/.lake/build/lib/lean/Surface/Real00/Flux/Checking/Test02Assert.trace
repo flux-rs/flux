@@ -22,7 +22,7 @@
         ["Surface.Real00.Flux.VC.Test02Assert:importAllArts",
          "3d2468cea52300c5"],
         ["Surface.Real00.User.Proof.Test02AssertProof transitive imports (legacy)",
-         "fe206cabfaaf6e0b"],
+         "63821fc7f13e56dc"],
         ["Surface.Real00.User.Proof.Test02AssertProof:importAllArts",
          "36822213d45f5104"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "b6e97273fadae3e9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6a754ac078d839b1"}
+ "depHash": "21aeb37b88ee78c8"}

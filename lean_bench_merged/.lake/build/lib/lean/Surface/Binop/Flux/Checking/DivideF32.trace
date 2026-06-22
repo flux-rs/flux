@@ -21,7 +21,7 @@
          "0b8ed4305157a8cd"],
         ["Surface.Binop.Flux.VC.DivideF32:importAllArts", "626343c3a743c853"],
         ["Surface.Binop.User.Proof.DivideF32Proof transitive imports (legacy)",
-         "032ff5a585652752"],
+         "390eab2183de5015"],
         ["Surface.Binop.User.Proof.DivideF32Proof:importAllArts",
          "1aac5a4880b0f0cf"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Binop.Flux.Checking.DivideF32", "12068592c00dfc3f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "48d499e44a270066"}
+ "depHash": "7e06179c77e51093"}

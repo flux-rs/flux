@@ -21,7 +21,7 @@
          "f1f5df7133336bea"],
         ["Surface.Join03.Flux.VC.AddRight:importAllArts", "c79b1430b5e76d88"],
         ["Surface.Join03.User.Proof.AddRightProof transitive imports (legacy)",
-         "4a5efd38983bf2bd"],
+         "9e175190f95569ea"],
         ["Surface.Join03.User.Proof.AddRightProof:importAllArts",
          "63f7fd3e3e701edb"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Join03.Flux.Checking.AddRight", "4a2d854f649f112e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b144641b536312f4"}
+ "depHash": "200de6a84fa7391e"}

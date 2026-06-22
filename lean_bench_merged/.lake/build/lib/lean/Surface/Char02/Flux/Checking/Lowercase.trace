@@ -21,7 +21,7 @@
          "b89cddf834f7d389"],
         ["Surface.Char02.Flux.VC.Lowercase:importAllArts", "47c0527157b4c2b0"],
         ["Surface.Char02.User.Proof.LowercaseProof transitive imports (legacy)",
-         "7bcb4f01e6957aad"],
+         "62f8a113ffe6e5fa"],
         ["Surface.Char02.User.Proof.LowercaseProof:importAllArts",
          "95a74469a25097ca"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Char02.Flux.Checking.Lowercase", "9653bde265cf2713"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c476de27c5215c47"}
+ "depHash": "02decb5af9f34fd3"}

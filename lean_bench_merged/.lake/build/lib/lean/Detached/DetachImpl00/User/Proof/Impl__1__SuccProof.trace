@@ -18,7 +18,7 @@
    "Detached/DetachImpl00/User/Proof/Impl__1__SuccProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Detached/DetachImpl00/User/Proof/Impl__1__SuccProof.lean:69:0: time: 44ms",
+   "Detached/DetachImpl00/User/Proof/Impl__1__SuccProof.lean:69:0: time: 33ms",
    "level": "info"},
   {"message":
    "Detached/DetachImpl00/User/Proof/Impl__1__SuccProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = z1 ∧ z1 = z1\n[solve]   lam = fun z0 z1 => z0 = z1 ∧ z1 = z1",
@@ -29,7 +29,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Detached.DetachImpl00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -54,4 +54,4 @@
    "5acccf77364939a7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4f65039fc5932569"}
+ "depHash": "564caa42bde6e92e"}

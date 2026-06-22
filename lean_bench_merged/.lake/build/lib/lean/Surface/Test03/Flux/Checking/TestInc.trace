@@ -21,7 +21,7 @@
          "8960035d3a917ee2"],
         ["Surface.Test03.Flux.VC.TestInc:importAllArts", "56d82aec905b27d7"],
         ["Surface.Test03.User.Proof.TestIncProof transitive imports (legacy)",
-         "0af24f6b950a4c71"],
+         "87211534ab292556"],
         ["Surface.Test03.User.Proof.TestIncProof:importAllArts",
          "f2293bb6f2afc01c"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Test03.Flux.Checking.TestInc", "2f568b149c628697"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2d7c1a1f6f486a8f"}
+ "depHash": "2eaeb4db8331445f"}

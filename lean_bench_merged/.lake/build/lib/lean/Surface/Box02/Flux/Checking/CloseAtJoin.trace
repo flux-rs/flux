@@ -21,9 +21,9 @@
          "b376bf3729d0fd96"],
         ["Surface.Box02.Flux.VC.CloseAtJoin:importAllArts", "647e28a5fceacb58"],
         ["Surface.Box02.User.Proof.CloseAtJoinProof transitive imports (legacy)",
-         "8046d3fd8d7fedb9"],
+         "9e04368dbda8c2c6"],
         ["Surface.Box02.User.Proof.CloseAtJoinProof:importAllArts",
-         "1712289438ea474c"]]]]],
+         "efb3ce1b6f95b61d"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
       ["package external libraries", "00000000000006bb"],
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Box02.Flux.Checking.CloseAtJoin", "c0366957b6af0848"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "45ed42dc30977195"}
+ "depHash": "f585de8bf90d4036"}

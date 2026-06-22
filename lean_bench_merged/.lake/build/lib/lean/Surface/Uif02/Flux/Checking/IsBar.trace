@@ -21,7 +21,7 @@
          "7ae517d5221aba12"],
         ["Surface.Uif02.Flux.VC.IsBar:importAllArts", "c082d77d3566993e"],
         ["Surface.Uif02.User.Proof.IsBarProof transitive imports (legacy)",
-         "bee05cca2b2ab03e"],
+         "9036e45619319451"],
         ["Surface.Uif02.User.Proof.IsBarProof:importAllArts",
          "85858022bfaa4bc1"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Uif02.Flux.Checking.IsBar", "411ab5f9e1d95f83"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c4533478b9959cb6"}
+ "depHash": "efe0169f26c0aa88"}

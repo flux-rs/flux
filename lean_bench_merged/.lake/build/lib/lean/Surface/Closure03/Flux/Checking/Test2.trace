@@ -21,7 +21,7 @@
          "1303dd45daa51a8c"],
         ["Surface.Closure03.Flux.VC.Test2:importAllArts", "560853a7cd43c21e"],
         ["Surface.Closure03.User.Proof.Test2Proof transitive imports (legacy)",
-         "618a38b9ff2f69d4"],
+         "2beb8dca53de4413"],
         ["Surface.Closure03.User.Proof.Test2Proof:importAllArts",
          "61dfac124341d61e"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Closure03.Flux.Checking.Test2", "8bc544b1685f3808"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a9d2cd7341f6d862"}
+ "depHash": "f6b8a6f8ab4ba1a1"}

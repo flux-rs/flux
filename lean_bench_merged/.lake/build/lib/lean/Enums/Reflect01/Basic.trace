@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Enums.Reflect01.Flux.Checking.TestEq transitive imports (legacy)",
-         "0b5859bf287f5c4d"],
+         "c2031067ef0b8177"],
         ["Enums.Reflect01.Flux.Checking.TestEq:importAllArts",
          "a7c1915e552be0ab"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Enums.Reflect01.Basic", "dd8e462475bdbe84"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4c0257939b3d794b"}
+ "depHash": "e0efd9cc812d5b6e"}

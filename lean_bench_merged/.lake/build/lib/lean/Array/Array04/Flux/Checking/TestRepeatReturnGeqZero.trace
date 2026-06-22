@@ -22,7 +22,7 @@
         ["Array.Array04.Flux.VC.TestRepeatReturnGeqZero:importAllArts",
          "6284d81cb950f890"],
         ["Array.Array04.User.Proof.TestRepeatReturnGeqZeroProof transitive imports (legacy)",
-         "533ac5a15db84a5f"],
+         "1cdc25d717cd7ac0"],
         ["Array.Array04.User.Proof.TestRepeatReturnGeqZeroProof:importAllArts",
          "1c8289e89b21b3c6"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "aff553974640d45c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9ad703bc94a98725"}
+ "depHash": "eb065998de94f831"}

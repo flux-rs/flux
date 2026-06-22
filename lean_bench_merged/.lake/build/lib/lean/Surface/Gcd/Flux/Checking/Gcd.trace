@@ -20,7 +20,7 @@
          "efda1b762ff20952"],
         ["Surface.Gcd.Flux.VC.Gcd:importAllArts", "627696ea4ae37add"],
         ["Surface.Gcd.User.Proof.GcdProof transitive imports (legacy)",
-         "c39dc4b6aa36fe0b"],
+         "7283f3989d4fba6c"],
         ["Surface.Gcd.User.Proof.GcdProof:importAllArts",
          "2b2ac88366279ec7"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Surface.Gcd.Flux.Checking.Gcd", "c1ef4244eb84ea0e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "af521ecd32c72989"}
+ "depHash": "f5aca10381f9627e"}

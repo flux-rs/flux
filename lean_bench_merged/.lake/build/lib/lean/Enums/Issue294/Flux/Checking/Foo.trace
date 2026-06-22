@@ -20,7 +20,7 @@
          "b0650f36e86bccb5"],
         ["Enums.Issue294.Flux.VC.Foo:importAllArts", "efeb3a6c1380e140"],
         ["Enums.Issue294.User.Proof.FooProof transitive imports (legacy)",
-         "23f3242a61b54291"],
+         "21f428048ff2ef6e"],
         ["Enums.Issue294.User.Proof.FooProof:importAllArts",
          "7d13a1b53e5eb5ef"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Enums.Issue294.Flux.Checking.Foo", "4bbb07a6b571879f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e63a0ebd9f3941a1"}
+ "depHash": "0686e96f292fe993"}

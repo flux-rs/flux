@@ -22,7 +22,7 @@
         ["Surface.Closure12.Flux.VC.TestVecOfNat:importAllArts",
          "f6c8e0b95d836fb7"],
         ["Surface.Closure12.User.Proof.TestVecOfNatProof transitive imports (legacy)",
-         "95a8721843cda990"],
+         "e2eccb5989ebb6b7"],
         ["Surface.Closure12.User.Proof.TestVecOfNatProof:importAllArts",
          "c51aea01386a0d83"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "10e8a32b9c4a200a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8b4ba95f28d87aec"}
+ "depHash": "c78b4d4e7ac65c0a"}

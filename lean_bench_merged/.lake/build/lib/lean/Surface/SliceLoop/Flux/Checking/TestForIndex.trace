@@ -22,7 +22,7 @@
         ["Surface.SliceLoop.Flux.VC.TestForIndex:importAllArts",
          "839d99343f654f59"],
         ["Surface.SliceLoop.User.Proof.TestForIndexProof transitive imports (legacy)",
-         "cac392ffc661380c"],
+         "29b99b07be66013b"],
         ["Surface.SliceLoop.User.Proof.TestForIndexProof:importAllArts",
          "db37a72f90fdcf8b"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "9cce390ec597bef6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "43e4bb676acda69d"}
+ "depHash": "0ce85ca7b6164541"}

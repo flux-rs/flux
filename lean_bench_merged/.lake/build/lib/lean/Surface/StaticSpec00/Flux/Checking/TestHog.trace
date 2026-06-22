@@ -22,7 +22,7 @@
         ["Surface.StaticSpec00.Flux.VC.TestHog:importAllArts",
          "647ba24dd8876711"],
         ["Surface.StaticSpec00.User.Proof.TestHogProof transitive imports (legacy)",
-         "0cfa59eec16bd7b5"],
+         "c49ee9a3572a5732"],
         ["Surface.StaticSpec00.User.Proof.TestHogProof:importAllArts",
          "2bc0fa93d12d8e22"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "13bae26da91eba6a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9d25c26c423d436b"}
+ "depHash": "a87bf481942566c0"}

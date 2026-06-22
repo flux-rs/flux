@@ -20,7 +20,7 @@
          "9cf8c83120078782"],
         ["Surface.Fft.Flux.VC.Doit:importAllArts", "72c3c8500887ca7d"],
         ["Surface.Fft.User.Proof.DoitProof transitive imports (legacy)",
-         "61606ee85ad04f28"],
+         "2e9a07185dabb8cf"],
         ["Surface.Fft.User.Proof.DoitProof:importAllArts",
          "e907f95d7ae1bc56"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Surface.Fft.Flux.Checking.Doit", "2b063dc6f4fad0c3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ad13f93277a121af"}
+ "depHash": "5d0fbdacd43c7afe"}

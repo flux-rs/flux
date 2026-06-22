@@ -22,7 +22,7 @@
         ["Surface.RawPtrRvalue.Flux.VC.Test00:importAllArts",
          "2c54a7d7643a5e8a"],
         ["Surface.RawPtrRvalue.User.Proof.Test00Proof transitive imports (legacy)",
-         "a6213f98f2d49834"],
+         "862de4a3bab1a69b"],
         ["Surface.RawPtrRvalue.User.Proof.Test00Proof:importAllArts",
          "26688f3c15b1e41d"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "84b98b01ae80d9f6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "30b7822a7c8d418b"}
+ "depHash": "0ebdaddc9cd4449f"}

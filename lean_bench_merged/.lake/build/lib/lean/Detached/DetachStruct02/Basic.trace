@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Detached.DetachStruct02.Flux.Checking.Test transitive imports (legacy)",
-         "de40220a355bf8ae"],
+         "4b2bfe5680051cd6"],
         ["Detached.DetachStruct02.Flux.Checking.Test:importAllArts",
          "878f4650e90eb198"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Detached.DetachStruct02.Basic", "72addb99bc551ba3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "00e6585f74efc33c"}
+ "depHash": "0001c491a8db0030"}

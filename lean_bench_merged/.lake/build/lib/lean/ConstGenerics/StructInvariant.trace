@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ConstGenerics.StructInvariant.Basic transitive imports (legacy)",
-         "3fba3880c11a6d96"],
+         "8d51b9fa248b6dd7"],
         ["ConstGenerics.StructInvariant.Basic:importAllArts",
          "8eaddaa4efbf9fc1"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: ConstGenerics.StructInvariant", "ab0c29a6bbd303b7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2abc004d28b227d4"}
+ "depHash": "91b3f552cf1deba5"}

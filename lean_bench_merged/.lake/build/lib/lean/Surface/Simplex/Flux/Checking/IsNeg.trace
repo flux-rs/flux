@@ -21,7 +21,7 @@
          "5cce4a22b7fff904"],
         ["Surface.Simplex.Flux.VC.IsNeg:importAllArts", "28a550141ffc27c0"],
         ["Surface.Simplex.User.Proof.IsNegProof transitive imports (legacy)",
-         "e6195cc2ef0caea8"],
+         "4f2aec898d7ac7ff"],
         ["Surface.Simplex.User.Proof.IsNegProof:importAllArts",
          "4c03adad2dc57785"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Simplex.Flux.Checking.IsNeg", "6726382ce5836a4a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "db074a306fba6f86"}
+ "depHash": "02a9af0b1e9380fe"}

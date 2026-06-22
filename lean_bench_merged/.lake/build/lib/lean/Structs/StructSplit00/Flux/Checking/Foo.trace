@@ -21,7 +21,7 @@
          "ff3e56ff57a70e59"],
         ["Structs.StructSplit00.Flux.VC.Foo:importAllArts", "429c31b73780c088"],
         ["Structs.StructSplit00.User.Proof.FooProof transitive imports (legacy)",
-         "62a3495f0671e98e"],
+         "1c9a65261a50d1d9"],
         ["Structs.StructSplit00.User.Proof.FooProof:importAllArts",
          "5783380713a6faa5"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.StructSplit00.Flux.Checking.Foo", "503974ee366e73a6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2b1435e9bcd023b3"}
+ "depHash": "e4eec9afa977111a"}

@@ -21,7 +21,7 @@
          "5cce4a22b7fff904"],
         ["Surface.Simplex.Flux.VC.Unb1:importAllArts", "0cd19fb7ba8e2143"],
         ["Surface.Simplex.User.Proof.Unb1Proof transitive imports (legacy)",
-         "ab2f8e477623b6cb"],
+         "c978e72a5c2c8424"],
         ["Surface.Simplex.User.Proof.Unb1Proof:importAllArts",
          "359c7f71492e64e5"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Simplex.Flux.Checking.Unb1", "ed32e0c18cbbe76b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5ade4424b7775949"}
+ "depHash": "4a55527107f1691d"}

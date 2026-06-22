@@ -22,7 +22,7 @@
         ["Surface.Promotion01.Flux.VC.TestBarEq:importAllArts",
          "fa1880d97c27745d"],
         ["Surface.Promotion01.User.Proof.TestBarEqProof transitive imports (legacy)",
-         "cb8cbd14babeb73c"],
+         "1a998e756cc29c7b"],
         ["Surface.Promotion01.User.Proof.TestBarEqProof:importAllArts",
          "2fd8f95681114077"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "e450985b82406cf3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a905d2622749ed68"}
+ "depHash": "4778dd1efb842974"}

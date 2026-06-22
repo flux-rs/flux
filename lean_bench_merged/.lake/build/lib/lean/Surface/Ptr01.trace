@@ -14,7 +14,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["Surface.Ptr01.Basic transitive imports (legacy)", "515967869a83e0f3"],
+       [["Surface.Ptr01.Basic transitive imports (legacy)", "ee57d62aeddb2cb1"],
         ["Surface.Ptr01.Basic:importAllArts", "a6cb0c4810317b12"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -30,4 +30,4 @@
   ["Module.name: Surface.Ptr01", "4499481a7771ac50"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "799c8e0477583248"}
+ "depHash": "abfd3b23765ae872"}

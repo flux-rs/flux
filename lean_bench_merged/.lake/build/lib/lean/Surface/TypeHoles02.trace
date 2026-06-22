@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.TypeHoles02.Basic transitive imports (legacy)",
-         "9195cdb57653e403"],
+         "3abff925cec91a60"],
         ["Surface.TypeHoles02.Basic:importAllArts", "d123a4ca0a15170e"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.TypeHoles02", "fffbcecb6b520e92"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f96b9f7de318dba4"}
+ "depHash": "ac8da1fcece9675b"}

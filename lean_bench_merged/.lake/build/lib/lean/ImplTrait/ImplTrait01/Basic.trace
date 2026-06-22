@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ImplTrait.ImplTrait01.Flux.Checking.Lib transitive imports (legacy)",
-         "9e999f9baf9e5d65"],
+         "bb79da871c85c561"],
         ["ImplTrait.ImplTrait01.Flux.Checking.Lib:importAllArts",
          "4eae87405c0f9de4"],
         ["ImplTrait.ImplTrait01.Flux.Checking.TestClient transitive imports (legacy)",
-         "6bb3a71faf165010"],
+         "e90cf8f0e4ad3f17"],
         ["ImplTrait.ImplTrait01.Flux.Checking.TestClient:importAllArts",
          "d7a66ace1fedf442"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: ImplTrait.ImplTrait01.Basic", "166e4177a26749de"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0d5b3e8f83fc7bf9"}
+ "depHash": "0170f842f6c1ecc0"}

@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Constr02.Flux.Checking.Foo transitive imports (legacy)",
-         "c58531285976a3e0"],
+         "c92afe0e71fdf79a"],
         ["Surface.Constr02.Flux.Checking.Foo:importAllArts",
          "37c1a4b347b5fd38"],
         ["Surface.Constr02.Flux.Checking.Bar transitive imports (legacy)",
-         "f687e5f60dfebf30"],
+         "1748831a30a5d7f1"],
         ["Surface.Constr02.Flux.Checking.Bar:importAllArts",
          "ab9dc1c0dc2b19e0"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Surface.Constr02.Basic", "28d32e65fbf8ec8a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "27d96d5536bc2de9"}
+ "depHash": "8aab4105c1be49b3"}

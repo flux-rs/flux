@@ -22,7 +22,7 @@
         ["ConstGenerics.StructInvariant.Flux.VC.Foo:importAllArts",
          "371f7d19bf145bfa"],
         ["ConstGenerics.StructInvariant.User.Proof.FooProof transitive imports (legacy)",
-         "10e4b81e1bded0ef"],
+         "ddf4dd8330a10658"],
         ["ConstGenerics.StructInvariant.User.Proof.FooProof:importAllArts",
          "0966d9cadfa183ac"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "735f8ce3e74b6758"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9a1d32b9e0caa134"}
+ "depHash": "e82029a9839e078d"}

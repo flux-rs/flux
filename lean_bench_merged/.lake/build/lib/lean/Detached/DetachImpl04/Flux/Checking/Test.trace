@@ -22,7 +22,7 @@
         ["Detached.DetachImpl04.Flux.VC.Test:importAllArts",
          "408495f1073f10fa"],
         ["Detached.DetachImpl04.User.Proof.TestProof transitive imports (legacy)",
-         "063e8412a4b4930b"],
+         "4f7ada29cacbdb94"],
         ["Detached.DetachImpl04.User.Proof.TestProof:importAllArts",
          "648c54d08c743bf3"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Detached.DetachImpl04.Flux.Checking.Test", "103d954fa9db5996"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "db787d78ed258f34"}
+ "depHash": "3ed38c8f8e535d79"}

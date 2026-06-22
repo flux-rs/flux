@@ -14,7 +14,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["Surface.Kmp.Basic transitive imports (legacy)", "3d5c6c0de8cb8ba2"],
+       [["Surface.Kmp.Basic transitive imports (legacy)", "7ae9ea8fb06c8c86"],
         ["Surface.Kmp.Basic:importAllArts", "6ea329cf15e7225a"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -30,4 +30,4 @@
   ["Module.name: Surface.Kmp", "b5ae1a9a6c124f8b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6a7b4537e483130d"}
+ "depHash": "2b0a904aab2302fe"}

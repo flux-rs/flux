@@ -21,7 +21,7 @@
          "24499e05cf58dfa0"],
         ["Surface.Issue703.Flux.VC.Gather:importAllArts", "3638416abde4e77d"],
         ["Surface.Issue703.User.Proof.GatherProof transitive imports (legacy)",
-         "e93769fa52a5381c"],
+         "0a2d3d401b5a660b"],
         ["Surface.Issue703.User.Proof.GatherProof:importAllArts",
          "2dc49bc90e395c00"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Issue703.Flux.Checking.Gather", "ca94d090c5836b7d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5db372cb23eb5654"}
+ "depHash": "42fd8e09766a8118"}

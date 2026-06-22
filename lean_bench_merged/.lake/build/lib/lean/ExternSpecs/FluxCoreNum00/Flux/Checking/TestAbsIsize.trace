@@ -22,7 +22,7 @@
         ["ExternSpecs.FluxCoreNum00.Flux.VC.TestAbsIsize:importAllArts",
          "376621189cfbc3e7"],
         ["ExternSpecs.FluxCoreNum00.User.Proof.TestAbsIsizeProof transitive imports (legacy)",
-         "6c0b1abe7a39f8bf"],
+         "874fb6f8fab36b48"],
         ["ExternSpecs.FluxCoreNum00.User.Proof.TestAbsIsizeProof:importAllArts",
          "3962f2a998a5ba86"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "61eb040d1535b7fc"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "bec90b02127cf60c"}
+ "depHash": "239cf793b4f9e8ed"}

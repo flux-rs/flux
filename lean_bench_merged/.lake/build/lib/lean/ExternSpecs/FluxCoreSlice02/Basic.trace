@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ExternSpecs.FluxCoreSlice02.Flux.Checking.Foo transitive imports (legacy)",
-         "a94bd454664467f7"],
+         "803ebf9176172dbd"],
         ["ExternSpecs.FluxCoreSlice02.Flux.Checking.Foo:importAllArts",
          "97d0960f5fed84ec"],
         ["ExternSpecs.FluxCoreSlice02.Flux.Checking.TestMut transitive imports (legacy)",
-         "2e82ea89ab0a8fa3"],
+         "79f2b8273534d93d"],
         ["ExternSpecs.FluxCoreSlice02.Flux.Checking.TestMut:importAllArts",
          "4fd564cdac1185a4"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: ExternSpecs.FluxCoreSlice02.Basic", "eff73353270a7a46"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "76a9b76b8cc3b243"}
+ "depHash": "123616448e818e3c"}

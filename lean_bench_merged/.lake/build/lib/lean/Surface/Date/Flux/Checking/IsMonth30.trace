@@ -21,7 +21,7 @@
          "f7e0688b59305e31"],
         ["Surface.Date.Flux.VC.IsMonth30:importAllArts", "98c5f01abb7dae3b"],
         ["Surface.Date.User.Proof.IsMonth30Proof transitive imports (legacy)",
-         "cbbc1a1c42a55c60"],
+         "9957bfb170fd1617"],
         ["Surface.Date.User.Proof.IsMonth30Proof:importAllArts",
          "7cb1ea5cdb99d1d3"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Date.Flux.Checking.IsMonth30", "cc0e8afcb1f4b28e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "80ecdfc9f8dda370"}
+ "depHash": "012ffe49ab188661"}

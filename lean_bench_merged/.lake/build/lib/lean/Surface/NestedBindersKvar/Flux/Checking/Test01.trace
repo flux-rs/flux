@@ -22,7 +22,7 @@
         ["Surface.NestedBindersKvar.Flux.VC.Test01:importAllArts",
          "eb9e3f1f676d08a5"],
         ["Surface.NestedBindersKvar.User.Proof.Test01Proof transitive imports (legacy)",
-         "91a6e085675cc759"],
+         "02aae4df74b092d6"],
         ["Surface.NestedBindersKvar.User.Proof.Test01Proof:importAllArts",
          "e52c64f034d47428"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "d7c6d3a253b6ddcb"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "143e2c0bb0f8d72d"}
+ "depHash": "04800eb97cb57715"}

@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.NoPanic01.Flux.Checking.CallsSafe transitive imports (legacy)",
-         "5df33bf75ec4e411"],
+         "ae05399289e4662c"],
         ["Surface.NoPanic01.Flux.Checking.CallsSafe:importAllArts",
          "3c7d7cf77aab1aa1"],
         ["Surface.NoPanic01.Flux.Checking.Foo transitive imports (legacy)",
-         "ab9f2fccd5d67167"],
+         "afaf982b93034495"],
         ["Surface.NoPanic01.Flux.Checking.Foo:importAllArts",
          "89d1d7a6a9d4b577"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Surface.NoPanic01.Basic", "49a6a294b9a484f4"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4d48e2b2717e0e2f"}
+ "depHash": "f660a89cedc512d6"}

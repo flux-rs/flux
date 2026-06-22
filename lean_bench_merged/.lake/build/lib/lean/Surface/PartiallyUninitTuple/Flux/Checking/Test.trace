@@ -22,7 +22,7 @@
         ["Surface.PartiallyUninitTuple.Flux.VC.Test:importAllArts",
          "12a2081727e6ab95"],
         ["Surface.PartiallyUninitTuple.User.Proof.TestProof transitive imports (legacy)",
-         "953baa8ef45c8c98"],
+         "9af15fc2170d042f"],
         ["Surface.PartiallyUninitTuple.User.Proof.TestProof:importAllArts",
          "6236ae6849a4ad3a"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "b1335ebb118a811e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d74c28dba8a6f6c2"}
+ "depHash": "ba28ed38a73a1263"}

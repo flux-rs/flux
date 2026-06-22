@@ -22,7 +22,7 @@
         ["Surface.Simplex.Flux.VC.InitRatioC:importAllArts",
          "4d25f2e9aa28eda2"],
         ["Surface.Simplex.User.Proof.InitRatioCProof transitive imports (legacy)",
-         "ce06caeffbede368"],
+         "fed4547146ce523f"],
         ["Surface.Simplex.User.Proof.InitRatioCProof:importAllArts",
          "1d49cd2cd26c2d3e"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.Simplex.Flux.Checking.InitRatioC", "5ad77dc875ae684b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3068896b169d9224"}
+ "depHash": "f4d6eab08b2af07a"}

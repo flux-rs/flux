@@ -30,7 +30,7 @@
    "Surface/Closure04/User/Proof/Test002Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/Closure04/User/Proof/Test002Proof.lean:69:0: time: 214ms",
+   "Surface/Closure04/User/Proof/Test002Proof.lean:69:0: time: 228ms",
    "level": "info"},
   {"message":
    "Surface/Closure04/User/Proof/Test002Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k2]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ c0 frog₀, z0 = frog₀ ∧ z1 = frog₀\n[solve]   lam = fun z0 z1 => ∃ c0 frog₀, z0 = frog₀ ∧ z1 = frog₀\n[solve] --- k1 ---\n[solve]   sol = ∃ c0 frog₀, z0 = 99 ∧ z1 = frog₀\n[solve]   lam = fun z0 z1 => ∃ c0 frog₀, z0 = 99 ∧ z1 = frog₀\n[solve] --- k2 ---\n[solve]   sol = ∃ c0 frog₀ a'₁,\n  (∃ c0 frog₀_1, a'₁ = frog₀_1 ∧ frog₀ = frog₀_1) ∧\n    ∃ a'₂,\n      (∃ c0 frog₀_1, a'₂ = 99 ∧ frog₀ = frog₀_1) ∧\n        ∃ a'₃,\n          (∃ c0 frog₀_1, a'₃ = frog₀_1 ∧ frog₀ = frog₀_1) ∧\n            ∃ a'₄, (∃ c0 frog₀_1, a'₄ = 99 ∧ frog₀ = frog₀_1) ∧ ∃ v₀, 0 ≤ v₀ ∧ z0 = v₀ ∧ z1 = frog₀\n[solve]   lam = fun z0 z1 =>\n  ∃ c0 frog₀ a'₁,\n    (∃ c0 frog₀_1, a'₁ = frog₀_1 ∧ frog₀ = frog₀_1) ∧\n      ∃ a'₂,\n        (∃ c0 frog₀_1, a'₂ = 99 ∧ frog₀ = frog₀_1) ∧\n          ∃ a'₃,\n            (∃ c0 frog₀_1, a'₃ = frog₀_1 ∧ frog₀ = frog₀_1) ∧\n              ∃ a'₄, (∃ c0 frog₀_1, a'₄ = 99 ∧ frog₀ = frog₀_1) ∧ ∃ v₀, 0 ≤ v₀ ∧ z0 = v₀ ∧ z1 = frog₀",
@@ -41,7 +41,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Closure04.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -65,4 +65,4 @@
    "4d8acb1b9b9079e8"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c2d08c69c59b7849"}
+ "depHash": "90884e488c9a744f"}

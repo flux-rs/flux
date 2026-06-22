@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.InvariantWithConstGeneric.Basic transitive imports (legacy)",
-         "0692bc63bc3eb26e"],
+         "cf1f7c92928f4667"],
         ["Surface.InvariantWithConstGeneric.Basic:importAllArts",
          "811516d0bd5c130c"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.InvariantWithConstGeneric", "26786efa819ae1e8"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9e24fb88083ba1f2"}
+ "depHash": "f7ef6582054d6542"}

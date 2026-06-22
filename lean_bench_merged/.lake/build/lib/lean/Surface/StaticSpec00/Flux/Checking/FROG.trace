@@ -21,7 +21,7 @@
          "e5004dcf79aa83f4"],
         ["Surface.StaticSpec00.Flux.VC.FROG:importAllArts", "1895297384ae7518"],
         ["Surface.StaticSpec00.User.Proof.FROGProof transitive imports (legacy)",
-         "9eca30524660e52c"],
+         "b76f3d92fb9ed403"],
         ["Surface.StaticSpec00.User.Proof.FROGProof:importAllArts",
          "8dc6cddabf5181a0"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.StaticSpec00.Flux.Checking.FROG", "f084ee90bf9f06e1"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ffe9048c313c6fd0"}
+ "depHash": "82574d6b04f27a6a"}

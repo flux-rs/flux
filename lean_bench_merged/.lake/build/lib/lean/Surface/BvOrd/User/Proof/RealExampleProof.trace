@@ -20,8 +20,7 @@
   {"message":
    "Surface/BvOrd/User/Proof/RealExampleProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message":
-   "Surface/BvOrd/User/Proof/RealExampleProof.lean:69:0: time: 101ms",
+  {"message": "Surface/BvOrd/User/Proof/RealExampleProof.lean:69:0: time: 88ms",
    "level": "info"},
   {"message":
    "Surface/BvOrd/User/Proof/RealExampleProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ¬BitVec.ule z0 (BitVec.ofInt 32 10) = true ∧ z0 = z0 ∧ z1 = z1 ∨\n  BitVec.ule z0 (BitVec.ofInt 32 10) = true ∧\n    (¬BitVec_uge z1 (BitVec.ofInt 32 20) = true ∧ z0 = z0 ∧ z1 = z1 ∨\n      BitVec_uge z1 (BitVec.ofInt 32 20) = true ∧ ¬BitVec.ult z0 (BitVec.ofInt 32 11) = true ∧ z0 = z0 ∧ z1 = z1)\n[solve]   lam = fun z0 z1 =>\n  ¬z0.ule (BitVec.ofInt 32 10) = true ∧ z0 = z0 ∧ z1 = z1 ∨\n    z0.ule (BitVec.ofInt 32 10) = true ∧\n      (¬BitVec_uge z1 (BitVec.ofInt 32 20) = true ∧ z0 = z0 ∧ z1 = z1 ∨\n        BitVec_uge z1 (BitVec.ofInt 32 20) = true ∧ ¬z0.ult (BitVec.ofInt 32 11) = true ∧ z0 = z0 ∧ z1 = z1)",
@@ -32,7 +31,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.BvOrd.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -56,4 +55,4 @@
    "a4f8ce536bd45fe7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "546aefd0d8506f26"}
+ "depHash": "528e108f39ee1835"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.StaticSpec01.Basic transitive imports (legacy)",
-         "35f7567f820180d7"],
+         "dfee9893b503dccd"],
         ["Surface.StaticSpec01.Basic:importAllArts", "44962019d2b33e6d"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.StaticSpec01", "9b6b82ad4a3a2f20"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9c38db9c485ef4cb"}
+ "depHash": "9042a9478353fef5"}

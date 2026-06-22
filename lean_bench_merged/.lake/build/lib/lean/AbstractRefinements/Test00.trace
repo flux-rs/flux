@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["AbstractRefinements.Test00.Basic transitive imports (legacy)",
-         "6d297e6db9f1a290"],
+         "b9abfd14e7697330"],
         ["AbstractRefinements.Test00.Basic:importAllArts",
          "2cf222a78c565550"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: AbstractRefinements.Test00", "d029ae424f2db26b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "880794e9942f2294"}
+ "depHash": "75ce78ecad442cea"}

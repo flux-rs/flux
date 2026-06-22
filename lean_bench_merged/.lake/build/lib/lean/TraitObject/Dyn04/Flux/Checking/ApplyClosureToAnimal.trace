@@ -22,7 +22,7 @@
         ["TraitObject.Dyn04.Flux.VC.ApplyClosureToAnimal:importAllArts",
          "9af33613168cb443"],
         ["TraitObject.Dyn04.User.Proof.ApplyClosureToAnimalProof transitive imports (legacy)",
-         "c7e64655c693d8bb"],
+         "3ca7b7db79e88d9c"],
         ["TraitObject.Dyn04.User.Proof.ApplyClosureToAnimalProof:importAllArts",
          "cf6d7e79c45e88c1"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "f13c6a49e3de1afe"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9a9a4efec56011b8"}
+ "depHash": "64c412fe3a1fe766"}

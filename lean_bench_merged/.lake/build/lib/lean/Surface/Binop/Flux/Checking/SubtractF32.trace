@@ -21,7 +21,7 @@
          "0b8ed4305157a8cd"],
         ["Surface.Binop.Flux.VC.SubtractF32:importAllArts", "37f8b32e6030d172"],
         ["Surface.Binop.User.Proof.SubtractF32Proof transitive imports (legacy)",
-         "b2d1d4c0e8e2bd75"],
+         "a5d3c65591a4d4b2"],
         ["Surface.Binop.User.Proof.SubtractF32Proof:importAllArts",
          "c39f4d8df6d76803"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Binop.Flux.Checking.SubtractF32", "faebcf92817320af"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "bfbe0a2f2e45192c"}
+ "depHash": "4ea72daa078bad92"}

@@ -22,7 +22,7 @@
         ["Detached.DetachStatic00.Flux.VC.BobBOB:importAllArts",
          "359fd47ae4aee088"],
         ["Detached.DetachStatic00.User.Proof.BobBOBProof transitive imports (legacy)",
-         "99cb04bd8bc90313"],
+         "1123c8eaabac9fc4"],
         ["Detached.DetachStatic00.User.Proof.BobBOBProof:importAllArts",
          "983278c9e93ca3a9"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "a5910d6233752cd3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7e69b65701621349"}
+ "depHash": "d61afa795dbecb85"}

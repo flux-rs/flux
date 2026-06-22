@@ -68,7 +68,7 @@
   {"message":
    "Surface/Test01/User/Proof/Test2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Test01/User/Proof/Test2Proof.lean:69:0: time: 14549ms",
+  {"message": "Surface/Test01/User/Proof/Test2Proof.lean:69:0: time: 13857ms",
    "level": "info"},
   {"message":
    "Surface/Test01/User/Proof/Test2Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k3, k5, k2]\n[solve_fixpoint] Cyclic κ:  [k4]\n[solve] --- k0 ---\n[solve]   sol = ∃ b₀, ¬b₀ ∧ (z0 = 1 ∧ z1 = b₀ ∨ ∃ a'₃, ?k4 a'₃ b₀ ∧ z0 = a'₃ ∧ z1 = b₀)\n[solve]   lam = fun z0 z1 => ∃ b₀, ¬b₀ ∧ (z0 = 1 ∧ z1 = b₀ ∨ ∃ a'₃, ?k4 a'₃ b₀ ∧ z0 = a'₃ ∧ z1 = b₀)\n[solve] --- k1 ---\n[solve]   sol = ∃ b₀, ¬b₀ ∧ z0 = b₀ ∨ b₀ ∧ z0 = True\n[solve]   lam = fun z0 => ∃ b₀, ¬b₀ ∧ z0 = b₀ ∨ b₀ ∧ z0 = True\n[solve] --- k3 ---\n[solve]   sol = ∃ b₀,\n  (¬b₀ ∧\n      ∃ a'₁,\n        (∃ b₀_1, ¬b₀_1 ∧ (a'₁ = 1 ∧ b₀ = b₀_1 ∨ ∃ a'₃, ?k4 a'₃ b₀_1 ∧ a'₁ = a'₃ ∧ b₀ = b₀_1)) ∧ z0 = a'₁ ∧ z1 = b₀) ∨\n    b₀ ∧ z0 = 1 ∧ z1 = True\n[solve]   lam = fun z0 z1 =>\n  ∃ b₀,\n    (¬b₀ ∧\n        ∃ a'₁,\n          (∃ b₀_1, ¬b₀_1 ∧ (a'₁ = 1 ∧ b₀ = b₀_1 ∨ ∃ a'₃, ?k4 a'₃ b₀_1 ∧ a'₁ = a'₃ ∧ b₀ = b₀_1)) ∧ z0 = a'₁ ∧ z1 = b₀) ∨\n      b₀ ∧ z0 = 1 ∧ z1 = True\n[solve] --- k5 ---\n[solve]   sol = ∃ b₀, b₀ ∧ (z0 = 1 ∧ z1 = True ∨ ∃ a'₆, ?k4 a'₆ True ∧ z0 = a'₆ ∧ z1 = True)\n[solve]   lam = fun z0 z1 => ∃ b₀, b₀ ∧ (z0 = 1 ∧ z1 = True ∨ ∃ a'₆, ?k4 a'₆ True ∧ z0 = a'₆ ∧ z1 = True)\n[solve] --- k2 ---\n[solve]   sol = ∃ b₀,\n  ¬b₀ ∧ z0 = 1 ∧ z1 = b₀ ∨\n    b₀ ∧\n      ∃ a'₄, (∃ b₀, b₀ ∧ (a'₄ = 1 ∧ True = True ∨ ∃ a'₆, ?k4 a'₆ True ∧ a'₄ = a'₆ ∧ True = True)) ∧ z0 = a'₄ ∧ z1 = True\n[solve]   lam = fun z0 z1 =>\n  ∃ b₀,\n    ¬b₀ ∧ z0 = 1 ∧ z1 = b₀ ∨\n      b₀ ∧\n        ∃ a'₄,\n          (∃ b₀, b₀ ∧ (a'₄ = 1 ∧ True = True ∨ ∃ a'₆, ?k4 a'₆ True ∧ a'₄ = a'₆ ∧ True = True)) ∧ z0 = a'₄ ∧ z1 = True\n[solve_fixpoint] --- PA on cyclic κ's [k4] ---\n[solve_fixpoint]   PA sol for k4 = z0 ≥ 0 ∧ z0 > 0",
@@ -79,7 +79,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Test01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -101,4 +101,4 @@
   ["Module.name: Surface.Test01.User.Proof.Test2Proof", "475d413b64d8edea"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d14dbc1f53706d4a"}
+ "depHash": "17b2c8affa3d7fd9"}

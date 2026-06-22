@@ -21,7 +21,7 @@
          "515065aa10b14b28"],
         ["Surface.ArgSyntax.Flux.VC.Arr:importAllArts", "666ccb65e9ec23b1"],
         ["Surface.ArgSyntax.User.Proof.ArrProof transitive imports (legacy)",
-         "e2512453fe4a9662"],
+         "df261338cf03e4b5"],
         ["Surface.ArgSyntax.User.Proof.ArrProof:importAllArts",
          "668c16c0372d6e2d"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.ArgSyntax.Flux.Checking.Arr", "c3d1e2d50c8e344d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a4b4c8a1487a07c8"}
+ "depHash": "58d5baa3041df4b2"}

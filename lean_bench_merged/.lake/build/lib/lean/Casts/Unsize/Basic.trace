@@ -15,10 +15,10 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Casts.Unsize.Flux.Checking.Test00 transitive imports (legacy)",
-         "729debc07f3bd21f"],
+         "c672dfd05cdb8bff"],
         ["Casts.Unsize.Flux.Checking.Test00:importAllArts", "3ca2bbe73eb99130"],
         ["Casts.Unsize.Flux.Checking.Test01 transitive imports (legacy)",
-         "bb539cc70bcfc793"],
+         "1f41c5a09989b013"],
         ["Casts.Unsize.Flux.Checking.Test01:importAllArts",
          "59dcfc64fd8b870e"]]]]],
     ["libs",
@@ -35,4 +35,4 @@
   ["Module.name: Casts.Unsize.Basic", "dc434c939cfa779d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ce8dd7bb60b928ec"}
+ "depHash": "97a740e498670be7"}

@@ -21,7 +21,7 @@
          "91affedf90c9b766"],
         ["Surface.Char01.Flux.VC.Char00:importAllArts", "b3ca6021cbc3476f"],
         ["Surface.Char01.User.Proof.Char00Proof transitive imports (legacy)",
-         "fd287a5c5ff01d01"],
+         "a83893f977994cfe"],
         ["Surface.Char01.User.Proof.Char00Proof:importAllArts",
          "47f711008abba526"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Char01.Flux.Checking.Char00", "5d68422034f7847c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6c4d7dc57e1951da"}
+ "depHash": "3076492c9142d4a9"}

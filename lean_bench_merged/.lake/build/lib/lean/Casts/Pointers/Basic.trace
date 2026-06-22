@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Casts.Pointers.Flux.Checking.Foo transitive imports (legacy)",
-         "759653cdb91a82a5"],
+         "e09249c4f01645fb"],
         ["Casts.Pointers.Flux.Checking.Foo:importAllArts",
          "816827e927d82874"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Casts.Pointers.Basic", "2b262d0e87233f9f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "435d7ad27daf9404"}
+ "depHash": "b3fad47d6c3fdecb"}

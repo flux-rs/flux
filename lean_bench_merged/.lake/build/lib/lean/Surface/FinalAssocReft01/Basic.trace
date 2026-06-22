@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.FinalAssocReft01.Flux.Checking.Impl__0__FooBarBaz transitive imports (legacy)",
-         "f36f1be78e09afc8"],
+         "74d9b7ca5a0ada1f"],
         ["Surface.FinalAssocReft01.Flux.Checking.Impl__0__FooBarBaz:importAllArts",
          "d98fbb2fe4d4f6aa"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.FinalAssocReft01.Basic", "8566eb0a6421e710"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "364377804ccc1568"}
+ "depHash": "9220b00b11aef7d1"}

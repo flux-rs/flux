@@ -21,7 +21,7 @@
          "f7e0688b59305e31"],
         ["Surface.Date.Flux.VC.IsLeapYear:importAllArts", "a74b514c709c03c2"],
         ["Surface.Date.User.Proof.IsLeapYearProof transitive imports (legacy)",
-         "2d9db75656cbe60c"],
+         "d2dcd102367273d3"],
         ["Surface.Date.User.Proof.IsLeapYearProof:importAllArts",
          "d4fb5c2add2d4165"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Date.Flux.Checking.IsLeapYear", "75535723f5b8b519"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "71802dee394b5394"}
+ "depHash": "d1362192a1cc008d"}

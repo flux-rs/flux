@@ -22,7 +22,7 @@
         ["ConstGenerics.Array01.Flux.VC.Test:importAllArts",
          "7009a6ae9279602a"],
         ["ConstGenerics.Array01.User.Proof.TestProof transitive imports (legacy)",
-         "b1078d6e528c6e8b"],
+         "5d0f958f66f57174"],
         ["ConstGenerics.Array01.User.Proof.TestProof:importAllArts",
          "8f2c8eb4de68eb91"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: ConstGenerics.Array01.Flux.Checking.Test", "44416709f415fe28"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4bdcba35a7baa190"}
+ "depHash": "5d5b35f8d20658cb"}

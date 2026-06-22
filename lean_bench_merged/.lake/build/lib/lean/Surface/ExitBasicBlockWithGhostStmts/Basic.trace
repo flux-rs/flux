@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.ExitBasicBlockWithGhostStmts.Flux.Checking.TakesClosure transitive imports (legacy)",
-         "3156a42644ae3ca8"],
+         "5e9a88e522adb166"],
         ["Surface.ExitBasicBlockWithGhostStmts.Flux.Checking.TakesClosure:importAllArts",
          "258e670027f253d6"],
         ["Surface.ExitBasicBlockWithGhostStmts.Flux.Checking.Impl__0__Test transitive imports (legacy)",
-         "e653371e699a2931"],
+         "bf69b4d5ce0a9986"],
         ["Surface.ExitBasicBlockWithGhostStmts.Flux.Checking.Impl__0__Test:importAllArts",
          "cc0902764c5cce72"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
    "c06ebee9e34800d0"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0e07a8b35b2764de"}
+ "depHash": "6cea6655c4c095ab"}

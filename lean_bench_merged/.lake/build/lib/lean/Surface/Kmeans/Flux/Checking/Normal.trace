@@ -21,7 +21,7 @@
          "a655e69ab32adc7f"],
         ["Surface.Kmeans.Flux.VC.Normal:importAllArts", "4dfa1c9661e9338a"],
         ["Surface.Kmeans.User.Proof.NormalProof transitive imports (legacy)",
-         "b40e7dbd0f489856"],
+         "00bf9bf4b179baf9"],
         ["Surface.Kmeans.User.Proof.NormalProof:importAllArts",
          "fd7d77ce23a5f23d"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Kmeans.Flux.Checking.Normal", "6a7ad6210b9c6831"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1bc177afdb82d0f6"}
+ "depHash": "fa3e891012269b9e"}

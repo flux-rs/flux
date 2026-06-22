@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.RebaseTraitImplGenerics00.Basic transitive imports (legacy)",
-         "8972d13626df58bd"],
+         "798cc08ab96f6cb1"],
         ["Surface.RebaseTraitImplGenerics00.Basic:importAllArts",
          "a8a9436caa8f6642"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.RebaseTraitImplGenerics00", "241a7e2375f35a49"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "089cb78805f5cc56"}
+ "depHash": "3052e874cf2cd4d4"}

@@ -21,7 +21,7 @@
          "19e9ec78c5e9d1ef"],
         ["Surface.Bitvec02.Flux.VC.Assert:importAllArts", "fc010b765eb79e03"],
         ["Surface.Bitvec02.User.Proof.AssertProof transitive imports (legacy)",
-         "7c48d947fbef499d"],
+         "1c2142b7b9d5f942"],
         ["Surface.Bitvec02.User.Proof.AssertProof:importAllArts",
          "e282438bd8789e50"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Bitvec02.Flux.Checking.Assert", "71dbb2713b3ed71a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5214e8d47ebcf8c9"}
+ "depHash": "c7c6511849b749b7"}

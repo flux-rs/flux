@@ -14,7 +14,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["Vec.VecMacro.Basic transitive imports (legacy)", "9650eaf4f414780a"],
+       [["Vec.VecMacro.Basic transitive imports (legacy)", "baf0712a090d9b74"],
         ["Vec.VecMacro.Basic:importAllArts", "f8d1aa0ba74aa56d"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -30,4 +30,4 @@
   ["Module.name: Vec.VecMacro", "40f717fbcb143384"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "606b57e47f4c6642"}
+ "depHash": "e53a5200279098a2"}

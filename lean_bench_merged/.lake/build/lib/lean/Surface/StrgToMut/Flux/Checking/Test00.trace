@@ -21,7 +21,7 @@
          "82cac30fa3122442"],
         ["Surface.StrgToMut.Flux.VC.Test00:importAllArts", "4b717a9af62ac552"],
         ["Surface.StrgToMut.User.Proof.Test00Proof transitive imports (legacy)",
-         "2da3bfd2a223ff5a"],
+         "f06d166a480d9c95"],
         ["Surface.StrgToMut.User.Proof.Test00Proof:importAllArts",
          "61ab2e7c44901ff4"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.StrgToMut.Flux.Checking.Test00", "03643289dc13b491"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "abb6b0ee7c6d09d1"}
+ "depHash": "27bbb4f232e923b7"}

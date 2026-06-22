@@ -22,7 +22,7 @@
         ["Enums.Pos00.Flux.VC.Impl__0__IsOne:importAllArts",
          "0b73121c41c564a0"],
         ["Enums.Pos00.User.Proof.Impl__0__IsOneProof transitive imports (legacy)",
-         "17e75d2cd6a868aa"],
+         "7a6a748ab407ecdd"],
         ["Enums.Pos00.User.Proof.Impl__0__IsOneProof:importAllArts",
          "69f40fbb4784aeca"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Enums.Pos00.Flux.Checking.Impl__0__IsOne", "2c59fdfce2fde25e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e52228e1d7354613"}
+ "depHash": "ed6306d953998fa9"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.OpaqueStruct00.Basic transitive imports (legacy)",
-         "44593b7d5cc7b505"],
+         "feaa11b91ca088a8"],
         ["Structs.OpaqueStruct00.Basic:importAllArts", "6dc9403c6d1c56a7"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Structs.OpaqueStruct00", "48fe5a22a7ec51fa"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "38af063e7131dbb5"}
+ "depHash": "9ea52905d8163c93"}

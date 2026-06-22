@@ -21,7 +21,7 @@
          "8ff9345bf99a46d4"],
         ["Surface.Float03.Flux.VC.DivEuclid:importAllArts", "98f79140e6832c03"],
         ["Surface.Float03.User.Proof.DivEuclidProof transitive imports (legacy)",
-         "656dac164ef9e661"],
+         "422793845e1b21e6"],
         ["Surface.Float03.User.Proof.DivEuclidProof:importAllArts",
          "65d3bd5c602640c5"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Float03.Flux.Checking.DivEuclid", "7883feefc0c3cd80"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b5850977d30ac967"}
+ "depHash": "57f9cb8a50571e9f"}

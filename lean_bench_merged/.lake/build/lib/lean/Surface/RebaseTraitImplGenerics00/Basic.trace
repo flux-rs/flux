@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.RebaseTraitImplGenerics00.Flux.Checking.Test transitive imports (legacy)",
-         "c500064b85ed1f96"],
+         "9209fec111049cbd"],
         ["Surface.RebaseTraitImplGenerics00.Flux.Checking.Test:importAllArts",
          "9dacb9514157855d"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.RebaseTraitImplGenerics00.Basic", "c67b7dddb84353bf"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "49c465ecd37e3678"}
+ "depHash": "36b5362e9ef92532"}

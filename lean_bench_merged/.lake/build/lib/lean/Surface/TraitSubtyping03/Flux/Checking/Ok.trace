@@ -22,7 +22,7 @@
         ["Surface.TraitSubtyping03.Flux.VC.Ok:importAllArts",
          "2e453e145b807620"],
         ["Surface.TraitSubtyping03.User.Proof.OkProof transitive imports (legacy)",
-         "8246e012f46411c8"],
+         "748c3ff3f0d281bf"],
         ["Surface.TraitSubtyping03.User.Proof.OkProof:importAllArts",
          "dc54636071dd1d3d"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "2f77cc9c847ba3cd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "98cc4afaf72cbc05"}
+ "depHash": "51efef9ca7fa2aae"}

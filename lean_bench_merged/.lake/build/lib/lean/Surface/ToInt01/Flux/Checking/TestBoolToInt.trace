@@ -22,7 +22,7 @@
         ["Surface.ToInt01.Flux.VC.TestBoolToInt:importAllArts",
          "064ce8c02502475c"],
         ["Surface.ToInt01.User.Proof.TestBoolToIntProof transitive imports (legacy)",
-         "81827fd9bd86308d"],
+         "2928dda6bf30521a"],
         ["Surface.ToInt01.User.Proof.TestBoolToIntProof:importAllArts",
          "627ce5429704d90b"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "75c1f9445a4bc0d5"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b205d3a6e9915dbf"}
+ "depHash": "30bdb682008e59a8"}

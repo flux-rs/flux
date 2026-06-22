@@ -20,7 +20,7 @@
          "a655e69ab32adc7f"],
         ["Surface.Kmeans.Flux.VC.Add:importAllArts", "6127d407601d2f33"],
         ["Surface.Kmeans.User.Proof.AddProof transitive imports (legacy)",
-         "4c6cf657fde55424"],
+         "ad5146dd895704ab"],
         ["Surface.Kmeans.User.Proof.AddProof:importAllArts",
          "5f8ccb18916cec2c"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Surface.Kmeans.Flux.Checking.Add", "1c53c437fb4db827"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ba74d97e2cbd42af"}
+ "depHash": "928eafd39d4b4d4d"}

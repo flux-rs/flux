@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.Tuple00.Basic transitive imports (legacy)",
-         "1374749232540e3c"],
+         "c1c474c5986079ee"],
         ["Structs.Tuple00.Basic:importAllArts", "a65d5107d20ea2bf"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Structs.Tuple00", "18d0d8f78f7c5dc1"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "24b12cf0a4692fb8"}
+ "depHash": "58fae0be734ca510"}

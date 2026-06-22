@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Ealias02.Basic transitive imports (legacy)",
-         "540e837b4341c23b"],
+         "9217209fb4d0164f"],
         ["Surface.Ealias02.Basic:importAllArts", "8b95c86de42943f2"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Ealias02", "250fda78f2c29016"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "36e4b150db70bf89"}
+ "depHash": "d0d04e09ccd6be4d"}

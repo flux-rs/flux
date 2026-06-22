@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["FnPtrs.Fnptr01.Basic transitive imports (legacy)",
-         "87665617ea8fe549"],
+         "ced05b80a450da80"],
         ["FnPtrs.Fnptr01.Basic:importAllArts", "7464014254c64b15"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: FnPtrs.Fnptr01", "2b5d5623135354a3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "13168eae331496dc"}
+ "depHash": "7bf098a6822e897c"}

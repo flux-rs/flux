@@ -22,7 +22,7 @@
         ["Surface.Bcopy.Flux.VC.RvecImpl__4__IndexMut:importAllArts",
          "6b7a35a8c4da104a"],
         ["Surface.Bcopy.User.Proof.RvecImpl__4__IndexMutProof transitive imports (legacy)",
-         "38bd358cc045a6cc"],
+         "bb58fe02937cf723"],
         ["Surface.Bcopy.User.Proof.RvecImpl__4__IndexMutProof:importAllArts",
          "6a7d55169dd55868"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "0373463bb31e62ad"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "911b65e1791ecb7c"}
+ "depHash": "4a45a259b062a184"}

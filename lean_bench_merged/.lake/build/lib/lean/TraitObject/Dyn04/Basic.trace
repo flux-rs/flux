@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["TraitObject.Dyn04.Flux.Checking.ApplyClosureToAnimal transitive imports (legacy)",
-         "19f7db5a9a352254"],
+         "6a79671bd3c19de9"],
         ["TraitObject.Dyn04.Flux.Checking.ApplyClosureToAnimal:importAllArts",
          "a12d10aa6218cd62"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: TraitObject.Dyn04.Basic", "39a8ee205a9fa315"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "29f2ebc816f80f45"}
+ "depHash": "5f9309a330a9d3b0"}

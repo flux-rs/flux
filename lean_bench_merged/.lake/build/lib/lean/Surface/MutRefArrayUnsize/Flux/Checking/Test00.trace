@@ -22,7 +22,7 @@
         ["Surface.MutRefArrayUnsize.Flux.VC.Test00:importAllArts",
          "3d3f0096e390ba27"],
         ["Surface.MutRefArrayUnsize.User.Proof.Test00Proof transitive imports (legacy)",
-         "3c4b846c4fe1482f"],
+         "60b9f801569a94c8"],
         ["Surface.MutRefArrayUnsize.User.Proof.Test00Proof:importAllArts",
          "debc016d53c1f3ff"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "a3154c6b0c60aa9d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1c880c65039cd971"}
+ "depHash": "5593a6c6a4b59778"}

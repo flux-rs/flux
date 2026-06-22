@@ -22,7 +22,7 @@
         ["Surface.UnblockMutMutRef.Flux.VC.BobTest01Simple:importAllArts",
          "64c326e070938b22"],
         ["Surface.UnblockMutMutRef.User.Proof.BobTest01SimpleProof transitive imports (legacy)",
-         "32f7eec5f8266fc3"],
+         "92bc5c91be6e1d84"],
         ["Surface.UnblockMutMutRef.User.Proof.BobTest01SimpleProof:importAllArts",
          "9fece1e683737103"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "16df4f470c359423"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "facdae825e185577"}
+ "depHash": "38c78c62ddda99c8"}

@@ -18,7 +18,7 @@
    "ExternSpecs/FluxCoreAlloc00/User/Proof/TestFromInvalidProof.lean:71:2: [solve_fixpoint] closed by: aesop",
    "level": "info"},
   {"message":
-   "ExternSpecs/FluxCoreAlloc00/User/Proof/TestFromInvalidProof.lean:69:0: time: 87ms",
+   "ExternSpecs/FluxCoreAlloc00/User/Proof/TestFromInvalidProof.lean:69:0: time: 114ms",
    "level": "info"},
   {"message":
    "ExternSpecs/FluxCoreAlloc00/User/Proof/TestFromInvalidProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -29,7 +29,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["ExternSpecs.FluxCoreAlloc00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -54,4 +54,4 @@
    "3d72e6a23cc38c60"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5a3b91b3059a2897"}
+ "depHash": "922e2b30483806cf"}

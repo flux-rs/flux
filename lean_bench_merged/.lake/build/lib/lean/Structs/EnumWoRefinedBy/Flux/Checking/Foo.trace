@@ -22,7 +22,7 @@
         ["Structs.EnumWoRefinedBy.Flux.VC.Foo:importAllArts",
          "ea60db75b9bf62eb"],
         ["Structs.EnumWoRefinedBy.User.Proof.FooProof transitive imports (legacy)",
-         "03823a8e7e092789"],
+         "89e69b1fb6751576"],
         ["Structs.EnumWoRefinedBy.User.Proof.FooProof:importAllArts",
          "b38fca945cb8b522"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "6e1e071ee457e156"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "dc987b6f44ed2461"}
+ "depHash": "ed74d465d4d7fef6"}

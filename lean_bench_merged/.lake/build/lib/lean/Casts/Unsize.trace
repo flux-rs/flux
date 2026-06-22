@@ -14,7 +14,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["Casts.Unsize.Basic transitive imports (legacy)", "c3b816232b851056"],
+       [["Casts.Unsize.Basic transitive imports (legacy)", "bcdfc2320de78353"],
         ["Casts.Unsize.Basic:importAllArts", "883e6c48dba8d237"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -30,4 +30,4 @@
   ["Module.name: Casts.Unsize", "e5416ffcb4cd7dbf"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c75514546ed2026a"}
+ "depHash": "71e054fb1ffc00b5"}

@@ -21,7 +21,7 @@
          "47c023f718c1049c"],
         ["Surface.Ptr01.Flux.VC.BufferWrite:importAllArts", "43e4ff4ece839f95"],
         ["Surface.Ptr01.User.Proof.BufferWriteProof transitive imports (legacy)",
-         "46bb928cce8596e8"],
+         "58d8608ff9a15377"],
         ["Surface.Ptr01.User.Proof.BufferWriteProof:importAllArts",
          "b1c0f2b6aaca00ec"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Ptr01.Flux.Checking.BufferWrite", "2786ed4790770f55"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "116018103006cb9f"}
+ "depHash": "e31edcba5b53a28c"}

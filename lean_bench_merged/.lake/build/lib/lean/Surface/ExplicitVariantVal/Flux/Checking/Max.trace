@@ -22,7 +22,7 @@
         ["Surface.ExplicitVariantVal.Flux.VC.Max:importAllArts",
          "d6e0be9b55e6a58c"],
         ["Surface.ExplicitVariantVal.User.Proof.MaxProof transitive imports (legacy)",
-         "06ec89d0acbe8ae2"],
+         "13a61f5d60cb572d"],
         ["Surface.ExplicitVariantVal.User.Proof.MaxProof:importAllArts",
          "c77324933a2f8d06"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "3c282f5b5f213573"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "001df642faf095d7"}
+ "depHash": "bdc3739a9a589849"}

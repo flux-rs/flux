@@ -21,7 +21,7 @@
          "7de018e55ebd9ae3"],
         ["Surface.Issue73.Flux.VC.IsNegMut:importAllArts", "9ebc4c0e502b7257"],
         ["Surface.Issue73.User.Proof.IsNegMutProof transitive imports (legacy)",
-         "0fa526bc3d728ac4"],
+         "3423ff31813fd26b"],
         ["Surface.Issue73.User.Proof.IsNegMutProof:importAllArts",
          "46c5b902f2a04346"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Issue73.Flux.Checking.IsNegMut", "e0e1993d5904d120"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a7272e384401a922"}
+ "depHash": "9ced6b0312e3379c"}

@@ -21,7 +21,7 @@
          "7d4cb9f93ea69a21"],
         ["Surface.Kmp.Flux.VC.KmpTable:importAllArts", "0f50e8d2e1e04639"],
         ["Surface.Kmp.User.Proof.KmpTableProof transitive imports (legacy)",
-         "a5720dbbe16f5989"],
+         "e8a3b883840936be"],
         ["Surface.Kmp.User.Proof.KmpTableProof:importAllArts",
          "0cfab2187b563f77"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Kmp.Flux.Checking.KmpTable", "17a60ff3819d875a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "95877718e39e217b"}
+ "depHash": "e6d61bd23ce1d171"}

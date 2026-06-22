@@ -22,7 +22,7 @@
         ["Surface.Division.Flux.VC.DivUnsigned:importAllArts",
          "bb32f938a664b7e3"],
         ["Surface.Division.User.Proof.DivUnsignedProof transitive imports (legacy)",
-         "d52148fa8975aec8"],
+         "698dcb997fab6e4f"],
         ["Surface.Division.User.Proof.DivUnsignedProof:importAllArts",
          "a54e7a5eec96abef"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "5682b14f4154f51e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "80da81194983bad3"}
+ "depHash": "6d9c690f6c28a30e"}

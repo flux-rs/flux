@@ -22,7 +22,7 @@
         ["Surface.Closure12.Flux.VC.TestMapFoo:importAllArts",
          "ec78d470c3f0b92a"],
         ["Surface.Closure12.User.Proof.TestMapFooProof transitive imports (legacy)",
-         "014d926d4b5258c2"],
+         "ca78af41de14c4c5"],
         ["Surface.Closure12.User.Proof.TestMapFooProof:importAllArts",
          "9af3680f6bf12e9e"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "d47f5e7005943a81"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6d764d18b4270c30"}
+ "depHash": "a6bcd25b0d77eff3"}

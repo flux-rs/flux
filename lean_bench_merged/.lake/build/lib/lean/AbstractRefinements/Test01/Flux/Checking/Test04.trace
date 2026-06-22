@@ -22,7 +22,7 @@
         ["AbstractRefinements.Test01.Flux.VC.Test04:importAllArts",
          "caeb32513c545f79"],
         ["AbstractRefinements.Test01.User.Proof.Test04Proof transitive imports (legacy)",
-         "14cf7b9dc3cc77cf"],
+         "a02a7b03d05ccbb0"],
         ["AbstractRefinements.Test01.User.Proof.Test04Proof:importAllArts",
          "6db3e0e3664ee676"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "a44932d838667837"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b2110a7f2ca148fe"}
+ "depHash": "162a1eab4e74a049"}

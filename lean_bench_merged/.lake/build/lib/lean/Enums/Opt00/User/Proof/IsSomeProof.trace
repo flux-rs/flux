@@ -14,7 +14,7 @@
   {"message":
    "Enums/Opt00/User/Proof/IsSomeProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Enums/Opt00/User/Proof/IsSomeProof.lean:69:0: time: 10ms",
+  {"message": "Enums/Opt00/User/Proof/IsSomeProof.lean:69:0: time: 11ms",
    "level": "info"},
   {"message":
    "Enums/Opt00/User/Proof/IsSomeProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -25,7 +25,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Enums.Opt00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -47,4 +47,4 @@
   ["Module.name: Enums.Opt00.User.Proof.IsSomeProof", "d7e0a8c6035c5d9b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2846819393e1f03d"}
+ "depHash": "e8070ba5393699bd"}

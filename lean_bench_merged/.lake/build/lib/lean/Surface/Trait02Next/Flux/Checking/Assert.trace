@@ -22,7 +22,7 @@
         ["Surface.Trait02Next.Flux.VC.Assert:importAllArts",
          "271503e3b9885607"],
         ["Surface.Trait02Next.User.Proof.AssertProof transitive imports (legacy)",
-         "b520bad2ed07c1bc"],
+         "eed890cb22da9ed3"],
         ["Surface.Trait02Next.User.Proof.AssertProof:importAllArts",
          "9c7afb0f8cc082fc"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.Trait02Next.Flux.Checking.Assert", "51cffa45c1517074"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "60f6640f4db9bbd3"}
+ "depHash": "f8360a4831b93459"}

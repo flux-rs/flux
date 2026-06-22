@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["OpaqueSorts.Seq00.Basic transitive imports (legacy)",
-         "57f630ab08741a27"],
+         "bdec48ef38058d55"],
         ["OpaqueSorts.Seq00.Basic:importAllArts", "c34b491085b974e6"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: OpaqueSorts.Seq00", "1f20ab79d6b603b0"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7e7be7e11c2aca26"}
+ "depHash": "9361222578e4e529"}

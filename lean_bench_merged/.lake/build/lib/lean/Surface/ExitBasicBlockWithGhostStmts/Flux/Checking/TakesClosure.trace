@@ -22,7 +22,7 @@
         ["Surface.ExitBasicBlockWithGhostStmts.Flux.VC.TakesClosure:importAllArts",
          "2a998970cf2d7e0c"],
         ["Surface.ExitBasicBlockWithGhostStmts.User.Proof.TakesClosureProof transitive imports (legacy)",
-         "f56bc4e35bcb5a8f"],
+         "f745abe53fa90f48"],
         ["Surface.ExitBasicBlockWithGhostStmts.User.Proof.TakesClosureProof:importAllArts",
          "6a2b0025a0f73593"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "cf2daf4e1d433a10"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f9a83581c319eac8"}
+ "depHash": "a6c1d8ba2aeaeb44"}

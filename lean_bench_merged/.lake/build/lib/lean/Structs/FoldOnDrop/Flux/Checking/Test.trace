@@ -21,7 +21,7 @@
          "afc870fe4030f8f4"],
         ["Structs.FoldOnDrop.Flux.VC.Test:importAllArts", "2db55ec2163a9ff0"],
         ["Structs.FoldOnDrop.User.Proof.TestProof transitive imports (legacy)",
-         "84be90861febcf6e"],
+         "de3afe1564f03fe1"],
         ["Structs.FoldOnDrop.User.Proof.TestProof:importAllArts",
          "cea736edfa37efe4"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.FoldOnDrop.Flux.Checking.Test", "b72a8a4aea751568"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "85e487d65ebf5bde"}
+ "depHash": "c6f5301f9aa8ee3a"}

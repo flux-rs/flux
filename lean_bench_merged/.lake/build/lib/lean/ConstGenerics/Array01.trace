@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ConstGenerics.Array01.Basic transitive imports (legacy)",
-         "abfc49626b010268"],
+         "a9d7498b021b042c"],
         ["ConstGenerics.Array01.Basic:importAllArts", "8f5b1fe177e36a5e"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: ConstGenerics.Array01", "4e409be11c2a9480"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b4e243ae2dcec06c"}
+ "depHash": "2ca654e7df516e31"}

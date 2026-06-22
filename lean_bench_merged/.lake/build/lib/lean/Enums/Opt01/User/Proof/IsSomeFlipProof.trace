@@ -17,7 +17,7 @@
   {"message":
    "Enums/Opt01/User/Proof/IsSomeFlipProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Enums/Opt01/User/Proof/IsSomeFlipProof.lean:69:0: time: 163ms",
+  {"message": "Enums/Opt01/User/Proof/IsSomeFlipProof.lean:69:0: time: 86ms",
    "level": "info"},
   {"message":
    "Enums/Opt01/User/Proof/IsSomeFlipProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ b₀, b₀ = False ∧ (z0 = False ∧ z1 = False) ∧ z2 = b₀ ∨ b₀ = True ∧ ∃ a'₀, (z0 = True ∧ z1 = True) ∧ z2 = b₀\n[solve]   lam = fun z0 z1 z2 =>\n  ∃ b₀, b₀ = False ∧ (z0 = False ∧ z1 = False) ∧ z2 = b₀ ∨ b₀ = True ∧ ∃ a'₀, (z0 = True ∧ z1 = True) ∧ z2 = b₀",
@@ -28,7 +28,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Enums.Opt01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -51,4 +51,4 @@
   ["Module.name: Enums.Opt01.User.Proof.IsSomeFlipProof", "c7c0702c5958dfb7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "400dda5182987bc7"}
+ "depHash": "aec702f18111c670"}

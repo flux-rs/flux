@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Tuple00.Basic transitive imports (legacy)",
-         "da145b87da8528fd"],
+         "88cfa1e2ef23d8ff"],
         ["Surface.Tuple00.Basic:importAllArts", "2d7251dfb8b5a234"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Tuple00", "82831b62fc4b9172"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c7f52a8f9aa151b9"}
+ "depHash": "7e19c87cd6c86777"}

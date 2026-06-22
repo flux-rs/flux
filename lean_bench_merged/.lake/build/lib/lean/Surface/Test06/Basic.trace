@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Test06.Flux.Checking.Double transitive imports (legacy)",
-         "f07326be758aaa97"],
+         "02d172043d80288f"],
         ["Surface.Test06.Flux.Checking.Double:importAllArts",
          "846e80e26b37a72c"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.Test06.Basic", "e0efb3d299b7a639"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "67ddeb154c554f27"}
+ "depHash": "f400389ce4261990"}

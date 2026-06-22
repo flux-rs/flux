@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.TrustedImplTrans00.Basic transitive imports (legacy)",
-         "e5ab2a0a20891102"],
+         "e956bd76af94e1af"],
         ["Surface.TrustedImplTrans00.Basic:importAllArts",
          "5e84e4493c6e4723"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.TrustedImplTrans00", "70c996acb63cc3e8"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2e094b1f90158992"}
+ "depHash": "781de91e932f40f2"}

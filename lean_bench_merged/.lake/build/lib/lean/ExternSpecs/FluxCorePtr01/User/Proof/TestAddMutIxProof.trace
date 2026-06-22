@@ -21,7 +21,7 @@
    "ExternSpecs/FluxCorePtr01/User/Proof/TestAddMutIxProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddMutIxProof.lean:69:0: time: 41ms",
+   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddMutIxProof.lean:69:0: time: 37ms",
    "level": "info"},
   {"message":
    "ExternSpecs/FluxCorePtr01/User/Proof/TestAddMutIxProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -32,7 +32,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["ExternSpecs.FluxCorePtr01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -57,4 +57,4 @@
    "47b361afc07d1c45"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "df4a2bd5c974a9fa"}
+ "depHash": "8a3acc4dda6801aa"}

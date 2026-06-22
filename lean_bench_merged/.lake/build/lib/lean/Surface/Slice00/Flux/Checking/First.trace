@@ -21,7 +21,7 @@
          "745888726de9882a"],
         ["Surface.Slice00.Flux.VC.First:importAllArts", "e4882c55a1b022e6"],
         ["Surface.Slice00.User.Proof.FirstProof transitive imports (legacy)",
-         "a0f8aa9ba764b6b3"],
+         "2e4d9583e2592bc4"],
         ["Surface.Slice00.User.Proof.FirstProof:importAllArts",
          "556a08893c333be4"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Slice00.Flux.Checking.First", "b822e2ca5d4c3e4a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "66dae2fff563e179"}
+ "depHash": "f07fcf38c89b5123"}

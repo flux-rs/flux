@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.EnumMatchShrRef00.Basic transitive imports (legacy)",
-         "f2da7b0f6b1cf29f"],
+         "b9cdd700ba4afbe6"],
         ["Structs.EnumMatchShrRef00.Basic:importAllArts",
          "3094dd51d2bb8efe"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Structs.EnumMatchShrRef00", "f04515640d0f118b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f73fd9b88ba20854"}
+ "depHash": "13ae9dbf43b01669"}

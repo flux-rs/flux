@@ -21,7 +21,7 @@
          "a655e69ab32adc7f"],
         ["Surface.Kmeans.Flux.VC.Nearest:importAllArts", "19f4563c8894bb53"],
         ["Surface.Kmeans.User.Proof.NearestProof transitive imports (legacy)",
-         "bc72c57206912f9a"],
+         "d6959cdbd8b52c8d"],
         ["Surface.Kmeans.User.Proof.NearestProof:importAllArts",
          "14900a52bbab84a2"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Kmeans.Flux.Checking.Nearest", "9d06d67d14f8d02d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "29166e2da5900f97"}
+ "depHash": "e2188eca1ce27f66"}

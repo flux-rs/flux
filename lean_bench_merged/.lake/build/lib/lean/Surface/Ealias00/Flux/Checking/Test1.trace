@@ -21,7 +21,7 @@
          "00e1b674b55fd1ae"],
         ["Surface.Ealias00.Flux.VC.Test1:importAllArts", "db6f27e568dc390c"],
         ["Surface.Ealias00.User.Proof.Test1Proof transitive imports (legacy)",
-         "9aa942f027a0a0d6"],
+         "ef0ee67c379268d9"],
         ["Surface.Ealias00.User.Proof.Test1Proof:importAllArts",
          "5175a4422bcd7d6d"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Ealias00.Flux.Checking.Test1", "822fbf49c6c97172"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e2b632bf139213d1"}
+ "depHash": "65348a78e621d7dd"}

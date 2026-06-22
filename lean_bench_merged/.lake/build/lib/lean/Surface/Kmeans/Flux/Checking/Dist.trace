@@ -21,7 +21,7 @@
          "a655e69ab32adc7f"],
         ["Surface.Kmeans.Flux.VC.Dist:importAllArts", "c033f3fe01f01c2e"],
         ["Surface.Kmeans.User.Proof.DistProof transitive imports (legacy)",
-         "6b7c5de40c0b78f1"],
+         "e69c14ba3f8057be"],
         ["Surface.Kmeans.User.Proof.DistProof:importAllArts",
          "bbacd6ac073ed032"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Kmeans.Flux.Checking.Dist", "7cd3b0c7dbbd0cc6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "fed6f1e691b9b86f"}
+ "depHash": "13e09359173afd77"}

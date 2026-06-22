@@ -21,7 +21,7 @@
          "891e0e66ed77b69a"],
         ["Surface.Literals00.Flux.VC.Hex02:importAllArts", "d76e9fd319f25805"],
         ["Surface.Literals00.User.Proof.Hex02Proof transitive imports (legacy)",
-         "616f0adf8510cace"],
+         "6c995a01242c9b91"],
         ["Surface.Literals00.User.Proof.Hex02Proof:importAllArts",
          "875faf9b420057d0"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Literals00.Flux.Checking.Hex02", "153c95d7c270a93a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5e2fec52bed7b85f"}
+ "depHash": "bd2c2eb2466b7f2f"}

@@ -22,7 +22,7 @@
         ["Casts.FloatToInt.Flux.VC.FloatToInt:importAllArts",
          "7ebe41ce7ac5428c"],
         ["Casts.FloatToInt.User.Proof.FloatToIntProof transitive imports (legacy)",
-         "56b0193712b02d05"],
+         "b5b2041d01ec3caa"],
         ["Casts.FloatToInt.User.Proof.FloatToIntProof:importAllArts",
          "47fdc17bf5ef246f"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "d56acc22b46104a2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "262b4d6db1c7a5d5"}
+ "depHash": "6081e634bd92cdf0"}

@@ -22,7 +22,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Ealias02.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -45,4 +45,4 @@
   ["Module.name: Surface.Ealias02.User.Proof.Test1Proof", "328c6d2abff19e1e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b09c3d78772b3682"}
+ "depHash": "d385903b3b4c93db"}

@@ -21,7 +21,7 @@
          "780d1dcf828f00e9"],
         ["Surface.Async01.Flux.VC.Jazz:importAllArts", "1d30d7bde5ceb9c7"],
         ["Surface.Async01.User.Proof.JazzProof transitive imports (legacy)",
-         "33784e4ccb230b9a"],
+         "8025f0f49f39076d"],
         ["Surface.Async01.User.Proof.JazzProof:importAllArts",
          "e8db4bce7c3e40f1"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Async01.Flux.Checking.Jazz", "14c9c4972ecf2b4f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "522c730239b9003c"}
+ "depHash": "e98452a31215c2bd"}

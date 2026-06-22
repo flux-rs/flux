@@ -21,7 +21,7 @@
          "99b480bb33972d2e"],
         ["Surface.OptBlowup.Flux.VC.Burpi:importAllArts", "5f83d589595b4c90"],
         ["Surface.OptBlowup.User.Proof.BurpiProof transitive imports (legacy)",
-         "e438a9db72530037"],
+         "971ce6f077da5488"],
         ["Surface.OptBlowup.User.Proof.BurpiProof:importAllArts",
          "6b334aba1bf95521"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.OptBlowup.Flux.Checking.Burpi", "175acb19713e6f38"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0cad2ca0a65bbdb3"}
+ "depHash": "6154a9fe9f6e7984"}

@@ -21,7 +21,7 @@
          "5cd20599b838bf6d"],
         ["Surface.ToInt00.Flux.VC.TestDigit:importAllArts", "8800b7ea17488e7a"],
         ["Surface.ToInt00.User.Proof.TestDigitProof transitive imports (legacy)",
-         "8939c2805b06100f"],
+         "74d9d3671d27baa0"],
         ["Surface.ToInt00.User.Proof.TestDigitProof:importAllArts",
          "ae912d63b58c0448"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.ToInt00.Flux.Checking.TestDigit", "26c6cb7d57f7907a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2606fc57942bbd36"}
+ "depHash": "94f9727051627d98"}

@@ -22,7 +22,7 @@
         ["ExternSpecs.FluxCoreAlloc00.Flux.VC.TestFromInvalid:importAllArts",
          "1535be4fc1bb5cc5"],
         ["ExternSpecs.FluxCoreAlloc00.User.Proof.TestFromInvalidProof transitive imports (legacy)",
-         "b11902da015e18ea"],
+         "7a0be48c12c9fa2d"],
         ["ExternSpecs.FluxCoreAlloc00.User.Proof.TestFromInvalidProof:importAllArts",
          "62feabf57e29d250"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "1d7afca7d15d8470"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0a45b4f242ad3ba3"}
+ "depHash": "002744778c19fa81"}

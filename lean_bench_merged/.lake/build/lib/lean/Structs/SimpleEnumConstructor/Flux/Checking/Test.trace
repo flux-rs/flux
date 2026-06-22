@@ -22,7 +22,7 @@
         ["Structs.SimpleEnumConstructor.Flux.VC.Test:importAllArts",
          "7d2b4ebf4635af01"],
         ["Structs.SimpleEnumConstructor.User.Proof.TestProof transitive imports (legacy)",
-         "b2fa474d26c96796"],
+         "073b34ae275d6a61"],
         ["Structs.SimpleEnumConstructor.User.Proof.TestProof:importAllArts",
          "329ea2ac85207a4d"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "f8a012bbc54dfb0e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5f0844ac8364ff7a"}
+ "depHash": "33829631d56ea029"}

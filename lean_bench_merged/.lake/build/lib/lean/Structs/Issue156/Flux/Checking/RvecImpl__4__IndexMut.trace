@@ -22,7 +22,7 @@
         ["Structs.Issue156.Flux.VC.RvecImpl__4__IndexMut:importAllArts",
          "643ff74cf42a9fe2"],
         ["Structs.Issue156.User.Proof.RvecImpl__4__IndexMutProof transitive imports (legacy)",
-         "dc05178aef19c6cd"],
+         "0c3eb9bfa822d7f2"],
         ["Structs.Issue156.User.Proof.RvecImpl__4__IndexMutProof:importAllArts",
          "b7262fd530e5540a"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "f214af9114d5cabc"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "75519277807b53d1"}
+ "depHash": "3ad6660ade7bb1bb"}

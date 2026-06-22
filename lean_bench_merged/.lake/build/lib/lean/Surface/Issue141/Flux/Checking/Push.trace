@@ -21,7 +21,7 @@
          "bbf16f1310a12dbe"],
         ["Surface.Issue141.Flux.VC.Push:importAllArts", "ebc1dcd4176cb555"],
         ["Surface.Issue141.User.Proof.PushProof transitive imports (legacy)",
-         "cf46cb14e6f3b024"],
+         "82af503f6201d563"],
         ["Surface.Issue141.User.Proof.PushProof:importAllArts",
          "71284e73239b12e0"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Issue141.Flux.Checking.Push", "a323f0eee91f5b1e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9dd22fc2d1fcc422"}
+ "depHash": "6774e1c7e6ff2f9e"}

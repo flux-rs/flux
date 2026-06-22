@@ -21,7 +21,7 @@
          "25b7476e3a156f75"],
         ["Surface.Closure02.Flux.VC.Bob:importAllArts", "701db405a20cbd1d"],
         ["Surface.Closure02.User.Proof.BobProof transitive imports (legacy)",
-         "16693ece50bb0767"],
+         "a2ce8bfa73876f10"],
         ["Surface.Closure02.User.Proof.BobProof:importAllArts",
          "5f74c43f42696495"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Closure02.Flux.Checking.Bob", "0380dd50eff81c61"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9225b6d3a0ed2736"}
+ "depHash": "2b711a8dd631d120"}

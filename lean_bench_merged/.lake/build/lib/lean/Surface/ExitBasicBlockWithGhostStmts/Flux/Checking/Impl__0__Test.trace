@@ -22,7 +22,7 @@
         ["Surface.ExitBasicBlockWithGhostStmts.Flux.VC.Impl__0__Test:importAllArts",
          "f160a343fa67997b"],
         ["Surface.ExitBasicBlockWithGhostStmts.User.Proof.Impl__0__TestProof transitive imports (legacy)",
-         "0dda1bd90b1d2de9"],
+         "433038f556695096"],
         ["Surface.ExitBasicBlockWithGhostStmts.User.Proof.Impl__0__TestProof:importAllArts",
          "bba6829f7685caec"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "3980e649d00d6e50"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7852e7e42b25d286"}
+ "depHash": "0e7e178afccd527b"}

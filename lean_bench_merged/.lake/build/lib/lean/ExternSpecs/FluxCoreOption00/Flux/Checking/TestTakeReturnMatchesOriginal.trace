@@ -22,7 +22,7 @@
         ["ExternSpecs.FluxCoreOption00.Flux.VC.TestTakeReturnMatchesOriginal:importAllArts",
          "567c562fe54af303"],
         ["ExternSpecs.FluxCoreOption00.User.Proof.TestTakeReturnMatchesOriginalProof transitive imports (legacy)",
-         "fa4d3f2c3bba5765"],
+         "06c141ad853ae1ea"],
         ["ExternSpecs.FluxCoreOption00.User.Proof.TestTakeReturnMatchesOriginalProof:importAllArts",
          "eea5d4113296ea41"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "474a15d75644904e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "91f67c264d43eb87"}
+ "depHash": "dd9ebeb60ed7c2b8"}

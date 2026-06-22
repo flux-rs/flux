@@ -12,7 +12,7 @@
    "Surface/LoopAbstractRefinement/User/Proof/RvecImpl__4__IndexMutProof.lean:75:2: [solve_fixpoint] closed by: native_decide",
    "level": "info"},
   {"message":
-   "Surface/LoopAbstractRefinement/User/Proof/RvecImpl__4__IndexMutProof.lean:73:0: time: 9ms",
+   "Surface/LoopAbstractRefinement/User/Proof/RvecImpl__4__IndexMutProof.lean:73:0: time: 6ms",
    "level": "info"},
   {"message":
    "Surface/LoopAbstractRefinement/User/Proof/RvecImpl__4__IndexMutProof.lean:73:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -23,7 +23,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.LoopAbstractRefinement.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -48,4 +48,4 @@
    "bd7ac4cbdf494685"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "372439324d9d9fdb"}
+ "depHash": "73557352fdfa416b"}

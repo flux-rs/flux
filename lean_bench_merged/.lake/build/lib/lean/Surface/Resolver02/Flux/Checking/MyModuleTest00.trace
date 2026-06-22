@@ -22,7 +22,7 @@
         ["Surface.Resolver02.Flux.VC.MyModuleTest00:importAllArts",
          "f1f27b75bdc27f39"],
         ["Surface.Resolver02.User.Proof.MyModuleTest00Proof transitive imports (legacy)",
-         "ad43c93317f8533a"],
+         "9a9484cc15d1898d"],
         ["Surface.Resolver02.User.Proof.MyModuleTest00Proof:importAllArts",
          "8ce5ca176b987049"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "7a066038e57c2811"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "71338e50e6714038"}
+ "depHash": "7a3b8d0f9f4b38b9"}

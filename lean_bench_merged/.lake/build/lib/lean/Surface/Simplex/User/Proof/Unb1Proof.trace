@@ -170,7 +170,7 @@
   {"message":
    "Surface/Simplex/User/Proof/Unb1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Simplex/User/Proof/Unb1Proof.lean:69:0: time: 7977ms",
+  {"message": "Surface/Simplex/User/Proof/Unb1Proof.lean:69:0: time: 8101ms",
    "level": "info"},
   {"message":
    "Surface/Simplex/User/Proof/Unb1Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1]\n[solve_fixpoint] Cyclic κ:  [k0, k2]\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₁,\n  ¬a'₁ ∧ ((z0 = z0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = a'₁ ∨\n    a'₁ ∧ ∃ i₀, ?k2 i₀ z0 z1 z2 True ∧ i₀ < z0 ∧ ∃ a'₃, ¬a'₃ ∧ ((z0 = z0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ a'₁,\n    ¬a'₁ ∧ ((z0 = z0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = a'₁ ∨\n      a'₁ ∧ ∃ i₀, ?k2 i₀ z0 z1 z2 True ∧ i₀ < z0 ∧ ∃ a'₃, ¬a'₃ ∧ ((z0 = z0 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True\n[solve_fixpoint] --- PA on cyclic κ's [k0, k2] ---\n[solve_fixpoint]   PA sol for k0 = ((((((z2 ≥ z0 ∧ z0 > 0) ∧ z1 > 0) ∧ z2 > 0) ∧ z0 ≥ 0) ∧ z1 ≥ 0) ∧ z2 ≥ 0) ∧ z0 ≤ z2\n[solve_fixpoint]   PA sol for k2 = ((((((((((((((z1 ≥ z0 ∧ z2 ≥ z3) ∧ z0 > 0) ∧ z1 > 0) ∧ z2 > 0) ∧ z3 > 0) ∧ z0 ≥ 0) ∧ z1 ≥ 0) ∧ z2 ≥ 0) ∧ z3 ≥ 0) ∧\n            z3 < z2) ∧\n          z0 ≤ z1) ∧\n        z3 ≤ z2) ∧\n      z4) ∧\n    z2 > z3) ∧\n  z3 ≤ z2 - 1",
@@ -181,7 +181,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Simplex.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -203,4 +203,4 @@
   ["Module.name: Surface.Simplex.User.Proof.Unb1Proof", "15e4d8496707a8e2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4fec59e12d0ccd98"}
+ "depHash": "fa12e5d4d3f0f327"}

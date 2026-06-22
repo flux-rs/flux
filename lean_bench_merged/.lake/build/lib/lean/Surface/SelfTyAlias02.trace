@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.SelfTyAlias02.Basic transitive imports (legacy)",
-         "6d92925c0ff5f8d9"],
+         "5866943d076e9a9d"],
         ["Surface.SelfTyAlias02.Basic:importAllArts", "c5040e63fdee5255"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.SelfTyAlias02", "0916dc293ca52dcc"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3f460f6b7df0336d"}
+ "depHash": "1630f2a461b0e7f8"}

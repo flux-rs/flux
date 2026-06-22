@@ -21,7 +21,7 @@
          "aae3d540b0089d30"],
         ["Surface.Char03.Flux.VC.CastToU8:importAllArts", "32bd803cd67e9927"],
         ["Surface.Char03.User.Proof.CastToU8Proof transitive imports (legacy)",
-         "83f73f88f3cf0172"],
+         "7eb1cf70dcc7071d"],
         ["Surface.Char03.User.Proof.CastToU8Proof:importAllArts",
          "3af209cad2f69e48"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Char03.Flux.Checking.CastToU8", "bb58f61f6bd326d2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "922f1b0bd8a2a499"}
+ "depHash": "106cc5489ba55b8f"}

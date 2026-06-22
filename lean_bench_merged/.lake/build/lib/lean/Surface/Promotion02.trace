@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Promotion02.Basic transitive imports (legacy)",
-         "34bca81a224836eb"],
+         "363a8454c5492e63"],
         ["Surface.Promotion02.Basic:importAllArts", "f3e41ce745cdd9b1"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Promotion02", "01734dce49193bc1"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "32e758ecbcc24157"}
+ "depHash": "a4c23c2abb2ce78c"}

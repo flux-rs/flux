@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.EnumJoin.Flux.Checking.Test1 transitive imports (legacy)",
-         "a34108706586aaf1"],
+         "5e84e810ea3d1fb2"],
         ["Structs.EnumJoin.Flux.Checking.Test1:importAllArts",
          "59add677e112f9ac"],
         ["Structs.EnumJoin.Flux.Checking.Test2 transitive imports (legacy)",
-         "898a9c059a671283"],
+         "febbb36278524be0"],
         ["Structs.EnumJoin.Flux.Checking.Test2:importAllArts",
          "2b6f0be8cfc1671e"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Structs.EnumJoin.Basic", "5b8b8d169d8ceb8f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f6dbed05ea94bd67"}
+ "depHash": "6427cbdb1f8c21f7"}

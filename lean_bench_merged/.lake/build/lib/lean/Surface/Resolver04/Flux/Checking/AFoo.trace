@@ -21,7 +21,7 @@
          "f71ca2336e99cbc2"],
         ["Surface.Resolver04.Flux.VC.AFoo:importAllArts", "98d8c255257443c3"],
         ["Surface.Resolver04.User.Proof.AFooProof transitive imports (legacy)",
-         "986384b6de16d1c3"],
+         "59358d3d8a95e824"],
         ["Surface.Resolver04.User.Proof.AFooProof:importAllArts",
          "e4022a5e657e509f"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Resolver04.Flux.Checking.AFoo", "f0cb1a46efd54760"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "27a8bb1754cc0761"}
+ "depHash": "beb4f5625971e371"}

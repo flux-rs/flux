@@ -21,7 +21,7 @@
          "d82f0de52d6f1e98"],
         ["Constructors.Test12.Flux.VC.Foo:importAllArts", "6cd497c5ae429676"],
         ["Constructors.Test12.User.Proof.FooProof transitive imports (legacy)",
-         "6d5cf8a38d442916"],
+         "6ca7ea6d7d4bf231"],
         ["Constructors.Test12.User.Proof.FooProof:importAllArts",
          "b89a7a37fd61b736"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Constructors.Test12.Flux.Checking.Foo", "c04aeccfed4cbe85"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f176063214533e4b"}
+ "depHash": "2c0b28d6d0ed4466"}

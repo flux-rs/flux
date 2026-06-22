@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Primops00.Basic transitive imports (legacy)",
-         "b7b536947976678b"],
+         "f84b1cd26b791979"],
         ["Surface.Primops00.Basic:importAllArts", "9c0912db7f3a2bde"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Primops00", "76664a7a24390e83"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "47d529f984153187"}
+ "depHash": "d0f66a42e390915f"}

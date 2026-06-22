@@ -21,7 +21,7 @@
          "47c023f718c1049c"],
         ["Surface.Ptr01.Flux.VC.GetMut:importAllArts", "0792f6e2776964fd"],
         ["Surface.Ptr01.User.Proof.GetMutProof transitive imports (legacy)",
-         "4aa6b0fd07c00118"],
+         "c9e0bd2037cd0e07"],
         ["Surface.Ptr01.User.Proof.GetMutProof:importAllArts",
          "b0ec85e01ef9101d"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Ptr01.Flux.Checking.GetMut", "3d62b620277b68fa"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e257aeda03e5bf71"}
+ "depHash": "7859110675b0467f"}

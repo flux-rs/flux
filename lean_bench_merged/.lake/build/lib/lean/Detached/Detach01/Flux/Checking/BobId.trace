@@ -21,7 +21,7 @@
          "c7dd4ffaae63c5d5"],
         ["Detached.Detach01.Flux.VC.BobId:importAllArts", "8eb5bc8c22c54654"],
         ["Detached.Detach01.User.Proof.BobIdProof transitive imports (legacy)",
-         "fb31e971a3969dd9"],
+         "6ff4c94bc2c7c30e"],
         ["Detached.Detach01.User.Proof.BobIdProof:importAllArts",
          "82cbb2ee37e9876a"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Detached.Detach01.Flux.Checking.BobId", "ae888de5e904e878"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f8de3ea7104f811c"}
+ "depHash": "4c765941408942c6"}

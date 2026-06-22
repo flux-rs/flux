@@ -50,7 +50,7 @@
   {"message":
    "Surface/Join01/User/Proof/FooProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Join01/User/Proof/FooProof.lean:69:0: time: 569ms",
+  {"message": "Surface/Join01/User/Proof/FooProof.lean:69:0: time: 573ms",
    "level": "info"},
   {"message":
    "Surface/Join01/User/Proof/FooProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1, k2, k3]\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve] --- k1 ---\n[solve]   sol = ∃ b₀, ¬b₀ ∧ z0 = b₀ ∨ b₀ ∧ z0 = True\n[solve]   lam = fun z0 => ∃ b₀, ¬b₀ ∧ z0 = b₀ ∨ b₀ ∧ z0 = True\n[solve] --- k2 ---\n[solve]   sol = ∃ b₀, (¬b₀ ∧ ∃ a'₁, ?k0 a'₁ b₀ ∧ z0 = a'₁ ∧ z1 = b₀) ∨ b₀ ∧ z0 = 1 ∧ z1 = True\n[solve]   lam = fun z0 z1 => ∃ b₀, (¬b₀ ∧ ∃ a'₁, ?k0 a'₁ b₀ ∧ z0 = a'₁ ∧ z1 = b₀) ∨ b₀ ∧ z0 = 1 ∧ z1 = True\n[solve] --- k3 ---\n[solve]   sol = ∃ b₀, (¬b₀ ∧ ∃ a'₂, ?k0 a'₂ b₀ ∧ z0 = a'₂ ∧ z1 = b₀) ∨ b₀ ∧ z0 = 0 ∧ z1 = True\n[solve]   lam = fun z0 z1 => ∃ b₀, (¬b₀ ∧ ∃ a'₂, ?k0 a'₂ b₀ ∧ z0 = a'₂ ∧ z1 = b₀) ∨ b₀ ∧ z0 = 0 ∧ z1 = True\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = (z0 ≥ 0 ∧ z0 > 0) ∧ ¬z1",
@@ -61,7 +61,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Join01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -83,4 +83,4 @@
   ["Module.name: Surface.Join01.User.Proof.FooProof", "14e340fe63f5316f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b8f565a463ab8bc1"}
+ "depHash": "81ae94035021031d"}

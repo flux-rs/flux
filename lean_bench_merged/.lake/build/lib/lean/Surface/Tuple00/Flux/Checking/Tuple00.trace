@@ -21,7 +21,7 @@
          "23a75e4af138a9e2"],
         ["Surface.Tuple00.Flux.VC.Tuple00:importAllArts", "649b0f238fbc09a7"],
         ["Surface.Tuple00.User.Proof.Tuple00Proof transitive imports (legacy)",
-         "3d4208a7cd59a98c"],
+         "bcaf7a96910b41fb"],
         ["Surface.Tuple00.User.Proof.Tuple00Proof:importAllArts",
          "288bfadae2e7b61b"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Tuple00.Flux.Checking.Tuple00", "3b2e6e4fe2a30c55"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2110550863c34a40"}
+ "depHash": "ced3f7754569be01"}

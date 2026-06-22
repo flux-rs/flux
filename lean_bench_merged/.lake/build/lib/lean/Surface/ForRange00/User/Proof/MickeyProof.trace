@@ -105,7 +105,7 @@
    "Surface/ForRange00/User/Proof/MickeyProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/ForRange00/User/Proof/MickeyProof.lean:69:0: time: 2441ms",
+   "Surface/ForRange00/User/Proof/MickeyProof.lean:69:0: time: 2089ms",
    "level": "info"},
   {"message":
    "Surface/ForRange00/User/Proof/MickeyProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = (((((((((((((z0 ≤ z1 ∧ z0 ≤ z2) ∧ z1 ≤ z2) ∧ z2 ≤ z1) ∧ z1 = z2) ∧ z2 = z1) ∧ z1 ≥ z0) ∧ z1 ≥ z2) ∧ z2 ≥ z0) ∧\n            z2 ≥ z1) ∧\n          z0 ≥ 0) ∧\n        z1 ≥ 0) ∧\n      z2 ≥ 0) ∧\n    z1 > 0) ∧\n  z2 > 0",
@@ -116,7 +116,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.ForRange00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -140,4 +140,4 @@
    "9a5360b533e2c7fd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "44151d152ac51fd4"}
+ "depHash": "5bc81650c5b5c496"}

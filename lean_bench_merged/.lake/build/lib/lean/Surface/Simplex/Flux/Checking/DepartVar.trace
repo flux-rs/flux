@@ -21,7 +21,7 @@
          "5cce4a22b7fff904"],
         ["Surface.Simplex.Flux.VC.DepartVar:importAllArts", "a656080f4d155a4d"],
         ["Surface.Simplex.User.Proof.DepartVarProof transitive imports (legacy)",
-         "fa9bf22fb8e6e796"],
+         "0699046c62203299"],
         ["Surface.Simplex.User.Proof.DepartVarProof:importAllArts",
          "fbee2f90aec9a5e2"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Simplex.Flux.Checking.DepartVar", "b14a9eddb269bb88"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8b354a66365b26b1"}
+ "depHash": "3606292f468a09a3"}

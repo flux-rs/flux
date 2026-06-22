@@ -21,7 +21,7 @@
    "Surface/RefinedTypeVar01/User/Proof/BazProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/RefinedTypeVar01/User/Proof/BazProof.lean:69:0: time: 29ms",
+   "Surface/RefinedTypeVar01/User/Proof/BazProof.lean:69:0: time: 28ms",
    "level": "info"},
   {"message":
    "Surface/RefinedTypeVar01/User/Proof/BazProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = (z0 = z2 ∧ z1 = z1) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 => (z0 = z2 ∧ z1 = z1) ∧ z2 = z2",
@@ -32,7 +32,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.RefinedTypeVar01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -57,4 +57,4 @@
    "f586e0d907ec108a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3a189f84f423c425"}
+ "depHash": "8ea3f5fae0e9465b"}

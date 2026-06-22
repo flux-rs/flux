@@ -21,7 +21,7 @@
          "515065aa10b14b28"],
         ["Surface.ArgSyntax.Flux.VC.Slice:importAllArts", "ec7d10c0bb749533"],
         ["Surface.ArgSyntax.User.Proof.SliceProof transitive imports (legacy)",
-         "202227eee4f3a057"],
+         "31086ad2c39084c0"],
         ["Surface.ArgSyntax.User.Proof.SliceProof:importAllArts",
          "9e9a7fd8ad147da0"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.ArgSyntax.Flux.Checking.Slice", "9b5d152626a4012a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d73eb23885e76cd6"}
+ "depHash": "e2b74669e7d4a996"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.KmpOverflow.Basic transitive imports (legacy)",
-         "2aa82c99fa094cd0"],
+         "8e1a4fcce735ee8c"],
         ["Surface.KmpOverflow.Basic:importAllArts", "b9ec8900b083a89c"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.KmpOverflow", "58e7bc7112c9f88f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "89c1d26e8babe52e"}
+ "depHash": "955a9023371d4f8b"}

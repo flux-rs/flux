@@ -20,7 +20,7 @@
          "fcf764485e350ad5"],
         ["Surface.Join01.Flux.VC.Foo:importAllArts", "d7e00ab739b94a2c"],
         ["Surface.Join01.User.Proof.FooProof transitive imports (legacy)",
-         "7850dd96b46ecfb8"],
+         "82989619c8bba18f"],
         ["Surface.Join01.User.Proof.FooProof:importAllArts",
          "4ec366256b553b99"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Surface.Join01.Flux.Checking.Foo", "7c3a11c3ddb4c170"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b78b0805cffcdeb1"}
+ "depHash": "d4dbb6d2a6cfb54c"}

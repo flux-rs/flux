@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Casts.IntToUint.Basic transitive imports (legacy)",
-         "bb21304eeaa9e657"],
+         "6e3bb600e26e2f89"],
         ["Casts.IntToUint.Basic:importAllArts", "bc4b2aacfe412d37"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Casts.IntToUint", "f47996a9fa3c4eba"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2d5454fa1d97eeba"}
+ "depHash": "58d6c7e7c1e6cb33"}

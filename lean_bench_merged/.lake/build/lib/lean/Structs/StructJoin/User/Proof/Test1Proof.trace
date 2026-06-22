@@ -17,7 +17,7 @@
   {"message":
    "Structs/StructJoin/User/Proof/Test1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Structs/StructJoin/User/Proof/Test1Proof.lean:69:0: time: 371ms",
+  {"message": "Structs/StructJoin/User/Proof/Test1Proof.lean:69:0: time: 422ms",
    "level": "info"},
   {"message":
    "Structs/StructJoin/User/Proof/Test1Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ b₀ s₀,\n  (¬b₀ ∧ s₀ ≥ 0 ∧ ∃ a'₂, ((z0 = s₀ ∧ z1 = a'₂) ∧ z2 = b₀) ∧ z3 = s₀) ∨\n    b₀ ∧ s₀ ≥ 0 ∧ ∃ a'₃, ((z0 = s₀ - 1 ∧ z1 = a'₃) ∧ z2 = True) ∧ z3 = s₀\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ b₀ s₀,\n    (¬b₀ ∧ s₀ ≥ 0 ∧ ∃ a'₂, ((z0 = s₀ ∧ z1 = a'₂) ∧ z2 = b₀) ∧ z3 = s₀) ∨\n      b₀ ∧ s₀ ≥ 0 ∧ ∃ a'₃, ((z0 = s₀ - 1 ∧ z1 = a'₃) ∧ z2 = True) ∧ z3 = s₀",
@@ -28,7 +28,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Structs.StructJoin.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -51,4 +51,4 @@
   ["Module.name: Structs.StructJoin.User.Proof.Test1Proof", "4a4afa4d52bf1666"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5d563d2dbd6f8cac"}
+ "depHash": "28083839d34952df"}

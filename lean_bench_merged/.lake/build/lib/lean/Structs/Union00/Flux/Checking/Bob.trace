@@ -20,7 +20,7 @@
          "5f110ff4930f27bf"],
         ["Structs.Union00.Flux.VC.Bob:importAllArts", "05de8a095123c6de"],
         ["Structs.Union00.User.Proof.BobProof transitive imports (legacy)",
-         "cfeb96e30bc7fb90"],
+         "33d0eeec5729f02f"],
         ["Structs.Union00.User.Proof.BobProof:importAllArts",
          "e8fd2784984cc75a"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Structs.Union00.Flux.Checking.Bob", "b93d869587f93399"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "eda9cc857e0722ba"}
+ "depHash": "048029c13c1ddb86"}

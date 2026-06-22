@@ -22,7 +22,7 @@
         ["Surface.TraitSubtyping08.Flux.VC.Impl__0__Method:importAllArts",
          "ca7d4e38008dcf76"],
         ["Surface.TraitSubtyping08.User.Proof.Impl__0__MethodProof transitive imports (legacy)",
-         "1bf7eaa6a21a61bb"],
+         "1b473e959a14ff1c"],
         ["Surface.TraitSubtyping08.User.Proof.Impl__0__MethodProof:importAllArts",
          "7ff17281558f2ca6"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "a5fb9a0cd35e28ff"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7a54921ed6db6ff4"}
+ "depHash": "dc112235880c9226"}

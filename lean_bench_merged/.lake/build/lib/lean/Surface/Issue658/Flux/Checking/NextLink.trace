@@ -21,7 +21,7 @@
          "d19476ac02d5c181"],
         ["Surface.Issue658.Flux.VC.NextLink:importAllArts", "14eb5bb47e0cf86b"],
         ["Surface.Issue658.User.Proof.NextLinkProof transitive imports (legacy)",
-         "d31c729eac34aef8"],
+         "0f88803b60a5595f"],
         ["Surface.Issue658.User.Proof.NextLinkProof:importAllArts",
          "7bffbcdfe2b7196c"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Issue658.Flux.Checking.NextLink", "2abd8ebf7dd0736a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "98e53e93627c3d2c"}
+ "depHash": "bf5feb31c3a88ebb"}

@@ -22,7 +22,7 @@
         ["TraitObject.AssocType.Flux.VC.Test:importAllArts",
          "620bff12c71c2ad0"],
         ["TraitObject.AssocType.User.Proof.TestProof transitive imports (legacy)",
-         "3dd9920f716bb2c5"],
+         "d9c1ae4a43dbbbda"],
         ["TraitObject.AssocType.User.Proof.TestProof:importAllArts",
          "e879df3c3358bbcb"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: TraitObject.AssocType.Flux.Checking.Test", "80bbdd766357744a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6a51ec8d2dd3c532"}
+ "depHash": "2b212c7afc97e5a0"}

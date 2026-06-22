@@ -22,7 +22,7 @@
         ["Surface.SliceLoop.Flux.VC.TestWhile:importAllArts",
          "4ca9e024ce07eb89"],
         ["Surface.SliceLoop.User.Proof.TestWhileProof transitive imports (legacy)",
-         "b52c2e739bfe93bd"],
+         "08071682e0937332"],
         ["Surface.SliceLoop.User.Proof.TestWhileProof:importAllArts",
          "09e506a846e7fa81"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "20e8f7fc46ca2d4e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "acf0c9f6b5c17037"}
+ "depHash": "9dc269ee7fee4545"}

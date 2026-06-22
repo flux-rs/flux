@@ -21,7 +21,7 @@
          "5f110ff4930f27bf"],
         ["Structs.Union00.Flux.VC.Glob:importAllArts", "99a63275972987f0"],
         ["Structs.Union00.User.Proof.GlobProof transitive imports (legacy)",
-         "5720e3eaef2f5e2f"],
+         "9f3b5e291736a990"],
         ["Structs.Union00.User.Proof.GlobProof:importAllArts",
          "228bb2904fd94c88"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.Union00.Flux.Checking.Glob", "137dd911a3781e51"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8c635ff9badb69aa"}
+ "depHash": "34a266ca1a418fd1"}

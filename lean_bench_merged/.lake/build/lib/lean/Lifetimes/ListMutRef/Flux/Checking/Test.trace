@@ -21,7 +21,7 @@
          "894d50e7a7f26e6e"],
         ["Lifetimes.ListMutRef.Flux.VC.Test:importAllArts", "12ad88717c0ef1af"],
         ["Lifetimes.ListMutRef.User.Proof.TestProof transitive imports (legacy)",
-         "6f7bca8f1bcfbfd5"],
+         "30636ae30cfd6f9a"],
         ["Lifetimes.ListMutRef.User.Proof.TestProof:importAllArts",
          "801beb2359accd58"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Lifetimes.ListMutRef.Flux.Checking.Test", "650fe49d953205f6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "debae86af4fdd877"}
+ "depHash": "f3455db1ccbcab85"}

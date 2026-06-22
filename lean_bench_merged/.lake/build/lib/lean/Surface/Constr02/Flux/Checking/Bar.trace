@@ -21,7 +21,7 @@
          "adbb26be9a5828f6"],
         ["Surface.Constr02.Flux.VC.Bar:importAllArts", "00fddf98a6f3b571"],
         ["Surface.Constr02.User.Proof.BarProof transitive imports (legacy)",
-         "0e9405c4fe55d8ec"],
+         "1e26c67f8ca22ff3"],
         ["Surface.Constr02.User.Proof.BarProof:importAllArts",
          "2ce54fc64afa872e"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Constr02.Flux.Checking.Bar", "665b1cc1eeeb1c4e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9bf00feb9946f67e"}
+ "depHash": "7ba21c37fca785ea"}

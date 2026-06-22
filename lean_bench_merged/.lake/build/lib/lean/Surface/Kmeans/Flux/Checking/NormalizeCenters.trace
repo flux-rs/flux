@@ -22,7 +22,7 @@
         ["Surface.Kmeans.Flux.VC.NormalizeCenters:importAllArts",
          "5df4589119973c78"],
         ["Surface.Kmeans.User.Proof.NormalizeCentersProof transitive imports (legacy)",
-         "d7edb1cbb7da654d"],
+         "49b82d1c1b26015a"],
         ["Surface.Kmeans.User.Proof.NormalizeCentersProof:importAllArts",
          "7f5580d83b6926db"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "8ee07b83499f7e9b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "580e39345a38c0cc"}
+ "depHash": "5dcb9943d85bfde9"}

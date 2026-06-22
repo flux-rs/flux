@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Bitvec06.Basic transitive imports (legacy)",
-         "a3a1225f792b04a8"],
+         "00a40d06c7ec5c75"],
         ["Surface.Bitvec06.Basic:importAllArts", "ae720e468f154596"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Bitvec06", "53f84ab8f51ffeb2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5e3d3c56ab99f9aa"}
+ "depHash": "3ec476c292eff71e"}

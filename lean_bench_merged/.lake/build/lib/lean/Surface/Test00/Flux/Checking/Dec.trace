@@ -20,7 +20,7 @@
          "8f5d7c6177deed2a"],
         ["Surface.Test00.Flux.VC.Dec:importAllArts", "612f7973e7471952"],
         ["Surface.Test00.User.Proof.DecProof transitive imports (legacy)",
-         "21a95ce25088710f"],
+         "abb905b8ed940000"],
         ["Surface.Test00.User.Proof.DecProof:importAllArts",
          "9cdbd027e2f10644"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Surface.Test00.Flux.Checking.Dec", "ce6190d43dc3cba3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a28200fbc3e9bd37"}
+ "depHash": "4ef437d91c237c70"}

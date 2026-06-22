@@ -68,7 +68,7 @@
   {"message":
    "Surface/Gcd/User/Proof/GcdProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Gcd/User/Proof/GcdProof.lean:69:0: time: 2014ms",
+  {"message": "Surface/Gcd/User/Proof/GcdProof.lean:69:0: time: 2021ms",
    "level": "info"},
   {"message":
    "Surface/Gcd/User/Proof/GcdProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = ((((((z0 > 0 ∧ z1 > 0) ∧ z2 > 0) ∧ z3 > 0) ∧ z0 ≥ 0) ∧ z1 ≥ 0) ∧ z2 ≥ 0) ∧ z3 ≥ 0",
@@ -79,7 +79,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Gcd.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -101,4 +101,4 @@
   ["Module.name: Surface.Gcd.User.Proof.GcdProof", "e3b9c9d77460362d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c7367c0de383b69c"}
+ "depHash": "bf0986fe3d723fe2"}

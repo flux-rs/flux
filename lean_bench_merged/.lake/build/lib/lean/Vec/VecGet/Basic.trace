@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Vec.VecGet.Flux.Checking.TestGet transitive imports (legacy)",
-         "36231948932ed0a8"],
+         "3e69567af070cecd"],
         ["Vec.VecGet.Flux.Checking.TestGet:importAllArts",
          "de8344b2c79fd24e"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Vec.VecGet.Basic", "fecb810c7914bb88"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ddf0cd4d5c34e58d"}
+ "depHash": "3556837248e645ca"}

@@ -22,7 +22,7 @@
         ["Surface.Bsearch.Flux.VC.BinarySearch:importAllArts",
          "3eb3b68f53931320"],
         ["Surface.Bsearch.User.Proof.BinarySearchProof transitive imports (legacy)",
-         "4d57505ebf4e1d79"],
+         "b281f3df7114e6ee"],
         ["Surface.Bsearch.User.Proof.BinarySearchProof:importAllArts",
          "d5f64b7d0f94f3b5"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "672f73a06aefe63b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7c5acb632bbba38d"}
+ "depHash": "750538d9741cad89"}

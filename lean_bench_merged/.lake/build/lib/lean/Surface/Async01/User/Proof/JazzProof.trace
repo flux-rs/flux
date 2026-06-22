@@ -44,7 +44,7 @@
   {"message":
    "Surface/Async01/User/Proof/JazzProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Async01/User/Proof/JazzProof.lean:69:0: time: 11590ms",
+  {"message": "Surface/Async01/User/Proof/JazzProof.lean:69:0: time: 9866ms",
    "level": "info"},
   {"message":
    "Surface/Async01/User/Proof/JazzProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  [k0, k1]\n[solve_fixpoint] --- PA on cyclic κ's [k0, k1] ---\n[solve_fixpoint]   PA sol for k0 = z1 ≥ 0\n[solve_fixpoint]   PA sol for k1 = ((z1 ≥ 0 ∧ z6 ≥ 0) ∧ z6 ≥ z1) ∧ z1 ≤ z6",
@@ -55,7 +55,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Async01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -77,4 +77,4 @@
   ["Module.name: Surface.Async01.User.Proof.JazzProof", "cedb539826ac1649"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e26810ba02418b14"}
+ "depHash": "669deb8716929b90"}

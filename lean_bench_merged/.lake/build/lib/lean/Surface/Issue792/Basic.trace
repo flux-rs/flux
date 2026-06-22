@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Issue792.Flux.Checking.TryGet8Bytes transitive imports (legacy)",
-         "32668ec458fe3edd"],
+         "1a20d54e73692618"],
         ["Surface.Issue792.Flux.Checking.TryGet8Bytes:importAllArts",
          "0222b6ec1fa95323"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.Issue792.Basic", "0f0e3e202d68e3ec"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ccf31aef9c3576b8"}
+ "depHash": "0c1c2d3f795dcb1d"}

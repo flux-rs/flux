@@ -21,7 +21,7 @@
          "2948598cb7c13d5d"],
         ["Surface.TypeHoles02.Flux.VC.Test:importAllArts", "f9c2864a9f48711d"],
         ["Surface.TypeHoles02.User.Proof.TestProof transitive imports (legacy)",
-         "ecdead05052748c5"],
+         "b781f99e7c65d3ba"],
         ["Surface.TypeHoles02.User.Proof.TestProof:importAllArts",
          "fa38fd23adccf933"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.TypeHoles02.Flux.Checking.Test", "e11a64e8dd63190d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0dae726311836a35"}
+ "depHash": "8556f47780a377db"}

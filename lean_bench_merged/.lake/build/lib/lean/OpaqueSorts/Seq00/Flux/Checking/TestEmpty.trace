@@ -22,7 +22,7 @@
         ["OpaqueSorts.Seq00.Flux.VC.TestEmpty:importAllArts",
          "0c7da68da16920a1"],
         ["OpaqueSorts.Seq00.User.Proof.TestEmptyProof transitive imports (legacy)",
-         "e608de4079726c75"],
+         "c6bc7d56e8882c92"],
         ["OpaqueSorts.Seq00.User.Proof.TestEmptyProof:importAllArts",
          "1bb2d764031073cf"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "38e9f2489ace522e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3de77ae18eb8189e"}
+ "depHash": "257398dea8e5c531"}

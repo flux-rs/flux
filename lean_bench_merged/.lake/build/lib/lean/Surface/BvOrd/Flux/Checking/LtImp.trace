@@ -21,7 +21,7 @@
          "32c2756a8c99669e"],
         ["Surface.BvOrd.Flux.VC.LtImp:importAllArts", "8aaf1ca5a077500f"],
         ["Surface.BvOrd.User.Proof.LtImpProof transitive imports (legacy)",
-         "da0317239d4301cf"],
+         "891a938ce4d073c0"],
         ["Surface.BvOrd.User.Proof.LtImpProof:importAllArts",
          "ccf2db60dfddb9cc"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.BvOrd.Flux.Checking.LtImp", "d8a30d486583d88a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "eea05536960e08aa"}
+ "depHash": "b7333152e5f3e166"}

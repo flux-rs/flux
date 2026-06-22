@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.FibLoop.Flux.Checking.FibLoop transitive imports (legacy)",
-         "80f33e0e1de16969"],
+         "3d5bebd733b0b620"],
         ["Surface.FibLoop.Flux.Checking.FibLoop:importAllArts",
          "44877e2f09f47a1f"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.FibLoop.Basic", "249be2051612e43d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3f227036f40e911d"}
+ "depHash": "ad12841439db55f4"}

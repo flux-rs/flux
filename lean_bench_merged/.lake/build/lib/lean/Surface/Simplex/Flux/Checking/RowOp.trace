@@ -21,7 +21,7 @@
          "5cce4a22b7fff904"],
         ["Surface.Simplex.Flux.VC.RowOp:importAllArts", "4f5e61dd4f5e62f2"],
         ["Surface.Simplex.User.Proof.RowOpProof transitive imports (legacy)",
-         "4f4a9d7d5a615d19"],
+         "2067eebf29cfea16"],
         ["Surface.Simplex.User.Proof.RowOpProof:importAllArts",
          "7adaddca89ac26e8"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Simplex.Flux.Checking.RowOp", "53579290043b2812"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a8616b71aee18391"}
+ "depHash": "28298ada9d4d8091"}

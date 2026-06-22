@@ -1,7 +1,7 @@
 {"synthetic": false,
  "schemaVersion": "2025-09-10",
  "outputs":
- {"o": ["9832753b50e76f2e.olean"],
+ {"o": ["e9a1f4b87848ac99.olean"],
   "i": "23345e515feec703.ilean",
   "c": "aad53b4b0a981e7c.c"},
  "log":
@@ -21,13 +21,7 @@
    "ExternSpecs/FluxCoreNum01/User/Proof/TestIntoBothBoundedConcreteProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "ExternSpecs/FluxCoreNum01/User/Proof/TestIntoBothBoundedConcreteProof.lean:71:2: [solve_fixpoint] closed by: grind",
-   "level": "info"},
-  {"message":
-   "ExternSpecs/FluxCoreNum01/User/Proof/TestIntoBothBoundedConcreteProof.lean:71:2: [solve_fixpoint] closed by: grind",
-   "level": "info"},
-  {"message":
-   "ExternSpecs/FluxCoreNum01/User/Proof/TestIntoBothBoundedConcreteProof.lean:69:0: time: 3284ms",
+   "ExternSpecs/FluxCoreNum01/User/Proof/TestIntoBothBoundedConcreteProof.lean:69:0: time: 2807ms",
    "level": "info"},
   {"message":
    "ExternSpecs/FluxCoreNum01/User/Proof/TestIntoBothBoundedConcreteProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ r₀, r₀ = (num_impl_2_MIN ≤ 42 ∧ 42 ≤ num_impl_2_MAX) ∧ ∃ v₀, 42 = v₀ ∧ z0 = v₀ ∧ z1 = r₀\n[solve]   lam = fun z0 z1 => ∃ r₀, r₀ = (num_impl_2_MIN ≤ 42 ∧ 42 ≤ num_impl_2_MAX) ∧ ∃ v₀, 42 = v₀ ∧ z0 = v₀ ∧ z1 = r₀\n[solve] --- k1 ---\n[solve]   sol = ∃ r₀,\n  r₀ = (num_impl_2_MIN ≤ 42 ∧ 42 ≤ num_impl_2_MAX) ∧\n    ∃ a'₂,\n      (∃ r₀_1, r₀_1 = (num_impl_2_MIN ≤ 42 ∧ 42 ≤ num_impl_2_MAX) ∧ ∃ v₀, 42 = v₀ ∧ a'₂ = v₀ ∧ r₀ = r₀_1) ∧\n        ∃ r₁,\n          r₁ = (num_impl_2_MIN ≤ -42 ∧ -42 ≤ num_impl_2_MAX) ∧\n            ∃ v₁, -42 = v₁ ∧ ((z0 = v₁ ∧ z1 = r₀) ∧ z2 = a'₂) ∧ z3 = r₁\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ r₀,\n    r₀ = (num_impl_2_MIN ≤ 42 ∧ 42 ≤ num_impl_2_MAX) ∧\n      ∃ a'₂,\n        (∃ r₀_1, r₀_1 = (num_impl_2_MIN ≤ 42 ∧ 42 ≤ num_impl_2_MAX) ∧ ∃ v₀, 42 = v₀ ∧ a'₂ = v₀ ∧ r₀ = r₀_1) ∧\n          ∃ r₁,\n            r₁ = (num_impl_2_MIN ≤ -42 ∧ -42 ≤ num_impl_2_MAX) ∧\n              ∃ v₁, -42 = v₁ ∧ ((z0 = v₁ ∧ z1 = r₀) ∧ z2 = a'₂) ∧ z3 = r₁\n[solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -38,7 +32,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["ExternSpecs.FluxCoreNum01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -63,4 +57,4 @@
    "3061cf922048ba4a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7b7663611f450006"}
+ "depHash": "5e94916d036e49ea"}

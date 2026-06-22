@@ -21,7 +21,7 @@
          "398a84203708f783"],
         ["Structs.StructFold00.Flux.VC.Baz:importAllArts", "514810d2bf050863"],
         ["Structs.StructFold00.User.Proof.BazProof transitive imports (legacy)",
-         "f67f4b3ff3023f4f"],
+         "ad4a81efdb6d0510"],
         ["Structs.StructFold00.User.Proof.BazProof:importAllArts",
          "695fc8df63e23194"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.StructFold00.Flux.Checking.Baz", "2477ccdba880f0b4"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "482142d5903f94cf"}
+ "depHash": "4efd65e98da4103c"}

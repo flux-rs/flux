@@ -22,7 +22,7 @@
         ["Surface.AbstractRefinementInCompositeSort.Flux.VC.Check:importAllArts",
          "fd3c931a3bbf5314"],
         ["Surface.AbstractRefinementInCompositeSort.User.Proof.CheckProof transitive imports (legacy)",
-         "c6b2346a8f15e377"],
+         "11f0271e05fe10b8"],
         ["Surface.AbstractRefinementInCompositeSort.User.Proof.CheckProof:importAllArts",
          "ccd87109c3b880c1"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "a8c3010161af4ab3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2117a33777797a15"}
+ "depHash": "547c2119fd912d95"}

@@ -22,7 +22,7 @@
         ["Constructors.Test13.Flux.VC.FooConcrete:importAllArts",
          "9fb6fd5f357d26f1"],
         ["Constructors.Test13.User.Proof.FooConcreteProof transitive imports (legacy)",
-         "97bf1300282caeb8"],
+         "70fb63e266e0377f"],
         ["Constructors.Test13.User.Proof.FooConcreteProof:importAllArts",
          "4a865a68a41a6912"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "82555ce6df780362"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "cf6818aca87d1f5a"}
+ "depHash": "b23cfbfe022d3605"}

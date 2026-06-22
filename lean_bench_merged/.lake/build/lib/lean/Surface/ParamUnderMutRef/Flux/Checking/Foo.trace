@@ -22,7 +22,7 @@
         ["Surface.ParamUnderMutRef.Flux.VC.Foo:importAllArts",
          "3cd574562141edfe"],
         ["Surface.ParamUnderMutRef.User.Proof.FooProof transitive imports (legacy)",
-         "678ccd26c051cc75"],
+         "d34d0c16f2fb3a5a"],
         ["Surface.ParamUnderMutRef.User.Proof.FooProof:importAllArts",
          "12c2e60a8ffc9238"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "67716117abad7b5c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "09fe480f25d95cf7"}
+ "depHash": "2594bbc795c5b4c4"}

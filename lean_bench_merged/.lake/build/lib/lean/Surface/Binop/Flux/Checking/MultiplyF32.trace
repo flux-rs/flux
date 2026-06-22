@@ -21,7 +21,7 @@
          "0b8ed4305157a8cd"],
         ["Surface.Binop.Flux.VC.MultiplyF32:importAllArts", "4307c116839efa27"],
         ["Surface.Binop.User.Proof.MultiplyF32Proof transitive imports (legacy)",
-         "ad5f8217481c889f"],
+         "f5c26ea03131b988"],
         ["Surface.Binop.User.Proof.MultiplyF32Proof:importAllArts",
          "4601d5b5818a35a6"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Binop.Flux.Checking.MultiplyF32", "ba5ebb4cdab7e6e4"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ae7c6f797f9f75cc"}
+ "depHash": "b9fa72a1935aa0c3"}

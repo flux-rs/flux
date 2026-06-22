@@ -22,7 +22,7 @@
         ["ExternSpecs.FluxCoreSlice00.Flux.VC.TestSplitFirstTailLen:importAllArts",
          "5b6c628a80a46b2d"],
         ["ExternSpecs.FluxCoreSlice00.User.Proof.TestSplitFirstTailLenProof transitive imports (legacy)",
-         "58f48c9bc47535a9"],
+         "d299403a5e90e15e"],
         ["ExternSpecs.FluxCoreSlice00.User.Proof.TestSplitFirstTailLenProof:importAllArts",
          "7f205c4a8a0b6043"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "a8c849f075793593"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "cfd5c61350188174"}
+ "depHash": "c7ff0da33515ab7d"}

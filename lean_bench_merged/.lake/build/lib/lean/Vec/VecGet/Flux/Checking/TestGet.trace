@@ -21,7 +21,7 @@
          "221ffba64155bf2d"],
         ["Vec.VecGet.Flux.VC.TestGet:importAllArts", "f319d998af679e48"],
         ["Vec.VecGet.User.Proof.TestGetProof transitive imports (legacy)",
-         "390a50dbd079a34e"],
+         "0231e4a877ffeaa9"],
         ["Vec.VecGet.User.Proof.TestGetProof:importAllArts",
          "1d8c665ec9b6d1ad"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Vec.VecGet.Flux.Checking.TestGet", "fc304f5d3ad47e26"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "688fc8ea92d9e47a"}
+ "depHash": "8bc04f217ad44eba"}

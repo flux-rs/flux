@@ -22,7 +22,7 @@
         ["Detached.DetachImpl06.Flux.VC.XYImpl__1__Gromp:importAllArts",
          "a12d7f16146b5a4b"],
         ["Detached.DetachImpl06.User.Proof.XYImpl__1__GrompProof transitive imports (legacy)",
-         "baf4918c5c081748"],
+         "9edd6eea9cba42ef"],
         ["Detached.DetachImpl06.User.Proof.XYImpl__1__GrompProof:importAllArts",
          "87519162a922a9b3"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "3250310d921be81c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b278900fdd267f72"}
+ "depHash": "943878df544907d5"}

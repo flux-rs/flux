@@ -23,7 +23,7 @@
   {"message":
    "Surface/RefCell00/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/RefCell00/User/Proof/TestProof.lean:69:0: time: 156ms",
+  {"message": "Surface/RefCell00/User/Proof/TestProof.lean:69:0: time: 157ms",
    "level": "info"},
   {"message":
    "Surface/RefCell00/User/Proof/TestProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1]\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₂, ?k0 a'₂ ∧ z0 = a'₂\n[solve]   lam = fun z0 => ∃ a'₂, ?k0 a'₂ ∧ z0 = a'₂\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = z0 ≥ 0",
@@ -34,7 +34,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.RefCell00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -57,4 +57,4 @@
   ["Module.name: Surface.RefCell00.User.Proof.TestProof", "b1b9618c0d8d4cfd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "33672ab62efabd1c"}
+ "depHash": "ff12dc28a05cfb4f"}

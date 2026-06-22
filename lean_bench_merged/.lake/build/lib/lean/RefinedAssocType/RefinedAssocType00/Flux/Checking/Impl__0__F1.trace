@@ -22,7 +22,7 @@
         ["RefinedAssocType.RefinedAssocType00.Flux.VC.Impl__0__F1:importAllArts",
          "4d00f3023d7d78b1"],
         ["RefinedAssocType.RefinedAssocType00.User.Proof.Impl__0__F1Proof transitive imports (legacy)",
-         "0f21ca8a6a1f58b3"],
+         "b0073b884363729c"],
         ["RefinedAssocType.RefinedAssocType00.User.Proof.Impl__0__F1Proof:importAllArts",
          "753028a4e1b55dd2"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "0f23a291c7279971"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f2d0999b48df3691"}
+ "depHash": "bf137e68125c0320"}

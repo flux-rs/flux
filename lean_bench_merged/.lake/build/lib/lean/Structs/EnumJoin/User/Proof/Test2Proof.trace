@@ -23,7 +23,7 @@
   {"message":
    "Structs/EnumJoin/User/Proof/Test2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Structs/EnumJoin/User/Proof/Test2Proof.lean:69:0: time: 192ms",
+  {"message": "Structs/EnumJoin/User/Proof/Test2Proof.lean:69:0: time: 103ms",
    "level": "info"},
   {"message":
    "Structs/EnumJoin/User/Proof/Test2Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = (∃ a'₀, a'₀ = 0 ∧ z0 = a'₀) ∨ ∃ a'₁ a'₂, a'₂ = 0 ∧ z0 = a'₂\n[solve]   lam = fun z0 => (∃ a'₀, a'₀ = 0 ∧ z0 = a'₀) ∨ ∃ a'₁ a'₂, a'₂ = 0 ∧ z0 = a'₂\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₃, a'₃ = 0 ∧ ((∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∨ ∃ a'₁ a'₂, a'₂ = 0 ∧ a'₃ = a'₂) ∧ ((∃ v₀, v₀ ≥ 0 ∧ z0 = v₀) ∨ z0 = 0)\n[solve]   lam = fun z0 =>\n  ∃ a'₃, a'₃ = 0 ∧ ((∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∨ ∃ a'₁ a'₂, a'₂ = 0 ∧ a'₃ = a'₂) ∧ ((∃ v₀, v₀ ≥ 0 ∧ z0 = v₀) ∨ z0 = 0)",
@@ -34,7 +34,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Structs.EnumJoin.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -57,4 +57,4 @@
   ["Module.name: Structs.EnumJoin.User.Proof.Test2Proof", "915b1d0bc16f20c8"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "fdc5bc203ce9fde6"}
+ "depHash": "8503b9dd37f364aa"}

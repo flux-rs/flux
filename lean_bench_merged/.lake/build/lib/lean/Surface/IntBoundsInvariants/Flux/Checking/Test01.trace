@@ -22,7 +22,7 @@
         ["Surface.IntBoundsInvariants.Flux.VC.Test01:importAllArts",
          "4c22ddc17e9f09d2"],
         ["Surface.IntBoundsInvariants.User.Proof.Test01Proof transitive imports (legacy)",
-         "9f56271361e30ed5"],
+         "ae783a11b036baca"],
         ["Surface.IntBoundsInvariants.User.Proof.Test01Proof:importAllArts",
          "3a941c02fc8c8d34"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "cf7aea0291178c37"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8f244209956a61a1"}
+ "depHash": "7550019f82a45d4d"}

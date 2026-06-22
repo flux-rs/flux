@@ -30,7 +30,7 @@
    "Surface/Issue809/User/Proof/AddColorcodeProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/Issue809/User/Proof/AddColorcodeProof.lean:69:0: time: 591ms",
+   "Surface/Issue809/User/Proof/AddColorcodeProof.lean:69:0: time: 625ms",
    "level": "info"},
   {"message":
    "Surface/Issue809/User/Proof/AddColorcodeProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k2, k0, k1, k3]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k2 ---\n[solve]   sol = ∃ a'₃, z0 = a'₃ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ a'₃, z0 = a'₃ ∧ z1 = z1\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧ z0 = a'₁ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧ z0 = a'₁ ∧ z1 = z1\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₀,\n  (∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z2 = z2) ∧ a'₀ = a'₁ ∧ z2 = z2) ∧\n    a'₀ ≥ 0 ∧\n      (z2 = 1 ∧ (z0 = a'₀ + 1 ∧ z1 = a'₀) ∧ z2 = z2 ∨\n        z2 = 2 ∧ (z0 = a'₀ + 2 ∧ z1 = a'₀) ∧ z2 = z2 ∨ z2 = 3 ∧ (z0 = a'₀ + 3 ∧ z1 = a'₀) ∧ z2 = z2)\n[solve]   lam = fun z0 z1 z2 =>\n  ∃ a'₀,\n    (∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z2 = z2) ∧ a'₀ = a'₁ ∧ z2 = z2) ∧\n      a'₀ ≥ 0 ∧\n        (z2 = 1 ∧ (z0 = a'₀ + 1 ∧ z1 = a'₀) ∧ z2 = z2 ∨\n          z2 = 2 ∧ (z0 = a'₀ + 2 ∧ z1 = a'₀) ∧ z2 = z2 ∨ z2 = 3 ∧ (z0 = a'₀ + 3 ∧ z1 = a'₀) ∧ z2 = z2)\n[solve] --- k3 ---\n[solve]   sol = ∃ a'₁,\n  (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧\n    ∃ a'₂,\n      (∃ a'₀,\n          (∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧ a'₀ = a'₁ ∧ z1 = z1) ∧\n            a'₀ ≥ 0 ∧\n              (z1 = 1 ∧ (a'₂ = a'₀ + 1 ∧ a'₁ = a'₀) ∧ z1 = z1 ∨\n                z1 = 2 ∧ (a'₂ = a'₀ + 2 ∧ a'₁ = a'₀) ∧ z1 = z1 ∨ z1 = 3 ∧ (a'₂ = a'₀ + 3 ∧ a'₁ = a'₀) ∧ z1 = z1)) ∧\n        z0 = a'₂ ∧ z1 = z1\n[solve]   lam = fun z0 z1 =>\n  ∃ a'₁,\n    (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧\n      ∃ a'₂,\n        (∃ a'₀,\n            (∃ a'₁, (∃ a'₃, a'₁ = a'₃ ∧ z1 = z1) ∧ a'₀ = a'₁ ∧ z1 = z1) ∧\n              a'₀ ≥ 0 ∧\n                (z1 = 1 ∧ (a'₂ = a'₀ + 1 ∧ a'₁ = a'₀) ∧ z1 = z1 ∨\n                  z1 = 2 ∧ (a'₂ = a'₀ + 2 ∧ a'₁ = a'₀) ∧ z1 = z1 ∨ z1 = 3 ∧ (a'₂ = a'₀ + 3 ∧ a'₁ = a'₀) ∧ z1 = z1)) ∧\n          z0 = a'₂ ∧ z1 = z1",
@@ -41,7 +41,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Issue809.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -65,4 +65,4 @@
    "e7b4e8d40a8e36a9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9838db53057457e1"}
+ "depHash": "bfe285d3a015a923"}

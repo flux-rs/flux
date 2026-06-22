@@ -21,7 +21,7 @@
          "9cb4a9bd4f140ef1"],
         ["Surface.Box03.Flux.VC.MutRefBox:importAllArts", "3e3b2fd912b8f7ed"],
         ["Surface.Box03.User.Proof.MutRefBoxProof transitive imports (legacy)",
-         "5e521cb62702d31a"],
+         "bbdc03e4d48adfa5"],
         ["Surface.Box03.User.Proof.MutRefBoxProof:importAllArts",
          "753f88fed870bf9b"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Box03.Flux.Checking.MutRefBox", "e471999654107e1f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3f2d865e77b458a7"}
+ "depHash": "9de10e792185d515"}

@@ -21,7 +21,7 @@
          "f1c4205fa449bb16"],
         ["Surface.Default00.Flux.VC.Silly:importAllArts", "f943b6e57eb791d8"],
         ["Surface.Default00.User.Proof.SillyProof transitive imports (legacy)",
-         "6e94b77ca73debe1"],
+         "37b0ca6a7d66639e"],
         ["Surface.Default00.User.Proof.SillyProof:importAllArts",
          "6c67a64230ffe980"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Default00.Flux.Checking.Silly", "a08c10dfda8a67f7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "af8f0ee639a3d7be"}
+ "depHash": "13b08ab21c791764"}

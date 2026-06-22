@@ -21,7 +21,7 @@
          "99b480bb33972d2e"],
         ["Surface.OptBlowup.Flux.VC.Let2:importAllArts", "d36ddff4b6205a50"],
         ["Surface.OptBlowup.User.Proof.Let2Proof transitive imports (legacy)",
-         "866373e041f695da"],
+         "9d8f0161dd39f595"],
         ["Surface.OptBlowup.User.Proof.Let2Proof:importAllArts",
          "6153758c74cfc0ae"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.OptBlowup.Flux.Checking.Let2", "cca8fa9294c02ae3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a9b9954956aac299"}
+ "depHash": "4660e0240e8acb03"}

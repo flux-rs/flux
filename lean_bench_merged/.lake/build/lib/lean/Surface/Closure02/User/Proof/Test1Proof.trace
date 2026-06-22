@@ -8,7 +8,7 @@
  [{"message":
    ".> LEAN_PATH=/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/batteries/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/packages/aesop/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/lean-fixpoint/.lake/build/lib/lean:/Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean /Users/petros/.elan/toolchains/leanprover--lean4---v4.29.0-rc8/bin/lean /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/Surface/Closure02/User/Proof/Test1Proof.lean -o /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure02/User/Proof/Test1Proof.olean -i /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/lib/lean/Surface/Closure02/User/Proof/Test1Proof.ilean -c /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Closure02/User/Proof/Test1Proof.c --setup /Users/petros/Documents/UCSD/Work/flux/lean_bench_merged/.lake/build/ir/Surface/Closure02/User/Proof/Test1Proof.setup.json --json",
    "level": "trace"},
-  {"message": "Surface/Closure02/User/Proof/Test1Proof.lean:69:0: time: 1521ms",
+  {"message": "Surface/Closure02/User/Proof/Test1Proof.lean:69:0: time: 1405ms",
    "level": "info"},
   {"message":
    "Surface/Closure02/User/Proof/Test1Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1, k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₂, z0 = a'₂\n[solve]   lam = fun z0 => ∃ a'₂, z0 = a'₂\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₁, (∃ a'₂, a'₁ = a'₂) ∧ z0 = a'₁\n[solve]   lam = fun z0 => ∃ a'₁, (∃ a'₂, a'₁ = a'₂) ∧ z0 = a'₁",
@@ -19,7 +19,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Closure02.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -42,4 +42,4 @@
   ["Module.name: Surface.Closure02.User.Proof.Test1Proof", "a47a1b46ec6809cd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2cb7c39835ed1a54"}
+ "depHash": "7cd6f5fd782dd5c8"}

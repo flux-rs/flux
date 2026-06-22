@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["FnPtrs.Fnptr00.Flux.Checking.Test00 transitive imports (legacy)",
-         "5e6d0f0bf8211735"],
+         "de83eb13fe8b383b"],
         ["FnPtrs.Fnptr00.Flux.Checking.Test00:importAllArts",
          "97907a422080cc3f"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: FnPtrs.Fnptr00.Basic", "1d30948c3a689e21"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "23904ffe79b00300"}
+ "depHash": "8fa94d3c30d7e4bd"}

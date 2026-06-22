@@ -21,7 +21,7 @@
          "29c83bc68021f709"],
         ["Surface.MutAsStrg00.Flux.VC.Incr:importAllArts", "29390a4ff5f4ef40"],
         ["Surface.MutAsStrg00.User.Proof.IncrProof transitive imports (legacy)",
-         "40421c89e815b7ac"],
+         "c882118134a870db"],
         ["Surface.MutAsStrg00.User.Proof.IncrProof:importAllArts",
          "cfae1a1fdac7f608"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.MutAsStrg00.Flux.Checking.Incr", "deee210f5e165b83"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6d0d0dda55c62b7c"}
+ "depHash": "f6ffe86e3bb31bc7"}

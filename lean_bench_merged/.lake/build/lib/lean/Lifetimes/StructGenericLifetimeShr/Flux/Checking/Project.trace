@@ -22,7 +22,7 @@
         ["Lifetimes.StructGenericLifetimeShr.Flux.VC.Project:importAllArts",
          "5fe9aa6d59bd7679"],
         ["Lifetimes.StructGenericLifetimeShr.User.Proof.ProjectProof transitive imports (legacy)",
-         "2cd6f9c5d8736a5f"],
+         "0ffe7ad0329be070"],
         ["Lifetimes.StructGenericLifetimeShr.User.Proof.ProjectProof:importAllArts",
          "e72813a102fc540b"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "830aae20806d3694"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "37d8b8d8a268e0ab"}
+ "depHash": "ff56d0ceff7c6cf0"}

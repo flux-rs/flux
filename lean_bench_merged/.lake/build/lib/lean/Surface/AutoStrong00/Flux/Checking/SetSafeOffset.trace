@@ -22,7 +22,7 @@
         ["Surface.AutoStrong00.Flux.VC.SetSafeOffset:importAllArts",
          "568af88e3afb0026"],
         ["Surface.AutoStrong00.User.Proof.SetSafeOffsetProof transitive imports (legacy)",
-         "5e61d274ec0c0175"],
+         "de4d7d1a41049e02"],
         ["Surface.AutoStrong00.User.Proof.SetSafeOffsetProof:importAllArts",
          "6b095a9944d30f42"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "739f970c118a5257"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6676fb8989cb6b43"}
+ "depHash": "82e9cbadf2446fbe"}

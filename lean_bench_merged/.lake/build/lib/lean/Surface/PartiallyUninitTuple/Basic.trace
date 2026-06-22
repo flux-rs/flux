@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.PartiallyUninitTuple.Flux.Checking.Test transitive imports (legacy)",
-         "080a19c8fe8c44d6"],
+         "2875decbffb89951"],
         ["Surface.PartiallyUninitTuple.Flux.Checking.Test:importAllArts",
          "84b28be31f7e4acc"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.PartiallyUninitTuple.Basic", "912f32c0a1bc3710"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "07e54bf81495ba78"}
+ "depHash": "72be14e9df790eb6"}

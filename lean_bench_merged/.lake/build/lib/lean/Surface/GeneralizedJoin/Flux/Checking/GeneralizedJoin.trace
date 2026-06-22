@@ -22,7 +22,7 @@
         ["Surface.GeneralizedJoin.Flux.VC.GeneralizedJoin:importAllArts",
          "ea182bf52af102db"],
         ["Surface.GeneralizedJoin.User.Proof.GeneralizedJoinProof transitive imports (legacy)",
-         "eb0354edc8e25695"],
+         "555c011317075dba"],
         ["Surface.GeneralizedJoin.User.Proof.GeneralizedJoinProof:importAllArts",
          "a290515a9a73cfb4"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "972b00c4457a4a94"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "55d0a155d5927048"}
+ "depHash": "37abb41670b05f7f"}

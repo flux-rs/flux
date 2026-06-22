@@ -22,7 +22,7 @@
         ["Detached.DetachMacro.Flux.VC.Watermelon:importAllArts",
          "dc6346c9e868272f"],
         ["Detached.DetachMacro.User.Proof.WatermelonProof transitive imports (legacy)",
-         "ee6a240062faaa2d"],
+         "fa11c2ac3ec4127a"],
         ["Detached.DetachMacro.User.Proof.WatermelonProof:importAllArts",
          "887c0aac22f063a9"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "ff37c7fc5e43cf4d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c98d016974915c41"}
+ "depHash": "010512c2bd906dd2"}

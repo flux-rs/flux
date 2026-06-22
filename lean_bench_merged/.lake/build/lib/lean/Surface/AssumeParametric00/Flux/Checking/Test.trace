@@ -22,7 +22,7 @@
         ["Surface.AssumeParametric00.Flux.VC.Test:importAllArts",
          "345d4e320e071acd"],
         ["Surface.AssumeParametric00.User.Proof.TestProof transitive imports (legacy)",
-         "2054570ff8ece08c"],
+         "2f5bc752c80147a3"],
         ["Surface.AssumeParametric00.User.Proof.TestProof:importAllArts",
          "81448e1adcd8d566"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "87830ff1e54157a4"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3f05c217269f41d2"}
+ "depHash": "5fd4de3646ad2745"}

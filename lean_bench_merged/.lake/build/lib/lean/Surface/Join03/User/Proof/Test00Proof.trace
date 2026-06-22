@@ -17,7 +17,7 @@
   {"message":
    "Surface/Join03/User/Proof/Test00Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Join03/User/Proof/Test00Proof.lean:69:0: time: 215ms",
+  {"message": "Surface/Join03/User/Proof/Test00Proof.lean:69:0: time: 354ms",
    "level": "info"},
   {"message":
    "Surface/Join03/User/Proof/Test00Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ p₀ b₀,\n  ¬b₀ ∧ (((z0 = p₀.a ∧ z1 = p₀.b) ∧ z2 = p₀.a) ∧ z3 = p₀.b) ∧ z4 = b₀ ∨\n    b₀ ∧ (((z0 = p₀.a ∧ z1 = p₀.b + 1) ∧ z2 = p₀.a) ∧ z3 = p₀.b) ∧ z4 = True\n[solve]   lam = fun z0 z1 z2 z3 z4 =>\n  ∃ p₀ b₀,\n    ¬b₀ ∧ (((z0 = p₀.a ∧ z1 = p₀.b) ∧ z2 = p₀.a) ∧ z3 = p₀.b) ∧ z4 = b₀ ∨\n      b₀ ∧ (((z0 = p₀.a ∧ z1 = p₀.b + 1) ∧ z2 = p₀.a) ∧ z3 = p₀.b) ∧ z4 = True",
@@ -28,7 +28,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Join03.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -50,4 +50,4 @@
   ["Module.name: Surface.Join03.User.Proof.Test00Proof", "fd5e9513cb12bf0d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3de891730bcb0d4c"}
+ "depHash": "f75f4eed9b12975b"}

@@ -22,7 +22,7 @@
         ["Surface.StructInvariant.Flux.VC.Bar:importAllArts",
          "c78e82537b712b5f"],
         ["Surface.StructInvariant.User.Proof.BarProof transitive imports (legacy)",
-         "905ab21ecf2b79dd"],
+         "cd24d92cf8bed6ba"],
         ["Surface.StructInvariant.User.Proof.BarProof:importAllArts",
          "4359fb53e6d559f9"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "b23a97ea19750437"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ea143a4f422a4fb8"}
+ "depHash": "e2ebb66810468afc"}

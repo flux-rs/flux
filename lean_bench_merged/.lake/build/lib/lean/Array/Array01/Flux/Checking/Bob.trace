@@ -20,7 +20,7 @@
          "ee6caec85cf10fc8"],
         ["Array.Array01.Flux.VC.Bob:importAllArts", "419c6456cd025c50"],
         ["Array.Array01.User.Proof.BobProof transitive imports (legacy)",
-         "d4a63eedb0781e63"],
+         "278506b4f173e894"],
         ["Array.Array01.User.Proof.BobProof:importAllArts",
          "ef4f7cda20d0d155"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Array.Array01.Flux.Checking.Bob", "1bcb765fd758887d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "09a72c9f7698d3d6"}
+ "depHash": "a0cde5588a124b99"}

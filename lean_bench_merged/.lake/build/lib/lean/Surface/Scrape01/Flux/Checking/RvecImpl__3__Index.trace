@@ -22,7 +22,7 @@
         ["Surface.Scrape01.Flux.VC.RvecImpl__3__Index:importAllArts",
          "81bb380536a52b04"],
         ["Surface.Scrape01.User.Proof.RvecImpl__3__IndexProof transitive imports (legacy)",
-         "a16ff3044fc29441"],
+         "d2a1048e264ed2b6"],
         ["Surface.Scrape01.User.Proof.RvecImpl__3__IndexProof:importAllArts",
          "4e5cb098e061c472"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "0e617f8a639f2049"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "bf92d3feda2fef80"}
+ "depHash": "e7e659c3ba9cab7f"}

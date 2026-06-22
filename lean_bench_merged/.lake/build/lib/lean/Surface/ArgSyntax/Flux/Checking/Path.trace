@@ -21,7 +21,7 @@
          "515065aa10b14b28"],
         ["Surface.ArgSyntax.Flux.VC.Path:importAllArts", "be7eb1b5d7c17296"],
         ["Surface.ArgSyntax.User.Proof.PathProof transitive imports (legacy)",
-         "1a9fac2660143d07"],
+         "50e2f80acb34a810"],
         ["Surface.ArgSyntax.User.Proof.PathProof:importAllArts",
          "36cce7a7fad808cc"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.ArgSyntax.Flux.Checking.Path", "528e3a95dcc94326"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "230c557511686bed"}
+ "depHash": "f377323a1b5f4178"}

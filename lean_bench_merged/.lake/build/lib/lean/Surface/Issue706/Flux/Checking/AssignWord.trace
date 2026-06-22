@@ -22,7 +22,7 @@
         ["Surface.Issue706.Flux.VC.AssignWord:importAllArts",
          "6576c9d1ed18e99c"],
         ["Surface.Issue706.User.Proof.AssignWordProof transitive imports (legacy)",
-         "bbcd0cc39de66efc"],
+         "caf5c515f6509adb"],
         ["Surface.Issue706.User.Proof.AssignWordProof:importAllArts",
          "f589c25620bce4a9"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "373152c93192320f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1cc2b21ab86d1910"}
+ "depHash": "e881a6a4b2c1d490"}

@@ -21,7 +21,7 @@
          "3439e27c639f1639"],
         ["Surface.NoPanic05.Flux.VC.Blah:importAllArts", "d8bb79948468a626"],
         ["Surface.NoPanic05.User.Proof.BlahProof transitive imports (legacy)",
-         "cac62af6af46ec85"],
+         "e0ee62008e08b2c2"],
         ["Surface.NoPanic05.User.Proof.BlahProof:importAllArts",
          "df68ffaac8a84f40"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.NoPanic05.Flux.Checking.Blah", "b875477bce6f8855"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "29fa050aef4ad862"}
+ "depHash": "841d9ee37c93d728"}

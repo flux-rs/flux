@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Ex2MinIndexLoop.Basic transitive imports (legacy)",
-         "cf1a9335e8125251"],
+         "b936089f4cf9a025"],
         ["Surface.Ex2MinIndexLoop.Basic:importAllArts", "14689b1a2b1e4f35"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Ex2MinIndexLoop", "eda687c19dfb8bc9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0807b0d19ac8f039"}
+ "depHash": "13337f4b85eeed7e"}

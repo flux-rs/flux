@@ -21,7 +21,7 @@
          "32c2756a8c99669e"],
         ["Surface.BvOrd.Flux.VC.TrivialGe:importAllArts", "ad12f159fdcbfeca"],
         ["Surface.BvOrd.User.Proof.TrivialGeProof transitive imports (legacy)",
-         "ddf050936fd6c411"],
+         "7289042ef4eecef6"],
         ["Surface.BvOrd.User.Proof.TrivialGeProof:importAllArts",
          "02fae15559aae568"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.BvOrd.Flux.Checking.TrivialGe", "1c16ac69ec17c47a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "98274a8ffbf43324"}
+ "depHash": "d9a534969b55bd3a"}

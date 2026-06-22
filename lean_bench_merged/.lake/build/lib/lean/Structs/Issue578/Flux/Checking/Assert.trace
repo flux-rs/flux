@@ -21,7 +21,7 @@
          "c68b18c612b6fcec"],
         ["Structs.Issue578.Flux.VC.Assert:importAllArts", "fac6e151d88a0ec8"],
         ["Structs.Issue578.User.Proof.AssertProof transitive imports (legacy)",
-         "a9503da7129e3640"],
+         "f805017012424c17"],
         ["Structs.Issue578.User.Proof.AssertProof:importAllArts",
          "30ae2ab6001d0337"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.Issue578.Flux.Checking.Assert", "b08984af741e40f2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "42fc8afa6a72255d"}
+ "depHash": "474913adfd7d9681"}

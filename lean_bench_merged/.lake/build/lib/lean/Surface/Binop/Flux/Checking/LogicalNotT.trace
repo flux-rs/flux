@@ -21,7 +21,7 @@
          "0b8ed4305157a8cd"],
         ["Surface.Binop.Flux.VC.LogicalNotT:importAllArts", "66de5ff656586669"],
         ["Surface.Binop.User.Proof.LogicalNotTProof transitive imports (legacy)",
-         "85e2f2e52358ea0c"],
+         "8cddf837203afb23"],
         ["Surface.Binop.User.Proof.LogicalNotTProof:importAllArts",
          "f13aa755cf3f7ebb"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Binop.Flux.Checking.LogicalNotT", "177f8d4c4eb69faf"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ccbabbea921b1844"}
+ "depHash": "7c8868b4a4bf5c85"}

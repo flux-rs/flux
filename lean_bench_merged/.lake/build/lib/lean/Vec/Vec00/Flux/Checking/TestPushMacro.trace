@@ -21,7 +21,7 @@
          "0c264465450eb1eb"],
         ["Vec.Vec00.Flux.VC.TestPushMacro:importAllArts", "4d9acb05f8f7bb8e"],
         ["Vec.Vec00.User.Proof.TestPushMacroProof transitive imports (legacy)",
-         "77aa8dcfbb64e86e"],
+         "694a46e3025a8071"],
         ["Vec.Vec00.User.Proof.TestPushMacroProof:importAllArts",
          "e5a4f503e4ad89b6"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Vec.Vec00.Flux.Checking.TestPushMacro", "c88cb9dafb998595"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0bb715ded7674f1d"}
+ "depHash": "56ae40e88bf65672"}

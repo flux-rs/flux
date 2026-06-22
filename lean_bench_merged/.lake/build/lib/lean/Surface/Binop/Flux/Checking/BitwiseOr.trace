@@ -21,7 +21,7 @@
          "0b8ed4305157a8cd"],
         ["Surface.Binop.Flux.VC.BitwiseOr:importAllArts", "6cc16b598eb2be0f"],
         ["Surface.Binop.User.Proof.BitwiseOrProof transitive imports (legacy)",
-         "7882d3466945e08d"],
+         "278529d0fb16347a"],
         ["Surface.Binop.User.Proof.BitwiseOrProof:importAllArts",
          "42b01892f6f0f215"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Binop.Flux.Checking.BitwiseOr", "8270375c78b04487"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5c0733c649fbbbbd"}
+ "depHash": "e87fc2c14e411ef8"}

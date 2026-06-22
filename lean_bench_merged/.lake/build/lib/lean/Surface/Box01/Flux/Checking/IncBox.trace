@@ -21,7 +21,7 @@
          "b4951397f8b1d237"],
         ["Surface.Box01.Flux.VC.IncBox:importAllArts", "8d2077de2fdb34dd"],
         ["Surface.Box01.User.Proof.IncBoxProof transitive imports (legacy)",
-         "241ed092fcdb131b"],
+         "81a27206244f8b74"],
         ["Surface.Box01.User.Proof.IncBoxProof:importAllArts",
          "0076c79c1be8d9a1"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Box01.Flux.Checking.IncBox", "f34d0dd97fdbe2bb"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c8cfd3fb86f7c0b2"}
+ "depHash": "63806a86fd379fe9"}

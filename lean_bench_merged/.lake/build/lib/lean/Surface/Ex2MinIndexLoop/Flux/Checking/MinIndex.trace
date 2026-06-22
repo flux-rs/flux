@@ -22,7 +22,7 @@
         ["Surface.Ex2MinIndexLoop.Flux.VC.MinIndex:importAllArts",
          "e5328ee33208648e"],
         ["Surface.Ex2MinIndexLoop.User.Proof.MinIndexProof transitive imports (legacy)",
-         "284d232d257f2880"],
+         "b5a34872b9820097"],
         ["Surface.Ex2MinIndexLoop.User.Proof.MinIndexProof:importAllArts",
          "76a79c57b5bd383a"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "9d876e913c5d9819"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d29cf5c89f1be3dc"}
+ "depHash": "fa66b528f3d9239b"}

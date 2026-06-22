@@ -21,7 +21,7 @@
          "49832115dc5fa151"],
         ["Structs.Tuple00.Flux.VC.Test2:importAllArts", "f2251d42babb855e"],
         ["Structs.Tuple00.User.Proof.Test2Proof transitive imports (legacy)",
-         "85fb832741de9a5a"],
+         "2d63fbcd00f7445d"],
         ["Structs.Tuple00.User.Proof.Test2Proof:importAllArts",
          "a22970c96d4782ba"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.Tuple00.Flux.Checking.Test2", "469d4934f3a4d0b0"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c17edeb9b0f57f89"}
+ "depHash": "1459ccbc3a2fb077"}

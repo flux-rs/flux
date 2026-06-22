@@ -21,7 +21,7 @@
          "0b8ed4305157a8cd"],
         ["Surface.Binop.Flux.VC.LogicalOrFf:importAllArts", "5fbc3444dfbffcad"],
         ["Surface.Binop.User.Proof.LogicalOrFfProof transitive imports (legacy)",
-         "256ee2044a6de25b"],
+         "d6f590b6de4061f4"],
         ["Surface.Binop.User.Proof.LogicalOrFfProof:importAllArts",
          "b654bddc42b14b35"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Binop.Flux.Checking.LogicalOrFf", "ee31aad5c3ef79ec"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ceb46ea9b3f8156a"}
+ "depHash": "551d6ffae61f4561"}

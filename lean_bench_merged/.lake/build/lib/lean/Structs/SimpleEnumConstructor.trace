@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.SimpleEnumConstructor.Basic transitive imports (legacy)",
-         "61665f22a1f2a0d5"],
+         "7e37b05776fe5c7c"],
         ["Structs.SimpleEnumConstructor.Basic:importAllArts",
          "19eb24aaa3ac99c8"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Structs.SimpleEnumConstructor", "edbc4220bb94d321"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ec74b694aef71ce0"}
+ "depHash": "2f87ae421d1d6b9a"}

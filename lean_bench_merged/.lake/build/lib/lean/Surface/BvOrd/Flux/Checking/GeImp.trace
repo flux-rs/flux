@@ -21,7 +21,7 @@
          "32c2756a8c99669e"],
         ["Surface.BvOrd.Flux.VC.GeImp:importAllArts", "edbefe4ac72f08a0"],
         ["Surface.BvOrd.User.Proof.GeImpProof transitive imports (legacy)",
-         "1ed2374e8e62d512"],
+         "bf998388d2ccfccd"],
         ["Surface.BvOrd.User.Proof.GeImpProof:importAllArts",
          "4d70a63059e7cfdd"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.BvOrd.Flux.Checking.GeImp", "3b119ce1321f446f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6428d8dd5bef0167"}
+ "depHash": "2f0216910ec28d90"}

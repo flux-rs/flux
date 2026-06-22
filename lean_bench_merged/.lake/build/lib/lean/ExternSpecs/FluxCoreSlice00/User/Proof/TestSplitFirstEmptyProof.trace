@@ -12,7 +12,7 @@
    "ExternSpecs/FluxCoreSlice00/User/Proof/TestSplitFirstEmptyProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
    "level": "info"},
   {"message":
-   "ExternSpecs/FluxCoreSlice00/User/Proof/TestSplitFirstEmptyProof.lean:69:0: time: 7ms",
+   "ExternSpecs/FluxCoreSlice00/User/Proof/TestSplitFirstEmptyProof.lean:69:0: time: 3ms",
    "level": "info"},
   {"message":
    "ExternSpecs/FluxCoreSlice00/User/Proof/TestSplitFirstEmptyProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -23,7 +23,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["ExternSpecs.FluxCoreSlice00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -48,4 +48,4 @@
    "eac11d7d9f683401"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "96d9151eb7ace579"}
+ "depHash": "f5e20dade574085b"}

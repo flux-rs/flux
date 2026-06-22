@@ -22,7 +22,7 @@
         ["Surface.InvariantWithConstGeneric.Flux.VC.Foo:importAllArts",
          "041623a74c3dbdc4"],
         ["Surface.InvariantWithConstGeneric.User.Proof.FooProof transitive imports (legacy)",
-         "e28a0d40dde1e9a7"],
+         "ef8279852c0a05e0"],
         ["Surface.InvariantWithConstGeneric.User.Proof.FooProof:importAllArts",
          "d2c58e1b159b55a1"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "f381dcaa9bad789f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5f5f7eb3455a793d"}
+ "depHash": "15b3d9dac48d5c8b"}

@@ -22,7 +22,7 @@
         ["Surface.ToInt01.Flux.VC.TestCharToIntMax:importAllArts",
          "1268c0069e39fe76"],
         ["Surface.ToInt01.User.Proof.TestCharToIntMaxProof transitive imports (legacy)",
-         "97a2d136edbee9dc"],
+         "2cd1f88d6e3dd553"],
         ["Surface.ToInt01.User.Proof.TestCharToIntMaxProof:importAllArts",
          "1a14c2d807ff8557"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "92d523c86daf6e0a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ef74d763e6e7a00d"}
+ "depHash": "58879adf8cb3605d"}

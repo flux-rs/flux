@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.AutoStrongTrait00.Basic transitive imports (legacy)",
-         "bbf52f45ddba340f"],
+         "be3c237c19a080eb"],
         ["Surface.AutoStrongTrait00.Basic:importAllArts",
          "9b3f0cdd58de24a5"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.AutoStrongTrait00", "9251e7dd2ef7e912"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e269c87bf4f99aff"}
+ "depHash": "7f176da8d30be16c"}

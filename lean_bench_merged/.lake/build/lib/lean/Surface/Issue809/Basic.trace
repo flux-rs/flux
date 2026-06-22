@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Issue809.Flux.Checking.AddColorcode transitive imports (legacy)",
-         "3c4e1e15535a5294"],
+         "65219a6189f9b39b"],
         ["Surface.Issue809.Flux.Checking.AddColorcode:importAllArts",
          "5a7ff12721d68a75"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.Issue809.Basic", "0dbf82e2c321d6fa"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7fd4e3314bff2758"}
+ "depHash": "8733a5365c816f7c"}

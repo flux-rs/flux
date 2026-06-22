@@ -22,7 +22,7 @@
         ["Surface.SortInference00.Flux.VC.Test01F:importAllArts",
          "cbc904e837159c36"],
         ["Surface.SortInference00.User.Proof.Test01FProof transitive imports (legacy)",
-         "03859e9e970a4cdd"],
+         "f14220b7a1ae0f4a"],
         ["Surface.SortInference00.User.Proof.Test01FProof:importAllArts",
          "08911370a4c2349d"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "ca2b463a7d1739fc"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0ae161ce170097c5"}
+ "depHash": "adfd509e7fb28df1"}

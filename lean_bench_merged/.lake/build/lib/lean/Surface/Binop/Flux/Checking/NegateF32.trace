@@ -21,7 +21,7 @@
          "0b8ed4305157a8cd"],
         ["Surface.Binop.Flux.VC.NegateF32:importAllArts", "31bf289b1ccb5901"],
         ["Surface.Binop.User.Proof.NegateF32Proof transitive imports (legacy)",
-         "8e74746237861d78"],
+         "3ef1a780bf0bac8f"],
         ["Surface.Binop.User.Proof.NegateF32Proof:importAllArts",
          "2b9b9aa47fc26cbd"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Binop.Flux.Checking.NegateF32", "e7502ff849a08a0f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8adee4c854d48855"}
+ "depHash": "6506b49696bcd476"}

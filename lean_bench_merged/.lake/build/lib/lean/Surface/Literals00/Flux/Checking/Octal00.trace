@@ -22,7 +22,7 @@
         ["Surface.Literals00.Flux.VC.Octal00:importAllArts",
          "f0368cfb55e85bb8"],
         ["Surface.Literals00.User.Proof.Octal00Proof transitive imports (legacy)",
-         "62fb2b10c9a6f9f7"],
+         "945b3469de572a40"],
         ["Surface.Literals00.User.Proof.Octal00Proof:importAllArts",
          "253abd791c175eba"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.Literals00.Flux.Checking.Octal00", "2a1549e2108844b3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "edc2f03982997930"}
+ "depHash": "0cda5be90c83fa4e"}

@@ -22,7 +22,7 @@
         ["Surface.Promotion02.Flux.VC.PrintFormatted:importAllArts",
          "b85b95bdd08d1d41"],
         ["Surface.Promotion02.User.Proof.PrintFormattedProof transitive imports (legacy)",
-         "b5e238912e373c61"],
+         "35ab6dcf5bbd23fe"],
         ["Surface.Promotion02.User.Proof.PrintFormattedProof:importAllArts",
          "8d0827b977600f31"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "10158b0f7d6dcfae"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "444f4809bcb9965b"}
+ "depHash": "b177bbca4ba9d0c5"}

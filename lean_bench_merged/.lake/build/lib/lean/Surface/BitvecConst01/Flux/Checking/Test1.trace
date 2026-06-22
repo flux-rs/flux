@@ -22,7 +22,7 @@
         ["Surface.BitvecConst01.Flux.VC.Test1:importAllArts",
          "77dc4f2e62c70665"],
         ["Surface.BitvecConst01.User.Proof.Test1Proof transitive imports (legacy)",
-         "46814766537107a2"],
+         "aef86c80e61501d5"],
         ["Surface.BitvecConst01.User.Proof.Test1Proof:importAllArts",
          "c998818a4c6faa30"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "504ceab6f4f75455"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "af529934bb206c4b"}
+ "depHash": "8d787c95145df9f4"}

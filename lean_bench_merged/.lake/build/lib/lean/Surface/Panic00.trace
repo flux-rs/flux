@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Panic00.Basic transitive imports (legacy)",
-         "c73831969bb067cb"],
+         "69031bb781ec22a5"],
         ["Surface.Panic00.Basic:importAllArts", "bed50c19a1c1fdfc"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Panic00", "ffca3cfff3867a69"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e6175e3e96013037"}
+ "depHash": "56964433c8658bb7"}

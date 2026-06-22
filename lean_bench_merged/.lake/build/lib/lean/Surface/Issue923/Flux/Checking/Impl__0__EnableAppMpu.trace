@@ -22,7 +22,7 @@
         ["Surface.Issue923.Flux.VC.Impl__0__EnableAppMpu:importAllArts",
          "c3efc793917bb524"],
         ["Surface.Issue923.User.Proof.Impl__0__EnableAppMpuProof transitive imports (legacy)",
-         "324785a74b72a621"],
+         "4cee766652ef3456"],
         ["Surface.Issue923.User.Proof.Impl__0__EnableAppMpuProof:importAllArts",
          "d7b5e65a9ed770bd"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "e67eb034a1c56842"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "81d2b47430812832"}
+ "depHash": "85150539a50096a6"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.IntBoundsInvariants.Basic transitive imports (legacy)",
-         "53e740d2ae73c915"],
+         "e0b771460c94acd2"],
         ["Surface.IntBoundsInvariants.Basic:importAllArts",
          "c80fff24e3290731"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.IntBoundsInvariants", "7905bf71c345cd65"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "51d1442939c7ed40"}
+ "depHash": "bd44f09fac4cf091"}

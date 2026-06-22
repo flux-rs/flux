@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.LoopAbstractRefinement.Basic transitive imports (legacy)",
-         "7730d4c93631ef55"],
+         "2963a4cab5e392fe"],
         ["Surface.LoopAbstractRefinement.Basic:importAllArts",
          "ea5e899d85d5c46b"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.LoopAbstractRefinement", "208f9d5572a4dc92"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "27d39615a4a3ce91"}
+ "depHash": "04e6eeadedd817eb"}

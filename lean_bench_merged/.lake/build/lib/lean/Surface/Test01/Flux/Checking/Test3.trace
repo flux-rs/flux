@@ -21,9 +21,9 @@
          "1e4a8cf0c57fee0f"],
         ["Surface.Test01.Flux.VC.Test3:importAllArts", "401ec4b9ec630b53"],
         ["Surface.Test01.User.Proof.Test3Proof transitive imports (legacy)",
-         "4858c0c36f3bcf3e"],
+         "558377ae58cd28f1"],
         ["Surface.Test01.User.Proof.Test3Proof:importAllArts",
-         "13a7eb684079e952"]]]]],
+         "732fec44fff95305"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
       ["package external libraries", "00000000000006bb"],
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Test01.Flux.Checking.Test3", "af6a73cb86b1adb6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5bb93d4a1087eace"}
+ "depHash": "7e93d9b146b9f246"}

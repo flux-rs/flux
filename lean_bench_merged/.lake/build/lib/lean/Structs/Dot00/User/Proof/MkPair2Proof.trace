@@ -14,7 +14,7 @@
   {"message":
    "Structs/Dot00/User/Proof/MkPair2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Structs/Dot00/User/Proof/MkPair2Proof.lean:69:0: time: 10ms",
+  {"message": "Structs/Dot00/User/Proof/MkPair2Proof.lean:69:0: time: 9ms",
    "level": "info"},
   {"message":
    "Structs/Dot00/User/Proof/MkPair2Proof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -25,7 +25,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Structs.Dot00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -47,4 +47,4 @@
   ["Module.name: Structs.Dot00.User.Proof.MkPair2Proof", "10eb4de571afa572"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7d780653a014ba8b"}
+ "depHash": "fddfd02f9fb15940"}

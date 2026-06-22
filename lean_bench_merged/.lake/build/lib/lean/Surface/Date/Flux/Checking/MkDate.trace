@@ -21,7 +21,7 @@
          "f7e0688b59305e31"],
         ["Surface.Date.Flux.VC.MkDate:importAllArts", "fc36ecf388a4c141"],
         ["Surface.Date.User.Proof.MkDateProof transitive imports (legacy)",
-         "be58bb552aa4005e"],
+         "09da895bc3d8e9c1"],
         ["Surface.Date.User.Proof.MkDateProof:importAllArts",
          "7f4e1d3126516237"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Date.Flux.Checking.MkDate", "54764c0d401f2575"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a5499be82a587c3d"}
+ "depHash": "d308fcdebfb41132"}

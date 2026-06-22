@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Closure09.Basic transitive imports (legacy)",
-         "5cd1fdfb5b95e39c"],
+         "870ccd58d95d59be"],
         ["Surface.Closure09.Basic:importAllArts", "ca88c8fa37a81c54"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Closure09", "a32ea18dfe97bb98"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "65c9254bc3bb9289"}
+ "depHash": "b368e914777bf138"}

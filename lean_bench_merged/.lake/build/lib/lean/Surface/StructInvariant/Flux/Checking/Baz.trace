@@ -22,7 +22,7 @@
         ["Surface.StructInvariant.Flux.VC.Baz:importAllArts",
          "e036efc6fa21cd86"],
         ["Surface.StructInvariant.User.Proof.BazProof transitive imports (legacy)",
-         "0682d3ec52296a35"],
+         "ad057b93fbea1062"],
         ["Surface.StructInvariant.User.Proof.BazProof:importAllArts",
          "17c6ae9a26c8432d"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "57504fe4b6058e83"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "fc493b36b1559e4f"}
+ "depHash": "5a95d43bd36d5efa"}

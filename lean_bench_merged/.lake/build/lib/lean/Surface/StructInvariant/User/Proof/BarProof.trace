@@ -12,7 +12,7 @@
    "Surface/StructInvariant/User/Proof/BarProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/StructInvariant/User/Proof/BarProof.lean:69:0: time: 17ms",
+   "Surface/StructInvariant/User/Proof/BarProof.lean:69:0: time: 18ms",
    "level": "info"},
   {"message":
    "Surface/StructInvariant/User/Proof/BarProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -23,7 +23,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.StructInvariant.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -48,4 +48,4 @@
    "98c371b4f8ad3fdb"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7fe86845f333d88f"}
+ "depHash": "7d01541e861d96d5"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.AssocReft10.Flux.Checking.Test transitive imports (legacy)",
-         "4c3494c03c225c39"],
+         "1991dff16fd5cdbc"],
         ["Surface.AssocReft10.Flux.Checking.Test:importAllArts",
          "d61a083877fd7100"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.AssocReft10.Basic", "05f893c8804ff657"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a832ef1f0fc7354c"}
+ "depHash": "e67ff856d77573da"}

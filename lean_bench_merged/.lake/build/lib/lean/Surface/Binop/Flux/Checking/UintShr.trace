@@ -21,7 +21,7 @@
          "0b8ed4305157a8cd"],
         ["Surface.Binop.Flux.VC.UintShr:importAllArts", "4c1f78bea45a2158"],
         ["Surface.Binop.User.Proof.UintShrProof transitive imports (legacy)",
-         "b6f86c204c45ddd8"],
+         "194e0623e09e96ef"],
         ["Surface.Binop.User.Proof.UintShrProof:importAllArts",
          "db1182b72da1e333"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Binop.Flux.Checking.UintShr", "5adc95e9aa75e4ec"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "da13d5070756a718"}
+ "depHash": "a46be04a1b1862ea"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ImplTrait.ParentGenerics.Basic transitive imports (legacy)",
-         "9c97e980c79bee16"],
+         "3c02b5b52d565818"],
         ["ImplTrait.ParentGenerics.Basic:importAllArts",
          "9f24d72fea37af30"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: ImplTrait.ParentGenerics", "5e545ebbf61672b9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8ff2c00ecf446d52"}
+ "depHash": "ab63415ad734605f"}

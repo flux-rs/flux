@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.InvariantSubtyping.Basic transitive imports (legacy)",
-         "330f6efa53c02deb"],
+         "775bb3ee780fa8c4"],
         ["Surface.InvariantSubtyping.Basic:importAllArts",
          "24b36bf4a0ae6fdf"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.InvariantSubtyping", "3810d2fe38ffbbae"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b9a98c3b7a69b331"}
+ "depHash": "b2c7ff4c7da831a5"}

@@ -21,7 +21,7 @@
          "9acff522de88b8e1"],
         ["Surface.Closure15.Flux.VC.Baz:importAllArts", "cc6b2914ea935f82"],
         ["Surface.Closure15.User.Proof.BazProof transitive imports (legacy)",
-         "476f70ad95f575f3"],
+         "03cd9ef5999f99e4"],
         ["Surface.Closure15.User.Proof.BazProof:importAllArts",
          "0a5db32914dd6818"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Closure15.Flux.Checking.Baz", "bc6c88cddda44c17"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2512bdabb2db8a27"}
+ "depHash": "fe1bb8bdd294adcb"}

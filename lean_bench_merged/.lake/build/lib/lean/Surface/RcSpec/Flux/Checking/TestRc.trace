@@ -21,7 +21,7 @@
          "023a9cf4a7dbb8c5"],
         ["Surface.RcSpec.Flux.VC.TestRc:importAllArts", "9c8e0e86e0aa0c4f"],
         ["Surface.RcSpec.User.Proof.TestRcProof transitive imports (legacy)",
-         "3197e228a8314f41"],
+         "10b8ef43afd5f766"],
         ["Surface.RcSpec.User.Proof.TestRcProof:importAllArts",
          "ab9be12ed0c5924c"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.RcSpec.Flux.Checking.TestRc", "75a4ed655d9756e3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3d6c2ab3e22e42a3"}
+ "depHash": "1946b8e2847a6c23"}

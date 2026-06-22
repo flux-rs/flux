@@ -22,7 +22,7 @@
         ["ExternSpecs.FluxCoreSlice00.Flux.VC.TestGetInBounds:importAllArts",
          "d8f02b7ca7ed2007"],
         ["ExternSpecs.FluxCoreSlice00.User.Proof.TestGetInBoundsProof transitive imports (legacy)",
-         "9708bc542ef356c6"],
+         "598e22079a39af11"],
         ["ExternSpecs.FluxCoreSlice00.User.Proof.TestGetInBoundsProof:importAllArts",
          "ef81bda424e67040"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "2b635059812be9dd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "387753c7d2212d9f"}
+ "depHash": "39a541e988f04e61"}

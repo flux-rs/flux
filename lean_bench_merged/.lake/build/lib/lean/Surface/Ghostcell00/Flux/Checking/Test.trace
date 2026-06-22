@@ -21,7 +21,7 @@
          "12b49fd8a1e0753a"],
         ["Surface.Ghostcell00.Flux.VC.Test:importAllArts", "1f047ab559df0491"],
         ["Surface.Ghostcell00.User.Proof.TestProof transitive imports (legacy)",
-         "c89b7d9c3dd788dd"],
+         "5fa6b324ea525afa"],
         ["Surface.Ghostcell00.User.Proof.TestProof:importAllArts",
          "864d6a802bcd13bd"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Ghostcell00.Flux.Checking.Test", "2e6d134ce3f1f051"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a7bedad67c307b72"}
+ "depHash": "5f0c31fe73af867d"}

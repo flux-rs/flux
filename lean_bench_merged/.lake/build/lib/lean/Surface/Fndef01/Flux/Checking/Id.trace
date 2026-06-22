@@ -20,7 +20,7 @@
          "1a21a7dea25e06c2"],
         ["Surface.Fndef01.Flux.VC.Id:importAllArts", "8ce537850ae06203"],
         ["Surface.Fndef01.User.Proof.IdProof transitive imports (legacy)",
-         "d3bb674650bdf31a"],
+         "2b4d796fbf8f67a5"],
         ["Surface.Fndef01.User.Proof.IdProof:importAllArts",
          "e4d9d381966b85e4"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Surface.Fndef01.Flux.Checking.Id", "d154cd92a3dba274"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0e9ad270536709fd"}
+ "depHash": "ae1add54a7b326d3"}

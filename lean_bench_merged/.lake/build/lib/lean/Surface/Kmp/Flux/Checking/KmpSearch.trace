@@ -21,7 +21,7 @@
          "7d4cb9f93ea69a21"],
         ["Surface.Kmp.Flux.VC.KmpSearch:importAllArts", "0ae7253a6d7418b4"],
         ["Surface.Kmp.User.Proof.KmpSearchProof transitive imports (legacy)",
-         "ed4ba2649927ff10"],
+         "b241c47f1c2f742f"],
         ["Surface.Kmp.User.Proof.KmpSearchProof:importAllArts",
          "417ffe00d3fd3247"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Kmp.Flux.Checking.KmpSearch", "0314c1cd559c9c6f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "53dc78935dd6c022"}
+ "depHash": "6a61457f27ea7cb7"}

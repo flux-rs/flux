@@ -22,7 +22,7 @@
         ["Surface.Issue808.Flux.VC.UseFilterMap:importAllArts",
          "aa71bc80b76de26b"],
         ["Surface.Issue808.User.Proof.UseFilterMapProof transitive imports (legacy)",
-         "7725082cf0398545"],
+         "7d60cb054d542bd2"],
         ["Surface.Issue808.User.Proof.UseFilterMapProof:importAllArts",
          "43524231a513d6c9"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "61ebb74c33f036d4"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0fdb5339de0153ba"}
+ "depHash": "bfaccd4cba1b04b6"}

@@ -22,7 +22,7 @@
         ["Enums.Pos00.Flux.VC.Impl__0__ToI32:importAllArts",
          "5a130dbd9550180c"],
         ["Enums.Pos00.User.Proof.Impl__0__ToI32Proof transitive imports (legacy)",
-         "e2cbf3fd6ae276d9"],
+         "7982cb403d8fbdf6"],
         ["Enums.Pos00.User.Proof.Impl__0__ToI32Proof:importAllArts",
          "912a60a5f1e5fe0d"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Enums.Pos00.Flux.Checking.Impl__0__ToI32", "189e4f23769a9f3d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2f0dfb50479a2473"}
+ "depHash": "dae0799e92951776"}

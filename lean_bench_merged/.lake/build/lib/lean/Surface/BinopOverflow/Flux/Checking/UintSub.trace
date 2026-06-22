@@ -22,7 +22,7 @@
         ["Surface.BinopOverflow.Flux.VC.UintSub:importAllArts",
          "b8f116eb5ccd18ce"],
         ["Surface.BinopOverflow.User.Proof.UintSubProof transitive imports (legacy)",
-         "89021e5421b5df46"],
+         "24aa9323dd7903f9"],
         ["Surface.BinopOverflow.User.Proof.UintSubProof:importAllArts",
          "46b352791e5c53c3"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "8d15309a55bd5081"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "523041164f9120b2"}
+ "depHash": "a4c56fa7ce039176"}

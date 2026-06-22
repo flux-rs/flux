@@ -21,7 +21,7 @@
          "c7dd4ffaae63c5d5"],
         ["Detached.Detach01.Flux.VC.Blah:importAllArts", "d1cc282ea7867289"],
         ["Detached.Detach01.User.Proof.BlahProof transitive imports (legacy)",
-         "2d45e9e68aa057a0"],
+         "fe6b8ea41cb1e5ff"],
         ["Detached.Detach01.User.Proof.BlahProof:importAllArts",
          "454a277b66fff639"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Detached.Detach01.Flux.Checking.Blah", "13e111a0569990cd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d310056c1b2a6d10"}
+ "depHash": "6ce2519dbbab28df"}

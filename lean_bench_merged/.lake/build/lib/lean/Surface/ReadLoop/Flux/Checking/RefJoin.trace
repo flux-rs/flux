@@ -21,7 +21,7 @@
          "3447fb4393a0328b"],
         ["Surface.ReadLoop.Flux.VC.RefJoin:importAllArts", "ffb61a492650ceac"],
         ["Surface.ReadLoop.User.Proof.RefJoinProof transitive imports (legacy)",
-         "75f73b836c2ac0c4"],
+         "076486eb2170efc3"],
         ["Surface.ReadLoop.User.Proof.RefJoinProof:importAllArts",
          "53e6bb9f9ca09cd5"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.ReadLoop.Flux.Checking.RefJoin", "b1a2655963323ecd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ff3c5b62f2934fe2"}
+ "depHash": "1ce8e9cc63b171ca"}

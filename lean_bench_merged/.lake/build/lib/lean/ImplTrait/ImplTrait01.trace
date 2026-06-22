@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ImplTrait.ImplTrait01.Basic transitive imports (legacy)",
-         "31ab591ab65b1370"],
+         "ab3a87ca21c93f74"],
         ["ImplTrait.ImplTrait01.Basic:importAllArts", "8a51bca6793cbdff"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: ImplTrait.ImplTrait01", "1dcc0233f78d4d6d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "af30e309918f25f4"}
+ "depHash": "8bf5a82e20ce2fc0"}

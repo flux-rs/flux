@@ -21,7 +21,7 @@
          "380c7af8a0b28160"],
         ["Casts.IntToInt.Flux.VC.Test32:importAllArts", "852bd745826cea4e"],
         ["Casts.IntToInt.User.Proof.Test32Proof transitive imports (legacy)",
-         "03ea2300602b7154"],
+         "7797db3d1ea8d50b"],
         ["Casts.IntToInt.User.Proof.Test32Proof:importAllArts",
          "d46f53062a74cc4e"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Casts.IntToInt.Flux.Checking.Test32", "391a02510205b0c7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ab46630a18e5b30e"}
+ "depHash": "21209f1acac1b78f"}

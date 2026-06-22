@@ -21,7 +21,7 @@
          "d43157d1d993225d"],
         ["Structs.EnumJoin.Flux.VC.Test1:importAllArts", "f68f1a1968a1e2ab"],
         ["Structs.EnumJoin.User.Proof.Test1Proof transitive imports (legacy)",
-         "27f7ea7c4898424c"],
+         "ce4bf8b66d80b1f3"],
         ["Structs.EnumJoin.User.Proof.Test1Proof:importAllArts",
          "c5c9b24a97495d37"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.EnumJoin.Flux.Checking.Test1", "dd0b8910ec7e0cf1"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1dbf0935c1edaa8a"}
+ "depHash": "99eeb33e68b5b9da"}

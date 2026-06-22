@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.GeneralizedJoin.Flux.Checking.GeneralizedJoin transitive imports (legacy)",
-         "1b80ce9e147101a9"],
+         "72fa45b54d862fff"],
         ["Surface.GeneralizedJoin.Flux.Checking.GeneralizedJoin:importAllArts",
          "07503fdafe6a6fab"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.GeneralizedJoin.Basic", "5903c79817a37118"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5733c9a433813405"}
+ "depHash": "281d04152ca54c36"}

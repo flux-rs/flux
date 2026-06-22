@@ -22,7 +22,7 @@
         ["Surface.Remainder.Flux.VC.InputMustBeOdd:importAllArts",
          "d45e289c1373ccd9"],
         ["Surface.Remainder.User.Proof.InputMustBeOddProof transitive imports (legacy)",
-         "6fc84da195f3470d"],
+         "86eb2cf21289fd42"],
         ["Surface.Remainder.User.Proof.InputMustBeOddProof:importAllArts",
          "93dac958c2bfe9da"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "19eaa1ab735d3859"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f6b6e05a53516563"}
+ "depHash": "3fbca17b4753fa5f"}

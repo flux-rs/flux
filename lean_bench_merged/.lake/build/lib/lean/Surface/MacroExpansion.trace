@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.MacroExpansion.Basic transitive imports (legacy)",
-         "f1e953ebfd648fbb"],
+         "a46fb93d0b03c7f1"],
         ["Surface.MacroExpansion.Basic:importAllArts", "00bf29eb3df1d62d"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.MacroExpansion", "a1793877195303a6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3ba4ffa9de77abf6"}
+ "depHash": "18a454485f3cbc75"}

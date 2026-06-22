@@ -22,7 +22,7 @@
         ["Constructors.Test02.Flux.VC.FThroughY:importAllArts",
          "7772e6641c9cced4"],
         ["Constructors.Test02.User.Proof.FThroughYProof transitive imports (legacy)",
-         "61a7d0f6d06f126b"],
+         "2d0d1b24f0d9ff2c"],
         ["Constructors.Test02.User.Proof.FThroughYProof:importAllArts",
          "32ebf74e96aad215"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "376997ec8f2ce800"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "63d84a523b3b565f"}
+ "depHash": "1ea94dc71b9ecc75"}

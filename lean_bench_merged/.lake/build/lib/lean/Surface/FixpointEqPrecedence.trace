@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.FixpointEqPrecedence.Basic transitive imports (legacy)",
-         "d88faf7d98d8566c"],
+         "8990d703e4285866"],
         ["Surface.FixpointEqPrecedence.Basic:importAllArts",
          "428354001633a674"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.FixpointEqPrecedence", "84f74b2a50868545"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9ec840cb30ad4aa7"}
+ "depHash": "51e162c922f07c2d"}

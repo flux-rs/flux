@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["OpaqueSorts.Seq00.Flux.Checking.TestEmpty transitive imports (legacy)",
-         "69c1752de6101b1c"],
+         "cbc1cec46ab00db9"],
         ["OpaqueSorts.Seq00.Flux.Checking.TestEmpty:importAllArts",
          "e31356f50891e5b0"],
         ["OpaqueSorts.Seq00.Flux.Checking.TestCons transitive imports (legacy)",
-         "903ad5bb494f1b3e"],
+         "3823e3eea2ce86f7"],
         ["OpaqueSorts.Seq00.Flux.Checking.TestCons:importAllArts",
          "ef6ca63f5d28a8b0"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: OpaqueSorts.Seq00.Basic", "910b5755dbcce631"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2fd459688888b6cc"}
+ "depHash": "8eeab48db3dd27c1"}

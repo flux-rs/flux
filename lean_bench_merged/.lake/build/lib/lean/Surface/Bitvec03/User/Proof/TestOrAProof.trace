@@ -11,7 +11,7 @@
   {"message":
    "Surface/Bitvec03/User/Proof/TestOrAProof.lean:71:2: [solve_fixpoint] closed by: aesop",
    "level": "info"},
-  {"message": "Surface/Bitvec03/User/Proof/TestOrAProof.lean:69:0: time: 146ms",
+  {"message": "Surface/Bitvec03/User/Proof/TestOrAProof.lean:69:0: time: 91ms",
    "level": "info"},
   {"message":
    "Surface/Bitvec03/User/Proof/TestOrAProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -22,7 +22,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Bitvec03.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -45,4 +45,4 @@
   ["Module.name: Surface.Bitvec03.User.Proof.TestOrAProof", "48ea30fe01a796d1"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "371e223d9f145ffb"}
+ "depHash": "e00aa82edd50be47"}

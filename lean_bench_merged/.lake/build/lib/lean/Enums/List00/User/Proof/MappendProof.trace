@@ -17,7 +17,7 @@
   {"message":
    "Enums/List00/User/Proof/MappendProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Enums/List00/User/Proof/MappendProof.lean:69:0: time: 129ms",
+  {"message": "Enums/List00/User/Proof/MappendProof.lean:69:0: time: 118ms",
    "level": "info"},
   {"message":
    "Enums/List00/User/Proof/MappendProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z1 = 0 ∧ (z0 = z2 ∧ z1 = z1) ∧ z2 = z2 ∨\n  ∃ n₀, z1 = n₀ + 1 ∧ ∃ a'₁, n₀ ≥ 0 ∧ n₀ + z2 ≥ 0 ∧ (z0 = n₀ + z2 + 1 ∧ z1 = z1) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 =>\n  z1 = 0 ∧ (z0 = z2 ∧ z1 = z1) ∧ z2 = z2 ∨\n    ∃ n₀, z1 = n₀ + 1 ∧ ∃ a'₁, n₀ ≥ 0 ∧ n₀ + z2 ≥ 0 ∧ (z0 = n₀ + z2 + 1 ∧ z1 = z1) ∧ z2 = z2",
@@ -28,7 +28,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Enums.List00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -50,4 +50,4 @@
   ["Module.name: Enums.List00.User.Proof.MappendProof", "69910925e55717b1"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "86243d2bf1bd7b55"}
+ "depHash": "3fb0476c872948f8"}

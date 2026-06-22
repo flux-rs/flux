@@ -22,7 +22,7 @@
         ["Surface.EmptyExists.Flux.VC.Test01:importAllArts",
          "5af7e4c92e09c430"],
         ["Surface.EmptyExists.User.Proof.Test01Proof transitive imports (legacy)",
-         "84a96bc2c0fd4a5c"],
+         "bc029a0f9da9071b"],
         ["Surface.EmptyExists.User.Proof.Test01Proof:importAllArts",
          "96af104b5b146138"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.EmptyExists.Flux.Checking.Test01", "ebe2b4f872b653e9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3011537519857546"}
+ "depHash": "5a694739bb078af6"}

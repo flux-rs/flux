@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["RefinedAssocType.RefinedAssocType01.Basic transitive imports (legacy)",
-         "e9cee1b018967091"],
+         "a34c33a3100b368a"],
         ["RefinedAssocType.RefinedAssocType01.Basic:importAllArts",
          "9b9f9c9698572f0d"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: RefinedAssocType.RefinedAssocType01", "246174d20db9b3aa"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2dd37a9f59328ff1"}
+ "depHash": "bbdcee14c0c21f3a"}

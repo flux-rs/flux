@@ -22,7 +22,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Structs.EnumMatch04.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -46,4 +46,4 @@
    "ffb16eeccd58f2c9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9e57d8bdfa1afd4f"}
+ "depHash": "bae68e5c1b963b27"}

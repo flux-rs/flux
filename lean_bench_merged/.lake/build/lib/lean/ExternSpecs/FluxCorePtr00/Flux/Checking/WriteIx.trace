@@ -22,7 +22,7 @@
         ["ExternSpecs.FluxCorePtr00.Flux.VC.WriteIx:importAllArts",
          "bbfea95f626306fb"],
         ["ExternSpecs.FluxCorePtr00.User.Proof.WriteIxProof transitive imports (legacy)",
-         "a191f7a35347ce65"],
+         "598e611ad589f2d2"],
         ["ExternSpecs.FluxCorePtr00.User.Proof.WriteIxProof:importAllArts",
          "fd48d68a2772a968"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "0214005752d984fb"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "37f279e7a3cce055"}
+ "depHash": "9f7de8300f6b26b5"}

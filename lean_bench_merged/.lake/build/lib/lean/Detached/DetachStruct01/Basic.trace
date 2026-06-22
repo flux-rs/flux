@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Detached.DetachStruct01.Flux.Checking.Foo transitive imports (legacy)",
-         "e43674430e41023e"],
+         "ed202339181efb85"],
         ["Detached.DetachStruct01.Flux.Checking.Foo:importAllArts",
          "e2c3d9cf17ac9e7d"],
         ["Detached.DetachStruct01.Flux.Checking.Test transitive imports (legacy)",
-         "98a0a126522e6e3b"],
+         "f5be6278f44540e9"],
         ["Detached.DetachStruct01.Flux.Checking.Test:importAllArts",
          "9237d716713d6f53"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Detached.DetachStruct01.Basic", "7a5ec731d83610cb"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ed8c932f4bdafb8f"}
+ "depHash": "aaf4635b2605ecf4"}

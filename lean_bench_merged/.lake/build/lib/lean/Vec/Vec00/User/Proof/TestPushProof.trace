@@ -38,7 +38,7 @@
   {"message":
    "Vec/Vec00/User/Proof/TestPushProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
    "level": "info"},
-  {"message": "Vec/Vec00/User/Proof/TestPushProof.lean:69:0: time: 195ms",
+  {"message": "Vec/Vec00/User/Proof/TestPushProof.lean:69:0: time: 182ms",
    "level": "info"},
   {"message":
    "Vec/Vec00/User/Proof/TestPushProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k2, k3, k4]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = 10\n[solve]   lam = fun z0 => z0 = 10\n[solve] --- k1 ---\n[solve]   sol = (∃ a'₀, a'₀ = 10 ∧ z0 = a'₀) ∨ z0 = 20\n[solve]   lam = fun z0 => (∃ a'₀, a'₀ = 10 ∧ z0 = a'₀) ∨ z0 = 20\n[solve] --- k2 ---\n[solve]   sol = (∃ a'₁, ((∃ a'₀, a'₀ = 10 ∧ a'₁ = a'₀) ∨ a'₁ = 20) ∧ z0 = a'₁) ∨ z0 = 30\n[solve]   lam = fun z0 => (∃ a'₁, ((∃ a'₀, a'₀ = 10 ∧ a'₁ = a'₀) ∨ a'₁ = 20) ∧ z0 = a'₁) ∨ z0 = 30\n[solve] --- k3 ---\n[solve]   sol = ∃ a'₂, ((∃ a'₁, ((∃ a'₀, a'₀ = 10 ∧ a'₁ = a'₀) ∨ a'₁ = 20) ∧ a'₂ = a'₁) ∨ a'₂ = 30) ∧ z0 = a'₂\n[solve]   lam = fun z0 => ∃ a'₂, ((∃ a'₁, ((∃ a'₀, a'₀ = 10 ∧ a'₁ = a'₀) ∨ a'₁ = 20) ∧ a'₂ = a'₁) ∨ a'₂ = 30) ∧ z0 = a'₂\n[solve] --- k4 ---\n[solve]   sol = ∃ a'₃, (∃ a'₂, ((∃ a'₁, ((∃ a'₀, a'₀ = 10 ∧ a'₁ = a'₀) ∨ a'₁ = 20) ∧ a'₂ = a'₁) ∨ a'₂ = 30) ∧ a'₃ = a'₂) ∧ z0 = a'₃\n[solve]   lam = fun z0 =>\n  ∃ a'₃, (∃ a'₂, ((∃ a'₁, ((∃ a'₀, a'₀ = 10 ∧ a'₁ = a'₀) ∨ a'₁ = 20) ∧ a'₂ = a'₁) ∨ a'₂ = 30) ∧ a'₃ = a'₂) ∧ z0 = a'₃",
@@ -49,7 +49,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Vec.Vec00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -71,4 +71,4 @@
   ["Module.name: Vec.Vec00.User.Proof.TestPushProof", "b1cc61c87d2877b9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c72c6f0d5d299757"}
+ "depHash": "1a5fd66a65ba6335"}

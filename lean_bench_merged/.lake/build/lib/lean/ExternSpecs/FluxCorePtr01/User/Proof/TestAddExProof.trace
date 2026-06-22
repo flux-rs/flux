@@ -27,7 +27,7 @@
    "ExternSpecs/FluxCorePtr01/User/Proof/TestAddExProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddExProof.lean:69:0: time: 79ms",
+   "ExternSpecs/FluxCorePtr01/User/Proof/TestAddExProof.lean:69:0: time: 78ms",
    "level": "info"},
   {"message":
    "ExternSpecs/FluxCorePtr01/User/Proof/TestAddExProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₀, ((z0 = a'₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 => ∃ a'₀, ((z0 = a'₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₁, (∃ a'₀, ((a'₁ = a'₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ ((z0 = a'₁ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ a'₁, (∃ a'₀, ((a'₁ = a'₀ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3) ∧ ((z0 = a'₁ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3",
@@ -38,7 +38,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["ExternSpecs.FluxCorePtr01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -63,4 +63,4 @@
    "b28948adeb07a9f4"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2be26976898f820c"}
+ "depHash": "ddac33f0af0dfe5b"}

@@ -14,7 +14,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["Array.Array01.Basic transitive imports (legacy)", "d26da04721825788"],
+       [["Array.Array01.Basic transitive imports (legacy)", "3077d7750ca365cb"],
         ["Array.Array01.Basic:importAllArts", "694f24407e2dcdf1"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -30,4 +30,4 @@
   ["Module.name: Array.Array01", "6933c91dafc76acd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "694cf0699b989b7c"}
+ "depHash": "f54b9366d701995c"}

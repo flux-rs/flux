@@ -22,7 +22,7 @@
         ["Surface.Issue1449Simp.Flux.VC.Select:importAllArts",
          "ad22fe8fd461284f"],
         ["Surface.Issue1449Simp.User.Proof.SelectProof transitive imports (legacy)",
-         "97a573882c228b4f"],
+         "4176afc9c71dc970"],
         ["Surface.Issue1449Simp.User.Proof.SelectProof:importAllArts",
          "77bf79592230892f"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "244ca189f509161e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6d8c2c6a28b01469"}
+ "depHash": "db2dca1d99ffa7a2"}

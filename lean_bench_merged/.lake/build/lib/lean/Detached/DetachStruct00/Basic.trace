@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Detached.DetachStruct00.Flux.Checking.MkStruct transitive imports (legacy)",
-         "6c01d94d7ad55742"],
+         "2b99e8fc66d4cb43"],
         ["Detached.DetachStruct00.Flux.Checking.MkStruct:importAllArts",
          "06bfa617127beab1"],
         ["Detached.DetachStruct00.Flux.Checking.UseStruct transitive imports (legacy)",
-         "e6d6089c12beb010"],
+         "3257fe4ab5925998"],
         ["Detached.DetachStruct00.Flux.Checking.UseStruct:importAllArts",
          "96ba9665782873ab"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Detached.DetachStruct00.Basic", "80fabc6cd7965397"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "dd5a4249f28d1519"}
+ "depHash": "f8089e4430551d84"}

@@ -20,7 +20,7 @@
          "c5095b5a86de3e84"],
         ["Surface.Fndef02.Flux.VC.Div:importAllArts", "e605df913f6cdf4e"],
         ["Surface.Fndef02.User.Proof.DivProof transitive imports (legacy)",
-         "c01262957dac4010"],
+         "6ea464ae9e81545f"],
         ["Surface.Fndef02.User.Proof.DivProof:importAllArts",
          "fc966d8d9eecaf89"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Surface.Fndef02.Flux.Checking.Div", "425c496a13440f2c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f75192207a2aa2de"}
+ "depHash": "2df1846b35ef88c4"}

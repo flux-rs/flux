@@ -21,7 +21,7 @@
          "32c2756a8c99669e"],
         ["Surface.BvOrd.Flux.VC.TrivialLe:importAllArts", "c0e8feadebb5f5d8"],
         ["Surface.BvOrd.User.Proof.TrivialLeProof transitive imports (legacy)",
-         "23a329dce61a6e44"],
+         "81f01b36847859b3"],
         ["Surface.BvOrd.User.Proof.TrivialLeProof:importAllArts",
          "256998d134fc1395"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.BvOrd.Flux.Checking.TrivialLe", "d47af5ebe22087b2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "96f28eb642d4eed6"}
+ "depHash": "8e1487e47114c600"}

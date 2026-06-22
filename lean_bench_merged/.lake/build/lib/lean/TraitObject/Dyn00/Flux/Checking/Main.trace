@@ -21,7 +21,7 @@
          "95d28dde4add914e"],
         ["TraitObject.Dyn00.Flux.VC.Main:importAllArts", "0e3df3ee8b611da7"],
         ["TraitObject.Dyn00.User.Proof.MainProof transitive imports (legacy)",
-         "37c225c3877c4a09"],
+         "e7cf039a36f02a4e"],
         ["TraitObject.Dyn00.User.Proof.MainProof:importAllArts",
          "40220d1b8d07134f"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: TraitObject.Dyn00.Flux.Checking.Main", "534e83310fc680a6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "059b68524e045cd3"}
+ "depHash": "5a415996f9be3acd"}

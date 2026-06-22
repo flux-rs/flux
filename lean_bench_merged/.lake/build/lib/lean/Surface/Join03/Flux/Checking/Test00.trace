@@ -21,7 +21,7 @@
          "898e2a8cde2e3da5"],
         ["Surface.Join03.Flux.VC.Test00:importAllArts", "3119c7752b91d22d"],
         ["Surface.Join03.User.Proof.Test00Proof transitive imports (legacy)",
-         "f95b9b08e30d3b33"],
+         "8397e1b83cf0489c"],
         ["Surface.Join03.User.Proof.Test00Proof:importAllArts",
          "c1b2c6eb1c977413"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Join03.Flux.Checking.Test00", "ea461d3416e6febf"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "02302f8cfb14d123"}
+ "depHash": "81f3ebcef13f8832"}

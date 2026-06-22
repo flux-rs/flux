@@ -22,7 +22,7 @@
         ["Enums.Issue234.Flux.VC.Impl__0__LenConstMemory:importAllArts",
          "35a8cd37454d0c6e"],
         ["Enums.Issue234.User.Proof.Impl__0__LenConstMemoryProof transitive imports (legacy)",
-         "69e0830326eaed6c"],
+         "622774355fd1a55b"],
         ["Enums.Issue234.User.Proof.Impl__0__LenConstMemoryProof:importAllArts",
          "80058d07e797ac1c"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "e5dda7e202001b25"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "469a83aa0af0fa18"}
+ "depHash": "4e136c2a61f88b48"}

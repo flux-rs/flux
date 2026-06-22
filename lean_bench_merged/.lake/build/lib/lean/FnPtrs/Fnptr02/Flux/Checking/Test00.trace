@@ -21,7 +21,7 @@
          "37c41262c6a3ab22"],
         ["FnPtrs.Fnptr02.Flux.VC.Test00:importAllArts", "8de785cf1b8d8302"],
         ["FnPtrs.Fnptr02.User.Proof.Test00Proof transitive imports (legacy)",
-         "7ff5a36d91789721"],
+         "c1edfe146ccf7d0e"],
         ["FnPtrs.Fnptr02.User.Proof.Test00Proof:importAllArts",
          "2272bfc0c7b13e81"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: FnPtrs.Fnptr02.Flux.Checking.Test00", "e96e65469d277db6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "debaf66d7e17b7b8"}
+ "depHash": "5deeb8c0fa79b7ee"}

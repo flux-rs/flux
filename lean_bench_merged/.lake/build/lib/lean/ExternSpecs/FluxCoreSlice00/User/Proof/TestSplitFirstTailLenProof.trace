@@ -15,7 +15,7 @@
    "ExternSpecs/FluxCoreSlice00/User/Proof/TestSplitFirstTailLenProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "ExternSpecs/FluxCoreSlice00/User/Proof/TestSplitFirstTailLenProof.lean:69:0: time: 33ms",
+   "ExternSpecs/FluxCoreSlice00/User/Proof/TestSplitFirstTailLenProof.lean:69:0: time: 29ms",
    "level": "info"},
   {"message":
    "ExternSpecs/FluxCoreSlice00/User/Proof/TestSplitFirstTailLenProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ xs_elem₀, z0 = xs_elem₀ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ xs_elem₀, z0 = xs_elem₀ ∧ z1 = z1",
@@ -26,7 +26,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["ExternSpecs.FluxCoreSlice00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -51,4 +51,4 @@
    "0241f5a37127f218"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0f11bcdc1b273184"}
+ "depHash": "6d964d09ac25c9cd"}

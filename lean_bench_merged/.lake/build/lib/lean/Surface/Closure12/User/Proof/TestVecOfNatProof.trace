@@ -21,7 +21,7 @@
    "Surface/Closure12/User/Proof/TestVecOfNatProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/Closure12/User/Proof/TestVecOfNatProof.lean:69:0: time: 345ms",
+   "Surface/Closure12/User/Proof/TestVecOfNatProof.lean:69:0: time: 328ms",
    "level": "info"},
   {"message":
    "Surface/Closure12/User/Proof/TestVecOfNatProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k2]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ v₀, (0 ≤ v₀ ∧ v₀ < z1) ∧ z0 = v₀ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ v₀, (0 ≤ v₀ ∧ v₀ < z1) ∧ z0 = v₀ ∧ z1 = z1\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₀, (∃ v₀, (0 ≤ v₀ ∧ v₀ < z2) ∧ a'₀ = v₀ ∧ z2 = z2) ∧ a'₀ ≥ 0 ∧ (z0 = 10 ∧ z1 = a'₀) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 => ∃ a'₀, (∃ v₀, (0 ≤ v₀ ∧ v₀ < z2) ∧ a'₀ = v₀ ∧ z2 = z2) ∧ a'₀ ≥ 0 ∧ (z0 = 10 ∧ z1 = a'₀) ∧ z2 = z2\n[solve] --- k2 ---\n[solve]   sol = ∃ v₀,\n  (0 ≤ v₀ ∧ v₀ < z1) ∧\n    ∃ a'₂,\n      (∃ a'₀, (∃ v₀, (0 ≤ v₀ ∧ v₀ < z1) ∧ a'₀ = v₀ ∧ z1 = z1) ∧ a'₀ ≥ 0 ∧ (a'₂ = 10 ∧ v₀ = a'₀) ∧ z1 = z1) ∧\n        z0 = a'₂ ∧ z1 = z1\n[solve]   lam = fun z0 z1 =>\n  ∃ v₀,\n    (0 ≤ v₀ ∧ v₀ < z1) ∧\n      ∃ a'₂,\n        (∃ a'₀, (∃ v₀, (0 ≤ v₀ ∧ v₀ < z1) ∧ a'₀ = v₀ ∧ z1 = z1) ∧ a'₀ ≥ 0 ∧ (a'₂ = 10 ∧ v₀ = a'₀) ∧ z1 = z1) ∧\n          z0 = a'₂ ∧ z1 = z1",
@@ -32,7 +32,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Closure12.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -56,4 +56,4 @@
    "2406809fecdc2000"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ac0c5d11500ac65e"}
+ "depHash": "396e2d64b06f7c7e"}

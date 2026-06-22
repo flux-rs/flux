@@ -22,7 +22,7 @@
         ["Surface.FixpointEqPrecedence.Flux.VC.Foo:importAllArts",
          "f65391ae4ac8b25e"],
         ["Surface.FixpointEqPrecedence.User.Proof.FooProof transitive imports (legacy)",
-         "8b726be1a23afd5e"],
+         "15d33b5c805f1ab1"],
         ["Surface.FixpointEqPrecedence.User.Proof.FooProof:importAllArts",
          "5c9a4e3c4f969818"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "47a9ab6c444e1a05"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b1d163ea3a84cb40"}
+ "depHash": "c1a6345416d3766e"}

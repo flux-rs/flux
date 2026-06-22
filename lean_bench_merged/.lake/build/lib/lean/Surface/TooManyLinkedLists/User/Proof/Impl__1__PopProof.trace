@@ -27,7 +27,7 @@
    "Surface/TooManyLinkedLists/User/Proof/Impl__1__PopProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/TooManyLinkedLists/User/Proof/Impl__1__PopProof.lean:69:0: time: 283ms",
+   "Surface/TooManyLinkedLists/User/Proof/Impl__1__PopProof.lean:69:0: time: 232ms",
    "level": "info"},
   {"message":
    "Surface/TooManyLinkedLists/User/Proof/Impl__1__PopProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₀, z0 = a'₀ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ a'₀, z0 = a'₀ ∧ z1 = z1\n[solve] --- k1 ---\n[solve]   sol = z2 = 0 ∧ (z0 = False ∧ z1 = 0) ∧ z2 = z2 ∨\n  ∃ n₁, z2 = n₁ + 1 ∧ n₁ ≥ 0 ∧ ∃ a'₂, (∃ a'₀, a'₂ = a'₀ ∧ z2 = z2) ∧ (z0 = True ∧ z1 = n₁) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 =>\n  z2 = 0 ∧ (z0 = False ∧ z1 = 0) ∧ z2 = z2 ∨\n    ∃ n₁, z2 = n₁ + 1 ∧ n₁ ≥ 0 ∧ ∃ a'₂, (∃ a'₀, a'₂ = a'₀ ∧ z2 = z2) ∧ (z0 = True ∧ z1 = n₁) ∧ z2 = z2",
@@ -38,7 +38,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.TooManyLinkedLists.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -63,4 +63,4 @@
    "3934e119bd146687"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "cc33558f6e654597"}
+ "depHash": "880f84daddc620d8"}

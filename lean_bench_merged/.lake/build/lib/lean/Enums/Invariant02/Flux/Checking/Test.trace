@@ -21,7 +21,7 @@
          "d5209c9adc499bff"],
         ["Enums.Invariant02.Flux.VC.Test:importAllArts", "22134eafebec68bf"],
         ["Enums.Invariant02.User.Proof.TestProof transitive imports (legacy)",
-         "38fe1b1da413a6f9"],
+         "f3faad4f956f054e"],
         ["Enums.Invariant02.User.Proof.TestProof:importAllArts",
          "65c6dad717cb790d"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Enums.Invariant02.Flux.Checking.Test", "750e2c15d960dfef"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "755eb8914ba897be"}
+ "depHash": "fa85c864426bfa4d"}

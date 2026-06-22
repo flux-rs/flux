@@ -22,7 +22,7 @@
         ["Surface.AssocReft05.Flux.VC.MyTraitFoo:importAllArts",
          "f8dc66aa3952de16"],
         ["Surface.AssocReft05.User.Proof.MyTraitFooProof transitive imports (legacy)",
-         "dab57ba3568beea0"],
+         "8419e07c516e3b87"],
         ["Surface.AssocReft05.User.Proof.MyTraitFooProof:importAllArts",
          "0abc35a12624dab3"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "53fae716e82aeebd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d6d849218ddfe995"}
+ "depHash": "90f255f6cc2b7837"}

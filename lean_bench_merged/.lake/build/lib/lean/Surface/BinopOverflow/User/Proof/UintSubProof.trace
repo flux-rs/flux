@@ -15,7 +15,7 @@
    "Surface/BinopOverflow/User/Proof/UintSubProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/BinopOverflow/User/Proof/UintSubProof.lean:69:0: time: 23ms",
+   "Surface/BinopOverflow/User/Proof/UintSubProof.lean:69:0: time: 52ms",
    "level": "info"},
   {"message":
    "Surface/BinopOverflow/User/Proof/UintSubProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -26,7 +26,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.BinopOverflow.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -51,4 +51,4 @@
    "88e77fff612c7009"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "72a6c02741697427"}
+ "depHash": "f27d3e73d9825c30"}

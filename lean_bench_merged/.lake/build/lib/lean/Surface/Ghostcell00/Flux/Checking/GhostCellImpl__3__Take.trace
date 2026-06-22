@@ -22,7 +22,7 @@
         ["Surface.Ghostcell00.Flux.VC.GhostCellImpl__3__Take:importAllArts",
          "89b3226612d4a43e"],
         ["Surface.Ghostcell00.User.Proof.GhostCellImpl__3__TakeProof transitive imports (legacy)",
-         "32da5ccf9c4df6e1"],
+         "d5c18a1f5cbb019e"],
         ["Surface.Ghostcell00.User.Proof.GhostCellImpl__3__TakeProof:importAllArts",
          "0fef3667c14c6093"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "fa6096a318adb8c9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "05efe2dec0f0b3d4"}
+ "depHash": "5a47283925d58deb"}

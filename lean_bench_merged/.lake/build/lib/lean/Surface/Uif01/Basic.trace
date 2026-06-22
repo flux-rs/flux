@@ -15,10 +15,10 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Uif01.Flux.Checking.Bar transitive imports (legacy)",
-         "e08dcc8eb2332a97"],
+         "7d692cf3e72b8100"],
         ["Surface.Uif01.Flux.Checking.Bar:importAllArts", "b60aaf1a8de97db6"],
         ["Surface.Uif01.Flux.Checking.Test transitive imports (legacy)",
-         "6c62d9ad458d3555"],
+         "e3884b20e3384133"],
         ["Surface.Uif01.Flux.Checking.Test:importAllArts",
          "b4efa71273274525"]]]]],
     ["libs",
@@ -35,4 +35,4 @@
   ["Module.name: Surface.Uif01.Basic", "1abe9d4a06a98afa"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2082dbf258488a83"}
+ "depHash": "df60d6ae803f4e67"}

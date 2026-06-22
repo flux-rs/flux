@@ -23,7 +23,7 @@
   {"message":
    "Surface/OptBlowup/User/Proof/Let2Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/OptBlowup/User/Proof/Let2Proof.lean:69:0: time: 49ms",
+  {"message": "Surface/OptBlowup/User/Proof/Let2Proof.lean:69:0: time: 56ms",
    "level": "info"},
   {"message":
    "Surface/OptBlowup/User/Proof/Let2Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ((z0 = z3 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 => ((z0 = z3 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3",
@@ -34,7 +34,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.OptBlowup.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -57,4 +57,4 @@
   ["Module.name: Surface.OptBlowup.User.Proof.Let2Proof", "a1eda348bfeadffe"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "87d60a50b0f76219"}
+ "depHash": "e407e0d5cdb64d40"}

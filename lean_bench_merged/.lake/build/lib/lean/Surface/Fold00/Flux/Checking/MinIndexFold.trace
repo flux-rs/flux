@@ -22,7 +22,7 @@
         ["Surface.Fold00.Flux.VC.MinIndexFold:importAllArts",
          "98bd384a9200a43c"],
         ["Surface.Fold00.User.Proof.MinIndexFoldProof transitive imports (legacy)",
-         "ba4e51b4836694b6"],
+         "8befaa3a762bf089"],
         ["Surface.Fold00.User.Proof.MinIndexFoldProof:importAllArts",
          "142f579f2781dd87"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "9ec244a952aba419"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b949b84b60de811a"}
+ "depHash": "54ad9ffc77c4a76d"}

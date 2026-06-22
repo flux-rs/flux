@@ -22,7 +22,7 @@
         ["Surface.Bsearch1.Flux.VC.RvecImpl__4__IndexMut:importAllArts",
          "7c32cda6b90f42a5"],
         ["Surface.Bsearch1.User.Proof.RvecImpl__4__IndexMutProof transitive imports (legacy)",
-         "d014e2318ccee154"],
+         "650ec6b9aa03ffb3"],
         ["Surface.Bsearch1.User.Proof.RvecImpl__4__IndexMutProof:importAllArts",
          "61615c3c75afbf1a"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "805c42080337d3b0"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "123254bc35410d61"}
+ "depHash": "0ed863243ea86224"}

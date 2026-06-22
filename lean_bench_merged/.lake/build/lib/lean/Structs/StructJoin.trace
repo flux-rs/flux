@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.StructJoin.Basic transitive imports (legacy)",
-         "1d677a5d168ea707"],
+         "2d312607e708979a"],
         ["Structs.StructJoin.Basic:importAllArts", "a7c98989d20b7267"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Structs.StructJoin", "a095be3a97f6a799"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a7a19f970f0cc973"}
+ "depHash": "4dd03648a5dbc210"}

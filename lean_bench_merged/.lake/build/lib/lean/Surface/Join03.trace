@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Join03.Basic transitive imports (legacy)",
-         "53441453b4de0668"],
+         "d71628246a5f1ccd"],
         ["Surface.Join03.Basic:importAllArts", "bcfb164f2e7cac5c"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Join03", "60001e8cb7d30b03"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7d8caac9bbf3ebac"}
+ "depHash": "d5f181a1584fe895"}

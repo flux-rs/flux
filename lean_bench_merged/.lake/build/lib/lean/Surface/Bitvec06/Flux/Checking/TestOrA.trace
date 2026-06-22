@@ -21,7 +21,7 @@
          "5d42c8cf7de4273e"],
         ["Surface.Bitvec06.Flux.VC.TestOrA:importAllArts", "c5b15602ba6fb292"],
         ["Surface.Bitvec06.User.Proof.TestOrAProof transitive imports (legacy)",
-         "32e3d7ae65fd0243"],
+         "b023dd3e6702ba0c"],
         ["Surface.Bitvec06.User.Proof.TestOrAProof:importAllArts",
          "afa7738045c058ab"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Bitvec06.Flux.Checking.TestOrA", "c67ba06163acf563"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5722e1e288f6d545"}
+ "depHash": "de7416b9430a8aac"}

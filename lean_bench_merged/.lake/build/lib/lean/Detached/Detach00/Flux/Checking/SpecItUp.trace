@@ -22,7 +22,7 @@
         ["Detached.Detach00.Flux.VC.SpecItUp:importAllArts",
          "e617161308ad1882"],
         ["Detached.Detach00.User.Proof.SpecItUpProof transitive imports (legacy)",
-         "9b625635af0d6a02"],
+         "a7ba79f2fab1796d"],
         ["Detached.Detach00.User.Proof.SpecItUpProof:importAllArts",
          "fbc0b0810973abd6"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Detached.Detach00.Flux.Checking.SpecItUp", "212c1c18b7025be6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d57b6ba683c1963c"}
+ "depHash": "9cd39dec27b061b1"}

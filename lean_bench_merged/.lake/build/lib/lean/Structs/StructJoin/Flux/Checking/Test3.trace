@@ -21,7 +21,7 @@
          "a04d2e87d5b11270"],
         ["Structs.StructJoin.Flux.VC.Test3:importAllArts", "18abfb0ad23327ac"],
         ["Structs.StructJoin.User.Proof.Test3Proof transitive imports (legacy)",
-         "24db44907652c830"],
+         "19ab6bc4c9d8d20f"],
         ["Structs.StructJoin.User.Proof.Test3Proof:importAllArts",
          "d75134ae665ff29d"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.StructJoin.Flux.Checking.Test3", "b9c1eefa52ee1483"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d2b5ac5cde85e5ec"}
+ "depHash": "548dc8ceac458d49"}

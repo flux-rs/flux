@@ -14,7 +14,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["Surface.Box03.Basic transitive imports (legacy)", "84328e738e804d3d"],
+       [["Surface.Box03.Basic transitive imports (legacy)", "8c73336f81fb0944"],
         ["Surface.Box03.Basic:importAllArts", "7d056dd297543108"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -30,4 +30,4 @@
   ["Module.name: Surface.Box03", "8cab854f40b37856"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a3fbcbebca7a4924"}
+ "depHash": "88d240e253fa71db"}

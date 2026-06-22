@@ -21,7 +21,7 @@
          "32c2756a8c99669e"],
         ["Surface.BvOrd.Flux.VC.GtImp:importAllArts", "f03c8336c1224c4e"],
         ["Surface.BvOrd.User.Proof.GtImpProof transitive imports (legacy)",
-         "b9465c2765fd350c"],
+         "6b69a24bcdc1d07b"],
         ["Surface.BvOrd.User.Proof.GtImpProof:importAllArts",
          "3a2073d7cbc0a9fe"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.BvOrd.Flux.Checking.GtImp", "9f25dc7faf09c3ce"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7cef1deb8fea56ff"}
+ "depHash": "7a0dc13fa751b5ff"}

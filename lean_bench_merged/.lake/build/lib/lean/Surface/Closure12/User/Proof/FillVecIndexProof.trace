@@ -21,7 +21,7 @@
    "Surface/Closure12/User/Proof/FillVecIndexProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/Closure12/User/Proof/FillVecIndexProof.lean:69:0: time: 8645ms",
+   "Surface/Closure12/User/Proof/FillVecIndexProof.lean:69:0: time: 8272ms",
    "level": "info"},
   {"message":
    "Surface/Closure12/User/Proof/FillVecIndexProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1, k2, k3]\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve] --- k1 ---\n[solve]   sol = ∃ c0 n₀ f₀, n₀ ≥ 0 ∧ ∃ item₀, (0 ≤ item₀ ∧ item₀ < n₀) ∧ (z0 = item₀ ∧ z1 = n₀) ∧ z2 = f₀\n[solve]   lam = fun z0 z1 z2 => ∃ c0 n₀ f₀, n₀ ≥ 0 ∧ ∃ item₀, (0 ≤ item₀ ∧ item₀ < n₀) ∧ (z0 = item₀ ∧ z1 = n₀) ∧ z2 = f₀\n[solve] --- k2 ---\n[solve]   sol = ∃ c0 n₀ f₀,\n  n₀ ≥ 0 ∧\n    ∃ a'₁,\n      (∃ c0 n₀_1 f₀_1, n₀_1 ≥ 0 ∧ ∃ item₀, (0 ≤ item₀ ∧ item₀ < n₀_1) ∧ (a'₁ = item₀ ∧ n₀ = n₀_1) ∧ f₀ = f₀_1) ∧\n        a'₁ ≥ 0 ∧ ∃ a'₂, ?k0 a'₂ n₀ f₀ ∧ ((z0 = a'₂ ∧ z1 = n₀) ∧ z2 = f₀) ∧ z3 = a'₁\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ c0 n₀ f₀,\n    n₀ ≥ 0 ∧\n      ∃ a'₁,\n        (∃ c0 n₀_1 f₀_1, n₀_1 ≥ 0 ∧ ∃ item₀, (0 ≤ item₀ ∧ item₀ < n₀_1) ∧ (a'₁ = item₀ ∧ n₀ = n₀_1) ∧ f₀ = f₀_1) ∧\n          a'₁ ≥ 0 ∧ ∃ a'₂, ?k0 a'₂ n₀ f₀ ∧ ((z0 = a'₂ ∧ z1 = n₀) ∧ z2 = f₀) ∧ z3 = a'₁\n[solve] --- k3 ---\n[solve]   sol = ∃ c0 n₀ f₀, n₀ ≥ 0 ∧ ((∃ a'₅, ?k0 a'₅ n₀ f₀ ∧ (z0 = a'₅ ∧ z1 = n₀) ∧ z2 = f₀) ∨ ∃ a'₇, (z0 = a'₇ ∧ z1 = n₀) ∧ z2 = f₀)\n[solve]   lam = fun z0 z1 z2 =>\n  ∃ c0 n₀ f₀, n₀ ≥ 0 ∧ ((∃ a'₅, ?k0 a'₅ n₀ f₀ ∧ (z0 = a'₅ ∧ z1 = n₀) ∧ z2 = f₀) ∨ ∃ a'₇, (z0 = a'₇ ∧ z1 = n₀) ∧ z2 = f₀)\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = z1 ≥ 0\n[solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = z1 ≥ 0",
@@ -32,7 +32,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Closure12.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -56,4 +56,4 @@
    "8fce324a2d050e6d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b3fc3db19c108d04"}
+ "depHash": "27c2b15de2868eea"}

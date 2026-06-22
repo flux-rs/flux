@@ -21,7 +21,7 @@
          "e5004dcf79aa83f4"],
         ["Surface.StaticSpec00.Flux.VC.BLAH:importAllArts", "4703f5861b4156cd"],
         ["Surface.StaticSpec00.User.Proof.BLAHProof transitive imports (legacy)",
-         "d37576c15a6e469d"],
+         "954adccab821b24a"],
         ["Surface.StaticSpec00.User.Proof.BLAHProof:importAllArts",
          "0428be1408e0e652"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.StaticSpec00.Flux.Checking.BLAH", "0b55b2a5ac2a1185"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "829c8c756e6b10da"}
+ "depHash": "27fc260da484841e"}

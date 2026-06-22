@@ -21,7 +21,7 @@
          "515065aa10b14b28"],
         ["Surface.ArgSyntax.Flux.VC.Exists:importAllArts", "ca87500a8b07eef3"],
         ["Surface.ArgSyntax.User.Proof.ExistsProof transitive imports (legacy)",
-         "6af501eb1c114e06"],
+         "3a1625e403c6b9b9"],
         ["Surface.ArgSyntax.User.Proof.ExistsProof:importAllArts",
          "104c872df80e74b1"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.ArgSyntax.Flux.Checking.Exists", "dd7cd84ffce2cc32"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d37a173f0f73231a"}
+ "depHash": "3cae3c56b51c63ca"}

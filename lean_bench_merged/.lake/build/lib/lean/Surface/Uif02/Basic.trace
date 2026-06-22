@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Uif02.Flux.Checking.IsBar transitive imports (legacy)",
-         "f1ed3811260e193f"],
+         "fa44a12d43021958"],
         ["Surface.Uif02.Flux.Checking.IsBar:importAllArts",
          "e81fb0ea7d8a1f5e"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.Uif02.Basic", "6c44f39f0862de0a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f0e640e3c0521e9b"}
+ "depHash": "6c54de13c575f09e"}

@@ -22,7 +22,7 @@
         ["Surface.Closure11.Flux.VC.Impl__0__Foreach:importAllArts",
          "38f46113f5cf47a2"],
         ["Surface.Closure11.User.Proof.Impl__0__ForeachProof transitive imports (legacy)",
-         "de8ce718101f71f2"],
+         "069cb6d322eb13c5"],
         ["Surface.Closure11.User.Proof.Impl__0__ForeachProof:importAllArts",
          "a4d50d46093029f2"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "d082bc4f2ca05053"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8cca3df841dcd263"}
+ "depHash": "fe02e231838d1141"}

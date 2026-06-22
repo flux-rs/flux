@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.TooManyLinkedLists.Basic transitive imports (legacy)",
-         "ca6579c8a4740fad"],
+         "5dd17bc2b245f999"],
         ["Surface.TooManyLinkedLists.Basic:importAllArts",
          "ec8668d568552cc2"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.TooManyLinkedLists", "83da5aaa61d71809"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f726523434bbcf97"}
+ "depHash": "0fadb96e719b4dd2"}

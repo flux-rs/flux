@@ -1,7 +1,7 @@
 {"synthetic": false,
  "schemaVersion": "2025-09-10",
  "outputs":
- {"o": ["a1ea2d86d525dd29.olean"],
+ {"o": ["ae0e755caaedcb75.olean"],
   "i": "4a079fcf06c8c3b2.ilean",
   "c": "a1192dd784b736f2.c"},
  "log":
@@ -15,7 +15,7 @@
    "Surface/Box02/User/Proof/NoCloseJoinProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/Box02/User/Proof/NoCloseJoinProof.lean:69:0: time: 5531ms",
+   "Surface/Box02/User/Proof/NoCloseJoinProof.lean:69:0: time: 4008ms",
    "level": "info"},
   {"message":
    "Surface/Box02/User/Proof/NoCloseJoinProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ b₀, z0 = 1 ∧ z1 = b₀\n[solve]   lam = fun z0 z1 => ∃ b₀, z0 = 1 ∧ z1 = b₀\n[solve] --- k1 ---\n[solve]   sol = ∃ b₀ x₀,\n  (∃ b₀_1, x₀ = 1 ∧ b₀ = b₀_1) ∧\n    (¬b₀ ∧ (z0 = x₀ + 1 + 2 ∧ z1 = b₀) ∧ z2 = x₀ ∨ b₀ ∧ (z0 = x₀ + 1 + 1 ∧ z1 = True) ∧ z2 = x₀)\n[solve]   lam = fun z0 z1 z2 =>\n  ∃ b₀ x₀,\n    (∃ b₀_1, x₀ = 1 ∧ b₀ = b₀_1) ∧\n      (¬b₀ ∧ (z0 = x₀ + 1 + 2 ∧ z1 = b₀) ∧ z2 = x₀ ∨ b₀ ∧ (z0 = x₀ + 1 + 1 ∧ z1 = True) ∧ z2 = x₀)\n[solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -26,7 +26,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Box02.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -50,4 +50,4 @@
    "c60bb3628e19adee"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "58d37a1a0571fd28"}
+ "depHash": "4e3ca3684bfb7c31"}

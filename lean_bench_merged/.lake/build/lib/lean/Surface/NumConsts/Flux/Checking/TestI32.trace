@@ -21,7 +21,7 @@
          "e9caff12cba71329"],
         ["Surface.NumConsts.Flux.VC.TestI32:importAllArts", "b157f5cf71d46eac"],
         ["Surface.NumConsts.User.Proof.TestI32Proof transitive imports (legacy)",
-         "c0c33eb4026ebcf7"],
+         "b1dd6f721a3a8a80"],
         ["Surface.NumConsts.User.Proof.TestI32Proof:importAllArts",
          "739c25ef5b3d0392"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.NumConsts.Flux.Checking.TestI32", "60094d46351f2174"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8be479abca82d8dc"}
+ "depHash": "987db5d9d4f5f816"}

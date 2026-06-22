@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.StructInvariant.Flux.Checking.Bar transitive imports (legacy)",
-         "e273b2969ae6ac05"],
+         "a599766702c23073"],
         ["Surface.StructInvariant.Flux.Checking.Bar:importAllArts",
          "b6ec61d2819c0cc3"],
         ["Surface.StructInvariant.Flux.Checking.Baz transitive imports (legacy)",
-         "7c7802d035821cb3"],
+         "2b25494ccea406da"],
         ["Surface.StructInvariant.Flux.Checking.Baz:importAllArts",
          "215c99834e468e37"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Surface.StructInvariant.Basic", "6cdbc4a3d8c29994"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a72ca7ffe77406d5"}
+ "depHash": "e2d38c1b28606df9"}

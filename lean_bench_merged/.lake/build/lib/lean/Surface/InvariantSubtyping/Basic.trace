@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.InvariantSubtyping.Flux.Checking.Test00 transitive imports (legacy)",
-         "bf2d654c70a89b16"],
+         "ba00791ee66d4d3d"],
         ["Surface.InvariantSubtyping.Flux.Checking.Test00:importAllArts",
          "615f9b0ae65f68e2"],
         ["Surface.InvariantSubtyping.Flux.Checking.Test01 transitive imports (legacy)",
-         "42059644b0649e7e"],
+         "4ab10f6f581c5dfc"],
         ["Surface.InvariantSubtyping.Flux.Checking.Test01:importAllArts",
          "2d5a6725d4c9743e"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Surface.InvariantSubtyping.Basic", "f1471677ab0cc3e9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d93faf1c13558574"}
+ "depHash": "59ff6cad0f38de83"}

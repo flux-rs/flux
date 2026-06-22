@@ -21,7 +21,7 @@
          "966ef0f3090dd277"],
         ["Surface.Closure14.Flux.VC.Test00:importAllArts", "2f3b9bb8d345b34f"],
         ["Surface.Closure14.User.Proof.Test00Proof transitive imports (legacy)",
-         "563e27d099b1feac"],
+         "ba06831d2e1c499b"],
         ["Surface.Closure14.User.Proof.Test00Proof:importAllArts",
          "8ccebc2f0c4cc12d"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Closure14.Flux.Checking.Test00", "7de26065d3e83147"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5a759ffbc73fb433"}
+ "depHash": "c1b1d28fcae852c6"}

@@ -22,7 +22,7 @@
         ["Surface.Box02.Flux.VC.CloseAtReturn:importAllArts",
          "c5875d3dce5c5cee"],
         ["Surface.Box02.User.Proof.CloseAtReturnProof transitive imports (legacy)",
-         "9d65bd55be00b434"],
+         "65a5a828661abecb"],
         ["Surface.Box02.User.Proof.CloseAtReturnProof:importAllArts",
          "36a12f9d0618c154"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "bfe3b0dc7d982146"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1d11e1f500e700fe"}
+ "depHash": "9b38e2a1ad0e47e5"}

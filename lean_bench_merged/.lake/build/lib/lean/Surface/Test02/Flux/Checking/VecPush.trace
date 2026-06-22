@@ -21,7 +21,7 @@
          "4f824d458546f777"],
         ["Surface.Test02.Flux.VC.VecPush:importAllArts", "9dcb815073bf19b9"],
         ["Surface.Test02.User.Proof.VecPushProof transitive imports (legacy)",
-         "4b556eb81cc0fa69"],
+         "f2e0aeada8ea6a9e"],
         ["Surface.Test02.User.Proof.VecPushProof:importAllArts",
          "4f9b00cb42f2b71d"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Test02.Flux.Checking.VecPush", "f64fa669e0e51822"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "070e20a16a146c26"}
+ "depHash": "748a990adaf390d6"}

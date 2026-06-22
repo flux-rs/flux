@@ -21,7 +21,7 @@
          "644781b47278ca80"],
         ["Surface.ForRange00.Flux.VC.Goofy:importAllArts", "972d2670d3334151"],
         ["Surface.ForRange00.User.Proof.GoofyProof transitive imports (legacy)",
-         "658fe078386fb052"],
+         "b79e004c92c5e455"],
         ["Surface.ForRange00.User.Proof.GoofyProof:importAllArts",
          "b196cad07bae345a"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.ForRange00.Flux.Checking.Goofy", "fa68d188208879ff"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "61fd1b976eea7026"}
+ "depHash": "c032c1fb80358639"}

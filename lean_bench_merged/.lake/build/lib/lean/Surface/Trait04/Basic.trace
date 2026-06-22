@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Trait04.Flux.Checking.Test transitive imports (legacy)",
-         "bf271cbde3b359a9"],
+         "2679906033694143"],
         ["Surface.Trait04.Flux.Checking.Test:importAllArts",
          "52ae2e16fadbcedf"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.Trait04.Basic", "e8ae16decff5f7ad"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7ed3f9266211a2c6"}
+ "depHash": "06d07984d71634ed"}

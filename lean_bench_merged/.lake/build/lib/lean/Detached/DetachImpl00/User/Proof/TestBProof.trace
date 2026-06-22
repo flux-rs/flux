@@ -12,7 +12,7 @@
    "Detached/DetachImpl00/User/Proof/TestBProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
    "level": "info"},
   {"message":
-   "Detached/DetachImpl00/User/Proof/TestBProof.lean:69:0: time: 12ms",
+   "Detached/DetachImpl00/User/Proof/TestBProof.lean:69:0: time: 11ms",
    "level": "info"},
   {"message":
    "Detached/DetachImpl00/User/Proof/TestBProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -23,7 +23,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Detached.DetachImpl00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -48,4 +48,4 @@
    "3b11cfedc4f54e01"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ba33de458e9e1a7f"}
+ "depHash": "704837e17634c2bd"}

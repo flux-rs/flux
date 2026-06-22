@@ -22,7 +22,7 @@
         ["Surface.Issue334.Flux.VC.Impl__0__TakeMut:importAllArts",
          "7c5d9b9ad1c88365"],
         ["Surface.Issue334.User.Proof.Impl__0__TakeMutProof transitive imports (legacy)",
-         "cff57658bb290a01"],
+         "579d9db87890b32e"],
         ["Surface.Issue334.User.Proof.Impl__0__TakeMutProof:importAllArts",
          "7bf0c733684d7416"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "26d9d8d68ff59de6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "dd45b5773c1c72a3"}
+ "depHash": "1ed34e2d584a6c39"}

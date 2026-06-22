@@ -44,7 +44,7 @@
   {"message":
    "Surface/Join04/User/Proof/JoinArrProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Join04/User/Proof/JoinArrProof.lean:69:0: time: 5719ms",
+  {"message": "Surface/Join04/User/Proof/JoinArrProof.lean:69:0: time: 5258ms",
    "level": "info"},
   {"message":
    "Surface/Join04/User/Proof/JoinArrProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k3, k2]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ b₀, ¬b₀ ∧ (z0 = 3 ∧ z1 = b₀ ∨ z0 = 4 ∧ z1 = b₀)\n[solve]   lam = fun z0 z1 => ∃ b₀, ¬b₀ ∧ (z0 = 3 ∧ z1 = b₀ ∨ z0 = 4 ∧ z1 = b₀)\n[solve] --- k1 ---\n[solve]   sol = ∃ b₀, ¬b₀ ∧ z0 = b₀ ∨ b₀ ∧ z0 = True\n[solve]   lam = fun z0 => ∃ b₀, ¬b₀ ∧ z0 = b₀ ∨ b₀ ∧ z0 = True\n[solve] --- k3 ---\n[solve]   sol = ∃ b₀, b₀ ∧ (z0 = 1 ∧ z1 = True ∨ z0 = 2 ∧ z1 = True)\n[solve]   lam = fun z0 z1 => ∃ b₀, b₀ ∧ (z0 = 1 ∧ z1 = True ∨ z0 = 2 ∧ z1 = True)\n[solve] --- k2 ---\n[solve]   sol = ∃ b₀,\n  (¬b₀ ∧ ∃ a'₁, (∃ b₀_1, ¬b₀_1 ∧ (a'₁ = 3 ∧ b₀ = b₀_1 ∨ a'₁ = 4 ∧ b₀ = b₀_1)) ∧ z0 = a'₁ ∧ z1 = b₀) ∨\n    b₀ ∧ ∃ a'₂, (∃ b₀, b₀ ∧ (a'₂ = 1 ∧ True = True ∨ a'₂ = 2 ∧ True = True)) ∧ z0 = a'₂ ∧ z1 = True\n[solve]   lam = fun z0 z1 =>\n  ∃ b₀,\n    (¬b₀ ∧ ∃ a'₁, (∃ b₀_1, ¬b₀_1 ∧ (a'₁ = 3 ∧ b₀ = b₀_1 ∨ a'₁ = 4 ∧ b₀ = b₀_1)) ∧ z0 = a'₁ ∧ z1 = b₀) ∨\n      b₀ ∧ ∃ a'₂, (∃ b₀, b₀ ∧ (a'₂ = 1 ∧ True = True ∨ a'₂ = 2 ∧ True = True)) ∧ z0 = a'₂ ∧ z1 = True",
@@ -55,7 +55,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Join04.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -78,4 +78,4 @@
   ["Module.name: Surface.Join04.User.Proof.JoinArrProof", "6877a70f172059b6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a9454899358f4156"}
+ "depHash": "3c082c99bfb6fc6e"}

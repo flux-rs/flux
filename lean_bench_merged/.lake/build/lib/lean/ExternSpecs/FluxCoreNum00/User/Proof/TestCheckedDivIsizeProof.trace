@@ -48,7 +48,7 @@
    "ExternSpecs/FluxCoreNum00/User/Proof/TestCheckedDivIsizeProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
    "level": "info"},
   {"message":
-   "ExternSpecs/FluxCoreNum00/User/Proof/TestCheckedDivIsizeProof.lean:69:0: time: 218ms",
+   "ExternSpecs/FluxCoreNum00/User/Proof/TestCheckedDivIsizeProof.lean:69:0: time: 210ms",
    "level": "info"},
   {"message":
    "ExternSpecs/FluxCoreNum00/User/Proof/TestCheckedDivIsizeProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k2, k3]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₀, a'₀ = 10 / 2 ∧ z0 = a'₀\n[solve]   lam = fun z0 => ∃ a'₀, a'₀ = 10 / 2 ∧ z0 = a'₀\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₂, a'₂ = -(- -10 / 3) ∧ z0 = a'₂ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ a'₂, a'₂ = -(- -10 / 3) ∧ z0 = a'₂ ∧ z1 = z1\n[solve] --- k2 ---\n[solve]   sol = ∃ a'₄, a'₄ = - -10 / - -3 ∧ (z0 = a'₄ ∧ z1 = z1) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 => ∃ a'₄, a'₄ = - -10 / - -3 ∧ (z0 = a'₄ ∧ z1 = z1) ∧ z2 = z2\n[solve] --- k3 ---\n[solve]   sol = ∃ a'₆, a'₆ = -(10 / - -3) ∧ ((z0 = a'₆ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 => ∃ a'₆, a'₆ = -(10 / - -3) ∧ ((z0 = a'₆ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3",
@@ -59,7 +59,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["ExternSpecs.FluxCoreNum00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -84,4 +84,4 @@
    "77c2fb84e699720b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "43e6973dfac64cd4"}
+ "depHash": "d60a9325df30bdf7"}

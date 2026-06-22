@@ -69,7 +69,7 @@
    "Surface/Fold00/User/Proof/MinIndexFoldProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/Fold00/User/Proof/MinIndexFoldProof.lean:69:0: time: 22333ms",
+   "Surface/Fold00/User/Proof/MinIndexFoldProof.lean:69:0: time: 20886ms",
    "level": "info"},
   {"message":
    "Surface/Fold00/User/Proof/MinIndexFoldProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1, k3]\n[solve_fixpoint] Cyclic κ:  [k0, k2]\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₀ a'₁,\n  ?k0 a'₀ a'₁ z3 ∧\n    a'₀ ≥ 0 ∧\n      a'₁ ≥ 0 ∧\n        ∃ a'₂, ¬a'₂ ∧ ((z0 = a'₀ ∧ z1 = a'₀) ∧ z2 = a'₁) ∧ z3 = z3 ∨ a'₂ ∧ ((z0 = a'₁ ∧ z1 = a'₀) ∧ z2 = a'₁) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ a'₀ a'₁,\n    ?k0 a'₀ a'₁ z3 ∧\n      a'₀ ≥ 0 ∧\n        a'₁ ≥ 0 ∧\n          ∃ a'₂,\n            ¬a'₂ ∧ ((z0 = a'₀ ∧ z1 = a'₀) ∧ z2 = a'₁) ∧ z3 = z3 ∨ a'₂ ∧ ((z0 = a'₁ ∧ z1 = a'₀) ∧ z2 = a'₁) ∧ z3 = z3\n[solve] --- k3 ---\n[solve]   sol = ∃ v₀, (0 ≤ v₀ ∧ v₀ < z1) ∧ z0 = v₀ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ v₀, (0 ≤ v₀ ∧ v₀ < z1) ∧ z0 = v₀ ∧ z1 = z1\n[solve_fixpoint] --- PA on cyclic κ's [k0, k2] ---\n[solve_fixpoint]   PA sol for k0 = ((((((((((((z0 ≥ 0 ∧ z1 ≥ 0) ∧ z2 ≥ 0) ∧ z2 > 0) ∧ z0 ≤ z2) ∧ z1 ≤ z2) ∧ z2 > z0) ∧ z2 > z1) ∧ z0 ≤ z2 - 1) ∧\n          z1 ≤ z2 - 1) ∧\n        z0 < z2) ∧\n      z1 < z2) ∧\n    z2 ≥ z0) ∧\n  z2 ≥ z1\n[solve_fixpoint]   PA sol for k2 = ((((((z0 ≥ 0 ∧ z1 ≥ 0) ∧ z1 > 0) ∧ z0 ≤ z1) ∧ z1 > z0) ∧ z0 ≤ z1 - 1) ∧ z0 < z1) ∧ z1 ≥ z0\n[solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  [k2]\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₃, ?k2 a'₃ z2 ∧ ∃ a'₄, 0 ≤ a'₄ ∧ a'₄ < z2 ∧ (z0 = a'₃ ∧ z1 = a'₄) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 => ∃ a'₃, ?k2 a'₃ z2 ∧ ∃ a'₄, 0 ≤ a'₄ ∧ a'₄ < z2 ∧ (z0 = a'₃ ∧ z1 = a'₄) ∧ z2 = z2\n[solve_fixpoint] --- PA on cyclic κ's [k2] ---\n[solve_fixpoint]   PA sol for k2 = ((((((z0 ≥ 0 ∧ z1 ≥ 0) ∧ z1 > 0) ∧ z0 ≤ z1) ∧ z1 > z0) ∧ z0 ≤ z1 - 1) ∧ z0 < z1) ∧ z1 ≥ z0",
@@ -80,7 +80,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Fold00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -104,4 +104,4 @@
    "6e1a8cdb57f938f8"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "708a80d7834da8fa"}
+ "depHash": "f321810cc950280a"}

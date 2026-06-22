@@ -21,7 +21,7 @@
          "409e7f87696a1213"],
         ["Surface.NoPanic06.Flux.VC.Foo2:importAllArts", "c028be78222bdcc4"],
         ["Surface.NoPanic06.User.Proof.Foo2Proof transitive imports (legacy)",
-         "57f3b5a5f32ac682"],
+         "51405cb258db534d"],
         ["Surface.NoPanic06.User.Proof.Foo2Proof:importAllArts",
          "fa15194ae293c0c1"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.NoPanic06.Flux.Checking.Foo2", "16b9816f551b992a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "fb727c039dcefdce"}
+ "depHash": "62db45c939ccac72"}

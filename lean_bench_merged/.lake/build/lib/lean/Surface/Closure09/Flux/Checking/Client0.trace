@@ -21,7 +21,7 @@
          "82eb1c19d7617a3b"],
         ["Surface.Closure09.Flux.VC.Client0:importAllArts", "6065c0ecf18e1575"],
         ["Surface.Closure09.User.Proof.Client0Proof transitive imports (legacy)",
-         "141a99d7a88f4f63"],
+         "c26ecc8f5a5139dc"],
         ["Surface.Closure09.User.Proof.Client0Proof:importAllArts",
          "7f6b35c1b94849c7"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Closure09.Flux.Checking.Client0", "dd9762214e568e11"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "006d22cd4edf6c77"}
+ "depHash": "2c897fd35661e9e7"}

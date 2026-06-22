@@ -21,7 +21,7 @@
          "4fb3ac58d8f34924"],
         ["Surface.Test06.Flux.VC.Double:importAllArts", "011e379693c5c671"],
         ["Surface.Test06.User.Proof.DoubleProof transitive imports (legacy)",
-         "f20891307ec2d3a3"],
+         "f012741c4600d874"],
         ["Surface.Test06.User.Proof.DoubleProof:importAllArts",
          "faec0658a8f7d9a3"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Test06.Flux.Checking.Double", "a4ecb8c130ba1cde"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e429a27e54e87528"}
+ "depHash": "ba0206a2add223ab"}

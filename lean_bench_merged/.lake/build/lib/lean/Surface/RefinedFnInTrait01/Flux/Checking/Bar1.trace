@@ -22,7 +22,7 @@
         ["Surface.RefinedFnInTrait01.Flux.VC.Bar1:importAllArts",
          "578ad04b753cffe5"],
         ["Surface.RefinedFnInTrait01.User.Proof.Bar1Proof transitive imports (legacy)",
-         "50036b12048e33b6"],
+         "1996c0c9f3936019"],
         ["Surface.RefinedFnInTrait01.User.Proof.Bar1Proof:importAllArts",
          "1a8092b15fc04062"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "a40d10279735285a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8baec34f7e6b81b5"}
+ "depHash": "be56b2990244cb00"}

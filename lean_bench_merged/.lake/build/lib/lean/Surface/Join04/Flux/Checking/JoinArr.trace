@@ -21,7 +21,7 @@
          "541a2ad2850b0706"],
         ["Surface.Join04.Flux.VC.JoinArr:importAllArts", "4dd177b017544a15"],
         ["Surface.Join04.User.Proof.JoinArrProof transitive imports (legacy)",
-         "06b78c0384cffa1b"],
+         "24c373b74bcf78bc"],
         ["Surface.Join04.User.Proof.JoinArrProof:importAllArts",
          "3f785bfddb18c879"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Join04.Flux.Checking.JoinArr", "1a69e648d8d4afb0"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6b15e67779b1b6f8"}
+ "depHash": "3ae4007d34e153dd"}

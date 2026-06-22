@@ -22,7 +22,7 @@
         ["Surface.SyntheticParam.Flux.VC.Test00:importAllArts",
          "8085a1943768bce6"],
         ["Surface.SyntheticParam.User.Proof.Test00Proof transitive imports (legacy)",
-         "46bec408dd079240"],
+         "52cf2144551d76df"],
         ["Surface.SyntheticParam.User.Proof.Test00Proof:importAllArts",
          "78def28e56402867"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "6046b8849de9ef39"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "adc804113fab0517"}
+ "depHash": "f2b68b28f995d4a0"}

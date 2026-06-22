@@ -22,7 +22,7 @@
         ["Surface.ToInt01.Flux.VC.TestCharToInt:importAllArts",
          "187a3edc75f9d71f"],
         ["Surface.ToInt01.User.Proof.TestCharToIntProof transitive imports (legacy)",
-         "27ce3bc2680a2974"],
+         "5bd6eabb70a35e3b"],
         ["Surface.ToInt01.User.Proof.TestCharToIntProof:importAllArts",
          "6e57500b597f5f51"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "923761eadefd76bf"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "cf7ae64ee53622cb"}
+ "depHash": "caac147aac62c567"}

@@ -21,7 +21,7 @@
          "aae3d540b0089d30"],
         ["Surface.Char03.Flux.VC.CastToU32:importAllArts", "7b221b3f9dff66f3"],
         ["Surface.Char03.User.Proof.CastToU32Proof transitive imports (legacy)",
-         "0f1011b30edec5e7"],
+         "3820f6dabdaef868"],
         ["Surface.Char03.User.Proof.CastToU32Proof:importAllArts",
          "6d08517f8976dd13"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Char03.Flux.Checking.CastToU32", "dbcce41cef71cbe0"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b39849bb1160727e"}
+ "depHash": "64597c22aa74c839"}

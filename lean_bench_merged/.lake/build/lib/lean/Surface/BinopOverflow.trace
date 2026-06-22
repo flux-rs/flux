@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.BinopOverflow.Basic transitive imports (legacy)",
-         "4e4f532600af7503"],
+         "81802d6ca6d54de8"],
         ["Surface.BinopOverflow.Basic:importAllArts", "6551ccbbd95f9cb4"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.BinopOverflow", "be87c0f2b0bb522c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b30cb6fa16c137ba"}
+ "depHash": "922f7928599c0be4"}

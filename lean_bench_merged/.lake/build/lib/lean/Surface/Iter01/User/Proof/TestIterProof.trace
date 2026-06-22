@@ -23,7 +23,7 @@
   {"message":
    "Surface/Iter01/User/Proof/TestIterProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Iter01/User/Proof/TestIterProof.lean:69:0: time: 277ms",
+  {"message": "Surface/Iter01/User/Proof/TestIterProof.lean:69:0: time: 177ms",
    "level": "info"},
   {"message":
    "Surface/Iter01/User/Proof/TestIterProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1]\n[solve_fixpoint] Cyclic κ:  [k2]\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₀, a'₀ = 0 ∧ z0 = a'₀\n[solve]   lam = fun z0 => ∃ a'₀, a'₀ = 0 ∧ z0 = a'₀\n[solve] --- k1 ---\n[solve]   sol = (∃ v₀, 0 ≤ v₀ ∧ z0 = v₀) ∨ ∃ a'₂, a'₂ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₂ = a'₀) ∧ ∃ a'₄, ?k2 a'₄ ∧ ∃ a'₅, ?k2 a'₅ ∧ z0 = a'₅\n[solve]   lam = fun z0 =>\n  (∃ v₀, 0 ≤ v₀ ∧ z0 = v₀) ∨ ∃ a'₂, a'₂ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₂ = a'₀) ∧ ∃ a'₄, ?k2 a'₄ ∧ ∃ a'₅, ?k2 a'₅ ∧ z0 = a'₅\n[solve_fixpoint] --- PA on cyclic κ's [k2] ---\n[solve_fixpoint]   PA sol for k2 = z0 ≥ 0",
@@ -34,7 +34,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Iter01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -57,4 +57,4 @@
   ["Module.name: Surface.Iter01.User.Proof.TestIterProof", "80730d35fa3d346c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a1bed22cd0cc830b"}
+ "depHash": "da46af94db100c9c"}

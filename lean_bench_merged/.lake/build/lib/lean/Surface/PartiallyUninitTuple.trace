@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.PartiallyUninitTuple.Basic transitive imports (legacy)",
-         "192a126424487ec9"],
+         "bb641c71bb4fcf14"],
         ["Surface.PartiallyUninitTuple.Basic:importAllArts",
          "ef510b28117cf91e"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.PartiallyUninitTuple", "a691f96a515e3f30"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e4bcd13a31e6718d"}
+ "depHash": "ebf6eb32b9a16678"}

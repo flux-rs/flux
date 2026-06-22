@@ -22,7 +22,7 @@
         ["ExternSpecs.FluxCoreNum00.Flux.VC.TestWrappingUsize:importAllArts",
          "21625f1143543902"],
         ["ExternSpecs.FluxCoreNum00.User.Proof.TestWrappingUsizeProof transitive imports (legacy)",
-         "c9aee70dbee70988"],
+         "3dddebe20cd9d57f"],
         ["ExternSpecs.FluxCoreNum00.User.Proof.TestWrappingUsizeProof:importAllArts",
          "b42b005ade4e7a2f"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "0aac6d4a3dfdbcad"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6e05f60a68e9e9eb"}
+ "depHash": "8a22b38686cea8b5"}

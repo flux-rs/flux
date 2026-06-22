@@ -22,7 +22,7 @@
         ["Surface.KnuthShuffle.Flux.VC.RvecImpl__3__Index:importAllArts",
          "3849ee4f728c4a19"],
         ["Surface.KnuthShuffle.User.Proof.RvecImpl__3__IndexProof transitive imports (legacy)",
-         "eb4fe78cb494b052"],
+         "2c60167036c31ec5"],
         ["Surface.KnuthShuffle.User.Proof.RvecImpl__3__IndexProof:importAllArts",
          "772997f069b9817e"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "3d256441e773d2ec"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3ddcffac68469ec0"}
+ "depHash": "bce2650709492e60"}

@@ -22,7 +22,7 @@
         ["Surface.CheckOverflow01.Flux.VC.MyModAdd2:importAllArts",
          "edff0dcbd6879f58"],
         ["Surface.CheckOverflow01.User.Proof.MyModAdd2Proof transitive imports (legacy)",
-         "55d843c05c5c47e2"],
+         "3a224a5d131ac98d"],
         ["Surface.CheckOverflow01.User.Proof.MyModAdd2Proof:importAllArts",
          "c9bd6dc52b996e48"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "76ed9ab6fde6c8e9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f10e3f67f20ef9d3"}
+ "depHash": "9cd085007e90d81a"}

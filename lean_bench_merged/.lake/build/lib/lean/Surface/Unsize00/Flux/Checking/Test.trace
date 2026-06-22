@@ -21,7 +21,7 @@
          "f194c454fa2c12fb"],
         ["Surface.Unsize00.Flux.VC.Test:importAllArts", "10f7c672e4aaf59f"],
         ["Surface.Unsize00.User.Proof.TestProof transitive imports (legacy)",
-         "54849fae538bff15"],
+         "d944f7e43e442c5a"],
         ["Surface.Unsize00.User.Proof.TestProof:importAllArts",
          "a5f3a248926dea18"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Unsize00.Flux.Checking.Test", "4980a25c87de1bd0"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2291bfca8685cf55"}
+ "depHash": "eb92bc6e4fa2cf00"}

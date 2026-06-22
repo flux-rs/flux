@@ -22,7 +22,7 @@
         ["Surface.NoPanic03.Flux.VC.MyModuleImpl__0__DoSomething:importAllArts",
          "92278d725b877609"],
         ["Surface.NoPanic03.User.Proof.MyModuleImpl__0__DoSomethingProof transitive imports (legacy)",
-         "bc8756f235def7f1"],
+         "fce2e44911be985e"],
         ["Surface.NoPanic03.User.Proof.MyModuleImpl__0__DoSomethingProof:importAllArts",
          "cb9bd5eca0c68f00"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "35a12b0f119711a7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "508082f414adba05"}
+ "depHash": "86094504cdf7b6a3"}

@@ -22,7 +22,7 @@
         ["Structs.StructFold00.Flux.VC.Assert:importAllArts",
          "7729879f1c52c5f6"],
         ["Structs.StructFold00.User.Proof.AssertProof transitive imports (legacy)",
-         "f47e2d1ff4002d2f"],
+         "4f4fc4a129035df0"],
         ["Structs.StructFold00.User.Proof.AssertProof:importAllArts",
          "7ddee8f49d212018"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "45ae14f10422ab03"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7c74cb234f33234b"}
+ "depHash": "2b187d28bbcda6ef"}

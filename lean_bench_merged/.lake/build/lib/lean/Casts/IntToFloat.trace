@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Casts.IntToFloat.Basic transitive imports (legacy)",
-         "96dad3d955ade6bb"],
+         "0bd2ecb0245e06dd"],
         ["Casts.IntToFloat.Basic:importAllArts", "949cd6847f328e98"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Casts.IntToFloat", "82a592e6ac35624f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "22f6ca6ec145c5fb"}
+ "depHash": "28b7de8123b6de1b"}

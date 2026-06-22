@@ -21,7 +21,7 @@
          "52b7cc27fa5f577e"],
         ["Surface.Join00.Flux.VC.RefJoin:importAllArts", "a7923ad895668eb5"],
         ["Surface.Join00.User.Proof.RefJoinProof transitive imports (legacy)",
-         "55cb127e5af19dc5"],
+         "d96530287ca1334a"],
         ["Surface.Join00.User.Proof.RefJoinProof:importAllArts",
          "5f8a42a3bf7f32a2"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Join00.Flux.Checking.RefJoin", "dfb71efca893d9f6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0dcbe20266d5bec7"}
+ "depHash": "0d8b3f92aa23a25b"}

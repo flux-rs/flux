@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.OpaqueStruct00.Flux.Checking.Assert transitive imports (legacy)",
-         "f9caaa71bebde81f"],
+         "ea10acffc3a57043"],
         ["Structs.OpaqueStruct00.Flux.Checking.Assert:importAllArts",
          "1e4cd3c94c5eaeda"],
         ["Structs.OpaqueStruct00.Flux.Checking.OpaqueStruct00 transitive imports (legacy)",
-         "2548b47c0fc3e0de"],
+         "77d7754b471861a6"],
         ["Structs.OpaqueStruct00.Flux.Checking.OpaqueStruct00:importAllArts",
          "9dd814309b27918e"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Structs.OpaqueStruct00.Basic", "6e6a566758cf5977"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ca6e8171f3f6cb2f"}
+ "depHash": "0508c960620f446f"}

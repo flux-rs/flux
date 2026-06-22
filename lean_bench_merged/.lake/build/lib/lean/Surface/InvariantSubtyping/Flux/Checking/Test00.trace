@@ -22,7 +22,7 @@
         ["Surface.InvariantSubtyping.Flux.VC.Test00:importAllArts",
          "8bd3b024c9677d9b"],
         ["Surface.InvariantSubtyping.User.Proof.Test00Proof transitive imports (legacy)",
-         "7bc74345bfc1914c"],
+         "e7c8b1aec29a1b5b"],
         ["Surface.InvariantSubtyping.User.Proof.Test00Proof:importAllArts",
          "1290b8c666c07e63"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "83b923f0f53391a1"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d3f84f0ca792d965"}
+ "depHash": "d29390d900cfd23e"}

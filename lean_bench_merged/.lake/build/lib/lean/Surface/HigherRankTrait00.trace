@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.HigherRankTrait00.Basic transitive imports (legacy)",
-         "0272bfc2fa794265"],
+         "7f07ec9372babd75"],
         ["Surface.HigherRankTrait00.Basic:importAllArts",
          "7d3cbfe36fbeec4c"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.HigherRankTrait00", "e10347ed3ded3234"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "86f5e8a7255c88cf"}
+ "depHash": "7901a041a1c59f9b"}

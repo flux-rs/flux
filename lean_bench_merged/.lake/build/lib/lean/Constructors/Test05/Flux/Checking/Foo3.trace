@@ -21,7 +21,7 @@
          "dbf163279092fdd9"],
         ["Constructors.Test05.Flux.VC.Foo3:importAllArts", "f5a45dc733b76a0c"],
         ["Constructors.Test05.User.Proof.Foo3Proof transitive imports (legacy)",
-         "286bc4fd85de455c"],
+         "d3dc8d0ba37944fb"],
         ["Constructors.Test05.User.Proof.Foo3Proof:importAllArts",
          "ea8b2e64ce07476e"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Constructors.Test05.Flux.Checking.Foo3", "6c35930143df933f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "146050738fb20d94"}
+ "depHash": "54f4c8e1c40be166"}

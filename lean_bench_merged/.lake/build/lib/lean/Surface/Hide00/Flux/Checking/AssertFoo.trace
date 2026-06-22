@@ -21,7 +21,7 @@
          "8c887f6651d7f9ac"],
         ["Surface.Hide00.Flux.VC.AssertFoo:importAllArts", "c10509d019001876"],
         ["Surface.Hide00.User.Proof.AssertFooProof transitive imports (legacy)",
-         "696092213d4cbd6b"],
+         "8f72b82ad2447f94"],
         ["Surface.Hide00.User.Proof.AssertFooProof:importAllArts",
          "b3c04ddc53fdfbcf"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Hide00.Flux.Checking.AssertFoo", "426d109b2b16d63d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d6b8e86a9dab057a"}
+ "depHash": "e4d4c8765ad2aa7e"}

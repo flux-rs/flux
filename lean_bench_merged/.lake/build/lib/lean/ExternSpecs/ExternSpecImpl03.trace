@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ExternSpecs.ExternSpecImpl03.Basic transitive imports (legacy)",
-         "7dff400dc8addf2c"],
+         "3cbce1e1adaeb834"],
         ["ExternSpecs.ExternSpecImpl03.Basic:importAllArts",
          "c036082869568156"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: ExternSpecs.ExternSpecImpl03", "1beffd90b56ae53f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2f797f34638449e4"}
+ "depHash": "a4d0b8447be877ce"}

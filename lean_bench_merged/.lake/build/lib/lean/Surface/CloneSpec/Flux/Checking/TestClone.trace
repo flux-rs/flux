@@ -22,7 +22,7 @@
         ["Surface.CloneSpec.Flux.VC.TestClone:importAllArts",
          "9e751bee2933507d"],
         ["Surface.CloneSpec.User.Proof.TestCloneProof transitive imports (legacy)",
-         "09d20b095c46c2f1"],
+         "e6fae9ccf52e04de"],
         ["Surface.CloneSpec.User.Proof.TestCloneProof:importAllArts",
          "a09dc6a4ded8caef"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "a332dffa22af727a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "fc2ded1d7166ff43"}
+ "depHash": "5c612e96649feef6"}

@@ -21,7 +21,7 @@
          "7cebba476e62e01c"],
         ["Casts.IntToUint.Flux.VC.I64Max:importAllArts", "a6eeb3e4f7d7dc61"],
         ["Casts.IntToUint.User.Proof.I64MaxProof transitive imports (legacy)",
-         "ad9c18af3c624dfd"],
+         "4b1e796ce86f74fa"],
         ["Casts.IntToUint.User.Proof.I64MaxProof:importAllArts",
          "62a2694c4e1651f5"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Casts.IntToUint.Flux.Checking.I64Max", "ae2efa3ba68ebc9a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d223627fb26d30f0"}
+ "depHash": "a41c7d01800fd7fb"}

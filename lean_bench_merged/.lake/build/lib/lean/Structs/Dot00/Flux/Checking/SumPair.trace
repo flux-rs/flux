@@ -21,7 +21,7 @@
          "edad137696463aa6"],
         ["Structs.Dot00.Flux.VC.SumPair:importAllArts", "405017063633bcad"],
         ["Structs.Dot00.User.Proof.SumPairProof transitive imports (legacy)",
-         "166d364abc6010d7"],
+         "fe91f1907fa4df20"],
         ["Structs.Dot00.User.Proof.SumPairProof:importAllArts",
          "9fbaabcca368d5b0"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.Dot00.Flux.Checking.SumPair", "ff6754a12c255d3b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c8b52b76233a352a"}
+ "depHash": "17ae80c344b54c2d"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Enums.Option00.Basic transitive imports (legacy)",
-         "69375fd1b2dd4395"],
+         "43dc2665da6f1eac"],
         ["Enums.Option00.Basic:importAllArts", "e30a42df9f3732f0"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Enums.Option00", "b3ebaeb6ad022956"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e8a58503d3662fb9"}
+ "depHash": "6163c325c2792088"}

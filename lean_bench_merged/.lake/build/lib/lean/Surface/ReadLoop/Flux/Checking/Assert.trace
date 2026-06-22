@@ -21,7 +21,7 @@
          "3447fb4393a0328b"],
         ["Surface.ReadLoop.Flux.VC.Assert:importAllArts", "4bb432066f08d840"],
         ["Surface.ReadLoop.User.Proof.AssertProof transitive imports (legacy)",
-         "a8177b124dccd044"],
+         "7a815940c6239f43"],
         ["Surface.ReadLoop.User.Proof.AssertProof:importAllArts",
          "abb506f127949634"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.ReadLoop.Flux.Checking.Assert", "47ab35fe3498153b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2ca471e7b0bf6d42"}
+ "depHash": "81bb1f74a24c89eb"}

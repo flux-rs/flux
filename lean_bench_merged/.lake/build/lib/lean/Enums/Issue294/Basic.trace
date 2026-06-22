@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Enums.Issue294.Flux.Checking.Foo transitive imports (legacy)",
-         "d8d0f60884ee79e4"],
+         "39f1baea1fcd5cfd"],
         ["Enums.Issue294.Flux.Checking.Foo:importAllArts",
          "80b4f59f4883abd5"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Enums.Issue294.Basic", "7b942b9524d85313"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "931996d09b48ea9c"}
+ "depHash": "4d0b03e0a25210cf"}

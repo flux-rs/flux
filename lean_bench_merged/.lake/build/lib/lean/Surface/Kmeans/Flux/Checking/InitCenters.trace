@@ -22,7 +22,7 @@
         ["Surface.Kmeans.Flux.VC.InitCenters:importAllArts",
          "fdfc519b38f00ab3"],
         ["Surface.Kmeans.User.Proof.InitCentersProof transitive imports (legacy)",
-         "c027d83f241a8c4c"],
+         "2aacb010bbe68c83"],
         ["Surface.Kmeans.User.Proof.InitCentersProof:importAllArts",
          "c928844365d2bdfc"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.Kmeans.Flux.Checking.InitCenters", "dbc33d99b768e48b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a65db81d1e19ba8b"}
+ "depHash": "6e33ff53f552bb05"}

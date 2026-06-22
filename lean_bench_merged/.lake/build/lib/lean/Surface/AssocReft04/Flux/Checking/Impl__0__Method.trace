@@ -22,7 +22,7 @@
         ["Surface.AssocReft04.Flux.VC.Impl__0__Method:importAllArts",
          "b208be13b7877100"],
         ["Surface.AssocReft04.User.Proof.Impl__0__MethodProof transitive imports (legacy)",
-         "bb7db7ade433b62e"],
+         "19ccaa31587f0e21"],
         ["Surface.AssocReft04.User.Proof.Impl__0__MethodProof:importAllArts",
          "b7c914e0ae044256"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "8e3a028d95103bef"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "969189d9d221e097"}
+ "depHash": "a4e5cc7d705d2fb1"}

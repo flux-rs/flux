@@ -22,7 +22,7 @@
         ["Surface.Pldi23aeReviewerbBug.Flux.VC.Test:importAllArts",
          "9ff604a99ca109ae"],
         ["Surface.Pldi23aeReviewerbBug.User.Proof.TestProof transitive imports (legacy)",
-         "b078c23ee609a2b6"],
+         "227181a761f0c8b9"],
         ["Surface.Pldi23aeReviewerbBug.User.Proof.TestProof:importAllArts",
          "ca8f6422c609df4c"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "b5f9f54659844295"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "68630ed3fc6c909d"}
+ "depHash": "72393acc28c6c4d5"}

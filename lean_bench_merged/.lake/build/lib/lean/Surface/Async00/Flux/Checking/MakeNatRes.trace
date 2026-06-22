@@ -22,7 +22,7 @@
         ["Surface.Async00.Flux.VC.MakeNatRes:importAllArts",
          "8e2b00029b32dcfb"],
         ["Surface.Async00.User.Proof.MakeNatResProof transitive imports (legacy)",
-         "545063490f5a7869"],
+         "a0a6229eda0358de"],
         ["Surface.Async00.User.Proof.MakeNatResProof:importAllArts",
          "bdfc6bd348acbf0d"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.Async00.Flux.Checking.MakeNatRes", "bcde9611976d5937"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4235ed6040d4e072"}
+ "depHash": "e8a7da605e80f480"}

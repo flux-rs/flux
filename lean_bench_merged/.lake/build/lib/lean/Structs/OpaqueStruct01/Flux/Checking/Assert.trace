@@ -22,7 +22,7 @@
         ["Structs.OpaqueStruct01.Flux.VC.Assert:importAllArts",
          "2dad8c9a396dd180"],
         ["Structs.OpaqueStruct01.User.Proof.AssertProof transitive imports (legacy)",
-         "40aa496886843085"],
+         "f3c401b0da60e30a"],
         ["Structs.OpaqueStruct01.User.Proof.AssertProof:importAllArts",
          "0b0d405d7e439806"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "75c0c33ed284140c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b2585e2a8ce9d000"}
+ "depHash": "d65a74a636fbe362"}

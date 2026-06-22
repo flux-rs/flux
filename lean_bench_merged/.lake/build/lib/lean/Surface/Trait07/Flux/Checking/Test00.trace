@@ -21,7 +21,7 @@
          "591ff204b441095e"],
         ["Surface.Trait07.Flux.VC.Test00:importAllArts", "2e7c71c428df81ff"],
         ["Surface.Trait07.User.Proof.Test00Proof transitive imports (legacy)",
-         "7ed6ae2916f4430c"],
+         "7fc1ec060c97dc3b"],
         ["Surface.Trait07.User.Proof.Test00Proof:importAllArts",
          "d7b0eba2514d31b4"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Trait07.Flux.Checking.Test00", "cd4099314c46c31a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "838a64afec0042e9"}
+ "depHash": "51a22c8f8e59b9ab"}

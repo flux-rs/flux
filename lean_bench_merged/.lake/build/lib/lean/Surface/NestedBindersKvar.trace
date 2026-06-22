@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.NestedBindersKvar.Basic transitive imports (legacy)",
-         "c086bd8cbd5f5222"],
+         "62cf11656b59a4ca"],
         ["Surface.NestedBindersKvar.Basic:importAllArts",
          "edd2c7acf6f0ce4b"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.NestedBindersKvar", "7019a99448e81f9f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5051f118bab7a9bd"}
+ "depHash": "9160484b698e588f"}

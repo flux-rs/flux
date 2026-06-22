@@ -14,7 +14,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["Structs.Dot00.Basic transitive imports (legacy)", "c0ebb49479072fe4"],
+       [["Structs.Dot00.Basic transitive imports (legacy)", "49620bb07875723a"],
         ["Structs.Dot00.Basic:importAllArts", "9126a28571993e3e"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -30,4 +30,4 @@
   ["Module.name: Structs.Dot00", "b2a2236489f72d01"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7c4ea65019b98937"}
+ "depHash": "6961d73e630e8367"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.SelfTyAlias02.Flux.Checking.Impl__0__SomeFun transitive imports (legacy)",
-         "c040cf780be4508e"],
+         "caae7cb3ee1f145d"],
         ["Surface.SelfTyAlias02.Flux.Checking.Impl__0__SomeFun:importAllArts",
          "386e671c7eb8f655"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.SelfTyAlias02.Basic", "13a58b2b023ab4f1"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f9bce9f7d299fd04"}
+ "depHash": "28cc95a574066f4e"}

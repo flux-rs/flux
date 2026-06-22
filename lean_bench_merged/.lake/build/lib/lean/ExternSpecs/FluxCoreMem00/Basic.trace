@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ExternSpecs.FluxCoreMem00.Flux.Checking.TestSizeOf transitive imports (legacy)",
-         "67fdd1f096659c35"],
+         "acc42e027908c614"],
         ["ExternSpecs.FluxCoreMem00.Flux.Checking.TestSizeOf:importAllArts",
          "f4dcefe65a5f302a"],
         ["ExternSpecs.FluxCoreMem00.Flux.Checking.TestAlignOf transitive imports (legacy)",
-         "8d74dc2f95197e1f"],
+         "c6fe87ff518663d5"],
         ["ExternSpecs.FluxCoreMem00.Flux.Checking.TestAlignOf:importAllArts",
          "35900ef82a018974"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: ExternSpecs.FluxCoreMem00.Basic", "4baddfb98c16d867"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "61e0ecb43b7130d9"}
+ "depHash": "b70c638c6d9fb1bd"}

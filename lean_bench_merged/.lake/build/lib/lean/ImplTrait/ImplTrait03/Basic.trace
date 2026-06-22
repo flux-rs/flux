@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ImplTrait.ImplTrait03.Flux.Checking.Test transitive imports (legacy)",
-         "b9c2d4e35f388d0c"],
+         "ed9a3620da45a928"],
         ["ImplTrait.ImplTrait03.Flux.Checking.Test:importAllArts",
          "f68bd94b15fa59c9"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: ImplTrait.ImplTrait03.Basic", "a3dab0ed4c4818fd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c80570fc45d5435c"}
+ "depHash": "1cd35f0a0929aea8"}

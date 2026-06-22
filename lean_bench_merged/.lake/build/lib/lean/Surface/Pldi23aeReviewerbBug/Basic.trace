@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Pldi23aeReviewerbBug.Flux.Checking.Test transitive imports (legacy)",
-         "34e4763d9febf54e"],
+         "cda75d981d5d055e"],
         ["Surface.Pldi23aeReviewerbBug.Flux.Checking.Test:importAllArts",
          "0cb307cdc9219d6a"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.Pldi23aeReviewerbBug.Basic", "87333c390626dc4c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1739c22becd779c4"}
+ "depHash": "7220367e251d0910"}

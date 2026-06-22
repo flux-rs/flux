@@ -21,7 +21,7 @@
          "96b4fc6064f32963"],
         ["Surface.Bcopy.Flux.VC.Bcopy:importAllArts", "f27b8feb5611617a"],
         ["Surface.Bcopy.User.Proof.BcopyProof transitive imports (legacy)",
-         "c7444c6a5be57792"],
+         "46f86ff85c5e0715"],
         ["Surface.Bcopy.User.Proof.BcopyProof:importAllArts",
          "d0d820e7893ec4af"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Bcopy.Flux.Checking.Bcopy", "b84e7c060759fc1d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7a2123440c88df19"}
+ "depHash": "ae5c46cc1261df5b"}

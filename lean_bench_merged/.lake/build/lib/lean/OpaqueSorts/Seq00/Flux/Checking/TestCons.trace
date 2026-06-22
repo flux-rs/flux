@@ -22,7 +22,7 @@
         ["OpaqueSorts.Seq00.Flux.VC.TestCons:importAllArts",
          "75122cae4bd686b4"],
         ["OpaqueSorts.Seq00.User.Proof.TestConsProof transitive imports (legacy)",
-         "2d2f8b9f64832674"],
+         "88700e70575da4bb"],
         ["OpaqueSorts.Seq00.User.Proof.TestConsProof:importAllArts",
          "fa2abd56fe278c95"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: OpaqueSorts.Seq00.Flux.Checking.TestCons", "f5f502e537bf528f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d2132db0d0bbc854"}
+ "depHash": "dd421f78f86c7790"}

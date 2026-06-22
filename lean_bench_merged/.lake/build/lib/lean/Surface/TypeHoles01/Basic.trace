@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.TypeHoles01.Flux.Checking.TestS transitive imports (legacy)",
-         "ad02e4e01b8a5e88"],
+         "8d369094f0684f5e"],
         ["Surface.TypeHoles01.Flux.Checking.TestS:importAllArts",
          "465023e3530fc2c9"],
         ["Surface.TypeHoles01.Flux.Checking.TestE transitive imports (legacy)",
-         "120118db5c8d340e"],
+         "6696cc965b3ffca4"],
         ["Surface.TypeHoles01.Flux.Checking.TestE:importAllArts",
          "345b17fb6ceb6045"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Surface.TypeHoles01.Basic", "115936e76ebdcb7d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "095a799cb15da14f"}
+ "depHash": "f3bd3b93f75a13cc"}

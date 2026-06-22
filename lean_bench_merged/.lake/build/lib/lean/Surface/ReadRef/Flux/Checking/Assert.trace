@@ -21,7 +21,7 @@
          "3d5777c96fabca17"],
         ["Surface.ReadRef.Flux.VC.Assert:importAllArts", "b498097dff48a17c"],
         ["Surface.ReadRef.User.Proof.AssertProof transitive imports (legacy)",
-         "5eb537ce0ca07548"],
+         "2515a48e0b8c456f"],
         ["Surface.ReadRef.User.Proof.AssertProof:importAllArts",
          "683895b11dd9163b"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.ReadRef.Flux.Checking.Assert", "76454db44ae08cf2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "781ebb69ebc1b555"}
+ "depHash": "25783fa18af334b6"}

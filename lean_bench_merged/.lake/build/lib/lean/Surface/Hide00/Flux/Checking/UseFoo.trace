@@ -21,7 +21,7 @@
          "df78615b8669870d"],
         ["Surface.Hide00.Flux.VC.UseFoo:importAllArts", "734d04e2a78c6a56"],
         ["Surface.Hide00.User.Proof.UseFooProof transitive imports (legacy)",
-         "676bf59bdc90765e"],
+         "03c7c92ab4b29401"],
         ["Surface.Hide00.User.Proof.UseFooProof:importAllArts",
          "07bc711fa162bf3f"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Hide00.Flux.Checking.UseFoo", "be9c8f2eef08c38b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f0caf781c56a2ee7"}
+ "depHash": "f93f18fd39d1c734"}

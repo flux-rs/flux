@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.EnumJoin.Basic transitive imports (legacy)",
-         "c78fbec68440aa29"],
+         "39d74c21b2fdbe7d"],
         ["Structs.EnumJoin.Basic:importAllArts", "122d5caddb84af8e"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Structs.EnumJoin", "9cc52ea7ac370829"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9d3b3af79d28cb1f"}
+ "depHash": "462d268e99832cf5"}

@@ -22,7 +22,7 @@
         ["Surface.StringSpec.Flux.VC.TestString:importAllArts",
          "3f8bc64569e434c0"],
         ["Surface.StringSpec.User.Proof.TestStringProof transitive imports (legacy)",
-         "e93c95c39c48cdde"],
+         "061df3c24a578fc1"],
         ["Surface.StringSpec.User.Proof.TestStringProof:importAllArts",
          "f4d5b983984ab2de"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "ee6948ae9bc55c20"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "dfce9e3934f03f81"}
+ "depHash": "462e7565088e167b"}

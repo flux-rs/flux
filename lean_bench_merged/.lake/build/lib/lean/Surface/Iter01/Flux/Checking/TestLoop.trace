@@ -21,7 +21,7 @@
          "1c9d96924061b9da"],
         ["Surface.Iter01.Flux.VC.TestLoop:importAllArts", "c91fe97c46a422ca"],
         ["Surface.Iter01.User.Proof.TestLoopProof transitive imports (legacy)",
-         "ec0497525a492e52"],
+         "54a111976218b5e5"],
         ["Surface.Iter01.User.Proof.TestLoopProof:importAllArts",
          "3ede253bf40ac621"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Iter01.Flux.Checking.TestLoop", "b571adf0a5bd351a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8699f7d8beb9528c"}
+ "depHash": "edb3606368f4b578"}

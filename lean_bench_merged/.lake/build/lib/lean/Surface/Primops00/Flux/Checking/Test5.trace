@@ -21,7 +21,7 @@
          "c08b01a3bcf2cd4f"],
         ["Surface.Primops00.Flux.VC.Test5:importAllArts", "b3c9839a0f23b486"],
         ["Surface.Primops00.User.Proof.Test5Proof transitive imports (legacy)",
-         "9c4cfa3abb8d5653"],
+         "cf7e83eee4ff5e04"],
         ["Surface.Primops00.User.Proof.Test5Proof:importAllArts",
          "fb11d38951b6b8c3"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Primops00.Flux.Checking.Test5", "c27079cd33b94e88"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7cdaee4f3916328d"}
+ "depHash": "8cb55836b526fead"}

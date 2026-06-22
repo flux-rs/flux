@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.RustAlias.Basic transitive imports (legacy)",
-         "3b82253f79413c64"],
+         "8a989234e387a6c4"],
         ["Surface.RustAlias.Basic:importAllArts", "217e409ad1ea4702"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.RustAlias", "917ebffd1a79539b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a119cd75cd62748a"}
+ "depHash": "9b1fb7a9e8cab51f"}

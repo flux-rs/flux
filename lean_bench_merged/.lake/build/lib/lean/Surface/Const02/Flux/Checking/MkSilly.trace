@@ -21,7 +21,7 @@
          "bccb1ce2f897f17e"],
         ["Surface.Const02.Flux.VC.MkSilly:importAllArts", "b5ab111631ba945c"],
         ["Surface.Const02.User.Proof.MkSillyProof transitive imports (legacy)",
-         "a67b56594c13b03e"],
+         "b8f6f603742e4101"],
         ["Surface.Const02.User.Proof.MkSillyProof:importAllArts",
          "312e5e6a1197ed03"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Const02.Flux.Checking.MkSilly", "b7e3d38d47cd6843"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c1d6a454c81de576"}
+ "depHash": "5bcbe81cfeb8543f"}

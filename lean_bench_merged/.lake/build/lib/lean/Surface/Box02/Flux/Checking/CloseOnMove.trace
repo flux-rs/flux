@@ -21,7 +21,7 @@
          "b376bf3729d0fd96"],
         ["Surface.Box02.Flux.VC.CloseOnMove:importAllArts", "b5aff790f5af7bf6"],
         ["Surface.Box02.User.Proof.CloseOnMoveProof transitive imports (legacy)",
-         "cf7f012f3180015d"],
+         "252302a0386e0a7a"],
         ["Surface.Box02.User.Proof.CloseOnMoveProof:importAllArts",
          "b999cdd10620811a"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Box02.Flux.Checking.CloseOnMove", "398c56ca13fd8c93"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "375f5cd5ae58c212"}
+ "depHash": "4dd376b883a43486"}

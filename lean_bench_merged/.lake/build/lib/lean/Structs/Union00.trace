@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.Union00.Basic transitive imports (legacy)",
-         "2dc9d738ee2e4598"],
+         "e11644e39aaf77ce"],
         ["Structs.Union00.Basic:importAllArts", "8facf3aaeed8c10c"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Structs.Union00", "1aa677b3aab9d6c3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "fb43b68ad9ba26c3"}
+ "depHash": "517e0ef93e33b048"}

@@ -20,7 +20,7 @@
   {"message":
    "Surface/Date/User/Proof/IsLeapYearProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Date/User/Proof/IsLeapYearProof.lean:69:0: time: 94ms",
+  {"message": "Surface/Date/User/Proof/IsLeapYearProof.lean:69:0: time: 103ms",
    "level": "info"},
   {"message":
    "Surface/Date/User/Proof/IsLeapYearProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z1 % 4 ≠ 0 ∧ z0 = False ∧ z1 = z1 ∨ ¬z1 % 4 ≠ 0 ∧ z0 = (z1 % 100 ≠ 0) ∧ z1 = z1\n[solve]   lam = fun z0 z1 => z1 % 4 ≠ 0 ∧ z0 = False ∧ z1 = z1 ∨ ¬z1 % 4 ≠ 0 ∧ z0 = (z1 % 100 ≠ 0) ∧ z1 = z1",
@@ -31,7 +31,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Date.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -54,4 +54,4 @@
   ["Module.name: Surface.Date.User.Proof.IsLeapYearProof", "be336baad8c069ff"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a982cd63c33249c4"}
+ "depHash": "9d0d2c90afbbac36"}

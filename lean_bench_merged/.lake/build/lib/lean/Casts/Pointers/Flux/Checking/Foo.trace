@@ -20,7 +20,7 @@
          "80dbdff2732a865e"],
         ["Casts.Pointers.Flux.VC.Foo:importAllArts", "49944179717207af"],
         ["Casts.Pointers.User.Proof.FooProof transitive imports (legacy)",
-         "b038c7b37e28eb52"],
+         "65534bec590b714d"],
         ["Casts.Pointers.User.Proof.FooProof:importAllArts",
          "d754d656c7a82864"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Casts.Pointers.Flux.Checking.Foo", "1029dfdf05bae093"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d9e358cf8181633c"}
+ "depHash": "c79cd3af85486cdf"}

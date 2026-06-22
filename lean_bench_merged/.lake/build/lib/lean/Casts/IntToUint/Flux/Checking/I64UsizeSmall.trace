@@ -22,7 +22,7 @@
         ["Casts.IntToUint.Flux.VC.I64UsizeSmall:importAllArts",
          "8fe2d5df2918cdff"],
         ["Casts.IntToUint.User.Proof.I64UsizeSmallProof transitive imports (legacy)",
-         "b38657f16ee1c15f"],
+         "c3d3549fdfb651d8"],
         ["Casts.IntToUint.User.Proof.I64UsizeSmallProof:importAllArts",
          "453788e6cca857be"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "d87d950561fe69b6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "14aa4ef755f97533"}
+ "depHash": "63e0da793a16b28e"}

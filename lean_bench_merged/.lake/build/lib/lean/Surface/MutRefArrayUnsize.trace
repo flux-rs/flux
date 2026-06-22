@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.MutRefArrayUnsize.Basic transitive imports (legacy)",
-         "f68d109de2cc9863"],
+         "0f01965cd20eb6f6"],
         ["Surface.MutRefArrayUnsize.Basic:importAllArts",
          "effe6082abc75080"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.MutRefArrayUnsize", "e649bda336e9ed6c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1ffdefae1b8d49e6"}
+ "depHash": "fa248b1b1ca94f31"}

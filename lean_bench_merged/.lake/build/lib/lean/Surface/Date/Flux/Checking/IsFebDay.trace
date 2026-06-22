@@ -21,7 +21,7 @@
          "f7e0688b59305e31"],
         ["Surface.Date.Flux.VC.IsFebDay:importAllArts", "aa44b9befc1fcf0b"],
         ["Surface.Date.User.Proof.IsFebDayProof transitive imports (legacy)",
-         "63549c8227e9b9a6"],
+         "22c415fe2b9455b9"],
         ["Surface.Date.User.Proof.IsFebDayProof:importAllArts",
          "b63b919381288ad7"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Date.Flux.Checking.IsFebDay", "443807082b4cfd51"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7b07fd4548882603"}
+ "depHash": "b76fc7530a7fdf17"}

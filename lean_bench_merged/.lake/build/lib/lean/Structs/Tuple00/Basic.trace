@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.Tuple00.Flux.Checking.Test1 transitive imports (legacy)",
-         "b5231527b4cc4458"],
+         "f53395517900bc28"],
         ["Structs.Tuple00.Flux.Checking.Test1:importAllArts",
          "ae6d294675ee85f7"],
         ["Structs.Tuple00.Flux.Checking.Test2 transitive imports (legacy)",
-         "bc847150fd181ec2"],
+         "b2c702c9849c23f2"],
         ["Structs.Tuple00.Flux.Checking.Test2:importAllArts",
          "d504faaf382efcb4"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Structs.Tuple00.Basic", "993b51ecf827d96e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "24c192254c94abab"}
+ "depHash": "8e4986706da842eb"}

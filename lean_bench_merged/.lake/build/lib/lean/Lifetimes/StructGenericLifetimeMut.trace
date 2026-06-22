@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Lifetimes.StructGenericLifetimeMut.Basic transitive imports (legacy)",
-         "f29c12745958c64b"],
+         "4dbfa49505555d5c"],
         ["Lifetimes.StructGenericLifetimeMut.Basic:importAllArts",
          "348a1820b58adb72"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Lifetimes.StructGenericLifetimeMut", "dc1d39fa65c8ede0"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c059980d9027de49"}
+ "depHash": "0b5689560a5e6ee8"}

@@ -21,7 +21,7 @@
          "27d34a9ca37a8cb2"],
         ["Surface.Bitvec07.Flux.VC.TestShl8:importAllArts", "bd3428557fdc6b6c"],
         ["Surface.Bitvec07.User.Proof.TestShl8Proof transitive imports (legacy)",
-         "72845e1ed7ea1747"],
+         "e1b9eeb9bf546470"],
         ["Surface.Bitvec07.User.Proof.TestShl8Proof:importAllArts",
          "fce8b99edd8207a4"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Bitvec07.Flux.Checking.TestShl8", "0b870c4a95892808"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d69ea02c3b4e9a6a"}
+ "depHash": "9ed10e5b05660e51"}

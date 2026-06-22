@@ -22,7 +22,7 @@
         ["Surface.AssertTerminator.Flux.VC.AssertTerminatorTest:importAllArts",
          "e42b12b3e4062f3d"],
         ["Surface.AssertTerminator.User.Proof.AssertTerminatorTestProof transitive imports (legacy)",
-         "35c29b86272ca18a"],
+         "4095b58db55e60ed"],
         ["Surface.AssertTerminator.User.Proof.AssertTerminatorTestProof:importAllArts",
          "679e63973928ae23"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "aca199843ce74c5a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "685648e01438c1ae"}
+ "depHash": "0c198e623862aa0a"}

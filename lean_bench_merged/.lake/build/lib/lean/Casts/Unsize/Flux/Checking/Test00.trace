@@ -21,7 +21,7 @@
          "72c45b77bac312a2"],
         ["Casts.Unsize.Flux.VC.Test00:importAllArts", "bdc79c41a2078dc9"],
         ["Casts.Unsize.User.Proof.Test00Proof transitive imports (legacy)",
-         "8f7f7c8d2573dfa5"],
+         "9552627bdd5af49a"],
         ["Casts.Unsize.User.Proof.Test00Proof:importAllArts",
          "16c61025f4ca68d1"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Casts.Unsize.Flux.Checking.Test00", "d49a8ac207f6bade"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "775efb4a430ab5b0"}
+ "depHash": "dc0618613f1765f7"}

@@ -22,7 +22,7 @@
         ["ImplTrait.ImplTrait03.Flux.VC.Test:importAllArts",
          "d02b4f00316bc4f0"],
         ["ImplTrait.ImplTrait03.User.Proof.TestProof transitive imports (legacy)",
-         "9168607977301fa7"],
+         "b9d7f656f08b09b8"],
         ["ImplTrait.ImplTrait03.User.Proof.TestProof:importAllArts",
          "c648de3b74617d6b"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: ImplTrait.ImplTrait03.Flux.Checking.Test", "d6cb9cf974a1e23b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "92c43729711a0d91"}
+ "depHash": "e299cd2916f88425"}

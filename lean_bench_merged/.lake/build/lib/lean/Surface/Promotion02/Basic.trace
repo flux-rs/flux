@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Promotion02.Flux.Checking.PrintFormatted transitive imports (legacy)",
-         "e4ba7e38b6d6aeb8"],
+         "e45fd7cff750fb85"],
         ["Surface.Promotion02.Flux.Checking.PrintFormatted:importAllArts",
          "e301bddec85de818"],
         ["Surface.Promotion02.Flux.Checking.Test transitive imports (legacy)",
-         "6006e484610f9d0e"],
+         "a36b777f42cb98bd"],
         ["Surface.Promotion02.Flux.Checking.Test:importAllArts",
          "2a3f98e81ecd2b1e"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Surface.Promotion02.Basic", "8365efcf1b0f153f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "fd29f7301d9fc69c"}
+ "depHash": "2d6299663c017511"}

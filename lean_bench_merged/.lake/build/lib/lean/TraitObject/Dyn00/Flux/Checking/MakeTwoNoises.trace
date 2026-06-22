@@ -22,7 +22,7 @@
         ["TraitObject.Dyn00.Flux.VC.MakeTwoNoises:importAllArts",
          "4918fd9bf86020b0"],
         ["TraitObject.Dyn00.User.Proof.MakeTwoNoisesProof transitive imports (legacy)",
-         "2b352bc28b914daa"],
+         "4f68715c1a2ea005"],
         ["TraitObject.Dyn00.User.Proof.MakeTwoNoisesProof:importAllArts",
          "607b31be90154b71"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "80c5cac52a2a7730"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e180965d3adb98d8"}
+ "depHash": "46cb006a8609dc28"}

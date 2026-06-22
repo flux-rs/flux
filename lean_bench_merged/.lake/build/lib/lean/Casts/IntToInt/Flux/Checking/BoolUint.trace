@@ -21,7 +21,7 @@
          "ea6de6a3b23a531c"],
         ["Casts.IntToInt.Flux.VC.BoolUint:importAllArts", "020d7081387b5dd1"],
         ["Casts.IntToInt.User.Proof.BoolUintProof transitive imports (legacy)",
-         "1074b0d9ebcd1235"],
+         "6bc9b802c52df1c2"],
         ["Casts.IntToInt.User.Proof.BoolUintProof:importAllArts",
          "1d62c64fe5dd7411"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Casts.IntToInt.Flux.Checking.BoolUint", "09cc32472f9f0194"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1c9a4044aa53fb4f"}
+ "depHash": "bef598c9ce691ed0"}

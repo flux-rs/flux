@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.FoldOnDrop.Basic transitive imports (legacy)",
-         "34dd3cee41afb5d7"],
+         "47c3dea31a31af49"],
         ["Structs.FoldOnDrop.Basic:importAllArts", "bcedaf63d11ae0ae"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Structs.FoldOnDrop", "c8cca6d13683ffb3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2b6845d4a1747936"}
+ "depHash": "595169647e1d7238"}

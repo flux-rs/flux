@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Casts.Pointers.Basic transitive imports (legacy)",
-         "cceb377ec4569e47"],
+         "016b1a8be9d6790d"],
         ["Casts.Pointers.Basic:importAllArts", "21446126283de660"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Casts.Pointers", "e3850d45e84fa9a6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0fa04468394fbd38"}
+ "depHash": "ee19ae13166fd13b"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.BoundedQuant00.Basic transitive imports (legacy)",
-         "04dd411d075008e5"],
+         "27e14d27690bb0a6"],
         ["Surface.BoundedQuant00.Basic:importAllArts", "f4637449d049e29e"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.BoundedQuant00", "0628b3680c9ccbb5"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a6664e32a6991fc3"}
+ "depHash": "558da6bbd4603590"}

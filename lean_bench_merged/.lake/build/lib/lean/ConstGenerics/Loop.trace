@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ConstGenerics.Loop.Basic transitive imports (legacy)",
-         "2a731a540eed41d9"],
+         "9aadecc74bdce79a"],
         ["ConstGenerics.Loop.Basic:importAllArts", "3e46f162e7c43f3f"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: ConstGenerics.Loop", "ac70b3399c781da1"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2203524632a740ac"}
+ "depHash": "8987ddbb911ef348"}

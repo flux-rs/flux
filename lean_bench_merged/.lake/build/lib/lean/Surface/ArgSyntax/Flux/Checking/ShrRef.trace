@@ -21,7 +21,7 @@
          "515065aa10b14b28"],
         ["Surface.ArgSyntax.Flux.VC.ShrRef:importAllArts", "8000aacdc4849f2e"],
         ["Surface.ArgSyntax.User.Proof.ShrRefProof transitive imports (legacy)",
-         "69b37a360ac082da"],
+         "bb09df09c027b83d"],
         ["Surface.ArgSyntax.User.Proof.ShrRefProof:importAllArts",
          "c04b59ac4827a0df"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.ArgSyntax.Flux.Checking.ShrRef", "c7d6a26fe643465b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c5d97cbcab01ebc2"}
+ "depHash": "203ae994434ec209"}

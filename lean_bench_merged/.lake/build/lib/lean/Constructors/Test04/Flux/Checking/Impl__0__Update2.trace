@@ -22,7 +22,7 @@
         ["Constructors.Test04.Flux.VC.Impl__0__Update2:importAllArts",
          "25f5d71dbf5761df"],
         ["Constructors.Test04.User.Proof.Impl__0__Update2Proof transitive imports (legacy)",
-         "64957205223eb2f3"],
+         "01f7d8aa6a434bc4"],
         ["Constructors.Test04.User.Proof.Impl__0__Update2Proof:importAllArts",
          "30cb8dbd34423659"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "cde72f86460146d8"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "eea5a7700ec2dca7"}
+ "depHash": "db44656ca91d6345"}

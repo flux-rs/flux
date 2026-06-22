@@ -21,7 +21,7 @@
          "ac5d9d00a1363dcb"],
         ["Surface.Bitvec03.Flux.VC.TestShrB:importAllArts", "a171ec468f7e13ef"],
         ["Surface.Bitvec03.User.Proof.TestShrBProof transitive imports (legacy)",
-         "99118ff5c84164b4"],
+         "e6c0c28386c14333"],
         ["Surface.Bitvec03.User.Proof.TestShrBProof:importAllArts",
          "2bb4b802cd8a4cf6"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Bitvec03.Flux.Checking.TestShrB", "866b434b2183df96"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8e76955f4a2d690a"}
+ "depHash": "b76db71af186fd57"}

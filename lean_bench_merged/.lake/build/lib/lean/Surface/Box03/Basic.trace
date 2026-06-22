@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Box03.Flux.Checking.SharedRefBox transitive imports (legacy)",
-         "bb679b872dc300bd"],
+         "e3062a9ecb8fe6f8"],
         ["Surface.Box03.Flux.Checking.SharedRefBox:importAllArts",
          "04455869b139a486"],
         ["Surface.Box03.Flux.Checking.MutRefBox transitive imports (legacy)",
-         "33952bbe3d038d0f"],
+         "897875add9520d79"],
         ["Surface.Box03.Flux.Checking.MutRefBox:importAllArts",
          "c548103178cb9568"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Surface.Box03.Basic", "dce33951e2254ae7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "06b1e670ad883617"}
+ "depHash": "32639fbe6db93773"}

@@ -21,7 +21,7 @@
          "53df0dc308f5fc7d"],
         ["Surface.Closure12.Flux.VC.Add:importAllArts", "ebc8811e4c9b2540"],
         ["Surface.Closure12.User.Proof.AddProof transitive imports (legacy)",
-         "e04a8cbc57c5f3a6"],
+         "864a7a103daf1ba9"],
         ["Surface.Closure12.User.Proof.AddProof:importAllArts",
          "3d1a6b176a9bda3f"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Closure12.Flux.Checking.Add", "da954c3f84d804e5"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a2e2c5081ee29642"}
+ "depHash": "42c1dca132cc1287"}

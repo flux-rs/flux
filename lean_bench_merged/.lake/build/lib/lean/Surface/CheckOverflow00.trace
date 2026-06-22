@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.CheckOverflow00.Basic transitive imports (legacy)",
-         "274a92101b805f9f"],
+         "be849cf577c5a44a"],
         ["Surface.CheckOverflow00.Basic:importAllArts", "b3d677045e7b0735"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.CheckOverflow00", "99e7adf574699814"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8d6c8bccdff7ff34"}
+ "depHash": "8b198da2f1760915"}

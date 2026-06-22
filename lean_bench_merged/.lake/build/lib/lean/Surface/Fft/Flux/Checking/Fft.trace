@@ -20,7 +20,7 @@
          "9cf8c83120078782"],
         ["Surface.Fft.Flux.VC.Fft:importAllArts", "ecbe5bb71e2b65a2"],
         ["Surface.Fft.User.Proof.FftProof transitive imports (legacy)",
-         "a090e39c7eb00a9b"],
+         "766e90f8542c1a44"],
         ["Surface.Fft.User.Proof.FftProof:importAllArts",
          "9d0f0a1d6e4a7c5f"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Surface.Fft.Flux.Checking.Fft", "e88ff3b0b8fd41e7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2161d3dabc838085"}
+ "depHash": "6ab9a59cc47ffbf3"}

@@ -22,7 +22,7 @@
         ["Structs.NoRefinedByEnum.Flux.VC.Test00:importAllArts",
          "66661ad6be4064d2"],
         ["Structs.NoRefinedByEnum.User.Proof.Test00Proof transitive imports (legacy)",
-         "0b2e58c84c60e0cb"],
+         "5d720201c050bb2c"],
         ["Structs.NoRefinedByEnum.User.Proof.Test00Proof:importAllArts",
          "2472482ed062c359"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "f371309f4f30125d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1eba2831eb63d6d7"}
+ "depHash": "88832b864c4c22eb"}

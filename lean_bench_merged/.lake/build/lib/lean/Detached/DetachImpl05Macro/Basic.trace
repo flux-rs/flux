@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Detached.DetachImpl05Macro.Flux.Checking.Test transitive imports (legacy)",
-         "05023e6b215e4d5d"],
+         "78ea2efa0e4762ff"],
         ["Detached.DetachImpl05Macro.Flux.Checking.Test:importAllArts",
          "aa27a381ae20e374"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Detached.DetachImpl05Macro.Basic", "fda936c476e040cd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "281f401ab8990551"}
+ "depHash": "da438767f4c79d43"}

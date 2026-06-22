@@ -21,7 +21,7 @@
          "5b6167fea7e4a504"],
         ["Structs.OpaqueRange.Flux.VC.Test:importAllArts", "07ddc34cc60148f8"],
         ["Structs.OpaqueRange.User.Proof.TestProof transitive imports (legacy)",
-         "a116c90052b57aaa"],
+         "5d7cdb622d85206d"],
         ["Structs.OpaqueRange.User.Proof.TestProof:importAllArts",
          "d8137407e0d9d5af"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.OpaqueRange.Flux.Checking.Test", "780c0e7805bff7b9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d330ac13c5c70dc4"}
+ "depHash": "33b5925bea93ff1e"}

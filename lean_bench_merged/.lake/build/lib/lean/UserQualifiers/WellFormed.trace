@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["UserQualifiers.WellFormed.Basic transitive imports (legacy)",
-         "2cfedf374810b67d"],
+         "dbed78b89ec5960d"],
         ["UserQualifiers.WellFormed.Basic:importAllArts",
          "bf7d7270e353f791"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: UserQualifiers.WellFormed", "be73b641fb6d4c69"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8c6c0a2b1d01f8f5"}
+ "depHash": "50dbe458664a2f00"}

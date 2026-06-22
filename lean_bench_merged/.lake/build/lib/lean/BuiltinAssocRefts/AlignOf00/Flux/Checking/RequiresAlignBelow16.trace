@@ -22,7 +22,7 @@
         ["BuiltinAssocRefts.AlignOf00.Flux.VC.RequiresAlignBelow16:importAllArts",
          "d1707615acb12f7c"],
         ["BuiltinAssocRefts.AlignOf00.User.Proof.RequiresAlignBelow16Proof transitive imports (legacy)",
-         "742504ccffd3744a"],
+         "d40da4363f9f31bd"],
         ["BuiltinAssocRefts.AlignOf00.User.Proof.RequiresAlignBelow16Proof:importAllArts",
          "375f57e3dd301799"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "054f5ca74dfc4913"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7b326bdb47aa83ae"}
+ "depHash": "4720c7dd01ac8f0d"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Constructors.Test10.Basic transitive imports (legacy)",
-         "98ff0a06b1e2f8bd"],
+         "91f0258e44f80269"],
         ["Constructors.Test10.Basic:importAllArts", "7c4acb8d7826aa39"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Constructors.Test10", "6750bd33b15d00b6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "bb54aa58af7dae28"}
+ "depHash": "735a7d2b9da900bf"}

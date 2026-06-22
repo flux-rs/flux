@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Bsearch1.Basic transitive imports (legacy)",
-         "ea968a0a182ab696"],
+         "7822ef81dd419145"],
         ["Surface.Bsearch1.Basic:importAllArts", "883da13f1f963942"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Bsearch1", "ddc6af448831f8a5"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c1ad03c3a6b4ba93"}
+ "depHash": "6580caf711cf5cce"}

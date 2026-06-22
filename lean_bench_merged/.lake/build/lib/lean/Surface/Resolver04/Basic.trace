@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Resolver04.Flux.Checking.AFoo transitive imports (legacy)",
-         "c5356706b2bb33df"],
+         "75792679a37097ef"],
         ["Surface.Resolver04.Flux.Checking.AFoo:importAllArts",
          "d3ba2f9bbaad6380"],
         ["Surface.Resolver04.Flux.Checking.BFoo transitive imports (legacy)",
-         "15428c3383714ea9"],
+         "b51a73c442021483"],
         ["Surface.Resolver04.Flux.Checking.BFoo:importAllArts",
          "c09b385026332cc2"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Surface.Resolver04.Basic", "150b8244c9da5eff"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9b9ae85eec8032a3"}
+ "depHash": "14a2c7a29ae4dbcf"}

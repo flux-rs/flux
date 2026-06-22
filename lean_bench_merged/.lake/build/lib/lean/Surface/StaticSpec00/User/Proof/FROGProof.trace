@@ -20,7 +20,7 @@
   {"message":
    "Surface/StaticSpec00/User/Proof/FROGProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/StaticSpec00/User/Proof/FROGProof.lean:69:0: time: 45ms",
+  {"message": "Surface/StaticSpec00/User/Proof/FROGProof.lean:69:0: time: 33ms",
    "level": "info"},
   {"message":
    "Surface/StaticSpec00/User/Proof/FROGProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = 67 ∨ z0 = 67 ∨ z0 = 67\n[solve]   lam = fun z0 => z0 = 67 ∨ z0 = 67 ∨ z0 = 67",
@@ -31,7 +31,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.StaticSpec00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -55,4 +55,4 @@
    "0b64aa4dd6959349"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ff3699c948b08efd"}
+ "depHash": "df2c3ddd3b27a46b"}

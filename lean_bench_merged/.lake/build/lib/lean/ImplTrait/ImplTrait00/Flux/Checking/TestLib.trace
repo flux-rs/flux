@@ -22,7 +22,7 @@
         ["ImplTrait.ImplTrait00.Flux.VC.TestLib:importAllArts",
          "f99de16580e6efc7"],
         ["ImplTrait.ImplTrait00.User.Proof.TestLibProof transitive imports (legacy)",
-         "aa922af4f361b496"],
+         "5211afbab95c35b9"],
         ["ImplTrait.ImplTrait00.User.Proof.TestLibProof:importAllArts",
          "02356ce5de8bbb6f"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "2f3d41c71dab7b3f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1fc94f040ee93965"}
+ "depHash": "5492f0574aec3ac2"}

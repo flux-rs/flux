@@ -22,7 +22,7 @@
         ["Surface.LoopAbstractRefinement.Flux.VC.Impl__2__Collision:importAllArts",
          "b3979632d2f03f8f"],
         ["Surface.LoopAbstractRefinement.User.Proof.Impl__2__CollisionProof transitive imports (legacy)",
-         "35aeb10ba765fc3f"],
+         "14d9d6c1c81178f0"],
         ["Surface.LoopAbstractRefinement.User.Proof.Impl__2__CollisionProof:importAllArts",
          "1dc7cdaa80bb0b37"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "04bb0d15c89a599e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "90ea80ad0d241962"}
+ "depHash": "149c08eb8090d337"}

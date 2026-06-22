@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Lifetimes.StructGenericLifetimeShr.Flux.Checking.Construct transitive imports (legacy)",
-         "4d9d55f3ab167deb"],
+         "8c8ce84fdda6f52e"],
         ["Lifetimes.StructGenericLifetimeShr.Flux.Checking.Construct:importAllArts",
          "b533818bdd92fa63"],
         ["Lifetimes.StructGenericLifetimeShr.Flux.Checking.Project transitive imports (legacy)",
-         "171b151f01d94789"],
+         "4c47be049d2e54b5"],
         ["Lifetimes.StructGenericLifetimeShr.Flux.Checking.Project:importAllArts",
          "fb47d8585d7d409d"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Lifetimes.StructGenericLifetimeShr.Basic", "3e9451ab8cf2e846"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8173b53c19d153a9"}
+ "depHash": "8f9c437c2efc5d07"}

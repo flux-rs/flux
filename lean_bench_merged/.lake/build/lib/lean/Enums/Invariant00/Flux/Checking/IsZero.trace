@@ -21,7 +21,7 @@
          "af6053cc7f714299"],
         ["Enums.Invariant00.Flux.VC.IsZero:importAllArts", "84f146dedffa8401"],
         ["Enums.Invariant00.User.Proof.IsZeroProof transitive imports (legacy)",
-         "5220d34abbf021ab"],
+         "336ba2c2cf7c822c"],
         ["Enums.Invariant00.User.Proof.IsZeroProof:importAllArts",
          "8b6d3a4286e9e5ea"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Enums.Invariant00.Flux.Checking.IsZero", "0dbc259d3b2d7a34"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "bc601749a157a250"}
+ "depHash": "594c3f7dac3b0c26"}

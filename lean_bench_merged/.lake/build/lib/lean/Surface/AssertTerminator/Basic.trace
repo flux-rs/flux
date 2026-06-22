@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.AssertTerminator.Flux.Checking.AssertTerminatorTest transitive imports (legacy)",
-         "cbee7ec7fa7f7a54"],
+         "d3b4890a4d75ebae"],
         ["Surface.AssertTerminator.Flux.Checking.AssertTerminatorTest:importAllArts",
          "15ce477614575ea8"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.AssertTerminator.Basic", "45b485c12718949b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f72c85d888d794dd"}
+ "depHash": "8e180ced0056831e"}

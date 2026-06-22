@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.ToInt00.Flux.Checking.TestOk transitive imports (legacy)",
-         "8ad8edbfd9278563"],
+         "b31fbb30eaf7e65c"],
         ["Surface.ToInt00.Flux.Checking.TestOk:importAllArts",
          "4af520ed9b256285"],
         ["Surface.ToInt00.Flux.Checking.TestDigit transitive imports (legacy)",
-         "4a7ca88c8b4a235a"],
+         "2e4927d30273ace0"],
         ["Surface.ToInt00.Flux.Checking.TestDigit:importAllArts",
          "ef9ae750c971e26d"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Surface.ToInt00.Basic", "86b73ae4e7541793"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6b0387166e050be6"}
+ "depHash": "7e0f7fdf69765126"}

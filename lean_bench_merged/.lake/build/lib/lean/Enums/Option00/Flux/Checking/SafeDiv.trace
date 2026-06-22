@@ -21,7 +21,7 @@
          "9da244f90d7184fd"],
         ["Enums.Option00.Flux.VC.SafeDiv:importAllArts", "29b026ad1a527fe7"],
         ["Enums.Option00.User.Proof.SafeDivProof transitive imports (legacy)",
-         "5ec5882ab9bd77be"],
+         "e636aa0efa71f901"],
         ["Enums.Option00.User.Proof.SafeDivProof:importAllArts",
          "520785f72ee24b62"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Enums.Option00.Flux.Checking.SafeDiv", "9d05c2d02a1d08a1"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4917c0145c49f8c4"}
+ "depHash": "73909e5c56812ec6"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.SliceLenHack.Basic transitive imports (legacy)",
-         "8685106d6aa35790"],
+         "ce98e3d7091f8146"],
         ["Surface.SliceLenHack.Basic:importAllArts", "fc50859f58524778"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.SliceLenHack", "7a6ab97859a16988"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8adbbf961a8484de"}
+ "depHash": "da2dd7662b4a7a0f"}

@@ -21,7 +21,7 @@
          "32c2756a8c99669e"],
         ["Surface.BvOrd.Flux.VC.TrivialLt:importAllArts", "b5a63f7f945e0cfe"],
         ["Surface.BvOrd.User.Proof.TrivialLtProof transitive imports (legacy)",
-         "ed15dbf378b78dc0"],
+         "3c6e963d400cbbcf"],
         ["Surface.BvOrd.User.Proof.TrivialLtProof:importAllArts",
          "a41657fdbc10783c"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.BvOrd.Flux.Checking.TrivialLt", "9188032b916f4b01"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "720c9d6ff4f58135"}
+ "depHash": "b17f3806cf58bf1c"}

@@ -21,7 +21,7 @@
          "5d42c8cf7de4273e"],
         ["Surface.Bitvec06.Flux.VC.TestXorA:importAllArts", "554faf32b076c989"],
         ["Surface.Bitvec06.User.Proof.TestXorAProof transitive imports (legacy)",
-         "6b4f5f8496533ac8"],
+         "cdc67adc2f05ddbf"],
         ["Surface.Bitvec06.User.Proof.TestXorAProof:importAllArts",
          "e4d343b0bf9490cf"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Bitvec06.Flux.Checking.TestXorA", "3533095c1db23458"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "77893a509b5c34f0"}
+ "depHash": "fc9d9ccdfc02df8c"}

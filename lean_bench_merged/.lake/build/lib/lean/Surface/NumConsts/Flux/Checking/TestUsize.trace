@@ -22,7 +22,7 @@
         ["Surface.NumConsts.Flux.VC.TestUsize:importAllArts",
          "6cad62c6ebfe3064"],
         ["Surface.NumConsts.User.Proof.TestUsizeProof transitive imports (legacy)",
-         "4de0793e3fd89f9a"],
+         "7cfe1a282bd56815"],
         ["Surface.NumConsts.User.Proof.TestUsizeProof:importAllArts",
          "5cb2abba43a9884d"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "0c8a8c7029e587b9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "509bb8bce506d655"}
+ "depHash": "d5a6f650e0d7a180"}

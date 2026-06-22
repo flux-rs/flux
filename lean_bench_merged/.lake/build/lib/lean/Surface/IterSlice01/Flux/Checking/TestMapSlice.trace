@@ -22,7 +22,7 @@
         ["Surface.IterSlice01.Flux.VC.TestMapSlice:importAllArts",
          "e537afedc6447498"],
         ["Surface.IterSlice01.User.Proof.TestMapSliceProof transitive imports (legacy)",
-         "97cc2a97af042f32"],
+         "aee6b31832d686a5"],
         ["Surface.IterSlice01.User.Proof.TestMapSliceProof:importAllArts",
          "fa580d8dd7d9b5e9"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "31d7710fb79bd185"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "abfb476bd03fd4e8"}
+ "depHash": "c0d50ff930f33e50"}

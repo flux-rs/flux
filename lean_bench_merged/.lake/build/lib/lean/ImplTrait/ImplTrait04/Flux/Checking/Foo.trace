@@ -21,7 +21,7 @@
          "73d61a83b7c705c9"],
         ["ImplTrait.ImplTrait04.Flux.VC.Foo:importAllArts", "9df1fccdcda917fc"],
         ["ImplTrait.ImplTrait04.User.Proof.FooProof transitive imports (legacy)",
-         "da314f1973abf020"],
+         "6d1d463d56d6a167"],
         ["ImplTrait.ImplTrait04.User.Proof.FooProof:importAllArts",
          "7b96d66fb99495dc"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: ImplTrait.ImplTrait04.Flux.Checking.Foo", "44d8190525830ea3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7173fa30539a4496"}
+ "depHash": "e92e815c1868a140"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.MacroExpansion.Flux.Checking.Test00 transitive imports (legacy)",
-         "c0d03d5fe3a4b7db"],
+         "45f8e33aa18a1ecb"],
         ["Surface.MacroExpansion.Flux.Checking.Test00:importAllArts",
          "8f56852095b61aa4"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.MacroExpansion.Basic", "573f59b62a2e7456"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3856a4fbd900adfc"}
+ "depHash": "5595b077e5c2d374"}

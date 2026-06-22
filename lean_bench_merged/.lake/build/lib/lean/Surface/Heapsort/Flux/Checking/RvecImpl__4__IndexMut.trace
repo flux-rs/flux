@@ -22,7 +22,7 @@
         ["Surface.Heapsort.Flux.VC.RvecImpl__4__IndexMut:importAllArts",
          "da9ac18e7ccbc44e"],
         ["Surface.Heapsort.User.Proof.RvecImpl__4__IndexMutProof transitive imports (legacy)",
-         "489a079616a0a729"],
+         "01cdf7826809bb4e"],
         ["Surface.Heapsort.User.Proof.RvecImpl__4__IndexMutProof:importAllArts",
          "e740f50e7f1abb56"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "e81fd8975d209f3e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d3277479ed9b8a56"}
+ "depHash": "e06d9efa5e13a884"}

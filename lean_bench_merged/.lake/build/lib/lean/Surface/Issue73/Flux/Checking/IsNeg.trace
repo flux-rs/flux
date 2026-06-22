@@ -21,7 +21,7 @@
          "7de018e55ebd9ae3"],
         ["Surface.Issue73.Flux.VC.IsNeg:importAllArts", "dc012a68352feba1"],
         ["Surface.Issue73.User.Proof.IsNegProof transitive imports (legacy)",
-         "7153251a74a72d1d"],
+         "7acc5018a6255bca"],
         ["Surface.Issue73.User.Proof.IsNegProof:importAllArts",
          "dd37a19f9893b8df"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Issue73.Flux.Checking.IsNeg", "d92e9ad91e4628f9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "78badbee4ec28978"}
+ "depHash": "23c2e7401ea2a470"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Issue569.Flux.Checking.Foo transitive imports (legacy)",
-         "e00eb0618e6cfc46"],
+         "603586fb90a817f3"],
         ["Surface.Issue569.Flux.Checking.Foo:importAllArts",
          "d55fc96941db1b79"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.Issue569.Basic", "eb21ab4a06311cfd"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a304c82ab89773de"}
+ "depHash": "d6bcaf608a63b135"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Associativity.Basic transitive imports (legacy)",
-         "19d68512df34aa60"],
+         "4c618097fd75ef27"],
         ["Surface.Associativity.Basic:importAllArts", "49a8cd71c925e6bf"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Associativity", "d40e4851bc06a98d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6e0582e60e7f9d0f"}
+ "depHash": "d508682eadc5d6e4"}

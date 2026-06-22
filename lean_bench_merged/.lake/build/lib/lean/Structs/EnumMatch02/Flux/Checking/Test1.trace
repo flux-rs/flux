@@ -21,7 +21,7 @@
          "3ac013bb8474cfec"],
         ["Structs.EnumMatch02.Flux.VC.Test1:importAllArts", "9a301456ebef6315"],
         ["Structs.EnumMatch02.User.Proof.Test1Proof transitive imports (legacy)",
-         "cd13212a9b88861f"],
+         "db3e0b56f7216ca0"],
         ["Structs.EnumMatch02.User.Proof.Test1Proof:importAllArts",
          "7d68d4bc50828ce3"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.EnumMatch02.Flux.Checking.Test1", "4771aae4d9e78188"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "00f0976f57896436"}
+ "depHash": "5374eb80ff86a084"}

@@ -51,7 +51,7 @@
    "Lifetimes/ListMutRef/User/Proof/TestProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Lifetimes/ListMutRef/User/Proof/TestProof.lean:69:0: time: 538ms",
+   "Lifetimes/ListMutRef/User/Proof/TestProof.lean:69:0: time: 384ms",
    "level": "info"},
   {"message":
    "Lifetimes/ListMutRef/User/Proof/TestProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1, k2, k4]\n[solve_fixpoint] Cyclic κ:  [k3, k0]\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₁, ?k0 a'₁ ∧ z0 = a'₁\n[solve]   lam = fun z0 => ∃ a'₁, ?k0 a'₁ ∧ z0 = a'₁\n[solve] --- k2 ---\n[solve]   sol = z0 = 1 ∨ (∃ a'₂, ?k0 a'₂ ∧ z0 = a'₂) ∨ ∃ a'₅, ?k3 a'₅ ∧ z0 = a'₅\n[solve]   lam = fun z0 => z0 = 1 ∨ (∃ a'₂, ?k0 a'₂ ∧ z0 = a'₂) ∨ ∃ a'₅, ?k3 a'₅ ∧ z0 = a'₅\n[solve] --- k4 ---\n[solve]   sol = ∃ a'₇, ?k3 a'₇ ∧ z0 = a'₇ ∧ z1 = z1\n[solve]   lam = fun z0 z1 => ∃ a'₇, ?k3 a'₇ ∧ z0 = a'₇ ∧ z1 = z1\n[solve_fixpoint] --- PA on cyclic κ's [k3, k0] ---\n[solve_fixpoint]   PA sol for k3 = z0 ≥ 0\n[solve_fixpoint]   PA sol for k0 = z0 ≥ 0",
@@ -62,7 +62,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Lifetimes.ListMutRef.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -86,4 +86,4 @@
    "c82cb94067537a5b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c350f83e13b74fba"}
+ "depHash": "56a3d0868c9f4245"}

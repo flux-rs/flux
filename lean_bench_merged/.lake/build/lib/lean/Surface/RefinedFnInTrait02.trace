@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.RefinedFnInTrait02.Basic transitive imports (legacy)",
-         "da5d44cba7575837"],
+         "0c306047bd4f423b"],
         ["Surface.RefinedFnInTrait02.Basic:importAllArts",
          "cb5aeabf912ccee3"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.RefinedFnInTrait02", "dd651fbb2d3a9119"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8eff508a861d6688"}
+ "depHash": "21bd799ae7fb2f09"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Join04.Flux.Checking.JoinArr transitive imports (legacy)",
-         "40f2096e7a62485e"],
+         "761238e706ff4ac6"],
         ["Surface.Join04.Flux.Checking.JoinArr:importAllArts",
          "5dcae14f03271989"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.Join04.Basic", "27cbdecf137b541c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4be8ade5b10d85cd"}
+ "depHash": "9ac8096fbf195877"}

@@ -22,7 +22,7 @@
         ["Surface.Kmeans.Flux.VC.RvecImpl__3__Index:importAllArts",
          "9ba930853f70a02a"],
         ["Surface.Kmeans.User.Proof.RvecImpl__3__IndexProof transitive imports (legacy)",
-         "6bfb763b68301834"],
+         "6e61f66dd7c0f87b"],
         ["Surface.Kmeans.User.Proof.RvecImpl__3__IndexProof:importAllArts",
          "d1eae8053a9ecd1f"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "3e4a101684e87e35"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "937087810d1f5330"}
+ "depHash": "62bfb4922bb1fd46"}

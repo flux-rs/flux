@@ -22,7 +22,7 @@
         ["Surface.Iter02.Flux.VC.TestEnumerate1:importAllArts",
          "d0b933b9698415a6"],
         ["Surface.Iter02.User.Proof.TestEnumerate1Proof transitive imports (legacy)",
-         "a8333c0151324eff"],
+         "79047e853fb2fda8"],
         ["Surface.Iter02.User.Proof.TestEnumerate1Proof:importAllArts",
          "8b37e2181396b3b0"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "90c4ecc290e1ee2e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b49cd59c32a60650"}
+ "depHash": "fba70a5e5d69ba23"}

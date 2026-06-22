@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Trait05.Basic transitive imports (legacy)",
-         "754c22a610f21502"],
+         "91d9bb0cc50a1c2c"],
         ["Surface.Trait05.Basic:importAllArts", "599b7712a431fe56"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Trait05", "7a9abfa93b7f552f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e6ac0627cb6dea7c"}
+ "depHash": "b8f2ef0098eba653"}

@@ -14,7 +14,7 @@
   {"message":
    "Casts/IntToInt/User/Proof/Test64Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Casts/IntToInt/User/Proof/Test64Proof.lean:69:0: time: 26ms",
+  {"message": "Casts/IntToInt/User/Proof/Test64Proof.lean:69:0: time: 32ms",
    "level": "info"},
   {"message":
    "Casts/IntToInt/User/Proof/Test64Proof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -25,7 +25,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Casts.IntToInt.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -47,4 +47,4 @@
   ["Module.name: Casts.IntToInt.User.Proof.Test64Proof", "e343d53610397f58"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a469e50865dc574b"}
+ "depHash": "f75982af5d2401ea"}

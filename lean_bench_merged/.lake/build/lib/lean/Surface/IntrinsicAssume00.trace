@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.IntrinsicAssume00.Basic transitive imports (legacy)",
-         "1a4804f97fc87644"],
+         "fef9d21e6b9067a6"],
         ["Surface.IntrinsicAssume00.Basic:importAllArts",
          "a7fdac20a7106d92"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.IntrinsicAssume00", "de37749e6142895c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "eb887dd195cd957e"}
+ "depHash": "52f78fc1f8b86917"}

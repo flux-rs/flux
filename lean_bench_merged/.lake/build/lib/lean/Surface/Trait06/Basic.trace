@@ -15,14 +15,14 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Trait06.Flux.Checking.Impl__1__Foo transitive imports (legacy)",
-         "ae591eae2971ef05"],
+         "5fd5e479b5c366ca"],
         ["Surface.Trait06.Flux.Checking.Impl__1__Foo:importAllArts",
          "b3d813da862ce54a"],
         ["Surface.Trait06.Flux.Checking.Foo transitive imports (legacy)",
-         "aef15f91f9254958"],
+         "3224f44d33be9ef2"],
         ["Surface.Trait06.Flux.Checking.Foo:importAllArts", "be5bd121eddc28fd"],
         ["Surface.Trait06.Flux.Checking.Baz transitive imports (legacy)",
-         "c667f4544c98a5a7"],
+         "9d67cf46f22fe177"],
         ["Surface.Trait06.Flux.Checking.Baz:importAllArts",
          "5b3ee693868052e5"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.Trait06.Basic", "48e328bf2d6a085a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "93dea7870e270f6f"}
+ "depHash": "3dccaa1e0bda9b56"}

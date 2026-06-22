@@ -21,7 +21,7 @@
          "e5004dcf79aa83f4"],
         ["Surface.StaticSpec00.Flux.VC.HOG:importAllArts", "b8679f678c12404f"],
         ["Surface.StaticSpec00.User.Proof.HOGProof transitive imports (legacy)",
-         "212e8abf8ad187e5"],
+         "8d5a31787ba5ff62"],
         ["Surface.StaticSpec00.User.Proof.HOGProof:importAllArts",
          "cdbda9fa8815cb29"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.StaticSpec00.Flux.Checking.HOG", "65633c3a978ae8f3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "545c8e686b07fa75"}
+ "depHash": "4c8dace469cc164f"}

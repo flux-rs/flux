@@ -114,7 +114,7 @@
    "Surface/InvariantMacro00/User/Proof/TestProof.lean:75:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/InvariantMacro00/User/Proof/TestProof.lean:73:0: time: 2029ms",
+   "Surface/InvariantMacro00/User/Proof/TestProof.lean:73:0: time: 1857ms",
    "level": "info"},
   {"message":
    "Surface/InvariantMacro00/User/Proof/TestProof.lean:73:0: [solve_fixpoint] Acyclic κ: [k1, k2]\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve] --- k1 ---\n[solve]   sol = z2 + z1 ≠ z0 ∧ (z0 = z0 ∧ z1 = z1) ∧ z2 = z2 ∨ ¬z2 + z1 ≠ z0 ∧ ¬z1 ≥ 99 - 99 ∧ (z0 = z0 ∧ z1 = z1) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 =>\n  z2 + z1 ≠ z0 ∧ (z0 = z0 ∧ z1 = z1) ∧ z2 = z2 ∨ ¬z2 + z1 ≠ z0 ∧ ¬z1 ≥ 99 - 99 ∧ (z0 = z0 ∧ z1 = z1) ∧ z2 = z2\n[solve] --- k2 ---\n[solve]   sol = ¬z3 + z2 ≠ z1 ∧ z2 ≥ 99 - 99 ∧ ((z0 = (z3 ≥ 66 - 66) ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3 ∨\n  (z3 + z2 ≠ z1 ∧ (z1 = z1 ∧ z2 = z2) ∧ z3 = z3 ∨ ¬z3 + z2 ≠ z1 ∧ ¬z2 ≥ 99 - 99 ∧ (z1 = z1 ∧ z2 = z2) ∧ z3 = z3) ∧\n    ((z0 = False ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ¬z3 + z2 ≠ z1 ∧ z2 ≥ 99 - 99 ∧ ((z0 = (z3 ≥ 66 - 66) ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3 ∨\n    (z3 + z2 ≠ z1 ∧ (z1 = z1 ∧ z2 = z2) ∧ z3 = z3 ∨ ¬z3 + z2 ≠ z1 ∧ ¬z2 ≥ 99 - 99 ∧ (z1 = z1 ∧ z2 = z2) ∧ z3 = z3) ∧\n      ((z0 = False ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = z3\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = (((((((z2 ≥ z0 ∧ z2 ≥ z1) ∧ z0 ≤ z2) ∧ z1 ≤ z2) ∧ (z0 + z1 = z2 ∧ z1 ≥ 99 - 99) ∧ z0 ≥ 66 - 66) ∧\n        (z1 + z0 = z2 ∧ z0 ≥ 99 - 99) ∧ z1 ≥ 66 - 66) ∧\n      z0 ≥ 0) ∧\n    z1 ≥ 0) ∧\n  z2 ≥ 0",
@@ -125,7 +125,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.InvariantMacro00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -150,4 +150,4 @@
    "b96fafe990d264c3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2b55e07131dd832e"}
+ "depHash": "a2f03e26fd6f2664"}

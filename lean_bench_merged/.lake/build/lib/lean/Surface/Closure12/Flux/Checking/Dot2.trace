@@ -21,7 +21,7 @@
          "53df0dc308f5fc7d"],
         ["Surface.Closure12.Flux.VC.Dot2:importAllArts", "eeddaa9545aee4e8"],
         ["Surface.Closure12.User.Proof.Dot2Proof transitive imports (legacy)",
-         "c8ff43b051092630"],
+         "5ebefb4311ddf757"],
         ["Surface.Closure12.User.Proof.Dot2Proof:importAllArts",
          "e732851eecfec7f7"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Closure12.Flux.Checking.Dot2", "072cfcbfad22b766"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "403400f8646e4113"}
+ "depHash": "5ec0257fe4a9d047"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.OpaqueRange.Flux.Checking.Test transitive imports (legacy)",
-         "5c91add06ed2176e"],
+         "4379d6e289e25d10"],
         ["Structs.OpaqueRange.Flux.Checking.Test:importAllArts",
          "116499b010a45f80"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Structs.OpaqueRange.Basic", "3994676337a9b02d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0a60e5eb59d8bed3"}
+ "depHash": "5df94780b967c8ea"}

@@ -20,7 +20,7 @@
          "f7e0688b59305e31"],
         ["Surface.Date.Flux.VC.Test:importAllArts", "2b07aef24787b90c"],
         ["Surface.Date.User.Proof.TestProof transitive imports (legacy)",
-         "81fc13bf31c77ff3"],
+         "73d72072a026ea2c"],
         ["Surface.Date.User.Proof.TestProof:importAllArts",
          "b1a2e5d3c20debab"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Surface.Date.Flux.Checking.Test", "73491997d24154b2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "42985abb085addf3"}
+ "depHash": "2a20f9cce143d36d"}

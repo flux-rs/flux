@@ -21,7 +21,7 @@
          "40e42739e9867018"],
         ["Enums.List00.Flux.VC.Append:importAllArts", "230cad4938ae36ee"],
         ["Enums.List00.User.Proof.AppendProof transitive imports (legacy)",
-         "e5d6e44cd25164e7"],
+         "4a91da7d863d3198"],
         ["Enums.List00.User.Proof.AppendProof:importAllArts",
          "5a01c9fe8ff0ae96"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Enums.List00.Flux.Checking.Append", "b5520d5e5a2fd8f7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "61dedb2e09d10764"}
+ "depHash": "d466ffbe20fce671"}

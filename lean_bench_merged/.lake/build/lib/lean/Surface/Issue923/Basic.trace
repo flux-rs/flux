@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Issue923.Flux.Checking.Impl__0__EnableAppMpu transitive imports (legacy)",
-         "e90cb90b3b0229f2"],
+         "0bc5d7dc9bac1410"],
         ["Surface.Issue923.Flux.Checking.Impl__0__EnableAppMpu:importAllArts",
          "8c6164c33466e383"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.Issue923.Basic", "a13428964040d124"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e5ee629efd64ba65"}
+ "depHash": "e9605d6d4dc96a11"}

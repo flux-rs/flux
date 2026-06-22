@@ -11,7 +11,7 @@
   {"message":
    "Enums/List00/User/Proof/EmptyProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Enums/List00/User/Proof/EmptyProof.lean:69:0: time: 18ms",
+  {"message": "Enums/List00/User/Proof/EmptyProof.lean:69:0: time: 22ms",
    "level": "info"},
   {"message":
    "Enums/List00/User/Proof/EmptyProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -22,7 +22,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Enums.List00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -44,4 +44,4 @@
   ["Module.name: Enums.List00.User.Proof.EmptyProof", "eb3c3eb90b8a33ca"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e745fa860791c5d2"}
+ "depHash": "92e6530f8947ddc9"}

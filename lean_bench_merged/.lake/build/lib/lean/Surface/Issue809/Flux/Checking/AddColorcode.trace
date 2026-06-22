@@ -22,7 +22,7 @@
         ["Surface.Issue809.Flux.VC.AddColorcode:importAllArts",
          "98494985256c63fe"],
         ["Surface.Issue809.User.Proof.AddColorcodeProof transitive imports (legacy)",
-         "a72e6109c2fb381a"],
+         "c902e1c3e25a7615"],
         ["Surface.Issue809.User.Proof.AddColorcodeProof:importAllArts",
          "2b36bf1f65938700"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "2dc3c2fc02756def"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d338ffe0c6d973d1"}
+ "depHash": "1860d490bbe82bcc"}

@@ -21,7 +21,7 @@
          "70e89f36a0b201ff"],
         ["Surface.Iter02.Flux.VC.Assert:importAllArts", "4de86b54169e06f8"],
         ["Surface.Iter02.User.Proof.AssertProof transitive imports (legacy)",
-         "4d31130ee1e99412"],
+         "df0a6f66dc7b17f5"],
         ["Surface.Iter02.User.Proof.AssertProof:importAllArts",
          "0a7db11e49c20d23"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Iter02.Flux.Checking.Assert", "69c539d284a4d5f2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "98b31795d1c701fc"}
+ "depHash": "1dc541d630608566"}

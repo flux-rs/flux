@@ -1,7 +1,7 @@
 {"synthetic": false,
  "schemaVersion": "2025-09-10",
  "outputs":
- {"o": ["df8a03d6c716320a.olean"],
+ {"o": ["b0edf191544c0a2f.olean"],
   "i": "56fbce7f11bb87bf.ilean",
   "c": "32632af1a80ea143.c"},
  "log":
@@ -74,7 +74,7 @@
   {"message":
    "Surface/Test01/User/Proof/Test3Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Test01/User/Proof/Test3Proof.lean:69:0: time: 24162ms",
+  {"message": "Surface/Test01/User/Proof/Test3Proof.lean:69:0: time: 22599ms",
    "level": "info"},
   {"message":
    "Surface/Test01/User/Proof/Test3Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k1, k5, k6, k4, k7, k8]\n[solve_fixpoint] Cyclic κ:  [k9, k2, k3, k0]\n[solve] --- k1 ---\n[solve]   sol = ∃ b₀, z0 = b₀\n[solve]   lam = fun z0 => ∃ b₀, z0 = b₀\n[solve] --- k5 ---\n[solve]   sol = ∃ b₀,\n  (∃ b₀_1, b₀ = b₀_1) ∧\n    b₀ ∧\n      ∃ a'₆,\n        ?k2 a'₆ True ∧\n          ∃ a'₇,\n            ?k3 a'₇ True ∧\n              (((z0 = a'₇ ∧ z1 = True) ∧ z2 = a'₆) ∧ z3 = a'₇ ∨\n                ∃ a'₁₀, ?k9 a'₁₀ True ∧ ((z0 = a'₁₀ ∧ z1 = True) ∧ z2 = a'₆) ∧ z3 = a'₇)\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ b₀,\n    (∃ b₀_1, b₀ = b₀_1) ∧\n      b₀ ∧\n        ∃ a'₆,\n          ?k2 a'₆ True ∧\n            ∃ a'₇,\n              ?k3 a'₇ True ∧\n                (((z0 = a'₇ ∧ z1 = True) ∧ z2 = a'₆) ∧ z3 = a'₇ ∨\n                  ∃ a'₁₀, ?k9 a'₁₀ True ∧ ((z0 = a'₁₀ ∧ z1 = True) ∧ z2 = a'₆) ∧ z3 = a'₇)\n[solve] --- k6 ---\n[solve]   sol = ∃ b₀, (∃ b₀_1, b₀ = b₀_1) ∧ b₀ ∧ ∃ a'₆, ?k2 a'₆ True ∧ ∃ a'₇, ?k3 a'₇ True ∧ z0 = True\n[solve]   lam = fun z0 => ∃ b₀, (∃ b₀_1, b₀ = b₀_1) ∧ b₀ ∧ ∃ a'₆, ?k2 a'₆ True ∧ ∃ a'₇, ?k3 a'₇ True ∧ z0 = True\n[solve] --- k4 ---\n[solve]   sol = ∃ b₀,\n  (∃ a'₂, ?k0 a'₂ b₀ ∧ z0 = a'₂ ∧ z1 = b₀) ∨\n    (∃ b₀_1, b₀ = b₀_1) ∧\n      b₀ ∧\n        (∃ b₀, (∃ b₀_1, b₀ = b₀_1) ∧ b₀ ∧ ∃ a'₆, ?k2 a'₆ True ∧ ∃ a'₇, ?k3 a'₇ True ∧ True = True) ∧\n          ∃ a'₁₁, ?k9 a'₁₁ True ∧ ∃ a'₁₄, ?k9 a'₁₄ True ∧ z0 = a'₁₄ ∧ z1 = True\n[solve]   lam = fun z0 z1 =>\n  ∃ b₀,\n    (∃ a'₂, ?k0 a'₂ b₀ ∧ z0 = a'₂ ∧ z1 = b₀) ∨\n      (∃ b₀_1, b₀ = b₀_1) ∧\n        b₀ ∧\n          (∃ b₀, (∃ b₀_1, b₀ = b₀_1) ∧ b₀ ∧ ∃ a'₆, ?k2 a'₆ True ∧ ∃ a'₇, ?k3 a'₇ True ∧ True = True) ∧\n            ∃ a'₁₁, ?k9 a'₁₁ True ∧ ∃ a'₁₄, ?k9 a'₁₄ True ∧ z0 = a'₁₄ ∧ z1 = True\n[solve] --- k7 ---\n[solve]   sol = ∃ b₀, (∃ b₀_1, b₀ = b₀_1) ∧ b₀ ∧ ∃ a'₆, ?k2 a'₆ True ∧ ∃ a'₇, ?k3 a'₇ True ∧ z0 = a'₆ ∧ z1 = True\n[solve]   lam = fun z0 z1 => ∃ b₀, (∃ b₀_1, b₀ = b₀_1) ∧ b₀ ∧ ∃ a'₆, ?k2 a'₆ True ∧ ∃ a'₇, ?k3 a'₇ True ∧ z0 = a'₆ ∧ z1 = True\n[solve] --- k8 ---\n[solve]   sol = ∃ b₀,\n  (∃ b₀_1, b₀ = b₀_1) ∧\n    b₀ ∧\n      ∃ a'₆,\n        ?k2 a'₆ True ∧\n          ∃ a'₇,\n            ?k3 a'₇ True ∧\n              ∃ a'₈,\n                (∃ b₀,\n                    (∃ b₀_1, b₀ = b₀_1) ∧\n                      b₀ ∧\n                        ∃ a'₆_1,\n                          ?k2 a'₆_1 True ∧\n                            ∃ a'₇_1,\n                              ?k3 a'₇_1 True ∧\n                                (((a'₈ = a'₇_1 ∧ True = True) ∧ a'₆ = a'₆_1) ∧ a'₇ = a'₇_1 ∨\n                                  ∃ a'₁₀, ?k9 a'₁₀ True ∧ ((a'₈ = a'₁₀ ∧ True = True) ∧ a'₆ = a'₆_1) ∧ a'₇ = a'₇_1)) ∧\n                  z0 = a'₈ ∧ z1 = True\n[solve]   lam = fun z0 z1 =>\n  ∃ b₀,\n    (∃ b₀_1, b₀ = b₀_1) ∧\n      b₀ ∧\n        ∃ a'₆,\n          ?k2 a'₆ True ∧\n            ∃ a'₇,\n              ?k3 a'₇ True ∧\n                ∃ a'₈,\n                  (∃ b₀,\n                      (∃ b₀_1, b₀ = b₀_1) ∧\n                        b₀ ∧\n                          ∃ a'₆_1,\n                            ?k2 a'₆_1 True ∧\n                              ∃ a'₇_1,\n                                ?k3 a'₇_1 True ∧\n                                  (((a'₈ = a'₇_1 ∧ True = True) ∧ a'₆ = a'₆_1) ∧ a'₇ = a'₇_1 ∨\n                                    ∃ a'₁₀, ?k9 a'₁₀ True ∧ ((a'₈ = a'₁₀ ∧ True = True) ∧ a'₆ = a'₆_1) ∧ a'₇ = a'₇_1)) ∧\n                    z0 = a'₈ ∧ z1 = True\n[solve_fixpoint] --- PA on cyclic κ's [k9, k2, k3, k0] ---\n[solve_fixpoint]   PA sol for k9 = (z0 > 0 ∧ z1) ∧ z0 ≥ 0\n[solve_fixpoint]   PA sol for k2 = z0 > 0 ∧ z0 ≥ 0\n[solve_fixpoint]   PA sol for k3 = z0 > 0 ∧ z0 ≥ 0\n[solve_fixpoint]   PA sol for k0 = z0 > 0 ∧ z0 ≥ 0\n[solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  [k9, k2, k3, k0]\n[solve_fixpoint] --- PA on cyclic κ's [k9, k2, k3, k0] ---\n[solve_fixpoint]   PA sol for k9 = (z0 > 0 ∧ z1) ∧ z0 ≥ 0\n[solve_fixpoint]   PA sol for k2 = z0 > 0 ∧ z0 ≥ 0\n[solve_fixpoint]   PA sol for k3 = z0 > 0 ∧ z0 ≥ 0\n[solve_fixpoint]   PA sol for k0 = z0 > 0 ∧ z0 ≥ 0",
@@ -85,7 +85,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Test01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -107,4 +107,4 @@
   ["Module.name: Surface.Test01.User.Proof.Test3Proof", "e19a986ffc74ca36"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "242f02232552f9b2"}
+ "depHash": "8b80c03ba243328d"}

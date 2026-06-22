@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Constructors.Test08.Flux.Checking.F transitive imports (legacy)",
-         "b67cdd4cbc94cce0"],
+         "2624413104319d8e"],
         ["Constructors.Test08.Flux.Checking.F:importAllArts",
          "f0ba0fa8e3c74252"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Constructors.Test08.Basic", "c5eb6e992f6e2c2d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "054a2908d749e4d2"}
+ "depHash": "c46f596a13de14e5"}

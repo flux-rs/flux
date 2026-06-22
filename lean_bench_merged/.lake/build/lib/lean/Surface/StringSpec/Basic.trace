@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.StringSpec.Flux.Checking.TestString transitive imports (legacy)",
-         "5fca7744af9d0015"],
+         "a5b2088ada52d6d6"],
         ["Surface.StringSpec.Flux.Checking.TestString:importAllArts",
          "2c0b43d59c85d86d"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.StringSpec.Basic", "321590d339ca0524"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1dc09956083fd67e"}
+ "depHash": "10a5d2f0b3166079"}

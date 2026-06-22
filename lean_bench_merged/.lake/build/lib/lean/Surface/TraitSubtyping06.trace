@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.TraitSubtyping06.Basic transitive imports (legacy)",
-         "0ca277b15fadbbb9"],
+         "8cae89fc84b41156"],
         ["Surface.TraitSubtyping06.Basic:importAllArts",
          "3154f61a4d1b0901"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.TraitSubtyping06", "7a017a059499732d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f55699929cf76aee"}
+ "depHash": "ecab27050d96148d"}

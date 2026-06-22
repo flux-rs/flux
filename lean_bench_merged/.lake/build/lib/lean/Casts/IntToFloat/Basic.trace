@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Casts.IntToFloat.Flux.Checking.IntToFloat transitive imports (legacy)",
-         "e5ed77aed8afa1ec"],
+         "f59aa9cbd64d6639"],
         ["Casts.IntToFloat.Flux.Checking.IntToFloat:importAllArts",
          "9d5e40052679a361"],
         ["Casts.IntToFloat.Flux.Checking.UintToFloat transitive imports (legacy)",
-         "4fe07eddfca20ed3"],
+         "21358780b32fccdb"],
         ["Casts.IntToFloat.Flux.Checking.UintToFloat:importAllArts",
          "8cc4ac6ae4c8647b"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Casts.IntToFloat.Basic", "91f1f7820e4a866a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5dff600cb41ff5b4"}
+ "depHash": "3616d63c0a3b99e4"}

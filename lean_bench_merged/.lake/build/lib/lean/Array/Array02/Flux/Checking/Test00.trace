@@ -21,7 +21,7 @@
          "4dcb836daed5f657"],
         ["Array.Array02.Flux.VC.Test00:importAllArts", "a33ed9b6e299bb49"],
         ["Array.Array02.User.Proof.Test00Proof transitive imports (legacy)",
-         "54f07f1de60185d8"],
+         "2a9190acdfe07d0f"],
         ["Array.Array02.User.Proof.Test00Proof:importAllArts",
          "1e6af17624e88133"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Array.Array02.Flux.Checking.Test00", "c5df02027aba84d3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "52682d542af65311"}
+ "depHash": "c82816cefc32fdbe"}

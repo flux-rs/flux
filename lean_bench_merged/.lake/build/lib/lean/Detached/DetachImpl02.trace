@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Detached.DetachImpl02.Basic transitive imports (legacy)",
-         "80445d85e0a2942e"],
+         "d82114440ae1826f"],
         ["Detached.DetachImpl02.Basic:importAllArts", "5df25a23a5b51bc1"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Detached.DetachImpl02", "b4b11c0b80c9635f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "81cad8134fe106c9"}
+ "depHash": "691e96e5dd98f85c"}

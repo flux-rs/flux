@@ -42,7 +42,7 @@
    "ExternSpecs/FluxCoreSlice02/User/Proof/TestMutProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "ExternSpecs/FluxCoreSlice02/User/Proof/TestMutProof.lean:69:0: time: 143ms",
+   "ExternSpecs/FluxCoreSlice02/User/Proof/TestMutProof.lean:69:0: time: 146ms",
    "level": "info"},
   {"message":
    "ExternSpecs/FluxCoreSlice02/User/Proof/TestMutProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -53,7 +53,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["ExternSpecs.FluxCoreSlice02.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -78,4 +78,4 @@
    "354b04a9ca4ea336"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "842c4363d49fbd4f"}
+ "depHash": "dea0d94b7577781c"}

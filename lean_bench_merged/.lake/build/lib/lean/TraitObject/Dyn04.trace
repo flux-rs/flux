@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["TraitObject.Dyn04.Basic transitive imports (legacy)",
-         "c397a45171d3b42a"],
+         "f5fea1abe32b4c14"],
         ["TraitObject.Dyn04.Basic:importAllArts", "e0658b751384fbd1"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: TraitObject.Dyn04", "ed56c0dcbca02a4e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "65c81884aacdab8a"}
+ "depHash": "f90a9091ecb8b726"}

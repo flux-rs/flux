@@ -21,7 +21,7 @@
          "54e5f55ec6a695c6"],
         ["Enums.Opt00.Flux.VC.IsSomeFlip:importAllArts", "0f1dd9f0fe98b3c6"],
         ["Enums.Opt00.User.Proof.IsSomeFlipProof transitive imports (legacy)",
-         "ae235f65bc61a032"],
+         "5fcf1f620e08a7c5"],
         ["Enums.Opt00.User.Proof.IsSomeFlipProof:importAllArts",
          "70b6a19dc8bbf294"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Enums.Opt00.Flux.Checking.IsSomeFlip", "3288b2255dce347b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1343c82830ef9e8f"}
+ "depHash": "09b698ad8a712125"}

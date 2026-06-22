@@ -21,7 +21,7 @@
          "9da244f90d7184fd"],
         ["Enums.Option00.Flux.VC.Test3:importAllArts", "e10b88528cd796a7"],
         ["Enums.Option00.User.Proof.Test3Proof transitive imports (legacy)",
-         "0224e8a81efc9a17"],
+         "9f6ebbf4a7d02200"],
         ["Enums.Option00.User.Proof.Test3Proof:importAllArts",
          "9bdbb62815966e98"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Enums.Option00.Flux.Checking.Test3", "24f0f717aff50fc2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "132d07d38436097a"}
+ "depHash": "82dc360da6b0b966"}

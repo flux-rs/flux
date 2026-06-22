@@ -12,7 +12,7 @@
    "Surface/AutoStrong00/User/Proof/SetSafeOffsetProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/AutoStrong00/User/Proof/SetSafeOffsetProof.lean:69:0: time: 19ms",
+   "Surface/AutoStrong00/User/Proof/SetSafeOffsetProof.lean:69:0: time: 14ms",
    "level": "info"},
   {"message":
    "Surface/AutoStrong00/User/Proof/SetSafeOffsetProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -23,7 +23,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.AutoStrong00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -47,4 +47,4 @@
    "d80df19e06a5c081"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f5657d1b62910818"}
+ "depHash": "20dcf6523e2ed60c"}

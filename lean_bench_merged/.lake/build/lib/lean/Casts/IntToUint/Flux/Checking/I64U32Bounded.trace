@@ -22,7 +22,7 @@
         ["Casts.IntToUint.Flux.VC.I64U32Bounded:importAllArts",
          "f4079d58a7445c64"],
         ["Casts.IntToUint.User.Proof.I64U32BoundedProof transitive imports (legacy)",
-         "2bf787d0c23d9a05"],
+         "e9573c11a0d3ee32"],
         ["Casts.IntToUint.User.Proof.I64U32BoundedProof:importAllArts",
          "e1d1af734f6d0803"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "766b484f0b17e204"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b6179d47e86242e3"}
+ "depHash": "e64dc5e146c033fc"}

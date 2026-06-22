@@ -21,7 +21,7 @@
          "cde4ca8f41f53090"],
         ["Surface.NoPanic00.Flux.VC.Foo:importAllArts", "59a824a99d210f28"],
         ["Surface.NoPanic00.User.Proof.FooProof transitive imports (legacy)",
-         "96d47f2a8304647f"],
+         "bb4fd0a66ea54f40"],
         ["Surface.NoPanic00.User.Proof.FooProof:importAllArts",
          "fad94706fe1bc3d2"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.NoPanic00.Flux.Checking.Foo", "addfa90eb247b200"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "bf060eceda31bf02"}
+ "depHash": "fc04dad92b073b07"}

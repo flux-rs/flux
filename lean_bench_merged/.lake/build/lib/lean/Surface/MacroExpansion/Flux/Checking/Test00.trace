@@ -22,7 +22,7 @@
         ["Surface.MacroExpansion.Flux.VC.Test00:importAllArts",
          "766bd7d9f804de34"],
         ["Surface.MacroExpansion.User.Proof.Test00Proof transitive imports (legacy)",
-         "6935501526098088"],
+         "a66cd009bff884e7"],
         ["Surface.MacroExpansion.User.Proof.Test00Proof:importAllArts",
          "c132620fa54ce449"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "1d2bfb87384d2d3d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b94c20cc7dd5bfc0"}
+ "depHash": "fb0c20b519db8a17"}

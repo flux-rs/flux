@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.TraitSubtyping02.Flux.Checking.Impl__0__Foo1 transitive imports (legacy)",
-         "ef8d7103b6310373"],
+         "dcb03ef67530cc2e"],
         ["Surface.TraitSubtyping02.Flux.Checking.Impl__0__Foo1:importAllArts",
          "acb95eb60acb041d"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.TraitSubtyping02.Basic", "3b2047ea08de72cb"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "37f3c7ce17382b98"}
+ "depHash": "e9c013a0dad082a5"}

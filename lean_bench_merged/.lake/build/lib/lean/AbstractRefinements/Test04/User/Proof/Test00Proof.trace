@@ -18,7 +18,7 @@
    "AbstractRefinements/Test04/User/Proof/Test00Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "AbstractRefinements/Test04/User/Proof/Test00Proof.lean:69:0: time: 51ms",
+   "AbstractRefinements/Test04/User/Proof/Test00Proof.lean:69:0: time: 52ms",
    "level": "info"},
   {"message":
    "AbstractRefinements/Test04/User/Proof/Test00Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = 0 ∨ ∃ a'₀, a'₀ ≥ 0 ∧ z0 = a'₀\n[solve]   lam = fun z0 => z0 = 0 ∨ ∃ a'₀, a'₀ ≥ 0 ∧ z0 = a'₀",
@@ -29,7 +29,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["AbstractRefinements.Test04.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -54,4 +54,4 @@
    "673a4f3c671c3d01"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "df1fd1e9d1ca281c"}
+ "depHash": "3e676d5cf0202a65"}

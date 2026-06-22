@@ -21,7 +21,7 @@
          "0b8ed4305157a8cd"],
         ["Surface.Binop.Flux.VC.Test2:importAllArts", "c1e0308926086410"],
         ["Surface.Binop.User.Proof.Test2Proof transitive imports (legacy)",
-         "16b08d3c2c96b601"],
+         "f7806b247a01c9ee"],
         ["Surface.Binop.User.Proof.Test2Proof:importAllArts",
          "d97acf06614c99bc"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Binop.Flux.Checking.Test2", "6bd4c98ed3f7ff83"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9f734cdc98a6f473"}
+ "depHash": "ae0b3ceb1ed0e90b"}

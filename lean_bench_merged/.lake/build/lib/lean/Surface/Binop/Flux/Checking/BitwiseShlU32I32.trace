@@ -22,7 +22,7 @@
         ["Surface.Binop.Flux.VC.BitwiseShlU32I32:importAllArts",
          "cd177e8dce16e13a"],
         ["Surface.Binop.User.Proof.BitwiseShlU32I32Proof transitive imports (legacy)",
-         "0371d65c2bfe9849"],
+         "affcde4c66eaaf86"],
         ["Surface.Binop.User.Proof.BitwiseShlU32I32Proof:importAllArts",
          "fc18f11fde8af61e"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "c4dbc68e01d1df7b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d58e7343b9b8ffb8"}
+ "depHash": "e82f9383787ce21b"}

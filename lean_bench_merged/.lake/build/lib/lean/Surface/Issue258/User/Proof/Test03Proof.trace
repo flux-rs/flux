@@ -41,7 +41,7 @@
   {"message":
    "Surface/Issue258/User/Proof/Test03Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Issue258/User/Proof/Test03Proof.lean:69:0: time: 450ms",
+  {"message": "Surface/Issue258/User/Proof/Test03Proof.lean:69:0: time: 306ms",
    "level": "info"},
   {"message":
    "Surface/Issue258/User/Proof/Test03Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k2, k3, k4, k5, k6, k7, k8, k9]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = 1\n[solve]   lam = fun z0 => z0 = 1\n[solve] --- k1 ---\n[solve]   sol = ∃ a'₀, a'₀ = 0 ∧ z0 = a'₀\n[solve]   lam = fun z0 => ∃ a'₀, a'₀ = 0 ∧ z0 = a'₀\n[solve] --- k2 ---\n[solve]   sol = ∃ a'₁, a'₁ = 1 ∧ z0 = a'₁\n[solve]   lam = fun z0 => ∃ a'₁, a'₁ = 1 ∧ z0 = a'₁\n[solve] --- k3 ---\n[solve]   sol = ∃ a'₂, a'₂ = 0 ∧ z0 = a'₂\n[solve]   lam = fun z0 => ∃ a'₂, a'₂ = 0 ∧ z0 = a'₂\n[solve] --- k4 ---\n[solve]   sol = ∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ z0 = a'₄\n[solve]   lam = fun z0 => ∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ z0 = a'₄\n[solve] --- k5 ---\n[solve]   sol = ∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₅, (∃ a'₁, a'₁ = 1 ∧ a'₅ = a'₁) ∧ z0 = a'₅\n[solve]   lam = fun z0 => ∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₅, (∃ a'₁, a'₁ = 1 ∧ a'₅ = a'₁) ∧ z0 = a'₅\n[solve] --- k6 ---\n[solve]   sol = ∃ a'₆, a'₆ = 0 ∧ z0 = a'₆\n[solve]   lam = fun z0 => ∃ a'₆, a'₆ = 0 ∧ z0 = a'₆\n[solve] --- k7 ---\n[solve]   sol = ∃ a'₇, a'₇ = 0 ∧ (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧ ∃ a'₈, a'₈ = 0 ∧ z0 = a'₈\n[solve]   lam = fun z0 => ∃ a'₇, a'₇ = 0 ∧ (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧ ∃ a'₈, a'₈ = 0 ∧ z0 = a'₈\n[solve] --- k8 ---\n[solve]   sol = ∃ a'₇,\n  a'₇ = 0 ∧\n    (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧\n      ∃ a'₉,\n        a'₉ = 0 ∧\n          (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ a'₉ = a'₄) ∧ ∃ a'₁₀, a'₁₀ = 0 ∧ z0 = a'₁₀\n[solve]   lam = fun z0 =>\n  ∃ a'₇,\n    a'₇ = 0 ∧\n      (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧\n        ∃ a'₉,\n          a'₉ = 0 ∧\n            (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ a'₉ = a'₄) ∧ ∃ a'₁₀, a'₁₀ = 0 ∧ z0 = a'₁₀\n[solve] --- k9 ---\n[solve]   sol = ∃ a'₇,\n  a'₇ = 0 ∧\n    (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧\n      ∃ a'₉,\n        a'₉ = 0 ∧\n          (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ a'₉ = a'₄) ∧\n            ∃ a'₁₁,\n              (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₅, (∃ a'₁, a'₁ = 1 ∧ a'₅ = a'₁) ∧ a'₁₁ = a'₅) ∧\n                z0 = a'₁₁\n[solve]   lam = fun z0 =>\n  ∃ a'₇,\n    a'₇ = 0 ∧\n      (∃ a'₂, a'₂ = 0 ∧ a'₇ = a'₂) ∧\n        ∃ a'₉,\n          a'₉ = 0 ∧\n            (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₄, a'₄ = 0 ∧ a'₉ = a'₄) ∧\n              ∃ a'₁₁,\n                (∃ a'₃, a'₃ = 0 ∧ (∃ a'₀, a'₀ = 0 ∧ a'₃ = a'₀) ∧ ∃ a'₅, (∃ a'₁, a'₁ = 1 ∧ a'₅ = a'₁) ∧ a'₁₁ = a'₅) ∧\n                  z0 = a'₁₁",
@@ -52,7 +52,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Issue258.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -75,4 +75,4 @@
   ["Module.name: Surface.Issue258.User.Proof.Test03Proof", "d21d5d53bbbd9b6b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7b638e906019ddf3"}
+ "depHash": "91494744c6d3c62e"}

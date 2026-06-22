@@ -14,7 +14,7 @@
   {"message":
    "Surface/RustAlias/User/Proof/Test01Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/RustAlias/User/Proof/Test01Proof.lean:69:0: time: 15ms",
+  {"message": "Surface/RustAlias/User/Proof/Test01Proof.lean:69:0: time: 22ms",
    "level": "info"},
   {"message":
    "Surface/RustAlias/User/Proof/Test01Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = 1\n[solve]   lam = fun z0 => z0 = 1",
@@ -25,7 +25,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.RustAlias.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -48,4 +48,4 @@
   ["Module.name: Surface.RustAlias.User.Proof.Test01Proof", "5e0af31f5eb8e79c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "488039ee849e30c2"}
+ "depHash": "57ec92743a75d521"}

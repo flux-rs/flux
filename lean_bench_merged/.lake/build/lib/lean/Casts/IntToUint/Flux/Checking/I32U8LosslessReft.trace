@@ -22,7 +22,7 @@
         ["Casts.IntToUint.Flux.VC.I32U8LosslessReft:importAllArts",
          "f9b677527d93c01a"],
         ["Casts.IntToUint.User.Proof.I32U8LosslessReftProof transitive imports (legacy)",
-         "53dc310141de5ec4"],
+         "3854fef2b3b5361b"],
         ["Casts.IntToUint.User.Proof.I32U8LosslessReftProof:importAllArts",
          "478e842ac0040b96"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "f2fa0c97fcbd9891"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "066f4e3d0dbe3b54"}
+ "depHash": "548dfd0e1f0308ee"}

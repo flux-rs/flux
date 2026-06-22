@@ -21,7 +21,7 @@
          "9f7696e07e1cedcf"],
         ["Surface.IfThenElse.Flux.VC.Min:importAllArts", "b0779e2e9e6b52da"],
         ["Surface.IfThenElse.User.Proof.MinProof transitive imports (legacy)",
-         "5316a929f17c63dc"],
+         "13fa36c74ced7bb3"],
         ["Surface.IfThenElse.User.Proof.MinProof:importAllArts",
          "d57555e3b0d5d852"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.IfThenElse.Flux.Checking.Min", "98a9f05ee6a8528f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a52026d73b384d17"}
+ "depHash": "de9ce93c45ddd97b"}

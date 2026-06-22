@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["FoldUnfold.Test00.Basic transitive imports (legacy)",
-         "73d8691f8566c9de"],
+         "787576734f475dd1"],
         ["FoldUnfold.Test00.Basic:importAllArts", "96de6ef3238a7321"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: FoldUnfold.Test00", "41bb710022feb99a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d81f862543d669a7"}
+ "depHash": "2dd41850312d60ac"}

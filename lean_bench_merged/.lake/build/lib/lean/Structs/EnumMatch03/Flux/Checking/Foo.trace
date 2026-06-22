@@ -21,7 +21,7 @@
          "c19e251faf6ef1a8"],
         ["Structs.EnumMatch03.Flux.VC.Foo:importAllArts", "c4e0d663b5f9cca1"],
         ["Structs.EnumMatch03.User.Proof.FooProof transitive imports (legacy)",
-         "412ee4dfc8837b55"],
+         "ff0cc0ea02564992"],
         ["Structs.EnumMatch03.User.Proof.FooProof:importAllArts",
          "c6f9f60c6329abf3"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.EnumMatch03.Flux.Checking.Foo", "342a0092064a3182"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "09352d23937a4e80"}
+ "depHash": "965179dbfff6ffea"}

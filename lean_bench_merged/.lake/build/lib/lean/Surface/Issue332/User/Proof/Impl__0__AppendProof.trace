@@ -18,7 +18,7 @@
    "Surface/Issue332/User/Proof/Impl__0__AppendProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/Issue332/User/Proof/Impl__0__AppendProof.lean:69:0: time: 54ms",
+   "Surface/Issue332/User/Proof/Impl__0__AppendProof.lean:69:0: time: 99ms",
    "level": "info"},
   {"message":
    "Surface/Issue332/User/Proof/Impl__0__AppendProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = (∃ n₀, z1 = n₀ + 1 ∧ (z0 = n₀ + 1 ∧ z1 = z1) ∧ z2 = z2) ∨ z1 = 0 ∧ (z0 = 0 ∧ z1 = z1) ∧ z2 = z2\n[solve]   lam = fun z0 z1 z2 => (∃ n₀, z1 = n₀ + 1 ∧ (z0 = n₀ + 1 ∧ z1 = z1) ∧ z2 = z2) ∨ z1 = 0 ∧ (z0 = 0 ∧ z1 = z1) ∧ z2 = z2",
@@ -29,7 +29,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Issue332.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -53,4 +53,4 @@
    "346366d44e9295c6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "720591d4c6f6f5fa"}
+ "depHash": "38d00a6e020e7d68"}

@@ -22,7 +22,7 @@
         ["Structs.OpaqueStruct00.Flux.VC.OpaqueStruct00:importAllArts",
          "2ee42efa0fa9a88e"],
         ["Structs.OpaqueStruct00.User.Proof.OpaqueStruct00Proof transitive imports (legacy)",
-         "92badff181b24ccc"],
+         "57d85b01109b7eab"],
         ["Structs.OpaqueStruct00.User.Proof.OpaqueStruct00Proof:importAllArts",
          "f7ed3886edca4381"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "82265fce1f7d6763"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "fc1def23aa173f09"}
+ "depHash": "e12fb613311a0860"}

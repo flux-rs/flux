@@ -21,7 +21,7 @@
          "1c209ac1c70c1582"],
         ["Surface.SliceLenHack.Flux.VC.Blob:importAllArts", "ee43171bf104c96d"],
         ["Surface.SliceLenHack.User.Proof.BlobProof transitive imports (legacy)",
-         "e574e9b2936b3883"],
+         "5add58efda429cec"],
         ["Surface.SliceLenHack.User.Proof.BlobProof:importAllArts",
          "04f7d49e6e010118"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.SliceLenHack.Flux.Checking.Blob", "ec31ce7ccd16e1f0"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9dab78bf74183168"}
+ "depHash": "255d551086620906"}

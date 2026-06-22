@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Lifetimes.ListMutRef.Basic transitive imports (legacy)",
-         "a8b2919a262a018d"],
+         "e998ba9bcc5fe693"],
         ["Lifetimes.ListMutRef.Basic:importAllArts", "676540bd31c8c721"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Lifetimes.ListMutRef", "497ff1f84c31ba8a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9d31d3de194ba2e9"}
+ "depHash": "7fd0baa1eb9509be"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ExternSpecs.FluxCorePtr01.Basic transitive imports (legacy)",
-         "e824ef7ff67dc8fe"],
+         "ca52b2e7277dd295"],
         ["ExternSpecs.FluxCorePtr01.Basic:importAllArts",
          "3acd87d02ef2813f"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: ExternSpecs.FluxCorePtr01", "044a7e7a676a6c6e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "28abecc7733b35b9"}
+ "depHash": "d5a92f8121b1f9ae"}

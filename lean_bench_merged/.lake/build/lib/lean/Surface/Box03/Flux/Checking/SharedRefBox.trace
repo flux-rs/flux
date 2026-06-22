@@ -22,7 +22,7 @@
         ["Surface.Box03.Flux.VC.SharedRefBox:importAllArts",
          "0a68183ffc169caf"],
         ["Surface.Box03.User.Proof.SharedRefBoxProof transitive imports (legacy)",
-         "a9cf50e4027037bc"],
+         "ae5529b355b7ee5b"],
         ["Surface.Box03.User.Proof.SharedRefBoxProof:importAllArts",
          "d767b8b51e0771f2"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.Box03.Flux.Checking.SharedRefBox", "60636224f59f00aa"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3896811fcacf7847"}
+ "depHash": "22522ecf8621d84d"}

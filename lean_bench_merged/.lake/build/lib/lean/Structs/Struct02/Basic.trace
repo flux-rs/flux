@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.Struct02.Flux.Checking.Test transitive imports (legacy)",
-         "bbe657542acb94ec"],
+         "007d69ea2b4d916f"],
         ["Structs.Struct02.Flux.Checking.Test:importAllArts",
          "03c98f375bf4a8f5"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Structs.Struct02.Basic", "1504ad26f4996831"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d75a2e8dcc7ed9dd"}
+ "depHash": "8fed3fa580a42b9f"}

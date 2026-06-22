@@ -22,7 +22,7 @@
         ["Surface.Ex2MinIndexLoop.Flux.VC.RvecImpl__3__Index:importAllArts",
          "40b4469bb724c268"],
         ["Surface.Ex2MinIndexLoop.User.Proof.RvecImpl__3__IndexProof transitive imports (legacy)",
-         "10e0b39668221ce1"],
+         "8e2418fb7e5f9ade"],
         ["Surface.Ex2MinIndexLoop.User.Proof.RvecImpl__3__IndexProof:importAllArts",
          "66b0b0857340cb65"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "a9d45b2513159a67"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9502e3b4576b4e3a"}
+ "depHash": "a627fa035df6ea1f"}

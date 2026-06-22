@@ -22,7 +22,7 @@
         ["Structs.StructSplit00.Flux.VC.Assert:importAllArts",
          "1514c618f88f0e9b"],
         ["Structs.StructSplit00.User.Proof.AssertProof transitive imports (legacy)",
-         "2deb88b02f4f197f"],
+         "02f7093e4b660ea0"],
         ["Structs.StructSplit00.User.Proof.AssertProof:importAllArts",
          "a17cb31bf07090ed"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "ec9035165bbcb2bf"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "054d39fde9c3edcc"}
+ "depHash": "4776104302102a37"}

@@ -21,7 +21,7 @@
          "6898355a27677e6d"],
         ["Surface.RustAlias.Flux.VC.Test00:importAllArts", "dbfcf1b6e8a5ae7e"],
         ["Surface.RustAlias.User.Proof.Test00Proof transitive imports (legacy)",
-         "6b6e129ccf214b75"],
+         "241f7e29636d9232"],
         ["Surface.RustAlias.User.Proof.Test00Proof:importAllArts",
          "213b5a73ce12a813"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.RustAlias.Flux.Checking.Test00", "2091cc794fdf84ee"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8594c2b4265deec4"}
+ "depHash": "9c8cc906f3834bb2"}

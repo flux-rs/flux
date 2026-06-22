@@ -22,7 +22,7 @@
         ["Surface.StrgToMut.Flux.VC.TakeStrg:importAllArts",
          "2cf0ff210258daf5"],
         ["Surface.StrgToMut.User.Proof.TakeStrgProof transitive imports (legacy)",
-         "321b140ba3fbd6cc"],
+         "b0db0d2bea5c1a1b"],
         ["Surface.StrgToMut.User.Proof.TakeStrgProof:importAllArts",
          "7104b70fba3de0c0"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.StrgToMut.Flux.Checking.TakeStrg", "9d5ce14bbd8b2c0b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "25840559c9fc4feb"}
+ "depHash": "72f41fbeb9756840"}

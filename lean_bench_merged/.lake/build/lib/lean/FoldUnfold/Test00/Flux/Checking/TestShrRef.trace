@@ -22,7 +22,7 @@
         ["FoldUnfold.Test00.Flux.VC.TestShrRef:importAllArts",
          "8c42b4eb3d83df9a"],
         ["FoldUnfold.Test00.User.Proof.TestShrRefProof transitive imports (legacy)",
-         "f0d6534bf92d57ad"],
+         "9b7818eb2ce712d2"],
         ["FoldUnfold.Test00.User.Proof.TestShrRefProof:importAllArts",
          "1e2c054dcd4f48ee"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "21d4bef6dde675c0"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "683bad0aa92fb683"}
+ "depHash": "620ed0a8a7bedd32"}

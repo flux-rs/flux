@@ -15,7 +15,7 @@
    "Enums/Option00/User/Proof/TestSafeDivProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Enums/Option00/User/Proof/TestSafeDivProof.lean:69:0: time: 36ms",
+   "Enums/Option00/User/Proof/TestSafeDivProof.lean:69:0: time: 39ms",
    "level": "info"},
   {"message":
    "Enums/Option00/User/Proof/TestSafeDivProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ a'₀, a'₀ = 42 / 2 ∧ z0 = a'₀\n[solve]   lam = fun z0 => ∃ a'₀, a'₀ = 42 / 2 ∧ z0 = a'₀",
@@ -26,7 +26,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Enums.Option00.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -50,4 +50,4 @@
    "c08ba02302f1925d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b68a2879ca3ffc9f"}
+ "depHash": "839b80b035588375"}

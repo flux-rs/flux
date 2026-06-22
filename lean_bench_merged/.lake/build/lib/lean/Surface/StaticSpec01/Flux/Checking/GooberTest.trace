@@ -22,7 +22,7 @@
         ["Surface.StaticSpec01.Flux.VC.GooberTest:importAllArts",
          "51d3cbb8e3a4f323"],
         ["Surface.StaticSpec01.User.Proof.GooberTestProof transitive imports (legacy)",
-         "23a7119eede69848"],
+         "29f28df8cfe99dbf"],
         ["Surface.StaticSpec01.User.Proof.GooberTestProof:importAllArts",
          "4433f2c8cddfffcf"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "dcb64ef953eee63b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f8ba6538da900c49"}
+ "depHash": "1232e483aa2732db"}

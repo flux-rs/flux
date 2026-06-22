@@ -21,7 +21,7 @@
          "aa47df2a24562139"],
         ["Surface.Issue977.Flux.VC.Map:importAllArts", "4f7c407ea6a815b0"],
         ["Surface.Issue977.User.Proof.MapProof transitive imports (legacy)",
-         "819e3b8fe29798f4"],
+         "03c79b8f63e3b4b3"],
         ["Surface.Issue977.User.Proof.MapProof:importAllArts",
          "ecd5e423241885fd"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Issue977.Flux.Checking.Map", "6157de8c9b538488"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "eee6addce91780dd"}
+ "depHash": "14717bda7490bbf2"}

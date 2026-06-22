@@ -21,7 +21,7 @@
          "637dcb3deaec6f20"],
         ["Surface.NumConsts.Flux.VC.TestU8:importAllArts", "74a521f226b3b76e"],
         ["Surface.NumConsts.User.Proof.TestU8Proof transitive imports (legacy)",
-         "bd3c2d8c7c6be0ce"],
+         "9e4d36f90c38f7e9"],
         ["Surface.NumConsts.User.Proof.TestU8Proof:importAllArts",
          "4dc7408991ae0ad0"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.NumConsts.Flux.Checking.TestU8", "a2d557f98861d4e8"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "fc41de359ba5a58c"}
+ "depHash": "f5a8349a396eb4b4"}

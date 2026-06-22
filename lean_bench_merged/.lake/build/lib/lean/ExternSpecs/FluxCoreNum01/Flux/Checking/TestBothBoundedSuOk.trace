@@ -22,7 +22,7 @@
         ["ExternSpecs.FluxCoreNum01.Flux.VC.TestBothBoundedSuOk:importAllArts",
          "150e77b75e5af7ea"],
         ["ExternSpecs.FluxCoreNum01.User.Proof.TestBothBoundedSuOkProof transitive imports (legacy)",
-         "eb33414cd39b5a69"],
+         "8ad7b9b627f286ae"],
         ["ExternSpecs.FluxCoreNum01.User.Proof.TestBothBoundedSuOkProof:importAllArts",
          "ad786e481f8d2fa5"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "acec9cc594cd8bd7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5dd71f7f73d43aeb"}
+ "depHash": "0eef3eb51e0d408f"}

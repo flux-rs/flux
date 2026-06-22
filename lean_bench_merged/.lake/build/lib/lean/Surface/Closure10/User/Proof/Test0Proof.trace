@@ -23,7 +23,7 @@
   {"message":
    "Surface/Closure10/User/Proof/Test0Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Closure10/User/Proof/Test0Proof.lean:69:0: time: 156ms",
+  {"message": "Surface/Closure10/User/Proof/Test0Proof.lean:69:0: time: 215ms",
    "level": "info"},
   {"message":
    "Surface/Closure10/User/Proof/Test0Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k2]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ c0 f₀, z0 = f₀ ∧ z1 = f₀\n[solve]   lam = fun z0 z1 => ∃ c0 f₀, z0 = f₀ ∧ z1 = f₀\n[solve] --- k1 ---\n[solve]   sol = ∃ c0 f₀, z0 = 99 ∧ z1 = f₀\n[solve]   lam = fun z0 z1 => ∃ c0 f₀, z0 = 99 ∧ z1 = f₀\n[solve] --- k2 ---\n[solve]   sol = ∃ c0 f₀ a'₁,\n  (∃ c0 f₀_1, a'₁ = f₀_1 ∧ f₀ = f₀_1) ∧\n    ∃ a'₂,\n      (∃ c0 f₀_1, a'₂ = 99 ∧ f₀ = f₀_1) ∧\n        ∃ a'₃,\n          (∃ c0 f₀_1, a'₃ = f₀_1 ∧ f₀ = f₀_1) ∧\n            ∃ a'₄, (∃ c0 f₀_1, a'₄ = 99 ∧ f₀ = f₀_1) ∧ ∃ a'₅, a'₅ = a'₄ + 1 ∧ z0 = a'₅ ∧ z1 = f₀\n[solve]   lam = fun z0 z1 =>\n  ∃ c0 f₀ a'₁,\n    (∃ c0 f₀_1, a'₁ = f₀_1 ∧ f₀ = f₀_1) ∧\n      ∃ a'₂,\n        (∃ c0 f₀_1, a'₂ = 99 ∧ f₀ = f₀_1) ∧\n          ∃ a'₃,\n            (∃ c0 f₀_1, a'₃ = f₀_1 ∧ f₀ = f₀_1) ∧\n              ∃ a'₄, (∃ c0 f₀_1, a'₄ = 99 ∧ f₀ = f₀_1) ∧ ∃ a'₅, a'₅ = a'₄ + 1 ∧ z0 = a'₅ ∧ z1 = f₀",
@@ -34,7 +34,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Closure10.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -57,4 +57,4 @@
   ["Module.name: Surface.Closure10.User.Proof.Test0Proof", "f1ea167d9e393dd5"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "cc68c33d639d479d"}
+ "depHash": "696414c33b140568"}

@@ -22,7 +22,7 @@
         ["Surface.Associativity.Flux.VC.Test00:importAllArts",
          "1273b02965a471f4"],
         ["Surface.Associativity.User.Proof.Test00Proof transitive imports (legacy)",
-         "e5244eccfaaacd85"],
+         "0eba4b2e48d6b3ca"],
         ["Surface.Associativity.User.Proof.Test00Proof:importAllArts",
          "60cc096df2a1a2c5"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "bfa79503a3e6ca61"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "87075ad1d8bdedf7"}
+ "depHash": "826d392c3c19fef4"}

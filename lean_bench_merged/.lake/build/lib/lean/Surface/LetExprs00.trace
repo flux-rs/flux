@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.LetExprs00.Basic transitive imports (legacy)",
-         "5a6b97b55cfae9c6"],
+         "5f0c350ee3226e5a"],
         ["Surface.LetExprs00.Basic:importAllArts", "ae5cca03760b75c7"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.LetExprs00", "0390204e6a9582a1"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4d22f76fa56f7afe"}
+ "depHash": "0d9e5f02725f0dda"}

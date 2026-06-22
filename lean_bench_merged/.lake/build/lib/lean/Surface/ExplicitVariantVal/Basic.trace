@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.ExplicitVariantVal.Flux.Checking.Max transitive imports (legacy)",
-         "4649d49ccc7d494d"],
+         "9d2277d5cb49248b"],
         ["Surface.ExplicitVariantVal.Flux.Checking.Max:importAllArts",
          "f6c9b71a9b0874f5"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.ExplicitVariantVal.Basic", "e02026f4bf3afc74"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "89f7bd81152ebb9c"}
+ "depHash": "9b1016319225d0c2"}

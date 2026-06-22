@@ -17,7 +17,7 @@
   {"message":
    "Array/Array02/User/Proof/Test02Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Array/Array02/User/Proof/Test02Proof.lean:69:0: time: 29ms",
+  {"message": "Array/Array02/User/Proof/Test02Proof.lean:69:0: time: 24ms",
    "level": "info"},
   {"message":
    "Array/Array02/User/Proof/Test02Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = z0 = 42 ∨ z0 = 42\n[solve]   lam = fun z0 => z0 = 42 ∨ z0 = 42",
@@ -28,7 +28,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Array.Array02.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -50,4 +50,4 @@
   ["Module.name: Array.Array02.User.Proof.Test02Proof", "6b8552d7335fd554"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "cb4a88d02421679b"}
+ "depHash": "7bd04e6e0feb4d16"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Simplex.Basic transitive imports (legacy)",
-         "64bfb2fe9866119d"],
+         "135444dcdcd8d2ba"],
         ["Surface.Simplex.Basic:importAllArts", "fb405c77058d6820"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Simplex", "fd505a6010305d15"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a027eefa724a1723"}
+ "depHash": "91e8cf7ad34f9361"}

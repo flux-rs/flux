@@ -22,7 +22,7 @@
         ["UserQualifiers.WellFormed.Flux.VC.Dummy:importAllArts",
          "d62d3a884b683ab7"],
         ["UserQualifiers.WellFormed.User.Proof.DummyProof transitive imports (legacy)",
-         "2648c77a24749196"],
+         "c8e7ee096ac6ccf1"],
         ["UserQualifiers.WellFormed.User.Proof.DummyProof:importAllArts",
          "9fe5c30e9a25d9bd"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "6ea0287fc7acf1d8"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a0048e65847c684b"}
+ "depHash": "8a0e15cad77e0fb2"}

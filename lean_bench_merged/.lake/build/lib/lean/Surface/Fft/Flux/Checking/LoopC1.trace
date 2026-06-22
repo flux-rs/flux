@@ -21,7 +21,7 @@
          "9cf8c83120078782"],
         ["Surface.Fft.Flux.VC.LoopC1:importAllArts", "68796c1f161bf480"],
         ["Surface.Fft.User.Proof.LoopC1Proof transitive imports (legacy)",
-         "504bbde55aeeeb49"],
+         "4fb5e6f43206ce96"],
         ["Surface.Fft.User.Proof.LoopC1Proof:importAllArts",
          "cdb738cf5f3abbd2"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Fft.Flux.Checking.LoopC1", "9495c848a5634b18"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3ffafb1b5b79a4a5"}
+ "depHash": "8499c940982e1408"}

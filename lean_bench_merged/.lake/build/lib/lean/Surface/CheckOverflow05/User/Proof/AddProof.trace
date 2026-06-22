@@ -15,7 +15,7 @@
    "Surface/CheckOverflow05/User/Proof/AddProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/CheckOverflow05/User/Proof/AddProof.lean:69:0: time: 28ms",
+   "Surface/CheckOverflow05/User/Proof/AddProof.lean:69:0: time: 24ms",
    "level": "info"},
   {"message":
    "Surface/CheckOverflow05/User/Proof/AddProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -26,7 +26,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.CheckOverflow05.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -51,4 +51,4 @@
    "29eaacbf4473f422"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "41e014f56368d210"}
+ "depHash": "b18086cc3f9a979e"}

@@ -14,7 +14,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["Surface.Uif02.Basic transitive imports (legacy)", "46b5b05460abc41f"],
+       [["Surface.Uif02.Basic transitive imports (legacy)", "770bc9ca345b7a91"],
         ["Surface.Uif02.Basic:importAllArts", "136cb990217aaee6"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -30,4 +30,4 @@
   ["Module.name: Surface.Uif02", "cd22a4d117cd87ab"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "fdf25afe93052dae"}
+ "depHash": "5ba4c34b61ab9749"}

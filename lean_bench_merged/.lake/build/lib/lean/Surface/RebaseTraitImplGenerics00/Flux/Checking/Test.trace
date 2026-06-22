@@ -22,7 +22,7 @@
         ["Surface.RebaseTraitImplGenerics00.Flux.VC.Test:importAllArts",
          "2a2a95b8c39b268d"],
         ["Surface.RebaseTraitImplGenerics00.User.Proof.TestProof transitive imports (legacy)",
-         "c711217a15af2065"],
+         "10a5633e66034f1a"],
         ["Surface.RebaseTraitImplGenerics00.User.Proof.TestProof:importAllArts",
          "4cee05f63e3b558f"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "1597d5375f52404e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7faaaa693c5f3608"}
+ "depHash": "12a7c9c6b3d0eec8"}

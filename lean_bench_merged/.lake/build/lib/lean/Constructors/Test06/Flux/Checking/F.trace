@@ -20,7 +20,7 @@
          "85f186c0f1dab491"],
         ["Constructors.Test06.Flux.VC.F:importAllArts", "c54aa3aefdb1c1bc"],
         ["Constructors.Test06.User.Proof.FProof transitive imports (legacy)",
-         "20d76c64dd03af6c"],
+         "d60f08b9f8e3c293"],
         ["Constructors.Test06.User.Proof.FProof:importAllArts",
          "90c4536636be5646"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Constructors.Test06.Flux.Checking.F", "d44532dbb2e96b96"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9350f22ccc2b16f0"}
+ "depHash": "c31f8cfe140ef117"}

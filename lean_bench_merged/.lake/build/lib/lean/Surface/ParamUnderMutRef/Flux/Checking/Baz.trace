@@ -22,7 +22,7 @@
         ["Surface.ParamUnderMutRef.Flux.VC.Baz:importAllArts",
          "3f119a963c74ec7f"],
         ["Surface.ParamUnderMutRef.User.Proof.BazProof transitive imports (legacy)",
-         "307a558734866068"],
+         "66b359256da6cb77"],
         ["Surface.ParamUnderMutRef.User.Proof.BazProof:importAllArts",
          "89992b3f06b9d5a3"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "e09124b766c99df8"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9426fca5e5b41a2d"}
+ "depHash": "ecc9ed01621d2201"}

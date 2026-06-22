@@ -22,7 +22,7 @@
         ["Surface.Kmp.Flux.VC.RvecImpl__4__IndexMut:importAllArts",
          "d915e622e56c5afa"],
         ["Surface.Kmp.User.Proof.RvecImpl__4__IndexMutProof transitive imports (legacy)",
-         "c5183dc56fcfe9f7"],
+         "9edd9e6e2dbbe598"],
         ["Surface.Kmp.User.Proof.RvecImpl__4__IndexMutProof:importAllArts",
          "6ba49696cfca69a7"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "cc97a100daff37fa"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5693b9ab8d41780b"}
+ "depHash": "64b2379b7106e2bf"}

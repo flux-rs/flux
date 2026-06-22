@@ -113,7 +113,7 @@
   {"message":
    "Surface/Test01/User/Proof/Test0Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Surface/Test01/User/Proof/Test0Proof.lean:69:0: time: 27234ms",
+  {"message": "Surface/Test01/User/Proof/Test0Proof.lean:69:0: time: 26376ms",
    "level": "info"},
   {"message":
    "Surface/Test01/User/Proof/Test0Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0, k1, k3, k5, k2]\n[solve_fixpoint] Cyclic κ:  [k4]\n[solve] --- k0 ---\n[solve]   sol = ∃ b₀,\n  z1 < z2 ∧\n    ¬b₀ ∧\n      (((z0 = z2 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = b₀ ∨ ∃ a'₃, ?k4 a'₃ z1 z2 b₀ ∧ ((z0 = a'₃ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = b₀)\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ b₀,\n    z1 < z2 ∧\n      ¬b₀ ∧\n        (((z0 = z2 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = b₀ ∨\n          ∃ a'₃, ?k4 a'₃ z1 z2 b₀ ∧ ((z0 = a'₃ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = b₀)\n[solve] --- k1 ---\n[solve]   sol = ∃ b₀, z0 < z1 ∧ (¬b₀ ∧ (z0 = z0 ∧ z1 = z1) ∧ z2 = b₀ ∨ b₀ ∧ (z0 = z0 ∧ z1 = z1) ∧ z2 = True)\n[solve]   lam = fun z0 z1 z2 => ∃ b₀, z0 < z1 ∧ (¬b₀ ∧ (z0 = z0 ∧ z1 = z1) ∧ z2 = b₀ ∨ b₀ ∧ (z0 = z0 ∧ z1 = z1) ∧ z2 = True)\n[solve] --- k3 ---\n[solve]   sol = ∃ b₀,\n  z1 < z2 ∧\n    ((¬b₀ ∧\n        ∃ a'₁,\n          (∃ b₀_1,\n              z1 < z2 ∧\n                ¬b₀_1 ∧\n                  (((a'₁ = z2 ∧ z1 = z1) ∧ z2 = z2) ∧ b₀ = b₀_1 ∨\n                    ∃ a'₃, ?k4 a'₃ z1 z2 b₀_1 ∧ ((a'₁ = a'₃ ∧ z1 = z1) ∧ z2 = z2) ∧ b₀ = b₀_1)) ∧\n            ((z0 = a'₁ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = b₀) ∨\n      b₀ ∧ ((z0 = z2 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True)\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ b₀,\n    z1 < z2 ∧\n      ((¬b₀ ∧\n          ∃ a'₁,\n            (∃ b₀_1,\n                z1 < z2 ∧\n                  ¬b₀_1 ∧\n                    (((a'₁ = z2 ∧ z1 = z1) ∧ z2 = z2) ∧ b₀ = b₀_1 ∨\n                      ∃ a'₃, ?k4 a'₃ z1 z2 b₀_1 ∧ ((a'₁ = a'₃ ∧ z1 = z1) ∧ z2 = z2) ∧ b₀ = b₀_1)) ∧\n              ((z0 = a'₁ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = b₀) ∨\n        b₀ ∧ ((z0 = z2 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True)\n[solve] --- k5 ---\n[solve]   sol = ∃ b₀,\n  z1 < z2 ∧\n    b₀ ∧\n      (((z0 = z1 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True ∨\n        ∃ a'₆, ?k4 a'₆ z1 z2 True ∧ ((z0 = a'₆ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True)\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ b₀,\n    z1 < z2 ∧\n      b₀ ∧\n        (((z0 = z1 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True ∨\n          ∃ a'₆, ?k4 a'₆ z1 z2 True ∧ ((z0 = a'₆ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True)\n[solve] --- k2 ---\n[solve]   sol = ∃ b₀,\n  z1 < z2 ∧\n    (¬b₀ ∧ ((z0 = z1 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = b₀ ∨\n      b₀ ∧\n        ∃ a'₄,\n          (∃ b₀,\n              z1 < z2 ∧\n                b₀ ∧\n                  (((a'₄ = z1 ∧ z1 = z1) ∧ z2 = z2) ∧ True = True ∨\n                    ∃ a'₆, ?k4 a'₆ z1 z2 True ∧ ((a'₄ = a'₆ ∧ z1 = z1) ∧ z2 = z2) ∧ True = True)) ∧\n            ((z0 = a'₄ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True)\n[solve]   lam = fun z0 z1 z2 z3 =>\n  ∃ b₀,\n    z1 < z2 ∧\n      (¬b₀ ∧ ((z0 = z1 ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = b₀ ∨\n        b₀ ∧\n          ∃ a'₄,\n            (∃ b₀,\n                z1 < z2 ∧\n                  b₀ ∧\n                    (((a'₄ = z1 ∧ z1 = z1) ∧ z2 = z2) ∧ True = True ∨\n                      ∃ a'₆, ?k4 a'₆ z1 z2 True ∧ ((a'₄ = a'₆ ∧ z1 = z1) ∧ z2 = z2) ∧ True = True)) ∧\n              ((z0 = a'₄ ∧ z1 = z1) ∧ z2 = z2) ∧ z3 = True)\n[solve_fixpoint] --- PA on cyclic κ's [k4] ---\n[solve_fixpoint]   PA sol for k4 = (((((z1 ≤ z2 - 1 ∧ z1 ≤ z0) ∧ z1 ≤ z2) ∧ z1 < z2) ∧ z0 ≥ z1) ∧ z2 ≥ z1) ∧ z2 > z1",
@@ -124,7 +124,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Test01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -146,4 +146,4 @@
   ["Module.name: Surface.Test01.User.Proof.Test0Proof", "7a0517f55758bb4f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b13b9b11556ef82c"}
+ "depHash": "6a80fb7f25ead782"}

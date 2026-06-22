@@ -14,7 +14,7 @@
   {"message":
    "Surface/Closure12/User/Proof/TestMapProof.lean:71:2: [solve_fixpoint] closed by: aesop",
    "level": "info"},
-  {"message": "Surface/Closure12/User/Proof/TestMapProof.lean:69:0: time: 59ms",
+  {"message": "Surface/Closure12/User/Proof/TestMapProof.lean:69:0: time: 76ms",
    "level": "info"},
   {"message":
    "Surface/Closure12/User/Proof/TestMapProof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = ∃ item₀, (0 ≤ item₀ ∧ item₀ < 10) ∧ z0 = item₀\n[solve]   lam = fun z0 => ∃ item₀, (0 ≤ item₀ ∧ item₀ < 10) ∧ z0 = item₀",
@@ -25,7 +25,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Closure12.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -49,4 +49,4 @@
    "8c6dc5fc1f674be7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8595ee7b86920075"}
+ "depHash": "bb3807b0a46163fe"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.PrimopPropLet.Flux.Checking.Foo transitive imports (legacy)",
-         "f97899d3ffe20523"],
+         "a5f2e0cb64b1b429"],
         ["Surface.PrimopPropLet.Flux.Checking.Foo:importAllArts",
          "1666937796c127b2"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.PrimopPropLet.Basic", "4344f23a52176876"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "86f671e86f08fca4"}
+ "depHash": "ddcc42c9d495b55f"}

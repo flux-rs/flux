@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.FoldOnDrop.Flux.Checking.Test transitive imports (legacy)",
-         "2e31b3b8938f1698"],
+         "77e7a7e88793ed09"],
         ["Structs.FoldOnDrop.Flux.Checking.Test:importAllArts",
          "69ecc57eb5bd2259"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Structs.FoldOnDrop.Basic", "b6e2994d9742b7e5"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0322f5ca9b14f771"}
+ "depHash": "accd975905e7cbfc"}

@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Detached.DetachImpl04.Flux.Checking.Test transitive imports (legacy)",
-         "83bc87d8cd32b0dc"],
+         "59df7249c4595dd0"],
         ["Detached.DetachImpl04.Flux.Checking.Test:importAllArts",
          "b42b9169d6174df7"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Detached.DetachImpl04.Basic", "efd58aac38d16698"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6fa1686433afc332"}
+ "depHash": "7b1d0990287b9f9e"}

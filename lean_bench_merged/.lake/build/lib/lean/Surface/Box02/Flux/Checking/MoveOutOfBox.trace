@@ -22,7 +22,7 @@
         ["Surface.Box02.Flux.VC.MoveOutOfBox:importAllArts",
          "6b69368a15242cee"],
         ["Surface.Box02.User.Proof.MoveOutOfBoxProof transitive imports (legacy)",
-         "2ef619b182c91e0f"],
+         "abfc024560c341c8"],
         ["Surface.Box02.User.Proof.MoveOutOfBoxProof:importAllArts",
          "b1929db4f6a920e7"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.Box02.Flux.Checking.MoveOutOfBox", "10100ae8e3ee6540"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b9eb680a35a66cdc"}
+ "depHash": "365acf2f7d7bd814"}

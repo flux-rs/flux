@@ -21,7 +21,7 @@
          "2881a5bd291e2623"],
         ["Detached.DetachMacro.Flux.VC.Inc:importAllArts", "37d83fd2c34c79c5"],
         ["Detached.DetachMacro.User.Proof.IncProof transitive imports (legacy)",
-         "33d1d13cad45f85a"],
+         "e191d9145e3d7ecd"],
         ["Detached.DetachMacro.User.Proof.IncProof:importAllArts",
          "1f31d1ef79555c23"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Detached.DetachMacro.Flux.Checking.Inc", "3267e45c694ccbea"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4328829169c38034"}
+ "depHash": "c45e60afc738af5e"}

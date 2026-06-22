@@ -21,7 +21,7 @@
          "60ca377c1ddd86dd"],
         ["Surface.Remainder.Flux.VC.TestMod:importAllArts", "c28cd55da5e5c966"],
         ["Surface.Remainder.User.Proof.TestModProof transitive imports (legacy)",
-         "5bcec85aeb90a4ae"],
+         "0d0e6cf05296ce79"],
         ["Surface.Remainder.User.Proof.TestModProof:importAllArts",
          "495bb28dd776ad09"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Remainder.Flux.Checking.TestMod", "56830215fbc4a4cf"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c967e01b740af355"}
+ "depHash": "093807b091d98abb"}

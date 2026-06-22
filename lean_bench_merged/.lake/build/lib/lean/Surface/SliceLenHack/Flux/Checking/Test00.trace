@@ -22,7 +22,7 @@
         ["Surface.SliceLenHack.Flux.VC.Test00:importAllArts",
          "01425c2d81e49102"],
         ["Surface.SliceLenHack.User.Proof.Test00Proof transitive imports (legacy)",
-         "583df2bcceb65d39"],
+         "7406e5ad1759bef6"],
         ["Surface.SliceLenHack.User.Proof.Test00Proof:importAllArts",
          "09b54c388b80b111"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "399c1dc0d7068096"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a64e94e873d8766a"}
+ "depHash": "1155a586071f2b24"}

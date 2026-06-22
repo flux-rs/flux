@@ -12,7 +12,7 @@
    "AbstractRefinements/Test03/User/Proof/CheckProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
    "level": "info"},
   {"message":
-   "AbstractRefinements/Test03/User/Proof/CheckProof.lean:69:0: time: 9ms",
+   "AbstractRefinements/Test03/User/Proof/CheckProof.lean:69:0: time: 5ms",
    "level": "info"},
   {"message":
    "AbstractRefinements/Test03/User/Proof/CheckProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -23,7 +23,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["AbstractRefinements.Test03.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -48,4 +48,4 @@
    "18ca739d84222dc2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "64514c463e0ca51d"}
+ "depHash": "494ab8739384fc8e"}

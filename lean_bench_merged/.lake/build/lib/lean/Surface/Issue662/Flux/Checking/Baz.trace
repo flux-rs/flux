@@ -21,7 +21,7 @@
          "9f74b88141a7a0ee"],
         ["Surface.Issue662.Flux.VC.Baz:importAllArts", "b30d035571b74f7b"],
         ["Surface.Issue662.User.Proof.BazProof transitive imports (legacy)",
-         "4cb1bba8e5d333f3"],
+         "ca28e99b98812334"],
         ["Surface.Issue662.User.Proof.BazProof:importAllArts",
          "4560e094d588e6bf"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Issue662.Flux.Checking.Baz", "76898b544503b65c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ae52800a1ae8634c"}
+ "depHash": "863f69c4043451dc"}

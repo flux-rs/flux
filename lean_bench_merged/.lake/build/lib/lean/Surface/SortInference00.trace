@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.SortInference00.Basic transitive imports (legacy)",
-         "fd589e38b68f15a4"],
+         "7f0e5f259b53bbf7"],
         ["Surface.SortInference00.Basic:importAllArts", "1ab3999089263245"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.SortInference00", "bbf525e25f5db035"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "c3f950df4a86171e"}
+ "depHash": "480cb7c3dbcf2e46"}

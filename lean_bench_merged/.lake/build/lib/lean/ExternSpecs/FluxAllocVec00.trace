@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["ExternSpecs.FluxAllocVec00.Basic transitive imports (legacy)",
-         "c43f96192b0481fc"],
+         "3992a8200a85578e"],
         ["ExternSpecs.FluxAllocVec00.Basic:importAllArts",
          "c28efe4ce1bc4caf"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: ExternSpecs.FluxAllocVec00", "e11ba6248b07b9af"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "115f42ca67a405fb"}
+ "depHash": "9a3646bd7892ea82"}

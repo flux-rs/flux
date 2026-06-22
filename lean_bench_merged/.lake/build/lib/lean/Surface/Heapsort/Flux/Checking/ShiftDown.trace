@@ -22,7 +22,7 @@
         ["Surface.Heapsort.Flux.VC.ShiftDown:importAllArts",
          "daa96ce6488d6277"],
         ["Surface.Heapsort.User.Proof.ShiftDownProof transitive imports (legacy)",
-         "27a590957df15ef9"],
+         "9d3d6f7cce87037e"],
         ["Surface.Heapsort.User.Proof.ShiftDownProof:importAllArts",
          "84638f44d63c022a"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.Heapsort.Flux.Checking.ShiftDown", "5f9066c1caf06b1e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2fc9d5e094506fec"}
+ "depHash": "d73ba968cb118166"}

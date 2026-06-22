@@ -22,7 +22,7 @@
         ["Detached.DetachImpl05Macro.Flux.VC.Test:importAllArts",
          "53d868a8fe34caed"],
         ["Detached.DetachImpl05Macro.User.Proof.TestProof transitive imports (legacy)",
-         "21ca609ad69f354c"],
+         "8df39a19a249178b"],
         ["Detached.DetachImpl05Macro.User.Proof.TestProof:importAllArts",
          "944220dae1d095ad"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "25f901acc3ad5d26"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "38fb348548de0ad9"}
+ "depHash": "aba1d58f41d11e3b"}

@@ -21,7 +21,7 @@
          "802f022e2e589243"],
         ["Surface.AutoStrong01.Flux.VC.Set:importAllArts", "e6bd56c330fe1e33"],
         ["Surface.AutoStrong01.User.Proof.SetProof transitive imports (legacy)",
-         "8abf9314a0a4803d"],
+         "137f86e292654552"],
         ["Surface.AutoStrong01.User.Proof.SetProof:importAllArts",
          "40c90c54cf16e5e0"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.AutoStrong01.Flux.Checking.Set", "7023700a5f5d8b90"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e3aea06e48efdf71"}
+ "depHash": "913fdce0f9c03335"}

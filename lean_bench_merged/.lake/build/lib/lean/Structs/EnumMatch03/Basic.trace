@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Structs.EnumMatch03.Flux.Checking.Foo transitive imports (legacy)",
-         "68b89e10887accd4"],
+         "2c5ab8212676c3b6"],
         ["Structs.EnumMatch03.Flux.Checking.Foo:importAllArts",
          "456c9fc2b8bc363c"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Structs.EnumMatch03.Basic", "dec7fc36705d3983"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5768a0419171d0d6"}
+ "depHash": "b0669a5ceb7817c9"}

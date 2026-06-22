@@ -22,7 +22,7 @@
         ["Surface.KmpOverflow.Flux.VC.RvecImpl__3__Index:importAllArts",
          "0798be3586c53cfa"],
         ["Surface.KmpOverflow.User.Proof.RvecImpl__3__IndexProof transitive imports (legacy)",
-         "c4c7af5e5cea2a19"],
+         "3d75211a86c2d316"],
         ["Surface.KmpOverflow.User.Proof.RvecImpl__3__IndexProof:importAllArts",
          "7e48e1a774d122c7"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "0ed748178bebfcea"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b7f75d03dfbfa95f"}
+ "depHash": "27f86b5e702b21f6"}

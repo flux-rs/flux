@@ -22,7 +22,7 @@
         ["Surface.Closure12.Flux.VC.TestForeach:importAllArts",
          "bdacda1ad6f660ed"],
         ["Surface.Closure12.User.Proof.TestForeachProof transitive imports (legacy)",
-         "6dbb96352dce68c7"],
+         "73da2fe7f3c51720"],
         ["Surface.Closure12.User.Proof.TestForeachProof:importAllArts",
          "058ce7b9fa908d80"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "961b2434ce056728"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "03df27c630ec454c"}
+ "depHash": "b4da0ced479b9d09"}

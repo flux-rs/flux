@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.InvariantMacro00.Basic transitive imports (legacy)",
-         "7acf233e3554c80b"],
+         "634a45f2a751c9bf"],
         ["Surface.InvariantMacro00.Basic:importAllArts",
          "aa12d113ff6203c4"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.InvariantMacro00", "7cb2c84395ccd3c8"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "63ca5a2c1ad88919"}
+ "depHash": "e0fa453d85a5d056"}

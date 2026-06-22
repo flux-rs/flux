@@ -22,7 +22,7 @@
         ["Detached.DetachEnum01.Flux.VC.MkList:importAllArts",
          "9cfd6fb6fbcc35ed"],
         ["Detached.DetachEnum01.User.Proof.MkListProof transitive imports (legacy)",
-         "491b402cf66cfe81"],
+         "dafb575a05c56676"],
         ["Detached.DetachEnum01.User.Proof.MkListProof:importAllArts",
          "c85f5d9ef6dd7f9b"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "35387b3e9f0c3261"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ad84b10d608c74ff"}
+ "depHash": "11df530f60288355"}

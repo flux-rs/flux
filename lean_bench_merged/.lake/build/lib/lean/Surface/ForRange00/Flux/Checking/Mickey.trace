@@ -21,7 +21,7 @@
          "644781b47278ca80"],
         ["Surface.ForRange00.Flux.VC.Mickey:importAllArts", "7cb9b850f8a17118"],
         ["Surface.ForRange00.User.Proof.MickeyProof transitive imports (legacy)",
-         "927d8ec92f6e9fda"],
+         "ee89f45bfc3838ad"],
         ["Surface.ForRange00.User.Proof.MickeyProof:importAllArts",
          "0ac29fbf73af0610"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.ForRange00.Flux.Checking.Mickey", "887c5b8c89b04377"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "0e1df1306474bf75"}
+ "depHash": "f4cfe1d875bdca81"}

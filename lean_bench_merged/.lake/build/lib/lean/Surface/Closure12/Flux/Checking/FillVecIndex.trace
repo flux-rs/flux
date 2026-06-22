@@ -22,7 +22,7 @@
         ["Surface.Closure12.Flux.VC.FillVecIndex:importAllArts",
          "792693c6bbebc8d4"],
         ["Surface.Closure12.User.Proof.FillVecIndexProof transitive imports (legacy)",
-         "01df03b814d25e8a"],
+         "5dedf31b700dc95d"],
         ["Surface.Closure12.User.Proof.FillVecIndexProof:importAllArts",
          "9333b32935b6f0e2"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "10d47240220e8523"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3c9c7684092a1b54"}
+ "depHash": "ba79266918b97cfb"}

@@ -22,7 +22,7 @@
         ["ImplTrait.ParentGenerics.Flux.VC.Test00:importAllArts",
          "8238bb7c967f6ba2"],
         ["ImplTrait.ParentGenerics.User.Proof.Test00Proof transitive imports (legacy)",
-         "9557533c23d6990c"],
+         "976407322fb48e3b"],
         ["ImplTrait.ParentGenerics.User.Proof.Test00Proof:importAllArts",
          "2972fd84ec8e1f03"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "306e5b922986e721"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "622fb3604397f42f"}
+ "depHash": "31e971b9f4575444"}

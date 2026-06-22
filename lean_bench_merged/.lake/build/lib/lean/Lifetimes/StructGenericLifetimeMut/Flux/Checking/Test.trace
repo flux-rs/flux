@@ -22,7 +22,7 @@
         ["Lifetimes.StructGenericLifetimeMut.Flux.VC.Test:importAllArts",
          "8aa9aa14882fb9b6"],
         ["Lifetimes.StructGenericLifetimeMut.User.Proof.TestProof transitive imports (legacy)",
-         "02128fd60315b9ea"],
+         "7ea5e8a10f12fafd"],
         ["Lifetimes.StructGenericLifetimeMut.User.Proof.TestProof:importAllArts",
          "a3b8615750958221"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "01a40ac0d6375489"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "fbfd5f1bde380145"}
+ "depHash": "1b4a0f86b37ff8a6"}

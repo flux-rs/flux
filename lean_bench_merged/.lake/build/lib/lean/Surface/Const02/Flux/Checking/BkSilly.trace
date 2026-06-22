@@ -21,7 +21,7 @@
          "a3fe053abe3303b0"],
         ["Surface.Const02.Flux.VC.BkSilly:importAllArts", "92e6e481e42cd305"],
         ["Surface.Const02.User.Proof.BkSillyProof transitive imports (legacy)",
-         "ae23885a3f522b8f"],
+         "2f15dddbc0367d88"],
         ["Surface.Const02.User.Proof.BkSillyProof:importAllArts",
          "74b8a466c1d57c8d"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Const02.Flux.Checking.BkSilly", "54e383523739f3cc"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3dcb2cd89f8cdb43"}
+ "depHash": "2417bec3f37aa65c"}

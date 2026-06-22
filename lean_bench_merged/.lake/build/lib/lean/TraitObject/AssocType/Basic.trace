@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["TraitObject.AssocType.Flux.Checking.Test transitive imports (legacy)",
-         "e085ce091c4d641d"],
+         "967e2d877b1ebb3d"],
         ["TraitObject.AssocType.Flux.Checking.Test:importAllArts",
          "8bc0d5ecbcb662b3"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: TraitObject.AssocType.Basic", "e20d5c109d4400e2"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "01ad040788067c2e"}
+ "depHash": "ae044fd124485b02"}

@@ -21,7 +21,7 @@
          "fb1b88cf34c2933d"],
         ["Surface.Closure11.Flux.VC.Dot:importAllArts", "d5776e2d06f29015"],
         ["Surface.Closure11.User.Proof.DotProof transitive imports (legacy)",
-         "9ff23d8a1bb99316"],
+         "ffba3c8b48d44f49"],
         ["Surface.Closure11.User.Proof.DotProof:importAllArts",
          "77227d6723a7569b"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Closure11.Flux.Checking.Dot", "8cd8e269247f9bfa"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d92936b999a1520e"}
+ "depHash": "7b8a3c8fad9afdda"}

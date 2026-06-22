@@ -21,7 +21,7 @@
          "143f64d265bab55f"],
         ["Surface.Heapsort.Flux.VC.HeapSort:importAllArts", "c0ec4d7dc4637dc9"],
         ["Surface.Heapsort.User.Proof.HeapSortProof transitive imports (legacy)",
-         "06a1df5cc47db3af"],
+         "9328be920a211160"],
         ["Surface.Heapsort.User.Proof.HeapSortProof:importAllArts",
          "78604470dd90378d"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Heapsort.Flux.Checking.HeapSort", "1c1cf40490cf9f04"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b888d0bd652dbf7a"}
+ "depHash": "73eab9707a7532d1"}

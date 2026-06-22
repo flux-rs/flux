@@ -22,7 +22,7 @@
         ["Surface.KmpOverflow.Flux.VC.KmpTable:importAllArts",
          "dfe9becc4edb87f9"],
         ["Surface.KmpOverflow.User.Proof.KmpTableProof transitive imports (legacy)",
-         "f64145e828b8daf4"],
+         "3f0207b5abc6719b"],
         ["Surface.KmpOverflow.User.Proof.KmpTableProof:importAllArts",
          "0daf755b02e0b411"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "1d9cffd088526985"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "23c7dc7b192f833a"}
+ "depHash": "92832254e691ff43"}

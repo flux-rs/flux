@@ -17,7 +17,7 @@
   {"message":
    "Structs/EnumJoin/User/Proof/Test1Proof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
-  {"message": "Structs/EnumJoin/User/Proof/Test1Proof.lean:69:0: time: 37ms",
+  {"message": "Structs/EnumJoin/User/Proof/Test1Proof.lean:69:0: time: 45ms",
    "level": "info"},
   {"message":
    "Structs/EnumJoin/User/Proof/Test1Proof.lean:69:0: [solve_fixpoint] Acyclic κ: [k0]\n[solve_fixpoint] Cyclic κ:  []\n[solve] --- k0 ---\n[solve]   sol = (∃ a'₀, a'₀ ≥ 0 ∧ z0 = a'₀) ∨ ∃ a'₁ a'₂, a'₂ ≥ 0 ∧ z0 = a'₂\n[solve]   lam = fun z0 => (∃ a'₀, a'₀ ≥ 0 ∧ z0 = a'₀) ∨ ∃ a'₁ a'₂, a'₂ ≥ 0 ∧ z0 = a'₂",
@@ -28,7 +28,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Structs.EnumJoin.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -51,4 +51,4 @@
   ["Module.name: Structs.EnumJoin.User.Proof.Test1Proof", "17077eda5ce202b5"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "957e34734a52d780"}
+ "depHash": "d505aeac97c67a59"}

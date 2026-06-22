@@ -22,7 +22,7 @@
         ["Surface.StaticSpec00.Flux.VC.TestBlah:importAllArts",
          "c5a46b583acab229"],
         ["Surface.StaticSpec00.User.Proof.TestBlahProof transitive imports (legacy)",
-         "0c9c787312740fb8"],
+         "208172cc4fb8368f"],
         ["Surface.StaticSpec00.User.Proof.TestBlahProof:importAllArts",
          "913366c72011148c"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "b6b568ebbe30650a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9806e3bf12052502"}
+ "depHash": "800c87d2fd19c6b0"}

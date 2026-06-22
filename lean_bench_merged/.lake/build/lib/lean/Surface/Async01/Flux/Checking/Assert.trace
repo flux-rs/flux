@@ -21,7 +21,7 @@
          "780d1dcf828f00e9"],
         ["Surface.Async01.Flux.VC.Assert:importAllArts", "1f12676af6fcadef"],
         ["Surface.Async01.User.Proof.AssertProof transitive imports (legacy)",
-         "653b1bf217c35eac"],
+         "703539a1b1280103"],
         ["Surface.Async01.User.Proof.AssertProof:importAllArts",
          "7eac920ca818bbe3"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Async01.Flux.Checking.Assert", "aa47e5d6e1093fbb"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "82058d4379f0a845"}
+ "depHash": "708e4ffe71375089"}

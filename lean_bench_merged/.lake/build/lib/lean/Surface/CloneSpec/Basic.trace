@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.CloneSpec.Flux.Checking.TestClone transitive imports (legacy)",
-         "e5b193101b75c755"],
+         "916a3df5071501fe"],
         ["Surface.CloneSpec.Flux.Checking.TestClone:importAllArts",
          "3b87d998e7429f82"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.CloneSpec.Basic", "f735cfe9f6fe3ade"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "18477824ebad7b5a"}
+ "depHash": "6a6f2b116685e109"}

@@ -22,7 +22,7 @@
         ["Detached.DetachEnum01.Flux.VC.Cons:importAllArts",
          "5e821f1e6641f1f1"],
         ["Detached.DetachEnum01.User.Proof.ConsProof transitive imports (legacy)",
-         "1c51d2f8dffefe74"],
+         "47b5de299bd52f93"],
         ["Detached.DetachEnum01.User.Proof.ConsProof:importAllArts",
          "65d3d01885cc7ba1"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Detached.DetachEnum01.Flux.Checking.Cons", "e170b27c019665c4"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "84a10d1a621b7bf2"}
+ "depHash": "3f952899baa4b401"}

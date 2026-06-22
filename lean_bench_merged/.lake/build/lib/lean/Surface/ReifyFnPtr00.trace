@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.ReifyFnPtr00.Basic transitive imports (legacy)",
-         "568eaf51275c5bb1"],
+         "ed430f985068bdf7"],
         ["Surface.ReifyFnPtr00.Basic:importAllArts", "452466c0644f90be"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.ReifyFnPtr00", "7b053cc1614615ad"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "21555cd10432c7bb"}
+ "depHash": "4016dbb570b858fc"}

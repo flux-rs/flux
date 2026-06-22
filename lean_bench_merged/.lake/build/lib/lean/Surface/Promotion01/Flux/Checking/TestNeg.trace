@@ -22,7 +22,7 @@
         ["Surface.Promotion01.Flux.VC.TestNeg:importAllArts",
          "a072182d64e245cf"],
         ["Surface.Promotion01.User.Proof.TestNegProof transitive imports (legacy)",
-         "029ce26cd37efeeb"],
+         "2021974082d76aac"],
         ["Surface.Promotion01.User.Proof.TestNegProof:importAllArts",
          "432ef6af9eb44247"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "882430aa985a914e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a5ba9c17c0f59315"}
+ "depHash": "d97785c3a24f12bd"}

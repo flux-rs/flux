@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.AbstractRefinementInCompositeSort.Basic transitive imports (legacy)",
-         "db5eb1d974976d97"],
+         "d9ae9d981d36eb95"],
         ["Surface.AbstractRefinementInCompositeSort.Basic:importAllArts",
          "0cc1fbc29695d059"]]]]],
     ["libs",
@@ -33,4 +33,4 @@
    "55511077c496c016"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1295a27128f477a5"}
+ "depHash": "701485f16d06e116"}

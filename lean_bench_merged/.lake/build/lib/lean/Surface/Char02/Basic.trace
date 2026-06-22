@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Char02.Flux.Checking.Char00 transitive imports (legacy)",
-         "c4cdc70c51e416d9"],
+         "574c89604b1562c2"],
         ["Surface.Char02.Flux.Checking.Char00:importAllArts",
          "64a14e15a18076c8"],
         ["Surface.Char02.Flux.Checking.Lowercase transitive imports (legacy)",
-         "87f45d7cbcf01e5c"],
+         "1ff43cb8c1ce6c93"],
         ["Surface.Char02.Flux.Checking.Lowercase:importAllArts",
          "b605dd6d2f5b6b23"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Surface.Char02.Basic", "ae079c8798b2f914"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e793d3cf1f692c88"}
+ "depHash": "8f2bd89335fe4e3b"}

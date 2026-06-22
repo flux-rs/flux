@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Hide00.Basic transitive imports (legacy)",
-         "3da67d479452eadd"],
+         "c8655bc9f4c2d21b"],
         ["Surface.Hide00.Basic:importAllArts", "9f5b78b502e91782"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Surface.Hide00", "874488678d9c9363"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a5d6150325a0c70f"}
+ "depHash": "a940e219e0c380c4"}

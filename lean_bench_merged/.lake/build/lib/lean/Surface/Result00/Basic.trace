@@ -15,11 +15,11 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.Result00.Flux.Checking.Baz transitive imports (legacy)",
-         "31ce37c1ff8d0c09"],
+         "60d69434c5f3ef96"],
         ["Surface.Result00.Flux.Checking.Baz:importAllArts",
          "f1edee9fd19b8283"],
         ["Surface.Result00.Flux.Checking.BazCall transitive imports (legacy)",
-         "fd09d122b4625117"],
+         "e182f8702ebe41ec"],
         ["Surface.Result00.Flux.Checking.BazCall:importAllArts",
          "efaf974ab9809ccc"]]]]],
     ["libs",
@@ -36,4 +36,4 @@
   ["Module.name: Surface.Result00.Basic", "037494df42e673a6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "e2d9afddd2af2c85"}
+ "depHash": "90a3c3dbfd0c21dc"}

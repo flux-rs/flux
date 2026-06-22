@@ -22,7 +22,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Closure15.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -44,4 +44,4 @@
   ["Module.name: Surface.Closure15.User.Proof.FooProof", "0655a40cc07c4b9b"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "5b7229b2d23c85df"}
+ "depHash": "160ac24b489f7f48"}

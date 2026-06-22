@@ -21,7 +21,7 @@
          "5f110ff4930f27bf"],
         ["Structs.Union00.Flux.VC.NewThat:importAllArts", "09daabd2b8193b5d"],
         ["Structs.Union00.User.Proof.NewThatProof transitive imports (legacy)",
-         "4e64d89181d5e8b1"],
+         "4a84b20895c4da66"],
         ["Structs.Union00.User.Proof.NewThatProof:importAllArts",
          "2b7ba47622e62f43"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Structs.Union00.Flux.Checking.NewThat", "fac7dab93e9f6638"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f1086a34087c9513"}
+ "depHash": "5acafbdd045f9daf"}

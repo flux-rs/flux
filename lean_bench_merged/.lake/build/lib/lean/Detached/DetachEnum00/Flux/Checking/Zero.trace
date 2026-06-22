@@ -22,7 +22,7 @@
         ["Detached.DetachEnum00.Flux.VC.Zero:importAllArts",
          "f925b4a5eb4cc773"],
         ["Detached.DetachEnum00.User.Proof.ZeroProof transitive imports (legacy)",
-         "5b86dab3919412b4"],
+         "02b7ebc10614570b"],
         ["Detached.DetachEnum00.User.Proof.ZeroProof:importAllArts",
          "02d647399d789b93"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Detached.DetachEnum00.Flux.Checking.Zero", "50f8a18672c3428a"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "a6822346f9a03d84"}
+ "depHash": "5c415f0fd2347182"}

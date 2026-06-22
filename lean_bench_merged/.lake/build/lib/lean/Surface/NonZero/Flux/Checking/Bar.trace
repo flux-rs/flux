@@ -20,7 +20,7 @@
          "be69e9d78e39b99f"],
         ["Surface.NonZero.Flux.VC.Bar:importAllArts", "b07d3fe28fd1322d"],
         ["Surface.NonZero.User.Proof.BarProof transitive imports (legacy)",
-         "6329e8a3b1f7a331"],
+         "e529e5f6547fd026"],
         ["Surface.NonZero.User.Proof.BarProof:importAllArts",
          "e15edb8898978900"]]]]],
     ["libs",
@@ -37,4 +37,4 @@
   ["Module.name: Surface.NonZero.Flux.Checking.Bar", "8fbd21eb6377c963"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f162605d4c259669"}
+ "depHash": "471d4bc3ea19c24a"}

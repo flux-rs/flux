@@ -21,7 +21,7 @@
          "32c2756a8c99669e"],
         ["Surface.BvOrd.Flux.VC.RealExample:importAllArts", "429ed4c91790dd80"],
         ["Surface.BvOrd.User.Proof.RealExampleProof transitive imports (legacy)",
-         "9d9ad64f146db819"],
+         "19097b3b8ca5305e"],
         ["Surface.BvOrd.User.Proof.RealExampleProof:importAllArts",
          "3b4a1b072e0ef245"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.BvOrd.Flux.Checking.RealExample", "d4af17d916a814f9"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "9dfbc136218e46aa"}
+ "depHash": "8fd918e3b40cf64d"}

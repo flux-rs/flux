@@ -22,7 +22,7 @@
         ["Surface.Literals00.Flux.VC.Binary0:importAllArts",
          "3b36db9a7f4cb643"],
         ["Surface.Literals00.User.Proof.Binary0Proof transitive imports (legacy)",
-         "e0c4bcb87cbe2fc1"],
+         "edccbf4306c4665e"],
         ["Surface.Literals00.User.Proof.Binary0Proof:importAllArts",
          "456bc4399e15df82"]]]]],
     ["libs",
@@ -39,4 +39,4 @@
   ["Module.name: Surface.Literals00.Flux.Checking.Binary0", "3b9415fe4ea7b047"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "d1830a8ee44b94f3"}
+ "depHash": "93cfa519b8f2a5cf"}

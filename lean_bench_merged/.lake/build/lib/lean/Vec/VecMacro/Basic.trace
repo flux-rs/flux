@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Vec.VecMacro.Flux.Checking.Test00 transitive imports (legacy)",
-         "5ad18e1467d41add"],
+         "5530809188c776d1"],
         ["Vec.VecMacro.Flux.Checking.Test00:importAllArts",
          "5711706c00b9f219"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Vec.VecMacro.Basic", "e31fa0e1df5e39f6"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "46198b89d01e0454"}
+ "depHash": "05879c61e9df7fa7"}

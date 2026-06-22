@@ -21,7 +21,7 @@
          "6616dd8ce65eeb10"],
         ["Surface.MutHack00.Flux.VC.Test:importAllArts", "23cef61619039242"],
         ["Surface.MutHack00.User.Proof.TestProof transitive imports (legacy)",
-         "ef35490ffcdafea0"],
+         "c8a7a83c9d9d6207"],
         ["Surface.MutHack00.User.Proof.TestProof:importAllArts",
          "6e0b2be03a14d838"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.MutHack00.Flux.Checking.Test", "4d91c68ea563ec43"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "1d2bdf79cd97466b"}
+ "depHash": "3c01aa30a1a13598"}

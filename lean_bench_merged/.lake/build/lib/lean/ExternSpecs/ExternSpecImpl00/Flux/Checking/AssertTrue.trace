@@ -22,7 +22,7 @@
         ["ExternSpecs.ExternSpecImpl00.Flux.VC.AssertTrue:importAllArts",
          "eb49507faa2ceff0"],
         ["ExternSpecs.ExternSpecImpl00.User.Proof.AssertTrueProof transitive imports (legacy)",
-         "38199b9a1613dd1b"],
+         "af541c47d7320414"],
         ["ExternSpecs.ExternSpecImpl00.User.Proof.AssertTrueProof:importAllArts",
          "15ff81bc759dacc7"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "d36e7ce32111fc58"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "907ad5d917f72a9f"}
+ "depHash": "a5a3899c657a91a7"}

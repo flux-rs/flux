@@ -12,7 +12,7 @@
    "Structs/Dot01/User/Proof/RvecImpl__3__IndexProof.lean:75:2: [solve_fixpoint] closed by: native_decide",
    "level": "info"},
   {"message":
-   "Structs/Dot01/User/Proof/RvecImpl__3__IndexProof.lean:73:0: time: 7ms",
+   "Structs/Dot01/User/Proof/RvecImpl__3__IndexProof.lean:73:0: time: 9ms",
    "level": "info"},
   {"message":
    "Structs/Dot01/User/Proof/RvecImpl__3__IndexProof.lean:73:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -23,7 +23,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Structs.Dot01.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -47,4 +47,4 @@
    "848434714efd6180"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "79da306743d1a45b"}
+ "depHash": "06e05de84b4f3cf3"}

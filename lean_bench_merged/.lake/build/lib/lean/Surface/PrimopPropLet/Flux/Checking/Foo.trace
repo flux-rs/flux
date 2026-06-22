@@ -21,7 +21,7 @@
          "71ac4c930a316419"],
         ["Surface.PrimopPropLet.Flux.VC.Foo:importAllArts", "3a8caac89b70f281"],
         ["Surface.PrimopPropLet.User.Proof.FooProof transitive imports (legacy)",
-         "9dc3f33da0a78798"],
+         "e3eb3a85a23fdea7"],
         ["Surface.PrimopPropLet.User.Proof.FooProof:importAllArts",
          "449d6affdd56d7ca"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.PrimopPropLet.Flux.Checking.Foo", "65c54edf631a9e98"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "f7347119036f4813"}
+ "depHash": "66c1200c78f71ffe"}

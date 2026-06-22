@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Detached.DetachImpl05Macro.Basic transitive imports (legacy)",
-         "4f0fa477cfe84919"],
+         "d5fd473dbbb41342"],
         ["Detached.DetachImpl05Macro.Basic:importAllArts",
          "ba6631537243814b"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Detached.DetachImpl05Macro", "fb828d6c79460559"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "aa07156dfe4ead0a"}
+ "depHash": "61916b40ce320e16"}

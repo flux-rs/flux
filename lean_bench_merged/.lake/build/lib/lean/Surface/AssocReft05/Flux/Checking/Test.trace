@@ -21,7 +21,7 @@
          "e1cf5c000a1eae22"],
         ["Surface.AssocReft05.Flux.VC.Test:importAllArts", "059f7a2172bc7a13"],
         ["Surface.AssocReft05.User.Proof.TestProof transitive imports (legacy)",
-         "6b723a271db166c7"],
+         "ff0faf5c86e3e1e0"],
         ["Surface.AssocReft05.User.Proof.TestProof:importAllArts",
          "54cb263b0358c997"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.AssocReft05.Flux.Checking.Test", "9a1ecc591540983d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "378ac930edf0d346"}
+ "depHash": "8ddb879dc8be4b81"}

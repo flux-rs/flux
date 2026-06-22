@@ -22,7 +22,7 @@
         ["RefinedAssocType.RefinedAssocType00.Flux.VC.Assert:importAllArts",
          "3dab3f2844660e3e"],
         ["RefinedAssocType.RefinedAssocType00.User.Proof.AssertProof transitive imports (legacy)",
-         "2e2fb451915014b0"],
+         "d0016ea13629fc17"],
         ["RefinedAssocType.RefinedAssocType00.User.Proof.AssertProof:importAllArts",
          "7265599fb657101d"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "ecfb46a2c656fd2d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "68d4d3bf7be36ac4"}
+ "depHash": "d35644c32069790b"}

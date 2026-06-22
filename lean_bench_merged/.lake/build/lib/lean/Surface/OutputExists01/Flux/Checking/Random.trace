@@ -22,7 +22,7 @@
         ["Surface.OutputExists01.Flux.VC.Random:importAllArts",
          "1c8c7feda2758b71"],
         ["Surface.OutputExists01.User.Proof.RandomProof transitive imports (legacy)",
-         "5a680ab0b862006b"],
+         "64c1ed611481dd84"],
         ["Surface.OutputExists01.User.Proof.RandomProof:importAllArts",
          "726207670f3a86df"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "67b152c98368256d"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "57de000e5d58bfb8"}
+ "depHash": "fcd80f56674ca60a"}

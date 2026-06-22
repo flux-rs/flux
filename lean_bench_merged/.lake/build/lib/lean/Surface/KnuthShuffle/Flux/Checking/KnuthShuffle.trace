@@ -22,7 +22,7 @@
         ["Surface.KnuthShuffle.Flux.VC.KnuthShuffle:importAllArts",
          "a5a93519b76969c8"],
         ["Surface.KnuthShuffle.User.Proof.KnuthShuffleProof transitive imports (legacy)",
-         "9e874db3ad474c5c"],
+         "e08d2da12a111163"],
         ["Surface.KnuthShuffle.User.Proof.KnuthShuffleProof:importAllArts",
          "11b24885a6028c48"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "1c18b7be7ba3869e"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4c50e30733df216e"}
+ "depHash": "5004d3b38cfcb786"}

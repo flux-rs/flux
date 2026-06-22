@@ -12,7 +12,7 @@
    "Surface/Alias04/User/Proof/Impl__0__NewProof.lean:71:2: [solve_fixpoint] closed by: native_decide",
    "level": "info"},
   {"message":
-   "Surface/Alias04/User/Proof/Impl__0__NewProof.lean:69:0: time: 5ms",
+   "Surface/Alias04/User/Proof/Impl__0__NewProof.lean:69:0: time: 6ms",
    "level": "info"},
   {"message":
    "Surface/Alias04/User/Proof/Impl__0__NewProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  []",
@@ -23,7 +23,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.Alias04.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -47,4 +47,4 @@
    "97b9de48e5ac92b3"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ba35d7d0f495dfd2"}
+ "depHash": "914bfd7f3dcc4f75"}

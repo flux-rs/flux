@@ -21,7 +21,7 @@
          "07e39d495eb0835e"],
         ["Vec.VecMacro.Flux.VC.Test00:importAllArts", "433d5567c65a944f"],
         ["Vec.VecMacro.User.Proof.Test00Proof transitive imports (legacy)",
-         "d97f369afe128220"],
+         "097e879365dbe4e7"],
         ["Vec.VecMacro.User.Proof.Test00Proof:importAllArts",
          "f6196dc824c790a6"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Vec.VecMacro.Flux.Checking.Test00", "5a56cf30e625b6c7"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "264d06bd23b58598"}
+ "depHash": "8f699932873712d7"}

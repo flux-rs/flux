@@ -22,7 +22,7 @@
         ["Surface.Issue792.Flux.VC.TryGet8Bytes:importAllArts",
          "e252244903d798b4"],
         ["Surface.Issue792.User.Proof.TryGet8BytesProof transitive imports (legacy)",
-         "d96c89caa5454612"],
+         "40bf0a5e37ad99d5"],
         ["Surface.Issue792.User.Proof.TryGet8BytesProof:importAllArts",
          "df831427866abd10"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "f452f65be507a000"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7e30790adfedcad3"}
+ "depHash": "3581da8198d70d2d"}

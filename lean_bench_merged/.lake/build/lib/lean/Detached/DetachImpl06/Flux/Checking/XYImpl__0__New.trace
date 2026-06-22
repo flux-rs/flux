@@ -22,7 +22,7 @@
         ["Detached.DetachImpl06.Flux.VC.XYImpl__0__New:importAllArts",
          "15f42a8d4790c341"],
         ["Detached.DetachImpl06.User.Proof.XYImpl__0__NewProof transitive imports (legacy)",
-         "28ba7e8c424bd83a"],
+         "6f6c921e4f1859bd"],
         ["Detached.DetachImpl06.User.Proof.XYImpl__0__NewProof:importAllArts",
          "a707268ca4a7f2d5"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "b4a3204f6705d6c0"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "4985d9469229baf6"}
+ "depHash": "d2492b1fdcea9fa0"}

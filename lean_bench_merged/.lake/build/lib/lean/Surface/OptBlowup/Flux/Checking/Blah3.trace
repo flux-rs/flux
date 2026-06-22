@@ -21,7 +21,7 @@
          "99b480bb33972d2e"],
         ["Surface.OptBlowup.Flux.VC.Blah3:importAllArts", "87ef22cca3fc4556"],
         ["Surface.OptBlowup.User.Proof.Blah3Proof transitive imports (legacy)",
-         "0bdea05e71a441d7"],
+         "2b0bc757e21e62e8"],
         ["Surface.OptBlowup.User.Proof.Blah3Proof:importAllArts",
          "269cc1920cdcc261"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.OptBlowup.Flux.Checking.Blah3", "0cbbac27d169abb5"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "787d0331fbb3dc8e"}
+ "depHash": "a1f2b67a6cc7b598"}

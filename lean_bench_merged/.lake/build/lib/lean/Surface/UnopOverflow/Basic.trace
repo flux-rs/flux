@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Surface.UnopOverflow.Flux.Checking.NegOverflowI32 transitive imports (legacy)",
-         "07a839e4de657eac"],
+         "f342c66138eff445"],
         ["Surface.UnopOverflow.Flux.Checking.NegOverflowI32:importAllArts",
          "230c540fab6b64bc"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Surface.UnopOverflow.Basic", "a531deca13f40038"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7971eb87a4765bd2"}
+ "depHash": "487e8703dc31b61e"}

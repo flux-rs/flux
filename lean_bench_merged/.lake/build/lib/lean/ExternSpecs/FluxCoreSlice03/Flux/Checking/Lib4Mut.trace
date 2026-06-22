@@ -22,7 +22,7 @@
         ["ExternSpecs.FluxCoreSlice03.Flux.VC.Lib4Mut:importAllArts",
          "792b3ebece5ce5df"],
         ["ExternSpecs.FluxCoreSlice03.User.Proof.Lib4MutProof transitive imports (legacy)",
-         "de661dd9061076cf"],
+         "b6c46d8598cfe938"],
         ["ExternSpecs.FluxCoreSlice03.User.Proof.Lib4MutProof:importAllArts",
          "d7df72564ae8515d"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "eac3df4dc13f6c64"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3e45eae4bc0d0e34"}
+ "depHash": "0912fefc26b00269"}

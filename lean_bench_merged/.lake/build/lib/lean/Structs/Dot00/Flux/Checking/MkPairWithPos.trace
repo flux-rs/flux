@@ -22,7 +22,7 @@
         ["Structs.Dot00.Flux.VC.MkPairWithPos:importAllArts",
          "165f24964ef96441"],
         ["Structs.Dot00.User.Proof.MkPairWithPosProof transitive imports (legacy)",
-         "d4e6169f19e78918"],
+         "0735dfe34b3ce6df"],
         ["Structs.Dot00.User.Proof.MkPairWithPosProof:importAllArts",
          "0922322299dfc87a"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "465042f71b070b86"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3c57193c45a10dc8"}
+ "depHash": "560bdc7fb365ba3b"}

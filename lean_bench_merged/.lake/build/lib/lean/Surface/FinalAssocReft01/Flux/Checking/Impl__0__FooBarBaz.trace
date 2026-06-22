@@ -22,7 +22,7 @@
         ["Surface.FinalAssocReft01.Flux.VC.Impl__0__FooBarBaz:importAllArts",
          "f84188e4ea3e0ad6"],
         ["Surface.FinalAssocReft01.User.Proof.Impl__0__FooBarBazProof transitive imports (legacy)",
-         "b59138b12f2aa5c2"],
+         "1a14e5f8678ee71d"],
         ["Surface.FinalAssocReft01.User.Proof.Impl__0__FooBarBazProof:importAllArts",
          "ce7471fd13333463"]]]]],
     ["libs",
@@ -40,4 +40,4 @@
    "81b0fd2cc841f47c"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "8b50c86b5e0727c8"}
+ "depHash": "eb3dea56fada43ee"}

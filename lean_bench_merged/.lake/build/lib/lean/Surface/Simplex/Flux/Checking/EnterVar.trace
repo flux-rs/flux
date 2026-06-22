@@ -21,7 +21,7 @@
          "5cce4a22b7fff904"],
         ["Surface.Simplex.Flux.VC.EnterVar:importAllArts", "667e402557051509"],
         ["Surface.Simplex.User.Proof.EnterVarProof transitive imports (legacy)",
-         "21fd83fbb60587f2"],
+         "c764c200174a52f5"],
         ["Surface.Simplex.User.Proof.EnterVarProof:importAllArts",
          "ef496161bdfcd151"]]]]],
     ["libs",
@@ -38,4 +38,4 @@
   ["Module.name: Surface.Simplex.Flux.Checking.EnterVar", "20f6e40309a9c400"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "689af8c12802420f"}
+ "depHash": "e3f698f4847e2ad8"}

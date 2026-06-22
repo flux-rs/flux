@@ -15,7 +15,7 @@
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
        [["Detached.DetachEnum02.Flux.Checking.WrapperZero transitive imports (legacy)",
-         "f1b29fed030e0e74"],
+         "d41836659eb37a08"],
         ["Detached.DetachEnum02.Flux.Checking.WrapperZero:importAllArts",
          "7e4bc8a1715c99df"]]]]],
     ["libs",
@@ -32,4 +32,4 @@
   ["Module.name: Detached.DetachEnum02.Basic", "97cbf0ee02d7375f"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "6da22d9c2b4348e4"}
+ "depHash": "3609919f5b72fda3"}

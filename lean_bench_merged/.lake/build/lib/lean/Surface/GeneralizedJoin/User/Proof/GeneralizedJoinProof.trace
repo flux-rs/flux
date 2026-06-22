@@ -60,7 +60,7 @@
    "Surface/GeneralizedJoin/User/Proof/GeneralizedJoinProof.lean:71:2: [solve_fixpoint] closed by: grind",
    "level": "info"},
   {"message":
-   "Surface/GeneralizedJoin/User/Proof/GeneralizedJoinProof.lean:69:0: time: 657ms",
+   "Surface/GeneralizedJoin/User/Proof/GeneralizedJoinProof.lean:69:0: time: 527ms",
    "level": "info"},
   {"message":
    "Surface/GeneralizedJoin/User/Proof/GeneralizedJoinProof.lean:69:0: [solve_fixpoint] Acyclic κ: []\n[solve_fixpoint] Cyclic κ:  [k0]\n[solve_fixpoint] --- PA on cyclic κ's [k0] ---\n[solve_fixpoint]   PA sol for k0 = ((((((z0 ≥ 0 ∧ z1 ≥ 0) ∧ z0 ≤ z1) ∧ z1 ≤ z0) ∧ z0 = z1) ∧ z1 = z0) ∧ z0 ≥ z1) ∧ z1 ≥ z0",
@@ -71,7 +71,7 @@
      [["lean_bench_all/LeanBenchAll:extraDep",
        [["@lean_bench_all:extraDep", "00000000000006bb"]]],
       ["imports",
-       [["LeanFixpoint transitive imports (legacy)", "6cf3e14b22341921"],
+       [["LeanFixpoint transitive imports (legacy)", "237f3feac6985b44"],
         ["LeanFixpoint:importAllArts", "966b57a491420331"],
         ["Surface.GeneralizedJoin.Flux.Prelude transitive imports (legacy)",
          "00000000000006bb"],
@@ -96,4 +96,4 @@
    "be672abce3c38248"],
   ["Package.id?: (some lean_bench_all)", "7908ab17ddceb43a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "b3219b81fd066012"}
+ "depHash": "b5f54ad418836c94"}
