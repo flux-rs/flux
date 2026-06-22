@@ -42,7 +42,16 @@
     // Required as a precondition for all pointer arithmetic methods.
     fn in_bounds(p: ptr) -> bool { dereferenceable(p, 0) }
 }]
-
+/// These specs on `core::ptr` allow flux to enforce 2 safety properties:
+/// 1. Spatial safety: A pointer may only be read or written if pointer is derived from
+/// a valid allocation and the entire access would fall within the bounds of that allocation.
+/// 2. Per-method UB contract safety: Some methods in `core::ptr` have additional safety
+/// requirements beyond spatial safety, such as alignment or non-overlapping.
+/// These specs allow flux to enforce those requirements as well.
+///
+/// These specs do NOT prove temporal safety.
+/// To prove temporal safety, Flux would need to tie the lifetimes of allocations to the pointers derived from them,
+/// which is currently out of scope.
 use flux_attrs::*;
 
 macro_rules! ptr_specs {
