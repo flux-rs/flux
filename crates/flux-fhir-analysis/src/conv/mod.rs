@@ -1744,10 +1744,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
                 if P::EXPAND_TYPE_ALIASES {
                     let tcx = self.tcx();
-                    return Ok(self
-                        .genv()
-                        .type_of(def_id)?
-                        .instantiate(tcx, &args, &refine_args));
+                    return Ok(self.genv().type_of(def_id)?.instantiate(
+                        tcx,
+                        &args,
+                        &refine_args,
+                        path.span,
+                    ));
                 } else {
                     rty::BaseTy::Alias(
                         rty::AliasKind::Free,
@@ -1904,7 +1906,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             let ty = self
                 .genv()
                 .type_of(param.def_id)?
-                .instantiate(self.tcx(), into, &[])
+                .instantiate(self.tcx(), into, &[], span)
                 .to_ty();
             into.push(self.try_to_ty_or_base(param.kind, span, &ty)?.into());
         }
