@@ -295,12 +295,9 @@ fn emit_panic_error(
 ) -> ErrorGuaranteed {
     let spec = genv.inferred_no_panic_at(caller, location);
     let (hops, reason) = collect_panic_chain(genv, spec);
-    let mut diag = errors::PanicError {
-        span,
-        callee: genv.tcx().def_path_debug_str(callee),
-        reason,
-    }
-    .into_diag(dcx, rustc_errors::Level::Error);
+    let mut diag =
+        errors::PanicError { span, callee: genv.tcx().def_path_debug_str(callee), reason }
+            .into_diag(dcx, rustc_errors::Level::Error);
     for (hop_span, msg) in hops {
         diag.span_note(hop_span, msg);
     }
@@ -323,33 +320,38 @@ fn collect_panic_chain<'tcx>(
     for _ in 0..MAX_DEPTH {
         match spec {
             PanicSpec::WillNotPanic => break,
-            PanicSpec::MightPanic(reason) => match reason {
-                PanicReason::Transitive { callee, call_site } => {
-                    let name = genv.tcx().def_path_debug_str(callee.def_id());
-                    hops.push((call_site, format!("which calls `{name}` here")));
-                    spec = genv.inferred_no_panic_key(callee);
-                    transitive = true;
+            PanicSpec::MightPanic(reason) => {
+                match reason {
+                    PanicReason::Transitive { callee, call_site } => {
+                        let name = genv.tcx().def_path_debug_str(callee.def_id());
+                        hops.push((call_site, format!("which calls `{name}` here")));
+                        spec = genv.inferred_no_panic_key(callee);
+                        transitive = true;
+                    }
+                    PanicReason::UnresolvedCall { def_id, call_site } => {
+                        let name = genv.tcx().def_path_debug_str(def_id);
+                        hops.push((
+                            call_site,
+                            format!("cannot resolve `{name}` to a concrete implementation"),
+                        ));
+                        return (hops, root_cause(transitive, format!("UnresolvedCall(`{name}`)")));
+                    }
+                    PanicReason::DynamicDispatch { call_site } => {
+                        hops.push((call_site, "calls a function pointer or closure".into()));
+                        return (hops, root_cause(transitive, "DynamicDispatch".into()));
+                    }
+                    PanicReason::SynthesizedPanic { call_site } => {
+                        hops.push((call_site, "Rustc-synthesized panic here (likely arithmetic overflow, bounds check, div-by-zero, or assert! macro)".into()));
+                        return (hops, root_cause(transitive, "SynthesizedPanic".into()));
+                    }
+                    PanicReason::NotInCallGraph => {
+                        return (hops, root_cause(transitive, "NotInCallGraph".into()));
+                    }
+                    PanicReason::NoMIRAvailable => {
+                        return (hops, root_cause(transitive, "NoMIRAvailable".into()));
+                    }
                 }
-                PanicReason::UnresolvedCall { def_id, call_site } => {
-                    let name = genv.tcx().def_path_debug_str(def_id);
-                    hops.push((call_site, format!("cannot resolve `{name}` to a concrete implementation")));
-                    return (hops, root_cause(transitive, format!("UnresolvedCall(`{name}`)")));
-                }
-                PanicReason::DynamicDispatch { call_site } => {
-                    hops.push((call_site, "calls a function pointer or closure".into()));
-                    return (hops, root_cause(transitive, "DynamicDispatch".into()));
-                }
-                PanicReason::SynthesizedPanic { call_site } => {
-                    hops.push((call_site, "Rustc-synthesized panic here (likely arithmetic overflow, bounds check, div-by-zero, or assert! macro)".into()));
-                    return (hops, root_cause(transitive, "SynthesizedPanic".into()));
-                }
-                PanicReason::NotInCallGraph => {
-                    return (hops, root_cause(transitive, "NotInCallGraph".into()));
-                }
-                PanicReason::NoMIRAvailable => {
-                    return (hops, root_cause(transitive, "NoMIRAvailable".into()));
-                }
-            },
+            }
         }
     }
     (hops, "unknown".into())
