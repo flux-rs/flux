@@ -59,28 +59,28 @@ use rustc_data_structures::{
     unord::{UnordMap, UnordSet},
 };
 use rustc_hir::OwnerId;
-use rustc_macros::{Decodable, Encodable, extension};
+use rustc_macros::{TyDecodable, TyEncodable, extension};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{
-    Symbol,
+    Span, Symbol,
     def_id::{DefId, LocalDefId},
     symbol::Ident,
 };
 
 fluent_messages! { "../locales/en-US.ftl" }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Encodable, Decodable)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, TyEncodable, TyDecodable)]
 pub enum PanicSpec {
     WillNotPanic,
     MightPanic(PanicReason),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum PanicReason {
-    Transitive,
-    UnresolvedCall(DefId),
-    DynamicDispatch,
-    SynthesizedPanic,
+    Transitive { call_site: Span },
+    UnresolvedCall { def_id: DefId, call_site: Span },
+    DynamicDispatch { call_site: Span },
+    SynthesizedPanic { call_site: Span },
     NotInCallGraph,
     NoMIRAvailable,
 }

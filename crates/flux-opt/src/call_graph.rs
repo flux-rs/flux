@@ -160,7 +160,7 @@ fn callees_in_body<'tcx>(
             }
             _ => continue,
         };
-        call_sites.push(CallSite { location, kind });
+        call_sites.push(CallSite { location, span: terminator.source_info.span, kind });
     }
 
     call_sites
