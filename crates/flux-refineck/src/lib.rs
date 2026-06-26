@@ -38,7 +38,7 @@ use flux_infer::{
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
-    FixpointQueryKind,
+    FixpointQueryKind, PanicReason, PanicSpec,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
@@ -269,15 +269,7 @@ fn report_errors(
                 emit(errors::UnknownError { span }.into_diag(dcx, rustc_errors::Level::Error))
             }
             ConstrReason::NoPanic { callee, caller, location } => {
-                let spec = genv.inferred_no_panic_at(caller, location);
-                emit(
-                    errors::PanicError {
-                        span,
-                        callee: genv.tcx().def_path_debug_str(callee),
-                        reason: format!("{spec:?}"),
-                    }
-                    .into_diag(dcx, rustc_errors::Level::Error),
-                )
+                emit_panic_error(genv, dcx, span, callee, caller, location, emit)
             }
         });
     }
@@ -290,6 +282,81 @@ fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorG
         span: genv.tcx().def_span(def_id),
         def_descr: genv.tcx().def_descr(def_id.to_def_id()),
     }))
+}
+
+fn emit_panic_error(
+    genv: GlobalEnv,
+    dcx: rustc_errors::DiagCtxtHandle<'_>,
+    span: rustc_span::Span,
+    callee: rustc_span::def_id::DefId,
+    caller: Option<rustc_span::def_id::DefId>,
+    location: Option<rustc_middle::mir::Location>,
+    emit: impl FnOnce(rustc_errors::Diag<'_, ErrorGuaranteed>) -> ErrorGuaranteed,
+) -> ErrorGuaranteed {
+    let spec = genv.inferred_no_panic_at(caller, location);
+    let (hops, reason) = collect_panic_chain(genv, spec);
+    let mut diag = errors::PanicError {
+        span,
+        callee: genv.tcx().def_path_debug_str(callee),
+        reason,
+    }
+    .into_diag(dcx, rustc_errors::Level::Error);
+    for (hop_span, msg) in hops {
+        diag.span_note(hop_span, msg);
+    }
+    emit(diag)
+}
+
+/// Walks the `Transitive` blame chain in `spec`, collecting a `span_note` per hop and
+/// producing a short root-cause label for the primary error message.
+///
+/// Returns `(hops, reason)` where each hop is `(call_site_span, note_text)` and `reason`
+/// names the terminal variant, prefixed with `"Transitive -> "` if any hops were traversed
+/// (e.g. `"Transitive -> SynthesizedPanic"`, `"UnresolvedCall(\`foo\`)"`)
+fn collect_panic_chain<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
+    mut spec: PanicSpec<'tcx>,
+) -> (Vec<(rustc_span::Span, String)>, String) {
+    let mut hops = Vec::new();
+    let mut transitive = false;
+    const MAX_DEPTH: usize = 20;
+    for _ in 0..MAX_DEPTH {
+        match spec {
+            PanicSpec::WillNotPanic => break,
+            PanicSpec::MightPanic(reason) => match reason {
+                PanicReason::Transitive { callee, call_site } => {
+                    let name = genv.tcx().def_path_debug_str(callee.def_id());
+                    hops.push((call_site, format!("which calls `{name}` here")));
+                    spec = genv.inferred_no_panic_key(callee);
+                    transitive = true;
+                }
+                PanicReason::UnresolvedCall { def_id, call_site } => {
+                    let name = genv.tcx().def_path_debug_str(def_id);
+                    hops.push((call_site, format!("cannot resolve `{name}` to a concrete implementation")));
+                    return (hops, root_cause(transitive, format!("UnresolvedCall(`{name}`)")));
+                }
+                PanicReason::DynamicDispatch { call_site } => {
+                    hops.push((call_site, "calls a function pointer or closure".into()));
+                    return (hops, root_cause(transitive, "DynamicDispatch".into()));
+                }
+                PanicReason::SynthesizedPanic { call_site } => {
+                    hops.push((call_site, "arithmetic operation that may panic".into()));
+                    return (hops, root_cause(transitive, "SynthesizedPanic".into()));
+                }
+                PanicReason::NotInCallGraph => {
+                    return (hops, root_cause(transitive, "NotInCallGraph".into()));
+                }
+                PanicReason::NoMIRAvailable => {
+                    return (hops, root_cause(transitive, "NoMIRAvailable".into()));
+                }
+            },
+        }
+    }
+    (hops, "unknown".into())
+}
+
+fn root_cause(transitive: bool, cause: String) -> String {
+    if transitive { format!("Transitive -> {cause}") } else { cause }
 }
 
 mod errors {
