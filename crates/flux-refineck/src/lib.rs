@@ -340,7 +340,7 @@ fn collect_panic_chain<'tcx>(
                     return (hops, root_cause(transitive, "DynamicDispatch".into()));
                 }
                 PanicReason::SynthesizedPanic { call_site } => {
-                    hops.push((call_site, "arithmetic operation that may panic".into()));
+                    hops.push((call_site, "Rustc-synthesized panic here (likely arithmetic overflow, bounds check, div-by-zero, or assert! macro)".into()));
                     return (hops, root_cause(transitive, "SynthesizedPanic".into()));
                 }
                 PanicReason::NotInCallGraph => {
