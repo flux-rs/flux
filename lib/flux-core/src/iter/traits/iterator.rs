@@ -50,4 +50,12 @@ trait Iterator {
     fn collect<B: FromIterator<Self::Item>>(self) -> B
     where
         Self: Sized;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/iter/traits/iterator.rs#L3049
+    #[spec(fn(self: &mut Self[@s], P) -> Option<usize{n: n < <Self as Iterator>::size(s)}>
+           where P: FnMut(Self::Item) -> bool)]
+    fn position<P>(&mut self, predicate: P) -> Option<usize>
+    where
+        Self: Sized,
+        P: FnMut(Self::Item) -> bool;
 }
