@@ -34,10 +34,12 @@ pub fn provide(providers: &mut Providers) {
 ///
 /// `external_spec` resolves the spec of an `Instance` defined in another crate (a
 /// [`Node::ExternalCrate`]), looking it up in that crate's serialized metadata.
-pub fn inferred_no_panic<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> UnordMap<NodeKey<'tcx>, PanicSpec> {
+pub fn inferred_no_panic<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
+) -> UnordMap<NodeKey<'tcx>, PanicSpec<'tcx>> {
     let graph = genv.call_graph();
 
-    let mut specs: UnordMap<NodeKey<'tcx>, PanicSpec> = UnordMap::default();
+    let mut specs: UnordMap<NodeKey<'tcx>, PanicSpec<'tcx>> = UnordMap::default();
     let mut queue: VecDeque<NodeKey<'tcx>> = VecDeque::new();
 
     for (&key, node) in &graph.nodes {
@@ -53,7 +55,10 @@ pub fn inferred_no_panic<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> UnordMap<NodeKey<'t
         for &caller in callers {
             if specs[&caller] == PanicSpec::WillNotPanic {
                 let call_site = call_site_span_to(&graph, caller, key);
-                specs.insert(caller, PanicSpec::MightPanic(PanicReason::Transitive { call_site }));
+                specs.insert(
+                    caller,
+                    PanicSpec::MightPanic(PanicReason::Transitive { callee: key, call_site }),
+                );
                 queue.push_back(caller);
             }
         }
@@ -69,7 +74,7 @@ fn initial_spec<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     node: &Node<'tcx>,
     key: NodeKey<'tcx>,
-) -> PanicSpec {
+) -> PanicSpec<'tcx> {
     match node {
         Node::ExternalCrate => genv.inferred_no_panic_external(key),
         Node::Leaf(_) => PanicSpec::MightPanic(PanicReason::NoMIRAvailable),

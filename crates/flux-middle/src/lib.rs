@@ -41,6 +41,7 @@ mod sort_of;
 
 use std::sync::LazyLock;
 
+use call_graph::NodeKey;
 use flux_arc_interner::List;
 use flux_macros::fluent_messages;
 pub use flux_rustc_bridge::def_id_to_string;
@@ -70,14 +71,14 @@ use rustc_span::{
 fluent_messages! { "../locales/en-US.ftl" }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, TyEncodable, TyDecodable)]
-pub enum PanicSpec {
+pub enum PanicSpec<'tcx> {
     WillNotPanic,
-    MightPanic(PanicReason),
+    MightPanic(PanicReason<'tcx>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub enum PanicReason {
-    Transitive { call_site: Span },
+pub enum PanicReason<'tcx> {
+    Transitive { callee: NodeKey<'tcx>, call_site: Span },
     UnresolvedCall { def_id: DefId, call_site: Span },
     DynamicDispatch { call_site: Span },
     SynthesizedPanic { call_site: Span },

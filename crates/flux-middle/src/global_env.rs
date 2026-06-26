@@ -19,6 +19,7 @@ use rustc_hir::{
     def_id::{CrateNum, DefId, LocalDefId},
 };
 use rustc_middle::{
+    mir::Location,
     query::IntoQueryParam,
     ty::{TyCtxt, Variance},
 };
@@ -183,7 +184,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     /// The inferred [`PanicSpec`] for the node `key`, looked up in the local crate's
     /// `NodeKey`-keyed map. Missing entries default to `MightPanic(NotInCallGraph)`.
-    pub fn inferred_no_panic_key(self, key: NodeKey<'tcx>) -> PanicSpec {
+    pub fn inferred_no_panic_key(self, key: NodeKey<'tcx>) -> PanicSpec<'tcx> {
         self.inferred_no_panic_local()
             .get(&key)
             .copied()
@@ -191,7 +192,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// The local crate's full `NodeKey`-keyed no-panic map (used by metadata encoding).
-    pub fn inferred_no_panic_local(self) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec>> {
+    pub fn inferred_no_panic_local(self) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec<'tcx>>> {
         self.inner.queries.inferred_no_panic(self)
     }
 
@@ -200,7 +201,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// [`Mono`](NodeKey::Mono) is used when present), then for a monomorphization falls back to the
     /// source [`Item`](NodeKey::Item) (covering instantiations the external crate could never have
     /// analyzed, e.g. at a local type), then to `MightPanic`.
-    pub fn inferred_no_panic_external(self, key: NodeKey<'tcx>) -> PanicSpec {
+    pub fn inferred_no_panic_external(self, key: NodeKey<'tcx>) -> PanicSpec<'tcx> {
         let table = self.cstore().inferred_no_panic(key.def_id().krate);
         if let Some(&spec) = table.get(&key) {
             return spec;
@@ -211,6 +212,21 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             return spec;
         }
         PanicSpec::MightPanic(PanicReason::NotInCallGraph)
+    }
+
+    /// The inferred [`PanicSpec`] for the call site at `location` in `caller`'s body.
+    /// Falls back to `MightPanic(NotInCallGraph)` when either argument is `None` or the
+    /// call site did not resolve to a concrete callee in the call graph.
+    pub fn inferred_no_panic_at(
+        self,
+        caller: Option<DefId>,
+        location: Option<Location>,
+    ) -> PanicSpec<'tcx> {
+        caller
+            .zip(location)
+            .and_then(|(caller, loc)| self.call_graph().resolved_callee(caller, loc))
+            .map(|key| self.inferred_no_panic_key(key))
+            .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
     }
 
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {

@@ -268,12 +268,13 @@ fn report_errors(
             ConstrReason::Other => {
                 emit(errors::UnknownError { span }.into_diag(dcx, rustc_errors::Level::Error))
             }
-            ConstrReason::NoPanic(callee, reason) => {
+            ConstrReason::NoPanic { callee, caller, location } => {
+                let spec = genv.inferred_no_panic_at(caller, location);
                 emit(
                     errors::PanicError {
                         span,
                         callee: genv.tcx().def_path_debug_str(callee),
-                        reason: format!("{:?}", reason),
+                        reason: format!("{spec:?}"),
                     }
                     .into_diag(dcx, rustc_errors::Level::Error),
                 )

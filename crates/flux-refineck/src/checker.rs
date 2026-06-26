@@ -988,7 +988,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     self.fn_sig.no_panic(),
                     Expr::or(callee_no_panic, inferred_panic_expr),
                 ),
-                ConstrReason::NoPanic(callee_def_id, callee_inferred_spec),
+                ConstrReason::NoPanic { callee: callee_def_id, caller: body_def_id, location },
             );
         }
 

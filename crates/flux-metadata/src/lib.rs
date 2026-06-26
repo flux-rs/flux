@@ -181,7 +181,7 @@ pub struct Tables<'tcx, K: Eq + Hash> {
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
     no_panic: UnordMap<K, bool>,
     assume_parametric_params: UnordMap<K, UnordSet<u32>>,
-    no_panic_specs: UnordMap<NodeKey<'tcx>, PanicSpec>,
+    no_panic_specs: UnordMap<NodeKey<'tcx>, PanicSpec<'tcx>>,
 }
 
 impl<'tcx> CStore<'tcx> {
@@ -330,7 +330,7 @@ impl<'tcx> CrateStore<'tcx> for CStore<'tcx> {
         self.local_tables[&krate].normalized_defns.clone()
     }
 
-    fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec>> {
+    fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec<'tcx>>> {
         // TODO: Some transitive deps (e.g. `hashbrown`) have no flux metadata. Return
         // an empty map (conservative: MightPanic) until the proper fix is in place.
         // See notes/hashbrown-inferred-no-panic.txt.
