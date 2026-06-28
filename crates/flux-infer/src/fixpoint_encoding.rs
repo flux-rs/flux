@@ -1,6 +1,6 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::{collections::HashMap, hash::Hash, iter, ops::Range};
+use std::{collections::HashMap, hash::Hash, iter, ops::{ControlFlow, Range}};
 
 use fixpoint::{AdtId, OpaqueId};
 use flux_common::{
@@ -26,7 +26,7 @@ use flux_middle::{
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List,
         NameProvenance, PrettyMap, PrettyVar, QuantDom, SpecFuncKind, VariantIdx,
-        fold::TypeFoldable as _,
+        fold::{TypeFoldable as _, TypeVisitable as _, TypeVisitor},
     },
 };
 use itertools::Itertools;
@@ -947,6 +947,24 @@ where
         r
     }
 
+    fn has_kvar(expr: &rty::Expr) -> bool {
+        struct HasKVar;
+
+        impl TypeVisitor for HasKVar {
+            type BreakTy = ();
+
+            fn visit_expr(&mut self, expr: &rty::Expr) -> ControlFlow<Self::BreakTy> {
+                if matches!(expr.kind(), rty::ExprKind::KVar(_)) {
+                    ControlFlow::Break(())
+                } else {
+                    expr.super_visit_with(self)
+                }
+            }
+        }
+
+        expr.visit_with(&mut HasKVar).is_break()
+    }
+
     pub(crate) fn sort_to_fixpoint(&mut self, sort: &rty::Sort) -> fixpoint::Sort {
         self.scx.sort_to_fixpoint(sort)
     }
@@ -1005,6 +1023,18 @@ where
                     .collect_vec();
 
                 Ok(fixpoint::Constraint::foralls(bindings, cstr))
+            }
+            rty::ExprKind::BinaryOp(rty::BinOp::Eq | rty::BinOp::Iff, e1, e2)
+                if Self::has_kvar(e1) || Self::has_kvar(e2) =>
+            {
+                let lhs = rty::Expr::binary_op(rty::BinOp::Imp, e1.clone(), e2.clone())
+                    .at_opt(expr.span());
+                let rhs = rty::Expr::binary_op(rty::BinOp::Imp, e2.clone(), e1.clone())
+                    .at_opt(expr.span());
+                Ok(fixpoint::Constraint::conj([
+                    self.head_to_fixpoint(&lhs, mk_tag)?,
+                    self.head_to_fixpoint(&rhs, mk_tag)?,
+                ]))
             }
             _ => {
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
