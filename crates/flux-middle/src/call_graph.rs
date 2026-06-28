@@ -14,6 +14,7 @@ use rustc_middle::{
     mir::Location,
     ty::{GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt},
 };
+use rustc_span::Span;
 
 /// Identity of a call-graph node. Distinguishes an item *as defined in source* from a
 /// *monomorphization* synthesized while building the graph.
@@ -82,6 +83,7 @@ impl<'tcx> NodeKey<'tcx> {
 #[derive(Debug, Clone)]
 pub struct CallSite<'tcx> {
     pub location: Location,
+    pub span: Span,
     pub kind: CallSiteKind<'tcx>,
 }
 
@@ -116,7 +118,7 @@ pub enum Node<'tcx> {
 
 impl<'tcx> Node<'tcx> {
     /// Call sites observed in this node's body. Empty for non-`Analyzed` nodes.
-    fn call_sites(&self) -> &[CallSite<'tcx>] {
+    pub fn call_sites(&self) -> &[CallSite<'tcx>] {
         match self {
             Node::Analyzed { call_sites } => call_sites,
             Node::ExternalCrate | Node::Leaf(_) => &[],

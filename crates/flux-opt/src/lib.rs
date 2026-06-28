@@ -3,6 +3,7 @@
 extern crate rustc_data_structures;
 extern crate rustc_hir;
 extern crate rustc_middle;
+extern crate rustc_span;
 
 mod call_graph;
 
@@ -10,11 +11,12 @@ use std::collections::VecDeque;
 
 use flux_middle::{
     PanicReason, PanicSpec,
-    call_graph::{CallSiteKind, Node, NodeKey},
+    call_graph::{CallGraph, CallSite, CallSiteKind, Node, NodeKey},
     global_env::GlobalEnv,
     queries::Providers,
 };
 use rustc_data_structures::unord::UnordMap;
+use rustc_span::Span;
 
 pub fn provide(providers: &mut Providers) {
     providers.call_graph = call_graph::build_call_graph;
@@ -32,10 +34,12 @@ pub fn provide(providers: &mut Providers) {
 ///
 /// `external_spec` resolves the spec of an `Instance` defined in another crate (a
 /// [`Node::ExternalCrate`]), looking it up in that crate's serialized metadata.
-pub fn inferred_no_panic<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> UnordMap<NodeKey<'tcx>, PanicSpec> {
+pub fn inferred_no_panic<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
+) -> UnordMap<NodeKey<'tcx>, PanicSpec<'tcx>> {
     let graph = genv.call_graph();
 
-    let mut specs: UnordMap<NodeKey<'tcx>, PanicSpec> = UnordMap::default();
+    let mut specs: UnordMap<NodeKey<'tcx>, PanicSpec<'tcx>> = UnordMap::default();
     let mut queue: VecDeque<NodeKey<'tcx>> = VecDeque::new();
 
     for (&key, node) in &graph.nodes {
@@ -50,7 +54,11 @@ pub fn inferred_no_panic<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> UnordMap<NodeKey<'t
         let Some(callers) = graph.callers.get(&key) else { continue };
         for &caller in callers {
             if specs[&caller] == PanicSpec::WillNotPanic {
-                specs.insert(caller, PanicSpec::MightPanic(PanicReason::Transitive));
+                let call_site = call_site_span_to(&graph, caller, key);
+                specs.insert(
+                    caller,
+                    PanicSpec::MightPanic(PanicReason::Transitive { callee: key, call_site }),
+                );
                 queue.push_back(caller);
             }
         }
@@ -66,16 +74,22 @@ fn initial_spec<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     node: &Node<'tcx>,
     key: NodeKey<'tcx>,
-) -> PanicSpec {
+) -> PanicSpec<'tcx> {
     match node {
         Node::ExternalCrate => genv.inferred_no_panic_external(key),
         Node::Leaf(_) => PanicSpec::MightPanic(PanicReason::NoMIRAvailable),
         Node::Analyzed { call_sites } => {
             for site in call_sites {
                 let reason = match site.kind {
-                    CallSiteKind::SynthesizedPanic => PanicReason::SynthesizedPanic,
-                    CallSiteKind::DynamicDispatch => PanicReason::DynamicDispatch,
-                    CallSiteKind::Unresolved { def_id } => PanicReason::UnresolvedCall(def_id),
+                    CallSiteKind::SynthesizedPanic => {
+                        PanicReason::SynthesizedPanic { call_site: site.span }
+                    }
+                    CallSiteKind::DynamicDispatch => {
+                        PanicReason::DynamicDispatch { call_site: site.span }
+                    }
+                    CallSiteKind::Unresolved { def_id } => {
+                        PanicReason::UnresolvedCall { def_id, call_site: site.span }
+                    }
                     CallSiteKind::Resolved { .. } => continue,
                 };
                 return PanicSpec::MightPanic(reason);
@@ -83,4 +97,25 @@ fn initial_spec<'tcx>(
             PanicSpec::WillNotPanic
         }
     }
+}
+
+/// Returns the span of the first call site in `caller`'s body that resolves to `callee`.
+///
+/// By graph construction, if `caller` appears in `graph.callers[callee]`, a matching resolved
+/// site must exist. Falls back to `DUMMY_SP` only if the graph is somehow inconsistent.
+fn call_site_span_to<'tcx>(
+    graph: &CallGraph<'tcx>,
+    caller: NodeKey<'tcx>,
+    callee: NodeKey<'tcx>,
+) -> Span {
+    graph
+        .nodes
+        .get(&caller)
+        .and_then(|n| {
+            n.call_sites().iter().find_map(|s: &CallSite<'tcx>| {
+                matches!(s.kind, CallSiteKind::Resolved { callee: c } if c == callee)
+                    .then_some(s.span)
+            })
+        })
+        .unwrap_or(rustc_span::DUMMY_SP)
 }
