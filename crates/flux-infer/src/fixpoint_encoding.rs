@@ -26,7 +26,7 @@ use flux_middle::{
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List,
         NameProvenance, PrettyMap, PrettyVar, QuantDom, SpecFuncKind, VariantIdx,
-        fold::{TypeFoldable as _, TypeVisitable as _, TypeVisitor},
+        fold::{TypeFoldable as _, TypeSuperVisitable as _, TypeVisitable as _, TypeVisitor},
     },
 };
 use itertools::Itertools;
@@ -1031,7 +1031,7 @@ where
                     .at_opt(expr.span());
                 let rhs = rty::Expr::binary_op(rty::BinOp::Imp, e2.clone(), e1.clone())
                     .at_opt(expr.span());
-                Ok(fixpoint::Constraint::conj([
+                Ok(fixpoint::Constraint::conj(vec![
                     self.head_to_fixpoint(&lhs, mk_tag)?,
                     self.head_to_fixpoint(&rhs, mk_tag)?,
                 ]))
