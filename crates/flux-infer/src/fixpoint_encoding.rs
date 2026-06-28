@@ -1,6 +1,11 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::{collections::HashMap, hash::Hash, iter, ops::{ControlFlow, Range}};
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    iter,
+    ops::{ControlFlow, Range},
+};
 
 use fixpoint::{AdtId, OpaqueId};
 use flux_common::{
