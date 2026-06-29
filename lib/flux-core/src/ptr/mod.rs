@@ -1,83 +1,170 @@
 #![flux::defs {
-    // The provenance of the pointer is used to determine which allocation it
-    // is derived from; a pointer is dereferenceable if the memory range of
-    // the given size starting at the pointer is entirely contained within the
-    // bounds of that allocation.
-    // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L21-L25
+    // The memory range [addr, addr + num_bytes) is entirely contained within
+    // the pointer's allocation. In our model this is: addr >= base (not before
+    // the start) and num_bytes <= size (num_bytes remaining bytes fit before
+    // the end). The `size >= 0` guard rules out pointers already past the end.
+    // See: https://doc.rust-lang.org/std/ptr/index.html#safety
     fn dereferenceable(p: ptr, num_bytes: int) -> bool {
         p.addr >= p.base && num_bytes <= p.size && p.size >= 0
     }
 
-    // Guarantees (in order of precedence):
-    // - A null pointer is never valid
-    // - For memory accesses of size zero, every non-null pointer is valid for reads/writes.
-    // - Memory accesses of size zero are always valid
-    // - A valid pointer is dereferenceable
-    // See: https://doc.rust-lang.org/std/ptr/index.html#safety
+    // Non-null and dereferenceable for `num_bytes` bytes. This is the strict
+    // validity predicate with no ZST exception: null is never valid, even for
+    // zero-sized accesses. Used as a building block for `valid` below.
     fn valid_no_zst(p: ptr, num_bytes: int) -> bool {
         p.addr != 0 && dereferenceable(p, num_bytes)
     }
 
-    // The above is only partially true: for operations that don't convert
-    // pointers into references (such as read and write), zero-sized
-    // reads/writes of null pointers are valid
-    // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L41-L46
+    // Validity for raw-pointer operations (ptr::read, ptr::write, etc.).
+    // The Rust docs note that read and write allow null pointers when the
+    // total access size is zero (i.e., T is a ZST); for all other accesses
+    // the pointer must be non-null and dereferenceable.
+    // See: https://doc.rust-lang.org/std/ptr/index.html#safety
     fn valid(p: ptr, num_bytes: int) -> bool {
         num_bytes == 0 || valid_no_zst(p, num_bytes)
     }
 
-    // Valid raw pointers as defined above are not necessarily properly aligned
-    // (where “proper” alignment is defined by the pointee type, i.e.,
-    // `*const T` must be aligned to `align_of::<T>()`). However, most
-    // functions require their arguments to be properly aligned,
-    // and will explicitly state this requirement in their documentation.
-    // Notable exceptions to this are `read_unaligned` and `write_unaligned`.
-    // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L54-L59
+    // The pointer's address is a multiple of `alignment`. Most read/write
+    // functions require proper alignment (align_of::<T>()); the notable
+    // exceptions are read_unaligned and write_unaligned.
+    // See: https://doc.rust-lang.org/std/ptr/index.html#alignment
     fn aligned_to(p: ptr, alignment: int) -> bool { p.addr % alignment == 0 }
 
-    // Two byte ranges of equal length starting at p and q do not overlap.
+    // The byte ranges [p.addr, p.addr + num_bytes) and [q.addr, q.addr + num_bytes)
+    // do not overlap.
     fn nonoverlapping(p: ptr, q: ptr, num_bytes: int) -> bool {
         p.addr + num_bytes <= q.addr || q.addr + num_bytes <= p.addr
     }
-}]
 
+    // The pointer itself lies within its allocation: addr >= base and size >= 0.
+    // One-past-the-end pointers (size == 0) satisfy this — they are valid
+    // starting points for pointer arithmetic but cannot be dereferenced.
+    // Required as a precondition for all pointer arithmetic methods.
+    fn in_bounds(p: ptr) -> bool { dereferenceable(p, 0) }
+}]
+/// These specs on `core::ptr` allow flux to enforce 2 safety properties:
+/// 1. Spatial safety: A pointer may only be read or written if pointer is derived from
+/// a valid allocation and the entire access would fall within the bounds of that allocation.
+/// 2. Per-method UB contract safety: Some methods in `core::ptr` have additional safety
+/// requirements beyond spatial safety, such as alignment or non-overlapping.
+/// These specs allow flux to enforce those requirements as well.
+///
+/// These specs do NOT prove temporal safety.
+/// To prove temporal safety, Flux would need to tie the lifetimes of allocations to the pointers derived from them,
+/// which is currently out of scope.
 use flux_attrs::*;
 
 macro_rules! ptr_specs {
-    ($mutable:tt) => {
+    ($mutable:tt $(, $($extra:tt)*)?) => {
         #[extern_spec(core::ptr)]
         impl<T> *$mutable T {
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
-                    requires count * T::size_of() <= p.size)]
+                    requires in_bounds(p) && count * T::size_of() <= p.size)]
             unsafe fn add(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr - count * T::size_of(), p.size + count * T::size_of()] T
-                    requires count * T::size_of() <= p.addr - p.base)]
+                    requires in_bounds(p) && count * T::size_of() <= p.addr - p.base)]
             unsafe fn sub(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr + count, p.size - count] T
-                    requires count <= p.size)]
+                    requires in_bounds(p) && count <= p.size)]
             unsafe fn byte_add(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr - count, p.size + count] T
-                    requires count <= p.addr - p.base)]
+                    requires in_bounds(p) && count <= p.addr - p.base)]
             unsafe fn byte_sub(self, count: usize) -> Self;
 
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L22
             #[no_panic]
             #[spec(fn (me: *$mutable[@p] T) -> bool[p.addr == 0])]
             fn is_null(self) -> bool;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L349
+            #[spec(fn (me: *$mutable[@p] T, count: isize)
+                -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
+                    requires in_bounds(p) && count * T::size_of() <= p.size && p.addr + count * T::size_of() >= p.base)]
+            unsafe fn offset(self, count: isize) -> Self;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L471
+            #[spec(fn (me: *$mutable[@p] T, count: isize)
+                -> *$mutable[p.base, p.addr + count, p.size - count] T
+                    requires in_bounds(p) && count <= p.size && p.addr + count >= p.base)]
+            unsafe fn byte_offset(self, count: isize) -> Self;
+
+            // - Both `self` and `origin` must be derived from a pointer to the same allocation,
+            //   and the memory range between them must be in bounds of that allocation.
+            //   (`p.base == op.base` captures same-allocation provenance; `addr >= base` for
+            //   each captures the in-bounds requirement from below.)
+            // - The distance between the pointers in bytes must be an exact multiple of
+            //   `size_of::<T>()`, so that it corresponds to a whole number of elements.
+            // - `T` must not be a ZST; the function panics via `assert!(0 < size_of::<T>())`.
+            // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L614-L628
+            #[spec(fn (me: *$mutable[@p] T, origin: *const[@op] T) -> isize[(p.addr - op.addr) / T::size_of()]
+                requires p.base == op.base &&
+                         in_bounds(p) && in_bounds(op) &&
+                         (p.addr - op.addr) % T::size_of() == 0 &&
+                         T::size_of() > 0)]
+            unsafe fn offset_from(self, origin: *const T) -> isize
+            where T: Sized;
+
+            // - All safety conditions of `offset_from` apply.
+            // - Additionally, `self` must be greater than or equal to `origin`.
+            // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L770
+            #[spec(fn (me: *$mutable[@p] T, origin: *const[@op] T) -> usize[(p.addr - op.addr) / T::size_of()]
+                requires p.base == op.base &&
+                         in_bounds(p) && in_bounds(op) &&
+                         p.addr >= op.addr &&
+                         (p.addr - op.addr) % T::size_of() == 0 &&
+                         T::size_of() > 0)]
+            unsafe fn offset_from_unsigned(self, origin: *const T) -> usize
+            where T: Sized;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/const_ptr.rs#L1166
+            #[spec(fn (me: *$mutable[@p] T) -> T
+                requires valid(p, T::size_of()) && aligned_to(p, T::align_of()))]
+            unsafe fn read(self) -> T
+            where T: Sized;
+
+            $($($extra)*)?
         }
     };
 }
 
 ptr_specs!(const);
 
-ptr_specs!(mut);
+// Rustfmt likes inserting a comma in here that breaks compilation, so we disable it for this macro invocation
+#[rustfmt::skip]
+ptr_specs!(
+    mut,
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/mut_ptr.rs#L1413
+    #[spec(fn (me: *mut[@p] T, val: T)
+        requires valid(p, T::size_of()) && aligned_to(p, T::align_of()))]
+    unsafe fn write(self, val: T)
+    where
+        T: Sized;
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/mut_ptr.rs#L1490
+    #[spec(fn (me: *mut[@p] T, src: T) -> T
+        requires valid(p, T::size_of()) && aligned_to(p, T::align_of()))]
+    unsafe fn replace(self, src: T) -> T
+    where
+        T: Sized;
+);
+
+#[extern_spec(core::ptr)]
+// See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L828
+#[no_panic]
+#[spec(fn() -> *const[0, 0, 0] T)]
+fn null<T>() -> *const T;
+
+#[extern_spec(core::ptr)]
+// See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L853
+#[no_panic]
+#[spec(fn() -> *mut[0, 0, 0] T)]
+fn null_mut<T>() -> *mut T;
 
 #[extern_spec(core::ptr)]
 // - `src` must be valid for reads or `T` must be a ZST.

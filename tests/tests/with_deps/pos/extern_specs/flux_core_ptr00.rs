@@ -39,3 +39,20 @@ fn write_ix<T>(ptr: *mut T, value: T) {
         std::ptr::write(ptr, value);
     }
 }
+
+// --- method forms ---
+
+#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}) -> i32)]
+fn read_method(ptr: *const i32) -> i32 {
+    unsafe { ptr.read() }
+}
+
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}, value: i32))]
+fn write_method(ptr: *mut i32, value: i32) {
+    unsafe { ptr.write(value) }
+}
+
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}, value: i32) -> i32)]
+fn replace_method(ptr: *mut i32, value: i32) -> i32 {
+    unsafe { ptr.replace(value) }
+}
