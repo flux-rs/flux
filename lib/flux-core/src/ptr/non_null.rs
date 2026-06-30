@@ -55,6 +55,29 @@ impl<T> NonNull<T> {
             requires addr >= base && size >= 0 && count <= size && addr + count >= base)]
     unsafe fn byte_offset(self, count: isize) -> Self;
 
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L858
+    #[spec(fn(NonNull<T>[@sbase, @saddr, @ssize], origin: NonNull<T>[@obase, @oaddr, @osize]) -> isize[(saddr - oaddr) / T::size_of()]
+        requires sbase == obase &&
+                 saddr >= sbase && ssize >= 0 &&
+                 oaddr >= obase && osize >= 0 &&
+                 (saddr - oaddr) % T::size_of() == 0 &&
+                 T::size_of() > 0)]
+    unsafe fn offset_from(self, origin: NonNull<T>) -> isize
+    where
+        T: Sized;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L949
+    #[spec(fn(NonNull<T>[@sbase, @saddr, @ssize], subtracted: NonNull<T>[@obase, @oaddr, @osize]) -> usize[(saddr - oaddr) / T::size_of()]
+        requires sbase == obase &&
+                 saddr >= sbase && ssize >= 0 &&
+                 oaddr >= obase && osize >= 0 &&
+                 saddr >= oaddr &&
+                 (saddr - oaddr) % T::size_of() == 0 &&
+                 T::size_of() > 0)]
+    unsafe fn offset_from_unsigned(self, subtracted: NonNull<T>) -> usize
+    where
+        T: Sized;
+
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L986
     #[spec(fn(NonNull<T>[@base, @addr, @size]) -> T
         requires (T::size_of() == 0 || (addr >= base && T::size_of() <= size && size >= 0))
@@ -74,6 +97,11 @@ impl<T> NonNull<T> {
 
 #[extern_spec(core::ptr)]
 impl<T> NonNull<[T]> {
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1420
+    #[no_panic]
+    #[spec(fn(data: NonNull<T>[@base, @addr, @size], len: usize) -> NonNull<[T]>[base, addr, len * T::size_of()])]
+    fn slice_from_raw_parts(data: NonNull<T>, len: usize) -> Self;
+
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1444
     #[no_panic]
     #[spec(fn(NonNull<[T]>[@base, @addr, @size]) -> usize[size / T::size_of()]
