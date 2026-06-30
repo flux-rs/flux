@@ -11,11 +11,20 @@ pub fn test_new_unchecked(ptr: *mut i32) {
     assert!(!raw.is_null());
 }
 
-// new: None branch — null pointer yields None
+// new: None branch — null pointer statically known to yield None
 pub fn test_new_null() {
+    use flux_rs::assert;
     let ptr: *mut i32 = std::ptr::null_mut();
     let nn = NonNull::new(ptr);
-    assert!(nn.is_none());
+    assert(!nn.is_some());
+}
+
+// new: Some branch — non-null pointer statically known to yield Some
+#[flux::spec(fn (ptr: *mut[@p] i32) requires p.addr != 0)]
+pub fn test_new_nonnull(ptr: *mut i32) {
+    use flux_rs::assert;
+    let nn = NonNull::new(ptr);
+    assert(nn.is_some());
 }
 
 // new + as_ptr round-trip: recovering the pointer preserves identity
