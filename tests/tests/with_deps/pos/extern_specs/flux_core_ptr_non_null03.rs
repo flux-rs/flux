@@ -31,16 +31,3 @@ pub fn test_write_generic<T>(nn: NonNull<T>, val: T) {
     unsafe { nn.write(val) }
 }
 
-// --- len ---
-
-#[flux::spec(fn (nn: NonNull<[i32]>[@base, @addr, @size]) requires size == 16)]
-pub fn test_len_concrete(nn: NonNull<[i32]>) {
-    use flux_rs::assert;
-    assert(nn.len() == 4);
-}
-
-#[flux::spec(fn (nn: NonNull<[i32]>[@base, @addr, @size]) requires size == 8)]
-pub fn test_len_exact(nn: NonNull<[i32]>) {
-    use flux_rs::assert;
-    assert(nn.len() == 2);
-}

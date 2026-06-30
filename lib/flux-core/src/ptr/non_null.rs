@@ -123,13 +123,9 @@ impl<T> NonNull<T> {
 #[extern_spec(core::ptr)]
 impl<T> NonNull<[T]> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1420
+    /// Safety: https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html#safety
     #[no_panic]
-    #[spec(fn(data: NonNull<T>[@base, @addr, @size], len: usize) -> NonNull<[T]>[base, addr, len * T::size_of()])]
+    #[spec(fn(data: NonNull<T>[@base, @addr, @size], len: usize) -> NonNull<[T]>[base, addr, size]
+        requires nn_valid(base, addr, size, len * T::size_of()) && nn_aligned_to(addr, T::align_of()))]
     fn slice_from_raw_parts(data: NonNull<T>, len: usize) -> Self;
-
-    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1444
-    #[no_panic]
-    #[spec(fn(NonNull<[T]>[@base, @addr, @size]) -> usize[size / T::size_of()]
-        requires T::size_of() > 0)]
-    fn len(self) -> usize;
 }

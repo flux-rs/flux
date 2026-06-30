@@ -46,10 +46,8 @@ pub fn test_offset_from_unsigned_reversed(p: NonNull<i32>, q: NonNull<i32>) {
 
 // --- slice_from_raw_parts ---
 
-// asserts len == 4 but slice was created with len == 2
-pub fn test_slice_from_raw_parts_wrong_len(buf: &mut [i32; 4]) {
-    use flux_rs::assert;
+// 5 elements × 4 bytes = 20 bytes exceeds the 16-byte buffer; requires fails
+pub fn test_slice_from_raw_parts_oob(buf: &mut [i32; 4]) {
     let nn = unsafe { NonNull::new_unchecked(buf.as_mut_ptr()) };
-    let slice_nn = NonNull::slice_from_raw_parts(nn, 2);
-    assert(slice_nn.len() == 4); //~ ERROR refinement type error
+    let _slice_nn = NonNull::slice_from_raw_parts(nn, 5); //~ ERROR refinement type error
 }

@@ -71,16 +71,14 @@ pub fn test_offset_from_unsigned_roundtrip(buf: &mut [i32; 4]) {
 
 // --- slice_from_raw_parts ---
 
-// len() recovers the count passed to slice_from_raw_parts
-pub fn test_slice_from_raw_parts_len(buf: &mut [i32; 4]) {
+// all 4 elements: requires satisfied (4 * 4 == 16 bytes fits in buf)
+pub fn test_slice_from_raw_parts(buf: &mut [i32; 4]) {
     let nn = unsafe { NonNull::new_unchecked(buf.as_mut_ptr()) };
-    let slice_nn = NonNull::slice_from_raw_parts(nn, 4);
-    assert(slice_nn.len() == 4);
+    let _slice_nn = NonNull::slice_from_raw_parts(nn, 4);
 }
 
-// partial slice: only the first 2 elements
+// partial slice: 2 elements (8 bytes) fits in the 16-byte buffer
 pub fn test_slice_from_raw_parts_partial(buf: &mut [i32; 4]) {
     let nn = unsafe { NonNull::new_unchecked(buf.as_mut_ptr()) };
-    let slice_nn = NonNull::slice_from_raw_parts(nn, 2);
-    assert(slice_nn.len() == 2);
+    let _slice_nn = NonNull::slice_from_raw_parts(nn, 2);
 }
