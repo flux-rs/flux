@@ -55,6 +55,7 @@ pub fn test_offset_forward_too_far(nn: NonNull<i32>) {
 pub fn test_offset_backward_past_base(nn: NonNull<i32>) {
     unsafe {
         let _ = nn.offset(-1); //~ ERROR refinement type error
+                               //~| ERROR refinement type error
     }
 }
 
@@ -65,6 +66,7 @@ pub fn test_sub_oob(buf: &mut [i32; 2]) {
     let nn = unsafe { NonNull::new_unchecked(buf.as_mut_ptr()) };
     unsafe {
         std::ptr::write(nn.sub(1).as_ptr(), 10); //~ ERROR refinement type error
+                                                  //~| ERROR refinement type error
                                                   //~| ERROR refinement type error
     }
 }

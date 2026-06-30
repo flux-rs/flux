@@ -11,9 +11,9 @@
         addr >= base && num_bytes <= size && size >= 0
     }
 
-    // Validity for read/write. Allows null only for ZST accesses (num_bytes == 0);
-    // for NonNull the addr != 0 invariant is already guaranteed by the type, so
-    // this reduces to the dereferenceable check.
+    // Validity for read/write. Like ptr::valid, but drops the `addr != 0` guard —
+    // NonNull's invariant covers that. The num_bytes == 0 ZST shortcut is retained:
+    // a zero-byte access is valid even when the pointer is outside the allocation.
     fn nn_valid(base: int, addr: int, size: int, num_bytes: int) -> bool {
         num_bytes == 0 || nn_dereferenceable(base, addr, size, num_bytes)
     }
@@ -55,13 +55,13 @@ impl<T> NonNull<T> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L729
     #[spec(fn(NonNull<T>[@base, @addr, @size], count: usize)
         -> NonNull<T>[base, addr - count * T::size_of(), size + count * T::size_of()]
-            requires nn_in_bounds(base, addr, size) && count * T::size_of() <= addr - base)]
+            requires nn_in_bounds(base, addr, size) && count * T::size_of() <= addr - base && addr - count * T::size_of() != 0)]
     unsafe fn sub(self, count: usize) -> Self;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L576
     #[spec(fn(NonNull<T>[@base, @addr, @size], count: isize)
         -> NonNull<T>[base, addr + count * T::size_of(), size - count * T::size_of()]
-            requires nn_in_bounds(base, addr, size) && count * T::size_of() <= size && addr + count * T::size_of() >= base)]
+            requires nn_in_bounds(base, addr, size) && count * T::size_of() <= size && addr + count * T::size_of() >= base && addr + count * T::size_of() != 0)]
     unsafe fn offset(self, count: isize) -> Self;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L678
@@ -73,13 +73,13 @@ impl<T> NonNull<T> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L760
     #[spec(fn(NonNull<T>[@base, @addr, @size], count: usize)
         -> NonNull<T>[base, addr - count, size + count]
-            requires nn_in_bounds(base, addr, size) && count <= addr - base)]
+            requires nn_in_bounds(base, addr, size) && count <= addr - base && addr - count != 0)]
     unsafe fn byte_sub(self, count: usize) -> Self;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L602
     #[spec(fn(NonNull<T>[@base, @addr, @size], count: isize)
         -> NonNull<T>[base, addr + count, size - count]
-            requires nn_in_bounds(base, addr, size) && count <= size && addr + count >= base)]
+            requires nn_in_bounds(base, addr, size) && count <= size && addr + count >= base && addr + count != 0)]
     unsafe fn byte_offset(self, count: isize) -> Self;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L858

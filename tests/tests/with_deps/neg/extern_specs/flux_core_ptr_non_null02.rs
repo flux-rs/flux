@@ -2,6 +2,17 @@ extern crate flux_core;
 
 use std::ptr::NonNull;
 
+// --- sub ---
+
+// base == 0, addr == 1 * size_of::<i32>() == 4: all requires of sub(1) are satisfied,
+// but the result address is 0, violating the NonNull invariant addr != 0
+#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires base == 0 && addr == 4 && size >= 0)]
+pub fn test_sub_null_result(nn: NonNull<i32>) {
+    unsafe {
+        let _ = nn.sub(1); //~ ERROR refinement type error
+    }
+}
+
 // --- byte_add ---
 
 // byte_add(8) exhausts the 8-byte buffer, leaving size == 0
@@ -20,6 +31,7 @@ pub fn test_byte_sub_oob(buf: &mut [i32; 2]) {
     unsafe {
         let nn1 = nn.byte_add(4);
         std::ptr::write(nn1.byte_sub(8).as_ptr(), 10); //~ ERROR refinement type error
+                                                        //~| ERROR refinement type error
                                                         //~| ERROR refinement type error
     }
 }
