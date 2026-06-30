@@ -52,6 +52,8 @@
 /// These specs do NOT prove temporal safety.
 /// To prove temporal safety, Flux would need to tie the lifetimes of allocations to the pointers derived from them,
 /// which is currently out of scope.
+mod non_null;
+
 use flux_attrs::*;
 
 macro_rules! ptr_specs {
