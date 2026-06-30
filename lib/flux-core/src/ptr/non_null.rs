@@ -54,4 +54,29 @@ impl<T> NonNull<T> {
         -> NonNull<T>[base, addr + count, size - count]
             requires addr >= base && size >= 0 && count <= size && addr + count >= base)]
     unsafe fn byte_offset(self, count: isize) -> Self;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L986
+    #[spec(fn(NonNull<T>[@base, @addr, @size]) -> T
+        requires (T::size_of() == 0 || (addr >= base && T::size_of() <= size && size >= 0))
+                 && addr % T::align_of() == 0)]
+    unsafe fn read(self) -> T
+    where
+        T: Sized;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1141
+    #[spec(fn(NonNull<T>[@base, @addr, @size], val: T)
+        requires (T::size_of() == 0 || (addr >= base && T::size_of() <= size && size >= 0))
+                 && addr % T::align_of() == 0)]
+    unsafe fn write(self, val: T)
+    where
+        T: Sized;
+}
+
+#[extern_spec(core::ptr)]
+impl<T> NonNull<[T]> {
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1444
+    #[no_panic]
+    #[spec(fn(NonNull<[T]>[@base, @addr, @size]) -> usize[size / T::size_of()]
+        requires T::size_of() > 0)]
+    fn len(self) -> usize;
 }
