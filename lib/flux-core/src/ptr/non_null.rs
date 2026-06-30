@@ -36,4 +36,22 @@ impl<T> NonNull<T> {
         -> NonNull<T>[base, addr + count * T::size_of(), size - count * T::size_of()]
             requires addr >= base && size >= 0 && count * T::size_of() <= size && addr + count * T::size_of() >= base)]
     unsafe fn offset(self, count: isize) -> Self;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L678
+    #[spec(fn(NonNull<T>[@base, @addr, @size], count: usize)
+        -> NonNull<T>[base, addr + count, size - count]
+            requires addr >= base && size >= 0 && count <= size)]
+    unsafe fn byte_add(self, count: usize) -> Self;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L760
+    #[spec(fn(NonNull<T>[@base, @addr, @size], count: usize)
+        -> NonNull<T>[base, addr - count, size + count]
+            requires addr >= base && size >= 0 && count <= addr - base)]
+    unsafe fn byte_sub(self, count: usize) -> Self;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L602
+    #[spec(fn(NonNull<T>[@base, @addr, @size], count: isize)
+        -> NonNull<T>[base, addr + count, size - count]
+            requires addr >= base && size >= 0 && count <= size && addr + count >= base)]
+    unsafe fn byte_offset(self, count: isize) -> Self;
 }
