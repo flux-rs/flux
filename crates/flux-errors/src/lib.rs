@@ -11,7 +11,7 @@ use flux_common::result::{ErrorCollector, ErrorEmitter};
 use rustc_data_structures::sync;
 pub use rustc_errors::ErrorGuaranteed;
 use rustc_errors::{
-    Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle, TerminalUrl,
+    Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle, Level, TerminalUrl,
     annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
     emitter::{Emitter, HumanEmitter, HumanReadableErrorType, OutputTheme, stderr_destination},
     json::JsonEmitter,
@@ -22,6 +22,7 @@ use rustc_span::source_map::SourceMap;
 
 pub struct FluxSession {
     pub parse_sess: ParseSess,
+    next_err_notes: Cell<Vec<String>>,
 }
 
 // FIXME(nilehmann) We probably need to move out of this error reporting
@@ -35,7 +36,22 @@ impl FluxSession {
     ) -> Self {
         let emitter = emitter(opts, source_map.clone(), fallback_bundle);
         let dcx = rustc_errors::DiagCtxt::new(emitter);
-        Self { parse_sess: ParseSess::with_dcx(dcx, source_map) }
+        Self {
+            parse_sess: ParseSess::with_dcx(dcx, source_map),
+            next_err_notes: Cell::new(Vec::new()),
+        }
+    }
+
+    /// Run `f` with `notes` staged for the next error emitted through this session, restoring the
+    /// previous staged notes afterwards. The notes are attached once, to the first error emitted in
+    /// the scope, by [`Self::emit_err`].
+    pub fn with_next_err_notes<R>(
+        &self,
+        notes: impl IntoIterator<Item = String>,
+        f: impl FnOnce() -> R,
+    ) -> R {
+        let _guard = NextErrNotesGuard::new(self, notes.into_iter().collect());
+        f()
     }
 
     pub fn err_count(&self) -> usize {
@@ -44,7 +60,11 @@ impl FluxSession {
 
     #[track_caller]
     pub fn emit_err<'a>(&'a self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
-        self.parse_sess.dcx().emit_err(err)
+        let mut diag = err.into_diag(self.parse_sess.dcx(), Level::Error);
+        for note in self.next_err_notes.take() {
+            diag.note(note);
+        }
+        diag.emit()
     }
 
     #[track_caller]
@@ -68,6 +88,24 @@ impl FluxSession {
 
     pub fn dcx(&self) -> &rustc_errors::DiagCtxt {
         &self.parse_sess.dcx()
+    }
+}
+
+struct NextErrNotesGuard<'sess> {
+    sess: &'sess FluxSession,
+    prev: Vec<String>,
+}
+
+impl<'sess> NextErrNotesGuard<'sess> {
+    fn new(sess: &'sess FluxSession, notes: Vec<String>) -> Self {
+        let prev = sess.next_err_notes.replace(notes);
+        Self { sess, prev }
+    }
+}
+
+impl Drop for NextErrNotesGuard<'_> {
+    fn drop(&mut self) {
+        self.sess.next_err_notes.set(std::mem::take(&mut self.prev));
     }
 }
 

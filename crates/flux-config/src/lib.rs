@@ -155,6 +155,16 @@ pub fn verbose() -> bool {
     FLAGS.flux_verbose
 }
 
+pub fn rerun_hint() -> bool {
+    FLAGS.rerun_hint
+}
+
+/// Whether the driver is running under `cargo flux` (which sets `FLUX_CARGO=1`), as opposed to a
+/// direct `flux`/`flux-driver` invocation. Used to decide whether to emit the re-run hint.
+pub fn is_cargo() -> bool {
+    std::env::var_os("FLUX_CARGO").is_some()
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Pos {
