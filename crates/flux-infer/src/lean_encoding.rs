@@ -407,7 +407,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             r#"
 [[require]]
 name = "LeanFixpoint"
-path = "/Users/petros/Documents/UCSD/Work/lean-fixpoint"
+git = "git@github.com:jam-khan/lean-fixpoint.git"
+rev = "main"
 "#,
         );
         fs::write(lakefile, contents)
@@ -944,7 +945,7 @@ path = "/Users/petros/Documents/UCSD/Work/lean-fixpoint"
                 writeln!(f, "set_option maxHeartbeats 5000000")?;
                 writeln!(f, "#time def {proof_name} : {vc_name} := by")?;
                 writeln!(f, "  unfold {vc_name}")?;
-                writeln!(f, "  solve_fixpoint_combo")
+                writeln!(f, "  (try fusion) ; (try simp [*]) ; (try solve_fixpoint)")
             })?;
             file.sync_all()?;
         }
