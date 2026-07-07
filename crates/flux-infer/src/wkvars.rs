@@ -929,7 +929,7 @@ where
     let mut constraint_rhs_wkvars: FxIndexMap<LocalDefId, FxIndexSet<rty::WKVid>> =
         FxIndexMap::default();
     let mut num_nontrivial_head_cstrs = 0;
-    let mut any_overlap = false;
+    let mut _any_overlap = false;
     for cstr in &cstrs {
         let id = cstr.def_id.expect_local();
         let (lhs_wkvars, rhs_wkvars) = cstr.refine_tree.wkvars();
@@ -951,7 +951,7 @@ where
                  wkvar_owner_fn={owner_fn:?} \
                  kvar_idx={kvar_idx}"
             );
-            any_overlap = true;
+            _any_overlap = true;
         }
 
         constraint_rhs_wkvars.insert(id, rhs_wkvars.into_iter().collect());
@@ -982,7 +982,7 @@ where
             None
         };
     let mut cache = QueryCache::new();
-    while !any_overlap && any_wkvar_change && i <= max_iters {
+    while false && any_wkvar_change && i <= max_iters {
         // println!("iteration {} of {}", i, max_iters);
         let mut instantiations_message = String::new();
         any_wkvar_change = false;
