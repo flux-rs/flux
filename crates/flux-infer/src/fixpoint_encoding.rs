@@ -1274,65 +1274,50 @@ where
         wkvar: &rty::WKVar,
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
-        // Retrieve or create the fresh kvar for this cyclic wkvar.
-        let kvid = if let Some(&kvid) = self.cyclic_wkvar_to_kvid.get(&wkvar.wkvid) {
-            kvid
-        } else {
-            // Look up argument sorts from the global wkvar registry.
-            // These are already the post-walk flattened leaf sorts.
-            let arg_sorts = self
-                .genv
-                .weak_kvars_for(wkvar.wkvid.parent_fn)
-                .and_then(|m| m.get(&wkvar.wkvid.id.as_u32()).map(|i| i.sorts.clone()));
-
-            let Some(sorts) = arg_sorts else {
-                // Can't find sorts; fall back to TRUE.
-                return Ok(fixpoint::Pred::Expr(fixpoint::Expr::Constant(
-                    fixpoint::Constant::Boolean(true),
-                )));
-            };
-
-            // Build KVarDecl directly from the flat sorts.  We also need to
-            // compute the flattened self_args count the same way fresh_inner
-            // would (counting the leaf sorts that come from the first
-            // wkvar.self_args high-level arguments).
-            let mut flattened_self_args = 0;
-            for (i, (_arg, sort)) in wkvar.args.iter().zip(sorts.iter()).enumerate() {
-                let is_self_arg = i < wkvar.self_args;
-                sort.walk(|inner_sort, _proj| {
-                    if !matches!(inner_sort, rty::Sort::Loc) && is_self_arg {
-                        flattened_self_args += 1;
-                    }
-                });
-            }
-
-            let kvid = self.kvars.push_decl(flattened_self_args, sorts, KVarEncoding::Single);
-            self.cyclic_wkvar_to_kvid.insert(wkvar.wkvid.clone(), kvid);
-            kvid
-        };
-
-        // Build the flattened KVar args by walking the wkvar's args + their sorts,
-        // mirroring exactly what fresh_inner does so kvar_to_fixpoint sees
-        // (arg[i], decl.sorts[i]) pairs that are consistently sorted.
-        let arg_sorts = self
+        // Look up the high-level (unflattened) argument sorts from the registry.
+        let high_level_sorts = self
             .genv
             .weak_kvars_for(wkvar.wkvid.parent_fn)
-            .and_then(|m| m.get(&wkvar.wkvid.id.as_u32()).map(|i| i.sorts.clone()))
-            .unwrap_or_default();
+            .and_then(|m| m.get(&wkvar.wkvid.id.as_u32()).map(|i| i.sorts.clone()));
 
+        let Some(high_level_sorts) = high_level_sorts else {
+            return Ok(fixpoint::Pred::Expr(fixpoint::Expr::Constant(
+                fixpoint::Constant::Boolean(true),
+            )));
+        };
+
+        // Walk each (arg, high-level-sort) pair to produce:
+        //   flat_sorts: the leaf sorts for KVarDecl  (what `imm` uses as the Bind sort)
+        //   flat_args:  the field-projected exprs    (what `imm` encodes as the equality RHS)
+        //   flat_self_args: count of flat leaves that come from the first wkvar.self_args args
+        //
+        // This exactly mirrors what KVarGen::fresh_inner does.
+        let mut flat_sorts: Vec<rty::Sort> = vec![];
         let mut flat_args: Vec<rty::Expr> = vec![];
-        let mut flat_self_args = 0;
-        for (i, (arg, sort)) in wkvar.args.iter().zip(arg_sorts.iter()).enumerate() {
-            let is_self_arg = i < wkvar.self_args;
-            sort.walk(|inner_sort, proj| {
-                if !matches!(inner_sort, rty::Sort::Loc) {
-                    if is_self_arg {
+        let mut flat_self_args: usize = 0;
+        for (i, (arg, sort)) in wkvar.args.iter().zip(high_level_sorts.iter()).enumerate() {
+            let is_self = i < wkvar.self_args;
+            sort.walk(|leaf_sort, proj| {
+                if !matches!(leaf_sort, rty::Sort::Loc) {
+                    if is_self {
                         flat_self_args += 1;
                     }
+                    flat_sorts.push(leaf_sort.clone());
                     flat_args.push(rty::Expr::field_projs(arg, proj));
                 }
             });
         }
+
+        // Retrieve or create the KVarDecl for this cyclic wkvar.
+        let kvid = if let Some(&kvid) = self.cyclic_wkvar_to_kvid.get(&wkvar.wkvid) {
+            kvid
+        } else {
+            let kvid =
+                self.kvars
+                    .push_decl(flat_self_args, flat_sorts.clone(), KVarEncoding::Single);
+            self.cyclic_wkvar_to_kvid.insert(wkvar.wkvid.clone(), kvid);
+            kvid
+        };
 
         let kvar = rty::KVar::new(kvid, flat_self_args, flat_args);
         self.kvar_to_fixpoint(&kvar, bindings)
