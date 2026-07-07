@@ -255,11 +255,18 @@ impl SolutionTrace {
 pub struct Answer<Tag> {
     pub errors: Vec<FixpointCheckError<Tag>>,
     pub solution: Solution,
+    /// Solutions for cyclic wkvars that were emitted as fresh kvars.
+    /// Maps the original WKVid to what fixpoint solved its kvar to.
+    pub cyclic_wkvar_solutions: FxHashMap<rty::WKVid, rty::Binder<rty::Expr>>,
 }
 
 impl<Tag> Answer<Tag> {
     pub fn trivial() -> Self {
-        Self { errors: Vec::new(), solution: HashMap::new() }
+        Self {
+            errors: Vec::new(),
+            solution: HashMap::new(),
+            cyclic_wkvar_solutions: FxHashMap::default(),
+        }
     }
 }
 
@@ -529,6 +536,12 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     tags: IndexVec<TagIdx, T>,
     _tags_inv: UnordMap<T, TagIdx>,
     pub blame_ctx_map: FxHashMap<TagIdx, BlameCtxt>,
+    /// WKVids that appear in both assumptive and head position in this constraint
+    /// (the "cyclic" wkvars).  These are emitted as fresh fixpoint kvars instead
+    /// of as UIFs so that fixpoint can solve them and we can read back the answer.
+    pub cyclic_wkvars: rustc_data_structures::fx::FxHashSet<rty::WKVid>,
+    /// Reverse map: cyclic WKVid → the fresh rty::KVid we minted for it.
+    pub cyclic_wkvar_to_kvid: FxHashMap<rty::WKVid, rty::KVid>,
 }
 
 pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
@@ -565,6 +578,8 @@ where
             tags: IndexVec::new(),
             _tags_inv: Default::default(),
             blame_ctx_map: FxHashMap::default(),
+            cyclic_wkvars: Default::default(),
+            cyclic_wkvar_to_kvid: FxHashMap::default(),
         }
     }
 
@@ -852,7 +867,14 @@ where
                     }
                     FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
                 };
-                Ok(Answer { errors, solution })
+                let cyclic_wkvar_solutions = self
+                    .cyclic_wkvar_to_kvid
+                    .iter()
+                    .filter_map(|(wkvid, kvid)| {
+                        solution.get(kvid).map(|binder| (wkvid.clone(), binder.clone()))
+                    })
+                    .collect();
+                Ok(Answer { errors, solution, cyclic_wkvar_solutions })
             },
         )
     }
@@ -1132,7 +1154,11 @@ where
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
             }
             rty::ExprKind::WKVar(wkvar) => {
-                preds.push(self.wkvar_to_fixpoint(wkvar)?);
+                if self.cyclic_wkvars.contains(&wkvar.wkvid) {
+                    preds.push(self.cyclic_wkvar_to_fixpoint(wkvar, bindings)?);
+                } else {
+                    preds.push(self.wkvar_to_fixpoint(wkvar)?);
+                }
                 blame_analysis.wkvars.push(wkvar.clone());
             }
             rty::ExprKind::ForAll(_) => {
@@ -1223,6 +1249,7 @@ where
     }
 
     fn wkvar_to_fixpoint(&mut self, wkvar: &rty::WKVar) -> QueryResult<fixpoint::Pred> {
+        // Non-cyclic: existing UIF path.
         if let Some(var) =
             self.ecx
                 .define_const_for_wkvar(&wkvar.wkvid, wkvar.self_args, &mut self.scx)
@@ -1237,6 +1264,54 @@ where
             // println!("WARN: Skipping encoding wkvar {:?} because it isn't in the global map", wkvar.wkvid);
             Ok(fixpoint::Pred::Expr(fixpoint::Expr::Constant(fixpoint::Constant::Boolean(true))))
         }
+    }
+
+    /// Variant of [`wkvar_to_fixpoint`] used for cyclic wkvars.  Mints (or reuses)
+    /// a fresh regular kvar for `wkvar`, pushes any ANF bindings into `bindings`,
+    /// and returns the resulting [`fixpoint::Pred`].
+    fn cyclic_wkvar_to_fixpoint(
+        &mut self,
+        wkvar: &rty::WKVar,
+        bindings: &mut Vec<fixpoint::Bind>,
+    ) -> QueryResult<fixpoint::Pred> {
+        // Retrieve or create the fresh kvar for this cyclic wkvar.
+        let kvid = if let Some(&kvid) = self.cyclic_wkvar_to_kvid.get(&wkvar.wkvid) {
+            kvid
+        } else {
+            // Look up argument sorts from the global wkvar registry.
+            let arg_sorts = self
+                .genv
+                .weak_kvars_for(wkvar.wkvid.parent_fn)
+                .and_then(|m| m.get(&wkvar.wkvid.id.as_u32()).map(|i| i.sorts.clone()));
+
+            let Some(sorts) = arg_sorts else {
+                // Can't find sorts; fall back to TRUE.
+                return Ok(fixpoint::Pred::Expr(fixpoint::Expr::Constant(
+                    fixpoint::Constant::Boolean(true),
+                )));
+            };
+
+            // fresh_inner needs (Var, Sort) pairs; the vars are placeholder free
+            // vars — fresh_inner only uses the sorts to build the KVarDecl.
+            let args_with_sorts: Vec<(rty::Var, rty::Sort)> = sorts
+                .into_iter()
+                .map(|sort| (rty::Var::Free(rty::Name::from_usize(0)), sort))
+                .collect();
+
+            let kvar_expr =
+                self.kvars
+                    .fresh_inner(wkvar.self_args, args_with_sorts, KVarEncoding::Single);
+            let rty::ExprKind::KVar(kvar) = kvar_expr.kind() else {
+                unreachable!("fresh_inner must return a KVar expr");
+            };
+            let kvid = kvar.kvid;
+            self.cyclic_wkvar_to_kvid.insert(wkvar.wkvid.clone(), kvid);
+            kvid
+        };
+
+        // Build an rty::KVar with the wkvar's existing args and encode it normally.
+        let kvar = rty::KVar::new(kvid, wkvar.self_args, wkvar.args.to_vec());
+        self.kvar_to_fixpoint(&kvar, bindings)
     }
 }
 

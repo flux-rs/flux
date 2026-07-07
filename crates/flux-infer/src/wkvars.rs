@@ -982,6 +982,65 @@ where
             None
         };
     let mut cache = QueryCache::new();
+
+    // Single-pass cyclic-kvar solve: for each constraint, detect cyclic wkvars,
+    // emit them as fresh kvars, run fixpoint once, and print what fixpoint solved
+    // each cyclic kvar to.  If any cyclic wkvars were found we return early so
+    // the rest of the (iterative) pipeline is skipped.
+    let mut found_any_cyclic = false;
+    for cstr in &cstrs {
+        let local_id = cstr.def_id.expect_local();
+        let cyclic: rustc_data_structures::fx::FxHashSet<rty::WKVid> = constraint_lhs_wkvars
+            .get(&local_id)
+            .into_iter()
+            .flatten()
+            .filter(|wkvid| {
+                constraint_rhs_wkvars
+                    .get(&local_id)
+                    .map_or(false, |rhs| rhs.contains(*wkvid))
+            })
+            .cloned()
+            .collect();
+
+        if cyclic.is_empty() {
+            continue;
+        }
+        found_any_cyclic = true;
+
+        let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone());
+        fcx.cyclic_wkvars = cyclic;
+
+        // No wkvar substitution for the single-pass run — use the tree as-is.
+        let mut tree = cstr.refine_tree.clone();
+        tree.simplify(genv);
+        let fcstr = tree.into_fixpoint(&mut fcx)?;
+
+        let fixpoint_answer = fcx.check(
+            &mut cache,
+            cstr.def_id,
+            fcstr,
+            cstr.query_kind,
+            cstr.scrape_quals,
+            cstr.backend,
+        )?;
+
+        let checked_fn = genv.tcx().def_path_str(cstr.def_id.resolved_id());
+        for (wkvid, binder) in &fixpoint_answer.cyclic_wkvar_solutions {
+            let owner_fn = genv.tcx().def_path_str(wkvid.parent_fn);
+            let kvar_idx = wkvid.id.as_u32();
+            println!(
+                "[cyclic-kvar-solution] checked_fn={checked_fn:?} \
+                 wkvar_owner_fn={owner_fn:?} \
+                 kvar_idx={kvar_idx} \
+                 solution={binder:?}"
+            );
+        }
+    }
+
+    if found_any_cyclic {
+        return Ok((new_solutions, vec![], vec![], 0));
+    }
+
     while false && any_wkvar_change && i <= max_iters {
         // println!("iteration {} of {}", i, max_iters);
         let mut instantiations_message = String::new();
