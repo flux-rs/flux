@@ -933,8 +933,25 @@ where
         let id = cstr.def_id.expect_local();
         let (lhs_wkvars, rhs_wkvars) = cstr.refine_tree.wkvars();
         num_nontrivial_head_cstrs += cstr.refine_tree.num_nontrivial_head_cstrs();
-        // println!("all LHS wkvars for {:?}: {:?}", id, lhs_wkvars.iter().collect_vec());
-        // println!("all RHS wkvars for {:?}: {:?}", id, rhs_wkvars.iter().collect_vec());
+
+        // Instrumentation: log wkvars that appear in BOTH assumptive (body) and head
+        // position within the same per-function constraint tree.
+        //
+        // For each such wkvar we print:
+        //   - the name of the function that *owns* the wkvar (wkvid.parent_fn)
+        //   - which # kvar it is (wkvid.id index)
+        //   - the name of the function currently being checked (cstr.def_id)
+        let checked_fn = genv.tcx().def_path_str(cstr.def_id.resolved_id());
+        for wkvid in lhs_wkvars.intersection(&rhs_wkvars) {
+            let owner_fn = genv.tcx().def_path_str(wkvid.parent_fn);
+            let kvar_idx = wkvid.id.as_u32();
+            println!(
+                "[wkvar-overlap] checked_fn={checked_fn:?} \
+                 wkvar_owner_fn={owner_fn:?} \
+                 kvar_idx={kvar_idx}"
+            );
+        }
+
         constraint_rhs_wkvars.insert(id, rhs_wkvars.into_iter().collect());
         constraint_lhs_wkvars.insert(id, lhs_wkvars.into_iter().collect());
     }
