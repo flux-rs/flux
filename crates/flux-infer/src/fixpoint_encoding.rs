@@ -1279,6 +1279,7 @@ where
             kvid
         } else {
             // Look up argument sorts from the global wkvar registry.
+            // These are already the post-walk flattened leaf sorts.
             let arg_sorts = self
                 .genv
                 .weak_kvars_for(wkvar.wkvid.parent_fn)
@@ -1291,26 +1292,49 @@ where
                 )));
             };
 
-            // fresh_inner needs (Var, Sort) pairs; the vars are placeholder free
-            // vars — fresh_inner only uses the sorts to build the KVarDecl.
-            let args_with_sorts: Vec<(rty::Var, rty::Sort)> = sorts
-                .into_iter()
-                .map(|sort| (rty::Var::Free(rty::Name::from_usize(0)), sort))
-                .collect();
+            // Build KVarDecl directly from the flat sorts.  We also need to
+            // compute the flattened self_args count the same way fresh_inner
+            // would (counting the leaf sorts that come from the first
+            // wkvar.self_args high-level arguments).
+            let mut flattened_self_args = 0;
+            for (i, (_arg, sort)) in wkvar.args.iter().zip(sorts.iter()).enumerate() {
+                let is_self_arg = i < wkvar.self_args;
+                sort.walk(|inner_sort, _proj| {
+                    if !matches!(inner_sort, rty::Sort::Loc) && is_self_arg {
+                        flattened_self_args += 1;
+                    }
+                });
+            }
 
-            let kvar_expr =
-                self.kvars
-                    .fresh_inner(wkvar.self_args, args_with_sorts, KVarEncoding::Single);
-            let rty::ExprKind::KVar(kvar) = kvar_expr.kind() else {
-                unreachable!("fresh_inner must return a KVar expr");
-            };
-            let kvid = kvar.kvid;
+            let kvid = self.kvars.push_decl(flattened_self_args, sorts, KVarEncoding::Single);
             self.cyclic_wkvar_to_kvid.insert(wkvar.wkvid.clone(), kvid);
             kvid
         };
 
-        // Build an rty::KVar with the wkvar's existing args and encode it normally.
-        let kvar = rty::KVar::new(kvid, wkvar.self_args, wkvar.args.to_vec());
+        // Build the flattened KVar args by walking the wkvar's args + their sorts,
+        // mirroring exactly what fresh_inner does so kvar_to_fixpoint sees
+        // (arg[i], decl.sorts[i]) pairs that are consistently sorted.
+        let arg_sorts = self
+            .genv
+            .weak_kvars_for(wkvar.wkvid.parent_fn)
+            .and_then(|m| m.get(&wkvar.wkvid.id.as_u32()).map(|i| i.sorts.clone()))
+            .unwrap_or_default();
+
+        let mut flat_args: Vec<rty::Expr> = vec![];
+        let mut flat_self_args = 0;
+        for (i, (arg, sort)) in wkvar.args.iter().zip(arg_sorts.iter()).enumerate() {
+            let is_self_arg = i < wkvar.self_args;
+            sort.walk(|inner_sort, proj| {
+                if !matches!(inner_sort, rty::Sort::Loc) {
+                    if is_self_arg {
+                        flat_self_args += 1;
+                    }
+                    flat_args.push(rty::Expr::field_projs(arg, proj));
+                }
+            });
+        }
+
+        let kvar = rty::KVar::new(kvid, flat_self_args, flat_args);
         self.kvar_to_fixpoint(&kvar, bindings)
     }
 }
@@ -1598,6 +1622,18 @@ impl KVarGen {
         self.kvars
             .iter_mut()
             .for_each(|decl| decl.encoding = KVarEncoding::Single);
+    }
+
+    /// Directly push a `KVarDecl` and return the assigned `KVid`.
+    /// Used when the caller has already computed the correct flat sorts and
+    /// self_args count and does not want `fresh_inner`'s sort-walk side effects.
+    pub(crate) fn push_decl(
+        &mut self,
+        self_args: usize,
+        sorts: Vec<rty::Sort>,
+        encoding: KVarEncoding,
+    ) -> rty::KVid {
+        self.kvars.push(KVarDecl { self_args, sorts, encoding })
     }
 }
 
