@@ -396,7 +396,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
 
         let mut contents = fs::read_to_string(&lakefile)?;
-        if contents.contains("name = \"LeanFixpoint\"") {
+        if contents.contains("name = \"Flex\"") {
             return Ok(());
         }
 
@@ -406,9 +406,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         contents.push_str(
             r#"
 [[require]]
-name = "LeanFixpoint"
-git = "git@github.com:jam-khan/lean-fixpoint.git"
-rev = "main"
+name = "Flex"
+path = "../../"
 "#,
         );
         fs::write(lakefile, contents)
@@ -926,7 +925,7 @@ rev = "main"
         let path = LeanFile::Proof(def_id).path(self.genv, false);
 
         if let Some(mut file) = create_file_with_dirs(path)? {
-            writeln!(file, "import LeanFixpoint")?;
+            writeln!(file, "import Flex")?;
             writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
             writeln!(file, "{}", LeanFile::Vc(def_id).import(self.genv))?;
             writeln!(file, "{}", self.post_import_preamble())?;
@@ -945,7 +944,7 @@ rev = "main"
                 writeln!(f, "set_option maxHeartbeats 5000000")?;
                 writeln!(f, "#time def {proof_name} : {vc_name} := by")?;
                 writeln!(f, "  unfold {vc_name}")?;
-                writeln!(f, "  (try fusion) ; (try simp [*]) ; (try solve_fixpoint)")
+                writeln!(f, "  (try zap) ; (try simp [*]) ; (try solve)")
             })?;
             file.sync_all()?;
         }
