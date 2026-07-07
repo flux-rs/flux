@@ -1078,11 +1078,18 @@ where
                 let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
-            rty::ExprKind::WKVar(_wkvar) => {
-                // We don't translate the weak kvar here because we don't want to
-                // send it to fixpoint to check (we only care about it appearing
-                // in assumptions)
-                Ok(fixpoint::Constraint::TRUE)
+            rty::ExprKind::WKVar(wkvar) => {
+                if self.cyclic_wkvars.contains(&wkvar.wkvid) {
+                    // Cyclic wkvars are emitted as fresh kvars in both body and
+                    // head position so fixpoint can solve them.
+                    let mut bindings = vec![];
+                    let pred = self.cyclic_wkvar_to_fixpoint(wkvar, &mut bindings)?;
+                    Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
+                } else {
+                    // Non-cyclic wkvars are only relevant in assumptive position;
+                    // in head position they are trivially satisfied.
+                    Ok(fixpoint::Constraint::TRUE)
+                }
             }
             rty::ExprKind::ForAll(pred) => {
                 self.ecx
