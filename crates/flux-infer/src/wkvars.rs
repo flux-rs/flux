@@ -929,6 +929,7 @@ where
     let mut constraint_rhs_wkvars: FxIndexMap<LocalDefId, FxIndexSet<rty::WKVid>> =
         FxIndexMap::default();
     let mut num_nontrivial_head_cstrs = 0;
+    let mut any_overlap = false;
     for cstr in &cstrs {
         let id = cstr.def_id.expect_local();
         let (lhs_wkvars, rhs_wkvars) = cstr.refine_tree.wkvars();
@@ -950,6 +951,7 @@ where
                  wkvar_owner_fn={owner_fn:?} \
                  kvar_idx={kvar_idx}"
             );
+            any_overlap = true;
         }
 
         constraint_rhs_wkvars.insert(id, rhs_wkvars.into_iter().collect());
@@ -960,11 +962,6 @@ where
     let rhs_wkvars: FxHashSet<rty::WKVid> =
         constraint_rhs_wkvars.values().flatten().cloned().collect();
     let wkvars = lhs_wkvars.union(&rhs_wkvars).cloned().collect();
-    // These are the solutions for the current pass.
-    //
-    // It is more stable to go "breadth-first" and collect the wkvar solutions
-    // for all separate constraints, rather than accumulating them as we go
-    // through each constraint.
     let mut curr_solutions =
         WKVarSolutions::new(genv, num_nontrivial_head_cstrs, wkvars, rhs_wkvars);
     let mut new_solutions = curr_solutions.clone();
@@ -985,7 +982,7 @@ where
             None
         };
     let mut cache = QueryCache::new();
-    while any_wkvar_change && i <= max_iters {
+    while !any_overlap && any_wkvar_change && i <= max_iters {
         // println!("iteration {} of {}", i, max_iters);
         let mut instantiations_message = String::new();
         any_wkvar_change = false;
