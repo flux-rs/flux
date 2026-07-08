@@ -222,7 +222,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
     pub fn execute_fixpoint_query_collecting_constraints(
         self,
-        _cache: &mut FixQueryCache,
+        cache: &mut FixQueryCache,
         constraints: &mut Constraints,
         def_id: MaybeExternId,
         kind: FixpointQueryKind,
@@ -260,11 +260,158 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             backend,
         });
 
-        // let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
-        // let cstr = refine_tree.into_fixpoint(&mut fcx)?;
+        // ── Pass 1: normal check ──────────────────────────────────────────────
+        let mut fcx1 = FixpointCtxt::new(self.genv, def_id, kvars.clone());
+        let cstr1 = refine_tree.clone().into_fixpoint(&mut fcx1)?;
+        let answer1 = fcx1.check(cache, def_id, cstr1, kind, self.opts.scrape_quals, backend)?;
 
-        // fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
-        QueryResult::Ok(Answer::trivial())
+        println!(
+            "[profiling] fn={} errors={} failing_head_kvars={} solution_kvars={}",
+            self.genv.tcx().def_path_str(def_id.resolved_id()),
+            answer1.errors.len(),
+            answer1.failing_head_kvars.len(),
+            answer1.solution.len(),
+        );
+
+        if !answer1.failing_head_kvars.is_empty() {
+            println!("[profiling] running pass 2 for {} failing kvars", answer1.failing_head_kvars.len());
+
+            // Collect pass-1 failing tags for per-head comparison.
+            let pass1_failing_tags: rustc_data_structures::fx::FxHashSet<Tag> =
+                answer1.errors.iter().map(|e| e.tag).collect();
+
+            // ── Pass 2: WKVars substituted with solutions ─────────────────────
+            // Use a fresh empty cache so pass 2 always runs fixpoint (not cached).
+            let mut nocache = crate::fixpoint_encoding::FixQueryCache::new();
+            let mut fcx2 = FixpointCtxt::new(self.genv, def_id, kvars.clone());
+            fcx2.substitute_wkvar_solutions = true;
+            let cstr2 = refine_tree.clone().into_fixpoint(&mut fcx2)?;
+            let answer2 =
+                fcx2.check(&mut nocache, def_id, cstr2, kind, self.opts.scrape_quals, backend)?;
+
+            if !answer2.errors.is_empty() {
+                panic!(
+                    "[profiling] UNEXPECTED: pass 2 (with wkvar solutions substituted) still has {} errors for fn {}! \
+                     This should never happen because substituting ground-truth solutions should make all constraints pass.",
+                    answer2.errors.len(),
+                    self.genv.tcx().def_path_str(def_id.resolved_id()),
+                );
+            }
+
+            // ── Pass 3: pass-1 kvar solutions + wkvar solutions ───────────────
+            // Substitute pass-1's kvar solutions into the constraint (wkvars resolved).
+            // Kvars not in the solution map are left for fixpoint to solve.
+            let mut nocache3 = crate::fixpoint_encoding::FixQueryCache::new();
+            let mut fcx3: FixpointCtxt<'_, '_, Tag> = FixpointCtxt::new(self.genv, def_id, kvars.clone());
+            fcx3.substitute_wkvar_solutions = true;
+            let cstr3_raw = refine_tree.clone().into_fixpoint(&mut fcx3)?;
+            let cstr3 = cstr3_raw.substitute_kvars(&answer1.fixpoint_solution);
+            let answer3 =
+                fcx3.check(&mut nocache3, def_id, cstr3, kind, self.opts.scrape_quals, backend);
+            let pass3_still_failing: rustc_data_structures::fx::FxHashSet<Tag> = match &answer3 {
+                Ok(a) => a.errors.iter().map(|e| e.tag).collect(),
+                Err(_) => {
+                    println!(
+                        "[profiling] pass3 check failed (fixpoint error) for fn {}",
+                        self.genv.tcx().def_path_str(def_id.resolved_id())
+                    );
+                    pass1_failing_tags.clone() // assume all still fail
+                }
+            };
+            let pass3_fixed_count = pass1_failing_tags.difference(&pass3_still_failing).count();
+            let pass3_total = pass1_failing_tags.len();
+
+            // ── Pass 4: kvars as TRUE + wkvar solutions ───────────────────────
+            // Replace ALL kvars with TRUE (not their solutions) while keeping
+            // wkvar solutions substituted. Check which failing heads are fixed.
+            let mut nocache4 = crate::fixpoint_encoding::FixQueryCache::new();
+            let mut fcx4: FixpointCtxt<'_, '_, Tag> = FixpointCtxt::new(self.genv, def_id, kvars);
+            fcx4.substitute_wkvar_solutions = true;
+            let cstr4_raw = refine_tree.into_fixpoint(&mut fcx4)?;
+            // Build a solution map where every kvar maps to TRUE.
+            let true_solutions: std::collections::HashMap<crate::fixpoint_encoding::fixpoint::KVid, (Vec<crate::fixpoint_encoding::fixpoint::Sort>, crate::fixpoint_encoding::fixpoint::Expr)> =
+                answer1.fixpoint_solution.keys().map(|kvid| {
+                    (*kvid, (vec![], crate::fixpoint_encoding::fixpoint::Expr::TRUE))
+                }).collect();
+            let cstr4 = cstr4_raw.substitute_kvars(&true_solutions);
+            let answer4 =
+                fcx4.check(&mut nocache4, def_id, cstr4, kind, self.opts.scrape_quals, backend);
+            let pass4_still_failing: rustc_data_structures::fx::FxHashSet<Tag> = match &answer4 {
+                Ok(a) => a.errors.iter().map(|e| e.tag).collect(),
+                Err(_) => {
+                    println!(
+                        "[profiling] pass4 check failed (fixpoint error) for fn {}",
+                        self.genv.tcx().def_path_str(def_id.resolved_id())
+                    );
+                    pass1_failing_tags.clone()
+                }
+            };
+            let pass4_fixed_count = pass1_failing_tags.difference(&pass4_still_failing).count();
+
+            // ── Compare solutions for failing-head kvars ──────────────────────
+            // We only compare cut kvars (non-cut solutions are dropped).
+            let fn_name = self.genv.tcx().def_path_str(def_id.resolved_id());
+            for kvid in &answer1.failing_head_kvars {
+                // Skip non-cut kvars — they won't have solutions.
+                if !answer1.solution.contains_key(kvid) && !answer2.solution.contains_key(kvid) {
+                    continue;
+                }
+                let sol1 = answer1.solution.get(kvid);
+                let sol2 = answer2.solution.get(kvid);
+
+                // Normalize binder names: replace all bound vars with canonical
+                // indices so we can compare structurally regardless of naming.
+                let normalize = |binder: &rty::Binder<rty::Expr>| -> rustc_data_structures::fx::FxHashSet<rty::Expr> {
+                    // The binder's body is a conjunction; split it into conjuncts.
+                    binder
+                        .skip_binder_ref()
+                        .flatten_conjs()
+                        .into_iter()
+                        .cloned()
+                        .collect()
+                };
+
+                let set1 = sol1.map(normalize).unwrap_or_default();
+                let set2 = sol2.map(normalize).unwrap_or_default();
+
+                let same = set1 == set2;
+                let only_in_before: Vec<_> = set1.difference(&set2).collect();
+                let only_in_after: Vec<_> = set2.difference(&set1).collect();
+
+                let pretty_cx = flux_middle::pretty::PrettyCx::default(self.genv);
+                let fmt_set = |exprs: &[&rty::Expr]| -> String {
+                    exprs
+                        .iter()
+                        .map(|e| format!("{:?}", flux_middle::pretty::with_cx!(&pretty_cx, *e)))
+                        .collect::<Vec<_>>()
+                        .join(" && ")
+                };
+
+                flux_middle::metrics::record_kvar_comparison(
+                    flux_middle::metrics::KvarSolutionComparison {
+                        kvar_name: format!("{kvid:?}"),
+                        fn_name: fn_name.clone(),
+                        same,
+                        before: if only_in_before.is_empty() {
+                            None
+                        } else {
+                            Some(fmt_set(&only_in_before))
+                        },
+                        after: if only_in_after.is_empty() {
+                            None
+                        } else {
+                            Some(fmt_set(&only_in_after))
+                        },
+                        pass3_heads_fixed: pass3_fixed_count,
+                        pass3_heads_total: pass3_total,
+                        pass4_heads_fixed: pass4_fixed_count,
+                        pass4_heads_total: pass3_total,
+                    },
+                );
+            }
+        }
+
+        Ok(answer1)
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {

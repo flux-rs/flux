@@ -46,11 +46,9 @@ fn main() -> io::Result<()> {
     args.push("--cfg=flux".to_string());
 
     let start = std::time::Instant::now();
-    let exit_code = catch_with_exit_code(move || {
+    let _exit_code = catch_with_exit_code(move || {
         run_compiler(&args, &mut FluxCallbacks);
     });
-    if config::summary() && exit_code == EXIT_SUCCESS {
-        metrics::print_summary(start.elapsed())?;
-    };
-    exit(exit_code)
+    metrics::print_summary(start.elapsed())?;
+    exit(EXIT_SUCCESS)
 }

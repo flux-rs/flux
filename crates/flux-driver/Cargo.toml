@@ -23,7 +23,7 @@ flux-middle.workspace = true
 flux-refineck.workspace = true
 flux-rustc-bridge.workspace = true
 flux-syntax.workspace = true
-flux-infer.workspace = true
+flux-infer = { workspace = true, features = ["wick"] }
 
 itertools.workspace = true
 serde.workspace = true

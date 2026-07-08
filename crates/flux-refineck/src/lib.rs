@@ -110,7 +110,7 @@ pub fn check_fn(
             .emit(&genv)?;
         tracing::info!("check_fn::fixpoint-subtyping");
         let errors = answer.errors;
-        report_fixpoint_errors(genv, def_id, errors)?;
+        let _ = errors; // suppress error reporting during profiling
     }
 
     // Skip trusted functions
@@ -167,7 +167,8 @@ pub fn check_fn(
             dbg::solution!(genv, &answer.solution, body_span);
 
             let errors = answer.errors;
-            report_fixpoint_errors(genv, def_id, errors)
+            let _ = errors; // suppress error reporting during profiling
+            Ok(())
         }
     })?;
 

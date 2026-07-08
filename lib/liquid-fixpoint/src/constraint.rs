@@ -54,6 +54,32 @@ impl<T: Types> Constraint<T> {
         count
     }
 
+    /// Substitute all KVar predicates with their solutions from the given map.
+    /// KVars not in the map are left as-is (fixpoint will solve them).
+    /// The solution map maps KVid -> (arg_sorts, body_expr). The body_expr has
+    /// bound variables at level 0 corresponding to the kvar arguments.
+    pub fn substitute_kvars(
+        &self,
+        solutions: &std::collections::HashMap<T::KVar, (Vec<Sort<T>>, Expr<T>)>,
+    ) -> Self {
+        match self {
+            Constraint::Pred(pred, tag) => {
+                Constraint::Pred(pred.substitute_kvars(solutions), tag.clone())
+            }
+            Constraint::Conj(cs) => {
+                Constraint::Conj(cs.iter().map(|c| c.substitute_kvars(solutions)).collect())
+            }
+            Constraint::ForAll(bind, body) => {
+                let new_bind = Bind {
+                    name: bind.name.clone(),
+                    sort: bind.sort.clone(),
+                    pred: bind.pred.substitute_kvars(solutions),
+                };
+                Constraint::ForAll(new_bind, Box::new(body.substitute_kvars(solutions)))
+            }
+        }
+    }
+
     /// Flattens a single constraint into a list of individual constraints which
     /// may be checked for satisfiability.
     ///
@@ -180,6 +206,14 @@ impl<T: Types> FlatConstraint<T> {
         let mut preconditions = self.assumptions.clone();
         preconditions.extend(self.invariants.clone());
         preconditions
+    }
+
+    /// Collect all KVar ids that appear in the assumptions of this flat constraint.
+    pub fn kvar_ids_in_assumptions(&self) -> HashSet<T::KVar> {
+        self.assumptions
+            .iter()
+            .flat_map(|pred| pred.kvar_ids())
+            .collect()
     }
 
     /// Each element of the output is a wkvar, the constraint it corresponds to,
@@ -481,6 +515,43 @@ impl<T: Types> Pred<T> {
             Pred::KVar(..) => true,
             Pred::And(preds) => preds.iter().any(|pred| pred.has_kvar()),
             _ => false,
+        }
+    }
+
+    /// Substitute all KVars with their solutions from the given map.
+    /// KVars not in the map are left as-is (they will still need their decls).
+    pub fn substitute_kvars(
+        &self,
+        solutions: &std::collections::HashMap<T::KVar, (Vec<Sort<T>>, Expr<T>)>,
+    ) -> Self {
+        match self {
+            Pred::KVar(kvid, args) => {
+                if let Some((_sorts, body)) = solutions.get(kvid) {
+                    let arg_exprs: Vec<Expr<T>> =
+                        args.iter().map(|v| Expr::Var(v.clone())).collect();
+                    Pred::Expr(body.substitute_bvar(&arg_exprs, 0))
+                } else {
+                    // Leave as kvar — fixpoint will solve it.
+                    self.clone()
+                }
+            }
+            Pred::And(preds) => {
+                Pred::And(preds.iter().map(|p| p.substitute_kvars(solutions)).collect())
+            }
+            Pred::Expr(_) => self.clone(),
+        }
+    }
+
+    /// Collect all KVar ids appearing in this predicate.
+    pub fn kvar_ids(&self) -> HashSet<T::KVar> {
+        match self {
+            Pred::KVar(kvid, _) => {
+                let mut set = HashSet::new();
+                set.insert(kvid.clone());
+                set
+            }
+            Pred::And(preds) => preds.iter().flat_map(|p| p.kvar_ids()).collect(),
+            Pred::Expr(_) => HashSet::new(),
         }
     }
 

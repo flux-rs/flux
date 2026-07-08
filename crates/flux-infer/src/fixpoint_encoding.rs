@@ -255,11 +255,21 @@ impl SolutionTrace {
 pub struct Answer<Tag> {
     pub errors: Vec<FixpointCheckError<Tag>>,
     pub solution: Solution,
+    /// The raw fixpoint-level kvar solutions (cut only).
+    pub fixpoint_solution: FixpointSolution,
+    /// rty KVar ids whose flat-constraint assumptions contained a kvar and whose
+    /// head failed. Only populated when the `wick` feature is enabled.
+    pub failing_head_kvars: std::collections::HashSet<rty::KVid>,
 }
 
 impl<Tag> Answer<Tag> {
     pub fn trivial() -> Self {
-        Self { errors: Vec::new(), solution: HashMap::new() }
+        Self {
+            errors: Vec::new(),
+            solution: HashMap::new(),
+            fixpoint_solution: HashMap::new(),
+            failing_head_kvars: Default::default(),
+        }
     }
 }
 
@@ -529,6 +539,10 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     tags: IndexVec<TagIdx, T>,
     _tags_inv: UnordMap<T, TagIdx>,
     pub blame_ctx_map: FxHashMap<TagIdx, BlameCtxt>,
+    /// When true, WKVars in both head and assumption position are replaced by
+    /// looking up their solution in `genv.weak_kvars_for(wkvid.parent_fn)`
+    /// (defaulting to `true` if absent). Used for the second profiling pass.
+    pub substitute_wkvar_solutions: bool,
 }
 
 pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
@@ -565,6 +579,7 @@ where
             tags: IndexVec::new(),
             _tags_inv: Default::default(),
             blame_ctx_map: FxHashMap::default(),
+            substitute_wkvar_solutions: false,
         }
     }
 
@@ -666,6 +681,36 @@ where
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
+
+        // Collect kvar ids from flat constraints of failing tags BEFORE substitution.
+        #[cfg(feature = "wick")]
+        let failing_head_kvars_acc: std::collections::HashSet<rty::KVid> = {
+            match &result.status {
+                FixpointStatus::Unsafe(_, errors) => {
+                    let failing_tag_idxs: Vec<TagIdx> =
+                        errors.iter().map(|err| err.tag).unique().collect_vec();
+                    let fixpoint_kvids: std::collections::HashSet<fixpoint::KVid> =
+                        failing_tag_idxs
+                            .iter()
+                            .filter_map(|tag_idx| flat_constraint_map.get(tag_idx))
+                            .flat_map(|fc| fc.kvar_ids_in_assumptions())
+                            .collect();
+                    println!(
+                        "[check] {} failing tags, {} fixpoint kvids in assumptions",
+                        failing_tag_idxs.len(),
+                        fixpoint_kvids.len(),
+                    );
+                    let rty_kvids = self.kcx.rty_kvids_for(&fixpoint_kvids);
+                    println!(
+                        "[check] {} rty kvids after reverse lookup",
+                        rty_kvids.len(),
+                    );
+                    rty_kvids
+                }
+                _ => std::collections::HashSet::new(),
+            }
+        };
+
         #[cfg(feature = "wick")]
         let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
         #[cfg(not(feature = "wick"))]
@@ -717,6 +762,7 @@ where
                     FixpointStatus::Unsafe(_, errors) => {
                         metrics::incr_metric(Metric::CsError, errors.len() as u32);
                         let tags = errors.into_iter().map(|err| err.tag).unique().collect_vec();
+
                         tags.into_iter()
                         .map(|tag_idx| {
                             let tag = self.tags[tag_idx];
@@ -727,10 +773,10 @@ where
                             let mut possible_solutions: FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = FxIndexMap::default();
                             #[cfg(feature = "wick")]
                             if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
-                                println!(
-                                    "Looking for weak kvars that might solve {}",
-                                    flat_constraint.head,
-                                );
+                                // println!(
+                                //     "Looking for weak kvars that might solve {}",
+                                //     flat_constraint.head,
+                                // );
                                 let head_expr = match &flat_constraint.head {
                                     fixpoint::Pred::Expr(e) => Some(e.clone()),
                                     _ => None,
@@ -852,7 +898,13 @@ where
                     }
                     FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
                 };
-                Ok(Answer { errors, solution })
+
+                #[cfg(feature = "wick")]
+                let failing_head_kvars = failing_head_kvars_acc;
+                #[cfg(not(feature = "wick"))]
+                let failing_head_kvars = std::collections::HashSet::new();
+
+                Ok(Answer { errors, solution, fixpoint_solution: fixpoint_solution.clone(), failing_head_kvars })
             },
         )
     }
@@ -864,7 +916,7 @@ where
         let fixpoint_solution = result
             .solution
             .iter()
-            .chain(&result.non_cuts_solution)
+            // Drop non_cuts_solution — we only care about cut kvars for profiling.
             .map(|b| self.convert_kvar_bind(b))
             .try_collect()?;
         let solution = self.fixpoint_to_kvar_solutions(&fixpoint_solution)?;
@@ -1056,11 +1108,31 @@ where
                 let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
-            rty::ExprKind::WKVar(_wkvar) => {
-                // We don't translate the weak kvar here because we don't want to
-                // send it to fixpoint to check (we only care about it appearing
-                // in assumptions)
-                Ok(fixpoint::Constraint::TRUE)
+            rty::ExprKind::WKVar(wkvar) => {
+                if self.substitute_wkvar_solutions {
+                    // Look up the solution from genv.
+                    let resolved = self.genv.weak_kvars_for(wkvar.wkvid.parent_fn)
+                        .and_then(|wk_map| {
+                            wk_map.get(&wkvar.wkvid.id.as_u32()).map(|info| {
+                                if info.solutions.is_empty() {
+                                    rty::Expr::tt()
+                                } else {
+                                    let combined = rty::Expr::and_from_iter(
+                                        info.solutions.iter().map(|b| b.skip_binder_ref().clone()),
+                                    );
+                                    let binder = info.solutions[0].map_ref(|_| combined);
+                                    binder.replace_bound_refts(&wkvar.args)
+                                }
+                            })
+                        })
+                        .unwrap_or_else(rty::Expr::tt);
+                    self.head_to_fixpoint(&resolved, mk_tag, blame_analysis)
+                } else {
+                    // We don't translate the weak kvar here because we don't want to
+                    // send it to fixpoint to check (we only care about it appearing
+                    // in assumptions)
+                    Ok(fixpoint::Constraint::TRUE)
+                }
             }
             rty::ExprKind::ForAll(pred) => {
                 self.ecx
@@ -1132,8 +1204,28 @@ where
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
             }
             rty::ExprKind::WKVar(wkvar) => {
-                preds.push(self.wkvar_to_fixpoint(wkvar)?);
-                blame_analysis.wkvars.push(wkvar.clone());
+                if self.substitute_wkvar_solutions {
+                    // Look up the solution from genv.
+                    let resolved = self.genv.weak_kvars_for(wkvar.wkvid.parent_fn)
+                        .and_then(|wk_map| {
+                            wk_map.get(&wkvar.wkvid.id.as_u32()).map(|info| {
+                                if info.solutions.is_empty() {
+                                    rty::Expr::tt()
+                                } else {
+                                    let combined = rty::Expr::and_from_iter(
+                                        info.solutions.iter().map(|b| b.skip_binder_ref().clone()),
+                                    );
+                                    let binder = info.solutions[0].map_ref(|_| combined);
+                                    binder.replace_bound_refts(&wkvar.args)
+                                }
+                            })
+                        })
+                        .unwrap_or_else(rty::Expr::tt);
+                    self.assumption_to_fixpoint_aux(&resolved, bindings, preds, blame_analysis)?;
+                } else {
+                    preds.push(self.wkvar_to_fixpoint(wkvar)?);
+                    blame_analysis.wkvars.push(wkvar.clone());
+                }
             }
             rty::ExprKind::ForAll(_) => {
                 // If a forall appears in assumptive position replace it with true. This is sound
@@ -1350,6 +1442,24 @@ impl KVarEncodingCtxt {
         }
         map
     }
+
+    /// Reverse-lookup: given a set of fixpoint KVids, return the corresponding rty KVids.
+    #[cfg(feature = "wick")]
+    fn rty_kvids_for(
+        &self,
+        fixpoint_kvids: &std::collections::HashSet<fixpoint::KVid>,
+    ) -> std::collections::HashSet<rty::KVid> {
+        self.ranges
+            .iter()
+            .filter_map(|(rty_kvid, range)| {
+                if range.clone().any(|fkid| fixpoint_kvids.contains(&fkid)) {
+                    Some(*rty_kvid)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
 }
 
 /// Environment used to map from [`rty::Var`] to a [`fixpoint::LocalVar`].
@@ -1428,7 +1538,7 @@ impl KVarGen {
         Self { kvars: IndexVec::new(), dummy }
     }
 
-    fn get(&self, kvid: rty::KVid) -> &KVarDecl {
+    pub(crate) fn get(&self, kvid: rty::KVid) -> &KVarDecl {
         &self.kvars[kvid]
     }
 
@@ -1527,7 +1637,7 @@ impl KVarGen {
 }
 
 #[derive(Clone)]
-struct KVarDecl {
+pub(crate) struct KVarDecl {
     self_args: usize,
     sorts: Vec<rty::Sort>,
     encoding: KVarEncoding,
