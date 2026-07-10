@@ -17,8 +17,11 @@ use flux_middle::{
     },
 };
 use itertools::Itertools;
-use rustc_data_structures::snapshot_map::SnapshotMap;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_data_structures::{
+    snapshot_map::SnapshotMap,
+    unord::{UnordMap, UnordSet},
+};
+use rustc_hash::FxHashSet;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
@@ -905,8 +908,8 @@ impl ConstraintDeps {
     }
 
     /// set of edges where kvid appears as ASSM
-    fn kv_lhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
-        let mut res: FxHashMap<KVid, Vec<ClauseId>> = FxHashMap::default();
+    fn kv_lhs(&self) -> UnordMap<KVid, Vec<ClauseId>> {
+        let mut res: UnordMap<KVid, Vec<ClauseId>> = UnordMap::default();
         for (clause_id, kvids) in self.assumptions.iter_enumerated() {
             for kvid in kvids {
                 res.entry(*kvid).or_default().push(clause_id);
@@ -916,8 +919,8 @@ impl ConstraintDeps {
     }
 
     /// set of edges where kvid appears as HEAD
-    fn kv_rhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
-        let mut res: FxHashMap<KVid, Vec<ClauseId>> = FxHashMap::default();
+    fn kv_rhs(&self) -> UnordMap<KVid, Vec<ClauseId>> {
+        let mut res: UnordMap<KVid, Vec<ClauseId>> = UnordMap::default();
         for (clause_id, head) in self.heads.iter_enumerated() {
             if let Head::KVar(kvid) = head {
                 res.entry(*kvid).or_default().push(clause_id);
@@ -1027,13 +1030,13 @@ enum Label {
 struct Assignment {
     /// These vars are NOT assigned `label`,
     /// all other `KVid` implicitly have assignment `label`
-    vars: FxHashSet<KVid>,
+    vars: UnordSet<KVid>,
     label: Label,
 }
 
 impl Assignment {
     fn new(label: Label) -> Self {
-        let vars = FxHashSet::default();
+        let vars = UnordSet::new();
         Self { vars, label }
     }
 

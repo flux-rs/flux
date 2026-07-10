@@ -8,7 +8,7 @@ use itertools::Itertools;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task,
-    Types,
+    Types, constraint::Quantifier,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -308,6 +308,15 @@ impl<T: Types> fmt::Display for Pred<T> {
     }
 }
 
+impl fmt::Display for Quantifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Quantifier::Exists => write!(f, "exists"),
+            Quantifier::Forall => write!(f, "forall"),
+        }
+    }
+}
+
 impl<T: Types> fmt::Display for Expr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -358,11 +367,14 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::IsCtor(ctor, e) => {
                 write!(f, "(is${} {})", ctor.display(), e)
             }
-            Expr::Exists(sorts, body) => {
+            Expr::Quantifier(q, sorts, body) => {
                 write!(
                     f,
-                    "(exists ({}) {})",
-                    sorts.iter().map(|binder| &binder.1).format(" "),
+                    "({} ({}) {})",
+                    q,
+                    sorts.iter().format_with(" ", |(name, sort), f| {
+                        f(&format_args!("({} {sort})", name.display()))
+                    }),
                     body
                 )
             }
@@ -374,7 +386,7 @@ impl<T: Types> fmt::Display for Constant<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Constant::Numeral(n) => write!(f, "{n}"),
-            Constant::Real(n) => write!(f, "{n}.0"),
+            Constant::Real(n) => write!(f, "{}", n.display()),
             Constant::Boolean(b) => write!(f, "{b}"),
             Constant::String(s) => write!(f, "{}", s.display()),
             Constant::BitVec(i, sz) => {

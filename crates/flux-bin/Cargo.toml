@@ -18,11 +18,11 @@ test = false
 
 [dependencies]
 flux-config.workspace = true
+flux-sysroot.workspace = true
 
 anyhow.workspace = true
 cargo_metadata.workspace = true
 config.workspace = true
-home.workspace = true
 itertools.workspace = true
 serde.workspace = true
 serde_json.workspace = true

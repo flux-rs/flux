@@ -89,3 +89,9 @@ driver_mismatched_generics =
     .label = generic parameters don't match the external {$def_descr}
     .extern_def_label = external {$def_descr} found here
     .note = extern specs must exactly match the external definition, including the list of generic parameters and their names
+
+driver_mismatched_impl_self_ty =
+    invalid extern spec for trait impl
+    .label = self type `{$local_self_ty}` doesn't match the external trait impl
+    .extern_impl_label = external trait impl has self type `{$extern_self_ty}`
+    .note = the self type in an extern spec for a trait impl must exactly match the external implementation

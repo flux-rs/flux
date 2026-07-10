@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { parseEnv, parseRcx } from "../parsing";
 import type { CheckMode, DisplayState, NestedString, Rcx, TypeEnv } from "../types";
 import { escapeHtml } from "../utils";
+import { log } from "../utils/logger";
 import { InfoProvider } from "./InfoProvider";
 
 /**
@@ -108,11 +109,11 @@ export class FluxViewProvider implements vscode.WebviewViewProvider {
                         return;
                     case "checkModeChanged":
                         this._checkMode = message.mode;
-                        console.log(`Check mode changed to: ${this._checkMode}`);
+                        log(`Check mode changed to: ${this._checkMode}`);
                         return;
                     case "checkerTraceChanged":
                         this._checkTrace = message.checked;
-                        console.log(`Checker trace changed to: ${this._checkTrace}`);
+                        log(`Checker trace changed to: ${this._checkTrace}`);
                         return;
                 }
             },

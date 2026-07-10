@@ -20,7 +20,7 @@ use bitflags::bitflags;
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
     ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, Lambda, Loc, Name, NameProvenance,
-    Path, PrettyMap, PrettyVar, Real, SpecFuncKind, UnOp, Var,
+    Path, PrettyMap, PrettyVar, QuantDom, RawPtrField, Real, SpecFuncKind, UnOp, Var,
 };
 pub use flux_arc_interner::List;
 use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
@@ -771,7 +771,7 @@ pub struct CoroutineObligPredicate {
     pub args: flux_rustc_bridge::ty::GenericArgs,
 }
 
-#[derive(Copy, Clone, Encodable, Decodable, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Encodable, Decodable, Hash, PartialEq, Debug, Eq)]
 pub struct AssocReft {
     pub def_id: FluxDefId,
     // NOTE: Field is used to denote final associated generic refinements on Traits
@@ -810,7 +810,9 @@ impl AssocRefinements {
             .items
             .into_iter()
             .find(|it| it.def_id == assoc_id)
-            .unwrap_or_else(|| bug!("caller should guarantee existence of associated refinement"))
+            .unwrap_or_else(|| {
+                bug!("caller should guarantee existence of associated refinement {assoc_id:?}")
+            })
     }
 
     pub fn find(&self, name: Symbol) -> Option<AssocReft> {
@@ -1072,6 +1074,16 @@ impl Sort {
         Self::tuple(vec![])
     }
 
+    pub fn field_sorts(&self) -> Option<List<Sort>> {
+        match self {
+            Sort::RawPtr => Some(RawPtrField::iter().map(RawPtrField::sort).collect()),
+            Sort::App(SortCtor::Adt(sort_def), args) if sort_def.is_struct() => {
+                Some(sort_def.struct_variant().field_sorts(args))
+            }
+            _ => None,
+        }
+    }
+
     #[track_caller]
     pub fn expect_func(&self) -> &PolyFuncSort {
         if let Sort::Func(sort) = self { sort } else { bug!("expected `Sort::Func`") }
@@ -1138,6 +1150,14 @@ impl Sort {
                     for (i, sort) in field_sorts.iter().enumerate() {
                         proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
                         go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                Sort::RawPtr => {
+                    for field in RawPtrField::iter() {
+                        let sort = field.sort();
+                        proj.push(FieldProj::RawPtr { field });
+                        go(&sort, f, proj);
                         proj.pop();
                     }
                 }
@@ -3026,13 +3046,19 @@ pub struct WfckResults {
     coercions: ItemLocalMap<Vec<Coercion>>,
     field_projs: ItemLocalMap<FieldProj>,
     node_sorts: ItemLocalMap<Sort>,
-    record_ctors: ItemLocalMap<DefId>,
+    record_ctors: ItemLocalMap<RecordCtor>,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum Coercion {
     Inject(DefId),
     Project(DefId),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum RecordCtor {
+    Struct(DefId),
+    RawPtr,
 }
 
 pub type ItemLocalMap<T> = UnordMap<fhir::ItemLocalId, T>;
@@ -3110,11 +3136,11 @@ impl WfckResults {
         LocalTableInContext { owner: self.owner, data: &self.node_sorts }
     }
 
-    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<'_, DefId> {
+    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<'_, RecordCtor> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
     }
 
-    pub fn record_ctors(&self) -> LocalTableInContext<'_, DefId> {
+    pub fn record_ctors(&self) -> LocalTableInContext<'_, RecordCtor> {
         LocalTableInContext { owner: self.owner, data: &self.record_ctors }
     }
 }

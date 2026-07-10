@@ -17,7 +17,6 @@ use flux_syntax::{
 use hir::{ItemId, ItemKind, OwnerId, def::DefKind};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
 use rustc_hir::{
     self as hir, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy,
     def::{
@@ -71,7 +70,7 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
 /// Map to keep track of names defined in a scope
 #[derive(Default)]
 struct DefinitionMap {
-    defined: FxHashMap<Ident, ()>,
+    defined: UnordMap<Ident, ()>,
 }
 
 impl DefinitionMap {
@@ -160,8 +159,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         );
         self.func_decls
             .insert(Symbol::intern("cast"), fhir::SpecFuncKind::Cast);
-        self.func_decls
-            .insert(sym::ptr_size, fhir::SpecFuncKind::PtrSize);
     }
 
     fn define_items(&mut self, item_ids: impl IntoIterator<Item = &'tcx ItemId>) {
@@ -205,6 +202,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 ItemKind::TyAlias(..) => DefKind::TyAlias,
                 ItemKind::Enum(..) => DefKind::Enum,
                 ItemKind::Struct(..) => DefKind::Struct,
+                ItemKind::Union(..) => DefKind::Union,
                 ItemKind::Trait(..) => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
                 ItemKind::Const(..) => DefKind::Const,
@@ -283,18 +281,26 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    fn resolve_item(&mut self, item: &surface::Item) -> Result {
-        ItemResolver::run(self, |item_resolver| item_resolver.visit_item(item))?;
+    fn resolve_item(&mut self, item: &surface::Item, item_id: MaybeExternId<OwnerId>) -> Result {
+        ItemResolver::run(self, item_id, |item_resolver| item_resolver.visit_item(item))?;
         RefinementResolver::resolve_item(self, item)
     }
 
-    fn resolve_trait_item(&mut self, item: &surface::TraitItemFn) -> Result {
-        ItemResolver::run(self, |item_resolver| item_resolver.visit_trait_item(item))?;
+    fn resolve_trait_item(
+        &mut self,
+        item: &surface::TraitItemFn,
+        item_id: MaybeExternId<OwnerId>,
+    ) -> Result {
+        ItemResolver::run(self, item_id, |item_resolver| item_resolver.visit_trait_item(item))?;
         RefinementResolver::resolve_trait_item(self, item)
     }
 
-    fn resolve_impl_item(&mut self, item: &surface::ImplItemFn) -> Result {
-        ItemResolver::run(self, |item_resolver| item_resolver.visit_impl_item(item))?;
+    fn resolve_impl_item(
+        &mut self,
+        item: &surface::ImplItemFn,
+        item_id: MaybeExternId<OwnerId>,
+    ) -> Result {
+        ItemResolver::run(self, item_id, |item_resolver| item_resolver.visit_impl_item(item))?;
         RefinementResolver::resolve_impl_item(self, item)
     }
 
@@ -544,7 +550,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             _ => {}
         }
         if let Some(item) = self.specs.get_item(def_id.local_id()) {
-            self.resolve_item(item).collect_err(&mut self.err);
+            self.resolve_item(item, def_id).collect_err(&mut self.err);
         }
 
         hir::intravisit::walk_item(self, item);
@@ -562,7 +568,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Normal);
         if let Some(item) = self.specs.get_impl_item(def_id.local_id()) {
             self.define_generics(def_id);
-            self.resolve_impl_item(item).collect_err(&mut self.err);
+            self.resolve_impl_item(item, def_id)
+                .collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         self.pop_rib(TypeNS);
@@ -577,7 +584,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Normal);
         if let Some(item) = self.specs.get_trait_item(def_id.local_id()) {
             self.define_generics(def_id);
-            self.resolve_trait_item(item).collect_err(&mut self.err);
+            self.resolve_trait_item(item, def_id)
+                .collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         self.pop_rib(TypeNS);
@@ -616,7 +624,7 @@ enum RibKind {
 #[derive(Debug)]
 struct Rib {
     kind: RibKind,
-    bindings: FxHashMap<Symbol, fhir::Res>,
+    bindings: UnordMap<Symbol, fhir::Res>,
 }
 
 impl Rib {
@@ -704,21 +712,23 @@ impl Segment for hir::PathSegment<'_> {
 struct ItemResolver<'a, 'genv, 'tcx> {
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     errors: Errors<'genv>,
+    item_id: MaybeExternId<OwnerId>,
 }
 
 impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     fn run(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        item_id: MaybeExternId<OwnerId>,
         f: impl FnOnce(&mut ItemResolver),
     ) -> Result {
-        let mut item_resolver = ItemResolver::new(resolver);
+        let mut item_resolver = ItemResolver::new(resolver, item_id);
         f(&mut item_resolver);
         item_resolver.errors.into_result()
     }
 
-    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
+    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, item_id: MaybeExternId<OwnerId>) -> Self {
         let errors = Errors::new(resolver.genv.sess());
-        Self { resolver, errors }
+        Self { resolver, errors, item_id }
     }
 
     fn resolve_type_path(&mut self, path: &surface::Path) {
@@ -736,14 +746,39 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         }
     }
 
-    fn resolve_reveal_and_qualifiers(&mut self, node_id: surface::NodeId, attrs: &[surface::Attr]) {
+    fn resolve_attrs(&mut self, node_id: surface::NodeId, attrs: &[surface::Attr]) {
         for attr in attrs {
             match attr {
                 surface::Attr::Qualifiers(names) => self.resolve_qualifiers(node_id, names),
                 surface::Attr::Reveal(names) => self.resolve_reveals(node_id, names),
+                surface::Attr::AssumeParametric(names) => {
+                    self.resolve_parametric_params(node_id, names);
+                }
                 _ => {}
             }
         }
+    }
+
+    fn resolve_parametric_params(&mut self, node_id: surface::NodeId, names: &[Ident]) {
+        let tcx = self.resolver.genv.tcx();
+        let generics = tcx.generics_of(self.item_id.resolved_id());
+        let param_map: UnordMap<Symbol, DefId> = (0..generics.count())
+            .map(|i| generics.param_at(i, tcx))
+            .map(|p| (p.name, p.def_id))
+            .collect();
+        let mut params = Vec::with_capacity(names.len());
+        for name in names {
+            if let Some(&def_id) = param_map.get(&name.name) {
+                params.push(def_id);
+            } else {
+                self.errors
+                    .emit(errors::UnknownParametricParam::new(name.span));
+            }
+        }
+        self.resolver
+            .output
+            .parametric_param_res_map
+            .insert(node_id, params);
     }
 
     fn resolve_qualifiers(&mut self, node_id: surface::NodeId, qual_names: &[Ident]) {
@@ -779,17 +814,17 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
 
 impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
     fn visit_item(&mut self, item: &surface::Item) {
-        self.resolve_reveal_and_qualifiers(item.node_id, &item.attrs);
+        self.resolve_attrs(item.node_id, &item.attrs);
         surface::visit::walk_item(self, item);
     }
 
     fn visit_trait_item(&mut self, item: &surface::TraitItemFn) {
-        self.resolve_reveal_and_qualifiers(item.node_id, &item.attrs);
+        self.resolve_attrs(item.node_id, &item.attrs);
         surface::visit::walk_trait_item(self, item);
     }
 
     fn visit_impl_item(&mut self, item: &surface::ImplItemFn) {
-        self.resolve_reveal_and_qualifiers(item.node_id, &item.attrs);
+        self.resolve_attrs(item.node_id, &item.attrs);
         surface::visit::walk_impl_item(self, item);
     }
 
@@ -829,6 +864,13 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
             }
         }
         surface::visit::walk_generic_arg(self, arg);
+    }
+
+    fn visit_const_arg(&mut self, const_arg: &surface::ConstArg) {
+        if let surface::ConstArgKind::Path(path) = &const_arg.kind {
+            self.resolve_path_in(path, ValueNS);
+            surface::visit::walk_path(self, path);
+        }
     }
 
     fn visit_path(&mut self, path: &surface::Path) {
@@ -908,6 +950,19 @@ mod errors {
     }
 
     impl UnknownRevealDefinition {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_unknown_parametric_param, code = E0999)]
+    pub(super) struct UnknownParametricParam {
+        #[primary_span]
+        span: Span,
+    }
+
+    impl UnknownParametricParam {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
         }

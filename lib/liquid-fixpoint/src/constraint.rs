@@ -1,7 +1,7 @@
 use std::{collections::HashSet, hash::Hash};
 
 use derive_where::derive_where;
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexSet;
 
 use crate::{ThyFunc, Types};
 
@@ -31,25 +31,6 @@ impl<T: Types> Constraint<T> {
 
     pub fn conj(mut cstrs: Vec<Self>) -> Self {
         if cstrs.len() == 1 { cstrs.remove(0) } else { Self::Conj(cstrs) }
-    }
-
-    fn variable_sorts_help(&self, acc: &mut IndexMap<T::Var, Sort<T>>) {
-        match self {
-            Constraint::ForAll(bind, inner) => {
-                acc.insert(bind.name.clone(), bind.sort.clone());
-                inner.variable_sorts_help(acc);
-            }
-            Constraint::Conj(cstrs) => {
-                cstrs.iter().for_each(|cstr| cstr.variable_sorts_help(acc));
-            }
-            Constraint::Pred(..) => {}
-        }
-    }
-
-    pub fn variable_sorts(&self) -> IndexMap<T::Var, Sort<T>> {
-        let mut res = IndexMap::new();
-        self.variable_sorts_help(&mut res);
-        res
     }
 
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
@@ -326,7 +307,7 @@ pub enum Expr<T: Types> {
     Let(T::Var, Box<[Self; 2]>),
     ThyFunc(ThyFunc),
     IsCtor(T::Var, Box<Self>),
-    Exists(Vec<(T::Var, Sort<T>)>, Box<Self>),
+    Quantifier(Quantifier, Vec<(T::Var, Sort<T>)>, Box<Self>),
 }
 
 impl<T: Types> From<Constant<T>> for Expr<T> {
@@ -395,7 +376,7 @@ impl<T: Types> Expr<T> {
             Expr::IsCtor(_v, expr) => {
                 expr.var_sorts_to_int();
             }
-            Expr::Exists(binder, expr) => {
+            Expr::Quantifier(_, binder, expr) => {
                 for (_, sort) in binder {
                     sort.free_var_sorts_to_int();
                 }
@@ -453,7 +434,7 @@ impl<T: Types> Expr<T> {
                 // bother with `v`.
                 vars.extend(expr.free_vars());
             }
-            Expr::Exists(binder, expr) => {
+            Expr::Quantifier(_, binder, expr) => {
                 let mut inner = expr.free_vars();
                 for (var, _sort) in binder {
                     inner.swap_remove(var);
@@ -468,12 +449,7 @@ impl<T: Types> Expr<T> {
 #[derive_where(Hash, Clone, Debug)]
 pub enum Constant<T: Types> {
     Numeral(u128),
-    // Currently we only support parsing integers as decimals. We should extend this to allow
-    // rational numbers as a numer/denom.
-    //
-    // NOTE: If this type is updated, then update parse_expr in the parser
-    // (see the unimplemented!() related to float parsing).
-    Real(u128),
+    Real(T::Real),
     Boolean(bool),
     String(T::String),
     BitVec(u128, u32),
@@ -493,4 +469,10 @@ pub enum BinOp {
     Mul,
     Div,
     Mod,
+}
+
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
+pub enum Quantifier {
+    Exists,
+    Forall,
 }

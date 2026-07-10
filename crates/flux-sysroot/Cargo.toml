@@ -1,0 +1,12 @@
+[package]
+name = "flux-sysroot"
+version = "0.1.0"
+
+edition.workspace = true
+
+[dependencies]
+home.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

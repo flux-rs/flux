@@ -2,6 +2,7 @@ import * as child_process from "child_process";
 import * as process from "node:process";
 import { promisify } from "util";
 import * as vscode from "vscode";
+import { log, error as logError } from "./logger";
 
 // Global variable to track the running flux process
 let runningFluxProcess: child_process.ChildProcess | null = null;
@@ -18,30 +19,25 @@ export async function runShellCommand(
 ): Promise<any> {
     const start = performance.now();
     try {
-        console.log(`TRACE: Running command: ${command} flags=`, env.FLUXFLAGS);
+        log(`TRACE: Running command: 'FLUXFLAGS="${env.FLUXFLAGS}" ${command}'`);
         const { stdout, stderr } = await execPromise(command, {
             env: env,
             cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
         });
 
         const end = performance.now();
-        console.log(`TRACE: Finish command: execution time: ${end - start} ms`);
-        // Handle any output
-        // if (stdout) { console.log(`Command stdout: ${stdout}`); }
-        // if (stderr) { console.warn(`Command stderr: ${stderr}`); }
+        log(`TRACE: Finish command: execution time: ${end - start} ms`);
 
         return stdout.trim();
     } catch (error: any) {
         const end = performance.now();
-        console.log(`TRACE: Finish command: execution time: ${end - start} ms`);
+        log(`TRACE: Finish command: execution time: ${end - start} ms`);
         // Even when the command fails, we can still get stdout and stderr
         const stdout = error.stdout || "";
         const stderr = error.stderr || "";
         const exitCode = error.code;
 
-        console.log(`Command failed with exit code ${exitCode}`);
-        // if (stdout) { console.log(`Command stdout: ${stdout}`); }
-        // if (stderr) { console.warn(`Command stderr: ${stderr}`); }
+        log(`Command failed with exit code ${exitCode}`);
         // Return stdout even on failure - useful for commands that output data but exit with non-zero
         return stdout.trim();
     }
@@ -71,14 +67,12 @@ export async function runCargoFlux(
     statusBarItem.command = "Flux.killProcess";
     statusBarItem.show();
 
-    let fluxFlags = `-Finclude=${includeValue}`;
-    fluxFlags += ` -Fsummary=off`;
+    let fluxFlags = "-Fsummary=off";
     if (trace) {
         fluxFlags += ` -Fdump-checker-trace=info`;
     } else {
         fluxFlags += ` -Fdump-checker-trace=warn`;
     }
-    // console.log(`TRACE: Running command: cargo flux with flags=`, fluxFlags);
 
     return new Promise((resolve, reject) => {
         const fluxEnv = {
@@ -89,16 +83,18 @@ export async function runCargoFlux(
         // Get the flux command from workspace configuration
         const config = vscode.workspace.getConfiguration("flux");
         const baseCommand = config.get<string>("command", "cargo flux");
-        const commandArgs = `${baseCommand} --message-format=json-diagnostic-rendered-ansi`.split(
-            " "
-        );
+        let commandStr = `${baseCommand} --message-format=json-diagnostic-rendered-ansi`;
+        if (includeValue && includeValue !== "*") {
+            commandStr += ` --only-check=${includeValue}`;
+        }
+        const commandArgs = commandStr.split(" ");
         const command = commandArgs[0];
         const args = commandArgs.slice(1);
 
         const start = performance.now();
-        console.log(
-            `TRACE: Running command: ${command} ${args.join(" ")} flags=`,
-            fluxEnv.FLUXFLAGS
+
+        log(
+            `TRACE: Running command: FLUXFLAGS="${fluxEnv.FLUXFLAGS}"  ${command} ${args.join(" ")}`
         );
 
         // Use spawn to get a killable process reference
@@ -121,20 +117,20 @@ export async function runCargoFlux(
 
         runningFluxProcess.on("close", (code, signal) => {
             const end = performance.now();
-            console.log(`TRACE: Finish command: execution time: ${end - start} ms`);
+            log(`TRACE: Finish command: execution time: ${end - start} ms`);
 
             runningFluxProcess = null;
             statusBarItem.hide();
             statusBarItem.command = undefined; // Remove click command
 
             if (signal === "SIGTERM") {
-                console.log("Flux process was terminated by user");
+                log("Flux process was terminated by user");
                 resolve(""); // Return empty result when cancelled
                 return;
             }
 
             if (code !== 0) {
-                console.log(`Command failed with exit code ${code}`);
+                log(`Command failed with exit code ${code}`);
             }
 
             // if (stdout) { console.log(`Command stdout: ${stdout}`); }
@@ -144,16 +140,16 @@ export async function runCargoFlux(
             resolve(stdout.trim());
         });
 
-        runningFluxProcess.on("error", (error) => {
+        runningFluxProcess.on("error", (err) => {
             const end = performance.now();
-            console.log(`TRACE: Finish command: execution time: ${end - start} ms`);
+            log(`TRACE: Finish command: execution time: ${end - start} ms`);
 
             runningFluxProcess = null;
             statusBarItem.hide();
             statusBarItem.command = undefined; // Remove click command
 
-            console.error("Failed to start flux process:", error);
-            reject(error);
+            logError("Failed to start flux process:", err);
+            reject(err);
         });
     });
 }
@@ -163,7 +159,7 @@ export async function runCargoFlux(
  */
 export function killFluxProcess(): boolean {
     if (runningFluxProcess) {
-        console.log("Killing flux process...");
+        log("Killing flux process...");
         runningFluxProcess.kill("SIGTERM");
         runningFluxProcess = null;
         return true;

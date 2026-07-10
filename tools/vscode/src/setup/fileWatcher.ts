@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import { log, warn } from "../utils/logger";
 
 /**
  * Sets up the file system watcher for the flux checker log file
@@ -17,17 +18,17 @@ export function setupFileWatcher(
     try {
         if (fs.existsSync(logFilePath)) {
             fs.unlinkSync(logFilePath);
-            console.log(`Deleted existing log file: ${logFilePath}`);
+            log(`Deleted existing log file: ${logFilePath}`);
         }
     } catch (error) {
-        console.warn(`Failed to delete log file ${logFilePath}:`, error);
+        warn(`Failed to delete log file ${logFilePath}:`, error);
     }
 
     const fileWatcher = vscode.workspace.createFileSystemWatcher(logFilePattern);
-    console.log(`fileWatcher at:`, logFilePattern);
+    log(`fileWatcher at:`, logFilePattern);
 
     fileWatcher.onDidChange((uri) => {
-        console.log(`checker trace changed: ${uri.fsPath}`);
+        log(`checker trace changed: ${uri.fsPath}`);
         onFileChange();
     });
 

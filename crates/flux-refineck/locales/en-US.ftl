@@ -16,7 +16,7 @@ refineck_refine_error =
     .label = a {$cond} cannot be proved
 
 refineck_panic_error =
-    call to {$callee} may panic
+    call to {$callee} may panic: {$reason}
 
 refineck_div_error =
     possible division by zero
@@ -68,3 +68,6 @@ refineck_missing_assoc_reft =
 
 refineck_impl_assoc_reft_final =
     associated refinement `{$name}` is final and should not be implemented anywhere other than the trait definition
+
+refineck_constraint_log_note =
+    log file saved to {$path} (tag: {$tag})

@@ -1,5 +1,6 @@
 import * as path from "path";
 import * as vscode from "vscode";
+import { log } from "../utils/logger";
 import type {
     Assignment,
     FluxDef,
@@ -153,7 +154,7 @@ function parseLineInfo(event: any): [string, LineInfo] | undefined {
             }
         }
     } catch (error) {
-        console.log(`Failed to parse event: ${error}`);
+        log(`Failed to parse event: ${error}`);
     }
     return undefined;
 }
@@ -167,7 +168,7 @@ function parseFluxDef(event: any): FluxDef | undefined {
             const srcSpan = JSON.parse(event.fields.src_span) as StmtSpan;
             const dstSpan = JSON.parse(event.fields.dst_span) as StmtSpan;
             if (!srcSpan.file || !dstSpan.file) {
-                console.log(`Invalid detached link: ${event.fields}`);
+                log(`Invalid detached link: ${event.fields}`);
                 return undefined; // Skip invalid links
             }
             // console.log(`Parsing flux hyperlink definition`, srcSpan, dstSpan);
@@ -191,7 +192,7 @@ function parseFluxDef(event: any): FluxDef | undefined {
             // console.log(`Found flux definition`, fluxDef);
             return fluxDef;
         } catch (error) {
-            console.log(`Failed to parse definition event: ${error}`);
+            log(`Failed to parse definition event: ${error}`);
             return undefined;
         }
     }
@@ -214,7 +215,7 @@ function parseKvarSol(event: any): KvarSol | undefined {
             return { span: stmt_span!, asgn: new Map(asgn) };
         }
     } catch (error) {
-        console.log(`Failed to parse event: ${error}`);
+        log(`Failed to parse event: ${error}`);
     }
     return undefined;
 }

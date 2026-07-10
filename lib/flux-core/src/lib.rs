@@ -24,6 +24,9 @@ mod clone;
 mod slice;
 
 #[cfg(flux)]
+mod array;
+
+#[cfg(flux)]
 mod num;
 
 #[cfg(flux)]

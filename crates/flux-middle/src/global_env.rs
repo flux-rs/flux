@@ -12,7 +12,7 @@ use flux_config::{self as config, IncludePattern};
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
-use rustc_data_structures::unord::UnordSet;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -27,6 +27,8 @@ pub use rustc_span::{Symbol, symbol::Ident};
 use tempfile::TempDir;
 
 use crate::{
+    PanicReason, PanicSpec,
+    call_graph::NodeKey,
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},
@@ -47,7 +49,7 @@ struct GlobalEnvInner<'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
     arena: &'genv fhir::Arena,
-    cstore: Box<CrateStoreDyn>,
+    cstore: Box<CrateStoreDyn<'tcx>>,
     queries: Queries<'genv, 'tcx>,
     tempdir: TempDir,
 }
@@ -56,7 +58,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
     pub fn enter<'a, R>(
         tcx: TyCtxt<'tcx>,
         sess: &'a FluxSession,
-        cstore: Box<CrateStoreDyn>,
+        cstore: Box<CrateStoreDyn<'tcx>>,
         arena: &'a fhir::Arena,
         providers: Providers,
         f: impl for<'genv> FnOnce(GlobalEnv<'genv, 'tcx>) -> R,
@@ -173,6 +175,42 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
             slice::from_raw_parts(dst.as_ptr(), len)
         }
+    }
+
+    pub fn call_graph(self) -> &'genv crate::call_graph::CallGraph<'tcx> {
+        self.inner.queries.call_graph(self)
+    }
+
+    /// The inferred [`PanicSpec`] for the node `key`, looked up in the local crate's
+    /// `NodeKey`-keyed map. Missing entries default to `MightPanic(NotInCallGraph)`.
+    pub fn inferred_no_panic_key(self, key: NodeKey<'tcx>) -> PanicSpec {
+        self.inferred_no_panic_local()
+            .get(&key)
+            .copied()
+            .unwrap_or(PanicSpec::MightPanic(PanicReason::NotInCallGraph))
+    }
+
+    /// The local crate's full `NodeKey`-keyed no-panic map (used by metadata encoding).
+    pub fn inferred_no_panic_local(self) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec>> {
+        self.inner.queries.inferred_no_panic(self)
+    }
+
+    /// Looks up the inferred [`PanicSpec`] for a node `key` defined in an *external* crate, from
+    /// that crate's serialized metadata table. Tries the exact key first (so a serialized
+    /// [`Mono`](NodeKey::Mono) is used when present), then for a monomorphization falls back to the
+    /// source [`Item`](NodeKey::Item) (covering instantiations the external crate could never have
+    /// analyzed, e.g. at a local type), then to `MightPanic`.
+    pub fn inferred_no_panic_external(self, key: NodeKey<'tcx>) -> PanicSpec {
+        let table = self.cstore().inferred_no_panic(key.def_id().krate);
+        if let Some(&spec) = table.get(&key) {
+            return spec;
+        }
+        if let NodeKey::Mono(instance) = key
+            && let Some(&spec) = table.get(&NodeKey::Item(instance.def_id()))
+        {
+            return spec;
+        }
+        PanicSpec::MightPanic(PanicReason::NotInCallGraph)
     }
 
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
@@ -455,16 +493,20 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|variants| variants.map(|variants| variants[variant_idx.as_usize()].clone())))
     }
 
-    pub fn lower_late_bound_vars(
-        self,
-        def_id: LocalDefId,
-    ) -> QueryResult<List<ty::BoundVariableKind>> {
-        self.inner.queries.lower_late_bound_vars(self, def_id)
+    /// Whether the crate has Flux metadata in the cratestore.
+    pub fn cstore_has_crate(self, krate: CrateNum) -> bool {
+        self.cstore().has_crate(krate)
     }
 
     /// Whether the function is marked with `#[flux::no_panic]`
     pub fn no_panic(self, def_id: impl IntoQueryParam<DefId>) -> bool {
         self.inner.queries.no_panic(self, def_id.into_query_param())
+    }
+
+    pub fn assume_parametric_params(self, def_id: impl IntoQueryParam<DefId>) -> UnordSet<u32> {
+        self.inner
+            .queries
+            .assume_parametric_params(self, def_id.into_query_param())
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {
@@ -477,7 +519,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         generics.param_def_id_to_index(self.tcx(), def_id).unwrap()
     }
 
-    pub(crate) fn cstore(self) -> &'genv CrateStoreDyn {
+    pub(crate) fn cstore(self) -> &'genv CrateStoreDyn<'tcx> {
         &*self.inner.cstore
     }
 
@@ -521,7 +563,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         })
     }
 
-    /// Iterator over all local def ids that are not a extern spec
+    /// Iterator over all local def ids that are not an extern spec
     pub fn iter_local_def_id(self) -> impl Iterator<Item = LocalDefId> + use<'tcx, 'genv> {
         self.tcx().iter_local_def_id().filter(move |&local_def_id| {
             self.maybe_extern_id(local_def_id).is_local() && !self.is_dummy(local_def_id)

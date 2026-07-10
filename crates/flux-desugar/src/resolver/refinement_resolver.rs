@@ -593,7 +593,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             .resolver
             .resolve_path_with_ribs(&path.segments, TypeNS)?;
         match (partial_res.base_res(), partial_res.unresolved_segments()) {
-            (fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id), 0) => {
+            (fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, def_id), 0) => {
                 Some(fhir::SortRes::Adt(def_id))
             }
             (fhir::Res::Def(DefKind::TyParam, def_id), 0) => Some(fhir::SortRes::TyParam(def_id)),

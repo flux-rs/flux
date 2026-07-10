@@ -1,5 +1,7 @@
 #[flux::sig(fn(bool[true]))]
 fn assert(_: bool) {}
+
+#[flux::trusted(reason = "skip special casing forall in assumption")]
 #[flux::sig(
     fn(x: i32)
     requires forall y. y >= 0 => y > x

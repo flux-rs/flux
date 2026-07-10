@@ -39,7 +39,7 @@ use std::{
 
 pub use constraint::{
     BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
-    FunSort, Pred, Qualifier, Sort, SortCtor, SortDecl,
+    FunSort, Pred, Qualifier, Quantifier, Sort, SortCtor, SortDecl,
 };
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
@@ -57,6 +57,7 @@ pub trait Types {
     type KVar: Identifier + Hash + Clone + Debug + Eq;
     type Var: Identifier + Hash + Clone + Debug + Eq;
     type String: FixpointFmt + Hash + Clone + Debug;
+    type Real: FixpointFmt + Hash + Clone + Debug;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
 }
 
@@ -114,6 +115,7 @@ macro_rules! declare_types {
         type KVar = $kvar:ty;
         type Var = $var:ty;
         type String = $str:ty;
+        type Real = $real:ty;
         type Tag = $tag:ty;
     ) => {
         pub mod fixpoint_generated {
@@ -136,7 +138,7 @@ macro_rules! declare_types {
             pub type DataField = $crate::DataField<FixpointTypes>;
             pub type Bind = $crate::Bind<FixpointTypes>;
             pub type Constant = $crate::Constant<FixpointTypes>;
-            pub use $crate::{BinOp, BinRel, BoundVar, ThyFunc};
+            pub use $crate::{BinOp, BinRel, BoundVar, Quantifier, ThyFunc};
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {
@@ -144,6 +146,7 @@ macro_rules! declare_types {
             type KVar = $kvar;
             type Var = $var;
             type String = $str;
+            type Real = $real;
             type Tag = $tag;
         }
     };

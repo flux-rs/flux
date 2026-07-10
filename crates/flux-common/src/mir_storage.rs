@@ -10,7 +10,7 @@
 //! that is used to show that the lifetime that the client provided is indeed
 //! `'tcx`.
 
-use std::{cell::RefCell, collections::HashMap, thread_local};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, thread_local};
 
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_hir::def_id::LocalDefId;
@@ -20,7 +20,7 @@ use crate::bug;
 
 thread_local! {
     pub static SHARED_STATE:
-        RefCell<HashMap<LocalDefId, BodyWithBorrowckFacts<'static>>> =
+        RefCell<HashMap<LocalDefId, Rc<BodyWithBorrowckFacts<'static>>>> =
         RefCell::new(HashMap::new());
 }
 
@@ -37,7 +37,7 @@ pub unsafe fn store_mir_body<'tcx>(
         unsafe { std::mem::transmute(body_with_facts) };
     SHARED_STATE.with(|state| {
         let mut map = state.borrow_mut();
-        assert!(map.insert(def_id, body_with_facts).is_none());
+        assert!(map.insert(def_id, Rc::new(body_with_facts)).is_none());
     });
 }
 
@@ -45,18 +45,33 @@ pub unsafe fn store_mir_body<'tcx>(
 ///
 /// See the module level comment.
 pub unsafe fn retrieve_mir_body<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    def_id: LocalDefId,
+) -> Rc<BodyWithBorrowckFacts<'tcx>> {
+    // SAFETY: See the module level comment.
+    match unsafe { try_retrieve_mir_body(tcx, def_id) } {
+        Some(body) => body,
+        None => bug!("retrieve_mir_body: panic on {def_id:?}"),
+    }
+}
+
+/// Like [`retrieve_mir_body`], but returns `None` instead of panicking when no body was stashed
+/// for `def_id` (e.g. a local item rustc never borrowchecks). The no-panic call-graph provider
+/// uses this to degrade such items to leaf nodes.
+///
+/// # Safety
+///
+/// See the module level comment.
+pub unsafe fn try_retrieve_mir_body<'tcx>(
     _tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
-) -> BodyWithBorrowckFacts<'tcx> {
-    let body_with_facts: BodyWithBorrowckFacts<'static> = SHARED_STATE.with(|state| {
-        let mut map = state.borrow_mut();
-        match map.remove(&def_id) {
-            Some(body) => body,
-            None => {
-                bug!("retrieve_mir_body: panic on {def_id:?}")
-            }
-        }
-    });
+) -> Option<Rc<BodyWithBorrowckFacts<'tcx>>> {
+    let body_with_facts: Rc<BodyWithBorrowckFacts<'static>> =
+        SHARED_STATE.with(|state| state.borrow().get(&def_id).map(Rc::clone))?;
     // SAFETY: See the module level comment.
-    unsafe { std::mem::transmute(body_with_facts) }
+    Some(unsafe {
+        std::mem::transmute::<Rc<BodyWithBorrowckFacts<'static>>, Rc<BodyWithBorrowckFacts<'tcx>>>(
+            body_with_facts,
+        )
+    })
 }

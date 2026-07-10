@@ -469,7 +469,7 @@ dependencies = [
  "clap",
  "config",
  "flux-config",
- "home",
+ "flux-sysroot",
  "itertools 0.14.0",
  "serde",
  "serde_json",
@@ -492,6 +492,7 @@ dependencies = [
 name = "flux-config"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "globset",
  "serde",
  "toml",
@@ -521,6 +522,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-dev"
+version = "0.1.0"
+
+[[package]]
 name = "flux-driver"
 version = "0.1.0"
 dependencies = [
@@ -533,12 +538,15 @@ dependencies = [
  "flux-macros",
  "flux-metadata",
  "flux-middle",
+ "flux-opt",
  "flux-refineck",
  "flux-rustc-bridge",
  "flux-syntax",
+ "flux-sysroot",
  "itertools 0.14.0",
  "serde",
  "serde_json",
+ "toml",
  "tracing",
  "tracing-subscriber",
 ]
@@ -577,6 +585,7 @@ dependencies = [
  "flux-errors",
  "flux-macros",
  "flux-middle",
+ "flux-opt",
  "flux-rustc-bridge",
  "indexmap",
  "itertools 0.14.0",
@@ -614,6 +623,7 @@ dependencies = [
  "flux-errors",
  "flux-macros",
  "flux-middle",
+ "flux-opt",
  "itertools 0.14.0",
  "rustc-hash",
 ]
@@ -647,6 +657,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-opt"
+version = "0.1.0"
+dependencies = [
+ "flux-common",
+ "flux-config",
+ "flux-errors",
+ "flux-macros",
+ "flux-middle",
+ "flux-rustc-bridge",
+ "itertools 0.14.0",
+ "liquid-fixpoint",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "flux-refineck"
 version = "0.1.0"
 dependencies = [
@@ -656,6 +684,7 @@ dependencies = [
  "flux-infer",
  "flux-macros",
  "flux-middle",
+ "flux-opt",
  "flux-rustc-bridge",
  "itertools 0.14.0",
  "liquid-fixpoint",
@@ -690,6 +719,14 @@ dependencies = [
  "flux-config",
  "flux-macros",
  "rustc-hash",
+]
+
+[[package]]
+name = "flux-sysroot"
+version = "0.1.0"
+dependencies = [
+ "home",
+ "serde",
 ]
 
 [[package]]
@@ -1373,6 +1410,8 @@ name = "tests"
 version = "0.1.0"
 dependencies = [
  "compiletest_rs",
+ "flux-dev",
+ "flux-sysroot",
  "itertools 0.14.0",
 ]
 
@@ -1887,8 +1926,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
- "home",
- "tests",
+ "flux-dev",
+ "flux-sysroot",
+ "serde",
+ "toml",
  "walkdir",
  "xflags",
 ]

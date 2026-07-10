@@ -129,6 +129,11 @@ pub fn reft(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::reft(attrs, tokens)
 }
 
+#[proc_macro_attribute]
+pub fn assume_parametric(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::assume_parametric(attrs, tokens)
+}
+
 #[cfg(flux_sysroot)]
 mod attr_sysroot {
     use super::*;
@@ -177,6 +182,7 @@ mod attr_sysroot {
         reft,
         no_panic,
         no_panic_if,
+        assume_parametric,
     );
 }
 
@@ -228,5 +234,6 @@ mod attr_dummy {
         no_panic,
         no_panic_if,
         reft,
+        assume_parametric,
     );
 }

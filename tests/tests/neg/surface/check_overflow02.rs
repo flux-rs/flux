@@ -1,6 +1,6 @@
-#[flux_rs::refined_by(inner: int)]
+#[flux::refined_by(inner: int)]
 struct MyStruct {
-    #[field(u32[inner])]
+    #[flux::field(u32[inner])]
     inner: u32,
 }
 

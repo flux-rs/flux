@@ -25,6 +25,7 @@ pub const FLUX_ATTRS: &[&str] = &[
     "opts",
     "reft",
     "no_panic",
+    "assume_parametric",
 ];
 
 pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {

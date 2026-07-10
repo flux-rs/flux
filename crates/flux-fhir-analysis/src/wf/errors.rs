@@ -248,6 +248,22 @@ impl SortAnnotationNeeded {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_ill_sorted_quantifier, code = E0999)]
+#[note]
+pub(super) struct IllSortedQuantifier {
+    #[primary_span]
+    #[label]
+    span: Span,
+    sort: rty::Sort,
+}
+
+impl IllSortedQuantifier {
+    pub(super) fn new(span: Span, sort: rty::Sort) -> Self {
+        Self { span, sort }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_cannot_infer_sort, code = E0999)]
 #[note]
 pub(super) struct CannotInferSort {

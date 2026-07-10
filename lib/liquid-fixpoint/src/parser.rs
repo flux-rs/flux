@@ -5,6 +5,7 @@ use itertools::Itertools;
 
 use crate::{
     BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
+    constraint::Quantifier,
     sexp::{Atom, ParseError as SexpParseError, Sexp},
 };
 
@@ -153,6 +154,18 @@ where
         Ok(Expr::IsCtor(ctor, Box::new(arg)))
     }
 
+    fn parse_if(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+        match sexp {
+            Sexp::List(items) => {
+                let condition = self.parse_expr_possibly_nested(&items[1])?;
+                let pos_val = self.parse_expr_possibly_nested(&items[2])?;
+                let neg_val = self.parse_expr_possibly_nested(&items[3])?;
+                Ok(Expr::IfThenElse(Box::new([condition, pos_val, neg_val])))
+            }
+            _ => Err(ParseError::err("Expected list for if-else")),
+        }
+    }
+
     pub fn parse_expr(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
@@ -165,6 +178,7 @@ where
                         "or" => self.parse_or(sexp),
                         "and" => self.parse_and(sexp),
                         "lit" => parse_bitvec(sexp),
+                        "if" => self.parse_if(sexp),
                         "-" if items.len() == 2 => self.parse_neg(sexp),
                         "+" | "-" | "*" | "/" | "mod" => self.parse_binary_op(sexp),
                         "=" | "!=" | "<" | "<=" | ">" | ">=" => self.parse_atom(sexp),
@@ -355,6 +369,7 @@ where
             _ => Err(ParseError::err("Expected list for binary operation")),
         }
     }
+
     fn parse_exists(&mut self, items: &[Sexp]) -> Result<Expr<T>, ParseError> {
         let [Sexp::List(var_sorts), body] = items else {
             return Err(ParseError::err("Expected list for vars and sorts in exists"));
@@ -384,7 +399,7 @@ where
             .zip(sorts)
             .map(|(name, sort)| (scope.swap_remove(name).unwrap(), sort))
             .collect();
-        Ok(Expr::Exists(bound, Box::new(body)))
+        Ok(Expr::Quantifier(Quantifier::Exists, bound, Box::new(body)))
     }
 
     fn parse_let(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
@@ -693,6 +708,7 @@ impl Types for StringTypes {
     type Var = String;
     type Tag = String;
     type String = String;
+    type Real = String;
 }
 
 impl FromSexp<StringTypes> for StringTypes {

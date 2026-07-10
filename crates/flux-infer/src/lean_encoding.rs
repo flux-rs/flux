@@ -18,13 +18,12 @@ use flux_middle::{
     rty::{BinOp, BvSize, PrettyMap, Sort, local_deps},
 };
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexSet;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
 use crate::{
-    fixpoint_encoding::{ConstDeps, InterpretedConst, KVarSolutions, SortDeps, fixpoint},
+    fixpoint_encoding::{ConstDeps, InterpretedConst, SortDeps, fixpoint},
     lean_format::{self, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case},
 };
 
@@ -148,7 +147,7 @@ fn constant_deps(expr: &fixpoint::Expr, acc: &mut FxIndexSet<fixpoint::Var>) {
         fixpoint::Expr::IfThenElse(inner) => {
             inner.iter().for_each(|expr| constant_deps(expr, acc));
         }
-        fixpoint::Expr::Exists(_, inner)
+        fixpoint::Expr::Quantifier(_, _, inner)
         | fixpoint::Expr::Neg(inner)
         | fixpoint::Expr::Not(inner)
         | fixpoint::Expr::IsCtor(_, inner) => {
@@ -184,18 +183,23 @@ fn run_proof(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
         .arg("--log-level=error")
         .arg("lean")
         .arg(proof_path)
+        .arg("--")
+        .arg("--json")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .current_dir(project_path(genv, FileKind::User))
         .spawn()?
         .wait_with_output()?;
-    if out.stderr.is_empty() && out.stdout.is_empty() {
-        Ok(())
-    } else {
+    if !out.stderr.is_empty() {
         let stderr =
             std::str::from_utf8(&out.stderr).unwrap_or("Lean exited with a non-zero return code");
-        Err(io::Error::other(stderr))
+        return Err(io::Error::other(stderr));
     }
+    let stdout = std::str::from_utf8(&out.stdout).unwrap_or("");
+    if stdout.lines().any(|line| line.contains("\"hasSorry\"")) {
+        return Err(io::Error::other("proof uses `sorry`"));
+    }
+    Ok(())
 }
 
 fn run_check(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
@@ -205,17 +209,20 @@ fn run_check(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
         .arg("--log-level=error")
         .arg("lean")
         .arg(checking_path)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .current_dir(project_path(genv, FileKind::User))
         .spawn()?
         .wait()?;
     if status.success() {
         Ok(())
     } else {
-        Err(io::Error::other("Lean existed with a non-zero exit code"))
+        Err(io::Error::other("Lean exited with a non-zero exit code"))
     }
 }
 
 fn run_lean(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
+    dbg::log_verbose!("FLUX running lean proof for {def_id:?}");
     run_proof(genv, def_id)?;
     run_check(genv, def_id)?;
     Ok(())
@@ -372,13 +379,12 @@ pub struct LeanEncoder<'genv, 'tcx> {
     sort_deps: SortDeps,
     fun_deps: Vec<fixpoint::FunDef>,
     constants: ConstDeps,
-    kvar_solutions: KVarSolutions,
     kvar_decls: Vec<fixpoint::KVarDecl>,
     constraint: fixpoint::Constraint,
-    sort_files: FxHashMap<fixpoint::DataSort, LeanFile>,
-    fun_files: FxHashMap<FluxDefId, LeanFile>,
-    const_files: FxHashMap<fixpoint::Var, LeanFile>,
-    primop_var_map: FxHashMap<fixpoint::GlobalVar, String>,
+    sort_files: UnordMap<fixpoint::DataSort, LeanFile>,
+    fun_files: UnordMap<FluxDefId, LeanFile>,
+    const_files: UnordMap<fixpoint::Var, LeanFile>,
+    primop_var_map: UnordMap<fixpoint::GlobalVar, String>,
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
@@ -388,8 +394,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             pretty_var_map: &self.pretty_var_map,
             adt_map: &self.sort_deps.adt_map,
             opaque_adt_map: &self.sort_deps.opaque_sorts,
-            kvar_solutions: &self.kvar_solutions,
             primop_var_map: &self.primop_var_map,
+            hide_sort_vars: false,
         }
     }
 
@@ -413,8 +419,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         snake_case_to_pascal_case(&name)
     }
 
-    fn open_classical(&self) -> &str {
-        "open Classical"
+    fn post_import_preamble(&self) -> &str {
+        "open Classical\nset_option linter.unusedVariables false\n"
     }
 
     fn new(
@@ -424,11 +430,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         sort_deps: SortDeps,
         fun_deps: Vec<fixpoint::FunDef>,
         constants: ConstDeps,
-        kvar_solutions: KVarSolutions,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> io::Result<Self> {
-        let primop_var_map: FxHashMap<fixpoint::GlobalVar, String> = constants
+        let primop_var_map: UnordMap<fixpoint::GlobalVar, String> = constants
             .opaque
             .iter()
             .filter_map(|(decl, op)| {
@@ -447,11 +452,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             fun_deps,
             constants,
             kvar_decls,
-            kvar_solutions,
             constraint,
-            fun_files: FxHashMap::default(),
-            sort_files: FxHashMap::default(),
-            const_files: FxHashMap::default(),
+            fun_files: UnordMap::default(),
+            sort_files: UnordMap::default(),
+            const_files: UnordMap::default(),
             primop_var_map,
         };
         encoder.fun_files = encoder.fun_files();
@@ -469,8 +473,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn fun_files(&self) -> FxHashMap<FluxDefId, LeanFile> {
-        let mut res = FxHashMap::default();
+    fn fun_files(&self) -> UnordMap<FluxDefId, LeanFile> {
+        let mut res = UnordMap::default();
         for fun_def in &self.fun_deps {
             let fixpoint::Var::Global(_, did) = fun_def.name else {
                 bug!("expected global var with id")
@@ -482,8 +486,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         res
     }
 
-    fn sort_files(&self) -> FxHashMap<fixpoint::DataSort, LeanFile> {
-        let mut res = FxHashMap::default();
+    fn sort_files(&self) -> UnordMap<fixpoint::DataSort, LeanFile> {
+        let mut res = UnordMap::default();
         for (_, sort) in &self.sort_deps.opaque_sorts {
             let data_sort = sort.name.clone();
             let name = self.datasort_name(&sort.name);
@@ -499,8 +503,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         res
     }
 
-    fn const_files(&self) -> FxHashMap<fixpoint::Var, LeanFile> {
-        let mut res = FxHashMap::default();
+    fn const_files(&self) -> UnordMap<fixpoint::Var, LeanFile> {
+        let mut res = UnordMap::default();
         for (decl, _) in &self.constants.interpreted {
             res.insert(decl.name, LeanFile::Fun(self.var_name(&decl.name)));
         }
@@ -511,7 +515,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn generate_lake_project_if_not_present(&self) -> io::Result<()> {
-        let path = project_path(self.genv, FileKind::User);
+        let path = project_path(self.genv, FileKind::User).join("lakefile.toml");
         if !path.exists() {
             Command::new("lake")
                 .current_dir(self.genv.lean_parent_dir())
@@ -536,7 +540,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = file.path(self.genv, false);
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
             namespaced(&mut file, |f| {
                 writeln!(f, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })
             })?;
@@ -577,7 +581,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             for dep in self.data_decl_dependencies(data_decl) {
                 writeln!(file, "{}", dep.import(self.genv))?;
             }
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
 
             // write data decl
             namespaced(&mut file, |f| {
@@ -649,7 +653,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             for dep in self.fun_def_dependencies(did, fun_def) {
                 writeln!(file, "{}", dep.import(self.genv))?;
             }
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
 
             // write fun def
             namespaced(&mut file, |f| {
@@ -678,7 +682,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 writeln!(file, "{}", self.sort_file(&dep).import(self.genv))?;
             }
 
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
 
             namespaced(&mut file, |f| {
                 if let Some(comment) = &const_decl.comment {
@@ -708,7 +712,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", self.sort_file(&dep).import(self.genv))?;
         }
 
-        writeln!(file, "{}", self.open_classical())?;
+        writeln!(file, "{}", self.post_import_preamble())?;
 
         namespaced(&mut file, |f| {
             if let Some(comment) = &const_decl.comment {
@@ -857,7 +861,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = LeanFile::Vc(def_id).path(self.genv, false);
         if let Some(mut file) = create_file_with_dirs(path)? {
             self.generate_vc_imports(&mut file)?;
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
 
             let vc_name = vc_name(self.genv, def_id);
             // 3. Write the VC
@@ -895,7 +899,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
             writeln!(file, "{}", LeanFile::Vc(def_id).import(self.genv))?;
-            writeln!(file, "{}", self.open_classical())?;
+            writeln!(file, "{}", self.post_import_preamble())?;
             namespaced(&mut file, |f| {
                 writeln!(f, "def {proof_name} : {vc_name} := by")?;
                 writeln!(f, "  unfold {vc_name}")?;
@@ -930,7 +934,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         constants: ConstDeps,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
-        kvar_solutions: KVarSolutions,
     ) -> io::Result<()> {
         let encoder = Self::new(
             genv,
@@ -939,7 +942,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             sort_deps,
             fun_deps,
             constants,
-            kvar_solutions,
             kvar_decls,
             constraint,
         )?;

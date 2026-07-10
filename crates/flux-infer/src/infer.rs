@@ -4,7 +4,7 @@ use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_sp
 use flux_config::{self as config, InferOpts, OverflowMode, RawDerefMode};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
-    FixpointQueryKind,
+    FixpointQueryKind, PanicSpec,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric},
@@ -32,8 +32,7 @@ use rustc_type_ir::Variance::Invariant;
 use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{
-        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, KVarSolutions,
-        lean_task_key,
+        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key,
     },
     lean_encoding::log_proof,
     projections::NormalizeExt as _,
@@ -82,7 +81,7 @@ pub enum ConstrReason {
     Overflow,
     Underflow,
     Subtype(SubtypeReason),
-    NoPanic(DefId),
+    NoPanic(DefId, PanicSpec),
     Other,
 }
 
@@ -227,7 +226,6 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         };
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
-        let cstr_variable_sorts = cstr.variable_sorts();
         let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
 
         log_proof(self.genv, def_id)?;
@@ -240,17 +238,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             }
         }
 
-        let result = fcx.run_task(cache, def_id, FixpointQueryKind::Body, &task)?;
-
-        fcx.generate_lean_files(
-            def_id,
-            task,
-            KVarSolutions::closed_solutions(
-                cstr_variable_sorts,
-                result.solution,
-                result.non_cut_solution,
-            ),
-        )
+        fcx.generate_lean_files(def_id, task)
     }
 
     pub fn execute_fixpoint_query(
@@ -1119,10 +1107,22 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                     self.idxs_eq(infcx, a, b);
                 }
             }
+            (ExprKind::Ctor(Ctor::RawPtr, flds_a), ExprKind::Ctor(Ctor::RawPtr, flds_b)) => {
+                for (a, b) in iter::zip(flds_a, flds_b) {
+                    self.idxs_eq(infcx, a, b);
+                }
+            }
             (_, ExprKind::Tuple(flds_b)) => {
                 for (f, b) in flds_b.iter().enumerate() {
                     let proj = FieldProj::Tuple { arity: flds_b.len(), field: f as u32 };
                     let a = a.proj_and_reduce(proj);
+                    self.idxs_eq(infcx, &a, b);
+                }
+            }
+            (_, ExprKind::Ctor(Ctor::RawPtr, flds_b)) => {
+                for (f, b) in flds_b.iter().enumerate() {
+                    let field = rty::RawPtrField::from_index(f as u32).unwrap();
+                    let a = a.proj_and_reduce(FieldProj::RawPtr { field });
                     self.idxs_eq(infcx, &a, b);
                 }
             }
@@ -1140,6 +1140,14 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 for (f, a) in flds_a.iter().enumerate() {
                     let proj = FieldProj::Tuple { arity: flds_a.len(), field: f as u32 };
                     let b = b.proj_and_reduce(proj);
+                    self.idxs_eq(infcx, a, &b);
+                }
+            }
+            (ExprKind::Ctor(Ctor::RawPtr, flds_a), _) => {
+                infcx.unify_exprs(a, b);
+                for (f, a) in flds_a.iter().enumerate() {
+                    let field = rty::RawPtrField::from_index(f as u32).unwrap();
+                    let b = b.proj_and_reduce(FieldProj::RawPtr { field });
                     self.idxs_eq(infcx, a, &b);
                 }
             }
