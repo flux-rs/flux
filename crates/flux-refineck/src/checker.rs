@@ -2123,8 +2123,7 @@ fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ty: Ty) -> Result<Ty> {
     let nu = Expr::nu();
     let base =
         Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
-    let addr =
-        Expr::field_proj(nu.clone(), rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
+    let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
     let size = Expr::field_proj(nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
     // base == addr: the pointer is at the start of its allocation (no offset)
     // addr != 0:    Rust references are never null, so the derived pointer is non-null
