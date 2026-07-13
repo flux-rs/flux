@@ -5,7 +5,7 @@ use flux_common::bug;
 use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::{LangItem, def_id::DefId};
-use rustc_span::DUMMY_SP;
+use rustc_span::{DUMMY_SP, Symbol};
 
 use crate::{
     def_id::FluxDefId,
@@ -103,6 +103,23 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
             .get(&assoc_id)
             .cloned()
             .map(rty::EarlyBinder)
+    }
+
+    /// Returns the [`FluxDefId`] for a built-in associated refinement given the parent trait's
+    /// [`DefId`] and the assoc reft [`Symbol`]. Panics if no such built-in assoc reft exists.
+    ///
+    /// This is the single source of truth for looking up built-in assoc reft ids; callers should
+    /// use this instead of constructing a [`FluxDefId`] directly.
+    pub fn require_builtin_assoc_reft(self, def_id: DefId, name: Symbol) -> FluxDefId {
+        self.builtin_assoc_refts(def_id)
+            .and_then(|assoc_refts| {
+                assoc_refts
+                    .items
+                    .iter()
+                    .find(|reft| reft.name() == name)
+                    .map(|reft| reft.def_id())
+            })
+            .unwrap_or_else(|| bug!("missing builtin assoc reft `{name}` for `{def_id:?}`"))
     }
 
     pub fn builtin_assoc_reft_body(

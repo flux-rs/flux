@@ -14,7 +14,6 @@ use flux_infer::{
 };
 use flux_middle::{
     PanicReason, PanicSpec,
-    def_id::FluxDefId,
     global_env::GlobalEnv,
     pretty::PrettyCx,
     queries::{QueryResult, try_query},
@@ -2111,18 +2110,20 @@ fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ty: Ty) -> Result<Ty> {
     let ctor = pointee_bty.to_subset_ty_ctor();
     let args = rty::List::from_arr([GenericArg::Base(ctor)]);
     let size_of_expr = Expr::alias(
-        AliasReft { assoc_id: FluxDefId::new(sized_id, sym::size_of), args: args.clone() },
+        AliasReft {
+            assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::size_of),
+            args: args.clone(),
+        },
         rty::List::empty(),
     );
     let align_of_expr = Expr::alias(
-        AliasReft { assoc_id: FluxDefId::new(sized_id, sym::align_of), args },
+        AliasReft { assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::align_of), args },
         rty::List::empty(),
     );
 
     let bty = BaseTy::RawPtr(ty, kind.to_mutbl_lossy());
     let nu = Expr::nu();
-    let base =
-        Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
+    let base = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
     let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
     let size = Expr::field_proj(nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
     // base == addr: the pointer is at the start of its allocation (no offset)
