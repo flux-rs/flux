@@ -627,11 +627,13 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
-        let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
-
         // Encode function bodies after qualifiers/assumptions so any functions referenced there
         // are picked up as dependencies.
         let define_funs = self.ecx.define_funs(def_id, &mut self.scx)?;
+
+        // Collect constants after encoding function bodies so constants referenced from
+        // `define-fun` bodies are included in the task.
+        let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
 
         // The rust fixpoint implementation does not yet support polymorphic functions.
         // For now we avoid including these by default so that cases where they are not needed can work.
