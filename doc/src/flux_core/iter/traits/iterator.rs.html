@@ -50,5 +50,13 @@
 <a href=#50 id=50 data-nosnippet>50</a>    <span class="kw">fn </span>collect&lt;B: FromIterator&lt;<span class="self">Self</span>::Item&gt;&gt;(<span class="self">self</span>) -&gt; B
 <a href=#51 id=51 data-nosnippet>51</a>    <span class="kw">where
 <a href=#52 id=52 data-nosnippet>52</a>        </span><span class="self">Self</span>: Sized;
-<a href=#53 id=53 data-nosnippet>53</a>}
+<a href=#53 id=53 data-nosnippet>53</a>
+<a href=#54 id=54 data-nosnippet>54</a>    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/iter/traits/iterator.rs#L3049
+<a href=#55 id=55 data-nosnippet>55</a>    </span><span class="attr">#[spec(<span class="kw">fn</span>(<span class="self">self</span>: <span class="kw-2">&amp;mut </span><span class="self">Self</span>[@s]</span>, P) -&gt; <span class="prelude-ty">Option</span>&lt;usize{n: n &lt; &lt;<span class="self">Self </span><span class="kw">as </span>Iterator&gt;::size(s)}&gt;
+<a href=#56 id=56 data-nosnippet>56</a>           <span class="kw">where </span>P: FnMut(<span class="self">Self</span>::Item) -&gt; bool)]
+<a href=#57 id=57 data-nosnippet>57</a>    <span class="kw">fn </span>position&lt;P&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, predicate: P) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt;
+<a href=#58 id=58 data-nosnippet>58</a>    <span class="kw">where
+<a href=#59 id=59 data-nosnippet>59</a>        </span><span class="self">Self</span>: Sized,
+<a href=#60 id=60 data-nosnippet>60</a>        P: FnMut(<span class="self">Self</span>::Item) -&gt; bool;
+<a href=#61 id=61 data-nosnippet>61</a>}
 </code></pre></div></section></main></body></html>
