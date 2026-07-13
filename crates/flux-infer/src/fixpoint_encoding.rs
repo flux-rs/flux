@@ -643,7 +643,8 @@ where
             const_count_before_define_funs,
         )?;
 
-        // Collect constants after define_funs to include any new ones added during encoding.
+        // Collect constants after encoding function bodies so constants referenced from
+        // `define-fun` bodies are included in the task.
         let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
 
         // The rust fixpoint implementation does not yet support polymorphic functions.

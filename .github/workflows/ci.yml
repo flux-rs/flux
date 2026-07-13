@@ -144,3 +144,53 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy
+
+  deploy:
+    # Must match the glibc version on goto.ucsd.edu (glibc 2.35 / Ubuntu 22.04).
+    # Binaries compiled against a newer glibc will fail to run on the server.
+    runs-on: ubuntu-22.04
+    needs: [tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: playground
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.8.0
+        with:
+          cache-bin: false
+
+      - name: Build and install flux sysroot
+        run: cargo x install
+
+      - name: Copy flux binary into sysroot directory
+        run: cp ~/.cargo/bin/flux ~/.flux/flux
+
+      - name: Stamp build with commit timestamp and toolchain info
+        run: |
+          git log -1 --format='%ct' > ~/.flux/version
+          # use sed to parse toml because `tomllib` needs Python 3.11+, which ubuntu-22.04 
+          # doesn't ship. Assumes channel and components are each on a single line.
+          sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
+            rust-toolchain.toml > ~/.flux/toolchain-channel
+          components=$(sed -n 's/^[[:space:]]*components[[:space:]]*=[[:space:]]*\[\(.*\)\].*/\1/p' rust-toolchain.toml | tr -d '",')
+          echo $components > ~/.flux/toolchain-components
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.FLUX_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan goto.ucsd.edu >> ~/.ssh/known_hosts
+
+      - name: Rsync flux sysroot to per-commit staging directory on server
+        run: |
+          SHA=$(git rev-parse HEAD)
+          # Destination is relative: rrsync (the forced command on the server)
+          # roots it under ~/.flux-staging, so this lands in ~/.flux-staging/$SHA.
+          rsync -az --delete ~/.flux/ nlehmann@goto.ucsd.edu:$SHA/
+
+      - name: Atomically swap sysroot on server
+        run: |
+          SHA=$(git rev-parse HEAD)
+          ssh nlehmann@goto.ucsd.edu "flux-deploy $SHA"

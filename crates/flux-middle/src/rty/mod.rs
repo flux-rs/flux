@@ -771,7 +771,7 @@ pub struct CoroutineObligPredicate {
     pub args: flux_rustc_bridge::ty::GenericArgs,
 }
 
-#[derive(Copy, Clone, Encodable, Decodable, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Encodable, Decodable, Hash, PartialEq, Debug, Eq)]
 pub struct AssocReft {
     pub def_id: FluxDefId,
     // NOTE: Field is used to denote final associated generic refinements on Traits
@@ -810,7 +810,9 @@ impl AssocRefinements {
             .items
             .into_iter()
             .find(|it| it.def_id == assoc_id)
-            .unwrap_or_else(|| bug!("caller should guarantee existence of associated refinement"))
+            .unwrap_or_else(|| {
+                bug!("caller should guarantee existence of associated refinement {assoc_id:?}")
+            })
     }
 
     pub fn find(&self, name: Symbol) -> Option<AssocReft> {

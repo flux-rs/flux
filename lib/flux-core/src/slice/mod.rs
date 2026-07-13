@@ -81,6 +81,11 @@ impl<T> [T] {
     #[spec(fn(&Self[@n]) -> Iter<T>[0, n])]
     fn iter(&self) -> Iter<'_, T>;
 
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L1114
+    #[no_panic]
+    #[spec(fn(&Self[@n], {usize[@size] | size > 0}) -> Windows<T>[n, size])]
+    fn windows(&self, size: usize) -> Windows<'_, T>;
+
     #[no_panic]
     #[spec(fn(&Self[@n], mid: usize{mid <= n}) -> (&[T][mid], &[T][n - mid]))]
     fn split_at(&self, mid: usize) -> (&[T], &[T]);
@@ -101,10 +106,12 @@ impl<T> [T] {
     fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut [T], &mut [T])>;
 
     #[no_panic]
-    #[spec(fn(&Self[@n]) -> {base:int, addr:int. *const[base, addr, n] T | addr >= base})]
+    #[spec(fn(&Self[@n]) -> {base:int, addr:int. *const[base, addr, n * T::size_of()] T
+        | base >= 0 && base % T::align_of() == 0 && base == addr && addr != 0})]
     fn as_ptr(&self) -> *const T;
 
     #[no_panic]
-    #[spec(fn(&mut Self[@n]) -> {base:int, addr:int. *mut[base, addr, n] T | addr >= base})]
+    #[spec(fn(&mut Self[@n]) -> {base:int, addr:int. *mut[base, addr, n * T::size_of()] T
+        | base >= 0 && base % T::align_of() == 0 && base == addr && addr != 0})]
     fn as_mut_ptr(&mut self) -> *mut T;
 }

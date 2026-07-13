@@ -61,11 +61,11 @@ impl<'a, 'tcx> DecodeContext<'a, 'tcx> {
     }
 }
 
-pub(super) fn decode_crate_metadata(
-    tcx: TyCtxt,
+pub(super) fn decode_crate_metadata<'tcx>(
+    tcx: TyCtxt<'tcx>,
     sess: &FluxSession,
     path: &Path,
-) -> Option<CrateMetadata> {
+) -> Option<CrateMetadata<'tcx>> {
     let mut file = match fs::File::open(path) {
         Ok(file) => file,
         Err(err) if let io::ErrorKind::NotFound = err.kind() => return None,
