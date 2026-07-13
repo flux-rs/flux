@@ -14,16 +14,18 @@ use flux_infer::{
 };
 use flux_middle::{
     PanicReason, PanicSpec,
+    def_id::FluxDefId,
     global_env::GlobalEnv,
     pretty::PrettyCx,
     queries::{QueryResult, try_query},
     query_bug,
     rty::{
-        self, AdtDef, BaseTy, Binder, Bool, Clause, Constant, CoroutineObligPredicate, EarlyBinder,
-        Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy,
-        Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        self, AdtDef, AliasReft, BaseTy, BinOp, Binder, Bool, Clause, Constant,
+        CoroutineObligPredicate, EarlyBinder, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg,
+        GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, RefineArgs,
+        RefineArgsExt,
         Region::ReErased,
-        Ty, TyKind, Uint, UintTy, VariantIdx,
+        Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine, Refiner},
     },
@@ -54,7 +56,7 @@ use rustc_middle::{
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
 };
 use rustc_span::{
-    Span, Symbol,
+    DUMMY_SP, Span, Symbol,
     sym::{self},
 };
 
@@ -1513,7 +1515,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // ignore any refinements on the type stored at place
                 let ty = &env.lookup_rust_ty(genv, place).with_span(stmt_span)?;
                 let ty = self.refine_default(ty).with_span(stmt_span)?;
-                raw_ptr_with_size(kind, ty)
+                raw_ptr_with_size(genv, kind, ty)
             }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
@@ -2097,9 +2099,26 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 }
 
-/// Given a `Ty` and a `RawPtrKind`, creates a raw pointer to `Ty` with "size = 1"
+/// Given a `Ty` and a `RawPtrKind`, creates a raw pointer to `Ty` with `size = T::size_of()`
+/// and `addr % T::align_of() == 0`.
 /// see test `fn ref_to_ptr_read` in `crates/flux/tests/tests/with_deps/pos/extern_specs/flux_core_ptr01.rs`
-fn raw_ptr_with_size(kind: &RawPtrKind, ty: Ty) -> Result<Ty> {
+fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ty: Ty) -> Result<Ty> {
+    let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
+    let pointee_bty = ty
+        .as_bty_skipping_existentials()
+        .unwrap_or_else(|| tracked_span_bug!("expected indexed type in ref-to-raw-ptr cast"))
+        .clone();
+    let ctor = pointee_bty.to_subset_ty_ctor();
+    let args = rty::List::from_arr([GenericArg::Base(ctor)]);
+    let size_of_expr = Expr::alias(
+        AliasReft { assoc_id: FluxDefId::new(sized_id, sym::size_of), args: args.clone() },
+        rty::List::empty(),
+    );
+    let align_of_expr = Expr::alias(
+        AliasReft { assoc_id: FluxDefId::new(sized_id, sym::align_of), args },
+        rty::List::empty(),
+    );
+
     let bty = BaseTy::RawPtr(ty, kind.to_mutbl_lossy());
     let nu = Expr::nu();
     let base =
@@ -2107,7 +2126,16 @@ fn raw_ptr_with_size(kind: &RawPtrKind, ty: Ty) -> Result<Ty> {
     let addr =
         Expr::field_proj(nu.clone(), rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
     let size = Expr::field_proj(nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
-    let pred = Expr::and(Expr::eq(base, addr), Expr::eq(size, Expr::constant(Constant::ONE)));
+    // base == addr: the pointer is at the start of its allocation (no offset)
+    // addr != 0:    Rust references are never null, so the derived pointer is non-null
+    // size == T::size_of(): the allocation holds exactly one element of type T (in bytes)
+    // addr % T::align_of() == 0: the address is properly aligned for type T
+    let pred = Expr::and_from_iter([
+        Expr::eq(base, addr.clone()),
+        Expr::ne(addr.clone(), Expr::zero()),
+        Expr::eq(size, size_of_expr),
+        Expr::eq(Expr::binary_op(BinOp::Mod(Sort::Int), addr, align_of_expr), Expr::zero()),
+    ]);
 
     let ty = Ty::exists_with_constr(bty, pred);
     Ok(ty)
