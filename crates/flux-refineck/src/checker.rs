@@ -1513,7 +1513,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::RawPtr(kind, place) => {
                 // ignore any refinements on the type stored at place
                 let ty = &env.lookup_rust_ty(genv, place).with_span(stmt_span)?;
-                // let ty = self.refine_default(ty).with_span(stmt_span)?;
                 let ctor = self
                     .default_refiner
                     .refine_ty_or_base(&ty)

@@ -33,7 +33,6 @@ pub fn test_add_mut_ix(ptr: *mut i32) {
 }
 
 
-
 // --- offset (signed count — forward and backward) ---
 
 // forward: like add(1) but with isize
