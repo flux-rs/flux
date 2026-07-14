@@ -2108,17 +2108,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 /// see test `fn ref_to_ptr_read` in `crates/flux/tests/tests/with_deps/pos/extern_specs/flux_core_ptr01.rs`
 fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ctor: SubsetTyCtor) -> Result<Ty> {
     let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
-
-    // let pointee_bty = ty
-    //     .as_bty_skipping_existentials()
-    //     .unwrap_or_else(|| tracked_span_bug!("expected indexed type in ref-to-raw-ptr cast"))
-    //     .clone();
-    // let ctor = pointee_bty.to_subset_ty_ctor();
-    // let ctor = self
-    //     .default_refiner
-    //     .refine_ty_or_base(&constant.ty)?
-    //     .expect_base();
-
     let bty = BaseTy::RawPtr(ctor.to_ty(), kind.to_mutbl_lossy());
     let args = rty::List::from_arr([GenericArg::Base(ctor)]);
     let size_of_expr = Expr::alias(
