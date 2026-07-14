@@ -627,9 +627,21 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
+        // Track the number of constants before encoding function bodies, so we can detect any
+        // new constants introduced during that step.
+        let const_count_before_define_funs = self.ecx.const_env.const_map.len();
+
         // Encode function bodies after qualifiers/assumptions so any functions referenced there
         // are picked up as dependencies.
         let define_funs = self.ecx.define_funs(def_id, &mut self.scx)?;
+
+        // Encoding function bodies may introduce new constants (e.g., Rust constants like `u32::MAX`
+        // referenced in function bodies). Assume their values starting from the saved count.
+        let constraint = self.ecx.assume_const_values_from(
+            constraint,
+            &mut self.scx,
+            const_count_before_define_funs,
+        )?;
 
         // Collect constants after encoding function bodies so constants referenced from
         // `define-fun` bodies are included in the task.
@@ -2217,12 +2229,21 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn assume_const_values(
         &mut self,
+        constraint: fixpoint::Constraint,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::Constraint> {
+        self.assume_const_values_from(constraint, scx, 0)
+    }
+
+    fn assume_const_values_from(
+        &mut self,
         mut constraint: fixpoint::Constraint,
         scx: &mut SortEncodingCtxt,
+        start: usize,
     ) -> QueryResult<fixpoint::Constraint> {
         // Encoding the value for a constant could in theory define more constants for which
         // we need to assume values, so we iterate until there are no more constants.
-        let mut idx = 0;
+        let mut idx = start;
         while let Some((key, const_)) = self.const_env.const_map.get_index(idx) {
             idx += 1;
 
