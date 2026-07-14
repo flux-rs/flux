@@ -80,6 +80,14 @@ impl RefineTree {
             .unwrap_or(fixpoint::Constraint::TRUE))
     }
 
+    #[allow(dead_code, reason = "used by dormant multi-query encoding")]
+    pub(crate) fn root_params(&self) -> Vec<(Var, Sort)> {
+        match &self.root.borrow().kind {
+            NodeKind::Root(params) => params.clone(),
+            _ => unreachable!("refinement tree root is not a root node"),
+        }
+    }
+
     pub(crate) fn cursor_at_root(&mut self) -> Cursor<'_> {
         Cursor { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
     }
