@@ -5,7 +5,7 @@
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>flux_syntax::symbols::sym;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>rustc_hir::{LangItem, def_id::DefId};
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>rustc_span::DUMMY_SP;
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>rustc_span::{DUMMY_SP, Symbol};
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use crate</span>::{
 <a href=#11 id=11 data-nosnippet>11</a>    def_id::FluxDefId,
@@ -105,40 +105,57 @@
 <a href=#105 id=105 data-nosnippet>105</a>            .map(rty::EarlyBinder)
 <a href=#106 id=106 data-nosnippet>106</a>    }
 <a href=#107 id=107 data-nosnippet>107</a>
-<a href=#108 id=108 data-nosnippet>108</a>    <span class="kw">pub fn </span>builtin_assoc_reft_body(
-<a href=#109 id=109 data-nosnippet>109</a>        <span class="self">self</span>,
-<a href=#110 id=110 data-nosnippet>110</a>        typing_env: rustc_middle::ty::TypingEnv&lt;<span class="lifetime">'tcx</span>&gt;,
-<a href=#111 id=111 data-nosnippet>111</a>        alias_reft: <span class="kw-2">&amp;</span>AliasReft,
-<a href=#112 id=112 data-nosnippet>112</a>    ) -&gt; rty::Lambda {
-<a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
-<a href=#114 id=114 data-nosnippet>114</a>
-<a href=#115 id=115 data-nosnippet>115</a>        <span class="kw">if </span>tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::Sized) {
-<a href=#116 id=116 data-nosnippet>116</a>            <span class="kw">let </span>self_ty = alias_reft.to_rustc_trait_ref(tcx).self_ty();
-<a href=#117 id=117 data-nosnippet>117</a>            <span class="kw">let </span>layout = tcx.layout_of(typing_env.as_query_input(self_ty)).unwrap();
-<a href=#118 id=118 data-nosnippet>118</a>            <span class="kw">let </span>body = <span class="kw">match </span>alias_reft.assoc_id.name() {
-<a href=#119 id=119 data-nosnippet>119</a>                sym::size_of =&gt; rty::Expr::constant(rty::Constant::from(layout.size.bytes())),
-<a href=#120 id=120 data-nosnippet>120</a>                sym::align_of =&gt; rty::Expr::constant(rty::Constant::from(layout.align.abi.bytes())),
-<a href=#121 id=121 data-nosnippet>121</a>                <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"invalid builtin assoc reft {:?}"</span>, alias_reft.assoc_id),
-<a href=#122 id=122 data-nosnippet>122</a>            };
-<a href=#123 id=123 data-nosnippet>123</a>            rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
-<a href=#124 id=124 data-nosnippet>124</a>        } <span class="kw">else if </span>tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
-<a href=#125 id=125 data-nosnippet>125</a>            &amp;&amp; alias_reft.assoc_id.name() == sym::no_panic
-<a href=#126 id=126 data-nosnippet>126</a>        {
-<a href=#127 id=127 data-nosnippet>127</a>            <span class="kw">let </span>self_ty = alias_reft.self_ty();
-<a href=#128 id=128 data-nosnippet>128</a>            <span class="kw">let </span>body = <span class="kw">match </span>self_ty.as_bty_skipping_binder() {
-<a href=#129 id=129 data-nosnippet>129</a>                BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, no_panic) =&gt; {
-<a href=#130 id=130 data-nosnippet>130</a>                    <span class="kw">if </span><span class="kw-2">*</span>no_panic {
-<a href=#131 id=131 data-nosnippet>131</a>                        rty::Expr::tt()
-<a href=#132 id=132 data-nosnippet>132</a>                    } <span class="kw">else </span>{
-<a href=#133 id=133 data-nosnippet>133</a>                        rty::Expr::ff()
-<a href=#134 id=134 data-nosnippet>134</a>                    }
-<a href=#135 id=135 data-nosnippet>135</a>                }
-<a href=#136 id=136 data-nosnippet>136</a>                <span class="kw">_ </span>=&gt; rty::Expr::ff(),
-<a href=#137 id=137 data-nosnippet>137</a>            };
-<a href=#138 id=138 data-nosnippet>138</a>            rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
-<a href=#139 id=139 data-nosnippet>139</a>        } <span class="kw">else </span>{
-<a href=#140 id=140 data-nosnippet>140</a>            <span class="macro">bug!</span>(<span class="string">"invalid builtin assoc reft {:?}"</span>, alias_reft.assoc_id)
-<a href=#141 id=141 data-nosnippet>141</a>        }
-<a href=#142 id=142 data-nosnippet>142</a>    }
-<a href=#143 id=143 data-nosnippet>143</a>}
+<a href=#108 id=108 data-nosnippet>108</a>    <span class="doccomment">/// Returns the [`FluxDefId`] for a built-in associated refinement given the parent trait's
+<a href=#109 id=109 data-nosnippet>109</a>    /// [`DefId`] and the assoc reft [`Symbol`]. Panics if no such built-in assoc reft exists.
+<a href=#110 id=110 data-nosnippet>110</a>    ///
+<a href=#111 id=111 data-nosnippet>111</a>    /// This is the single source of truth for looking up built-in assoc reft ids; callers should
+<a href=#112 id=112 data-nosnippet>112</a>    /// use this instead of constructing a [`FluxDefId`] directly.
+<a href=#113 id=113 data-nosnippet>113</a>    </span><span class="kw">pub fn </span>require_builtin_assoc_reft(<span class="self">self</span>, def_id: DefId, name: Symbol) -&gt; FluxDefId {
+<a href=#114 id=114 data-nosnippet>114</a>        <span class="self">self</span>.builtin_assoc_refts(def_id)
+<a href=#115 id=115 data-nosnippet>115</a>            .and_then(|assoc_refts| {
+<a href=#116 id=116 data-nosnippet>116</a>                assoc_refts
+<a href=#117 id=117 data-nosnippet>117</a>                    .items
+<a href=#118 id=118 data-nosnippet>118</a>                    .iter()
+<a href=#119 id=119 data-nosnippet>119</a>                    .find(|reft| reft.name() == name)
+<a href=#120 id=120 data-nosnippet>120</a>                    .map(|reft| reft.def_id())
+<a href=#121 id=121 data-nosnippet>121</a>            })
+<a href=#122 id=122 data-nosnippet>122</a>            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"missing builtin assoc reft `{name}` for `{def_id:?}`"</span>))
+<a href=#123 id=123 data-nosnippet>123</a>    }
+<a href=#124 id=124 data-nosnippet>124</a>
+<a href=#125 id=125 data-nosnippet>125</a>    <span class="kw">pub fn </span>builtin_assoc_reft_body(
+<a href=#126 id=126 data-nosnippet>126</a>        <span class="self">self</span>,
+<a href=#127 id=127 data-nosnippet>127</a>        typing_env: rustc_middle::ty::TypingEnv&lt;<span class="lifetime">'tcx</span>&gt;,
+<a href=#128 id=128 data-nosnippet>128</a>        alias_reft: <span class="kw-2">&amp;</span>AliasReft,
+<a href=#129 id=129 data-nosnippet>129</a>    ) -&gt; rty::Lambda {
+<a href=#130 id=130 data-nosnippet>130</a>        <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
+<a href=#131 id=131 data-nosnippet>131</a>
+<a href=#132 id=132 data-nosnippet>132</a>        <span class="kw">if </span>tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::Sized) {
+<a href=#133 id=133 data-nosnippet>133</a>            <span class="kw">let </span>self_ty = alias_reft.to_rustc_trait_ref(tcx).self_ty();
+<a href=#134 id=134 data-nosnippet>134</a>            <span class="kw">let </span>layout = tcx.layout_of(typing_env.as_query_input(self_ty)).unwrap();
+<a href=#135 id=135 data-nosnippet>135</a>            <span class="kw">let </span>body = <span class="kw">match </span>alias_reft.assoc_id.name() {
+<a href=#136 id=136 data-nosnippet>136</a>                sym::size_of =&gt; rty::Expr::constant(rty::Constant::from(layout.size.bytes())),
+<a href=#137 id=137 data-nosnippet>137</a>                sym::align_of =&gt; rty::Expr::constant(rty::Constant::from(layout.align.abi.bytes())),
+<a href=#138 id=138 data-nosnippet>138</a>                <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"invalid builtin assoc reft {:?}"</span>, alias_reft.assoc_id),
+<a href=#139 id=139 data-nosnippet>139</a>            };
+<a href=#140 id=140 data-nosnippet>140</a>            rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
+<a href=#141 id=141 data-nosnippet>141</a>        } <span class="kw">else if </span>tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
+<a href=#142 id=142 data-nosnippet>142</a>            &amp;&amp; alias_reft.assoc_id.name() == sym::no_panic
+<a href=#143 id=143 data-nosnippet>143</a>        {
+<a href=#144 id=144 data-nosnippet>144</a>            <span class="kw">let </span>self_ty = alias_reft.self_ty();
+<a href=#145 id=145 data-nosnippet>145</a>            <span class="kw">let </span>body = <span class="kw">match </span>self_ty.as_bty_skipping_binder() {
+<a href=#146 id=146 data-nosnippet>146</a>                BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, no_panic) =&gt; {
+<a href=#147 id=147 data-nosnippet>147</a>                    <span class="kw">if </span><span class="kw-2">*</span>no_panic {
+<a href=#148 id=148 data-nosnippet>148</a>                        rty::Expr::tt()
+<a href=#149 id=149 data-nosnippet>149</a>                    } <span class="kw">else </span>{
+<a href=#150 id=150 data-nosnippet>150</a>                        rty::Expr::ff()
+<a href=#151 id=151 data-nosnippet>151</a>                    }
+<a href=#152 id=152 data-nosnippet>152</a>                }
+<a href=#153 id=153 data-nosnippet>153</a>                <span class="kw">_ </span>=&gt; rty::Expr::ff(),
+<a href=#154 id=154 data-nosnippet>154</a>            };
+<a href=#155 id=155 data-nosnippet>155</a>            rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
+<a href=#156 id=156 data-nosnippet>156</a>        } <span class="kw">else </span>{
+<a href=#157 id=157 data-nosnippet>157</a>            <span class="macro">bug!</span>(<span class="string">"invalid builtin assoc reft {:?}"</span>, alias_reft.assoc_id)
+<a href=#158 id=158 data-nosnippet>158</a>        }
+<a href=#159 id=159 data-nosnippet>159</a>    }
+<a href=#160 id=160 data-nosnippet>160</a>}
 </code></pre></div></section></main></body></html>
