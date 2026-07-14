@@ -24,11 +24,6 @@ impl<T: Types> Iterator for ConstraintFragments<'_, T> {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((node, binders)) = self.stack.pop() {
             match node {
-                Fragment::Predicate(Pred::And(preds)) => {
-                    for p in preds.iter().rev() {
-                        self.stack.push((Fragment::Predicate(p), binders.clone()));
-                    }
-                }
                 Fragment::Predicate(pred) => {
                     let mut result = Constraint::Pred(pred.clone(), None);
                     for b in binders.iter().rev() {

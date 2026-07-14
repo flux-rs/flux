@@ -514,17 +514,15 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
     }
 }
 
+fn preds_to_z3<T: Types>(preds: &[Pred<T>], env: &mut Env<T>) -> ast::Bool {
+    let bools = preds.iter().map(|p| pred_to_z3(p, env)).collect_vec();
+    let bool_refs = bools.iter().collect_vec();
+    ast::Bool::and(&bool_refs)
+}
+
 fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>) -> ast::Bool {
     match pred {
         Pred::Expr(expr) => expr_to_z3(expr, env).as_bool().expect(" asldfj "),
-        Pred::And(conjuncts) => {
-            let bools = conjuncts
-                .iter()
-                .map(|conjunct| pred_to_z3(conjunct, env))
-                .collect_vec();
-            let bool_refs = bools.iter().collect_vec();
-            ast::Bool::and(&bool_refs)
-        }
         Pred::KVar(_kvar, _vars) => panic!("Kvars not supported yet"),
     }
 }
@@ -684,7 +682,7 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
 
         Constraint::ForAll(bind, inner) => {
             env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort, env));
-            solver.assert(pred_to_z3(&bind.pred, env));
+            solver.assert(preds_to_z3(&bind.preds, env));
             let inner_soln = is_constraint_satisfiable(inner, solver, env);
             env.pop(&bind.name);
             inner_soln

@@ -339,6 +339,7 @@ impl<T: Types> Task<T> {
             status: cstr_with_env.is_satisfiable(),
             solution: vec![],
             non_cuts_solution: vec![],
+            lean_status: LeanStatus::Invalid,
         })
     }
 

@@ -129,12 +129,7 @@ impl<T: Types> ConstraintWithEnv<T> {
         }
     }
 
-    fn simplify(&mut self) {
-        self.constraint.simplify();
-    }
-
     pub fn solve_by_fusion(&mut self) -> FixpointStatus<T::Tag> {
-        self.simplify();
         self.eliminate_acyclic_kvars();
         self.solve_by_predicate_abstraction()
     }
