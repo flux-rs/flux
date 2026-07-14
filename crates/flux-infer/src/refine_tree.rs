@@ -84,6 +84,9 @@ impl RefineTree {
     pub(crate) fn root_params(&self) -> Vec<(Var, Sort)> {
         match &self.root.borrow().kind {
             NodeKind::Root(params) => params.clone(),
+            // Simplification can turn an unconstrained tree into `true`; it has no variables to
+            // install in the encoder scope.
+            NodeKind::True => vec![],
             _ => unreachable!("refinement tree root is not a root node"),
         }
     }

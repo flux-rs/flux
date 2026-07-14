@@ -78,6 +78,10 @@ pub fn include_pattern() -> Option<&'static IncludePattern> {
     FLAGS.include.as_ref()
 }
 
+pub fn multi_check_pattern() -> Option<&'static IncludePattern> {
+    FLAGS.multi_check.as_ref()
+}
+
 pub fn trusted_pattern() -> Option<&'static IncludePattern> {
     FLAGS.include_trusted.as_ref()
 }

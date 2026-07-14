@@ -745,6 +745,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.matches_included_pattern(def_id) || self.matches_trusted_pattern(def_id)
     }
 
+    pub fn multi_check(&self, def_id: MaybeExternId) -> bool {
+        config::multi_check_pattern()
+            .map(|pattern| self.matches_pattern(def_id, pattern))
+            .unwrap_or(false)
+    }
+
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
     /// explicit `#[flux::trusted(..)]` annotation and return whether that item is trusted or not.
     /// If no explicit annotation is found, return `false`.

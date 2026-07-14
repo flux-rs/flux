@@ -145,17 +145,23 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let mut ck = CrateChecker::new(genv);
 
         // Iterate over all def ids including dummy items for extern specs
-        let result = genv
-            .tcx()
-            .iter_local_def_id()
-            .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
+        let result = if config::multi_check_pattern().is_some() {
+            check_multi_crate(genv)
+        } else {
+            genv
+                .tcx()
+                .iter_local_def_id()
+                .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id))
+        };
 
-        if config::lean().is_check() || config::lean().is_emit() {
+        if config::multi_check_pattern().is_none()
+            && (config::lean().is_check() || config::lean().is_emit())
+        {
             lean_encoding::finalize(genv)
                 .unwrap_or_else(|err| bug!("error running lean-check {err:?}"));
         }
 
-        let lean_result = if config::lean().is_check() {
+        let lean_result = if config::multi_check_pattern().is_none() && config::lean().is_check() {
             genv.iter_local_def_id().try_for_each_exhaust(|def_id| {
                 // Skip proof check if not included
                 if !genv.included(genv.maybe_extern_id(def_id)) {
@@ -192,6 +198,39 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
         result.and(lean_result)
     })
+}
+
+fn check_multi_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
+    let mut trees = vec![];
+    for def_id in genv.tcx().iter_local_def_id() {
+        let maybe_id = genv.maybe_extern_id(def_id);
+        if genv.is_dummy(def_id)
+            || genv.ignored(def_id)
+            || genv.trusted(def_id)
+            || !genv.multi_check(maybe_id)
+            || !matches!(genv.def_kind(maybe_id), DefKind::Fn | DefKind::AssocFn)
+            || !genv.tcx().is_mir_available(def_id)
+        {
+            continue;
+        }
+        trigger_queries(genv, maybe_id).emit(&genv)?;
+        let collected = refineck::collect_fn(genv, def_id)?;
+        trees.push(collected);
+    }
+
+    if let Some(owner) = trees.first().map(|(owner, _, _)| *owner) {
+        let opts = genv.infer_opts(owner.local_id());
+        flux_infer::infer::InferCtxtRoot::execute_multi_fixpoint_query(
+            genv,
+            trees,
+            owner,
+            opts,
+        )
+        .emit(&genv)?;
+    }
+    // FIXME: multi-query fixpoint results are intentionally discarded until owner-aware decoding
+    // and diagnostics are implemented.
+    Ok(())
 }
 
 fn collect_specs(genv: GlobalEnv) -> Specs {

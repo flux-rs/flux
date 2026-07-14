@@ -34,8 +34,11 @@ use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{FixQueryCache, FixpointCheckError, PossibleSolutions, SolutionTrace, TagIdx},
+    infer::InferCtxtRoot,
+    fixpoint_encoding::KVarGen,
     infer::{ConstrReason, SubtypeReason, Tag},
     wkvars::WKVarSubst,
+    refine_tree::RefineTree,
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -47,7 +50,7 @@ use flux_middle::{
     rty::{self, ESpan, EarlyBinder, fold::TypeFoldable},
 };
 use rustc_data_structures::{fx::FxHashMap, unord::UnordMap};
-use rustc_errors::{Applicability, Diagnostic as _, Diag, ErrorGuaranteed};
+use rustc_errors::{Applicability, Diag, ErrorGuaranteed};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_span::Span;
 
@@ -74,6 +77,15 @@ fn check_body(
     def_id: LocalDefId,
     poly_sig: &rty::PolyFnSig,
 ) -> Result<(), ErrorGuaranteed> {
+    let infcx_root = infer_body(genv, def_id, poly_sig)?;
+    execute_body(genv, cache, def_id, infcx_root)
+}
+
+pub fn infer_body<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
+    def_id: LocalDefId,
+    poly_sig: &rty::PolyFnSig,
+) -> Result<InferCtxtRoot<'genv, 'tcx>, ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
     let opts = genv.infer_opts(def_id);
 
@@ -101,6 +113,15 @@ fn check_body(
     )
     .map_err(|err| err.emit(genv, def_id))?;
 
+    Ok(infcx_root)
+}
+
+fn execute_body(
+    genv: GlobalEnv,
+    cache: &mut FixQueryCache,
+    def_id: LocalDefId,
+    infcx_root: InferCtxtRoot<'_, '_>,
+) -> Result<(), ErrorGuaranteed> {
     // PHASE 3: invoke fixpoint on the constraint
     if (genv.proven_externally(def_id).is_some() && flux_config::lean().is_check())
         || flux_config::lean().is_emit()
@@ -197,6 +218,35 @@ pub fn check_fn(
     })?;
 
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| Ok(()))
+}
+
+/// Collect the body constraint for multi-check. Trait-implementation subtyping remains a local
+/// check for now; it could be included in the combined query by returning its tree and KVarGen too.
+pub fn collect_fn(
+    genv: GlobalEnv,
+    def_id: LocalDefId,
+) -> Result<(MaybeExternId, RefineTree, KVarGen), ErrorGuaranteed> {
+    let span = genv.tcx().def_span(def_id);
+    let opts = genv.infer_opts(def_id);
+    if let Some(infcx_root) = trait_impl_subtyping(genv, def_id, opts, span)
+        .with_span(span)
+        .map_err(|err| err.emit(genv, def_id))?
+    {
+        let mut cache = FixQueryCache::default();
+        let answer = infcx_root
+            .execute_fixpoint_query(&mut cache, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
+            .emit(&genv)?;
+        report_fixpoint_errors(genv, def_id, answer.errors)?;
+    }
+    let poly_sig = genv
+        .fn_sig(def_id)
+        .with_span(span)
+        .map_err(|err| err.emit(genv, def_id))?
+        .instantiate_identity();
+    let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
+    let root = infer_body(genv, def_id, &poly_sig)?;
+    let (tree, kvars) = root.split_for_multi();
+    Ok((MaybeExternId::Local(def_id), tree, kvars))
 }
 
 

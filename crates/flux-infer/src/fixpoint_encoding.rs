@@ -8,6 +8,7 @@ use flux_common::{
     cache::QueryCache,
     dbg,
     index::{IndexGen, IndexVec},
+    iter::IterExt,
     span_bug, tracked_span_bug,
 };
 use flux_config::{self as config};
@@ -579,6 +580,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     tags: IndexVec<TagIdx, T>,
     multi_kvar_decls: Vec<fixpoint::KVarDecl>,
     multi_query: bool,
+    multi_owners: Vec<MaybeExternId>,
     // NOTE: We originally used this to dedup tags, since they were only used as
     // a means of identifying spans. But we use them for suggestions, so, this
     // is no longer true.
@@ -635,6 +637,7 @@ where
             tags: IndexVec::new(),
             multi_kvar_decls: vec![],
             multi_query: false,
+            multi_owners: vec![],
             // tags_inv: Default::default(),
         }
     }
@@ -652,10 +655,17 @@ where
             self.kcx.encode_kvars(&self.kvars, &mut self.scx)
         };
 
-        let qualifiers = self
-            .ecx
-            .qualifiers_for(def_id.local_id(), &mut self.scx)?
+        let owner_ids = if self.multi_query {
+            self.multi_owners.iter().map(|owner| owner.local_id()).collect_vec()
+        } else {
+            vec![def_id.local_id()]
+        };
+        let qualifiers = owner_ids
             .into_iter()
+            .map(|owner| self.ecx.qualifiers_for(owner, &mut self.scx))
+            .try_collect_vec()?
+            .into_iter()
+            .flatten()
             .chain(FIXPOINT_QUALIFIERS.iter().cloned())
             .collect();
 
@@ -668,7 +678,11 @@ where
 
         // Encode function bodies after qualifiers/assumptions so any functions referenced there
         // are picked up as dependencies.
-        let define_funs = self.ecx.define_funs(def_id, &mut self.scx)?;
+        let define_funs = if self.multi_query {
+            self.ecx.define_funs_multi(&self.multi_owners, &mut self.scx)?
+        } else {
+            self.ecx.define_funs(def_id, &mut self.scx)?
+        };
 
         // Collect constants after encoding function bodies so constants referenced from
         // `define-fun` bodies are included in the task.
@@ -713,8 +727,8 @@ where
             solver,
             data_decls: data_decls.clone(),
         };
-        let id = def_id.resolved_id();
         if config::dump_constraint() {
+            let id = def_id.resolved_id();
             dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
         }
 
@@ -1232,11 +1246,13 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
         trees: Vec<(MaybeExternId, RefineTree, KVarGen)>,
     ) -> QueryResult<fixpoint::Constraint> {
         self.multi_kvar_decls.clear();
+        self.multi_owners.clear();
         if trees.is_empty() {
             self.multi_query = false;
             return Ok(fixpoint::Constraint::TRUE);
         }
         self.multi_query = trees.len() > 1;
+        self.multi_owners = trees.iter().map(|(owner, _, _)| *owner).collect();
 
         let mut constraints = vec![];
         let mut next_kvid = fixpoint::KVid::from_u32(0);
@@ -2563,7 +2579,33 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .iter()
             .copied()
             .collect();
-        let proven_externally = self.genv.proven_externally(def_id.local_id());
+        self.define_funs_with_policy(
+            &reveals,
+            self.genv.proven_externally(def_id.local_id()).is_some(),
+            scx,
+        )
+    }
+
+    fn define_funs_multi(
+        &mut self,
+        owners: &[MaybeExternId],
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<Vec<fixpoint::FunDef>> {
+        let mut reveals = UnordSet::default();
+        let mut proven_externally = false;
+        for owner in owners {
+            reveals.extend(self.genv.reveals_for(owner.local_id()).iter().copied());
+            proven_externally |= self.genv.proven_externally(owner.local_id()).is_some();
+        }
+        self.define_funs_with_policy(&reveals, proven_externally, scx)
+    }
+
+    fn define_funs_with_policy(
+        &mut self,
+        reveals: &UnordSet<FluxDefId>,
+        proven_externally: bool,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<Vec<fixpoint::FunDef>> {
         let mut defs = vec![];
 
         // Iterate till encoding the body of functions doesn't require any more functions to be encoded.
@@ -2573,7 +2615,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
             let info = self.genv.normalized_info(did);
             let revealed = reveals.contains(&did);
-            let def = if info.uif || (info.hide && !revealed && proven_externally.is_none()) {
+            let def = if info.uif || (info.hide && !revealed && !proven_externally) {
                 self.fun_decl_to_fixpoint(did, scx)
             } else {
                 self.fun_def_to_fixpoint(did, scx)?
