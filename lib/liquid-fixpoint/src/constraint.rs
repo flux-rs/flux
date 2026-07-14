@@ -236,7 +236,7 @@ impl<T: Types> Pred<T> {
 
     pub fn is_trivially_true(&self) -> bool {
         match self {
-            Pred::Expr(Expr::Constant(Constant::Boolean(true))) => true,
+            Pred::Expr(e) => e.is_trivially_true(),
             Pred::And(ps) => ps.is_empty(),
             _ => false,
         }
@@ -262,6 +262,33 @@ impl<T: Types> Pred<T> {
             }
         }
     }
+
+    pub(crate) fn iter_atoms<'a>(
+        &'a self,
+        skip_trivially_true: bool,
+        f: &mut impl FnMut(Atom<'a, T>),
+    ) {
+        match self {
+            Pred::And(preds) => {
+                for pred in preds {
+                    pred.iter_atoms(skip_trivially_true, f);
+                }
+            }
+            Pred::KVar(kvid, args) => f(Atom::KVar(kvid, args)),
+            Pred::Expr(e) => {
+                if skip_trivially_true && e.is_trivially_true() {
+                    return;
+                }
+                f(Atom::Expr(e));
+            }
+        }
+    }
+}
+
+#[derive_where(Clone)]
+pub(crate) enum Atom<'a, T: Types> {
+    KVar(&'a T::KVar, &'a [Expr<T>]),
+    Expr(&'a Expr<T>),
 }
 
 #[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
@@ -443,6 +470,10 @@ impl<T: Types> Expr<T> {
             }
         };
         vars
+    }
+
+    pub fn is_trivially_true(&self) -> bool {
+        matches!(self, Expr::Constant(Constant::Boolean(true)))
     }
 }
 

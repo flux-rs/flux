@@ -23,6 +23,7 @@ mod format;
 mod graph;
 pub mod parser;
 pub mod sexp;
+pub mod smt_horn;
 
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
