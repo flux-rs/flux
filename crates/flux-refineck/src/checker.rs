@@ -2103,8 +2103,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 }
 
-/// Given a `Ty` and a `RawPtrKind`, creates a raw pointer to `Ty` with `size = T::size_of()`
-/// and `addr % T::align_of() == 0`.
+/// Given a `Ty` and a `RawPtrKind`, creates a raw pointer to `Ty` with
+/// base == addr: the pointer is at the start of its allocation (no offset)
+/// addr != 0:    Rust references are never null, so the derived pointer is non-null
+/// size == T::size_of(): the allocation holds exactly one element of type T (in bytes)
+/// addr % T::align_of() == 0: the address is properly aligned for type T
 /// see test `fn ref_to_ptr_read` in `crates/flux/tests/tests/with_deps/pos/extern_specs/flux_core_ptr01.rs`
 fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ctor: SubsetTyCtor) -> Result<Ty> {
     let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
@@ -2126,10 +2129,7 @@ fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ctor: SubsetTyCtor) -> 
     let base = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
     let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
     let size = Expr::field_proj(nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
-    // base == addr: the pointer is at the start of its allocation (no offset)
-    // addr != 0:    Rust references are never null, so the derived pointer is non-null
-    // size == T::size_of(): the allocation holds exactly one element of type T (in bytes)
-    // addr % T::align_of() == 0: the address is properly aligned for type T
+
     let pred = Expr::and_from_iter([
         Expr::eq(base, addr.clone()),
         Expr::ne(addr.clone(), Expr::zero()),
