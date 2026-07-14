@@ -8,7 +8,7 @@ use itertools::Itertools;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Qualifier, Sort, SortCtor, Task, Types,
-    constraint::{Atom, Quantifier},
+    constraint::{Pred, Quantifier},
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -167,7 +167,7 @@ impl ConstraintFormatter {
 
     fn fmt_preds_in_assumption_position<T: Types>(
         &mut self,
-        preds: &[Atom<T>],
+        preds: &[Pred<T>],
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match preds {
@@ -288,13 +288,13 @@ fn fmt_func<T: Types>(params: usize, sort: &Sort<T>, f: &mut fmt::Formatter<'_>)
     write!(f, ") {curr})")
 }
 
-impl<T: Types> fmt::Display for Atom<T> {
+impl<T: Types> fmt::Display for Pred<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Atom::KVar(kvid, args) => {
+            Pred::KVar(kvid, args) => {
                 write!(f, "(${} {})", kvid.display(), args.iter().join(" "),)
             }
-            Atom::Expr(expr) => write!(f, "({expr})"),
+            Pred::Expr(expr) => write!(f, "({expr})"),
         }
     }
 }

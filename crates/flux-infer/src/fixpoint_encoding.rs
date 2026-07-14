@@ -811,7 +811,7 @@ where
             fixpoint::Constraint::ForAll(bind, inner) => {
                 let inner = self.extract_assumed_consts_aux(*inner, acc);
                 if let [
-                    fixpoint::Atom::Expr(fixpoint::Expr::Atom(fixpoint::BinRel::Eq, operands)),
+                    fixpoint::Pred::Expr(fixpoint::Expr::Atom(fixpoint::BinRel::Eq, operands)),
                 ] = &bind.preds[..]
                 {
                     let [left, right] = &**operands;
@@ -1019,7 +1019,7 @@ where
             }
             _ => {
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
-                let pred = fixpoint::Atom::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
+                let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
             }
         }
@@ -1032,7 +1032,7 @@ where
     pub(crate) fn assumption_to_fixpoint(
         &mut self,
         pred: &rty::Expr,
-    ) -> QueryResult<(Vec<fixpoint::Bind>, Vec<fixpoint::Atom>)> {
+    ) -> QueryResult<(Vec<fixpoint::Bind>, Vec<fixpoint::Pred>)> {
         let mut bindings = vec![];
         let mut preds = vec![];
         self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds)?;
@@ -1044,7 +1044,7 @@ where
         &mut self,
         expr: &rty::Expr,
         bindings: &mut Vec<fixpoint::Bind>,
-        preds: &mut Vec<fixpoint::Atom>,
+        preds: &mut Vec<fixpoint::Pred>,
     ) -> QueryResult {
         match expr.kind() {
             rty::ExprKind::BinaryOp(rty::BinOp::And, e1, e2) => {
@@ -1055,7 +1055,7 @@ where
                 preds.extend(self.kvar_to_fixpoint(kvar, bindings)?);
             }
             _ => {
-                preds.push(fixpoint::Atom::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?));
+                preds.push(fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?));
             }
         }
         Ok(())
@@ -1065,7 +1065,7 @@ where
         &mut self,
         kvar: &rty::KVar,
         bindings: &mut Vec<fixpoint::Bind>,
-    ) -> QueryResult<Vec<fixpoint::Atom>> {
+    ) -> QueryResult<Vec<fixpoint::Pred>> {
         let decl = self.kvars.get(kvar.kvid);
         let kvids = self.kcx.declare(kvar.kvid, decl, &self.ecx.backend);
 
@@ -1080,19 +1080,19 @@ where
             bindings.push(fixpoint::Bind {
                 name: fresh.into(),
                 sort: fixpoint::Sort::Int,
-                preds: vec![fixpoint::Atom::Expr(fixpoint::Expr::eq(
+                preds: vec![fixpoint::Pred::Expr(fixpoint::Expr::eq(
                     fixpoint::Expr::Var(var),
                     fixpoint::Expr::int(0),
                 ))],
             });
-            return Ok(vec![fixpoint::Atom::KVar(kvids.start, vec![fixpoint::Expr::Var(var)])]);
+            return Ok(vec![fixpoint::Pred::KVar(kvids.start, vec![fixpoint::Expr::Var(var)])]);
         }
 
         let kvars = kvids
             .enumerate()
             .map(|(i, kvid)| {
                 let args = all_args[i..].to_vec();
-                fixpoint::Atom::KVar(kvid, args)
+                fixpoint::Pred::KVar(kvid, args)
             })
             .collect_vec();
         Ok(kvars)
@@ -2254,7 +2254,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
                             let e1 = fixpoint::Expr::Var(const_.name);
                             let e2 = self.expr_to_fixpoint(&val, scx)?;
-                            let pred = fixpoint::Atom::Expr(e1.eq(e2));
+                            let pred = fixpoint::Pred::Expr(e1.eq(e2));
 
                             let bind = match self.backend {
                                 Backend::Fixpoint => {
@@ -2402,7 +2402,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     }
 }
 
-fn mk_implies(assumption: Vec<fixpoint::Atom>, cstr: fixpoint::Constraint) -> fixpoint::Constraint {
+fn mk_implies(assumption: Vec<fixpoint::Pred>, cstr: fixpoint::Constraint) -> fixpoint::Constraint {
     fixpoint::Constraint::ForAll(
         fixpoint::Bind {
             name: fixpoint::Var::Underscore,

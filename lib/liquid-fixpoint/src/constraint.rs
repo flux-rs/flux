@@ -9,18 +9,18 @@ use crate::{ThyFunc, Types};
 pub struct Bind<T: Types> {
     pub name: T::Var,
     pub sort: Sort<T>,
-    pub preds: Vec<Atom<T>>,
+    pub preds: Vec<Pred<T>>,
 }
 
 #[derive_where(Hash, Clone, Debug)]
 pub enum Constraint<T: Types> {
-    Pred(Atom<T>, #[derive_where(skip)] Option<T::Tag>),
+    Pred(Pred<T>, #[derive_where(skip)] Option<T::Tag>),
     Conj(Vec<Self>),
     ForAll(Bind<T>, Box<Self>),
 }
 
 impl<T: Types> Constraint<T> {
-    pub const TRUE: Self = Self::Pred(Atom::TRUE, None);
+    pub const TRUE: Self = Self::Pred(Pred::TRUE, None);
 
     pub fn foralls(bindings: Vec<Bind<T>>, c: Self) -> Self {
         bindings
@@ -215,23 +215,23 @@ pub enum SortCtor<T: Types> {
 }
 
 #[derive_where(Hash, Clone, Debug)]
-pub enum Atom<T: Types> {
+pub enum Pred<T: Types> {
     KVar(T::KVar, Vec<Expr<T>>),
     Expr(Expr<T>),
 }
 
-impl<T: Types> Atom<T> {
-    pub const TRUE: Self = Atom::Expr(Expr::TRUE);
+impl<T: Types> Pred<T> {
+    pub const TRUE: Self = Pred::Expr(Expr::TRUE);
 
     pub fn is_trivially_true(&self) -> bool {
         match self {
-            Atom::Expr(e) => e.is_trivially_true(),
-            Atom::KVar(..) => false,
+            Pred::Expr(e) => e.is_trivially_true(),
+            Pred::KVar(..) => false,
         }
     }
 
     pub fn is_concrete(&self) -> bool {
-        matches!(self, Atom::Expr(_))
+        matches!(self, Pred::Expr(_))
     }
 }
 

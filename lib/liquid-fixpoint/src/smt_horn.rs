@@ -14,7 +14,7 @@ use std::fmt;
 
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, Expr, FixpointFmt, FunDef,
-    Identifier, KVarDecl, Sort, SortCtor, Task, ThyFunc, Types, constraint::Atom,
+    Identifier, KVarDecl, Sort, SortCtor, Task, ThyFunc, Types, constraint::Pred,
 };
 
 /// A flattened Horn clause extracted from the constraint tree.
@@ -22,16 +22,16 @@ struct HornClause<'a, T: Types> {
     /// Universally quantified variables with their sorts
     vars: Vec<(&'a T::Var, &'a Sort<T>)>,
     /// Guard predicates (body of the implication)
-    guards: Vec<&'a Atom<T>>,
+    guards: Vec<&'a Pred<T>>,
     /// Head of the clause
-    head: &'a Atom<T>,
+    head: &'a Pred<T>,
 }
 
 /// Collect all Horn clauses from a constraint tree
 fn flatten_constraint<'a, T: Types>(
     constraint: &'a Constraint<T>,
     vars: &mut Vec<(&'a T::Var, &'a Sort<T>)>,
-    guards: &mut Vec<&'a Atom<T>>,
+    guards: &mut Vec<&'a Pred<T>>,
     clauses: &mut Vec<HornClause<'a, T>>,
 ) {
     match constraint {
@@ -136,7 +136,7 @@ fn fmt_assert<T: Types>(clause: &HornClause<'_, T>, f: &mut fmt::Formatter<'_>) 
     }
 
     match &clause.head {
-        Atom::KVar(k, args) => {
+        Pred::KVar(k, args) => {
             // (=> guards (k args))
             write!(f, "(=> ")?;
             fmt_guard_conjunction(&clause.guards, f)?;
@@ -147,7 +147,7 @@ fn fmt_assert<T: Types>(clause: &HornClause<'_, T>, f: &mut fmt::Formatter<'_>) 
             }
             write!(f, "))")?;
         }
-        Atom::Expr(e) => {
+        Pred::Expr(e) => {
             // (=> (and guards (not e)) false)
             write!(f, "(=> ")?;
             let guard_count = clause.guards.len() + 1;
@@ -177,7 +177,7 @@ fn fmt_assert<T: Types>(clause: &HornClause<'_, T>, f: &mut fmt::Formatter<'_>) 
     writeln!(f, ")")
 }
 
-fn fmt_guard_conjunction<T: Types>(guards: &[&Atom<T>], f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn fmt_guard_conjunction<T: Types>(guards: &[&Pred<T>], f: &mut fmt::Formatter<'_>) -> fmt::Result {
     if guards.is_empty() {
         write!(f, "true")
     } else if guards.len() == 1 {
@@ -192,9 +192,9 @@ fn fmt_guard_conjunction<T: Types>(guards: &[&Atom<T>], f: &mut fmt::Formatter<'
     }
 }
 
-fn fmt_guard<T: Types>(guard: &Atom<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn fmt_guard<T: Types>(guard: &Pred<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match guard {
-        Atom::KVar(k, args) => {
+        Pred::KVar(k, args) => {
             write!(f, "({}", k.display())?;
             for arg in args {
                 write!(f, " ")?;
@@ -202,7 +202,7 @@ fn fmt_guard<T: Types>(guard: &Atom<T>, f: &mut fmt::Formatter<'_>) -> fmt::Resu
             }
             write!(f, ")")
         }
-        Atom::Expr(e) => fmt_expr_smt(e, f),
+        Pred::Expr(e) => fmt_expr_smt(e, f),
     }
 }
 
@@ -437,46 +437,39 @@ fn fmt_thy_func_smt(thy_func: &ThyFunc, f: &mut fmt::Formatter<'_>) -> fmt::Resu
         ThyFunc::Bv32ToInt => write!(f, "bv2int"),
         ThyFunc::IntToBv64 => write!(f, "(_ int2bv 64)"),
         ThyFunc::Bv64ToInt => write!(f, "bv2int"),
-        _ => {
-            // For bitvector, set, and map operations, use SMT-LIB standard names
-            let name = match thy_func {
-                ThyFunc::BvUle => "bvule",
-                ThyFunc::BvSle => "bvsle",
-                ThyFunc::BvUge => "bvuge",
-                ThyFunc::BvSge => "bvsge",
-                ThyFunc::BvUdiv => "bvudiv",
-                ThyFunc::BvSdiv => "bvsdiv",
-                ThyFunc::BvSrem => "bvsrem",
-                ThyFunc::BvUrem => "bvurem",
-                ThyFunc::BvLshr => "bvlshr",
-                ThyFunc::BvAshr => "bvashr",
-                ThyFunc::BvAnd => "bvand",
-                ThyFunc::BvOr => "bvor",
-                ThyFunc::BvXor => "bvxor",
-                ThyFunc::BvNot => "bvnot",
-                ThyFunc::BvAdd => "bvadd",
-                ThyFunc::BvNeg => "bvneg",
-                ThyFunc::BvSub => "bvsub",
-                ThyFunc::BvMul => "bvmul",
-                ThyFunc::BvShl => "bvshl",
-                ThyFunc::BvUgt => "bvugt",
-                ThyFunc::BvSgt => "bvsgt",
-                ThyFunc::BvUlt => "bvult",
-                ThyFunc::BvSlt => "bvslt",
-                ThyFunc::SetEmpty => "as emptyset",
-                ThyFunc::SetSng => "singleton",
-                ThyFunc::SetCup => "union",
-                ThyFunc::SetCap => "intersection",
-                ThyFunc::SetDif => "setminus",
-                ThyFunc::SetMem => "member",
-                ThyFunc::SetSub => "subset",
-                ThyFunc::MapDefault => "const",
-                ThyFunc::MapSelect => "select",
-                ThyFunc::MapStore => "store",
-                _ => unreachable!(),
-            };
-            write!(f, "{name}")
-        }
+        ThyFunc::BvUle => write!(f, "bvule"),
+        ThyFunc::BvSle => write!(f, "bvsle"),
+        ThyFunc::BvUge => write!(f, "bvuge"),
+        ThyFunc::BvSge => write!(f, "bvsge"),
+        ThyFunc::BvUdiv => write!(f, "bvudiv"),
+        ThyFunc::BvSdiv => write!(f, "bvsdiv"),
+        ThyFunc::BvSrem => write!(f, "bvsrem"),
+        ThyFunc::BvUrem => write!(f, "bvurem"),
+        ThyFunc::BvLshr => write!(f, "bvlshr"),
+        ThyFunc::BvAshr => write!(f, "bvashr"),
+        ThyFunc::BvAnd => write!(f, "bvand"),
+        ThyFunc::BvOr => write!(f, "bvor"),
+        ThyFunc::BvXor => write!(f, "bvxor"),
+        ThyFunc::BvNot => write!(f, "bvnot"),
+        ThyFunc::BvAdd => write!(f, "bvadd"),
+        ThyFunc::BvNeg => write!(f, "bvneg"),
+        ThyFunc::BvSub => write!(f, "bvsub"),
+        ThyFunc::BvMul => write!(f, "bvmul"),
+        ThyFunc::BvShl => write!(f, "bvshl"),
+        ThyFunc::BvUgt => write!(f, "bvugt"),
+        ThyFunc::BvSgt => write!(f, "bvsgt"),
+        ThyFunc::BvUlt => write!(f, "bvult"),
+        ThyFunc::BvSlt => write!(f, "bvslt"),
+        ThyFunc::SetEmpty => write!(f, "as emptyset"),
+        ThyFunc::SetSng => write!(f, "singleton"),
+        ThyFunc::SetCup => write!(f, "union"),
+        ThyFunc::SetCap => write!(f, "intersection"),
+        ThyFunc::SetDif => write!(f, "setminus"),
+        ThyFunc::SetMem => write!(f, "member"),
+        ThyFunc::SetSub => write!(f, "subset"),
+        ThyFunc::MapDefault => write!(f, "const"),
+        ThyFunc::MapSelect => write!(f, "select"),
+        ThyFunc::MapStore => write!(f, "store"),
     }
 }
 

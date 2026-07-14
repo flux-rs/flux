@@ -99,7 +99,7 @@ where
     fn parse_pred_inner(
         &mut self,
         sexp: &Sexp,
-        atoms: &mut Vec<constraint::Atom<T>>,
+        preds: &mut Vec<Pred<T>>,
     ) -> Result<(), ParseError> {
         match sexp {
             Sexp::List(items) => {
@@ -113,7 +113,7 @@ where
                         preds.push(self.parse_kvar(sexp)?);
                     }
                     _ => {
-                        atoms.push(constraint::Atom::Expr(self.parse_expr_possibly_nested(sexp)?));
+                        preds.push(Pred::Expr(self.parse_expr_possibly_nested(sexp)?));
                     }
                 }
             }
@@ -122,7 +122,7 @@ where
         Ok(())
     }
 
-    pub fn parse_kvar(&self, sexp: &Sexp) -> Result<constraint::Atom<T>, ParseError> {
+    pub fn parse_kvar(&self, sexp: &Sexp) -> Result<Pred<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 if items.len() < 2 {
@@ -141,7 +141,7 @@ where
                             for s in &strs[1..] {
                                 args.push(Expr::Var(self.parser.var(s)?));
                             }
-                            Ok(constraint::Atom::KVar(kvar, args))
+                            Ok(Pred::KVar(kvar, args))
                         }
                         _ => Err(ParseError::err("Expected all list elements to be strings")),
                     }
