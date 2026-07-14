@@ -24,7 +24,7 @@ use flux_middle::{
         GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, RefineArgs,
         RefineArgsExt,
         Region::ReErased,
-        Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        Sort, SubsetTyCtor, Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine, Refiner},
     },
@@ -1513,8 +1513,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::RawPtr(kind, place) => {
                 // ignore any refinements on the type stored at place
                 let ty = &env.lookup_rust_ty(genv, place).with_span(stmt_span)?;
-                let ty = self.refine_default(ty).with_span(stmt_span)?;
-                raw_ptr_with_size(genv, kind, ty)
+                // let ty = self.refine_default(ty).with_span(stmt_span)?;
+                let ctor = self
+                    .default_refiner
+                    .refine_ty_or_base(&ty)
+                    .with_span(stmt_span)?
+                    .expect_base();
+                raw_ptr_with_size(genv, kind, ctor)
             }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
@@ -2101,13 +2106,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 /// Given a `Ty` and a `RawPtrKind`, creates a raw pointer to `Ty` with `size = T::size_of()`
 /// and `addr % T::align_of() == 0`.
 /// see test `fn ref_to_ptr_read` in `crates/flux/tests/tests/with_deps/pos/extern_specs/flux_core_ptr01.rs`
-fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ty: Ty) -> Result<Ty> {
+fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ctor: SubsetTyCtor) -> Result<Ty> {
     let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
-    let pointee_bty = ty
-        .as_bty_skipping_existentials()
-        .unwrap_or_else(|| tracked_span_bug!("expected indexed type in ref-to-raw-ptr cast"))
-        .clone();
-    let ctor = pointee_bty.to_subset_ty_ctor();
+
+    // let pointee_bty = ty
+    //     .as_bty_skipping_existentials()
+    //     .unwrap_or_else(|| tracked_span_bug!("expected indexed type in ref-to-raw-ptr cast"))
+    //     .clone();
+    // let ctor = pointee_bty.to_subset_ty_ctor();
+    // let ctor = self
+    //     .default_refiner
+    //     .refine_ty_or_base(&constant.ty)?
+    //     .expect_base();
+
+    let bty = BaseTy::RawPtr(ctor.to_ty(), kind.to_mutbl_lossy());
     let args = rty::List::from_arr([GenericArg::Base(ctor)]);
     let size_of_expr = Expr::alias(
         AliasReft {
@@ -2121,7 +2133,6 @@ fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ty: Ty) -> Result<Ty> {
         rty::List::empty(),
     );
 
-    let bty = BaseTy::RawPtr(ty, kind.to_mutbl_lossy());
     let nu = Expr::nu();
     let base = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
     let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
