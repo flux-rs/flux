@@ -735,7 +735,7 @@ impl FormatNested for Constraint {
                 }
                 Ok(())
             }
-            Constraint::Pred(heads, _) => heads.lean_fmt(f, lean_cx),
+            Constraint::Pred(head, _) => head.lean_fmt(f, lean_cx),
         }
     }
 }

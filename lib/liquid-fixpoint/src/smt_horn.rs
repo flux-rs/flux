@@ -48,13 +48,11 @@ fn flatten_constraint<'a, T: Types>(
                 flatten_constraint(cstr, vars, guards, clauses);
             }
         }
-        Constraint::Pred(preds, _tag) => {
-            for head in preds {
-                if head.is_trivially_true() {
-                    continue;
-                }
-                clauses.push(HornClause { vars: vars.to_vec(), guards: guards.to_vec(), head });
+        Constraint::Pred(head, _tag) => {
+            if head.is_trivially_true() {
+                return;
             }
+            clauses.push(HornClause { vars: vars.clone(), guards: guards.clone(), head });
         }
     }
 }

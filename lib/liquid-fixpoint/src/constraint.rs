@@ -14,13 +14,13 @@ pub struct Bind<T: Types> {
 
 #[derive_where(Hash, Clone, Debug)]
 pub enum Constraint<T: Types> {
-    Pred(Vec<Atom<T>>, #[derive_where(skip)] Option<T::Tag>),
+    Pred(Atom<T>, #[derive_where(skip)] Option<T::Tag>),
     Conj(Vec<Self>),
     ForAll(Bind<T>, Box<Self>),
 }
 
 impl<T: Types> Constraint<T> {
-    pub const TRUE: Self = Self::Pred(vec![], None);
+    pub const TRUE: Self = Self::Pred(Atom::TRUE, None);
 
     pub fn foralls(bindings: Vec<Bind<T>>, c: Self) -> Self {
         bindings
@@ -41,11 +41,9 @@ impl<T: Types> Constraint<T> {
             match c {
                 Constraint::Conj(cs) => cs.iter().for_each(|c| go(c, count)),
                 Constraint::ForAll(_, c) => go(c, count),
-                Constraint::Pred(heads, _) => {
-                    for head in heads {
-                        if head.is_concrete() && !head.is_trivially_true() {
-                            *count += 1;
-                        }
+                Constraint::Pred(head, _) => {
+                    if head.is_concrete() && !head.is_trivially_true() {
+                        *count += 1;
                     }
                 }
             }

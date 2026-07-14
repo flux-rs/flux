@@ -129,7 +129,13 @@ impl ConstraintFormatter {
         cstr: &Constraint<T>,
     ) -> fmt::Result {
         match cstr {
-            Constraint::Pred(preds, tag) => self.fmt_preds_in_head_position(preds, tag.as_ref(), f),
+            Constraint::Pred(head, tag) => {
+                if let Some(tag) = tag {
+                    write!(f, "(tag {head} \"{tag}\")")
+                } else {
+                    write!(f, "{head}")
+                }
+            }
             Constraint::Conj(cstrs) => {
                 match &cstrs[..] {
                     [] => write!(f, "((true))"),
@@ -154,7 +160,6 @@ impl ConstraintFormatter {
                 self.newline(f)?;
                 self.fmt_constraint(f, head)?;
                 self.decr();
-
                 f.write_str(")")
             }
         }
@@ -176,42 +181,6 @@ impl ConstraintFormatter {
                         write!(f, " ")?;
                     }
                     write!(f, "{pred}")?;
-                }
-                if preds.len() > 1 {
-                    write!(f, ")")?;
-                }
-                Ok(())
-            }
-        }
-    }
-
-    fn fmt_preds_in_head_position<T: Types>(
-        &mut self,
-        preds: &[Atom<T>],
-        tag: Option<&T::Tag>,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        match &preds[..] {
-            [] => write!(f, "((true))"),
-            [pred] => {
-                if let Some(tag) = tag {
-                    write!(f, "(tag {pred} \"{tag}\")")?;
-                } else {
-                    write!(f, "{pred}")?;
-                }
-                Ok(())
-            }
-            _ => {
-                write!(f, "(and")?;
-                for pred in preds {
-                    self.newline(f)?;
-                    self.incr();
-                    if let Some(tag) = tag {
-                        write!(f, "(tag {pred} \"{tag}\")")?;
-                    } else {
-                        write!(f, "{pred}")?;
-                    }
-                    self.decr();
                 }
                 if preds.len() > 1 {
                     write!(f, ")")?;

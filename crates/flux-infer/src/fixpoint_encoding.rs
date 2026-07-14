@@ -991,8 +991,12 @@ where
             }
             rty::ExprKind::KVar(kvar) => {
                 let mut bindings = vec![];
-                let preds = self.kvar_to_fixpoint(kvar, &mut bindings)?;
-                Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(preds, None)))
+                let preds = self
+                    .kvar_to_fixpoint(kvar, &mut bindings)?
+                    .into_iter()
+                    .map(|p| fixpoint::Constraint::Pred(p, None))
+                    .collect();
+                Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::conj(preds)))
             }
             rty::ExprKind::Quant(QuantKind::Forall, QuantDom::Unbounded, pred) => {
                 self.ecx
@@ -1016,7 +1020,7 @@ where
             _ => {
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
                 let pred = fixpoint::Atom::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
-                Ok(fixpoint::Constraint::Pred(vec![pred], Some(tag_idx)))
+                Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
             }
         }
     }
