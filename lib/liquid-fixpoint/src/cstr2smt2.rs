@@ -18,7 +18,7 @@ use crate::{ConstDecl, FlatConstraint};
 use crate::{Constraint, Error, FixpointStatus, Stats};
 use crate::{
     DataDecl, FixpointFmt, Identifier, SortCtor, ThyFunc, Types,
-    constraint::{BinOp, BinRel, Constant, Expr, Pred, Sort},
+    constraint::{BinOp, BinRel, Constant, Expr, Pred, Quantifier, Sort},
 };
 
 #[derive(Debug)]
@@ -545,7 +545,7 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
         Expr::ThyFunc(_) => {
             unreachable!("Should not encounter theory func outside of an application")
         }
-        Expr::Exists(var_sorts, e) => {
+        Expr::Quantifier(Quantifier::Exists, var_sorts, e) => {
             for (var, sort) in var_sorts {
                 let binding = new_binding(&format!("{}", var.display()), sort, env);
                 env.insert(var.clone(), binding);
@@ -574,6 +574,9 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
         // UIFs are hard to deal with in QE and we don't need weak kvars in it
         // anyway, so we'll just elide them here.
         Expr::WKVar(_wkvar) => ast::Bool::from_bool(true).into(),
+        Expr::Quantifier(Quantifier::Forall, _, _) => {
+            todo!("forall quantifier not yet supported in z3 encoding")
+        }
     }
 }
 

@@ -41,7 +41,7 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
+    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FlatConstraint, FunSort, Pred, Qualifier, Quantifier, Sort, SortCtor, SortDecl, WKVar,
 };
 use derive_where::derive_where;
@@ -144,7 +144,7 @@ macro_rules! declare_types {
             pub type DataField = $crate::DataField<FixpointTypes>;
             pub type Bind = $crate::Bind<FixpointTypes>;
             pub type Constant = $crate::Constant<FixpointTypes>;
-            pub use $crate::{BinOp, BinRel, BoundVar, Quantifier, ThyFunc, WKVar};
+            pub use $crate::{BinOp, BinRel, Quantifier, ThyFunc, WKVar};
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {
@@ -368,6 +368,7 @@ impl<T: Types> Task<T> {
             status: cstr_with_env.is_satisfiable(),
             solution: vec![],
             non_cuts_solution: vec![],
+            lean_status: LeanStatus::default(),
         })
     }
 
