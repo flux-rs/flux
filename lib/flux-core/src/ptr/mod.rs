@@ -24,11 +24,13 @@
         num_bytes == 0 || valid_no_zst(p, num_bytes)
     }
 
+    fn addr_aligned(addr: int, alignment: int) -> bool { addr % alignment == 0 }
+
     // The pointer's address is a multiple of `alignment`. Most read/write
     // functions require proper alignment (align_of::<T>()); the notable
     // exceptions are read_unaligned and write_unaligned.
     // See: https://doc.rust-lang.org/std/ptr/index.html#alignment
-    fn aligned_to(p: ptr, alignment: int) -> bool { p.addr % alignment == 0 }
+    fn aligned_to(p: ptr, alignment: int) -> bool { addr_aligned(p.addr, alignment) }
 
     // The byte ranges [p.addr, p.addr + num_bytes) and [q.addr, q.addr + num_bytes)
     // do not overlap.
@@ -62,12 +64,16 @@ macro_rules! ptr_specs {
         impl<T> *$mutable T {
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
-                    requires in_bounds(p) && count * T::size_of() <= p.size)]
+                    requires in_bounds(p) && count * T::size_of() <= p.size
+                    ensures addr_aligned(p.addr, T::align_of()) => addr_aligned(p.addr + count * T::size_of(), T::align_of())
+            )]
             unsafe fn add(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr - count * T::size_of(), p.size + count * T::size_of()] T
-                    requires in_bounds(p) && count * T::size_of() <= p.addr - p.base)]
+                    requires in_bounds(p) && count * T::size_of() <= p.addr - p.base
+                    ensures addr_aligned(p.addr, T::align_of()) => addr_aligned(p.addr - count * T::size_of(), T::align_of())
+            )]
             unsafe fn sub(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
@@ -88,7 +94,9 @@ macro_rules! ptr_specs {
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L349
             #[spec(fn (me: *$mutable[@p] T, count: isize)
                 -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
-                    requires in_bounds(p) && count * T::size_of() <= p.size && p.addr + count * T::size_of() >= p.base)]
+                    requires in_bounds(p) && count * T::size_of() <= p.size && p.addr + count * T::size_of() >= p.base
+                    ensures addr_aligned(p.addr, T::align_of()) => addr_aligned(p.addr + count * T::size_of(), T::align_of())
+            )]
             unsafe fn offset(self, count: isize) -> Self;
 
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L471
