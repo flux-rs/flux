@@ -2,8 +2,9 @@ use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, LeanStatus, lean_task_key},
+    fixpoint_encoding::{FixQueryCache, KVarGen, LeanStatus, lean_task_key},
     lean_encoding,
+    refine_tree::RefineTree,
 };
 use flux_metadata::CStore;
 use flux_middle::{
@@ -150,12 +151,18 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             .iter_local_def_id()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
-        if config::lean().is_check() || config::lean().is_emit() {
+        if config::multi_check_pattern().is_some() {
+            ck.execute_multi_check()?;
+        }
+
+        if config::multi_check_pattern().is_none()
+            && (config::lean().is_check() || config::lean().is_emit())
+        {
             lean_encoding::finalize(genv)
                 .unwrap_or_else(|err| bug!("error running lean-check {err:?}"));
         }
 
-        let lean_result = if config::lean().is_check() {
+        let lean_result = if config::multi_check_pattern().is_none() && config::lean().is_check() {
             genv.iter_local_def_id().try_for_each_exhaust(|def_id| {
                 // Skip proof check if not included
                 if !genv.included(genv.maybe_extern_id(def_id)) {
@@ -194,6 +201,24 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     })
 }
 
+impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
+    fn execute_multi_check(&mut self) -> Result<(), ErrorGuaranteed> {
+        let Some(owner) = self.multi_trees.first().map(|(owner, _, _)| *owner) else {
+            return Ok(());
+        };
+        let opts = self.genv.infer_opts(owner.local_id());
+        let errors = flux_infer::infer::InferCtxtRoot::execute_multi_fixpoint_query(
+            self.genv,
+            std::mem::take(&mut self.multi_trees),
+            owner,
+            opts,
+        )
+        .emit(&self.genv)?;
+        refineck::report_fixpoint_errors(self.genv, owner.local_id(), errors)?;
+        Ok(())
+    }
+}
+
 fn collect_specs(genv: GlobalEnv) -> Specs {
     match SpecCollector::collect(genv.tcx(), genv.sess()) {
         Ok(specs) => specs,
@@ -221,11 +246,12 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     cache: FixQueryCache,
+    multi_trees: Vec<(MaybeExternId, RefineTree, KVarGen)>,
 }
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        Self { genv, cache: QueryCache::load() }
+        Self { genv, cache: QueryCache::load(), multi_trees: vec![] }
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -276,7 +302,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             DefKind::Fn | DefKind::AssocFn => {
                 let Some(local_id) = def_id.as_local() else { return Ok(()) };
                 if is_fn_with_body {
-                    refineck::check_fn(genv, &mut self.cache, local_id)?;
+                    refineck::check_fn(genv, &mut self.cache, local_id, &mut self.multi_trees)?;
                 }
             }
             DefKind::Enum => {

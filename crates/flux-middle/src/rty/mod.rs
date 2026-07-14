@@ -1401,6 +1401,10 @@ impl Invariant {
         // fixpoint doesn't need sort annotations (sorts are re-inferred).
         self.pred.replace_bound_reft(idx)
     }
+
+    pub fn is_wkvar(&self) -> bool {
+        matches!(self.pred.skip_binder_ref().kind(), ExprKind::WKVar(_))
+    }
 }
 
 pub type PolyVariants = List<Binder<VariantSig>>;

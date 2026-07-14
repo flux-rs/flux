@@ -44,6 +44,9 @@ pub struct Flags {
     /// If present, only check files matching the [`IncludePattern`] a glob pattern.
     #[arg(long = flux_arg!("include"), value_name = "PATTERN", value_parser = panicking_parser)]
     pub include: Option<IncludePattern>,
+    /// If present, collect matching function bodies and check them in one fixpoint query.
+    #[arg(long = flux_arg!("multi-check"), value_name = "PATTERN", value_parser = panicking_parser)]
+    pub multi_check: Option<IncludePattern>,
     /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
     #[arg(long = flux_arg!("include-trusted"), value_name = "PATTERN", value_parser = panicking_parser)]
     pub include_trusted: Option<IncludePattern>,
@@ -245,6 +248,17 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub rerun_hint: bool,
+    /// If `true`, collect all non-trusted constraints into one big constraint to check.
+    /// (implies multi_check). If multi_check is supplied, only uses those defs.
+    /// 
+    /// SKIPS adding wkvars to the REQUIRES of safe fns, but still adds wkvars to the
+    /// ensures. Adds wkvars everywhere for unsafe fns.
+    #[arg(
+        long = flux_arg!("safety-multi-check"),
+        num_args = 0..=1,
+        default_missing_value = "false"
+    )]
+    pub safety_multi_check: Option<String>,
 }
 
 impl Default for Flags {
@@ -260,6 +274,7 @@ impl Default for Flags {
             catch_bugs: false,
             pointer_width: PointerWidth::default(),
             include: None,
+            multi_check: None,
             include_trusted: None,
             include_trusted_impl: None,
             cache: None,
@@ -283,6 +298,7 @@ impl Default for Flags {
             flux_verbose: false,
             no_suggestions_default: false,
             rerun_hint: true,
+            safety_multi_check: None,
         }
     }
 }
@@ -290,6 +306,7 @@ impl Default for Flags {
 pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
     let mut flags = Flags::default();
     let mut includes: Vec<String> = Vec::new();
+    let mut multi_checks: Vec<String> = Vec::new();
     let mut trusteds: Vec<String> = Vec::new();
     let mut trusted_impls: Vec<String> = Vec::new();
     for arg in env::args() {
@@ -316,6 +333,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "summary" => parse_bool(&mut flags.summary, value),
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "include" => parse_opt_include(&mut includes, value),
+            "multi-check" => parse_opt_include(&mut multi_checks, value),
             "include-trusted" => parse_opt_include(&mut trusteds, value),
             "include-trusted-impl" => parse_opt_include(&mut trusted_impls, value),
             "verify" => parse_bool(&mut flags.verify, value),
@@ -329,6 +347,9 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "flux-verbose" => parse_bool(&mut flags.flux_verbose, value),
             "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
             "rerun-hint" => parse_bool(&mut flags.rerun_hint, value),
+            "safety-multi-check" => {
+                parse_opt_string(&mut flags.safety_multi_check, value)
+            }
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
@@ -339,12 +360,29 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             process::exit(1);
         }
     }
+    let has_trust_filters = !trusteds.is_empty() || !trusted_impls.is_empty();
     if !includes.is_empty() {
         let include = IncludePattern::new(includes).unwrap_or_else(|err| {
             eprintln!("error: invalid include pattern: {err}");
             process::exit(1);
         });
         flags.include = Some(include);
+    }
+    if !multi_checks.is_empty() {
+        if has_trust_filters || flags.cache.is_some() || !matches!(flags.lean, LeanMode::Off) {
+            eprintln!("error: `-Fmulti-check` conflicts with trust, cache, or lean flags");
+            process::exit(EXIT_FAILURE);
+        }
+        let multi_check = IncludePattern::new(multi_checks).unwrap_or_else(|err| {
+            eprintln!("error: invalid multi-check pattern: {err}");
+            process::exit(1);
+        });
+        flags.multi_check = Some(multi_check);
+    } else if flags.safety_multi_check.is_some() {
+        // Add everything if we are doing a safety multi check (and there is no
+        // multi check provided).
+        flags.multi_check = Some(IncludePattern::new(vec!["*".to_string()]).expect("should be a glob pattern matching all files"));
+        
     }
     if !trusteds.is_empty() {
         let trusted = IncludePattern::new(trusteds).unwrap_or_else(|err| {
@@ -397,6 +435,16 @@ fn parse_string(slot: &mut String, v: Option<&str>) -> Result<(), &'static str> 
     match v {
         Some(s) => {
             *slot = s.to_string();
+            Ok(())
+        }
+        None => Err("expected a string"),
+    }
+}
+
+fn parse_opt_string(slot: &mut Option<String>, v: Option<&str>) -> Result<(), &'static str> {
+    match v {
+        Some(s) => {
+            *slot = Some(s.to_string());
             Ok(())
         }
         None => Err("expected a string"),

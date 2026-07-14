@@ -20,21 +20,17 @@ use conv::{AfterSortck, ConvPhase, struct_compat};
 use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
+use flux_infer::fixpoint_encoding::flatten_kvar_args;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    def_id::{FluxDefId, FluxId, MaybeExternId},
-    fhir::{
+    def_id::{FluxDefId, FluxId, MaybeExternId}, def_id_to_string, fhir::{
         self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
         TraitItemKind,
-    },
-    global_env::GlobalEnv,
-    queries::{Providers, QueryResult},
-    query_bug,
-    rty::{
+    }, global_env::{GlobalEnv, WeakKvarMap}, queries::{Providers, QueryResult}, query_bug, rty::{
         self, AssocReft, Binder, WfckResults,
         fold::TypeFoldable,
-        refining::{self, Refiner},
-    },
+        refining::{self, Refine, Refiner, make_weak_kvar},
+    }
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
@@ -46,6 +42,7 @@ use rustc_hir::{
     def::{CtorOf, DefKind},
     def_id::{DefId, LocalDefId},
 };
+use rustc_type_ir::INNERMOST;
 use rustc_span::Span;
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -192,13 +189,35 @@ fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> 
 
 fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
     let item = genv.fhir_expect_item(def_id.local_id())?;
-    let invariants = invariants_of(genv, item)?;
+    let mut invariants = invariants_of(genv, item)?;
 
     let adt_def = genv.tcx().adt_def(def_id.resolved_id()).lower(genv.tcx());
 
     let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());
+    let adt_sort = genv.adt_sort_def_of(def_id)?;
 
-    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, invariants, is_opaque))
+    // Only add struct invariants if we're doing a safety multi-check
+    // (probably best served as a flag)
+    if false && genv.safety_multi_check() {
+        let args = rty::GenericArg::identity_for_item(genv, def_id.resolved_id())?;
+        let sort = adt_sort.to_sort(&args);
+        let mut wkvar_map = WeakKvarMap::default();
+        let self_args = vec![(rty::Expr::bvar(INNERMOST, rty::BoundVar::from(0_usize), rty::BoundReftKind::Anon), sort.clone())];
+        let (flattened_self_arg_sorts, flattened_self_args, _) = flatten_kvar_args(self_args.into_iter(), 1);
+        let adt_wkvar = make_weak_kvar(
+            &mut wkvar_map,
+            def_id.resolved_id(),
+            &mut rty::KVid::from(999_usize),
+            flattened_self_args.into_iter().zip(flattened_self_arg_sorts.into_iter()).collect(),
+            vec![]
+        );
+        let wkvar_inv = Binder::bind_with_sort(rty::Expr::wkvar(adt_wkvar), sort);
+
+        invariants.push(rty::Invariant::new(wkvar_inv));
+        genv.feed_weak_kvars(def_id.resolved_id(), wkvar_map);
+    }
+
+    Ok(rty::AdtDef::new(adt_def, adt_sort, invariants, is_opaque))
 }
 
 fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::ConstantInfo> {
@@ -613,9 +632,9 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 .into_conv_ctxt()
                 .conv_fn_sig(def_id, fhir_fn_sig)?;
             let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-            #[cfg(feature = "suggestions")]
+            // #[cfg(feature = "suggestions")]
             let mut fn_sig = fn_sig.hoist_input_binders();
-            #[cfg(feature = "suggestions")]
+            // #[cfg(feature = "suggestions")]
             // We aren't sure how to handle suggestions for Traits themselves
             // and ForeignItems.
             //
@@ -623,7 +642,14 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             // subtype for their parent trait, but for now we *will* offer them
             // as suggestions; the user can resolve issues.
             if !genv.no_suggestions(def_id.local_id())
-                && !matches!(fhir_node, fhir::Node::TraitItem(..) | fhir::Node::ForeignItem(..))
+                && !matches!(
+                    fhir_node,
+                    fhir::Node::TraitItem(..)
+                        | fhir::Node::ForeignItem(..)
+                )
+                && !genv.trusted(def_id.local_id())
+                // Only infer specs for local fns
+                && def_id.is_local()
             {
                 fn_sig = fn_sig.add_weak_kvars(genv, def_id.local_id().into())?;
             }

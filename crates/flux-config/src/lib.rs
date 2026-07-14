@@ -78,6 +78,10 @@ pub fn include_pattern() -> Option<&'static IncludePattern> {
     FLAGS.include.as_ref()
 }
 
+pub fn multi_check_pattern() -> Option<&'static IncludePattern> {
+    FLAGS.multi_check.as_ref()
+}
+
 pub fn trusted_pattern() -> Option<&'static IncludePattern> {
     FLAGS.include_trusted.as_ref()
 }
@@ -167,6 +171,14 @@ pub fn rerun_hint() -> bool {
 /// direct `flux`/`flux-driver` invocation. Used to decide whether to emit the re-run hint.
 pub fn inside_cargo() -> bool {
     std::env::var_os("FLUX_CARGO").is_some()
+}
+
+pub fn safety_multi_check() -> bool {
+    FLAGS.safety_multi_check.is_some()
+}
+
+pub fn safety_multi_check_crate() -> Option<&'static str> {
+    FLAGS.safety_multi_check.as_deref()
 }
 
 #[derive(Clone, Debug, Deserialize)]

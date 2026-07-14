@@ -15,10 +15,15 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
+    // Multi-query decoding is intentionally unsupported: local KVar ids and local-variable maps
+    // currently have no owner information at this boundary.
     pub(crate) fn fixpoint_to_solution(
         &mut self,
         sol: &FixpointSolution,
     ) -> rty::Binder<rty::Expr> {
+        if self.multi_query {
+            panic!("fixpoint solution decoding for multi-query encoding is not supported");
+        }
         let mut vars = vec![];
         let mut sorts = vec![];
         for (var, sort) in &sol.0 {
@@ -147,10 +152,10 @@ where
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
                                 ConstKey::RustConst(def_id) => Ok(rty::Expr::const_def_id(*def_id)),
-                                ConstKey::Alias(_flux_id, _args) => {
+                                ConstKey::Alias(_owner, _flux_id, _args) => {
                                     unreachable!("Should be special-cased as the head of an app")
                                 }
-                                ConstKey::Lambda(lambda) => Ok(rty::Expr::abs(lambda.clone())),
+                                ConstKey::Lambda(_owner, lambda) => Ok(rty::Expr::abs(lambda.clone())),
                                 ConstKey::PrimOp(bin_op) => {
                                     Ok(rty::Expr::internal_func(InternalFuncKind::Rel(
                                         bin_op.clone(),
@@ -332,7 +337,7 @@ where
                                         ))
                                     }
                                 }
-                                ConstKey::Alias(assoc_id, generic_args) => {
+                                ConstKey::Alias(_owner, assoc_id, generic_args) => {
                                     let lowered_args: flux_rustc_bridge::ty::GenericArgs =
                                         generic_args.lower(self.genv.tcx()).unwrap();
                                     let generic_args = rty::refining::Refiner::default_for_item(

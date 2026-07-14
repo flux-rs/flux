@@ -292,6 +292,59 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
     pub fn split(self) -> (RefineTree, KVarGen) {
         (self.refine_tree, self.inner.into_inner().kvars)
     }
+
+    pub fn split_for_multi(mut self) -> (RefineTree, KVarGen) {
+        let inner = self.inner.into_inner();
+        self.refine_tree.replace_evars(&inner.evars).unwrap();
+        self.refine_tree.simplify(self.genv);
+        (self.refine_tree, inner.kvars)
+    }
+
+    pub fn execute_multi_fixpoint_query(
+        genv: GlobalEnv,
+        trees: Vec<(MaybeExternId, RefineTree, KVarGen)>,
+        def_id: MaybeExternId,
+        opts: InferOpts,
+    ) -> QueryResult<Vec<crate::fixpoint_encoding::FixpointCheckError<Tag>>> {
+        if config::lean().is_check() || config::lean().is_emit() {
+            panic!("multi-query Lean encoding is not supported");
+        }
+        let backend = match opts.solver {
+            flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
+            flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
+        };
+        let mut fcx = FixpointCtxt::new(genv, def_id, KVarGen::new(false), Backend::Fixpoint);
+        let cstr = fcx.encode_multi(trees)?;
+        if cstr.concrete_head_count() == 0 {
+            return Ok(vec![]);
+        }
+        let (task, _) = fcx.create_task(def_id, cstr, opts.scrape_quals, backend)?;
+        if config::dump_constraint() {
+            dbg::dump_multi_item_info(genv.tcx(), "smt2", &task)
+                .unwrap();
+        }
+        // FIXME: Decode solutions and report unsafe tags per owning function. For now, preserve
+        // the solver status while intentionally ignoring its solution payload.
+        let result = task.run().map_err(|err| {
+            flux_middle::queries::QueryErr::bug(None, format!("failed to run multi-query: {err}"))
+        })?;
+        match result.status {
+            liquid_fixpoint::FixpointStatus::Safe(_) => {
+                println!("SAFE");
+                Ok(vec![])
+            }
+            liquid_fixpoint::FixpointStatus::Unsafe(_, errors) => {
+                println!("UNSAFE");
+                Ok(fcx.errors_for_tags(errors.into_iter().map(|error| error.tag)))
+            }
+            liquid_fixpoint::FixpointStatus::Crash(err) => Err(
+                flux_middle::queries::QueryErr::bug(
+                    Some(def_id.resolved_id()),
+                    format!("multi-query fixpoint crashed: {err:?}"),
+                ),
+            ),
+        }
+    }
 }
 
 pub struct InferCtxt<'infcx, 'genv, 'tcx> {

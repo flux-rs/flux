@@ -177,6 +177,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.tcx().def_kind(def_id.into_query_param())
     }
 
+    /// Returns `true` if `safety_multi_check` is enabled and the current crate matches
+    /// the configured crate name (as an infix match).
+    pub fn safety_multi_check(&self) -> bool {
+        if let Some(pattern) = flux_config::safety_multi_check_crate() {
+            let crate_name = self.tcx().crate_name(rustc_hir::def_id::LOCAL_CRATE);
+            crate_name.as_str().contains(pattern)
+        } else {
+            false
+        }
+    }
+
     /// Allocates space to store `cap` elements of type `T`.
     ///
     /// The elements are initialized using the supplied iterator. At most `cap` elements will be
@@ -749,6 +760,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn included(&self, def_id: MaybeExternId) -> bool {
         self.matches_included_pattern(def_id) || self.matches_trusted_pattern(def_id)
+    }
+
+    pub fn multi_check(&self, def_id: MaybeExternId) -> bool {
+        config::multi_check_pattern()
+            .map(|pattern| self.matches_pattern(def_id, pattern))
+            .unwrap_or(false)
     }
 
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an

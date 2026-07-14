@@ -425,6 +425,10 @@ impl Expr {
         projs.iter().copied().fold(e.into(), Expr::field_proj)
     }
 
+    pub fn field_projs_and_reduce(e: impl Into<Expr>, projs: &[FieldProj]) -> Expr {
+        projs.iter().fold(e.into(), |e, p| Expr::proj_and_reduce(&e, *p))
+    }
+
     pub fn path_proj(base: Expr, field: FieldIdx) -> Expr {
         ExprKind::PathProj(base, field).intern()
     }

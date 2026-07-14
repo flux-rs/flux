@@ -38,8 +38,14 @@ pub fn check_invariants(
         .iter_identity()
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
-            let span = invariants[idx].span;
-            check_invariant(genv, cache, def_id, adt_def, span, invariant, opts)
+            // This should be fine since we only stick the wkvar on at the end...
+            // But it's a bit hacky.
+            if !invariant.is_wkvar() {
+                let span = invariants[idx].span;
+                check_invariant(genv, cache, def_id, adt_def, span, invariant, opts)
+            } else {
+                Ok(())
+            }
         })
 }
 

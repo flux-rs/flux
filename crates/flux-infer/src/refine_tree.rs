@@ -8,20 +8,19 @@ use flux_common::{index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config::OverflowMode;
 use flux_macros::DebugAsJson;
 use flux_middle::{
-    global_env::GlobalEnv,
-    pretty::{PrettyCx, PrettyNested, format_cx},
-    queries::QueryResult,
-    rty::{
+    def_id_to_string, global_env::GlobalEnv, pretty::{PrettyCx, PrettyNested, format_cx}, queries::QueryResult, rty::{
         BaseTy, EVid, Expr, ExprKind, KVid, Name, NameProvenance, PrettyVar, Sort, Ty, TyKind, Var,
+        WKVid,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-    },
+    }
 };
 use itertools::Itertools;
 use rustc_data_structures::{
+    fx::FxIndexMap,
     snapshot_map::SnapshotMap,
     unord::{UnordMap, UnordSet},
 };
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
@@ -78,6 +77,82 @@ impl RefineTree {
             .borrow()
             .to_fixpoint(cx)?
             .unwrap_or(fixpoint::Constraint::TRUE))
+    }
+
+    #[allow(dead_code, reason = "used by dormant multi-query encoding")]
+    pub(crate) fn root_params(&self) -> Vec<(Var, Sort)> {
+        match &self.root.borrow().kind {
+            NodeKind::Root(params) => params.clone(),
+            // Simplification can turn an unconstrained tree into `true`; it has no variables to
+            // install in the encoder scope.
+            NodeKind::True => vec![],
+            _ => unreachable!("refinement tree root is not a root node"),
+        }
+    }
+
+    pub(crate) fn wkvars_in_positions(
+        &self,
+    ) -> (FxHashSet<WKVid>, FxHashSet<WKVid>, FxIndexMap<WKVid, usize>) {
+        struct WKVars {
+            heads: FxHashSet<WKVid>,
+            assumptions: FxHashSet<WKVid>,
+            self_args: FxIndexMap<WKVid, usize>,
+        }
+
+        fn visit_expr(expr: &Expr, vars: &mut FxHashSet<WKVid>, self_args: &mut FxIndexMap<WKVid, usize>) {
+            struct Visitor<'a> {
+                vars: &'a mut FxHashSet<WKVid>,
+            }
+
+            impl TypeVisitor for Visitor<'_> {
+                fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
+                    if let ExprKind::WKVar(wkvar) = expr.kind() {
+                        self.vars.insert(wkvar.wkvid.clone());
+                    }
+                    expr.super_visit_with(self)
+                }
+            }
+
+            struct ArgsVisitor<'a> {
+                self_args: &'a mut FxIndexMap<WKVid, usize>,
+            }
+            impl TypeVisitor for ArgsVisitor<'_> {
+                fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
+                    if let ExprKind::WKVar(wkvar) = expr.kind() {
+                        if let Some(previous) = self.self_args.insert(wkvar.wkvid.clone(), wkvar.self_args)
+                            && previous != wkvar.self_args
+                        {
+                            panic!("inconsistent self_args for weak KVar {:?}", wkvar.wkvid);
+                        }
+                    }
+                    expr.super_visit_with(self)
+                }
+            }
+
+            let _ = expr.visit_with(&mut Visitor { vars });
+            let _ = expr.visit_with(&mut ArgsVisitor { self_args });
+        }
+
+        fn visit(node: &Node, vars: &mut WKVars) {
+            match &node.kind {
+                NodeKind::Head(expr, _) => visit_expr(expr, &mut vars.heads, &mut vars.self_args),
+                NodeKind::Assumption(expr) => {
+                    visit_expr(expr, &mut vars.assumptions, &mut vars.self_args)
+                }
+                _ => {}
+            }
+            for child in &node.children {
+                visit(&child.borrow(), vars);
+            }
+        }
+
+        let mut vars = WKVars {
+            heads: Default::default(),
+            assumptions: Default::default(),
+            self_args: Default::default(),
+        };
+        visit(&self.root.borrow(), &mut vars);
+        (vars.heads, vars.assumptions, vars.self_args)
     }
 
     pub(crate) fn cursor_at_root(&mut self) -> Cursor<'_> {
@@ -1064,5 +1139,343 @@ impl Assignment {
             }
         }
         Expr::and_from_iter(preds)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// WKVar bot analysis: determines which WKVids would trivially solve to false
+// if promoted to KVars. This mirrors the KVar bot_kvars analysis but operates
+// on WKVids independently.
+// ---------------------------------------------------------------------------
+
+newtype_index! {
+    struct WClauseId {}
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum WHead {
+    WKVar(WKVid),
+    Conc,
+}
+
+#[derive(Debug)]
+struct WKVarConstraintDeps {
+    assumptions: IndexVec<WClauseId, FxHashSet<WKVid>>,
+    heads: IndexVec<WClauseId, WHead>,
+}
+
+impl WKVarConstraintDeps {
+    #[allow(dead_code)]
+    fn new(node: &Node) -> Self {
+        let mut graph = Self { assumptions: IndexVec::default(), heads: IndexVec::default() };
+        graph.build(node, &mut vec![]);
+        graph
+    }
+
+    fn from_trees(trees: &[&RefineTree]) -> Self {
+        let mut graph = Self { assumptions: IndexVec::default(), heads: IndexVec::default() };
+        for tree in trees {
+            graph.build(&tree.root.borrow(), &mut vec![]);
+        }
+        graph
+    }
+
+    fn insert_clause(&mut self, assumptions: &[WKVid], head: WHead) {
+        self.assumptions.push(assumptions.iter().cloned().collect());
+        self.heads.push(head);
+    }
+
+    fn build(&mut self, node: &Node, assumptions: &mut Vec<WKVid>) {
+        let n = assumptions.len();
+        match &node.kind {
+            NodeKind::Head(expr, _) => {
+                expr.visit_conj(|e| {
+                    if let ExprKind::WKVar(wkvar) = e.kind() {
+                        self.insert_clause(assumptions, WHead::WKVar(wkvar.wkvid.clone()));
+                    } else {
+                        self.insert_clause(assumptions, WHead::Conc);
+                    }
+                });
+            }
+            NodeKind::Assumption(expr) => {
+                expr.visit_conj(|e| {
+                    if let ExprKind::WKVar(wkvar) = e.kind() {
+                        assumptions.push(wkvar.wkvid.clone());
+                    }
+                });
+            }
+            _ => {}
+        };
+
+        for child in &node.children {
+            self.build(&child.borrow(), assumptions);
+        }
+
+        assumptions.truncate(n);
+    }
+
+    fn wkv_lhs(&self) -> UnordMap<WKVid, Vec<WClauseId>> {
+        let mut res: UnordMap<WKVid, Vec<WClauseId>> = UnordMap::default();
+        for (clause_id, wkvids) in self.assumptions.iter_enumerated() {
+            for wkvid in wkvids {
+                res.entry(wkvid.clone()).or_default().push(clause_id);
+            }
+        }
+        res
+    }
+
+    /// Computes the set of WKVids that would trivially solve to false (bot) if promoted.
+    /// Returns the set of WKVids that are NOT bot (i.e., safe to promote).
+    fn promotable_wkvids(self, candidates: &FxHashSet<WKVid>) -> FxHashSet<WKVid> {
+        let wkv_lhs = self.wkv_lhs();
+
+        // bot_assms: for each clause, the set of WKVids in its assumptions that are still "bot"
+        let mut bot_assms: IndexVec<WClauseId, FxHashSet<WKVid>> = self
+            .assumptions
+            .iter()
+            .map(|assms| assms.iter().filter(|wkvid| candidates.contains(*wkvid)).cloned().collect())
+            .collect();
+
+        // Track which wkvids are still considered bot (start: all candidates)
+        let mut is_bot: FxHashSet<WKVid> = candidates.clone();
+
+        // Seed: clauses with no bot wkvars in assumptions
+        let mut worklist: Vec<WClauseId> = bot_assms
+            .iter_enumerated()
+            .filter_map(|(cid, lhs)| if lhs.is_empty() { Some(cid) } else { None })
+            .collect();
+
+        while let Some(cid) = worklist.pop() {
+            if let WHead::WKVar(ref wkvid) = self.heads[cid] {
+                if !is_bot.remove(wkvid) {
+                    continue;
+                }
+                // Remove this wkvid from all assumption sets where it appears
+                for dep_cid in wkv_lhs.get(wkvid).unwrap_or(&vec![]) {
+                    if let WHead::WKVar(ref rhs_wkvid) = self.heads[*dep_cid] {
+                        let assms = &mut bot_assms[*dep_cid];
+                        assms.remove(wkvid);
+                        if is_bot.contains(rhs_wkvid) && assms.is_empty() {
+                            worklist.push(*dep_cid);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Return the wkvids that are NOT bot
+        candidates.difference(&is_bot).cloned().collect()
+    }
+}
+
+impl RefineTree {
+    /// Given a set of candidate WKVids (those that appear in both head and assumption positions),
+    /// returns the subset that are safe to promote to KVars (i.e., would NOT trivially solve to
+    /// false).
+    pub(crate) fn promotable_wkvids(trees: &[&RefineTree], candidates: &FxHashSet<WKVid>) -> FxHashSet<WKVid> {
+        let graph = WKVarConstraintDeps::from_trees(trees);
+        // graph.print_graph();
+        graph.promotable_wkvids(candidates)
+    }
+}
+
+impl WKVarConstraintDeps {
+    /// Debug-prints the WKVar dependency graph as ASCII-art trees, one per
+    /// connected component, rooted at nodes with no incoming edges (or, if a
+    /// component is a pure cycle with no such root, at an arbitrary node).
+    ///
+    /// An edge `a -> b` means `a` appears in the assumptions of some clause
+    /// whose head is `b` (i.e. `a` flows into `b`). Clauses whose head is a
+    /// concrete assertion (`WHead::Conc`) are rendered as edges into a
+    /// `(conc)` leaf.
+    ///
+    /// Cycles are broken for display: if a path revisits a node already on
+    /// the current root-to-node path, that node is printed again (so you can
+    /// see the edge) but is NOT expanded further from there.
+    ///
+    /// Toggle this on/off by commenting out the call site.
+    #[allow(dead_code)]
+    fn print_graph(&self) {
+        let wkvid_name = |wkvid: &WKVid| {
+            format!("$wk_{}_{}", def_id_to_string(wkvid.parent_fn), wkvid.id.as_u32())
+        };
+
+        // Build successors/predecessors over rendered node names.
+        // Each `(conc)` sink is tagged with its source so distinct wkvars
+        // that both reach a concrete head don't get merged into one node.
+        let mut succs: FxHashMap<String, Vec<String>> = FxHashMap::default();
+        let mut preds: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+        let mut all_nodes: FxHashSet<String> = FxHashSet::default();
+
+        for (clause_id, assms) in self.assumptions.iter_enumerated() {
+            let head_str = match &self.heads[clause_id] {
+                WHead::WKVar(wkvid) => Some(wkvid_name(wkvid)),
+                WHead::Conc => None,
+            };
+            for wkvid in assms {
+                let src = wkvid_name(wkvid);
+                all_nodes.insert(src.clone());
+                let dst = match &head_str {
+                    Some(h) => {
+                        all_nodes.insert(h.clone());
+                        h.clone()
+                    }
+                    None => format!("(conc) [{src}]"),
+                };
+                succs.entry(src.clone()).or_default().push(dst.clone());
+                preds.entry(dst.clone()).or_default().insert(src.clone());
+            }
+        }
+
+        // Ensure every node has entries so lookups don't panic.
+        let mut universe: FxHashSet<String> = all_nodes.clone();
+        for k in succs.keys().chain(preds.keys()) {
+            universe.insert(k.clone());
+        }
+        for n in &universe {
+            succs.entry(n.clone()).or_default();
+            preds.entry(n.clone()).or_default();
+        }
+        for edges in succs.values_mut() {
+            edges.sort();
+            edges.dedup();
+        }
+
+        // --- Weakly connected components (undirected BFS) ---
+        let mut adj: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+        for n in &universe {
+            adj.entry(n.clone()).or_default();
+        }
+        for (a, bs) in &succs {
+            for b in bs {
+                adj.entry(a.clone()).or_default().insert(b.clone());
+                adj.entry(b.clone()).or_default().insert(a.clone());
+            }
+        }
+
+        let mut visited_global: FxHashSet<String> = FxHashSet::default();
+        let mut components: Vec<Vec<String>> = vec![];
+        let mut sorted_universe: Vec<&String> = universe.iter().collect();
+        sorted_universe.sort();
+
+        for start in sorted_universe {
+            if visited_global.contains(start) {
+                continue;
+            }
+            let mut comp = vec![];
+            let mut stack = vec![start.clone()];
+            visited_global.insert(start.clone());
+            while let Some(n) = stack.pop() {
+                comp.push(n.clone());
+                if let Some(neighbors) = adj.get(&n) {
+                    for nb in neighbors {
+                        if visited_global.insert(nb.clone()) {
+                            stack.push(nb.clone());
+                        }
+                    }
+                }
+            }
+            components.push(comp);
+        }
+
+        println!("=== WKVar dependency graph ({} component(s)) ===", components.len());
+
+        for (i, comp) in components.iter().enumerate() {
+            let comp_set: FxHashSet<String> = comp.iter().cloned().collect();
+
+            // Roots: nodes with no incoming edges from within this component.
+            let mut roots: Vec<String> = comp
+                .iter()
+                .filter(|n| {
+                    preds
+                        .get(*n)
+                        .map(|p| p.iter().all(|x| !comp_set.contains(x)))
+                        .unwrap_or(true)
+                })
+                .cloned()
+                .collect();
+            roots.sort();
+
+            // Pure cycle with no root: just pick the smallest node as an
+            // arbitrary starting point so we still render something.
+            if roots.is_empty() {
+                if let Some(n) = comp.iter().min().cloned() {
+                    roots.push(n);
+                }
+            }
+
+            println!("-- component {} ({} node(s)), root(s): {} --", i + 1, comp.len(), roots.join(", "));
+
+            let mut printed_roots: FxHashSet<String> = FxHashSet::default();
+            for root in &roots {
+                if !printed_roots.insert(root.clone()) {
+                    continue;
+                }
+                let mut path: Vec<String> = vec![];
+                Self::render_tree(root, &succs, &comp_set, &mut path, &mut Default::default(), "", true);
+            }
+        }
+        println!("===============================");
+    }
+
+    /// Recursively renders `node` and its successors (restricted to `comp_set`)
+    /// as an ASCII-art tree, using `prefix`/`is_last` for indentation in the
+    /// style of the `tree` command.
+    ///
+    /// - `path` tracks the current root-to-node path, for cycle detection: if
+    ///   `node` is already on `path`, recursion stops (cycle).
+    /// - `rendered` tracks every node whose children have already been fully
+    ///   expanded anywhere earlier in this root's tree: if `node` was already
+    ///   rendered, we print it again (so the edge is visible) but don't
+    ///   re-expand its children, to avoid duplicating large shared subtrees.
+    fn render_tree(
+        node: &str,
+        succs: &FxHashMap<String, Vec<String>>,
+        comp_set: &FxHashSet<String>,
+        path: &mut Vec<String>,
+        rendered: &mut FxHashSet<String>,
+        prefix: &str,
+        is_root: bool,
+    ) {
+        if is_root {
+            println!("{node}");
+            rendered.insert(node.to_string());
+        }
+
+        if path.iter().any(|p| p == node) {
+            return;
+        }
+
+        path.push(node.to_string());
+
+        let children: Vec<&String> = succs
+            .get(node)
+            .map(|v| v.iter().filter(|c| comp_set.contains(*c) || c.starts_with("(conc)")).collect())
+            .unwrap_or_default();
+
+        for (idx, child) in children.iter().enumerate() {
+            let is_last = idx == children.len() - 1;
+            let connector = if is_last { "└──▶ " } else { "├──▶ " };
+
+            let is_cycle = path.contains(child);
+            let already_rendered = !is_cycle && rendered.contains(*child);
+
+            let child_marker = if is_cycle {
+                format!("{child} (↺ cycle)")
+            } else if already_rendered {
+                format!("{child} (see above)")
+            } else {
+                (*child).clone()
+            };
+            println!("{prefix}{connector}{child_marker}");
+
+            if !is_cycle && !already_rendered {
+                rendered.insert((*child).clone());
+                let child_prefix = format!("{prefix}{}", if is_last { "     " } else { "│    " });
+                Self::render_tree(child, succs, comp_set, path, rendered, &child_prefix, false);
+            }
+        }
+
+        path.pop();
     }
 }

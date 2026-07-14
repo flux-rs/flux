@@ -25,7 +25,7 @@ pub mod resolver;
 
 use flux_middle::{
     ResolverOutput,
-    def_id::FluxLocalDefId,
+    def_id::{FluxLocalDefId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
@@ -59,13 +59,22 @@ pub fn desugar<'genv>(
     let owner_id = OwnerId { def_id };
     let mut nodes = UnordMap::default();
 
+    // When safety_multi_check is enabled, ignore user annotations for local function
+    // signatures by forcing them through the lifting path (identity/unrefined).
+    // This does NOT apply to foreign items (third-party sigs) or non-function items.
+    //
+    // Skips anything extern.
+    let strip_fn_annots = genv.safety_multi_check() && !matches!(genv.resolve_id(def_id.to_def_id()), ResolvedDefId::Local(_));
+
     let mut opaque_tys = Default::default();
     let node = match genv.tcx().hir_node_by_def_id(def_id) {
         rustc_hir::Node::Item(_) => {
             let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
                 match specs.get_item(owner_id) {
-                    Some(item) => cx.desugar_item(item),
-                    None => cx.lift_item(),
+                    Some(item) if !(strip_fn_annots && matches!(item.kind, surface::ItemKind::Fn(..))) => {
+                        cx.desugar_item(item)
+                    }
+                    _ => cx.lift_item(),
                 }
             })?;
             fhir::Node::Item(genv.alloc(item))
@@ -73,8 +82,8 @@ pub fn desugar<'genv>(
         rustc_hir::Node::TraitItem(_) => {
             let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
                 match specs.get_trait_item(owner_id) {
-                    Some(item) => cx.desugar_trait_item(item),
-                    None => Ok(cx.lift_trait_item()),
+                    Some(item) if !strip_fn_annots => cx.desugar_trait_item(item),
+                    _ => Ok(cx.lift_trait_item()),
                 }
             })?;
             fhir::Node::TraitItem(genv.alloc(item))
@@ -82,8 +91,8 @@ pub fn desugar<'genv>(
         rustc_hir::Node::ImplItem(..) => {
             let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
                 match specs.get_impl_item(owner_id) {
-                    Some(item) => cx.desugar_impl_item(item),
-                    None => Ok(cx.lift_impl_item()),
+                    Some(item) if !strip_fn_annots => cx.desugar_impl_item(item),
+                    _ => Ok(cx.lift_impl_item()),
                 }
             })?;
             fhir::Node::ImplItem(genv.alloc(item))
