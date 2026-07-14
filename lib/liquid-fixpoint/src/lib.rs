@@ -42,7 +42,7 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
+    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FlatConstraint, FunSort, Pred, Qualifier, Quantifier, Sort, SortCtor, SortDecl, WKVar,
 };
 use derive_where::derive_where;
@@ -369,7 +369,7 @@ impl<T: Types> Task<T> {
             status: cstr_with_env.is_satisfiable(),
             solution: vec![],
             non_cuts_solution: vec![],
-            lean_status: LeanStatus::Invalid,
+            lean_status: LeanStatus::default(),
         })
     }
 

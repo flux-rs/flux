@@ -1818,14 +1818,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 fixpoint::Expr::Var(self.declare_fun(*def_id))
             }
-            rty::ExprKind::WKVar(_)
-            | rty::ExprKind::Hole(..)
-            | rty::ExprKind::KVar(_)
-            | rty::ExprKind::Local(_)
-            | rty::ExprKind::PathProj(..)
-            | rty::ExprKind::InternalFunc(_) => {
-                span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
-            }
             rty::ExprKind::Quant(kind, rty::QuantDom::Bounded { start, end }, body) => {
                 let exprs = (*start..*end).map(|i| {
                     let arg = rty::Expr::constant(rty::Constant::from(i));
@@ -1863,7 +1855,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
-            | rty::ExprKind::InternalFunc(_) => {
+            | rty::ExprKind::InternalFunc(_)
+            | rty::ExprKind::WKVar(_) => {
                 span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }
         };
@@ -2765,7 +2758,8 @@ fn parse_wkvars(expr: &mut fixpoint::Expr) {
         Expr::IsCtor(_v, expr) => {
             parse_wkvars(expr);
         }
-        Expr::Exists(_binder, expr) => {
+        Expr::Quantifier(fixpoint::Quantifier::Exists, _binder, expr)
+        | Expr::Quantifier(fixpoint::Quantifier::Forall, _binder, expr) => {
             parse_wkvars(expr);
         }
         Expr::WKVar(fixpoint::WKVar { wkvid: _, args }) => {

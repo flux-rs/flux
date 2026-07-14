@@ -321,7 +321,6 @@ fn report_errors(
         }
         e = Some(err_diag.emit());
     }
-    }
 
     if let Some(e) = e { Err(e) } else { Ok(()) }
 }

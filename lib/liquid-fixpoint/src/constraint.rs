@@ -255,7 +255,7 @@ where {
                 // Hoist the exists and add it to the frontier.
                 //
                 // We assume that there is a wkvar reachable here, so we don't check.
-                Expr::Exists(_, _) => {
+                Expr::Quantifier(Quantifier::Exists, _, _) => {
                     let (new_vars, hoisted_e) = e.hoist_exists();
                     constr.binders.extend(new_vars);
                     frontier.push((hoisted_e, constr, other_constrs));
@@ -732,11 +732,15 @@ impl<T: Types> Expr<T> {
                 Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
             ),
             Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.substitute(subst))),
-            Expr::Exists(sorts, expr) => Expr::Exists(sorts.clone(), Box::new(expr.substitute(subst))),
-            Expr::WKVar(WKVar { wkvid, args }) => Expr::WKVar(WKVar {
-                wkvid: wkvid.clone(),
-                args: args.iter().map(|e| e.substitute(subst)).collect_vec(),
-            }),
+            Expr::Quantifier(q, sorts, expr) => {
+                Expr::Quantifier(*q, sorts.clone(), Box::new(expr.substitute(subst)))
+            }
+            Expr::WKVar(WKVar { wkvid, args }) => {
+                Expr::WKVar(WKVar {
+                    wkvid: wkvid.clone(),
+                    args: args.iter().map(|e| e.substitute(subst)).collect_vec(),
+                })
+            }
         }
     }
 
@@ -796,23 +800,25 @@ impl<T: Types> Expr<T> {
                 Expr::Let(var.clone(), Box::new([args[0].uncurry(), args[1].uncurry()]))
             }
             Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.uncurry())),
-            Expr::Exists(sorts, expr) => Expr::Exists(sorts.clone(), Box::new(expr.uncurry())),
-            Expr::WKVar(WKVar { wkvid, args }) => Expr::WKVar(WKVar {
-                wkvid: wkvid.clone(),
-                args: args.iter().map(Expr::uncurry).collect_vec(),
-            }),
+            Expr::Quantifier(q, sorts, expr) => Expr::Quantifier(*q, sorts.clone(), Box::new(expr.uncurry())),
+            Expr::WKVar(WKVar { wkvid, args }) => {
+                Expr::WKVar(WKVar {
+                    wkvid: wkvid.clone(),
+                    args: args.iter().map(|e| e.uncurry()).collect_vec(),
+                })
+            }
         }
     }
 
     pub fn has_wkvar_reachable_by_split(&self) -> bool {
-        if !matches!(self, Expr::Exists(..) | Expr::Or(..) | Expr::And(..)) {
+        if !matches!(self, Expr::Quantifier(Quantifier::Exists, ..) | Expr::Or(..) | Expr::And(..)) {
             return false;
         }
         match self {
             Expr::Or(exprs) => exprs.iter().any(|expr| {
                 matches!(expr, Expr::WKVar(..)) || expr.has_wkvar_reachable_by_split()
             }),
-            Expr::Exists(_, expr) => {
+            Expr::Quantifier(Quantifier::Exists, _sorts, expr) => {
                 !expr.wkvars_in_conj().is_empty() || expr.has_wkvar_reachable_by_split()
             }
             Expr::And(exprs) => exprs.iter().any(Expr::has_wkvar_reachable_by_split),
@@ -822,7 +828,7 @@ impl<T: Types> Expr<T> {
 
     pub fn hoist_exists(&self) -> (Vec<VarSorts<T>>, Expr<T>) {
         match self {
-            Expr::Exists(var_sorts, inner_e) => {
+            Expr::Quantifier(Quantifier::Exists, var_sorts, inner_e) => {
                 let mut vars = var_sorts.clone();
                 let (new_vars, hoisted_inner) = inner_e.hoist_exists();
                 vars.extend(new_vars);
@@ -890,7 +896,7 @@ impl<T: Types> Expr<T> {
                 Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]),
             ),
             Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.strip_wkvars())),
-            Expr::Exists(sorts, expr) => Expr::Exists(sorts.clone(), Box::new(expr.strip_wkvars())),
+            Expr::Quantifier(q, sorts, expr) => Expr::Quantifier(*q, sorts.clone(), Box::new(expr.strip_wkvars())),
         }
     }
 
