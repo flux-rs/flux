@@ -18,8 +18,8 @@ use rustc_hir::def_id::DefId;
 use crate::fixpoint_encoding::{
     ClosedSolution, InterpretedConst,
     fixpoint::{
-        self, AdtId, BinOp, BinRel, Constant, Constraint, DataDecl, DataField, DataSort, Expr,
-        FunDef, FunSort, GlobalVar, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+        self, AdtId, Atom, BinOp, BinRel, Constant, Constraint, DataDecl, DataField, DataSort,
+        Expr, FunDef, FunSort, GlobalVar, KVarDecl, KVid, LocalVar, Sort, SortCtor, SortDecl, Var,
     },
 };
 
@@ -589,21 +589,28 @@ impl LeanFmt for FunSort {
     }
 }
 
-impl LeanFmt for Pred {
+impl LeanFmt for [Atom] {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
+        if self.is_empty() {
+            return write!(f, "True");
+        }
+
+        write!(f, "(")?;
+        for (i, atom) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, " ∧ ")?;
+            }
+            atom.lean_fmt(f, cx)?;
+        }
+        write!(f, ")")?;
+        Ok(())
+    }
+}
+
+impl LeanFmt for Atom {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         match self {
-            Pred::Expr(expr) => expr.lean_fmt(f, cx),
-            Pred::And(preds) => {
-                write!(f, "(")?;
-                for (i, pred) in preds.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, " ∧ ")?;
-                    }
-                    pred.lean_fmt(f, cx)?;
-                }
-                write!(f, ")")
-            }
-            Pred::KVar(kvid, args) => {
+            Atom::KVar(kvid, args) => {
                 write!(f, "({}", sanitize_name(&kvid.display().to_string()))?;
                 for arg in args {
                     write!(f, " ")?;
@@ -611,6 +618,7 @@ impl LeanFmt for Pred {
                 }
                 write!(f, ")")
             }
+            Atom::Expr(expr) => expr.lean_fmt(f, cx),
         }
     }
 }
@@ -689,7 +697,8 @@ impl FormatNested for Constraint {
     ) -> fmt::Result {
         match self {
             Constraint::ForAll(bind, inner) => {
-                let trivial_pred = bind.pred.is_trivially_true();
+                let trivial_pred =
+                    bind.preds.iter().all(Atom::is_trivially_true) || bind.preds.is_empty();
                 let trivial_bind = bind.name.display().to_string().starts_with("_");
                 if !trivial_bind {
                     write!(f, "∀ (")?;
@@ -699,7 +708,7 @@ impl FormatNested for Constraint {
                     fmt_cx.newline(f)?;
                 }
                 if !trivial_pred {
-                    bind.pred.lean_fmt(f, lean_cx)?;
+                    bind.preds.lean_fmt(f, lean_cx)?;
                     write!(f, " ->")?;
                     fmt_cx.incr();
                     fmt_cx.newline(f)?;
@@ -726,7 +735,7 @@ impl FormatNested for Constraint {
                 }
                 Ok(())
             }
-            Constraint::Pred(pred, _) => pred.lean_fmt(f, lean_cx),
+            Constraint::Pred(heads, _) => heads.lean_fmt(f, lean_cx),
         }
     }
 }

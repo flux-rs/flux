@@ -39,8 +39,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
-    FunSort, Pred, Qualifier, Quantifier, Sort, SortCtor, SortDecl,
+    Atom, BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
+    FunSort, Qualifier, Quantifier, Sort, SortCtor, SortDecl,
 };
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
@@ -122,7 +122,6 @@ macro_rules! declare_types {
         pub mod fixpoint_generated {
             pub struct FixpointTypes;
             pub type Expr = $crate::Expr<FixpointTypes>;
-            pub type Pred = $crate::Pred<FixpointTypes>;
             pub type Constraint = $crate::Constraint<FixpointTypes>;
             pub type KVarDecl = $crate::KVarDecl<FixpointTypes>;
             pub type ConstDecl = $crate::ConstDecl<FixpointTypes>;
@@ -139,6 +138,7 @@ macro_rules! declare_types {
             pub type DataField = $crate::DataField<FixpointTypes>;
             pub type Bind = $crate::Bind<FixpointTypes>;
             pub type Constant = $crate::Constant<FixpointTypes>;
+            pub type Atom = $crate::Atom<FixpointTypes>;
             pub use $crate::{BinOp, BinRel, BoundVar, Quantifier, ThyFunc};
         }
 

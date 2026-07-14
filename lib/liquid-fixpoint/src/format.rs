@@ -7,8 +7,8 @@ use itertools::Itertools;
 
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
-    FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task,
-    Types, constraint::Quantifier,
+    FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Qualifier, Sort, SortCtor, Task, Types,
+    constraint::{Atom, Quantifier},
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -129,7 +129,7 @@ impl ConstraintFormatter {
         cstr: &Constraint<T>,
     ) -> fmt::Result {
         match cstr {
-            Constraint::Pred(pred, tag) => self.fmt_pred_in_head_position(pred, tag.as_ref(), f),
+            Constraint::Pred(preds, tag) => self.fmt_preds_in_head_position(preds, tag.as_ref(), f),
             Constraint::Conj(cstrs) => {
                 match &cstrs[..] {
                     [] => write!(f, "((true))"),
@@ -147,8 +147,9 @@ impl ConstraintFormatter {
                 }
             }
             Constraint::ForAll(bind, head) => {
-                write!(f, "(forall (({} {}) {})", bind.name.display(), bind.sort, bind.pred)?;
-
+                write!(f, "(forall (({} {}) ", bind.name.display(), bind.sort,)?;
+                self.fmt_preds_in_assumption_position(&bind.preds, f)?;
+                write!(f, ")")?;
                 self.incr();
                 self.newline(f)?;
                 self.fmt_constraint(f, head)?;
@@ -159,35 +160,63 @@ impl ConstraintFormatter {
         }
     }
 
-    fn fmt_pred_in_head_position<T: Types>(
+    fn fmt_preds_in_assumption_position<T: Types>(
         &mut self,
-        pred: &Pred<T>,
+        preds: &[Atom<T>],
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match preds {
+            [] => write!(f, "((true))"),
+            _ => {
+                if preds.len() > 1 {
+                    write!(f, "(and")?;
+                }
+                for (i, pred) in preds.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    write!(f, "{pred}")?;
+                }
+                if preds.len() > 1 {
+                    write!(f, ")")?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn fmt_preds_in_head_position<T: Types>(
+        &mut self,
+        preds: &[Atom<T>],
         tag: Option<&T::Tag>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        match pred {
-            Pred::And(preds) => {
-                match &preds[..] {
-                    [] => write!(f, "((true))"),
-                    [pred] => self.fmt_pred_in_head_position(pred, tag, f),
-                    _ => {
-                        write!(f, "(and")?;
-                        for pred in preds {
-                            self.incr();
-                            self.newline(f)?;
-                            self.fmt_pred_in_head_position(pred, tag, f)?;
-                            self.decr();
-                        }
-                        write!(f, ")")
-                    }
-                }
-            }
-            Pred::Expr(_) | Pred::KVar(..) => {
+        match &preds[..] {
+            [] => write!(f, "((true))"),
+            [pred] => {
                 if let Some(tag) = tag {
-                    write!(f, "(tag {pred} \"{tag}\")")
+                    write!(f, "(tag {pred} \"{tag}\")")?;
                 } else {
-                    write!(f, "{pred}")
+                    write!(f, "{pred}")?;
                 }
+                Ok(())
+            }
+            _ => {
+                write!(f, "(and")?;
+                for pred in preds {
+                    self.newline(f)?;
+                    self.incr();
+                    if let Some(tag) = tag {
+                        write!(f, "(tag {pred} \"{tag}\")")?;
+                    } else {
+                        write!(f, "{pred}")?;
+                    }
+                    self.decr();
+                }
+                if preds.len() > 1 {
+                    write!(f, ")")?;
+                }
+                Ok(())
             }
         }
     }
@@ -290,20 +319,13 @@ fn fmt_func<T: Types>(params: usize, sort: &Sort<T>, f: &mut fmt::Formatter<'_>)
     write!(f, ") {curr})")
 }
 
-impl<T: Types> fmt::Display for Pred<T> {
+impl<T: Types> fmt::Display for Atom<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Pred::And(preds) => {
-                match &preds[..] {
-                    [] => write!(f, "((true))"),
-                    [pred] => write!(f, "{pred}"),
-                    preds => write!(f, "(and {})", preds.iter().join(" ")),
-                }
-            }
-            Pred::KVar(kvid, args) => {
+            Atom::KVar(kvid, args) => {
                 write!(f, "(${} {})", kvid.display(), args.iter().join(" "),)
             }
-            Pred::Expr(expr) => write!(f, "({expr})"),
+            Atom::Expr(expr) => write!(f, "({expr})"),
         }
     }
 }

@@ -22,23 +22,23 @@ struct HornClause<'a, T: Types> {
     /// Universally quantified variables with their sorts
     vars: Vec<(&'a T::Var, &'a Sort<T>)>,
     /// Guard predicates (body of the implication)
-    guards: Vec<Atom<'a, T>>,
+    guards: Vec<&'a Atom<T>>,
     /// Head of the clause
-    head: Atom<'a, T>,
+    head: &'a Atom<T>,
 }
 
 /// Collect all Horn clauses from a constraint tree
 fn flatten_constraint<'a, T: Types>(
     constraint: &'a Constraint<T>,
     vars: &mut Vec<(&'a T::Var, &'a Sort<T>)>,
-    guards: &mut Vec<Atom<'a, T>>,
+    guards: &mut Vec<&'a Atom<T>>,
     clauses: &mut Vec<HornClause<'a, T>>,
 ) {
     match constraint {
         Constraint::ForAll(bind, body) => {
             vars.push((&bind.name, &bind.sort));
             let guard_len = guards.len();
-            bind.pred.iter_atoms(true, &mut |atom| guards.push(atom));
+            guards.extend(bind.preds.iter().filter(|a| a.is_trivially_true()));
             flatten_constraint(body, vars, guards, clauses);
             guards.truncate(guard_len);
             vars.pop();
@@ -48,14 +48,13 @@ fn flatten_constraint<'a, T: Types>(
                 flatten_constraint(cstr, vars, guards, clauses);
             }
         }
-        Constraint::Pred(pred, _tag) => {
-            pred.iter_atoms(true, &mut |atom| {
-                clauses.push(HornClause {
-                    vars: vars.to_vec(),
-                    guards: guards.to_vec(),
-                    head: atom,
-                });
-            });
+        Constraint::Pred(preds, _tag) => {
+            for head in preds {
+                if head.is_trivially_true() {
+                    continue;
+                }
+                clauses.push(HornClause { vars: vars.to_vec(), guards: guards.to_vec(), head });
+            }
         }
     }
 }
@@ -144,7 +143,7 @@ fn fmt_assert<T: Types>(clause: &HornClause<'_, T>, f: &mut fmt::Formatter<'_>) 
             write!(f, "(=> ")?;
             fmt_guard_conjunction(&clause.guards, f)?;
             write!(f, " ({}", k.display())?;
-            for arg in *args {
+            for arg in args {
                 write!(f, " ")?;
                 fmt_expr_smt(arg, f)?;
             }
@@ -180,10 +179,7 @@ fn fmt_assert<T: Types>(clause: &HornClause<'_, T>, f: &mut fmt::Formatter<'_>) 
     writeln!(f, ")")
 }
 
-fn fmt_guard_conjunction<T: Types>(
-    guards: &[Atom<'_, T>],
-    f: &mut fmt::Formatter<'_>,
-) -> fmt::Result {
+fn fmt_guard_conjunction<T: Types>(guards: &[&Atom<T>], f: &mut fmt::Formatter<'_>) -> fmt::Result {
     if guards.is_empty() {
         write!(f, "true")
     } else if guards.len() == 1 {
@@ -198,11 +194,11 @@ fn fmt_guard_conjunction<T: Types>(
     }
 }
 
-fn fmt_guard<T: Types>(guard: &Atom<'_, T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn fmt_guard<T: Types>(guard: &Atom<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match guard {
         Atom::KVar(k, args) => {
             write!(f, "({}", k.display())?;
-            for arg in *args {
+            for arg in args {
                 write!(f, " ")?;
                 fmt_expr_smt(arg, f)?;
             }

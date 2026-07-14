@@ -482,7 +482,7 @@ impl Node {
                         fixpoint::Bind {
                             name: cx.var_to_fixpoint(var),
                             sort: cx.sort_to_fixpoint(sort),
-                            pred: fixpoint::Pred::TRUE,
+                            preds: vec![],
                         },
                         Box::new(constr),
                     );
@@ -498,21 +498,21 @@ impl Node {
                         fixpoint::Bind {
                             name: fixpoint::Var::Local(fresh),
                             sort: cx.sort_to_fixpoint(sort),
-                            pred: fixpoint::Pred::TRUE,
+                            preds: vec![],
                         },
                         Box::new(children),
                     )))
                 })?
             }
             NodeKind::Assumption(pred) => {
-                let (mut bindings, pred) = cx.assumption_to_fixpoint(pred)?;
+                let (mut bindings, preds) = cx.assumption_to_fixpoint(pred)?;
                 let Some(cstr) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };
                 bindings.push(fixpoint::Bind {
                     name: fixpoint::Var::Underscore,
                     sort: fixpoint::Sort::Int,
-                    pred,
+                    preds,
                 });
                 Some(fixpoint::Constraint::foralls(bindings, cstr))
             }

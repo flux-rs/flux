@@ -85,8 +85,9 @@ where
                     Sexp::List(name_and_sort) => {
                         let name = self.parse_name(&name_and_sort[0])?;
                         let sort = self.parse_sort(&name_and_sort[1])?;
-                        let pred = self.parse_pred_inner(&items[1])?;
-                        Ok(Bind { name, sort, pred })
+                        let mut preds = vec![];
+                        self.parse_pred_inner(&items[1], &mut preds)?;
+                        Ok(Bind { name, sort, preds })
                     }
                     _ => Err(ParseError::err("Expected list for name and sort in bind")),
                 }
@@ -95,27 +96,33 @@ where
         }
     }
 
-    fn parse_pred_inner(&mut self, sexp: &Sexp) -> Result<Pred<T>, ParseError> {
+    fn parse_pred_inner(
+        &mut self,
+        sexp: &Sexp,
+        atoms: &mut Vec<constraint::Atom<T>>,
+    ) -> Result<(), ParseError> {
         match sexp {
             Sexp::List(items) => {
                 match &items[0] {
                     Sexp::Atom(Atom::S(s)) if s == "and" => {
-                        items[1..]
-                            .to_vec()
-                            .iter()
-                            .map(|item| self.parse_pred_inner(item))
-                            .try_collect()
-                            .map(Pred::And)
+                        for item in &items[1..] {
+                            self.parse_pred_inner(item, preds)?;
+                        }
                     }
-                    Sexp::Atom(Atom::S(s)) if s.starts_with("$") => self.parse_kvar(sexp),
-                    _ => self.parse_expr_possibly_nested(sexp).map(Pred::Expr),
+                    Sexp::Atom(Atom::S(s)) if s.starts_with("$") => {
+                        preds.push(self.parse_kvar(sexp)?);
+                    }
+                    _ => {
+                        atoms.push(constraint::Atom::Expr(self.parse_expr_possibly_nested(sexp)?));
+                    }
                 }
             }
-            _ => Err(ParseError::err("Expected list for pred")),
+            _ => Err(ParseError::err("Expected list for pred"))?,
         }
+        Ok(())
     }
 
-    pub fn parse_kvar(&self, sexp: &Sexp) -> Result<Pred<T>, ParseError> {
+    pub fn parse_kvar(&self, sexp: &Sexp) -> Result<constraint::Atom<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 if items.len() < 2 {
@@ -134,7 +141,7 @@ where
                             for s in &strs[1..] {
                                 args.push(Expr::Var(self.parser.var(s)?));
                             }
-                            Ok(Pred::KVar(kvar, args))
+                            Ok(constraint::Atom::KVar(kvar, args))
                         }
                         _ => Err(ParseError::err("Expected all list elements to be strings")),
                     }
