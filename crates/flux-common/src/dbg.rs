@@ -73,6 +73,18 @@ pub fn dump_item_info<T: fmt::Debug>(
     writeln!(writer, "{val:#?}")
 }
 
+pub fn dump_multi_item_info<T: fmt::Debug>(
+    tcx: TyCtxt,
+    ext: impl AsRef<str>,
+    val: T,
+) -> io::Result<()> {
+    let crate_name = tcx.crate_name(rustc_hir::def_id::LOCAL_CRATE);
+    let path = config::log_dir().join(format!("{crate_name}.multi-check.{}", ext.as_ref()));
+    let file = fs::File::create(path)?;
+    let mut writer = std::io::BufWriter::new(file);
+    writeln!(writer, "{val:#?}")
+}
+
 #[macro_export]
 macro_rules! _shape_mode_span {
     ($tcx:expr, $def_id:expr) => {{
