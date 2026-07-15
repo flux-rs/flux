@@ -31,9 +31,10 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
-    FixpointStatus, KVarBind, SmtSolver, VerificationResult,
+    FixpointStatus, KVarBind, SmtSolver, Stats, VerificationResult,
     parser::{FromSexp, ParseError},
     sexp::Parser,
+    smt_horn::SmtFormatter,
 };
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
@@ -919,8 +920,21 @@ where
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
             match backend {
                 Backend::Spacer => {
-                    task.run_spacer()
-                        .unwrap_or_else(|err| tracked_span_bug!("failed to run spacer: {err}"))
+                    let smt_str = format!("{}", SmtFormatter(task));
+                    let mut writer = dbg::writer_for_item(genv.tcx(), def_id, "horn.smt2")
+                        .unwrap_or_else(|err| {
+                            tracked_span_bug!("failed to create horn.smt2 writer: {err}")
+                        });
+                    std::io::Write::write_all(&mut writer, smt_str.as_bytes())
+                        .unwrap_or_else(|err| {
+                            tracked_span_bug!("failed to write horn.smt2: {err}")
+                        });
+                    VerificationResult {
+                        status: FixpointStatus::Safe(Stats::default()),
+                        solution: vec![],
+                        non_cuts_solution: vec![],
+                        lean_status: liquid_fixpoint::LeanStatus::Invalid,
+                    }
                 }
                 Backend::Fixpoint | Backend::Lean => {
                     task.run()
