@@ -854,33 +854,33 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     }
 
     fn conv_sort_path(&mut self, path: &fhir::SortPath) -> QueryResult<rty::Sort> {
-        let ctor = match path.res {
-            fhir::SortRes::PrimSort(fhir::PrimSort::Int) => {
+        let ctor = match (path.res.base_res(), path.res.unresolved_segments()) {
+            (fhir::Res::PrimSort(fhir::PrimSort::Int), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Int)?;
                 return Ok(rty::Sort::Int);
             }
-            fhir::SortRes::PrimSort(fhir::PrimSort::Bool) => {
+            (fhir::Res::PrimSort(fhir::PrimSort::Bool), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Bool)?;
                 return Ok(rty::Sort::Bool);
             }
-            fhir::SortRes::PrimSort(fhir::PrimSort::Real) => {
+            (fhir::Res::PrimSort(fhir::PrimSort::Real), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Real)?;
                 return Ok(rty::Sort::Real);
             }
-            fhir::SortRes::PrimSort(fhir::PrimSort::Char) => {
+            (fhir::Res::PrimSort(fhir::PrimSort::Char), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Char)?;
                 return Ok(rty::Sort::Char);
             }
-            fhir::SortRes::PrimSort(fhir::PrimSort::Str) => {
+            (fhir::Res::PrimSort(fhir::PrimSort::Str), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Str)?;
                 return Ok(rty::Sort::Str);
             }
-            fhir::SortRes::PrimSort(fhir::PrimSort::RawPtr) => {
+            (fhir::Res::PrimSort(fhir::PrimSort::RawPtr), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::RawPtr)?;
                 return Ok(rty::Sort::RawPtr);
             }
-            fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
-            fhir::SortRes::TyParam(def_id) => {
+            (fhir::Res::SortParam(n), 0) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
+            (fhir::Res::Def(DefKind::TyParam, def_id), 0) => {
                 if !path.args.is_empty() {
                     let err = errors::GenericsOnSortTyParam::new(
                         path.segments.last().unwrap().span,
@@ -890,7 +890,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
                 return Ok(rty::Sort::Param(def_id_to_param_ty(self.genv(), def_id)));
             }
-            fhir::SortRes::SelfParam { .. } => {
+            (fhir::Res::SelfTyParam { .. }, 0) => {
                 if !path.args.is_empty() {
                     let err = errors::GenericsOnSelf::new(
                         path.segments.last().unwrap().span,
@@ -900,7 +900,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
                 return Ok(rty::Sort::Param(rty::SELF_PARAM_TY));
             }
-            fhir::SortRes::SelfAlias { alias_to } => {
+            (fhir::Res::SelfTyAlias { alias_to, .. }, 0) => {
                 if !path.args.is_empty() {
                     let err = errors::GenericsOnSelf::new(
                         path.segments.last().unwrap().span,
@@ -913,27 +913,27 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     .sort_of_self_ty_alias(alias_to)?
                     .unwrap_or(rty::Sort::Err));
             }
-            fhir::SortRes::SelfParamAssoc { trait_id, ident } => {
-                let res = fhir::Res::SelfTyParam { trait_: trait_id };
+            (res @ fhir::Res::SelfTyParam { .. }, 1) => {
+                let ident = *path.segments.last().unwrap();
                 let assoc_segment =
                     fhir::PathSegment { args: &[], constraints: &[], ident, res: fhir::Res::Err };
                 let mut env = Env::empty();
                 let alias_ty = self.conv_type_relative_type_path(&mut env, res, &assoc_segment)?;
                 return Ok(rty::Sort::Alias(rty::AliasKind::Projection, alias_ty));
             }
-            fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
+            (fhir::Res::PrimSort(fhir::PrimSort::Set), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Set)?;
                 rty::SortCtor::Set
             }
-            fhir::SortRes::PrimSort(fhir::PrimSort::Map) => {
+            (fhir::Res::PrimSort(fhir::PrimSort::Map), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Map)?;
                 rty::SortCtor::Map
             }
-            fhir::SortRes::User(def_id) => {
+            (fhir::Res::UserSort(def_id), 0) => {
                 self.check_user_defined_sort_param_count(path, def_id)?;
                 rty::SortCtor::User(def_id)
             }
-            fhir::SortRes::Adt(def_id) => {
+            (fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, def_id), 0) => {
                 let sort_def = self.genv().adt_sort_def_of(def_id)?;
                 if path.args.len() != sort_def.param_count() {
                     let err = errors::IncorrectGenericsOnSort::new(
@@ -947,6 +947,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
                 rty::SortCtor::Adt(sort_def)
             }
+            _ => bug!("unexpected resolution for sort path `{path:?}`"),
         };
         let args = path.args.iter().map(|t| self.conv_sort(t)).try_collect()?;
 
@@ -1760,7 +1761,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::BaseTy::Foreign(def_id)
             }
             fhir::Res::Def(kind, def_id) => self.report_expected_type(path.span, kind, def_id)?,
-            fhir::Res::Param(..) | fhir::Res::GlobalFunc(..) | fhir::Res::Err => {
+            fhir::Res::Param(..)
+            | fhir::Res::GlobalFunc(..)
+            | fhir::Res::PrimSort(..)
+            | fhir::Res::SortParam(..)
+            | fhir::Res::UserSort(..)
+            | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
             }
         };

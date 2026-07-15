@@ -567,9 +567,10 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
         let res = self
             .try_resolve_sort_param(path)
+            .map(PartialRes::new)
             .or_else(|| self.try_resolve_sort_with_ribs(path))
-            .or_else(|| self.try_resolve_user_sort(path))
-            .or_else(|| self.try_resolve_prim_sort(path));
+            .or_else(|| self.try_resolve_user_sort(path).map(PartialRes::new))
+            .or_else(|| self.try_resolve_prim_sort(path).map(PartialRes::new));
 
         if let Some(res) = res {
             self.resolver
@@ -581,62 +582,55 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         }
     }
 
-    fn try_resolve_sort_param(&self, path: &surface::SortPath) -> Option<fhir::SortRes> {
+    fn try_resolve_sort_param(&self, path: &surface::SortPath) -> Option<fhir::Res> {
         let [segment] = &path.segments[..] else { return None };
         self.sort_params
             .get_index_of(&segment.name)
-            .map(fhir::SortRes::SortParam)
+            .map(fhir::Res::SortParam)
     }
 
-    fn try_resolve_sort_with_ribs(&mut self, path: &surface::SortPath) -> Option<fhir::SortRes> {
+    /// Returns `Some` only for sort-admissible shapes; this is where the "not a sort" diagnostic
+    /// stays localized (`None` here means [`resolve_sort_path`] emits `UnresolvedSort`).
+    fn try_resolve_sort_with_ribs(&mut self, path: &surface::SortPath) -> Option<PartialRes> {
         let partial_res = self
             .resolver
             .resolve_path_with_ribs(&path.segments, TypeNS)?;
         match (partial_res.base_res(), partial_res.unresolved_segments()) {
-            (fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, def_id), 0) => {
-                Some(fhir::SortRes::Adt(def_id))
-            }
-            (fhir::Res::Def(DefKind::TyParam, def_id), 0) => Some(fhir::SortRes::TyParam(def_id)),
-            (fhir::Res::SelfTyParam { trait_ }, 0) => {
-                Some(fhir::SortRes::SelfParam { trait_id: trait_ })
-            }
-            (fhir::Res::SelfTyParam { trait_ }, 1) => {
-                let ident = *path.segments.last().unwrap();
-                Some(fhir::SortRes::SelfParamAssoc { trait_id: trait_, ident })
-            }
-            (fhir::Res::SelfTyAlias { alias_to, .. }, 0) => {
-                Some(fhir::SortRes::SelfAlias { alias_to })
-            }
+            (fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, _), 0)
+            | (fhir::Res::Def(DefKind::TyParam, _), 0)
+            | (fhir::Res::SelfTyParam { .. }, 0)
+            | (fhir::Res::SelfTyParam { .. }, 1)
+            | (fhir::Res::SelfTyAlias { .. }, 0) => Some(partial_res),
             _ => None,
         }
     }
 
-    fn try_resolve_user_sort(&self, path: &surface::SortPath) -> Option<fhir::SortRes> {
+    fn try_resolve_user_sort(&self, path: &surface::SortPath) -> Option<fhir::Res> {
         let [segment] = &path.segments[..] else { return None };
         self.resolver
             .sort_decls
             .get(&segment.name)
-            .map(|decl| fhir::SortRes::User(*decl))
+            .map(|decl| fhir::Res::UserSort(*decl))
     }
 
-    fn try_resolve_prim_sort(&self, path: &surface::SortPath) -> Option<fhir::SortRes> {
+    fn try_resolve_prim_sort(&self, path: &surface::SortPath) -> Option<fhir::Res> {
         let [segment] = &path.segments[..] else { return None };
         if segment.name == sym::int {
-            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Int))
+            Some(fhir::Res::PrimSort(fhir::PrimSort::Int))
         } else if segment.name == sym::bool {
-            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Bool))
+            Some(fhir::Res::PrimSort(fhir::PrimSort::Bool))
         } else if segment.name == sym::char {
-            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Char))
+            Some(fhir::Res::PrimSort(fhir::PrimSort::Char))
         } else if segment.name == sym::real {
-            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Real))
+            Some(fhir::Res::PrimSort(fhir::PrimSort::Real))
         } else if segment.name == sym::Set {
-            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Set))
+            Some(fhir::Res::PrimSort(fhir::PrimSort::Set))
         } else if segment.name == sym::Map {
-            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Map))
+            Some(fhir::Res::PrimSort(fhir::PrimSort::Map))
         } else if segment.name == sym::str {
-            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Str))
+            Some(fhir::Res::PrimSort(fhir::PrimSort::Str))
         } else if segment.name == sym::ptr {
-            Some(fhir::SortRes::PrimSort(fhir::PrimSort::RawPtr))
+            Some(fhir::Res::PrimSort(fhir::PrimSort::RawPtr))
         } else {
             None
         }

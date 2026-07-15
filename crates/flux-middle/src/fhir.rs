@@ -19,7 +19,6 @@ use std::{borrow::Cow, fmt, iter};
 
 use flux_common::{bug, span_bug};
 use flux_config::PartialInferOpts;
-use flux_rustc_bridge::def_id_to_string;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use flux_syntax::surface::{Ignored, ParamMode, Trusted};
 use itertools::Itertools;
@@ -762,6 +761,14 @@ pub enum Res<Id = !> {
     Param(ParamKind, Id),
     /// A refinement function defined with `flux::defs! { ... }`
     GlobalFunc(SpecFuncKind),
+    /// A primitive sort, e.g., `int`, `bool`, `Set`, `Map`. Only ever produced by the sort
+    /// resolver, never via [`TryFrom<rustc_hir::def::Res>`] or Rust path resolution.
+    PrimSort(PrimSort),
+    /// A sort parameter inside a polymorphic function or data sort. Only ever produced by the
+    /// sort resolver.
+    SortParam(usize),
+    /// A user declared sort. Only ever produced by the sort resolver.
+    UserSort(FluxDefId),
     Err,
 }
 
@@ -884,7 +891,7 @@ impl InferMode {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum PrimSort {
     Int,
     Bool,
@@ -926,39 +933,6 @@ impl PrimSort {
 }
 
 #[derive(Clone, Copy)]
-pub enum SortRes {
-    /// A primitive sort.
-    PrimSort(PrimSort),
-    /// A user declared sort.
-    User(FluxDefId),
-    /// A sort parameter inside a polymorphic function or data sort.
-    SortParam(usize),
-    /// The sort associated to a (generic) type parameter
-    TyParam(DefId),
-    /// The sort of the `Self` type, as used within a trait.
-    SelfParam {
-        /// The trait this `Self` is a generic parameter for.
-        trait_id: DefId,
-    },
-    /// The sort of a `Self` type, as used somewhere other than within a trait.
-    SelfAlias {
-        /// The item introducing the `Self` type alias, e.g., an impl block.
-        alias_to: DefId,
-    },
-    /// The sort of an associated type in a trait declaration, e.g:
-    ///
-    /// ```ignore
-    /// #[assoc(fn assoc_reft(x: Self::Assoc) -> bool)]
-    /// trait MyTrait {
-    ///     type Assoc;
-    /// }
-    /// ```
-    SelfParamAssoc { trait_id: DefId, ident: Ident },
-    /// The sort automatically generated for an adt (enum/struct) with a `flux::refined_by` annotation
-    Adt(DefId),
-}
-
-#[derive(Clone, Copy)]
 pub enum Sort<'fhir> {
     Path(SortPath<'fhir>),
     /// The sort of a location parameter introduced with the `x: &strg T` syntax.
@@ -980,7 +954,7 @@ pub enum Sort<'fhir> {
 /// See [`flux_syntax::surface::SortPath`]
 #[derive(Clone, Copy)]
 pub struct SortPath<'fhir> {
-    pub res: SortRes,
+    pub res: PartialRes,
     pub segments: &'fhir [Ident],
     pub args: &'fhir [Sort<'fhir>],
 }
@@ -1145,6 +1119,9 @@ impl<Id> Res<Id> {
             Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => "self type",
             Res::Param(..) => "refinement parameter",
             Res::GlobalFunc(..) => "refinement function",
+            Res::PrimSort(..) => "primitive sort",
+            Res::SortParam(..) => "sort parameter",
+            Res::UserSort(..) => "user-defined sort",
             Res::Err => "unresolved item",
         }
     }
@@ -1158,6 +1135,10 @@ impl<Id> Res<Id> {
     }
 
     /// Returns `None` if this is `Res::Err`
+    ///
+    /// The sort-only variants (`PrimSort`, `SortParam`, `UserSort`) are never produced by Rust
+    /// path resolution (they only come out of the sort resolver), so they never need to flow
+    /// through the Rust module-child / `matches_ns` machinery. We return `None` for them.
     pub fn ns(&self) -> Option<Namespace> {
         match self {
             Res::Def(kind, ..) => kind.ns(),
@@ -1165,7 +1146,7 @@ impl<Id> Res<Id> {
                 Some(Namespace::TypeNS)
             }
             Res::Param(..) | Res::GlobalFunc(..) => Some(Namespace::ValueNS),
-            Res::Err => None,
+            Res::PrimSort(..) | Res::SortParam(..) | Res::UserSort(..) | Res::Err => None,
         }
     }
 
@@ -1184,6 +1165,9 @@ impl<Id> Res<Id> {
             }
             Res::SelfTyParam { trait_ } => Res::SelfTyParam { trait_ },
             Res::GlobalFunc(spec_func_kind) => Res::GlobalFunc(spec_func_kind),
+            Res::PrimSort(prim_sort) => Res::PrimSort(prim_sort),
+            Res::SortParam(n) => Res::SortParam(n),
+            Res::UserSort(def_id) => Res::UserSort(def_id),
             Res::Err => Res::Err,
         }
     }
@@ -1684,34 +1668,6 @@ impl fmt::Debug for SortPath<'_> {
             write!(f, "<{:?}>", self.args.iter().format(", "))?;
         }
         Ok(())
-    }
-}
-
-impl fmt::Debug for SortRes {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SortRes::PrimSort(PrimSort::Bool) => write!(f, "bool"),
-            SortRes::PrimSort(PrimSort::Int) => write!(f, "int"),
-            SortRes::PrimSort(PrimSort::Real) => write!(f, "real"),
-            SortRes::PrimSort(PrimSort::Char) => write!(f, "char"),
-            SortRes::PrimSort(PrimSort::Str) => write!(f, "str"),
-            SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
-            SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
-            SortRes::PrimSort(PrimSort::RawPtr) => write!(f, "ptr"),
-            SortRes::SortParam(n) => write!(f, "@{n}"),
-            SortRes::TyParam(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
-            SortRes::SelfParam { trait_id } => {
-                write!(f, "{}::Self::sort", def_id_to_string(*trait_id))
-            }
-            SortRes::SelfAlias { alias_to } => {
-                write!(f, "{}::Self::sort", def_id_to_string(*alias_to))
-            }
-            SortRes::SelfParamAssoc { ident: assoc, .. } => {
-                write!(f, "Self::{assoc}")
-            }
-            SortRes::User(def_id) => write!(f, "{:?}", def_id.name()),
-            SortRes::Adt(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
-        }
     }
 }
 
