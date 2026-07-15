@@ -63,8 +63,10 @@ fn flatten_constraint<'a, T: Types>(
 pub fn fmt_smt_horn<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     // Set logic
     writeln!(f, "(set-logic HORN)")?;
-    writeln!(f, "(set-option :fixedpoint.engine spacer)")?;
-
+    // Polymorphism hack!
+    for i in 0..5 {
+        writeln!(f, "(declare-type-var T{i})")?;
+    }
     writeln!(f)?;
 
     // Comments
