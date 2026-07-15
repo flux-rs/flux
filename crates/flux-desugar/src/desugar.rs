@@ -55,7 +55,7 @@ fn collect_generics_in_params(
         fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
             if let surface::BaseSort::Path(path) = bsort {
                 let res = self.resolver_output.sort_path_res_map[&path.node_id];
-                if let fhir::SortRes::TyParam(def_id) = res {
+                if let fhir::Res::Def(DefKind::TyParam, def_id) = res.base_res() {
                     self.found.insert(def_id);
                 }
             }
@@ -1113,11 +1113,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 let res = self.resolver_output().sort_path_res_map[node_id];
 
                 // In a `RefinedBy` we resolve type parameters to a sort var
-                let res = if let fhir::SortRes::TyParam(def_id) = res
+                let res = if let fhir::Res::Def(DefKind::TyParam, def_id) = res.base_res()
                     && let Some(generic_id_to_var_idx) = generic_id_to_var_idx
                 {
                     let idx = generic_id_to_var_idx.get_index_of(&def_id).unwrap();
-                    fhir::SortRes::SortParam(idx)
+                    fhir::PartialRes::new(fhir::Res::SortParam(idx))
                 } else {
                     res
                 };
