@@ -205,7 +205,7 @@ pub struct Providers {
     pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
     pub call_graph: for<'genv, 'tcx> fn(GlobalEnv<'genv, 'tcx>) -> CallGraph<'tcx>,
     pub inferred_no_panic:
-        for<'genv, 'tcx> fn(GlobalEnv<'genv, 'tcx>) -> UnordMap<NodeKey<'tcx>, PanicSpec>,
+        for<'genv, 'tcx> fn(GlobalEnv<'genv, 'tcx>) -> UnordMap<NodeKey<'tcx>, PanicSpec<'tcx>>,
 }
 
 macro_rules! empty_query {
@@ -295,7 +295,7 @@ pub struct Queries<'genv, 'tcx> {
     assume_parametric_params: Cache<DefId, UnordSet<u32>>,
     call_graph: OnceCell<CallGraph<'tcx>>,
     /// The no-panic inference result for the local crate, keyed by `NodeKey`.
-    inferred_no_panic: OnceCell<Rc<UnordMap<NodeKey<'tcx>, PanicSpec>>>,
+    inferred_no_panic: OnceCell<Rc<UnordMap<NodeKey<'tcx>, PanicSpec<'tcx>>>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -619,7 +619,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub fn inferred_no_panic(
         &'genv self,
         genv: GlobalEnv<'genv, 'tcx>,
-    ) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec>> {
+    ) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec<'tcx>>> {
         self.inferred_no_panic
             .get_or_init(|| Rc::new((self.providers.inferred_no_panic)(genv)))
             .clone()

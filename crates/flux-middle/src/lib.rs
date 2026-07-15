@@ -41,6 +41,7 @@ mod sort_of;
 
 use std::sync::LazyLock;
 
+use call_graph::NodeKey;
 use flux_arc_interner::List;
 use flux_macros::fluent_messages;
 pub use flux_rustc_bridge::def_id_to_string;
@@ -59,28 +60,28 @@ use rustc_data_structures::{
     unord::{UnordMap, UnordSet},
 };
 use rustc_hir::OwnerId;
-use rustc_macros::{Decodable, Encodable, extension};
+use rustc_macros::{TyDecodable, TyEncodable, extension};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{
-    Symbol,
+    Span, Symbol,
     def_id::{DefId, LocalDefId},
     symbol::Ident,
 };
 
 fluent_messages! { "../locales/en-US.ftl" }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Encodable, Decodable)]
-pub enum PanicSpec {
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, TyEncodable, TyDecodable)]
+pub enum PanicSpec<'tcx> {
     WillNotPanic,
-    MightPanic(PanicReason),
+    MightPanic(PanicReason<'tcx>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub enum PanicReason {
-    Transitive,
-    UnresolvedCall(DefId),
-    DynamicDispatch,
-    SynthesizedPanic,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum PanicReason<'tcx> {
+    Transitive { callee: NodeKey<'tcx>, call_site: Span },
+    UnresolvedCall { def_id: DefId, call_site: Span },
+    DynamicDispatch { call_site: Span },
+    SynthesizedPanic { call_site: Span },
     NotInCallGraph,
     NoMIRAvailable,
 }

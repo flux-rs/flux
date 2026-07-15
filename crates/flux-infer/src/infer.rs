@@ -4,7 +4,7 @@ use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_sp
 use flux_config::{self as config, InferOpts, OverflowMode, RawDerefMode};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
-    FixpointQueryKind, PanicSpec,
+    FixpointQueryKind,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric},
@@ -23,7 +23,7 @@ use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
 use rustc_middle::{
-    mir::BasicBlock,
+    mir::{BasicBlock, Location},
     ty::{TyCtxt, Variance},
 };
 use rustc_span::{Span, Symbol};
@@ -81,7 +81,7 @@ pub enum ConstrReason {
     Overflow,
     Underflow,
     Subtype(SubtypeReason),
-    NoPanic(DefId, PanicSpec),
+    NoPanic { callee: DefId, caller: Option<DefId>, location: Option<Location> },
     Other,
 }
 
