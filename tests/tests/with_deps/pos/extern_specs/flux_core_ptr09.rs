@@ -31,16 +31,6 @@ pub struct Vec<T> {
     len: usize,
 }
 
-// #[flux_rs::trusted]
-// #[flux_rs::spec(fn (me: *mut[@p] T, count: usize)
-//                 -> *mut[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
-//                     requires  count * T::size_of() <= p.size
-//                     ensures addr_aligned(p.addr, T::align_of()) => addr_aligned(p.addr + count * T::size_of(), T::align_of())
-//                )]
-// unsafe fn new_add<T: Sized>(me: *mut T, count: usize) -> *mut T {
-//     unsafe { me.add(count) }
-// }
-
 impl<T> Vec<T> {
     #[flux_rs::spec(fn (self: &mut Vec<T>[@me], elem: T) ensures self: Vec<T>)]
     pub fn push(&mut self, elem: T) {
