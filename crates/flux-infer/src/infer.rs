@@ -221,8 +221,12 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         refine_tree.simplify(self.genv);
 
         let solver = match self.opts.solver {
-            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::Z3) => liquid_fixpoint::SmtSolver::Z3,
-            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::CVC5) => liquid_fixpoint::SmtSolver::CVC5,
+            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::Z3) => {
+                liquid_fixpoint::SmtSolver::Z3
+            }
+            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::CVC5) => {
+                liquid_fixpoint::SmtSolver::CVC5
+            }
             flux_config::CHCSolver::Lean => liquid_fixpoint::SmtSolver::Z3,
             flux_config::CHCSolver::Spacer => liquid_fixpoint::SmtSolver::Z3,
         };
@@ -243,7 +247,8 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         fcx.generate_lean_files(def_id, task)
     }
 
-    pub fn execute_fixpoint_query(
+    // We use this for the `fixpoint` or `SMTLIB` queries
+    pub fn execute_chc_query(
         self,
         cache: &mut FixQueryCache,
         def_id: MaybeExternId,
@@ -269,11 +274,15 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let backend = match self.opts.solver {
-            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::Z3) => liquid_fixpoint::SmtSolver::Z3,
-            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::CVC5) => liquid_fixpoint::SmtSolver::CVC5,
-            flux_config::CHCSolver::Lean => liquid_fixpoint::SmtSolver::Z3,
-            flux_config::CHCSolver::Spacer => liquid_fixpoint::SmtSolver::Z3,
+        let (backend, smt) = match self.opts.solver {
+            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::Z3) => {
+                (Backend::Fixpoint, liquid_fixpoint::SmtSolver::Z3)
+            }
+            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::CVC5) => {
+                (Backend::Fixpoint, liquid_fixpoint::SmtSolver::CVC5)
+            }
+            flux_config::CHCSolver::Spacer => (Backend::Spacer, liquid_fixpoint::SmtSolver::Z3),
+            flux_config::CHCSolver::Lean => tracked_span_bug!("unexpected: CHCSolver::Lean`"),
         };
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
@@ -287,8 +296,8 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             return Ok(Answer::trivial());
         }
 
-        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
-        let result = fcx.run_task(cache, def_id, kind, &task)?;
+        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, smt)?;
+        let result = fcx.run_task(cache, def_id, kind, &task, backend)?;
         Ok(fcx.result_to_answer(result))
     }
 

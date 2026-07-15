@@ -563,6 +563,7 @@ enum ConstKey<'tcx> {
 pub enum Backend {
     Fixpoint,
     Lean,
+    Spacer,
 }
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
@@ -651,7 +652,7 @@ where
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
         #[cfg(not(feature = "rust-fixpoint"))]
-        let constants = if matches!(self.ecx.backend, Backend::Fixpoint) {
+        let constants = if matches!(self.ecx.backend, Backend::Fixpoint | Backend::Spacer) {
             constants
                 .into_iter()
                 .chain(fixpoint::BinRel::INEQUALITIES.into_iter().map(|rel| {
@@ -696,8 +697,10 @@ where
         def_id: MaybeExternId,
         kind: FixpointQueryKind,
         task: &fixpoint::Task,
+        backend: Backend,
     ) -> QueryResult<ParsedResult> {
-        let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
+        let result =
+            Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache, backend);
 
         if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
@@ -901,6 +904,7 @@ where
         def_id: DefId,
         kind: FixpointQueryKind,
         cache: &mut FixQueryCache,
+        backend: Backend,
     ) -> VerificationResult<TagIdx> {
         let key = kind.task_key(genv.tcx(), def_id);
 
@@ -913,8 +917,16 @@ where
             return result.clone();
         }
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
-            task.run()
-                .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
+            match backend {
+                Backend::Spacer => {
+                    task.run_spacer()
+                        .unwrap_or_else(|err| tracked_span_bug!("failed to run spacer: {err}"))
+                }
+                Backend::Fixpoint | Backend::Lean => {
+                    task.run()
+                        .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
+                }
+            }
         });
 
         if config::is_cache_enabled() {
@@ -2257,7 +2269,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                             let pred = fixpoint::Pred::Expr(e1.eq(e2));
 
                             let bind = match self.backend {
-                                Backend::Fixpoint => {
+                                Backend::Fixpoint | Backend::Spacer => {
                                     fixpoint::Bind {
                                         name: fixpoint::Var::Underscore,
                                         sort: fixpoint::Sort::Int,

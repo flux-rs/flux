@@ -63,6 +63,8 @@ fn flatten_constraint<'a, T: Types>(
 pub fn fmt_smt_horn<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     // Set logic
     writeln!(f, "(set-logic HORN)")?;
+    writeln!(f, "(set-option :fixedpoint.engine spacer)")?;
+
     writeln!(f)?;
 
     // Comments

@@ -378,6 +378,52 @@ impl<T: Types> Task<T> {
             }
         })
     }
+
+    #[cfg(not(feature = "rust-fixpoint"))]
+    pub fn run_spacer(&self) -> io::Result<VerificationResult<T::Tag>> {
+        use std::io::Write as IOWrite;
+
+        let smt_str = format!("{}", smt_horn::SmtFormatter(self));
+
+        let mut child = Command::new("z3")
+            .arg("-in")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        {
+            let stdin = child.stdin.as_mut().unwrap();
+            stdin.write_all(smt_str.as_bytes())?;
+        }
+
+        let out = child.wait_with_output()?;
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let result = stdout.trim();
+
+        let status = match result {
+            "sat" => FixpointStatus::Safe(Stats::default()),
+            "unsat" => {
+                FixpointStatus::Crash(CrashInfo(vec![serde_json::Value::String("spacer returned unsat".to_string())]))
+            }
+            "unknown" => {
+                FixpointStatus::Crash(CrashInfo(vec![serde_json::Value::String("spacer returned unknown".to_string())]))
+            }
+            _ => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                return Err(io::Error::other(format!(
+                    "unexpected z3 output: {result}\nstderr: {stderr}"
+                )));
+            }
+        };
+
+        Ok(VerificationResult {
+            status,
+            solution: vec![],
+            non_cuts_solution: vec![],
+            lean_status: LeanStatus::Invalid,
+        })
+    }
 }
 
 impl<T: Types> KVarDecl<T> {
