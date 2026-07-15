@@ -482,7 +482,7 @@
 <a href=#482 id=482 data-nosnippet>482</a>                        fixpoint::Bind {
 <a href=#483 id=483 data-nosnippet>483</a>                            name: cx.var_to_fixpoint(var),
 <a href=#484 id=484 data-nosnippet>484</a>                            sort: cx.sort_to_fixpoint(sort),
-<a href=#485 id=485 data-nosnippet>485</a>                            pred: fixpoint::Pred::TRUE,
+<a href=#485 id=485 data-nosnippet>485</a>                            preds: <span class="macro">vec!</span>[],
 <a href=#486 id=486 data-nosnippet>486</a>                        },
 <a href=#487 id=487 data-nosnippet>487</a>                        Box::new(constr),
 <a href=#488 id=488 data-nosnippet>488</a>                    );
@@ -498,21 +498,21 @@
 <a href=#498 id=498 data-nosnippet>498</a>                        fixpoint::Bind {
 <a href=#499 id=499 data-nosnippet>499</a>                            name: fixpoint::Var::Local(fresh),
 <a href=#500 id=500 data-nosnippet>500</a>                            sort: cx.sort_to_fixpoint(sort),
-<a href=#501 id=501 data-nosnippet>501</a>                            pred: fixpoint::Pred::TRUE,
+<a href=#501 id=501 data-nosnippet>501</a>                            preds: <span class="macro">vec!</span>[],
 <a href=#502 id=502 data-nosnippet>502</a>                        },
 <a href=#503 id=503 data-nosnippet>503</a>                        Box::new(children),
 <a href=#504 id=504 data-nosnippet>504</a>                    )))
 <a href=#505 id=505 data-nosnippet>505</a>                })<span class="question-mark">?
 <a href=#506 id=506 data-nosnippet>506</a>            </span>}
 <a href=#507 id=507 data-nosnippet>507</a>            NodeKind::Assumption(pred) =&gt; {
-<a href=#508 id=508 data-nosnippet>508</a>                <span class="kw">let </span>(<span class="kw-2">mut </span>bindings, pred) = cx.assumption_to_fixpoint(pred)<span class="question-mark">?</span>;
+<a href=#508 id=508 data-nosnippet>508</a>                <span class="kw">let </span>(<span class="kw-2">mut </span>bindings, preds) = cx.assumption_to_fixpoint(pred)<span class="question-mark">?</span>;
 <a href=#509 id=509 data-nosnippet>509</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(cstr) = children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">? </span><span class="kw">else </span>{
 <a href=#510 id=510 data-nosnippet>510</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
 <a href=#511 id=511 data-nosnippet>511</a>                };
 <a href=#512 id=512 data-nosnippet>512</a>                bindings.push(fixpoint::Bind {
 <a href=#513 id=513 data-nosnippet>513</a>                    name: fixpoint::Var::Underscore,
 <a href=#514 id=514 data-nosnippet>514</a>                    sort: fixpoint::Sort::Int,
-<a href=#515 id=515 data-nosnippet>515</a>                    pred,
+<a href=#515 id=515 data-nosnippet>515</a>                    preds,
 <a href=#516 id=516 data-nosnippet>516</a>                });
 <a href=#517 id=517 data-nosnippet>517</a>                <span class="prelude-val">Some</span>(fixpoint::Constraint::foralls(bindings, cstr))
 <a href=#518 id=518 data-nosnippet>518</a>            }
@@ -550,7 +550,7 @@
 <a href=#550 id=550 data-nosnippet>550</a>    <span class="kw">let </span>cstr = <span class="kw">match </span>children.len() {
 <a href=#551 id=551 data-nosnippet>551</a>        <span class="number">0 </span>=&gt; <span class="prelude-val">None</span>,
 <a href=#552 id=552 data-nosnippet>552</a>        <span class="number">1 </span>=&gt; children.pop(),
-<a href=#553 id=553 data-nosnippet>553</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Some</span>(fixpoint::Constraint::Conj(children)),
+<a href=#553 id=553 data-nosnippet>553</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Some</span>(fixpoint::Constraint::conj(children)),
 <a href=#554 id=554 data-nosnippet>554</a>    };
 <a href=#555 id=555 data-nosnippet>555</a>    <span class="prelude-val">Ok</span>(cstr)
 <a href=#556 id=556 data-nosnippet>556</a>}
