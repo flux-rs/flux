@@ -1260,13 +1260,19 @@ where
         wkvar: &rty::WKVar,
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
-        let range = self
+        let promoted = self
             .promoted_wkvars
             .get(&wkvar.wkvid)
-            .expect("promoted weak KVar was not precomputed")
-            .range
-            .clone();
-        self.encode_kvar_range(range, &wkvar.args, bindings)
+            .expect("promoted weak KVar was not precomputed");
+        let (_, args, _) = flatten_kvar_args(
+            wkvar
+                .args
+                .iter()
+                .cloned()
+                .zip_eq(promoted.source_sorts.iter().cloned()),
+            promoted.source_self_args,
+        );
+        self.encode_kvar_range(promoted.range.clone(), &args, bindings)
     }
 
     fn wkvar_to_fixpoint(&mut self, wkvar: &rty::WKVar) -> QueryResult<fixpoint::Pred> {
@@ -1323,6 +1329,8 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
                 }
             }
         }
+        println!("wkvar heads: {:?}", heads);
+        println!("wkvar assumptions: {:?}", assumptions);
         let mut next_kvid = fixpoint::KVid::from_u32(0);
         for wkvid in heads.intersection(&assumptions) {
             let wkvars = self
@@ -1332,12 +1340,18 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
             let info = wkvars
                 .get(&wkvid.id.as_u32())
                 .unwrap_or_else(|| panic!("missing metadata for promoted weak KVar {wkvid:?}"));
-            let promoted_self_args = *self_args
+            let self_args = *self_args
                 .get(wkvid)
                 .expect("missing self_args for promoted weak KVar");
+            let (sorts, _, promoted_self_args) = flatten_kvar_args(
+                info.sorts
+                    .iter()
+                    .cloned()
+                    .map(|sort| (rty::Expr::tt(), sort)),
+                self_args,
+            );
             let range = next_kvid..next_kvid + usize::max(promoted_self_args, 1);
-            let mut sorts = info
-                .sorts
+            let mut sorts = sorts
                 .iter()
                 .map(|sort| self.scx.sort_to_fixpoint(sort))
                 .collect_vec();
@@ -1348,7 +1362,14 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
             }
             next_kvid = range.end;
             self.promoted_wkvars
-                .insert(wkvid.clone(), PromotedWKVar { range });
+                .insert(
+                    wkvid.clone(),
+                    PromotedWKVar {
+                        range,
+                        source_sorts: info.sorts.clone(),
+                        source_self_args: self_args,
+                    },
+                );
             let start = fixpoint::KVid::from_u32(
                 next_kvid.as_u32() - usize::max(promoted_self_args, 1) as u32,
             );
@@ -1426,6 +1447,28 @@ struct KVarEncodingCtxt {
 
 struct PromotedWKVar {
     range: Range<fixpoint::KVid>,
+    source_sorts: Vec<rty::Sort>,
+    source_self_args: usize,
+}
+
+fn flatten_kvar_args(
+    args: impl IntoIterator<Item = (rty::Expr, rty::Sort)>,
+    self_args: usize,
+) -> (Vec<rty::Sort>, Vec<rty::Expr>, usize) {
+    let mut sorts = vec![];
+    let mut exprs = vec![];
+    let mut flattened_self_args = 0;
+    for (i, (expr, sort)) in args.into_iter().enumerate() {
+        let is_self_arg = i < self_args;
+        sort.walk(|sort, projs| {
+            if !matches!(sort, rty::Sort::Loc) {
+                flattened_self_args += is_self_arg as usize;
+                sorts.push(sort.clone());
+                exprs.push(rty::Expr::field_projs(&expr, projs));
+            }
+        });
+    }
+    (sorts, exprs, flattened_self_args)
 }
 
 impl Default for KVarEncodingCtxt {
@@ -1695,22 +1738,8 @@ impl KVarGen {
     where
         A: IntoIterator<Item = (rty::Var, rty::Sort)>,
     {
-        // asset last one has things
-        let mut sorts = vec![];
-        let mut exprs = vec![];
-
-        let mut flattened_self_args = 0;
-        for (i, (var, sort)) in args.into_iter().enumerate() {
-            let is_self_arg = i < self_args;
-            let var = var.to_expr();
-            sort.walk(|sort, proj| {
-                if !matches!(sort, rty::Sort::Loc) {
-                    flattened_self_args += is_self_arg as usize;
-                    sorts.push(sort.clone());
-                    exprs.push(rty::Expr::field_projs(&var, proj));
-                }
-            });
-        }
+        let (sorts, exprs, flattened_self_args) =
+            flatten_kvar_args(args.into_iter().map(|(var, sort)| (var.to_expr(), sort)), self_args);
 
         let kvid = self
             .kvars
