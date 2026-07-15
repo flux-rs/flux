@@ -4,7 +4,7 @@ use clap::Args;
 pub use toml::Value;
 use tracing::Level;
 
-use crate::{IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver};
+use crate::{CHCSolver, IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
@@ -95,7 +95,7 @@ pub struct Flags {
         default_value = "z3",
         value_parser = default_smtsolver
     )]
-    pub solver: SmtSolver,
+    pub solver: CHCSolver,
     /// Enables qualifier scrapping in fixpoint
     #[arg(
         long = flux_arg!("scrape-quals"),
@@ -252,7 +252,7 @@ impl Default for Flags {
             allow_raw_deref: RawDerefMode::default(),
             scrape_quals: false,
             allow_uninterpreted_cast: false,
-            solver: SmtSolver::default(),
+            solver: CHCSolver::default(),
             smt_define_fun: false,
             annots: false,
             timings: false,
@@ -434,13 +434,13 @@ fn parse_raw_deref(slot: &mut RawDerefMode, v: Option<&str>) -> Result<(), &'sta
     }
 }
 
-fn parse_solver(slot: &mut SmtSolver, v: Option<&str>) -> Result<(), &'static str> {
+fn parse_solver(slot: &mut CHCSolver, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
             *slot = s.parse()?;
             Ok(())
         }
-        _ => Err(SmtSolver::ERROR),
+        _ => Err(CHCSolver::ERROR),
     }
 }
 
@@ -487,8 +487,8 @@ fn default_rawderefmode(_s: &str) -> Result<RawDerefMode, String> {
     Ok(RawDerefMode::default())
 }
 
-fn default_smtsolver(_s: &str) -> Result<SmtSolver, String> {
-    Ok(SmtSolver::default())
+fn default_smtsolver(_s: &str) -> Result<CHCSolver, String> {
+    Ok(CHCSolver::default())
 }
 
 fn default_leanmode(_s: &str) -> Result<LeanMode, String> {

@@ -221,8 +221,10 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         refine_tree.simplify(self.genv);
 
         let solver = match self.opts.solver {
-            flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
-            flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
+            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::Z3) => liquid_fixpoint::SmtSolver::Z3,
+            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::CVC5) => liquid_fixpoint::SmtSolver::CVC5,
+            flux_config::CHCSolver::Lean => liquid_fixpoint::SmtSolver::Z3,
+            flux_config::CHCSolver::Spacer => liquid_fixpoint::SmtSolver::Z3,
         };
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
@@ -268,8 +270,10 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         }
 
         let backend = match self.opts.solver {
-            flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
-            flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
+            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::Z3) => liquid_fixpoint::SmtSolver::Z3,
+            flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::CVC5) => liquid_fixpoint::SmtSolver::CVC5,
+            flux_config::CHCSolver::Lean => liquid_fixpoint::SmtSolver::Z3,
+            flux_config::CHCSolver::Spacer => liquid_fixpoint::SmtSolver::Z3,
         };
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
