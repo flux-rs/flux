@@ -550,7 +550,7 @@ fn children_to_fixpoint(
     let cstr = match children.len() {
         0 => None,
         1 => children.pop(),
-        _ => Some(fixpoint::Constraint::Conj(children)),
+        _ => Some(fixpoint::Constraint::conj(children)),
     };
     Ok(cstr)
 }

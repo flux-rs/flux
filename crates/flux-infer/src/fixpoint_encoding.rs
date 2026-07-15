@@ -826,7 +826,7 @@ where
                 }
             }
             fixpoint::Constraint::Conj(cstrs) => {
-                fixpoint::Constraint::Conj(
+                fixpoint::Constraint::conj(
                     cstrs
                         .into_iter()
                         .map(|cstr| self.extract_assumed_consts_aux(cstr, acc))
