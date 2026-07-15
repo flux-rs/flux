@@ -335,7 +335,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             process::exit(1);
         }
     }
-    let has_include_filters = !includes.is_empty() || !trusteds.is_empty() || !trusted_impls.is_empty();
+    let has_trust_filters = !trusteds.is_empty() || !trusted_impls.is_empty();
     if !includes.is_empty() {
         let include = IncludePattern::new(includes).unwrap_or_else(|err| {
             eprintln!("error: invalid include pattern: {err}");
@@ -344,8 +344,8 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
         flags.include = Some(include);
     }
     if !multi_checks.is_empty() {
-        if has_include_filters || flags.cache.is_some() || !matches!(flags.lean, LeanMode::Off) {
-            eprintln!("error: `-Fmulti-check` conflicts with include/trust, cache, or lean flags");
+        if has_trust_filters || flags.cache.is_some() || !matches!(flags.lean, LeanMode::Off) {
+            eprintln!("error: `-Fmulti-check` conflicts with trust, cache, or lean flags");
             process::exit(EXIT_FAILURE);
         }
         let multi_check = IncludePattern::new(multi_checks).unwrap_or_else(|err| {

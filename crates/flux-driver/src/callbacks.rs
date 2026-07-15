@@ -2,8 +2,9 @@ use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, LeanStatus, lean_task_key},
+    fixpoint_encoding::{FixQueryCache, KVarGen, LeanStatus, lean_task_key},
     lean_encoding,
+    refine_tree::RefineTree,
 };
 use flux_metadata::CStore;
 use flux_middle::{
@@ -145,14 +146,14 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let mut ck = CrateChecker::new(genv);
 
         // Iterate over all def ids including dummy items for extern specs
-        let result = if config::multi_check_pattern().is_some() {
-            check_multi_crate(genv)
-        } else {
-            genv
-                .tcx()
-                .iter_local_def_id()
-                .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id))
-        };
+        let result = genv
+            .tcx()
+            .iter_local_def_id()
+            .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
+
+        if config::multi_check_pattern().is_some() {
+            ck.execute_multi_check()?;
+        }
 
         if config::multi_check_pattern().is_none()
             && (config::lean().is_check() || config::lean().is_emit())
@@ -200,38 +201,22 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     })
 }
 
-fn check_multi_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
-    let mut trees = vec![];
-    for def_id in genv.tcx().iter_local_def_id() {
-        let maybe_id = genv.maybe_extern_id(def_id);
-        if genv.is_dummy(def_id)
-            || genv.ignored(def_id)
-            || genv.trusted(def_id)
-            || !genv.multi_check(maybe_id)
-            || !matches!(genv.def_kind(maybe_id), DefKind::Fn | DefKind::AssocFn)
-            || !genv.tcx().is_mir_available(def_id)
-        {
-            continue;
-        }
-        trigger_queries(genv, maybe_id).emit(&genv)?;
-        let collected = refineck::collect_fn(genv, def_id)?;
-        trees.push(collected);
-    }
-
-    if let Some(owner) = trees.first().map(|(owner, _, _)| *owner) {
-        let opts = genv.infer_opts(owner.local_id());
+impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
+    fn execute_multi_check(&mut self) -> Result<(), ErrorGuaranteed> {
+        let Some(owner) = self.multi_trees.first().map(|(owner, _, _)| *owner) else {
+            return Ok(());
+        };
+        let opts = self.genv.infer_opts(owner.local_id());
         let errors = flux_infer::infer::InferCtxtRoot::execute_multi_fixpoint_query(
-            genv,
-            trees,
+            self.genv,
+            std::mem::take(&mut self.multi_trees),
             owner,
             opts,
         )
-        .emit(&genv)?;
-        refineck::report_fixpoint_errors(genv, owner.local_id(), errors)?;
+        .emit(&self.genv)?;
+        refineck::report_fixpoint_errors(self.genv, owner.local_id(), errors)?;
+        Ok(())
     }
-    // FIXME: multi-query fixpoint results are intentionally discarded until owner-aware decoding
-    // and diagnostics are implemented.
-    Ok(())
 }
 
 fn collect_specs(genv: GlobalEnv) -> Specs {
@@ -261,11 +246,12 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     cache: FixQueryCache,
+    multi_trees: Vec<(MaybeExternId, RefineTree, KVarGen)>,
 }
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        Self { genv, cache: QueryCache::load() }
+        Self { genv, cache: QueryCache::load(), multi_trees: vec![] }
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -316,7 +302,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             DefKind::Fn | DefKind::AssocFn => {
                 let Some(local_id) = def_id.as_local() else { return Ok(()) };
                 if is_fn_with_body {
-                    refineck::check_fn(genv, &mut self.cache, local_id)?;
+                    refineck::check_fn(genv, &mut self.cache, local_id, &mut self.multi_trees)?;
                 }
             }
             DefKind::Enum => {
