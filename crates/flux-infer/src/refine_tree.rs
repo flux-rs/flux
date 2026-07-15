@@ -13,11 +13,13 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         BaseTy, EVid, Expr, ExprKind, KVid, Name, NameProvenance, PrettyVar, Sort, Ty, TyKind, Var,
+        WKVid,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 use itertools::Itertools;
 use rustc_data_structures::{
+    fx::FxIndexMap,
     snapshot_map::SnapshotMap,
     unord::{UnordMap, UnordSet},
 };
@@ -89,6 +91,71 @@ impl RefineTree {
             NodeKind::True => vec![],
             _ => unreachable!("refinement tree root is not a root node"),
         }
+    }
+
+    pub(crate) fn wkvars_in_positions(
+        &self,
+    ) -> (FxHashSet<WKVid>, FxHashSet<WKVid>, FxIndexMap<WKVid, usize>) {
+        struct WKVars {
+            heads: FxHashSet<WKVid>,
+            assumptions: FxHashSet<WKVid>,
+            self_args: FxIndexMap<WKVid, usize>,
+        }
+
+        fn visit_expr(expr: &Expr, vars: &mut FxHashSet<WKVid>, self_args: &mut FxIndexMap<WKVid, usize>) {
+            struct Visitor<'a> {
+                vars: &'a mut FxHashSet<WKVid>,
+            }
+
+            impl TypeVisitor for Visitor<'_> {
+                fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
+                    if let ExprKind::WKVar(wkvar) = expr.kind() {
+                        self.vars.insert(wkvar.wkvid.clone());
+                    }
+                    expr.super_visit_with(self)
+                }
+            }
+
+            struct ArgsVisitor<'a> {
+                self_args: &'a mut FxIndexMap<WKVid, usize>,
+            }
+            impl TypeVisitor for ArgsVisitor<'_> {
+                fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
+                    if let ExprKind::WKVar(wkvar) = expr.kind() {
+                        if let Some(previous) = self.self_args.insert(wkvar.wkvid.clone(), wkvar.self_args)
+                            && previous != wkvar.self_args
+                        {
+                            panic!("inconsistent self_args for weak KVar {:?}", wkvar.wkvid);
+                        }
+                    }
+                    expr.super_visit_with(self)
+                }
+            }
+
+            let _ = expr.visit_with(&mut Visitor { vars });
+            let _ = expr.visit_with(&mut ArgsVisitor { self_args });
+        }
+
+        fn visit(node: &Node, vars: &mut WKVars) {
+            match &node.kind {
+                NodeKind::Head(expr, _) => visit_expr(expr, &mut vars.heads, &mut vars.self_args),
+                NodeKind::Assumption(expr) => {
+                    visit_expr(expr, &mut vars.assumptions, &mut vars.self_args)
+                }
+                _ => {}
+            }
+            for child in &node.children {
+                visit(&child.borrow(), vars);
+            }
+        }
+
+        let mut vars = WKVars {
+            heads: Default::default(),
+            assumptions: Default::default(),
+            self_args: Default::default(),
+        };
+        visit(&self.root.borrow(), &mut vars);
+        (vars.heads, vars.assumptions, vars.self_args)
     }
 
     pub(crate) fn cursor_at_root(&mut self) -> Cursor<'_> {

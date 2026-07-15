@@ -305,7 +305,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         trees: Vec<(MaybeExternId, RefineTree, KVarGen)>,
         def_id: MaybeExternId,
         opts: InferOpts,
-    ) -> QueryResult<()> {
+    ) -> QueryResult<Vec<crate::fixpoint_encoding::FixpointCheckError<Tag>>> {
         if config::lean().is_check() || config::lean().is_emit() {
             panic!("multi-query Lean encoding is not supported");
         }
@@ -316,7 +316,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         let mut fcx = FixpointCtxt::new(genv, def_id, KVarGen::new(false), Backend::Fixpoint);
         let cstr = fcx.encode_multi(trees)?;
         if cstr.concrete_head_count() == 0 {
-            return Ok(());
+            return Ok(vec![]);
         }
         let (task, _) = fcx.create_task(def_id, cstr, opts.scrape_quals, backend)?;
         if config::dump_constraint() {
@@ -329,12 +329,9 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_middle::queries::QueryErr::bug(None, format!("failed to run multi-query: {err}"))
         })?;
         match result.status {
-            liquid_fixpoint::FixpointStatus::Safe(_) => Ok(()),
+            liquid_fixpoint::FixpointStatus::Safe(_) => Ok(vec![]),
             liquid_fixpoint::FixpointStatus::Unsafe(_, errors) => {
-                Err(flux_middle::queries::QueryErr::bug(
-                    Some(def_id.resolved_id()),
-                    format!("multi-query fixpoint check failed: {errors:?}"),
-                ))
+                Ok(fcx.errors_for_tags(errors.into_iter().map(|error| error.tag)))
             }
             liquid_fixpoint::FixpointStatus::Crash(err) => Err(
                 flux_middle::queries::QueryErr::bug(

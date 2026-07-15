@@ -220,13 +220,14 @@ fn check_multi_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
     if let Some(owner) = trees.first().map(|(owner, _, _)| *owner) {
         let opts = genv.infer_opts(owner.local_id());
-        flux_infer::infer::InferCtxtRoot::execute_multi_fixpoint_query(
+        let errors = flux_infer::infer::InferCtxtRoot::execute_multi_fixpoint_query(
             genv,
             trees,
             owner,
             opts,
         )
         .emit(&genv)?;
+        refineck::report_fixpoint_errors(genv, owner.local_id(), errors)?;
     }
     // FIXME: multi-query fixpoint results are intentionally discarded until owner-aware decoding
     // and diagnostics are implemented.
