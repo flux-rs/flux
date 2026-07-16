@@ -182,8 +182,7 @@ impl<T: Types> FlatConstraint<T> {
     /// ==
     /// (p => c) && (q => c)
     /// ```
-    pub fn wkvars_and_constrs(&self) -> Vec<WKVarAndConstrs<T>>
-where {
+    pub fn wkvars_and_constrs(&self) -> Vec<WKVarAndConstrs<T>> {
         let mut wkvars_and_constraints = self
             .assumptions
             .iter()
