@@ -81,8 +81,6 @@ fn test_runner(_: &[&()]) {
     // Pass `-Fsummary=off` to disable printing the summary at the end of each test
     flags.extend(["-Fsummary=off".to_string()]);
 
-    // flags.extend(["-Fsolver=spacer".to_string()]);
-
     config.target_rustcflags = Some(flags.join(" "));
 
     config.clean_rmeta();
