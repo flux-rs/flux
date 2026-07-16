@@ -2,12 +2,19 @@ pub(crate) mod refinement_resolver;
 
 use std::collections::hash_map;
 
-use flux_common::result::{ErrorCollector, ResultExt};
+use flux_common::{
+    bug,
+    result::{ErrorCollector, ResultExt},
+};
 use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput, Specs,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
     fhir,
+    fhir::{
+        Namespace::{self, *},
+        PerNS,
+    },
     global_env::GlobalEnv,
 };
 use flux_syntax::{
@@ -17,14 +24,8 @@ use flux_syntax::{
 use hir::{ItemId, ItemKind, OwnerId, def::DefKind};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
-use flux_middle::fhir::{
-    Namespace::{self, *},
-    PerNS,
-};
 use rustc_hir::{
-    self as hir, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy,
-    def::CtorOf,
-    def_id::CRATE_DEF_ID,
+    self as hir, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy, def::CtorOf, def_id::CRATE_DEF_ID,
 };
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
 use rustc_span::{Span, Symbol, def_id::DefId, symbol::kw};
@@ -243,12 +244,18 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    fn define_res_in(&mut self, name: Symbol, res: fhir::Res, ns: Namespace) {
+    fn define_res_in(&mut self, name: Symbol, res: fhir::Res<surface::NodeId>, ns: Namespace) {
         self.ribs[ns].last_mut().unwrap().bindings.insert(name, res);
     }
 
-    fn define_in_prelude(&mut self, name: Symbol, res: fhir::Res, ns: Namespace) {
+    fn define_in_prelude(&mut self, name: Symbol, res: fhir::Res<surface::NodeId>, ns: Namespace) {
         self.prelude[ns].bindings.insert(name, res);
+    }
+
+    /// Look up `name` in the innermost rib of `ns`. Used by the refinement resolver to detect
+    /// duplicate refinement parameters within a single scope.
+    fn lookup_in_top_rib(&self, ns: Namespace, name: Symbol) -> Option<fhir::Res<surface::NodeId>> {
+        self.ribs[ns].last().unwrap().bindings.get(&name).copied()
     }
 
     fn push_rib(&mut self, ns: Namespace, kind: RibKind) {
@@ -311,7 +318,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         &mut self,
         segments: &[S],
         ns: Namespace,
-    ) -> Option<fhir::PartialRes> {
+    ) -> Option<fhir::PartialRes<surface::NodeId>> {
         let mut module: Option<Module> = None;
         for (segment_idx, segment) in segments.iter().enumerate() {
             let is_last = segment_idx + 1 == segments.len();
@@ -350,12 +357,19 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         None
     }
 
-    fn resolve_ident_with_ribs(&self, ident: Ident, ns: Namespace) -> Option<fhir::Res> {
+    fn resolve_ident_with_ribs(
+        &self,
+        ident: Ident,
+        ns: Namespace,
+    ) -> Option<fhir::Res<surface::NodeId>> {
         for rib in self.ribs[ns].iter().rev() {
             if let Some(res) = rib.bindings.get(&ident.name) {
                 return Some(*res);
             }
-            if matches!(rib.kind, RibKind::Module) {
+            // A module boundary stops item resolution. A param barrier hides params in enclosing
+            // scopes; since refinement params live only in `FluxFnNS` (which has no item ribs), we
+            // can stop here and fall through to the flux-func prelude / the next namespace.
+            if matches!(rib.kind, RibKind::Module | RibKind::ParamBarrier) {
                 break;
             }
         }
@@ -407,7 +421,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         module: &Module,
         ident: Ident,
         ns: Namespace,
-    ) -> Option<fhir::Res> {
+    ) -> Option<fhir::Res<surface::NodeId>> {
         let tcx = self.genv.tcx();
         match module.kind {
             ModuleKind::Mod => {
@@ -420,7 +434,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         child.res.matches_ns(rustc_ns)
                             && tcx.hygienic_eq(ident, child.ident, current_mod)
                     })
-                    .and_then(|child| fhir::Res::try_from(child.res).ok())
+                    .and_then(|child| fhir::Res::<surface::NodeId>::try_from(child.res).ok())
             }
             ModuleKind::Trait => {
                 // Associated items are Rust items, so we only ever resolve them in a Rust namespace.
@@ -627,12 +641,17 @@ enum RibKind {
     Normal,
     /// We pass through a module. Lookups of items should stop here.
     Module,
+    /// A refinement parameter scope (in [`Namespace::FluxFnNS`] only).
+    Param,
+    /// A refinement parameter scope that acts as a barrier: params in enclosing scopes are not
+    /// visible from inside it. See [`CrateResolver::resolve_ident_with_ribs`].
+    ParamBarrier,
 }
 
 #[derive(Debug)]
 struct Rib {
     kind: RibKind,
-    bindings: UnordMap<Symbol, fhir::Res>,
+    bindings: UnordMap<Symbol, fhir::Res<surface::NodeId>>,
 }
 
 impl Rib {
@@ -671,12 +690,24 @@ fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
 /// Abstraction over a "segment" so we can use [`CrateResolver::resolve_path_with_ribs`] with paths
 /// from different sources  (e.g., [`surface::PathSegment`], [`surface::ExprPathSegment`])
 trait Segment: std::fmt::Debug {
-    fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res);
+    fn record_segment_res(
+        resolver: &mut CrateResolver,
+        segment: &Self,
+        res: fhir::Res<surface::NodeId>,
+    );
     fn ident(&self) -> Ident;
 }
 
 impl Segment for surface::PathSegment {
-    fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res) {
+    fn record_segment_res(
+        resolver: &mut CrateResolver,
+        segment: &Self,
+        res: fhir::Res<surface::NodeId>,
+    ) {
+        // Type paths are resolved by `ItemResolver`, which runs before any refinement param is in
+        // scope, so a type-path segment can never resolve to a refinement param.
+        let res =
+            res.map_param_id(|_| bug!("type path segment resolved to a refinement parameter"));
         resolver
             .output
             .path_res_map
@@ -689,11 +720,24 @@ impl Segment for surface::PathSegment {
 }
 
 impl Segment for surface::ExprPathSegment {
-    fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res) {
+    fn record_segment_res(
+        resolver: &mut CrateResolver,
+        segment: &Self,
+        res: fhir::Res<surface::NodeId>,
+    ) {
+        // A refinement param only ever appears as a single-segment path, and the per-segment record
+        // is never read for a resolved (0-unresolved-segments) path — `desugar_epath` uses the
+        // whole-path resolution instead. So we can safely skip recording a param segment. Every
+        // other (module/type) segment is provably not a param.
+        if matches!(res, fhir::Res::Param(..)) {
+            return;
+        }
+        let res =
+            res.map_param_id(|_| bug!("expr path segment resolved to a refinement parameter"));
         resolver
             .output
             .expr_path_res_map
-            .insert(segment.node_id, fhir::PartialRes::new(res.map_param_id(|p| p)));
+            .insert(segment.node_id, fhir::PartialRes::new(res));
     }
 
     fn ident(&self) -> Ident {
@@ -702,7 +746,12 @@ impl Segment for surface::ExprPathSegment {
 }
 
 impl Segment for Ident {
-    fn record_segment_res(_resolver: &mut CrateResolver, _segment: &Self, _res: fhir::Res) {}
+    fn record_segment_res(
+        _resolver: &mut CrateResolver,
+        _segment: &Self,
+        _res: fhir::Res<surface::NodeId>,
+    ) {
+    }
 
     fn ident(&self) -> Ident {
         *self
@@ -710,7 +759,12 @@ impl Segment for Ident {
 }
 
 impl Segment for hir::PathSegment<'_> {
-    fn record_segment_res(_resolver: &mut CrateResolver, _segment: &Self, _res: fhir::Res) {}
+    fn record_segment_res(
+        _resolver: &mut CrateResolver,
+        _segment: &Self,
+        _res: fhir::Res<surface::NodeId>,
+    ) {
+    }
 
     fn ident(&self) -> Ident {
         self.ident
@@ -745,6 +799,10 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
 
     fn resolve_path_in(&mut self, path: &surface::Path, ns: Namespace) {
         if let Some(partial_res) = self.resolver.resolve_path_with_ribs(&path.segments, ns) {
+            // Type/const paths are resolved before any refinement param is in scope, so they can
+            // never resolve to a param.
+            let partial_res =
+                partial_res.map_param_id(|_| bug!("type path resolved to a refinement parameter"));
             self.resolver
                 .output
                 .path_res_map
@@ -907,10 +965,8 @@ fn theory_funcs_rib() -> Rib {
             .items()
             .map(|(_, itf)| (itf.name, fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf.itf)))),
     );
-    rib.bindings.insert(
-        Symbol::intern("cast"),
-        fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast),
-    );
+    rib.bindings
+        .insert(Symbol::intern("cast"), fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast));
     rib
 }
 

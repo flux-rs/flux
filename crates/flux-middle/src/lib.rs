@@ -502,7 +502,7 @@ pub struct ResolverOutput {
     /// [`surface::VariantDef`]. The [`NodeId`]s in the vectors are keys in [`Self::param_res_map`].
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
     pub sort_path_res_map: UnordMap<NodeId, fhir::PartialRes>,
-    pub expr_path_res_map: UnordMap<NodeId, fhir::PartialRes<fhir::ParamId>>,
+    pub expr_path_res_map: UnordMap<NodeId, fhir::PartialRes>,
     /// The resolved list of local qualifiers per function.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
     pub qualifier_res_map: UnordMap<NodeId, Vec<def_id::FluxLocalDefId>>,

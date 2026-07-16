@@ -969,9 +969,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
 
         let proj_start = path.segments.len() - unresolved_segments;
         let ty_path = fhir::Path {
-            res: partial_res
-                .base_res()
-                .map_param_id(|_| span_bug!(path.span, "path resolved to refinement parameter")),
+            res: partial_res.base_res(),
             fhir_id: self.next_fhir_id(),
             segments: self.genv().alloc_slice_fill_iter(
                 path.segments[..proj_start]
@@ -1197,7 +1195,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     fn desugar_const_path_to_const_arg(
         &mut self,
         path: &surface::Path,
-        res: fhir::Res<!>,
+        res: fhir::Res,
     ) -> fhir::GenericArg<'genv> {
         let kind = self.desugar_const_path_to_const_arg_kind(path, res);
         fhir::GenericArg::Const(fhir::ConstArg { kind, span: path.span })
@@ -1206,7 +1204,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     fn desugar_const_path_to_const_arg_kind(
         &mut self,
         path: &surface::Path,
-        res: fhir::Res<!>,
+        res: fhir::Res,
     ) -> fhir::ConstArgKind {
         if let Res::Def(DefKind::ConstParam, def_id) = res {
             fhir::ConstArgKind::Param(def_id)
@@ -1433,8 +1431,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             .resolver_output()
             .expr_path_res_map
             .get(&segment.node_id)
-            .map_or(Res::Err, |r| r.expect_full_res())
-            .map_param_id(|_| bug!("segment resolved to refinement parameter"));
+            .map_or(Res::Err, |r| r.expect_full_res());
         fhir::PathSegment { ident: segment.ident, res, args: &[], constraints: &[] }
     }
 
