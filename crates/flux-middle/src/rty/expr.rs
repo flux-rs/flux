@@ -37,7 +37,7 @@ use crate::{
     rty::{
         BoundVariableKind, SortArg, SortCtor, SubsetTyCtor,
         fold::{
-            FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable,
+            TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable,
             TypeVisitable, TypeVisitor,
         },
     },
