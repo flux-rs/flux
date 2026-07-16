@@ -912,8 +912,7 @@ where
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
             match backend {
                 Backend::SmtHorn => {
-                    let path = dbg::item_dump_path(genv.tcx(), def_id, "horn.smt2");
-                    task.run_spacer(&path)
+                    task.run_spacer()
                         .unwrap_or_else(|err| tracked_span_bug!("failed to run spacer: {err}"))
                 }
                 Backend::Fixpoint(_) | Backend::Lean => {

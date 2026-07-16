@@ -397,20 +397,11 @@ impl<T: Types> Task<T> {
     }
 
     #[cfg(not(feature = "rust-fixpoint"))]
-    pub fn run_spacer(&self, path: &std::path::Path) -> io::Result<VerificationResult<T::Tag>> {
+    pub fn run_spacer(&self) -> io::Result<VerificationResult<T::Tag>> {
         use std::io::Write as IOWrite;
 
         let tags = smt_horn::smt_horn_tags(self);
         let smt_str = format!("{}", smt_horn::SmtFormatter(self));
-
-        // Dump to file
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let file = std::fs::File::create(path)?;
-        let mut writer = std::io::BufWriter::new(file);
-        writer.write_all(smt_str.as_bytes())?;
-        drop(writer);
 
         // Run z3
         let mut child = Command::new("z3")
