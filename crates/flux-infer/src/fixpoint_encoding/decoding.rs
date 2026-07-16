@@ -187,16 +187,15 @@ where
                             }
                         }
 
-                        // HACK: this is a free var generated from an existential
-                        // we got from fixpoint. We just will add enough to it so it
-                        // is likely to not conflict with exisitng free vars, but in an
-                        // ideal world we would properly add it to the fvars map and
-                        // make a fresh name for it.
-                        //
-                        // But since we just need to be consistent about the value we
-                        // give these vars, this should suffice for now --- they won't
-                        // actually appear in any solutions because we anti-unify.
-                        Ok(rty::Expr::fvar(rty::Name::from_u32(fname.as_u32() + 100_000)))
+                        // This is a free var generated from an existential we
+                        // got from fixpoint. It should be unique (previously we
+                        // had a terrible hack to add 100_000 to ensure it was
+                        // --- this should be no longer necessary; however if
+                        // there are issues with name clashes because the
+                        // uniqueness property is violated, we should probably
+                        // just add make the local var an enum and make this a
+                        // separate enumeration).
+                        Ok(rty::Expr::fvar(rty::Name::from_u32(fname.as_u32())))
                         // Err(FixpointParseError::NoLocalVar(*fname))
                     }
                     fixpoint::Var::DataCtor(adt_id, variant_idx) => {

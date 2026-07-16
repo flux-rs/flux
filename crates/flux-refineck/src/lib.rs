@@ -339,7 +339,10 @@ fn add_fn_fix_diagnostic<'a>(
 ) {
     let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()).prettify());
     let fn_sig = genv.fn_sig(wkvid.parent_fn).unwrap();
-    let mut wkvar_subst = WKVarSubst::new([(wkvid.clone(), pretty_solution)].into(), false);
+    let mut wkvar_subst = WKVarSubst::new(
+        std::iter::once((wkvid.clone(), pretty_solution)).collect::<UnordMap<_, _>>(),
+        false,
+    );
     let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
     let fixed_fn_sig_snippet = format!(
         "{:?}",

@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    ops::ControlFlow,
-};
+use std::ops::ControlFlow;
 
 use flux_middle::rty::{
     self,
@@ -10,6 +7,7 @@ use flux_middle::rty::{
     },
 };
 use itertools::Itertools;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 pub struct WKVarInstantiator<'a> {
@@ -17,14 +15,14 @@ pub struct WKVarInstantiator<'a> {
     ///
     /// In theory this could be a Vec<rty::Expr>, but the instantiator
     /// is configured right now to only return a single solution.
-    args_to_param: &'a HashMap<rty::Expr, rty::Expr>,
+    args_to_param: &'a UnordMap<rty::Expr, rty::Expr>,
     /// Set of self args
-    self_args: &'a HashSet<rty::Expr>,
+    self_args: &'a UnordSet<rty::Expr>,
     /// Were any of the self args used in the expr?
     any_self_args_used: bool,
     /// In theory, this could (and probably should) map to multiple
     /// solutions, i.e. a Vec<rty::Expr>.
-    memo: &'a mut HashMap<rty::Expr, rty::Expr>,
+    memo: &'a mut UnordMap<rty::Expr, rty::Expr>,
     current_index: DebruijnIndex,
 }
 
@@ -94,7 +92,7 @@ impl WKVarInstantiator<'_> {
         // println!("trying to instantiate {:?} using args {:?}", expr, wkvar_args);
         let expr_without_metadata = expr.erase_metadata();
         let expr_eta_expanded_rel = expr_without_metadata.expand_bin_rels();
-        let mut args_to_param = HashMap::new();
+        let mut args_to_param = UnordMap::default();
         std::iter::zip(
             // Eta reduce and erase metadata.
             wkvar_args
@@ -114,7 +112,7 @@ impl WKVarInstantiator<'_> {
             args_to_param: &args_to_param,
             self_args: &self_args,
             any_self_args_used: false,
-            memo: &mut HashMap::new(),
+            memo: &mut UnordMap::default(),
             // This remains 0 because we use it to track how to shift our params,
             // so the scope is the same.
             current_index: INNERMOST,
@@ -143,15 +141,15 @@ pub struct WKVarSubst {
     /// in whatever we folded over.
     ///
     /// In theory there should only ever be one value in this map.
-    pub subst_instantiations: HashMap<rty::WKVid, Vec<rty::Expr>>,
-    pub wkvar_instantiations: HashMap<rty::WKVid, rty::Binder<rty::Expr>>,
+    pub subst_instantiations: UnordMap<rty::WKVid, Vec<rty::Expr>>,
+    pub wkvar_instantiations: UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
     /// Keep wkvars after substituting
     pub keep_wkvars: bool,
 }
 
 impl WKVarSubst {
     pub fn new(
-        wkvar_instantiations: HashMap<rty::WKVid, rty::Binder<rty::Expr>>,
+        wkvar_instantiations: UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
         keep_wkvars: bool,
     ) -> Self {
         WKVarSubst { subst_instantiations: Default::default(), wkvar_instantiations, keep_wkvars }
@@ -188,7 +186,7 @@ struct ProductEtaExpander<'a> {
     // An expression that evalutes to the current_expr
     current_path: rty::Expr,
     // Maps an interior part of the product to its eta expansion.
-    expr_to_eta_expansion: &'a mut HashMap<rty::Expr, rty::Expr>,
+    expr_to_eta_expansion: &'a mut UnordMap<rty::Expr, rty::Expr>,
 }
 
 impl TypeVisitor for ProductEtaExpander<'_> {
@@ -244,7 +242,7 @@ impl<'a> ProductEtaExpander<'a> {
     fn eta_expand_products(
         current_path: rty::Expr,
         expr: rty::Expr,
-        expr_to_eta_expansion: &'a mut HashMap<rty::Expr, rty::Expr>,
+        expr_to_eta_expansion: &'a mut UnordMap<rty::Expr, rty::Expr>,
     ) {
         let mut expander = ProductEtaExpander { current_path, expr_to_eta_expansion };
         let _ = expr.visit_with(&mut expander);

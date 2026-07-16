@@ -1173,7 +1173,7 @@ impl WKVid {
 /// condition necessary instead of the strongest condition. Due to the way we
 /// generate these kvars (on fn_sigs, rather than during constraint generation),
 /// they also in theory are global.
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct WKVar {
     pub wkvid: WKVid,
     /// Analagous to KVar self arguments except we require that instantiations
@@ -1212,24 +1212,6 @@ pub struct WKVar {
     pub self_args: usize,
     /// All arguments with self arguments at the beginning.
     pub args: List<Expr>,
-}
-
-impl TypeVisitable for WKVar {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.wkvid.visit_with(visitor)?;
-        // NOTE: the params shouldn't need to be visited I think
-        self.args.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for WKVar {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(WKVar {
-            wkvid: self.wkvid.try_fold_with(folder)?,
-            self_args: self.self_args,
-            args: self.args.try_fold_with(folder)?,
-        })
-    }
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]

@@ -1515,7 +1515,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let ty = &env.lookup_rust_ty(genv, place).with_span(stmt_span)?;
                 let ctor = self
                     .default_refiner
-                    .refine_ty_or_base(&ty)
+                    .refine_ty_or_base(ty)
                     .with_span(stmt_span)?
                     .expect_base();
                 raw_ptr_with_size(genv, kind, ctor)
