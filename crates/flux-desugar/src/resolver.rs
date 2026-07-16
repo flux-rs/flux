@@ -17,13 +17,13 @@ use flux_syntax::{
 use hir::{ItemId, ItemKind, OwnerId, def::DefKind};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
+use flux_middle::fhir::{
+    Namespace::{self, *},
+    PerNS,
+};
 use rustc_hir::{
     self as hir, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy,
-    def::{
-        CtorOf,
-        Namespace::{self, *},
-        PerNS,
-    },
+    def::CtorOf,
     def_id::CRATE_DEF_ID,
 };
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
@@ -56,10 +56,11 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     ribs: PerNS<Vec<Rib>>,
     /// A mapping from the names of all imported crates to their [`DefId`]
     crates: UnordMap<Symbol, DefId>,
+    /// Names available everywhere: Rust builtin types plus flux's global funcs (theory funcs,
+    /// `cast`, and user-defined refinement functions) and sorts (primitive sorts and user-defined
+    /// sorts). Flux funcs live in [`Namespace::FluxFnNS`] and sorts in [`Namespace::SortNS`].
     prelude: PerNS<Rib>,
     qualifiers: UnordMap<Symbol, FluxLocalDefId>,
-    func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
-    sort_decls: UnordMap<Symbol, FluxDefId>,
     primop_props: UnordMap<Symbol, FluxDefId>,
     err: Option<ErrorGuaranteed>,
     /// The most recent module we have visited. Used to check for visibility of other items from
@@ -97,18 +98,24 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             genv,
             output: ResolverOutput::default(),
             specs,
-            ribs: PerNS { type_ns: vec![], value_ns: vec![], macro_ns: vec![] },
+            ribs: PerNS {
+                type_ns: vec![],
+                value_ns: vec![],
+                macro_ns: vec![],
+                sort_ns: vec![],
+                flux_fn_ns: vec![],
+            },
             crates: mk_crate_mapping(genv.tcx()),
             prelude: PerNS {
                 type_ns: builtin_types_rib(),
                 value_ns: Rib::new(RibKind::Normal),
                 macro_ns: Rib::new(RibKind::Normal),
+                sort_ns: prim_sorts_rib(),
+                flux_fn_ns: theory_funcs_rib(),
             },
             err: None,
             qualifiers: Default::default(),
-            func_decls: Default::default(),
             primop_props: Default::default(),
-            sort_decls: Default::default(),
             current_module: CRATE_OWNER_ID,
         }
     }
@@ -136,7 +143,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         let name = defn.name.name;
                         let def_id = FluxDefId::new(parent, name);
                         let kind = fhir::SpecFuncKind::Def(def_id);
-                        self.func_decls.insert(defn.name.name, kind);
+                        self.define_in_prelude(name, fhir::Res::GlobalFunc(kind), FluxFnNS);
                     }
                     surface::FluxItem::PrimOpProp(primop_prop) => {
                         let name = primop_prop.name.name;
@@ -146,19 +153,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     }
                     surface::FluxItem::SortDecl(sort_decl) => {
                         let def_id = FluxDefId::new(parent.def_id.to_def_id(), sort_decl.name.name);
-                        self.sort_decls.insert(sort_decl.name.name, def_id);
+                        self.define_in_prelude(
+                            sort_decl.name.name,
+                            fhir::Res::UserSort(def_id),
+                            SortNS,
+                        );
                     }
                 }
             }
         }
-
-        self.func_decls.extend_unord(
-            flux_middle::THEORY_FUNCS
-                .items()
-                .map(|(_, itf)| (itf.name, fhir::SpecFuncKind::Thy(itf.itf))),
-        );
-        self.func_decls
-            .insert(Symbol::intern("cast"), fhir::SpecFuncKind::Cast);
     }
 
     fn define_items(&mut self, item_ids: impl IntoIterator<Item = &'tcx ItemId>) {
@@ -212,7 +215,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 }
                 _ => continue,
             };
-            if let Some(ns) = def_kind.ns()
+            if let Some(ns) = def_kind.ns().map(Namespace::from)
                 && let Some(ident) = item.kind.ident()
             {
                 self.define_res_in(
@@ -265,7 +268,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         for param in generics.params {
             let def_kind = self.genv.tcx().def_kind(param.def_id);
             if let ParamName::Plain(name) = param.name
-                && let Some(ns) = def_kind.ns()
+                && let Some(ns) = def_kind.ns().map(Namespace::from)
             {
                 debug_assert!(matches!(def_kind, DefKind::TyParam | DefKind::ConstParam));
                 let param_id = self.genv.maybe_extern_id(param.def_id).resolved_id();
@@ -408,18 +411,23 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let tcx = self.genv.tcx();
         match module.kind {
             ModuleKind::Mod => {
+                // Module children are Rust items, so we only ever resolve them in a Rust namespace.
+                let rustc_ns = ns.to_rustc()?;
                 let module_id = module.def_id;
                 let current_mod = self.current_module.to_def_id();
                 visible_module_children(tcx, module_id, current_mod)
                     .find(|child| {
-                        child.res.matches_ns(ns) && tcx.hygienic_eq(ident, child.ident, current_mod)
+                        child.res.matches_ns(rustc_ns)
+                            && tcx.hygienic_eq(ident, child.ident, current_mod)
                     })
                     .and_then(|child| fhir::Res::try_from(child.res).ok())
             }
             ModuleKind::Trait => {
+                // Associated items are Rust items, so we only ever resolve them in a Rust namespace.
+                let rustc_ns = ns.to_rustc()?;
                 let trait_id = module.def_id;
                 tcx.associated_items(trait_id)
-                    .find_by_ident_and_namespace(tcx, ident, ns, trait_id)
+                    .find_by_ident_and_namespace(tcx, ident, rustc_ns, trait_id)
                     .map(|assoc| fhir::Res::Def(assoc.kind.as_def_kind(), assoc.def_id))
             }
             ModuleKind::Enum => {
@@ -799,8 +807,9 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     fn resolve_reveals(&mut self, item_id: surface::NodeId, reveal_names: &[Ident]) {
         let mut reveals = Vec::with_capacity(reveal_names.len());
         for reveal in reveal_names {
-            if let Some(spec) = self.resolver.func_decls.get(&reveal.name)
-                && let Some(def_id) = spec.def_id()
+            if let Some(fhir::Res::GlobalFunc(kind)) =
+                self.resolver.resolve_ident_with_ribs(*reveal, FluxFnNS)
+                && let Some(def_id) = kind.def_id()
             {
                 reveals.push(def_id);
             } else {
@@ -889,6 +898,45 @@ fn builtin_types_rib() -> Rib {
     }
 }
 
+/// The [`Namespace::FluxFnNS`] prelude: theory functions and `cast`. User-defined refinement
+/// functions are added on top in [`CrateResolver::define_flux_global_items`].
+fn theory_funcs_rib() -> Rib {
+    let mut rib = Rib::new(RibKind::Normal);
+    rib.bindings.extend_unord(
+        flux_middle::THEORY_FUNCS
+            .items()
+            .map(|(_, itf)| (itf.name, fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf.itf)))),
+    );
+    rib.bindings.insert(
+        Symbol::intern("cast"),
+        fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast),
+    );
+    rib
+}
+
+/// The [`Namespace::SortNS`] prelude: primitive sorts (`int`, `bool`, `Set`, `Map`, ...). User-defined
+/// sorts are added on top in [`CrateResolver::define_flux_global_items`].
+fn prim_sorts_rib() -> Rib {
+    use flux_middle::fhir::PrimSort;
+    let bindings = [
+        (sym::int, PrimSort::Int),
+        (sym::bool, PrimSort::Bool),
+        (sym::char, PrimSort::Char),
+        (sym::real, PrimSort::Real),
+        (sym::Set, PrimSort::Set),
+        (sym::Map, PrimSort::Map),
+        (sym::str, PrimSort::Str),
+        (sym::ptr, PrimSort::RawPtr),
+    ];
+    Rib {
+        kind: RibKind::Normal,
+        bindings: bindings
+            .into_iter()
+            .map(|(name, prim)| (name, fhir::Res::PrimSort(prim)))
+            .collect(),
+    }
+}
+
 fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
     let mut map = UnordMap::default();
     for cnum in tcx.crates(()) {
@@ -920,7 +968,7 @@ mod errors {
     }
 
     impl UnresolvedPath {
-        pub fn new(path: &surface::Path, ns: rustc_hir::def::Namespace) -> Self {
+        pub fn new(path: &surface::Path, ns: flux_middle::fhir::Namespace) -> Self {
             Self {
                 span: path.span,
                 path: path.segments.iter().map(|segment| segment.ident).join("::"),

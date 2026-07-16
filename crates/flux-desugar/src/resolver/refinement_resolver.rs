@@ -4,11 +4,14 @@ use flux_common::index::IndexGen;
 use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput,
-    fhir::{self, PartialRes, Res},
+    fhir::{
+        self,
+        Namespace::{FluxFnNS, SortNS, TypeNS, ValueNS},
+        PartialRes, Res,
+    },
 };
 use flux_syntax::{
     surface::{self, FluxItem, Ident, NodeId, visit::Visitor as _},
-    symbols::sym,
     walk_list,
 };
 use rustc_data_structures::{
@@ -16,10 +19,7 @@ use rustc_data_structures::{
     unord::UnordMap,
 };
 use rustc_hash::FxHashMap;
-use rustc_hir::def::{
-    DefKind,
-    Namespace::{TypeNS, ValueNS},
-};
+use rustc_hir::def::DefKind;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{ErrorGuaranteed, Symbol};
 
@@ -511,12 +511,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             self.path_res_map.insert(path.node_id, res);
             return;
         }
-        if let [segment] = &path.segments[..]
-            && let Some(res) = self.try_resolve_global_func(segment.ident)
-        {
-            self.path_res_map.insert(path.node_id, PartialRes::new(res));
-            return;
-        }
 
         self.errors.emit(errors::UnresolvedVar::from_path(path));
     }
@@ -530,10 +524,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             self.path_res_map.insert(node_id, res);
             return;
         }
-        if let Some(res) = self.try_resolve_global_func(ident) {
-            self.path_res_map.insert(node_id, PartialRes::new(res));
-            return;
-        }
         self.errors.emit(errors::UnresolvedVar::from_ident(ident));
     }
 
@@ -541,13 +531,12 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         &mut self,
         segments: &[S],
     ) -> Option<PartialRes<NodeId>> {
-        if let Some(partial_res) = self.resolver.resolve_path_with_ribs(segments, ValueNS) {
-            return Some(partial_res.map_param_id(|p| p));
+        for ns in [ValueNS, TypeNS, FluxFnNS] {
+            if let Some(partial_res) = self.resolver.resolve_path_with_ribs(segments, ns) {
+                return Some(partial_res.map_param_id(|p| p));
+            }
         }
-
-        self.resolver
-            .resolve_path_with_ribs(segments, TypeNS)
-            .map(|r| r.map_param_id(|p| p))
+        None
     }
 
     fn try_resolve_param(&mut self, ident: Ident) -> Option<Res<NodeId>> {
@@ -559,18 +548,15 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         Some(Res::Param(res.kind(), res.param_id()))
     }
 
-    fn try_resolve_global_func(&mut self, ident: Ident) -> Option<Res<NodeId>> {
-        let kind = self.resolver.func_decls.get(&ident.name)?;
-        Some(Res::GlobalFunc(*kind))
-    }
-
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
         let res = self
             .try_resolve_sort_param(path)
             .map(PartialRes::new)
             .or_else(|| self.try_resolve_sort_with_ribs(path))
-            .or_else(|| self.try_resolve_user_sort(path).map(PartialRes::new))
-            .or_else(|| self.try_resolve_prim_sort(path).map(PartialRes::new));
+            .or_else(|| {
+                self.try_resolve_sort_with_flux_ribs(path)
+                    .map(PartialRes::new)
+            });
 
         if let Some(res) = res {
             self.resolver
@@ -605,35 +591,11 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         }
     }
 
-    fn try_resolve_user_sort(&self, path: &surface::SortPath) -> Option<fhir::Res> {
+    /// Resolves a single-segment sort name against the flux sort namespace, covering both primitive
+    /// sorts (`int`, `bool`, `Set`, ...) and user-defined sorts, which live in the [`SortNS`] prelude.
+    fn try_resolve_sort_with_flux_ribs(&self, path: &surface::SortPath) -> Option<fhir::Res> {
         let [segment] = &path.segments[..] else { return None };
-        self.resolver
-            .sort_decls
-            .get(&segment.name)
-            .map(|decl| fhir::Res::UserSort(*decl))
-    }
-
-    fn try_resolve_prim_sort(&self, path: &surface::SortPath) -> Option<fhir::Res> {
-        let [segment] = &path.segments[..] else { return None };
-        if segment.name == sym::int {
-            Some(fhir::Res::PrimSort(fhir::PrimSort::Int))
-        } else if segment.name == sym::bool {
-            Some(fhir::Res::PrimSort(fhir::PrimSort::Bool))
-        } else if segment.name == sym::char {
-            Some(fhir::Res::PrimSort(fhir::PrimSort::Char))
-        } else if segment.name == sym::real {
-            Some(fhir::Res::PrimSort(fhir::PrimSort::Real))
-        } else if segment.name == sym::Set {
-            Some(fhir::Res::PrimSort(fhir::PrimSort::Set))
-        } else if segment.name == sym::Map {
-            Some(fhir::Res::PrimSort(fhir::PrimSort::Map))
-        } else if segment.name == sym::str {
-            Some(fhir::Res::PrimSort(fhir::PrimSort::Str))
-        } else if segment.name == sym::ptr {
-            Some(fhir::Res::PrimSort(fhir::PrimSort::RawPtr))
-        } else {
-            None
-        }
+        self.resolver.resolve_ident_with_ribs(*segment, SortNS)
     }
 
     pub(crate) fn finish(self) -> Result {

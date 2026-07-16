@@ -32,7 +32,7 @@ use rustc_data_structures::{
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
     FnHeader, OwnerId, ParamName, Safety,
-    def::{DefKind, Namespace},
+    def::DefKind,
     def_id::{DefId, LocalDefId},
 };
 use rustc_index::newtype_index;
@@ -738,6 +738,89 @@ pub enum ConstArgKind {
     Infer,
 }
 
+/// The namespaces flux resolves names in. This extends [`rustc_hir::def::Namespace`]'s three Rust
+/// namespaces with flux-specific ones: [`Namespace::SortNS`] for sorts and [`Namespace::FluxFnNS`]
+/// for refinement functions. Refinement functions live in their own namespace, separate from Rust's
+/// value namespace.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+pub enum Namespace {
+    TypeNS,
+    ValueNS,
+    MacroNS,
+    SortNS,
+    FluxFnNS,
+}
+
+impl Namespace {
+    /// A human-readable description, used in diagnostics.
+    pub fn descr(self) -> &'static str {
+        match self {
+            Namespace::TypeNS => "type",
+            Namespace::ValueNS => "value",
+            Namespace::MacroNS => "macro",
+            Namespace::SortNS => "sort",
+            Namespace::FluxFnNS => "function",
+        }
+    }
+
+    /// The corresponding [`rustc_hir::def::Namespace`], or `None` for the flux-only namespaces.
+    pub fn to_rustc(self) -> Option<rustc_hir::def::Namespace> {
+        match self {
+            Namespace::TypeNS => Some(rustc_hir::def::Namespace::TypeNS),
+            Namespace::ValueNS => Some(rustc_hir::def::Namespace::ValueNS),
+            Namespace::MacroNS => Some(rustc_hir::def::Namespace::MacroNS),
+            Namespace::SortNS | Namespace::FluxFnNS => None,
+        }
+    }
+}
+
+impl From<rustc_hir::def::Namespace> for Namespace {
+    fn from(ns: rustc_hir::def::Namespace) -> Self {
+        match ns {
+            rustc_hir::def::Namespace::TypeNS => Namespace::TypeNS,
+            rustc_hir::def::Namespace::ValueNS => Namespace::ValueNS,
+            rustc_hir::def::Namespace::MacroNS => Namespace::MacroNS,
+        }
+    }
+}
+
+/// Flux's analogue of [`rustc_hir::def::PerNS`], carrying one `T` per [`Namespace`] (including the
+/// flux-specific ones), indexable by [`Namespace`].
+#[derive(Debug, Clone)]
+pub struct PerNS<T> {
+    pub type_ns: T,
+    pub value_ns: T,
+    pub macro_ns: T,
+    pub sort_ns: T,
+    pub flux_fn_ns: T,
+}
+
+impl<T> std::ops::Index<Namespace> for PerNS<T> {
+    type Output = T;
+
+    fn index(&self, ns: Namespace) -> &T {
+        match ns {
+            Namespace::TypeNS => &self.type_ns,
+            Namespace::ValueNS => &self.value_ns,
+            Namespace::MacroNS => &self.macro_ns,
+            Namespace::SortNS => &self.sort_ns,
+            Namespace::FluxFnNS => &self.flux_fn_ns,
+        }
+    }
+}
+
+impl<T> std::ops::IndexMut<Namespace> for PerNS<T> {
+    fn index_mut(&mut self, ns: Namespace) -> &mut T {
+        match ns {
+            Namespace::TypeNS => &mut self.type_ns,
+            Namespace::ValueNS => &mut self.value_ns,
+            Namespace::MacroNS => &mut self.macro_ns,
+            Namespace::SortNS => &mut self.sort_ns,
+            Namespace::FluxFnNS => &mut self.flux_fn_ns,
+        }
+    }
+}
+
 /// The resolution of a path
 ///
 /// The enum contains a subset of the variants in [`rustc_hir::def::Res`] plus some extra variants
@@ -1135,18 +1218,16 @@ impl<Id> Res<Id> {
     }
 
     /// Returns `None` if this is `Res::Err`
-    ///
-    /// The sort-only variants (`PrimSort`, `SortParam`, `UserSort`) are never produced by Rust
-    /// path resolution (they only come out of the sort resolver), so they never need to flow
-    /// through the Rust module-child / `matches_ns` machinery. We return `None` for them.
     pub fn ns(&self) -> Option<Namespace> {
         match self {
-            Res::Def(kind, ..) => kind.ns(),
+            Res::Def(kind, ..) => kind.ns().map(Namespace::from),
             Res::PrimTy(..) | Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => {
                 Some(Namespace::TypeNS)
             }
-            Res::Param(..) | Res::GlobalFunc(..) => Some(Namespace::ValueNS),
-            Res::PrimSort(..) | Res::SortParam(..) | Res::UserSort(..) | Res::Err => None,
+            Res::Param(..) => Some(Namespace::ValueNS),
+            Res::GlobalFunc(..) => Some(Namespace::FluxFnNS),
+            Res::PrimSort(..) | Res::SortParam(..) | Res::UserSort(..) => Some(Namespace::SortNS),
+            Res::Err => None,
         }
     }
 
