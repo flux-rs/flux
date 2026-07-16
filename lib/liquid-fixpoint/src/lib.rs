@@ -187,10 +187,27 @@ pub struct Task<T: Types> {
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
     pub scrape_quals: bool,
-    pub solver: SmtSolver,
+    pub backend: Backend,
 }
 
-#[derive(Clone, Copy, Hash)]
+#[derive(Clone, Hash, Debug, Eq, PartialEq)]
+pub enum Backend {
+    Fixpoint(SmtSolver),
+    Lean,
+    SmtHorn,
+}
+
+impl Backend {
+    fn solver(&self) -> SmtSolver {
+        match self {
+            Backend::Fixpoint(solver) => *solver,
+            Backend::Lean => SmtSolver::Z3,
+            Backend::SmtHorn => SmtSolver::Z3,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Hash, Debug, Eq, PartialEq)]
 pub enum SmtSolver {
     Z3,
     CVC5,
@@ -352,7 +369,7 @@ impl<T: Types> Task<T> {
             .arg("--json")
             .arg("--allowho")
             .arg("--allowhoqs")
-            .arg(format!("--solver={}", self.solver))
+            .arg(format!("--solver={}", self.backend.solver()))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

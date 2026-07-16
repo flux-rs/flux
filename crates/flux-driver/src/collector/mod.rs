@@ -11,7 +11,7 @@ use flux_common::{
     result::{ErrorCollector, ResultExt},
     tracked_span_assert_eq,
 };
-use flux_config::{self as config, CHCSolver, OverflowMode, PartialInferOpts, RawDerefMode};
+use flux_config::{self as config, Backend, OverflowMode, PartialInferOpts, RawDerefMode};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::Specs;
 use flux_syntax::{
@@ -1058,7 +1058,7 @@ impl AttrMap {
         try_read_setting!(self, check_overflow, OverflowMode, infer_opts);
         try_read_setting!(self, allow_raw_deref, RawDerefMode, infer_opts);
         try_read_setting!(self, scrape_quals, bool, infer_opts);
-        try_read_setting!(self, solver, CHCSolver, infer_opts);
+        try_read_setting!(self, solver, Backend, infer_opts);
 
         if let Some((name, setting)) = self.map.iter().next() {
             return Err(errors::AttrMapErr {

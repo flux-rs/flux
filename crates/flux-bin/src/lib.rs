@@ -1,5 +1,5 @@
 use cargo_metadata::camino::Utf8Path;
-use flux_config::{CHCSolver, LeanMode, OverflowMode};
+use flux_config::{Backend, LeanMode, OverflowMode};
 use serde::Deserialize;
 
 pub mod cargo_flux_opts;
@@ -13,7 +13,7 @@ pub struct FluxMetadata {
     /// Enables fixpoint query caching. Saves cache in `target/FLUXCACHE`
     pub cache: Option<bool>,
     /// Set the default solver
-    pub solver: Option<CHCSolver>,
+    pub solver: Option<Backend>,
     /// Enable qualifier scrapping in fixpoint
     pub scrape_quals: Option<bool>,
     /// Enable overflow checking

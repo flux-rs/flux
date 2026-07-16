@@ -31,7 +31,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
-    FixpointStatus, KVarBind, SmtSolver, VerificationResult,
+    Backend, FixpointStatus, KVarBind, VerificationResult,
     parser::{FromSexp, ParseError},
     sexp::Parser,
 };
@@ -559,13 +559,6 @@ enum ConstKey<'tcx> {
     Cast(rty::Sort, rty::Sort),
 }
 
-#[derive(Clone)]
-pub enum Backend {
-    Fixpoint,
-    Lean,
-    Spacer,
-}
-
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
@@ -613,7 +606,7 @@ where
         def_id: MaybeExternId,
         constraint: fixpoint::Constraint,
         scrape_quals: bool,
-        solver: SmtSolver,
+        backend: Backend,
     ) -> QueryResult<fixpoint::Task> {
         let kvars = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
 
@@ -652,7 +645,7 @@ where
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
         #[cfg(not(feature = "rust-fixpoint"))]
-        let constants = if matches!(self.ecx.backend, Backend::Fixpoint | Backend::Spacer) {
+        let constants = if matches!(self.ecx.backend, Backend::Fixpoint(_) | Backend::SmtHorn) {
             constants
                 .into_iter()
                 .chain(fixpoint::BinRel::INEQUALITIES.into_iter().map(|rel| {
@@ -680,7 +673,7 @@ where
             constraint,
             qualifiers,
             scrape_quals,
-            solver,
+            backend,
             data_decls: self.scx.encode_data_decls(self.genv)?,
         };
 
@@ -918,12 +911,12 @@ where
         }
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
             match backend {
-                Backend::Spacer => {
+                Backend::SmtHorn => {
                     let path = dbg::item_dump_path(genv.tcx(), def_id, "horn.smt2");
                     task.run_spacer(&path)
                         .unwrap_or_else(|err| tracked_span_bug!("failed to run spacer: {err}"))
                 }
-                Backend::Fixpoint | Backend::Lean => {
+                Backend::Fixpoint(_) | Backend::Lean => {
                     task.run()
                         .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
                 }
@@ -2270,7 +2263,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                             let pred = fixpoint::Pred::Expr(e1.eq(e2));
 
                             let bind = match self.backend {
-                                Backend::Fixpoint | Backend::Spacer => {
+                                Backend::Fixpoint(_) | Backend::SmtHorn => {
                                     fixpoint::Bind {
                                         name: fixpoint::Var::Underscore,
                                         sort: fixpoint::Sort::Int,
