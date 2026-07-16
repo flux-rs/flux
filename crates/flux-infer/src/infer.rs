@@ -266,16 +266,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let backend = match self.opts.solver {
-            flux_config::Backend::Fixpoint(flux_config::SmtSolver::Z3) => {
-                Backend::Fixpoint(liquid_fixpoint::SmtSolver::Z3)
-            }
-            flux_config::Backend::Fixpoint(flux_config::SmtSolver::CVC5) => {
-                Backend::Fixpoint(liquid_fixpoint::SmtSolver::CVC5)
-            }
-            flux_config::Backend::SmtHorn => Backend::SmtHorn,
-            flux_config::Backend::Lean => tracked_span_bug!("unexpected: CHCSolver::Lean`"),
-        };
+        let backend = config_to_fixpoint_backend(self.opts.solver);
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, backend.clone());
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
@@ -1276,6 +1267,19 @@ pub enum InferErr {
 impl From<QueryErr> for InferErr {
     fn from(v: QueryErr) -> Self {
         Self::Query(v)
+    }
+}
+
+fn config_to_fixpoint_backend(solver: flux_config::Backend) -> Backend {
+    match solver {
+        flux_config::Backend::Fixpoint(flux_config::SmtSolver::Z3) => {
+            Backend::Fixpoint(liquid_fixpoint::SmtSolver::Z3)
+        }
+        flux_config::Backend::Fixpoint(flux_config::SmtSolver::CVC5) => {
+            Backend::Fixpoint(liquid_fixpoint::SmtSolver::CVC5)
+        }
+        flux_config::Backend::SmtHorn => Backend::SmtHorn,
+        flux_config::Backend::Lean => Backend::Lean,
     }
 }
 
