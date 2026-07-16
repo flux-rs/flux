@@ -245,18 +245,25 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    fn define_res_in(&mut self, name: Symbol, res: fhir::Res<surface::NodeId>, ns: Namespace) {
-        self.ribs[ns].last_mut().unwrap().bindings.insert(name, res);
+    /// Define `name` in the innermost rib of `ns`. If the rib already binds `name`, keep the existing
+    /// binding and return it.
+    fn define_res_in(
+        &mut self,
+        name: Symbol,
+        res: fhir::Res<surface::NodeId>,
+        ns: Namespace,
+    ) -> Option<fhir::Res<surface::NodeId>> {
+        match self.ribs[ns].last_mut().unwrap().bindings.entry(name) {
+            hash_map::Entry::Occupied(entry) => Some(*entry.get()),
+            hash_map::Entry::Vacant(entry) => {
+                entry.insert(res);
+                None
+            }
+        }
     }
 
     fn define_in_prelude(&mut self, name: Symbol, res: fhir::Res<surface::NodeId>, ns: Namespace) {
         self.prelude[ns].bindings.insert(name, res);
-    }
-
-    /// Look up `name` in the innermost rib of `ns`. Used by the refinement resolver to detect
-    /// duplicate refinement parameters within a single scope.
-    fn lookup_in_top_rib(&self, ns: Namespace, name: Symbol) -> Option<fhir::Res<surface::NodeId>> {
-        self.ribs[ns].last().unwrap().bindings.get(&name).copied()
     }
 
     fn push_rib(&mut self, ns: Namespace, kind: RibKind) {
@@ -371,17 +378,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             match rib.kind {
                 // A module boundary stops item resolution.
                 RibKind::Module => break,
-                // A param barrier hides refinement params bound in *enclosing* scopes, but not
-                // non-param bindings in outer scopes (e.g. flux funcs, in the prelude or eventually
-                // in module-level ribs). So skip the enclosing param ribs; the walk resumes at the
-                // next non-param rib.
-                RibKind::ParamBarrier => {
-                    ribs.take_while_ref(|rib| {
-                        matches!(rib.kind, RibKind::Param | RibKind::ParamBarrier)
-                    })
-                    .for_each(drop);
+                // A barrier hides refinement params bound in *enclosing* scopes, but not non-param
+                // bindings in outer scopes (e.g. flux funcs, in the prelude or eventually in
+                // module-level ribs). Params are the innermost ribs, bounded below by a module
+                // boundary / the prelude, so skip everything up to the next module boundary.
+                RibKind::FnInput | RibKind::Variant => {
+                    ribs.take_while_ref(|rib| !matches!(rib.kind, RibKind::Module))
+                        .for_each(drop);
                 }
-                RibKind::Normal | RibKind::Param => {}
+                _ => {}
             }
         }
         if ns == TypeNS {
@@ -646,17 +651,28 @@ enum ModuleKind {
     Enum,
 }
 
-#[derive(Debug)]
-enum RibKind {
-    /// Any other rib without extra rules.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum RibKind {
+    /// An ordinary rib searched with no special rules: Rust item bindings, the prelude, or a
+    /// miscellaneous refinement scope (i.e. one that is neither a barrier nor a target of
+    /// implicit-param gathering / binder-legality checks).
     Normal,
-    /// We pass through a module. Lookups of items should stop here.
+    /// A module boundary. Item resolution stops here.
     Module,
-    /// A refinement parameter scope (in [`Namespace::FluxFnNS`] only).
-    Param,
-    /// A refinement parameter scope that acts as a barrier: params in enclosing scopes are not
-    /// visible from inside it. See [`CrateResolver::resolve_ident_with_ribs`].
-    ParamBarrier,
+    // The remaining variants are the refinement scopes that get special treatment: each doubles as a
+    // surface-traversal scope kind driving implicit-param gathering and binder legality (see
+    // [`refinement_resolver`]), and `FnInput`/`Variant` additionally act as barriers that hide params
+    // bound in enclosing scopes (see [`CrateResolver::resolve_ident_with_ribs`]).
+    /// A function signature's inputs (arguments and `requires`). A barrier scope; `@` binders are
+    /// legal here.
+    FnInput,
+    /// A function signature's output (return type and `ensures`). `#` binders are legal here.
+    FnOutput,
+    /// An enum variant. A barrier scope; `@` binders are legal here.
+    Variant,
+    /// The input position of an `Fn`-trait bound (e.g. the `T` in `FnMut(T) -> S`). `@` binders are
+    /// legal here.
+    FnTraitInput,
 }
 
 #[derive(Debug)]
