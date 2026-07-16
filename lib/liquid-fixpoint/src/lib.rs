@@ -190,11 +190,17 @@ pub struct Task<T: Types> {
     pub backend: Backend,
 }
 
+#[derive(Clone, Copy, Hash, Debug, Eq, PartialEq)]
+pub enum BackendMode {
+    Emit,
+    Check,
+}
+
 #[derive(Clone, Hash, Debug, Eq, PartialEq)]
 pub enum Backend {
     Fixpoint(SmtSolver),
     Lean,
-    SmtHorn,
+    SmtHorn(BackendMode),
 }
 
 impl Backend {
@@ -202,7 +208,7 @@ impl Backend {
         match self {
             Backend::Fixpoint(solver) => *solver,
             Backend::Lean => SmtSolver::Z3,
-            Backend::SmtHorn => SmtSolver::Z3,
+            Backend::SmtHorn(_) => SmtSolver::Z3,
         }
     }
 }

@@ -393,12 +393,18 @@ impl fmt::Display for RawDerefMode {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum BackendMode {
+    Emit,
+    Check,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub enum Backend {
     Fixpoint(SmtSolver),
     Lean,
-    SmtHorn,
+    SmtHorn(BackendMode),
 }
 
 impl Default for Backend {
@@ -408,7 +414,7 @@ impl Default for Backend {
 }
 
 impl Backend {
-    const ERROR: &'static str = "expected one of `z3`, `cvc5`, `lean`, or `spacer`";
+    const ERROR: &'static str = "expected one of `z3`, `cvc5`, `lean`, `spacer`, or `spacer-emit`";
 }
 
 impl FromStr for Backend {
@@ -420,7 +426,8 @@ impl FromStr for Backend {
             "z3" => Ok(Backend::Fixpoint(SmtSolver::Z3)),
             "cvc5" => Ok(Backend::Fixpoint(SmtSolver::CVC5)),
             "lean" => Ok(Backend::Lean),
-            "spacer" => Ok(Backend::SmtHorn),
+            "spacer" => Ok(Backend::SmtHorn(BackendMode::Check)),
+            "spacer-emit" => Ok(Backend::SmtHorn(BackendMode::Emit)),
             _ => Err(Self::ERROR),
         }
     }
@@ -440,7 +447,8 @@ impl fmt::Display for Backend {
             Backend::Fixpoint(SmtSolver::Z3) => write!(f, "z3"),
             Backend::Fixpoint(SmtSolver::CVC5) => write!(f, "cvc5"),
             Backend::Lean => write!(f, "lean"),
-            Backend::SmtHorn => write!(f, "spacer"),
+            Backend::SmtHorn(BackendMode::Check) => write!(f, "spacer"),
+            Backend::SmtHorn(BackendMode::Emit) => write!(f, "spacer-emit"),
         }
     }
 }

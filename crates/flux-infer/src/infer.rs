@@ -1278,7 +1278,12 @@ fn config_to_fixpoint_backend(solver: flux_config::Backend) -> Backend {
         flux_config::Backend::Fixpoint(flux_config::SmtSolver::CVC5) => {
             Backend::Fixpoint(liquid_fixpoint::SmtSolver::CVC5)
         }
-        flux_config::Backend::SmtHorn => Backend::SmtHorn,
+        flux_config::Backend::SmtHorn(mode) => {
+            Backend::SmtHorn(match mode {
+                flux_config::BackendMode::Emit => liquid_fixpoint::BackendMode::Emit,
+                flux_config::BackendMode::Check => liquid_fixpoint::BackendMode::Check,
+            })
+        }
         flux_config::Backend::Lean => Backend::Lean,
     }
 }

@@ -645,7 +645,7 @@ where
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
         #[cfg(not(feature = "rust-fixpoint"))]
-        let constants = if matches!(self.ecx.backend, Backend::Fixpoint(_) | Backend::SmtHorn) {
+        let constants = if matches!(self.ecx.backend, Backend::Fixpoint(_) | Backend::SmtHorn(_)) {
             constants
                 .into_iter()
                 .chain(fixpoint::BinRel::INEQUALITIES.into_iter().map(|rel| {
@@ -911,7 +911,7 @@ where
         }
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
             match backend {
-                Backend::SmtHorn => {
+                Backend::SmtHorn(_) => {
                     task.run_spacer()
                         .unwrap_or_else(|err| tracked_span_bug!("failed to run spacer: {err}"))
                 }
@@ -2262,7 +2262,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                             let pred = fixpoint::Pred::Expr(e1.eq(e2));
 
                             let bind = match self.backend {
-                                Backend::Fixpoint(_) | Backend::SmtHorn => {
+                                Backend::Fixpoint(_) | Backend::SmtHorn(_) => {
                                     fixpoint::Bind {
                                         name: fixpoint::Var::Underscore,
                                         sort: fixpoint::Sort::Int,
