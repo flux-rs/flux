@@ -1,6 +1,6 @@
 use std::ops::ControlFlow;
 
-use flux_common::index::IndexGen;
+use flux_common::{bug, index::IndexGen};
 use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput,
@@ -15,7 +15,7 @@ use flux_syntax::{
     walk_list,
 };
 use rustc_data_structures::{
-    fx::{FxIndexMap, FxIndexSet, IndexEntry},
+    fx::{FxIndexMap, FxIndexSet},
     unord::UnordMap,
 };
 use rustc_hash::FxHashMap;
@@ -23,7 +23,7 @@ use rustc_hir::def::DefKind;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{ErrorGuaranteed, Symbol};
 
-use super::{CrateResolver, Segment};
+use super::{CrateResolver, RibKind, Segment};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -39,20 +39,6 @@ pub(crate) enum ScopeKind {
 impl ScopeKind {
     fn is_barrier(self) -> bool {
         matches!(self, ScopeKind::FnInput | ScopeKind::Variant)
-    }
-}
-
-/// Parameters used during gathering.
-#[derive(Debug, Clone, Copy)]
-struct ParamRes(fhir::ParamKind, NodeId);
-
-impl ParamRes {
-    fn kind(self) -> fhir::ParamKind {
-        self.0
-    }
-
-    fn param_id(self) -> NodeId {
-        self.1
     }
 }
 
@@ -374,17 +360,6 @@ impl ScopedVisitor for ImplicitParamCollector<'_, '_> {
     }
 }
 
-struct Scope {
-    kind: ScopeKind,
-    bindings: FxIndexMap<Ident, ParamRes>,
-}
-
-impl Scope {
-    fn new(kind: ScopeKind) -> Self {
-        Self { kind, bindings: Default::default() }
-    }
-}
-
 #[derive(Clone, Copy)]
 struct ParamDef {
     ident: Ident,
@@ -393,7 +368,6 @@ struct ParamDef {
 }
 
 pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
-    scopes: Vec<Scope>,
     sort_params: FxIndexSet<Symbol>,
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
@@ -452,7 +426,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             resolver,
             sort_params,
             param_defs: Default::default(),
-            scopes: Default::default(),
             path_res_map: Default::default(),
             errors,
         }
@@ -474,40 +447,23 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.param_defs
             .insert(param_id, ParamDef { ident, kind, scope });
 
-        let scope = self.scopes.last_mut().unwrap();
-        match scope.bindings.entry(ident) {
-            IndexEntry::Occupied(entry) => {
-                let param_def = self.param_defs[&entry.get().param_id()];
-                self.errors
-                    .emit(errors::DuplicateParam::new(param_def.ident, ident));
-            }
-            IndexEntry::Vacant(entry) => {
-                entry.insert(ParamRes(kind, param_id));
-            }
+        // Refinement params live in the innermost flux-fn-namespace rib on the crate resolver, which
+        // is always the param scope entered by the surrounding `with_scope`. Duplicate detection is
+        // per-scope, so we only check that rib.
+        if let Some(Res::Param(_, prev_id)) = self.resolver.lookup_in_top_rib(FluxFnNS, ident.name)
+        {
+            let prev_ident = self.param_defs[&prev_id].ident;
+            self.errors
+                .emit(errors::DuplicateParam::new(prev_ident, ident));
+        } else {
+            self.resolver
+                .define_res_in(ident.name, Res::Param(kind, param_id), FluxFnNS);
         }
-    }
-
-    fn find(&mut self, ident: Ident) -> Option<ParamRes> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(res) = scope.bindings.get(&ident) {
-                return Some(*res);
-            }
-
-            if scope.kind.is_barrier() {
-                return None;
-            }
-        }
-        None
     }
 
     fn resolve_path(&mut self, path: &surface::ExprPath) {
-        if let [segment] = &path.segments[..]
-            && let Some(res) = self.try_resolve_param(segment.ident)
-        {
-            self.path_res_map.insert(path.node_id, PartialRes::new(res));
-            return;
-        }
         if let Some(res) = self.try_resolve_expr_with_ribs(&path.segments) {
+            self.check_unrefined_param(res, path.segments.last().unwrap().ident);
             self.path_res_map.insert(path.node_id, res);
             return;
         }
@@ -516,36 +472,35 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_ident(&mut self, ident: Ident, node_id: NodeId) {
-        if let Some(res) = self.try_resolve_param(ident) {
-            self.path_res_map.insert(node_id, PartialRes::new(res));
-            return;
-        }
         if let Some(res) = self.try_resolve_expr_with_ribs(&[ident]) {
+            self.check_unrefined_param(res, ident);
             self.path_res_map.insert(node_id, res);
             return;
         }
         self.errors.emit(errors::UnresolvedVar::from_ident(ident));
     }
 
+    /// Emit an error if `res` resolved to a param that cannot be refined (used as an expression). The
+    /// param still resolves (shadowing any outer binding), matching the pre-rib behavior.
+    fn check_unrefined_param(&mut self, res: PartialRes<NodeId>, ident: Ident) {
+        if let Some(Res::Param(fhir::ParamKind::Error, _)) = res.full_res() {
+            self.errors.emit(errors::InvalidUnrefinedParam::new(ident));
+        }
+    }
+
     fn try_resolve_expr_with_ribs<S: Segment>(
         &mut self,
         segments: &[S],
     ) -> Option<PartialRes<NodeId>> {
-        for ns in [ValueNS, TypeNS, FluxFnNS] {
+        // Try the flux-fn namespace first so that refinement params (and then flux funcs) take
+        // precedence over Rust value/type bindings — in particular, a param shadows a Rust const of
+        // the same name.
+        for ns in [FluxFnNS, ValueNS, TypeNS] {
             if let Some(partial_res) = self.resolver.resolve_path_with_ribs(segments, ns) {
-                return Some(partial_res.map_param_id(|p| p));
+                return Some(partial_res);
             }
         }
         None
-    }
-
-    fn try_resolve_param(&mut self, ident: Ident) -> Option<Res<NodeId>> {
-        let res = self.find(ident)?;
-
-        if let fhir::ParamKind::Error = res.kind() {
-            self.errors.emit(errors::InvalidUnrefinedParam::new(ident));
-        }
-        Some(Res::Param(res.kind(), res.param_id()))
     }
 
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
@@ -559,6 +514,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             });
 
         if let Some(res) = res {
+            // Sorts never resolve to a refinement param, so we can narrow away the param id.
+            let res = res.map_param_id(|_| bug!("sort path resolved to a refinement parameter"));
             self.resolver
                 .output
                 .sort_path_res_map
@@ -568,7 +525,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         }
     }
 
-    fn try_resolve_sort_param(&self, path: &surface::SortPath) -> Option<fhir::Res> {
+    fn try_resolve_sort_param(&self, path: &surface::SortPath) -> Option<fhir::Res<NodeId>> {
         let [segment] = &path.segments[..] else { return None };
         self.sort_params
             .get_index_of(&segment.name)
@@ -577,7 +534,10 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     /// Returns `Some` only for sort-admissible shapes; this is where the "not a sort" diagnostic
     /// stays localized (`None` here means [`resolve_sort_path`] emits `UnresolvedSort`).
-    fn try_resolve_sort_with_ribs(&mut self, path: &surface::SortPath) -> Option<PartialRes> {
+    fn try_resolve_sort_with_ribs(
+        &mut self,
+        path: &surface::SortPath,
+    ) -> Option<PartialRes<NodeId>> {
         let partial_res = self
             .resolver
             .resolve_path_with_ribs(&path.segments, TypeNS)?;
@@ -593,7 +553,10 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     /// Resolves a single-segment sort name against the flux sort namespace, covering both primitive
     /// sorts (`int`, `bool`, `Set`, ...) and user-defined sorts, which live in the [`SortNS`] prelude.
-    fn try_resolve_sort_with_flux_ribs(&self, path: &surface::SortPath) -> Option<fhir::Res> {
+    fn try_resolve_sort_with_flux_ribs(
+        &self,
+        path: &surface::SortPath,
+    ) -> Option<fhir::Res<NodeId>> {
         let [segment] = &path.segments[..] else { return None };
         self.resolver.resolve_ident_with_ribs(*segment, SortNS)
     }
@@ -660,12 +623,16 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
     }
 
     fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()> {
-        self.scopes.push(Scope::new(kind));
+        // Refinement params live in the flux-fn namespace on the crate resolver's rib stack, sharing
+        // it with refinement functions (params, being inner ribs, shadow funcs). A barrier scope
+        // becomes a `RibKind::ParamBarrier` so params in enclosing scopes stay hidden.
+        let rib_kind = if kind.is_barrier() { RibKind::ParamBarrier } else { RibKind::Param };
+        self.resolver.push_rib(FluxFnNS, rib_kind);
         ControlFlow::Continue(())
     }
 
     fn exit_scope(&mut self) {
-        self.scopes.pop();
+        self.resolver.pop_rib(FluxFnNS);
     }
 
     fn on_fn_trait_input(&mut self, in_arg: &surface::GenericArg, trait_node_id: NodeId) {

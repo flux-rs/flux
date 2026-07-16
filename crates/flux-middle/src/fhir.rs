@@ -826,7 +826,7 @@ impl<T> std::ops::IndexMut<Namespace> for PerNS<T> {
 /// The enum contains a subset of the variants in [`rustc_hir::def::Res`] plus some extra variants
 /// for stuff refinements resolve to.
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
-pub enum Res<Id = !> {
+pub enum Res<Id = ParamId> {
     /// See [`rustc_hir::def::Res::Def`]
     Def(DefKind, DefId),
     /// See [`rustc_hir::def::Res::PrimTy`]
@@ -857,7 +857,7 @@ pub enum Res<Id = !> {
 
 /// See [`rustc_hir::def::PartialRes`]
 #[derive(Copy, Clone, Debug)]
-pub struct PartialRes<Id = !> {
+pub struct PartialRes<Id = ParamId> {
     base_res: Res<Id>,
     unresolved_segments: usize,
 }
