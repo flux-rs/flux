@@ -20,6 +20,7 @@ use super::{
 };
 use crate::{
     global_env::{GlobalEnv, WeakKvarInfo, WeakKvarMap},
+    def_id::ResolvedDefId,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{self, Expr, fold::TypeSuperFoldable},

@@ -1205,7 +1205,8 @@ where
                 .collect::<QueryResult<Vec<fixpoint::Expr>>>()?;
             Ok(fixpoint::Pred::Expr(fixpoint::Expr::WKVar(fixpoint::WKVar { wkvid: var, args })))
         } else {
-            // println!("WARN: Skipping encoding wkvar {:?} because it isn't in the global map", wkvar.wkvid);
+            // It's sound to replace the weak kvar with True;
+            // the only reason this should happen is if it's external.
             Ok(fixpoint::Pred::Expr(fixpoint::Expr::Constant(fixpoint::Constant::Boolean(true))))
         }
     }
@@ -2329,9 +2330,17 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     /// represent them in fixpoint as their own Expr. This is necessary to add
     /// the const declaration for the UIF.
     ///
-    /// Currently returns an Option in case weak kvars generated automatically
-    /// don't track the sorts of their arguments, but there is no reason why
-    /// they shouldn't --- we could probably unwrap the Option.
+    /// Currently returns an Option for two reasons:
+    ///
+    /// (1) In case weak kvars generated automatically don't track the sorts of
+    ///     their arguments, but there is no reason why they shouldn't.
+    ///
+    /// (2) In case we have a weak kvar from a spec external to us.
+    ///     We only will add weak kvars to specs that are available
+    ///     locally. This includes extern specs (if we can modify their
+    ///     definition).
+    ///     There is no reason we couldn't add specs to truly external
+    ///     specs, but how would the user actually change them?
     fn define_const_for_wkvar(
         &mut self,
         wkvid: &rty::WKVid,
@@ -2342,7 +2351,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             self.genv.resolve_id(wkvid.parent_fn),
             ResolvedDefId::Local(..) | ResolvedDefId::ExternSpec(..)
         ) {
-            unreachable!("should not ever trigger");
+            return None;
         }
         let key = ConstKey::WKVar(wkvid.clone(), self_args);
         let arg_sorts = self

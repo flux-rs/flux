@@ -1016,16 +1016,19 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     //   0. If suggestions are enabled.
                     //   1. There are no weak kvars already
                     //   2. The function does NOT have a `#[no_suggestions]` annotation
-                    //      in its parent.
+                    //      in its parent. (checked below)
                     #[cfg(feature = "wick")]
                     if genv.weak_kvars_for(def_id).is_none()
-                        && genv.resolve_id(def_id).as_maybe_extern().is_some()
-                        && def_id
-                            .as_local()
-                            .map(|local_id| !genv.no_suggestions(local_id))
-                            .unwrap_or(false)
                     {
-                        poly_sig = poly_sig.add_weak_kvars(genv, def_id)?;
+                        // We only will add weak kvars to specs that are
+                        // available locally (also enforced in fixpoint_encoding
+                        // --- this check is perhaps redundant).
+                        match genv.resolve_id(def_id).as_maybe_extern() {
+                            Some(maybe_extern) if !genv.no_suggestions(maybe_extern.local_id()) => {
+                                poly_sig = poly_sig.add_weak_kvars(genv, maybe_extern.local_id().into())?;
+                            }
+                            _ => {}
+                        }
                     }
                     Ok(rty::EarlyBinder(poly_sig))
                 },
