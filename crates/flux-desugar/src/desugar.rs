@@ -29,7 +29,7 @@ use hir::{ItemKind, def::DefKind};
 use itertools::{Either, Itertools};
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordSet};
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
-use rustc_hir::{self as hir, OwnerId, def::Namespace};
+use rustc_hir::{self as hir, OwnerId};
 use rustc_span::{
     DUMMY_SP, Span,
     def_id::{DefId, LocalDefId},
@@ -1175,7 +1175,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     if let Some(path) = ty.is_potential_const_arg()
                         && let Some(res) =
                             self.resolver_output().path_res_map[&path.node_id].full_res()
-                        && res.matches_ns(Namespace::ValueNS)
+                        && res.matches_ns(fhir::Namespace::ValueNS)
                     {
                         fhir_args.push(self.desugar_const_path_to_const_arg(path, res));
                         continue;
