@@ -116,7 +116,7 @@ fn const_to_z3<T: Types>(cnst: &Constant<T>) -> ast::Dynamic {
         Constant::Boolean(b) => ast::Bool::from_bool(*b).into(),
         Constant::String(strconst) => ast::String::from(strconst.display().to_string()).into(),
         Constant::BitVec(bv, size) => ast::BV::from_u64(*bv as u64, *size).into(),
-        Constant::Real(r) => {
+        Constant::Real(_) => {
             unimplemented!("real const to z3")
             // from_real_str requires num and denom
             // ast::Real::from_real_str(&r.display().to_string())
@@ -587,12 +587,16 @@ enum AllowKVars {
     NoKVars,
 }
 
+#[cfg(not(feature = "wick"))]
 fn preds_to_z3<T: Types>(
     preds: &[Pred<T>],
     env: &mut Env<T>,
     allow_kvars: AllowKVars,
 ) -> ast::Bool {
-    let bools = preds.iter().map(|p| pred_to_z3(p, env, allow_kvars)).collect_vec();
+    let bools = preds
+        .iter()
+        .map(|p| pred_to_z3(p, env, allow_kvars))
+        .collect_vec();
     let bool_refs = bools.iter().collect_vec();
     ast::Bool::and(&bool_refs)
 }

@@ -4,6 +4,7 @@ use itertools::{
     Either::{Left, Right},
     Itertools,
 };
+use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
     Assignments, BinRel, Types,

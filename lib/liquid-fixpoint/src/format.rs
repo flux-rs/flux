@@ -79,8 +79,10 @@ impl<T: Types> fmt::Display for Task<T> {
     }
 }
 
+#[cfg(not(feature = "rust-fixpoint"))]
 pub(crate) struct CompactTask<'a, T: Types>(pub &'a Task<T>);
 
+#[cfg(not(feature = "rust-fixpoint"))]
 impl<T: Types> fmt::Display for CompactTask<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_task(self.0, f, false)

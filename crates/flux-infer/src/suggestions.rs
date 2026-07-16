@@ -24,7 +24,7 @@ pub(crate) fn make_flat_constraint_map(constraint: &fixpoint::Constraint) -> Tag
             // can underapproximate it with TRUE, but if it's in head position
             // we don't know what to do.
             if let Some(tag) = flat_constraint.tag
-                && !flat_constraint.head.has_kvar()
+                && !matches!(flat_constraint.head, fixpoint::Pred::KVar(..))
             {
                 Some((tag.clone(), flat_constraint))
             } else {

@@ -695,22 +695,28 @@ impl<T: Types> Expr<T> {
         match self {
             Expr::Var(v) => subst.get(v).cloned().unwrap_or_else(|| self.clone()),
             Expr::Constant(_) | Expr::ThyFunc(_) => self.clone(),
-            Expr::App(expr, sort_args, exprs, out_sort) => Expr::App(
-                Box::new(expr.substitute(subst)),
-                sort_args.clone(),
-                exprs.iter().map(|e| e.substitute(subst)).collect_vec(),
-                out_sort.clone(),
-            ),
+            Expr::App(expr, sort_args, exprs, out_sort) => {
+                Expr::App(
+                    Box::new(expr.substitute(subst)),
+                    sort_args.clone(),
+                    exprs.iter().map(|e| e.substitute(subst)).collect_vec(),
+                    out_sort.clone(),
+                )
+            }
             Expr::Neg(expr) => Expr::Neg(Box::new(expr.substitute(subst))),
-            Expr::BinaryOp(bin_op, args) => Expr::BinaryOp(
-                *bin_op,
-                Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
-            ),
-            Expr::IfThenElse(args) => Expr::IfThenElse(Box::new([
-                args[0].substitute(subst),
-                args[1].substitute(subst),
-                args[2].substitute(subst),
-            ])),
+            Expr::BinaryOp(bin_op, args) => {
+                Expr::BinaryOp(
+                    *bin_op,
+                    Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
+                )
+            }
+            Expr::IfThenElse(args) => {
+                Expr::IfThenElse(Box::new([
+                    args[0].substitute(subst),
+                    args[1].substitute(subst),
+                    args[2].substitute(subst),
+                ]))
+            }
             Expr::And(exprs) => Expr::And(exprs.iter().map(|e| e.substitute(subst)).collect_vec()),
             Expr::Or(exprs) => Expr::Or(exprs.iter().map(|e| e.substitute(subst)).collect_vec()),
             Expr::Not(expr) => Expr::Not(Box::new(expr.substitute(subst))),
@@ -720,14 +726,18 @@ impl<T: Types> Expr<T> {
             Expr::Iff(args) => {
                 Expr::Iff(Box::new([args[0].substitute(subst), args[1].substitute(subst)]))
             }
-            Expr::Atom(bin_rel, args) => Expr::Atom(
-                *bin_rel,
-                Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
-            ),
-            Expr::Let(var, args) => Expr::Let(
-                var.clone(),
-                Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
-            ),
+            Expr::Atom(bin_rel, args) => {
+                Expr::Atom(
+                    *bin_rel,
+                    Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
+                )
+            }
+            Expr::Let(var, args) => {
+                Expr::Let(
+                    var.clone(),
+                    Box::new([args[0].substitute(subst), args[1].substitute(subst)]),
+                )
+            }
             Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.substitute(subst))),
             Expr::Quantifier(q, sorts, expr) => {
                 Expr::Quantifier(*q, sorts.clone(), Box::new(expr.substitute(subst)))
@@ -772,7 +782,14 @@ impl<T: Types> Expr<T> {
                         wkvar_args.extend(uncurried_args);
                         Expr::WKVar(WKVar { wkvid, args: wkvar_args })
                     }
-                    head => Expr::App(Box::new(head), sort_args.clone(), uncurried_args, out_sort.clone()),
+                    head => {
+                        Expr::App(
+                            Box::new(head),
+                            sort_args.clone(),
+                            uncurried_args,
+                            out_sort.clone(),
+                        )
+                    }
                 }
             }
             Expr::Constant(_) | Expr::Var(_) | Expr::ThyFunc(_) => self.clone(),
@@ -780,11 +797,13 @@ impl<T: Types> Expr<T> {
             Expr::BinaryOp(bin_op, args) => {
                 Expr::BinaryOp(*bin_op, Box::new([args[0].uncurry(), args[1].uncurry()]))
             }
-            Expr::IfThenElse(args) => Expr::IfThenElse(Box::new([
-                args[0].uncurry(),
-                args[1].uncurry(),
-                args[2].uncurry(),
-            ])),
+            Expr::IfThenElse(args) => {
+                Expr::IfThenElse(Box::new([
+                    args[0].uncurry(),
+                    args[1].uncurry(),
+                    args[2].uncurry(),
+                ]))
+            }
             Expr::And(exprs) => Expr::And(exprs.iter().map(Expr::uncurry).collect_vec()),
             Expr::Or(exprs) => Expr::Or(exprs.iter().map(Expr::uncurry).collect_vec()),
             Expr::Not(expr) => Expr::Not(Box::new(expr.uncurry())),
@@ -815,9 +834,11 @@ impl<T: Types> Expr<T> {
             return false;
         }
         match self {
-            Expr::Or(exprs) => exprs.iter().any(|expr| {
-                matches!(expr, Expr::WKVar(..)) || expr.has_wkvar_reachable_by_split()
-            }),
+            Expr::Or(exprs) => {
+                exprs.iter().any(|expr| {
+                    matches!(expr, Expr::WKVar(..)) || expr.has_wkvar_reachable_by_split()
+                })
+            }
             Expr::Quantifier(Quantifier::Exists, _sorts, expr) => {
                 !expr.wkvars_in_conj().is_empty() || expr.has_wkvar_reachable_by_split()
             }
@@ -866,35 +887,40 @@ impl<T: Types> Expr<T> {
         match self {
             Expr::Constant(_) | Expr::Var(_) | Expr::ThyFunc(_) => self.clone(),
             Expr::WKVar(..) => Expr::TRUE,
-            Expr::App(head, sort_args, args, out_sort) => Expr::App(
-                Box::new(head.strip_wkvars()),
-                sort_args.clone(),
-                args.iter().map(Expr::strip_wkvars).collect(),
-                out_sort.clone(),
-            ),
+            Expr::App(head, sort_args, args, out_sort) => {
+                Expr::App(
+                    Box::new(head.strip_wkvars()),
+                    sort_args.clone(),
+                    args.iter().map(Expr::strip_wkvars).collect(),
+                    out_sort.clone(),
+                )
+            }
             Expr::Neg(expr) => Expr::Neg(Box::new(expr.strip_wkvars())),
-            Expr::BinaryOp(bin_op, args) => Expr::BinaryOp(
-                *bin_op,
-                Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]),
-            ),
-            Expr::IfThenElse(args) => Expr::IfThenElse(Box::new([
-                args[0].strip_wkvars(),
-                args[1].strip_wkvars(),
-                args[2].strip_wkvars(),
-            ])),
+            Expr::BinaryOp(bin_op, args) => {
+                Expr::BinaryOp(*bin_op, Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]))
+            }
+            Expr::IfThenElse(args) => {
+                Expr::IfThenElse(Box::new([
+                    args[0].strip_wkvars(),
+                    args[1].strip_wkvars(),
+                    args[2].strip_wkvars(),
+                ]))
+            }
             Expr::And(exprs) => Expr::And(exprs.iter().map(Expr::strip_wkvars).collect_vec()),
             Expr::Or(exprs) => Expr::Or(exprs.iter().map(Expr::strip_wkvars).collect_vec()),
             Expr::Not(expr) => Expr::Not(Box::new(expr.strip_wkvars())),
-            Expr::Imp(args) => Expr::Imp(Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()])),
-            Expr::Iff(args) => Expr::Iff(Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()])),
-            Expr::Atom(bin_rel, args) => Expr::Atom(
-                *bin_rel,
-                Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]),
-            ),
-            Expr::Let(var, args) => Expr::Let(
-                var.clone(),
-                Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]),
-            ),
+            Expr::Imp(args) => {
+                Expr::Imp(Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]))
+            }
+            Expr::Iff(args) => {
+                Expr::Iff(Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]))
+            }
+            Expr::Atom(bin_rel, args) => {
+                Expr::Atom(*bin_rel, Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]))
+            }
+            Expr::Let(var, args) => {
+                Expr::Let(var.clone(), Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]))
+            }
             Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.strip_wkvars())),
             Expr::Quantifier(q, sorts, expr) => {
                 Expr::Quantifier(*q, sorts.clone(), Box::new(expr.strip_wkvars()))
@@ -905,7 +931,11 @@ impl<T: Types> Expr<T> {
     pub fn total_num_disjuncts(&self) -> usize {
         match self {
             Expr::Or(disjuncts) => {
-                disjuncts.len() + disjuncts.iter().map(Expr::total_num_disjuncts).sum::<usize>()
+                disjuncts.len()
+                    + disjuncts
+                        .iter()
+                        .map(Expr::total_num_disjuncts)
+                        .sum::<usize>()
             }
             Expr::And(conjuncts) => conjuncts.iter().map(Expr::total_num_disjuncts).sum(),
             _ => 0,
