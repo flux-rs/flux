@@ -22,6 +22,7 @@ use flux_syntax::{
     symbols::sym,
 };
 use hir::{ItemId, ItemKind, OwnerId, def::DefKind};
+use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
@@ -362,15 +363,25 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ident: Ident,
         ns: Namespace,
     ) -> Option<fhir::Res<surface::NodeId>> {
-        for rib in self.ribs[ns].iter().rev() {
+        let mut ribs = self.ribs[ns].iter().rev();
+        while let Some(rib) = ribs.next() {
             if let Some(res) = rib.bindings.get(&ident.name) {
                 return Some(*res);
             }
-            // A module boundary stops item resolution. A param barrier hides params in enclosing
-            // scopes; since refinement params live only in `FluxFnNS` (which has no item ribs), we
-            // can stop here and fall through to the flux-func prelude / the next namespace.
-            if matches!(rib.kind, RibKind::Module | RibKind::ParamBarrier) {
-                break;
+            match rib.kind {
+                // A module boundary stops item resolution.
+                RibKind::Module => break,
+                // A param barrier hides refinement params bound in *enclosing* scopes, but not
+                // non-param bindings in outer scopes (e.g. flux funcs, in the prelude or eventually
+                // in module-level ribs). So skip the enclosing param ribs; the walk resumes at the
+                // next non-param rib.
+                RibKind::ParamBarrier => {
+                    ribs.take_while_ref(|rib| {
+                        matches!(rib.kind, RibKind::Param | RibKind::ParamBarrier)
+                    })
+                    .for_each(drop);
+                }
+                RibKind::Normal | RibKind::Param => {}
             }
         }
         if ns == TypeNS {

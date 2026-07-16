@@ -1152,7 +1152,7 @@ pub enum Lit {
 #[derive(Clone, Copy)]
 pub struct PathExpr<'fhir> {
     pub segments: &'fhir [Ident],
-    pub res: Res<ParamId>,
+    pub res: Res,
     pub fhir_id: FhirId,
     pub span: Span,
 }
