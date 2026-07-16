@@ -398,7 +398,7 @@ impl fmt::Display for RawDerefMode {
 pub enum CHCSolver {
     Fixpoint(SmtSolver),
     Lean,
-    Spacer,
+    SmtHorn,
 }
 
 impl Default for CHCSolver {
@@ -420,7 +420,7 @@ impl FromStr for CHCSolver {
             "z3" => Ok(CHCSolver::Fixpoint(SmtSolver::Z3)),
             "cvc5" => Ok(CHCSolver::Fixpoint(SmtSolver::CVC5)),
             "lean" => Ok(CHCSolver::Lean),
-            "spacer" => Ok(CHCSolver::Spacer),
+            "spacer" => Ok(CHCSolver::SmtHorn),
             _ => Err(Self::ERROR),
         }
     }
@@ -440,7 +440,7 @@ impl fmt::Display for CHCSolver {
             CHCSolver::Fixpoint(SmtSolver::Z3) => write!(f, "z3"),
             CHCSolver::Fixpoint(SmtSolver::CVC5) => write!(f, "cvc5"),
             CHCSolver::Lean => write!(f, "lean"),
-            CHCSolver::Spacer => write!(f, "spacer"),
+            CHCSolver::SmtHorn => write!(f, "spacer"),
         }
     }
 }

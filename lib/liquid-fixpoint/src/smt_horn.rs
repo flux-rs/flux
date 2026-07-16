@@ -210,6 +210,29 @@ fn fmt_guard<T: Types>(guard: &Pred<T>, f: &mut fmt::Formatter<'_>) -> fmt::Resu
     }
 }
 
+pub fn smt_horn_tags<T: Types>(task: &Task<T>) -> Vec<T::Tag> {
+    fn collect_tags<T: Types>(constraint: &Constraint<T>, tags: &mut Vec<T::Tag>) {
+        match constraint {
+            Constraint::Pred(_, tag) => {
+                if let Some(tag) = tag {
+                    tags.push(tag.clone());
+                }
+            }
+            Constraint::Conj(cstrs) => {
+                for cstr in cstrs {
+                    collect_tags(cstr, tags);
+                }
+            }
+            Constraint::ForAll(_, body) => {
+                collect_tags(body, tags);
+            }
+        }
+    }
+    let mut tags = Vec::new();
+    collect_tags(&task.constraint, &mut tags);
+    tags
+}
+
 pub struct SmtFormatter<'a, T: Types>(pub &'a Task<T>);
 
 impl<T: Types> fmt::Display for SmtFormatter<'_, T> {

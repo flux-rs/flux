@@ -228,7 +228,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 liquid_fixpoint::SmtSolver::CVC5
             }
             flux_config::CHCSolver::Lean => liquid_fixpoint::SmtSolver::Z3,
-            flux_config::CHCSolver::Spacer => liquid_fixpoint::SmtSolver::Z3,
+            flux_config::CHCSolver::SmtHorn => liquid_fixpoint::SmtSolver::Z3,
         };
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
@@ -281,7 +281,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::CHCSolver::Fixpoint(flux_config::SmtSolver::CVC5) => {
                 (Backend::Fixpoint, liquid_fixpoint::SmtSolver::CVC5)
             }
-            flux_config::CHCSolver::Spacer => (Backend::Spacer, liquid_fixpoint::SmtSolver::Z3),
+            flux_config::CHCSolver::SmtHorn => (Backend::Spacer, liquid_fixpoint::SmtSolver::Z3),
             flux_config::CHCSolver::Lean => tracked_span_bug!("unexpected: CHCSolver::Lean`"),
         };
 
