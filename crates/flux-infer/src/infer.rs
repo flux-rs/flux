@@ -20,6 +20,7 @@ use flux_middle::{
     },
 };
 use itertools::{Itertools, izip};
+use liquid_fixpoint::Backend;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
 use rustc_middle::{
@@ -32,7 +33,7 @@ use rustc_type_ir::Variance::Invariant;
 use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{
-        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key,
+        Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key,
     },
     lean_encoding::log_proof,
     projections::NormalizeExt as _,
@@ -220,13 +221,10 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         refine_tree.replace_evars(&evars).unwrap();
         refine_tree.simplify(self.genv);
 
-        let solver = match self.opts.solver {
-            flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
-            flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
-        };
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
+        let backend = Backend::Lean;
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, backend.clone());
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
-        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
+        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
 
         log_proof(self.genv, def_id)?;
         // Skip re-generation if task is already cached (same hash → same lean files on disk).
@@ -241,7 +239,8 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         fcx.generate_lean_files(def_id, task)
     }
 
-    pub fn execute_fixpoint_query(
+    // We use this for the `fixpoint` or `SMTLIB` queries
+    pub fn execute_chc_query(
         self,
         cache: &mut FixQueryCache,
         def_id: MaybeExternId,
@@ -267,12 +266,9 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let backend = match self.opts.solver {
-            flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
-            flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
-        };
+        let backend = config_to_fixpoint_backend(self.opts.solver);
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, backend.clone());
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
 
         // skip checking trivial constraints
@@ -283,8 +279,8 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             return Ok(Answer::trivial());
         }
 
-        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
-        let result = fcx.run_task(cache, def_id, kind, &task)?;
+        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend.clone())?;
+        let result = fcx.run_task(cache, def_id, kind, &task, backend)?;
         Ok(fcx.result_to_answer(result))
     }
 
@@ -1271,6 +1267,19 @@ pub enum InferErr {
 impl From<QueryErr> for InferErr {
     fn from(v: QueryErr) -> Self {
         Self::Query(v)
+    }
+}
+
+fn config_to_fixpoint_backend(solver: flux_config::Backend) -> Backend {
+    match solver {
+        flux_config::Backend::Fixpoint(flux_config::SmtSolver::Z3) => {
+            Backend::Fixpoint(liquid_fixpoint::SmtSolver::Z3)
+        }
+        flux_config::Backend::Fixpoint(flux_config::SmtSolver::CVC5) => {
+            Backend::Fixpoint(liquid_fixpoint::SmtSolver::CVC5)
+        }
+        flux_config::Backend::SmtHorn => Backend::SmtHorn,
+        flux_config::Backend::Lean => Backend::Lean,
     }
 }
 

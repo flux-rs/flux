@@ -110,7 +110,10 @@ impl<T: Types> fmt::Display for ConstDecl<T> {
 
 impl<T: Types> fmt::Debug for Task<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
+        match self.backend {
+            crate::Backend::SmtHorn => crate::smt_horn::fmt_smt_horn(self, f),
+            _ => fmt::Display::fmt(self, f),
+        }
     }
 }
 

@@ -38,7 +38,7 @@ fn flatten_constraint<'a, T: Types>(
         Constraint::ForAll(bind, body) => {
             vars.push((&bind.name, &bind.sort));
             let guard_len = guards.len();
-            guards.extend(bind.preds.iter().filter(|a| a.is_trivially_true()));
+            guards.extend(bind.preds.iter().filter(|a| !a.is_trivially_true()));
             flatten_constraint(body, vars, guards, clauses);
             guards.truncate(guard_len);
             vars.pop();
@@ -63,6 +63,10 @@ fn flatten_constraint<'a, T: Types>(
 pub fn fmt_smt_horn<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     // Set logic
     writeln!(f, "(set-logic HORN)")?;
+    // Polymorphism hack!
+    for i in 0..5 {
+        writeln!(f, "(declare-type-var T{i})")?;
+    }
     writeln!(f)?;
 
     // Comments
@@ -204,6 +208,29 @@ fn fmt_guard<T: Types>(guard: &Pred<T>, f: &mut fmt::Formatter<'_>) -> fmt::Resu
         }
         Pred::Expr(e) => fmt_expr_smt(e, f),
     }
+}
+
+pub fn smt_horn_tags<T: Types>(task: &Task<T>) -> Vec<T::Tag> {
+    fn collect_tags<T: Types>(constraint: &Constraint<T>, tags: &mut Vec<T::Tag>) {
+        match constraint {
+            Constraint::Pred(_, tag) => {
+                if let Some(tag) = tag {
+                    tags.push(tag.clone());
+                }
+            }
+            Constraint::Conj(cstrs) => {
+                for cstr in cstrs {
+                    collect_tags(cstr, tags);
+                }
+            }
+            Constraint::ForAll(_, body) => {
+                collect_tags(body, tags);
+            }
+        }
+    }
+    let mut tags = Vec::new();
+    collect_tags(&task.constraint, &mut tags);
+    tags
 }
 
 pub struct SmtFormatter<'a, T: Types>(pub &'a Task<T>);

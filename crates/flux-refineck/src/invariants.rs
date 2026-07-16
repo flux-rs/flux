@@ -87,7 +87,7 @@ fn check_invariant(
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     let answer = infcx_root
-        .execute_fixpoint_query(cache, def_id, FixpointQueryKind::Invariant)
+        .execute_chc_query(cache, def_id, FixpointQueryKind::Invariant)
         .emit(&genv)?;
 
     if answer.errors.is_empty() {

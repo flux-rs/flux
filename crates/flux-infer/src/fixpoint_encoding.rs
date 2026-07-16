@@ -31,7 +31,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
-    FixpointStatus, KVarBind, SmtSolver, VerificationResult,
+    Backend, FixpointStatus, KVarBind, VerificationResult,
     parser::{FromSexp, ParseError},
     sexp::Parser,
 };
@@ -559,12 +559,6 @@ enum ConstKey<'tcx> {
     Cast(rty::Sort, rty::Sort),
 }
 
-#[derive(Clone)]
-pub enum Backend {
-    Fixpoint,
-    Lean,
-}
-
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
@@ -612,7 +606,7 @@ where
         def_id: MaybeExternId,
         constraint: fixpoint::Constraint,
         scrape_quals: bool,
-        solver: SmtSolver,
+        backend: Backend,
     ) -> QueryResult<fixpoint::Task> {
         let kvars = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
 
@@ -651,7 +645,7 @@ where
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
         #[cfg(not(feature = "rust-fixpoint"))]
-        let constants = if matches!(self.ecx.backend, Backend::Fixpoint) {
+        let constants = if matches!(self.ecx.backend, Backend::Fixpoint(_) | Backend::SmtHorn) {
             constants
                 .into_iter()
                 .chain(fixpoint::BinRel::INEQUALITIES.into_iter().map(|rel| {
@@ -679,7 +673,7 @@ where
             constraint,
             qualifiers,
             scrape_quals,
-            solver,
+            backend,
             data_decls: self.scx.encode_data_decls(self.genv)?,
         };
 
@@ -696,8 +690,10 @@ where
         def_id: MaybeExternId,
         kind: FixpointQueryKind,
         task: &fixpoint::Task,
+        backend: Backend,
     ) -> QueryResult<ParsedResult> {
-        let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
+        let result =
+            Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache, backend);
 
         if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
@@ -901,6 +897,7 @@ where
         def_id: DefId,
         kind: FixpointQueryKind,
         cache: &mut FixQueryCache,
+        backend: Backend,
     ) -> VerificationResult<TagIdx> {
         let key = kind.task_key(genv.tcx(), def_id);
 
@@ -913,8 +910,16 @@ where
             return result.clone();
         }
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
-            task.run()
-                .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
+            match backend {
+                Backend::SmtHorn => {
+                    task.run_spacer()
+                        .unwrap_or_else(|err| tracked_span_bug!("failed to run spacer: {err}"))
+                }
+                Backend::Fixpoint(_) | Backend::Lean => {
+                    task.run()
+                        .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
+                }
+            }
         });
 
         if config::is_cache_enabled() {
@@ -2257,7 +2262,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                             let pred = fixpoint::Pred::Expr(e1.eq(e2));
 
                             let bind = match self.backend {
-                                Backend::Fixpoint => {
+                                Backend::Fixpoint(_) | Backend::SmtHorn => {
                                     fixpoint::Bind {
                                         name: fixpoint::Var::Underscore,
                                         sort: fixpoint::Sort::Int,

@@ -119,7 +119,7 @@ pub fn smt_define_fun() -> bool {
     FLAGS.smt_define_fun
 }
 
-fn solver() -> SmtSolver {
+fn solver() -> Backend {
     FLAGS.solver
 }
 
@@ -393,6 +393,58 @@ impl fmt::Display for RawDerefMode {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(try_from = "String")]
+pub enum Backend {
+    Fixpoint(SmtSolver),
+    Lean,
+    SmtHorn,
+}
+
+impl Default for Backend {
+    fn default() -> Self {
+        Backend::Fixpoint(SmtSolver::default())
+    }
+}
+
+impl Backend {
+    const ERROR: &'static str = "expected one of `z3`, `cvc5`, `lean`, or `spacer`";
+}
+
+impl FromStr for Backend {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_ascii_lowercase();
+        match s.as_str() {
+            "z3" => Ok(Backend::Fixpoint(SmtSolver::Z3)),
+            "cvc5" => Ok(Backend::Fixpoint(SmtSolver::CVC5)),
+            "lean" => Ok(Backend::Lean),
+            "spacer" => Ok(Backend::SmtHorn),
+            _ => Err(Self::ERROR),
+        }
+    }
+}
+
+impl TryFrom<String> for Backend {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl fmt::Display for Backend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Backend::Fixpoint(SmtSolver::Z3) => write!(f, "z3"),
+            Backend::Fixpoint(SmtSolver::CVC5) => write!(f, "cvc5"),
+            Backend::Lean => write!(f, "lean"),
+            Backend::SmtHorn => write!(f, "spacer"),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
 #[serde(try_from = "String")]
 pub enum SmtSolver {
@@ -443,7 +495,7 @@ pub struct InferOpts {
     pub check_overflow: OverflowMode,
     /// Whether qualifiers should be scraped from the constraint.
     pub scrape_quals: bool,
-    pub solver: SmtSolver,
+    pub solver: Backend,
     /// Whether to allow uninterpreted casts (e.g., from some random `S` to `int`).
     pub allow_uninterpreted_cast: bool,
     /// Whether to allow raw pointer dereferences.
@@ -468,7 +520,7 @@ impl From<PartialInferOpts> for InferOpts {
 pub struct PartialInferOpts {
     pub check_overflow: Option<OverflowMode>,
     pub scrape_quals: Option<bool>,
-    pub solver: Option<SmtSolver>,
+    pub solver: Option<Backend>,
     pub allow_uninterpreted_cast: Option<bool>,
     pub allow_raw_deref: Option<RawDerefMode>,
 }

@@ -107,7 +107,7 @@ fn check_body(
             .emit(&genv)
     } else {
         let answer = infcx_root
-            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
+            .execute_chc_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
             .emit(&genv)?;
 
         let tcx = genv.tcx();
@@ -168,7 +168,7 @@ pub fn check_fn(
     {
         tracing::info!("check_fn::refine-subtyping");
         let answer = infcx_root
-            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
+            .execute_chc_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
             .emit(&genv)?;
         tracing::info!("check_fn::fixpoint-subtyping");
         let errors = answer.errors;

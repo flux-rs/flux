@@ -25,7 +25,7 @@ jobs:
       - name: Install Z3
         uses: cda-tum/setup-z3@v1.6.6
         with:
-          version: 4.12.1
+          version: 4.15.3
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.8.0
@@ -169,7 +169,7 @@ jobs:
       - name: Stamp build with commit timestamp and toolchain info
         run: |
           git log -1 --format='%ct' > ~/.flux/version
-          # use sed to parse toml because `tomllib` needs Python 3.11+, which ubuntu-22.04 
+          # use sed to parse toml because `tomllib` needs Python 3.11+, which ubuntu-22.04
           # doesn't ship. Assumes channel and components are each on a single line.
           sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
             rust-toolchain.toml > ~/.flux/toolchain-channel
