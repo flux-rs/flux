@@ -49,7 +49,7 @@ use flux_middle::{
     rty::{self, ESpan, EarlyBinder, fold::TypeFoldable},
 };
 use rustc_data_structures::{fx::FxHashMap, unord::UnordMap};
-use rustc_errors::{Applicability, Diag, Diagnostic as _, ErrorGuaranteed};
+use rustc_errors::{Applicability, Diag, ErrorGuaranteed};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_span::Span;
 
