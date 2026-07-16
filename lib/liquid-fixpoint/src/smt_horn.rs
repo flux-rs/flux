@@ -38,7 +38,7 @@ fn flatten_constraint<'a, T: Types>(
         Constraint::ForAll(bind, body) => {
             vars.push((&bind.name, &bind.sort));
             let guard_len = guards.len();
-            guards.extend(bind.preds.iter().filter(|a| a.is_trivially_true()));
+            guards.extend(bind.preds.iter().filter(|a| !a.is_trivially_true()));
             flatten_constraint(body, vars, guards, clauses);
             guards.truncate(guard_len);
             vars.pop();
