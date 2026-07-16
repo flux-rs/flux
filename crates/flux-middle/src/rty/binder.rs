@@ -11,7 +11,7 @@ use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{BoundRegionKind, TyCtxt};
-use rustc_span::Symbol;
+use rustc_span::{Span, Symbol};
 
 use super::{
     Expr, GenericArg, InferMode, RefineParam, Sort,
@@ -62,16 +62,28 @@ impl<I: IntoIterator> EarlyBinder<I> {
 }
 
 impl<T: TypeFoldable> EarlyBinder<T> {
-    pub fn instantiate(self, tcx: TyCtxt, args: &[GenericArg], refine_args: &[Expr]) -> T {
-        self.as_ref().instantiate_ref(tcx, args, refine_args)
+    pub fn instantiate(
+        self,
+        tcx: TyCtxt,
+        args: &[GenericArg],
+        refine_args: &[Expr],
+        span: Span,
+    ) -> T {
+        self.as_ref().instantiate_ref(tcx, args, refine_args, span)
     }
 }
 
 impl<T: TypeFoldable> EarlyBinder<&T> {
-    pub fn instantiate_ref(self, tcx: TyCtxt, args: &[GenericArg], refine_args: &[Expr]) -> T {
+    pub fn instantiate_ref(
+        self,
+        tcx: TyCtxt,
+        args: &[GenericArg],
+        refine_args: &[Expr],
+        span: Span,
+    ) -> T {
         self.0
             .try_fold_with(&mut subst::GenericsSubstFolder::new(
-                subst::GenericArgsDelegate(args, tcx),
+                subst::GenericArgsDelegate(args, tcx, span),
                 refine_args,
             ))
             .into_ok()

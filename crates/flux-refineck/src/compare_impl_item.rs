@@ -101,7 +101,7 @@ fn check_assoc_reft(
         .deeply_normalize(&mut infcx.at(impl_span))?;
 
     let trait_sort = infcx.genv.sort_of_assoc_reft(trait_assoc_id)?;
-    let trait_sort = trait_sort.instantiate(infcx.tcx(), &impl_trait_ref.args, &[]);
+    let trait_sort = trait_sort.instantiate(infcx.tcx(), &impl_trait_ref.args, &[], impl_span);
     let trait_sort = trait_sort.deeply_normalize(&mut infcx.at(impl_span))?;
 
     if impl_sort != trait_sort {
