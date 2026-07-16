@@ -34,8 +34,6 @@ impl<T: Types> Constraint<T> {
         if cstrs.len() == 1 { cstrs.remove(0) } else { Self::Conj(cstrs) }
     }
 
-
-
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
     /// If `!c.is_concrete` then `c` is trivially satisfiable and we can avoid calling fixpoint.
     /// Returns the number of concrete, non-trivial head predicates in the constraint.
@@ -799,7 +797,9 @@ impl<T: Types> Expr<T> {
                 Expr::Let(var.clone(), Box::new([args[0].uncurry(), args[1].uncurry()]))
             }
             Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.uncurry())),
-            Expr::Quantifier(q, sorts, expr) => Expr::Quantifier(*q, sorts.clone(), Box::new(expr.uncurry())),
+            Expr::Quantifier(q, sorts, expr) => {
+                Expr::Quantifier(*q, sorts.clone(), Box::new(expr.uncurry()))
+            }
             Expr::WKVar(WKVar { wkvid, args }) => {
                 Expr::WKVar(WKVar {
                     wkvid: wkvid.clone(),
@@ -810,7 +810,8 @@ impl<T: Types> Expr<T> {
     }
 
     pub fn has_wkvar_reachable_by_split(&self) -> bool {
-        if !matches!(self, Expr::Quantifier(Quantifier::Exists, ..) | Expr::Or(..) | Expr::And(..)) {
+        if !matches!(self, Expr::Quantifier(Quantifier::Exists, ..) | Expr::Or(..) | Expr::And(..))
+        {
             return false;
         }
         match self {
@@ -895,7 +896,9 @@ impl<T: Types> Expr<T> {
                 Box::new([args[0].strip_wkvars(), args[1].strip_wkvars()]),
             ),
             Expr::IsCtor(var, expr) => Expr::IsCtor(var.clone(), Box::new(expr.strip_wkvars())),
-            Expr::Quantifier(q, sorts, expr) => Expr::Quantifier(*q, sorts.clone(), Box::new(expr.strip_wkvars())),
+            Expr::Quantifier(q, sorts, expr) => {
+                Expr::Quantifier(*q, sorts.clone(), Box::new(expr.strip_wkvars()))
+            }
         }
     }
 

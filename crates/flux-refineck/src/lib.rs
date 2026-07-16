@@ -33,7 +33,9 @@ use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, FixpointCheckError, PossibleSolutions, SolutionTrace, TagIdx},
+    fixpoint_encoding::{
+        FixQueryCache, FixpointCheckError, PossibleSolutions, SolutionTrace, TagIdx,
+    },
     infer::{ConstrReason, SubtypeReason, Tag},
     wkvars::WKVarSubst,
 };
@@ -47,7 +49,7 @@ use flux_middle::{
     rty::{self, ESpan, EarlyBinder, fold::TypeFoldable},
 };
 use rustc_data_structures::{fx::FxHashMap, unord::UnordMap};
-use rustc_errors::{Applicability, Diagnostic as _, Diag, ErrorGuaranteed};
+use rustc_errors::{Applicability, Diag, Diagnostic as _, ErrorGuaranteed};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_span::Span;
 
@@ -198,9 +200,6 @@ pub fn check_fn(
 
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| Ok(()))
 }
-
-
-
 
 fn call_error<'a>(genv: GlobalEnv<'a, '_>, span: Span, dst_span: Option<ESpan>) -> Diag<'a> {
     genv.sess()

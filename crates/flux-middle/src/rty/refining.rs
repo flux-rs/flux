@@ -19,8 +19,8 @@ use super::{
     fold::{TypeFoldable, TypeFolder, TypeVisitable},
 };
 use crate::{
-    global_env::{GlobalEnv, WeakKvarInfo, WeakKvarMap},
     def_id::ResolvedDefId,
+    global_env::{GlobalEnv, WeakKvarInfo, WeakKvarMap},
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{self, Expr, fold::TypeSuperFoldable},

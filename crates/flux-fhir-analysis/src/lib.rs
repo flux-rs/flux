@@ -623,11 +623,7 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             // subtype for their parent trait, but for now we *will* offer them
             // as suggestions; the user can resolve issues.
             if !genv.no_suggestions(def_id.local_id())
-                && !matches!(
-                    fhir_node,
-                    fhir::Node::TraitItem(..)
-                        | fhir::Node::ForeignItem(..)
-                )
+                && !matches!(fhir_node, fhir::Node::TraitItem(..) | fhir::Node::ForeignItem(..))
             {
                 fn_sig = fn_sig.add_weak_kvars(genv, def_id.local_id().into())?;
             }

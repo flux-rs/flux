@@ -1574,8 +1574,6 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     backend: Backend,
 }
 
-
-
 #[derive(Debug)]
 pub struct SortDeps {
     pub opaque_sorts: Vec<(FluxDefId, fixpoint::SortDecl)>,
