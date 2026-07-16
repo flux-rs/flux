@@ -145,7 +145,7 @@ macro_rules! declare_types {
             pub type Bind = $crate::Bind<FixpointTypes>;
             pub type Constant = $crate::Constant<FixpointTypes>;
             pub type Pred = $crate::Pred<FixpointTypes>;
-            pub use $crate::{BinOp, BinRel, BoundVar, Quantifier, ThyFunc, WKVar};
+            pub use $crate::{BinOp, BinRel, Quantifier, ThyFunc, WKVar};
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {

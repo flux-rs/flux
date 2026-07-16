@@ -367,6 +367,12 @@ fn fmt_expr_smt<T: Types>(expr: &Expr<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
         Expr::Quantifier(..) => {
             panic!("Quantifiers are not supported in SMT/Horn format");
         }
+        // Weak kvars are internal placeholders and are not part of the Horn encoding.
+        Expr::WKVar(..) => {
+            // These could either be encoded as true (to ignore solving them)
+            // or in the same way kvars are (to solve for them)
+            panic!("Weak KVars not supported in SMT/Horn format")
+        }
     }
 }
 
