@@ -1,6 +1,6 @@
 use std::ops::ControlFlow;
 
-use flux_common::{bug, index::IndexGen};
+use flux_common::index::IndexGen;
 use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput,
@@ -462,7 +462,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         &mut self,
         segments: &[S],
     ) -> Option<PartialRes<NodeId>> {
-        // Try the flux-fn namespace first so that refinement params (and then flux funcs) take
+        // Try the refinement namespace first so that refinement params (and then flux funcs) take
         // precedence over Rust value/type bindings — in particular, a param shadows a Rust const of
         // the same name.
         for ns in [ReftNS, ValueNS, TypeNS] {
@@ -480,8 +480,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             .or_else(|| self.try_resolve_sort_in_type_ns(path));
 
         if let Some(res) = res {
-            // Sorts never resolve to a refinement param, so we can narrow away the param id.
-            let res = res.map_param_id(|_| bug!("sort path resolved to a refinement parameter"));
             self.resolver.output.path_res_map.insert(path.node_id, res);
         } else {
             self.errors.emit(errors::UnresolvedSort::new(path));

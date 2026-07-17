@@ -2,10 +2,7 @@ pub(crate) mod refinement_resolver;
 
 use std::collections::hash_map;
 
-use flux_common::{
-    bug,
-    result::{ErrorCollector, ResultExt},
-};
+use flux_common::result::{ErrorCollector, ResultExt};
 use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput, Specs,
@@ -806,10 +803,6 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
 
     fn resolve_path_in(&mut self, path: &surface::Path, ns: Namespace) {
         if let Some(partial_res) = self.resolver.resolve_path_with_ribs(&path.segments, ns) {
-            // Type/const paths are resolved before any refinement param is in scope, so they can
-            // never resolve to a param.
-            let partial_res =
-                partial_res.map_param_id(|_| bug!("type path resolved to a refinement parameter"));
             self.resolver
                 .output
                 .path_res_map
