@@ -110,8 +110,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             crates: mk_crate_mapping(genv.tcx()),
             prelude: PerNS {
                 type_ns: builtin_types_rib(),
-                value_ns: Rib::new(RibKind::Normal),
-                macro_ns: Rib::new(RibKind::Normal),
+                value_ns: Rib::new(RibKind::Misc),
+                macro_ns: Rib::new(RibKind::Misc),
                 sort_ns: prim_sorts_rib(),
                 flux_fn_ns: theory_funcs_rib(),
             },
@@ -378,11 +378,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             match rib.kind {
                 // A module boundary stops item resolution.
                 RibKind::Module => break,
-                // A barrier hides refinement params bound in *enclosing* scopes, but not non-param
-                // bindings in outer scopes (e.g. flux funcs, in the prelude or eventually in
-                // module-level ribs). Params are the innermost ribs, bounded below by a module
-                // boundary / the prelude, so skip everything up to the next module boundary.
-                RibKind::FnInput | RibKind::Variant => {
+                // A variant is a barrier that hides refinement params bound in the `refined_by` *enclosing*
+                // scope, but not other refinement bindings in other scopes (e.g. flux funcs in the parent module).
+                // FIXME: this is skipping potential names defined inside a `const _ = { ... }` or other similar
+                // "transparent modules".
+                RibKind::Variant => {
                     ribs.take_while_ref(|rib| !matches!(rib.kind, RibKind::Module))
                         .for_each(drop);
                 }
@@ -516,8 +516,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     }
 
     fn visit_block(&mut self, block: &'tcx hir::Block<'tcx>) {
-        self.push_rib(TypeNS, RibKind::Normal);
-        self.push_rib(ValueNS, RibKind::Normal);
+        self.push_rib(TypeNS, RibKind::Misc);
+        self.push_rib(ValueNS, RibKind::Misc);
 
         let item_ids = block.stmts.iter().filter_map(|stmt| {
             if let hir::StmtKind::Item(item_id) = &stmt.kind { Some(item_id) } else { None }
@@ -540,8 +540,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .maybe_extern_id(item.owner_id.def_id)
             .map(|def_id| OwnerId { def_id });
 
-        self.push_rib(TypeNS, RibKind::Normal);
-        self.push_rib(ValueNS, RibKind::Normal);
+        self.push_rib(TypeNS, RibKind::Misc);
+        self.push_rib(ValueNS, RibKind::Misc);
 
         match item.kind {
             ItemKind::Trait(..) => {
@@ -603,7 +603,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .maybe_extern_id(impl_item.owner_id.def_id)
             .map(|def_id| OwnerId { def_id });
 
-        self.push_rib(TypeNS, RibKind::Normal);
+        self.push_rib(TypeNS, RibKind::Misc);
         if let Some(item) = self.specs.get_impl_item(def_id.local_id()) {
             self.define_generics(def_id);
             self.resolve_impl_item(item, def_id)
@@ -619,7 +619,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .maybe_extern_id(trait_item.owner_id.def_id)
             .map(|def_id| OwnerId { def_id });
 
-        self.push_rib(TypeNS, RibKind::Normal);
+        self.push_rib(TypeNS, RibKind::Misc);
         if let Some(item) = self.specs.get_trait_item(def_id.local_id()) {
             self.define_generics(def_id);
             self.resolve_trait_item(item, def_id)
@@ -653,22 +653,16 @@ enum ModuleKind {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum RibKind {
-    /// An ordinary rib searched with no special rules: Rust item bindings, the prelude, or a
-    /// miscellaneous refinement scope (i.e. one that is neither a barrier nor a target of
-    /// implicit-param gathering / binder-legality checks).
-    Normal,
-    /// A module boundary. Item resolution stops here.
+    /// An rib with no special rules.
+    Misc,
+    /// A module boundary. This is a barrier for item resolution.
     Module,
-    // The remaining variants are the refinement scopes that get special treatment: each doubles as a
-    // surface-traversal scope kind driving implicit-param gathering and binder legality (see
-    // [`refinement_resolver`]), and `FnInput`/`Variant` additionally act as barriers that hide params
-    // bound in enclosing scopes (see [`CrateResolver::resolve_ident_with_ribs`]).
-    /// A function signature's inputs (arguments and `requires`). A barrier scope; `@` binders are
-    /// legal here.
+    /// A function signature's inputs (arguments and `requires`). `@` binders are legal here.
     FnInput,
     /// A function signature's output (return type and `ensures`). `#` binders are legal here.
     FnOutput,
-    /// An enum variant. A barrier scope; `@` binders are legal here.
+    /// An enum variant. `@` binders are legal here. This is a barrier scope because variants
+    /// are nested within `refined_by` params.
     Variant,
     /// The input position of an `Fn`-trait bound (e.g. the `T` in `FnMut(T) -> S`). `@` binders are
     /// legal here.
@@ -975,7 +969,7 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
 
 fn builtin_types_rib() -> Rib {
     Rib {
-        kind: RibKind::Normal,
+        kind: RibKind::Misc,
         bindings: PrimTy::ALL
             .into_iter()
             .map(|pty| (pty.name(), fhir::Res::PrimTy(pty)))
@@ -986,7 +980,7 @@ fn builtin_types_rib() -> Rib {
 /// The [`Namespace::FluxFnNS`] prelude: theory functions and `cast`. User-defined refinement
 /// functions are added on top in [`CrateResolver::define_flux_global_items`].
 fn theory_funcs_rib() -> Rib {
-    let mut rib = Rib::new(RibKind::Normal);
+    let mut rib = Rib::new(RibKind::Misc);
     rib.bindings.extend_unord(
         flux_middle::THEORY_FUNCS
             .items()
@@ -1012,7 +1006,7 @@ fn prim_sorts_rib() -> Rib {
         (sym::ptr, PrimSort::RawPtr),
     ];
     Rib {
-        kind: RibKind::Normal,
+        kind: RibKind::Misc,
         bindings: bindings
             .into_iter()
             .map(|(name, prim)| (name, fhir::Res::PrimSort(prim)))
