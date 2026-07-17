@@ -301,7 +301,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
 struct ImplicitParamCollector<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
-    path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes>,
+    path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes<NodeId>>,
     kind: RibKind,
     params: Vec<(Ident, fhir::ParamKind, NodeId)>,
 }
@@ -309,7 +309,7 @@ struct ImplicitParamCollector<'a, 'tcx> {
 impl<'a, 'tcx> ImplicitParamCollector<'a, 'tcx> {
     fn new(
         tcx: TyCtxt<'tcx>,
-        path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes>,
+        path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes<NodeId>>,
         kind: RibKind,
     ) -> Self {
         Self { tcx, path_res_map, kind, params: vec![] }
@@ -513,26 +513,26 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         // Create an `fhir::ParamId` for all parameters used in a path before iterating over
         // `param_defs` such that we can skip `fhir::ParamKind::Colon` if the param wasn't used
         for (node_id, res) in self.path_res_map {
-            let res = res.map_param_id(|param_id| {
-                *params
-                    .entry(param_id)
-                    .or_insert_with(|| param_id_gen.fresh())
-            });
             self.resolver.output.path_res_map.insert(node_id, res);
+            if let Res::Param(_, param_id) = res.base_res() {
+                params
+                    .entry(param_id)
+                    .or_insert_with(|| param_id_gen.fresh());
+            }
         }
 
         // At this point, the `params` map contains all parameters that were used in an expression,
         // so we can safely skip `ParamKind::Colon` if there's no entry for it.
-        for (param_id, param_def) in self.param_defs {
-            let name = match param_def.kind {
+        for (node_id, param_def) in self.param_defs {
+            let param_id = match param_def.kind {
                 fhir::ParamKind::Colon => {
-                    let Some(name) = params.get(&param_id) else { continue };
-                    *name
+                    let Some(param_id) = params.get(&node_id) else { continue };
+                    *param_id
                 }
                 fhir::ParamKind::Error => continue,
                 _ => {
                     params
-                        .get(&param_id)
+                        .get(&node_id)
                         .copied()
                         .unwrap_or_else(|| param_id_gen.fresh())
                 }
@@ -540,14 +540,14 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             let output = &mut self.resolver.output;
             output
                 .param_res_map
-                .insert(param_id, (name, param_def.kind));
+                .insert(node_id, (param_id, param_def.kind));
 
             if let Some(scope) = param_def.scope {
                 output
                     .implicit_params
                     .entry(scope)
                     .or_default()
-                    .push((param_def.ident, param_id));
+                    .push((param_def.ident, node_id));
             }
         }
         self.errors.to_result()
