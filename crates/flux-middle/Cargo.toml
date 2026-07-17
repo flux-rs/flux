@@ -39,4 +39,4 @@ rustc_private = true
 workspace = true
 
 [features]
-wick = []
+suggestions = []

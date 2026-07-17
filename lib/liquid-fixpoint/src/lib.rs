@@ -17,12 +17,12 @@ mod constraint;
 mod constraint_fragments;
 #[cfg(feature = "rust-fixpoint")]
 mod constraint_solving;
-#[cfg(any(feature = "rust-fixpoint", feature = "wick"))]
+#[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
 mod constraint_with_env;
-#[cfg(any(feature = "rust-fixpoint", feature = "wick"))]
+#[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
 mod cstr2smt2;
 mod format;
-#[cfg(any(feature = "rust-fixpoint", feature = "wick"))]
+#[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
 mod graph;
 pub mod parser;
 pub mod sexp;
@@ -55,7 +55,7 @@ pub type Assignments<'a, T> = HashMap<<T as Types>::KVar, Vec<(&'a Qualifier<T>,
 
 #[cfg(feature = "rust-fixpoint")]
 use crate::constraint_with_env::ConstraintWithEnv;
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 use crate::constraint_with_env::topo_sort_data_declarations;
 
 pub trait Types {
@@ -159,7 +159,7 @@ macro_rules! declare_types {
     };
 }
 
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 pub fn qe_and_simplify<T: Types>(
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
@@ -172,7 +172,7 @@ pub fn qe_and_simplify<T: Types>(
     cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
 }
 
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 pub fn check_validity<T: Types>(
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,

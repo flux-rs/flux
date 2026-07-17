@@ -47,7 +47,7 @@ use rustc_span::{DUMMY_SP, Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 use crate::suggestions::{
     find_possible_solutions, make_flat_constraint_map, subst_fixpoint_solutions,
 };
@@ -658,7 +658,7 @@ where
         // Track the number of constants before encoding function bodies, so we can detect any
         // new constants introduced during that step.
         let const_count_before_define_funs = self.ecx.const_env.const_map.len();
-        #[cfg(feature = "wick")]
+        #[cfg(feature = "suggestions")]
         let flat_constraint_map = make_flat_constraint_map(&constraint);
 
         // Encode function bodies after qualifiers/assumptions so any functions referenced there
@@ -677,7 +677,7 @@ where
         // `define-fun` bodies are included in the task.
         let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
 
-        #[cfg(feature = "wick")]
+        #[cfg(feature = "suggestions")]
         let constants_without_inequalities = constants.clone();
         // The rust fixpoint implementation does not yet support polymorphic functions.
         // For now we avoid including these by default so that cases where they are not needed can work.
@@ -721,13 +721,13 @@ where
             dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
         }
 
-        #[cfg(feature = "wick")]
+        #[cfg(feature = "suggestions")]
         let suggestion_ctx = Some(SuggestionCtxt {
             flat_constraints: flat_constraint_map,
             const_decls: constants_without_inequalities,
             data_decls,
         });
-        #[cfg(not(feature = "wick"))]
+        #[cfg(not(feature = "suggestions"))]
         let suggestion_ctx = None;
 
         Ok((task, suggestion_ctx))
@@ -744,7 +744,7 @@ where
 
         if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
-            || cfg!(feature = "wick")
+            || cfg!(feature = "suggestions")
         {
             Ok(ParsedResult {
                 status: result.status,
@@ -765,7 +765,7 @@ where
         result: ParsedResult,
         #[allow(unused)] mut suggestion_ctx: Option<SuggestionCtxt>,
     ) -> Answer<Tag> {
-        #[cfg(feature = "wick")]
+        #[cfg(feature = "suggestions")]
         suggestion_ctx.as_mut().map(|suggestion_ctx| {
             for constraint in suggestion_ctx.flat_constraints.values_mut() {
                 subst_fixpoint_solutions(constraint, &result.solution);
@@ -785,9 +785,9 @@ where
                 tags.into_iter()
                     .map(|tag_idx| {
                         let tag = self.tags[tag_idx];
-                        #[cfg(not(feature = "wick"))]
+                        #[cfg(not(feature = "suggestions"))]
                         let possible_solutions = Default::default();
-                        #[cfg(feature = "wick")]
+                        #[cfg(feature = "suggestions")]
                         let possible_solutions = if let Some(suggestion_ctx) = &suggestion_ctx {
                             find_possible_solutions(self, tag_idx, &suggestion_ctx)
                         } else {

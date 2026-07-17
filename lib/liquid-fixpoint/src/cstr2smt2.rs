@@ -1,18 +1,18 @@
 use core::panic;
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 use std::collections::HashSet;
 use std::{iter, str::FromStr, vec};
 
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 use z3::{AstKind, Goal, Tactic};
 use z3::{
     FuncDecl, SatResult, Solver, SortKind,
     ast::{self, Ast},
 };
 
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 use crate::{ConstDecl, FlatConstraint};
 #[cfg(feature = "rust-fixpoint")]
 use crate::{Constraint, Error, FixpointStatus, Stats};
@@ -100,7 +100,7 @@ impl<T: Types> Env<T> {
         self.bindings.get(name).and_then(|stack| stack.last())
     }
 
-    #[cfg(feature = "wick")]
+    #[cfg(feature = "suggestions")]
     fn rev_lookup(&self, name: &str) -> Option<&T::Var> {
         self.rev_bindings.get(name)
     }
@@ -587,7 +587,7 @@ enum AllowKVars {
     NoKVars,
 }
 
-#[cfg(not(feature = "wick"))]
+#[cfg(not(feature = "suggestions"))]
 fn preds_to_z3<T: Types>(
     preds: &[Pred<T>],
     env: &mut Env<T>,
@@ -777,7 +777,7 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
 /// fails to check this is not necessary (because otherwise fixpoint's check
 /// would have succeeded); however, if we split a constraint because of a
 /// disjunction we will want to prune branches that are already satisfied.
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 pub fn check_validity<T: Types>(
     cstr: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
@@ -818,7 +818,7 @@ pub fn check_validity<T: Types>(
     }
 }
 
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 pub fn qe_and_simplify<T: Types>(
     cstr: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
@@ -937,7 +937,7 @@ pub fn qe_and_simplify<T: Types>(
 /// in solver.
 ///
 /// Returns whether the current expression is vacuous.
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 fn prune_vacuous<T: Types>(e: &mut Expr<T>, env: &mut Env<T>, solver: &Solver) -> bool {
     match e {
         // Prune individual conjuncts with the added constraint that if _any_
@@ -1002,7 +1002,7 @@ fn prune_vacuous<T: Types>(e: &mut Expr<T>, env: &mut Env<T>, solver: &Solver) -
 }
 
 #[derive(Debug)]
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 pub enum Z3DecodeError {
     /// FIXME: (ck) For some reason Z3 dies when doing ast queries on quantifiers (at
     /// least in testing the formuals we send to it --- it's possible I've done
@@ -1030,7 +1030,7 @@ pub enum Z3DecodeError {
     FailedSanityCheck,
 }
 
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3DecodeError> {
     // println!("node: {:?}", z3);
     // println!("node sort: {:?}", z3.get_sort());
@@ -1084,7 +1084,7 @@ fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3De
     }
 }
 
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 fn z3_app_to_expr<T: Types>(
     env: &Env<T>,
     head: FuncDecl,
@@ -1203,7 +1203,7 @@ fn z3_app_to_expr<T: Types>(
     }
 }
 
-#[cfg(feature = "wick")]
+#[cfg(feature = "suggestions")]
 fn z3_const_to_expr<T: Types>(env: &Env<T>, head: FuncDecl) -> Result<Expr<T>, Z3DecodeError> {
     let head_name = head.name();
     // TODO: we should parse other constants, but I would need to

@@ -1017,7 +1017,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     //   1. There are no weak kvars already
                     //   2. The function does NOT have a `#[no_suggestions]` annotation
                     //      in its parent. (checked below)
-                    #[cfg(feature = "wick")]
+                    #[cfg(feature = "suggestions")]
                     if genv.weak_kvars_for(def_id).is_none() {
                         // We only will add weak kvars to specs that are
                         // available locally (also enforced in fixpoint_encoding
