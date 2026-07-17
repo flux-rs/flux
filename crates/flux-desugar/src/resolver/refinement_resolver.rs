@@ -14,14 +14,11 @@ use flux_syntax::{
     surface::{self, FluxItem, Ident, NodeId, visit::Visitor as _},
     walk_list,
 };
-use rustc_data_structures::{
-    fx::{FxIndexMap, FxIndexSet},
-    unord::UnordMap,
-};
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hash::FxHashMap;
 use rustc_hir::def::DefKind;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{ErrorGuaranteed, Symbol};
+use rustc_span::ErrorGuaranteed;
 
 use super::{CrateResolver, RibKind, Segment};
 
@@ -75,31 +72,31 @@ impl<V> std::ops::DerefMut for ScopedVisitorWrapper<V> {
 
 impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     fn visit_trait_assoc_reft(&mut self, assoc_reft: &surface::TraitAssocReft) {
-        self.with_scope(RibKind::Normal, |this| {
+        self.with_scope(RibKind::Misc, |this| {
             surface::visit::walk_trait_assoc_reft(this, assoc_reft);
         });
     }
 
     fn visit_impl_assoc_reft(&mut self, assoc_reft: &surface::ImplAssocReft) {
-        self.with_scope(RibKind::Normal, |this| {
+        self.with_scope(RibKind::Misc, |this| {
             surface::visit::walk_impl_assoc_reft(this, assoc_reft);
         });
     }
 
     fn visit_qualifier(&mut self, qualifier: &surface::Qualifier) {
-        self.with_scope(RibKind::Normal, |this| {
+        self.with_scope(RibKind::Misc, |this| {
             surface::visit::walk_qualifier(this, qualifier);
         });
     }
 
     fn visit_defn(&mut self, defn: &surface::SpecFunc) {
-        self.with_scope(RibKind::Normal, |this| {
+        self.with_scope(RibKind::Misc, |this| {
             surface::visit::walk_defn(this, defn);
         });
     }
 
     fn visit_primop_prop(&mut self, prop: &surface::PrimOpProp) {
-        self.with_scope(RibKind::Normal, |this| {
+        self.with_scope(RibKind::Misc, |this| {
             surface::visit::walk_primop_prop(this, prop);
         });
     }
@@ -115,19 +112,19 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 
     fn visit_ty_alias(&mut self, ty_alias: &surface::TyAlias) {
-        self.with_scope(RibKind::Normal, |this| {
+        self.with_scope(RibKind::Misc, |this| {
             surface::visit::walk_ty_alias(this, ty_alias);
         });
     }
 
     fn visit_struct_def(&mut self, struct_def: &surface::StructDef) {
-        self.with_scope(RibKind::Normal, |this| {
+        self.with_scope(RibKind::Misc, |this| {
             surface::visit::walk_struct_def(this, struct_def);
         });
     }
 
     fn visit_enum_def(&mut self, enum_def: &surface::EnumDef) {
-        self.with_scope(RibKind::Normal, |this| {
+        self.with_scope(RibKind::Misc, |this| {
             surface::visit::walk_enum_def(this, enum_def);
         });
     }
@@ -145,13 +142,13 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                 self.with_scope(RibKind::FnTraitInput, |this| {
                     this.on_fn_trait_input(in_arg, trait_ref.node_id);
                     surface::visit::walk_generic_arg(this, in_arg);
-                    this.with_scope(RibKind::Normal, |this| {
+                    this.with_scope(RibKind::Misc, |this| {
                         surface::visit::walk_generic_arg(this, out_arg);
                     });
                 });
             }
             None => {
-                self.with_scope(RibKind::Normal, |this| {
+                self.with_scope(RibKind::Misc, |this| {
                     surface::visit::walk_trait_ref(this, trait_ref);
                 });
             }
@@ -159,13 +156,13 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 
     fn visit_variant_ret(&mut self, ret: &surface::VariantRet) {
-        self.with_scope(RibKind::Normal, |this| {
+        self.with_scope(RibKind::Misc, |this| {
             surface::visit::walk_variant_ret(this, ret);
         });
     }
 
     fn visit_generics(&mut self, generics: &surface::Generics) {
-        self.with_scope(RibKind::Normal, |this| {
+        self.with_scope(RibKind::Misc, |this| {
             surface::visit::walk_generics(this, generics);
         });
     }
@@ -223,7 +220,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                 self.on_implicit_param(*ident, kind, *node_id);
             }
             surface::RefineArg::Abs(..) => {
-                self.with_scope(RibKind::Normal, |this| {
+                self.with_scope(RibKind::Misc, |this| {
                     surface::visit::walk_refine_arg(this, arg);
                 });
             }
@@ -233,7 +230,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
     fn visit_path(&mut self, path: &surface::Path) {
         for arg in &path.refine {
-            self.with_scope(RibKind::Normal, |this| this.visit_refine_arg(arg));
+            self.with_scope(RibKind::Misc, |this| this.visit_refine_arg(arg));
         }
         walk_list!(self, visit_path_segment, &path.segments);
     }
@@ -244,7 +241,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
             if is_box && i == 0 {
                 self.visit_generic_arg(arg);
             } else {
-                self.with_scope(RibKind::Normal, |this| this.visit_generic_arg(arg));
+                self.with_scope(RibKind::Misc, |this| this.visit_generic_arg(arg));
             }
         }
     }
@@ -253,7 +250,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         let node_id = ty.node_id;
         match &ty.kind {
             surface::TyKind::Exists { bind, .. } => {
-                self.with_scope(RibKind::Normal, |this| {
+                self.with_scope(RibKind::Misc, |this| {
                     let param = surface::RefineParam {
                         ident: *bind,
                         mode: None,
@@ -266,12 +263,12 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                 });
             }
             surface::TyKind::GeneralExists { .. } => {
-                self.with_scope(RibKind::Normal, |this| {
+                self.with_scope(RibKind::Misc, |this| {
                     surface::visit::walk_ty(this, ty);
                 });
             }
             surface::TyKind::Array(..) => {
-                self.with_scope(RibKind::Normal, |this| {
+                self.with_scope(RibKind::Misc, |this| {
                     surface::visit::walk_ty(this, ty);
                 });
             }
@@ -282,7 +279,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     fn visit_bty(&mut self, bty: &surface::BaseTy) {
         match &bty.kind {
             surface::BaseTyKind::Slice(_) | surface::BaseTyKind::Ptr(..) => {
-                self.with_scope(RibKind::Normal, |this| {
+                self.with_scope(RibKind::Misc, |this| {
                     surface::visit::walk_bty(this, bty);
                 });
             }
@@ -353,7 +350,6 @@ struct ParamDef {
 }
 
 pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
-    sort_params: FxIndexSet<Symbol>,
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     path_res_map: FxHashMap<NodeId, PartialRes<NodeId>>,
@@ -361,24 +357,16 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
-    fn for_flux_item(resolver: &'a mut CrateResolver<'genv, 'tcx>, item: &FluxItem) -> Self {
-        let sort_params = match item {
-            FluxItem::FuncDef(defn) => &defn.sort_vars[..],
-            FluxItem::SortDecl(sort_decl) => &sort_decl.sort_vars[..],
-            FluxItem::Qualifier(_) | FluxItem::PrimOpProp(_) => &[],
-        };
-        Self::new(resolver, sort_params.iter().map(|ident| ident.name).collect())
-    }
-
-    fn for_rust_item(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
-        Self::new(resolver, Default::default())
-    }
-
     pub(crate) fn resolve_flux_item(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         item: &FluxItem,
     ) -> Result {
-        Self::for_flux_item(resolver, item).run(|r| r.visit_flux_item(item))
+        let sort_vars = match item {
+            FluxItem::FuncDef(defn) => &defn.sort_vars[..],
+            FluxItem::SortDecl(sort_decl) => &sort_decl.sort_vars[..],
+            FluxItem::Qualifier(_) | FluxItem::PrimOpProp(_) => &[],
+        };
+        Self::new(resolver).run(sort_vars, |r| r.visit_flux_item(item))
     }
 
     pub(crate) fn resolve_item(
@@ -386,7 +374,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         item: &surface::Item,
     ) -> Result {
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_item(item))?;
-        Self::for_rust_item(resolver).run(|vis| vis.visit_item(item))
+        Self::new(resolver).run(&[], |vis| vis.visit_item(item))
     }
 
     pub(crate) fn resolve_trait_item(
@@ -394,7 +382,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         item: &surface::TraitItemFn,
     ) -> Result {
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_trait_item(item))?;
-        Self::for_rust_item(resolver).run(|vis| vis.visit_trait_item(item))
+        Self::new(resolver).run(&[], |vis| vis.visit_trait_item(item))
     }
 
     pub(crate) fn resolve_impl_item(
@@ -402,23 +390,28 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         item: &surface::ImplItemFn,
     ) -> Result {
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_impl_item(item))?;
-        Self::for_rust_item(resolver).run(|vis| vis.visit_impl_item(item))
+        Self::new(resolver).run(&[], |vis| vis.visit_impl_item(item))
     }
 
-    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, sort_params: FxIndexSet<Symbol>) -> Self {
+    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
         let errors = Errors::new(resolver.genv.sess());
-        Self {
-            resolver,
-            sort_params,
-            param_defs: Default::default(),
-            path_res_map: Default::default(),
-            errors,
-        }
+        Self { resolver, param_defs: Default::default(), path_res_map: Default::default(), errors }
     }
 
-    fn run(self, f: impl FnOnce(&mut ScopedVisitorWrapper<Self>)) -> Result {
+    fn run(self, sort_vars: &[Ident], f: impl FnOnce(&mut ScopedVisitorWrapper<Self>)) -> Result {
+        // Sort parameters live in an item-level `SortNS` rib so they resolve uniformly with primitive
+        // and user-defined sorts. Being the innermost `SortNS` rib, they shadow those. Popped in
+        // `finish`.
+        self.resolver.push_rib(SortNS, RibKind::Misc);
+        for (idx, ident) in sort_vars.iter().enumerate() {
+            self.resolver
+                .define_res_in(ident.name, Res::SortParam(idx), SortNS);
+        }
         let mut wrapper = self.wrap();
         f(&mut wrapper);
+        // Balances the `SortNS` rib pushed in `new` for this item's sort parameters.
+        wrapper.resolver.pop_rib(SortNS);
+
         wrapper.0.finish()
     }
 
@@ -461,8 +454,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.errors.emit(errors::UnresolvedVar::from_ident(ident));
     }
 
-    /// Emit an error if `res` resolved to a param that cannot be refined (used as an expression). The
-    /// param still resolves (shadowing any outer binding), matching the pre-rib behavior.
+    /// Emit an error if `res` resolved to a param that cannot be refined.
+    /// e.g., `fn(x: &mut i32) -> i32[x]`
     fn check_unrefined_param(&mut self, res: PartialRes<NodeId>, ident: Ident) {
         if let Some(Res::Param(fhir::ParamKind::Error, _)) = res.full_res() {
             self.errors.emit(errors::InvalidUnrefinedParam::new(ident));
@@ -486,13 +479,9 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
         let res = self
-            .try_resolve_sort_param(path)
-            .map(PartialRes::new)
-            .or_else(|| self.try_resolve_sort_with_ribs(path))
-            .or_else(|| {
-                self.try_resolve_sort_with_flux_ribs(path)
-                    .map(PartialRes::new)
-            });
+            .resolver
+            .resolve_path_with_ribs(&path.segments, SortNS)
+            .or_else(|| self.try_resolve_sort_in_type_ns(path));
 
         if let Some(res) = res {
             // Sorts never resolve to a refinement param, so we can narrow away the param id.
@@ -506,16 +495,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         }
     }
 
-    fn try_resolve_sort_param(&self, path: &surface::SortPath) -> Option<fhir::Res<NodeId>> {
-        let [segment] = &path.segments[..] else { return None };
-        self.sort_params
-            .get_index_of(&segment.name)
-            .map(fhir::Res::SortParam)
-    }
-
-    /// Returns `Some` only for sort-admissible shapes; this is where the "not a sort" diagnostic
-    /// stays localized (`None` here means [`resolve_sort_path`] emits `UnresolvedSort`).
-    fn try_resolve_sort_with_ribs(
+    /// Try to resolve path as a sort using the type namespace
+    fn try_resolve_sort_in_type_ns(
         &mut self,
         path: &surface::SortPath,
     ) -> Option<PartialRes<NodeId>> {
@@ -530,16 +511,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             | (fhir::Res::SelfTyAlias { .. }, 0) => Some(partial_res),
             _ => None,
         }
-    }
-
-    /// Resolves a single-segment sort name against the flux sort namespace, covering both primitive
-    /// sorts (`int`, `bool`, `Set`, ...) and user-defined sorts, which live in the [`SortNS`] prelude.
-    fn try_resolve_sort_with_flux_ribs(
-        &self,
-        path: &surface::SortPath,
-    ) -> Option<fhir::Res<NodeId>> {
-        let [segment] = &path.segments[..] else { return None };
-        self.resolver.resolve_ident_with_ribs(*segment, SortNS)
     }
 
     pub(crate) fn finish(self) -> Result {
