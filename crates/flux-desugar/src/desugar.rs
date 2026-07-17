@@ -14,7 +14,7 @@ use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     ResolverOutput,
     def_id::{FluxLocalDefId, MaybeExternId},
-    fhir::{self, FhirId, FluxOwnerId, Namespace, ParamId, QPathExpr, Res},
+    fhir::{self, FhirId, FluxOwnerId, Namespace, PartialRes, QPathExpr, Res},
     global_env::GlobalEnv,
     query_bug,
     rty::QualifierKind,
@@ -947,10 +947,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn desugar_epath(&self, path: &surface::ExprPath) -> fhir::QPathExpr<'genv> {
-        let partial_res = *self
-            .resolver_output()
-            .path_res_map
-            .get(&path.node_id)
+        let partial_res = self
+            .opt_resolve_path(path.node_id)
             .unwrap_or_else(|| span_bug!(path.span, "unresolved expr path"));
 
         let unresolved_segments = partial_res.unresolved_segments();
@@ -1003,14 +1001,27 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     #[track_caller]
-    fn desugar_loc(&self, ident: surface::Ident, node_id: NodeId) -> Result<Res<ParamId>> {
-        let partial_res = self.resolver_output().path_res_map[&node_id];
+    fn desugar_loc(&self, ident: surface::Ident, node_id: NodeId) -> Result<Res> {
+        let partial_res = self.resolve_path(node_id);
         if let Some(res @ Res::Param(fhir::ParamKind::Loc, _)) = partial_res.full_res() {
             Ok(res)
         } else {
             let span = ident.span;
             Err(self.emit(errors::InvalidLoc { span }))
         }
+    }
+
+    fn opt_resolve_path(&self, node_id: NodeId) -> Option<PartialRes> {
+        Some(
+            self.resolver_output()
+                .path_res_map
+                .get(&node_id)?
+                .map_param_id(|param_id| self.resolve_param(param_id).0),
+        )
+    }
+
+    fn resolve_path(&self, node_id: NodeId) -> PartialRes {
+        self.opt_resolve_path(node_id).unwrap()
     }
 
     #[track_caller]
@@ -1108,7 +1119,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         match sort {
             surface::BaseSort::BitVec(width) => fhir::Sort::BitVec(*width),
             surface::BaseSort::Path(surface::SortPath { segments, args, node_id }) => {
-                let res = self.resolver_output().path_res_map[node_id];
+                let res = self.resolve_path(*node_id);
 
                 // In a `RefinedBy` we resolve type parameters to a sort var
                 let res = if let fhir::Res::Def(DefKind::TyParam, def_id) = res.base_res()
@@ -1171,8 +1182,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     // If the path was resolved in the value namespace then we must create a const
                     // generic argument
                     if let Some(path) = ty.is_potential_const_arg()
-                        && let Some(res) =
-                            self.resolver_output().path_res_map[&path.node_id].full_res()
+                        && let Some(res) = self.resolve_path(path.node_id).full_res()
                         && res.matches_ns(Namespace::ValueNS)
                     {
                         fhir_args.push(self.desugar_const_path_to_const_arg(path, res));
@@ -1307,7 +1317,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let kind = match &const_arg.kind {
             surface::ConstArgKind::Lit(val) => fhir::ConstArgKind::Lit(*val),
             surface::ConstArgKind::Path(path) => {
-                let res = self.resolver_output().path_res_map[&path.node_id]
+                let res = self
+                    .resolve_path(path.node_id)
                     .full_res()
                     .unwrap_or(Res::Err);
                 self.desugar_const_path_to_const_arg_kind(path, res)
@@ -1356,7 +1367,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         } else {
             None
         };
-        let partial_res = self.resolver_output().path_res_map[&path.node_id];
+        let partial_res = self.resolve_path(path.node_id);
 
         let unresolved_segments = partial_res.unresolved_segments();
 
@@ -1415,9 +1426,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
 
     fn desugar_path_segment(&mut self, segment: &surface::PathSegment) -> fhir::PathSegment<'genv> {
         let res = self
-            .resolver_output()
-            .path_res_map
-            .get(&segment.node_id)
+            .opt_resolve_path(segment.node_id)
             .map_or(Res::Err, |r| r.expect_full_res());
         let (args, constraints) = self.desugar_generic_args(res, &segment.args);
         fhir::PathSegment { ident: segment.ident, res, args, constraints }
@@ -1428,9 +1437,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         segment: &surface::ExprPathSegment,
     ) -> fhir::PathSegment<'genv> {
         let res = self
-            .resolver_output()
-            .path_res_map
-            .get(&segment.node_id)
+            .opt_resolve_path(segment.node_id)
             .map_or(Res::Err, |r| r.expect_full_res());
         fhir::PathSegment { ident: segment.ident, res, args: &[], constraints: &[] }
     }
@@ -1621,7 +1628,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     ) -> fhir::ExprKind<'genv> {
         let path = if let Some(path) = path {
             let Some(res @ Res::Def(DefKind::Struct | DefKind::Enum, _)) =
-                self.resolver_output().path_res_map[&path.node_id].full_res()
+                self.resolve_path(path.node_id).full_res()
             else {
                 return fhir::ExprKind::Err(
                     self.emit(errors::InvalidConstructorPath { span: path.span }),

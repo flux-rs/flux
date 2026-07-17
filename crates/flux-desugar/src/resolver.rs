@@ -724,10 +724,6 @@ impl Segment for surface::PathSegment {
         segment: &Self,
         res: fhir::Res<surface::NodeId>,
     ) {
-        // Type paths are resolved by `ItemResolver`, which runs before any refinement param is in
-        // scope, so a type-path segment can never resolve to a refinement param.
-        let res =
-            res.map_param_id(|_| bug!("type path segment resolved to a refinement parameter"));
         resolver
             .output
             .path_res_map
@@ -745,15 +741,6 @@ impl Segment for surface::ExprPathSegment {
         segment: &Self,
         res: fhir::Res<surface::NodeId>,
     ) {
-        // A refinement param only ever appears as a single-segment path, and the per-segment record
-        // is never read for a resolved (0-unresolved-segments) path — `desugar_epath` uses the
-        // whole-path resolution instead. So we can safely skip recording a param segment. Every
-        // other (module/type) segment is provably not a param.
-        if matches!(res, fhir::Res::Param(..)) {
-            return;
-        }
-        let res =
-            res.map_param_id(|_| bug!("expr path segment resolved to a refinement parameter"));
         resolver
             .output
             .path_res_map
