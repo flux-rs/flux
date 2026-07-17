@@ -6,7 +6,7 @@ use flux_middle::{
     ResolverOutput,
     fhir::{
         self,
-        Namespace::{ReftNS, SortNS, TypeNS, ValueNS},
+        Namespace::{ReftNS, TypeNS, ValueNS},
         PartialRes, Res,
     },
 };
@@ -16,7 +16,6 @@ use flux_syntax::{
 };
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hash::FxHashMap;
-use rustc_hir::def::DefKind;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::ErrorGuaranteed;
 
@@ -399,14 +398,15 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 
     fn run(self, sort_vars: &[Ident], f: impl FnOnce(&mut ScopedVisitorWrapper<Self>)) -> Result {
-        self.resolver.push_rib(SortNS, RibKind::Misc);
+        // Sort variables share the type namespace with sorts/types (see [`fhir::Namespace`]).
+        self.resolver.push_rib(TypeNS, RibKind::Misc);
         for (idx, ident) in sort_vars.iter().enumerate() {
             self.resolver
-                .define_res_in(ident.name, Res::SortParam(idx), SortNS);
+                .define_res_in(ident.name, Res::SortParam(idx), TypeNS);
         }
         let mut wrapper = self.wrap();
         f(&mut wrapper);
-        wrapper.resolver.pop_rib(SortNS);
+        wrapper.resolver.pop_rib(TypeNS);
 
         wrapper.0.finish()
     }
@@ -474,34 +474,18 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
+        // Sorts resolve in the type namespace: primitive/user sorts and sort parameters live there
+        // alongside types, and any type can also denote a sort. We only report a *name* that fails
+        // to resolve here; whether the resolved item is admissible as a sort (and the corresponding
+        // diagnostic) is decided later in `conv_sort_path`, which is the single source of truth.
         let res = self
             .resolver
-            .resolve_path_with_ribs(&path.segments, SortNS)
-            .or_else(|| self.try_resolve_sort_in_type_ns(path));
-
-        if let Some(res) = res {
-            self.resolver.output.path_res_map.insert(path.node_id, res);
-        } else {
-            self.errors.emit(errors::UnresolvedSort::new(path));
-        }
-    }
-
-    /// Try to resolve path as a sort using the type namespace
-    fn try_resolve_sort_in_type_ns(
-        &mut self,
-        path: &surface::SortPath,
-    ) -> Option<PartialRes<NodeId>> {
-        let partial_res = self
-            .resolver
-            .resolve_path_with_ribs(&path.segments, TypeNS)?;
-        match (partial_res.base_res(), partial_res.unresolved_segments()) {
-            (fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, _), 0)
-            | (fhir::Res::Def(DefKind::TyParam, _), 0)
-            | (fhir::Res::SelfTyParam { .. }, 0)
-            | (fhir::Res::SelfTyParam { .. }, 1)
-            | (fhir::Res::SelfTyAlias { .. }, 0) => Some(partial_res),
-            _ => None,
-        }
+            .resolve_path_with_ribs(&path.segments, TypeNS)
+            .unwrap_or_else(|| {
+                self.errors.emit(errors::UnresolvedSort::new(path));
+                PartialRes::new(fhir::Res::Err)
+            });
+        self.resolver.output.path_res_map.insert(path.node_id, res);
     }
 
     pub(crate) fn finish(self) -> Result {

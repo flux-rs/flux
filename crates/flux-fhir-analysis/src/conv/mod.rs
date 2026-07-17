@@ -859,25 +859,27 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Int)?;
                 return Ok(rty::Sort::Int);
             }
-            (fhir::Res::PrimSort(fhir::PrimSort::Bool), 0) => {
-                self.check_prim_sort_generics(path, fhir::PrimSort::Bool)?;
-                return Ok(rty::Sort::Bool);
-            }
             (fhir::Res::PrimSort(fhir::PrimSort::Real), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Real)?;
                 return Ok(rty::Sort::Real);
             }
-            (fhir::Res::PrimSort(fhir::PrimSort::Char), 0) => {
-                self.check_prim_sort_generics(path, fhir::PrimSort::Char)?;
-                return Ok(rty::Sort::Char);
-            }
-            (fhir::Res::PrimSort(fhir::PrimSort::Str), 0) => {
-                self.check_prim_sort_generics(path, fhir::PrimSort::Str)?;
-                return Ok(rty::Sort::Str);
-            }
             (fhir::Res::PrimSort(fhir::PrimSort::RawPtr), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::RawPtr)?;
                 return Ok(rty::Sort::RawPtr);
+            }
+            // `bool`/`char`/`str` are sorts derived from the primitive *type* of the same name;
+            // they share the type namespace and so resolve to `Res::PrimTy` (see `fhir::PrimSort`).
+            (fhir::Res::PrimTy(hir::PrimTy::Bool), 0) => {
+                self.check_prim_ty_sort_generics(path, "bool")?;
+                return Ok(rty::Sort::Bool);
+            }
+            (fhir::Res::PrimTy(hir::PrimTy::Char), 0) => {
+                self.check_prim_ty_sort_generics(path, "char")?;
+                return Ok(rty::Sort::Char);
+            }
+            (fhir::Res::PrimTy(hir::PrimTy::Str), 0) => {
+                self.check_prim_ty_sort_generics(path, "str")?;
+                return Ok(rty::Sort::Str);
             }
             (fhir::Res::SortParam(n), 0) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
             (fhir::Res::Def(DefKind::TyParam, def_id), 0) => {
@@ -947,7 +949,16 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
                 rty::SortCtor::Adt(sort_def)
             }
-            _ => bug!("unexpected resolution for sort path `{path:?}`"),
+            (fhir::Res::Err, _) => return Ok(rty::Sort::Err),
+            // The path resolved, but not to something usable as a sort. This is the single place
+            // that judges sort-admissibility (the resolver only reports unresolved names).
+            _ => {
+                let err = errors::ExpectedSort::new(
+                    path.segments.last().unwrap().span,
+                    path.res.base_res().descr(),
+                );
+                return Err(self.emit(err).into());
+            }
         };
         let args = path.args.iter().map(|t| self.conv_sort(t)).try_collect()?;
 
@@ -983,6 +994,25 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 prim_sort.name_str(),
                 path.args.len(),
                 prim_sort.generics(),
+            );
+            Err(self.emit(err))?;
+        }
+        Ok(())
+    }
+
+    /// Like [`Self::check_prim_sort_generics`] but for the `bool`/`char`/`str` sorts, which are
+    /// derived from a primitive *type* rather than a [`fhir::PrimSort`] and take no generics.
+    fn check_prim_ty_sort_generics(
+        &mut self,
+        path: &fhir::SortPath<'_>,
+        name: &'static str,
+    ) -> QueryResult {
+        if !path.args.is_empty() {
+            let err = errors::GenericsOnPrimitiveSort::new(
+                path.segments.last().unwrap().span,
+                name,
+                path.args.len(),
+                0,
             );
             Err(self.emit(err))?;
         }
@@ -3064,6 +3094,21 @@ mod errors {
     impl GenericsOnPrimitiveSort {
         pub(super) fn new(span: Span, name: &'static str, found: usize, expected: usize) -> Self {
             Self { span, found, expected, name }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_expected_sort, code = E0999)]
+    pub(super) struct ExpectedSort {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: &'static str,
+    }
+
+    impl ExpectedSort {
+        pub(super) fn new(span: Span, found: &'static str) -> Self {
+            Self { span, found }
         }
     }
 

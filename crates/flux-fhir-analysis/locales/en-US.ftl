@@ -223,6 +223,10 @@ fhir_analysis_generics_on_primitive_sort =
     } but found {$found}
     .label = incorrect generics on primitive sort
 
+fhir_analysis_expected_sort =
+    expected a sort, found {$found}
+    .label = not a sort
+
 fhir_analysis_incorrect_generics_on_sort =
     sorts associated with this {$def_descr} should have {$expected ->
         [0] no generic arguments

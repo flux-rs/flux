@@ -748,8 +748,6 @@ pub enum Namespace {
     ValueNS,
     /// See [`rustc_hir::def::Namespace::MacroNS`]
     MacroNS,
-    /// The sort namespace includes primitive sorts, sort variables, and user defined sorts.
-    SortNS,
     /// The refinement namespace includes refinement functions, theory function,
     /// refinement parameters, ...
     ReftNS,
@@ -762,7 +760,6 @@ impl Namespace {
             Namespace::TypeNS => "type",
             Namespace::ValueNS => "value",
             Namespace::MacroNS => "macro",
-            Namespace::SortNS => "sort",
             Namespace::ReftNS => "value",
         }
     }
@@ -773,7 +770,7 @@ impl Namespace {
             Namespace::TypeNS => Some(rustc_hir::def::Namespace::TypeNS),
             Namespace::ValueNS => Some(rustc_hir::def::Namespace::ValueNS),
             Namespace::MacroNS => Some(rustc_hir::def::Namespace::MacroNS),
-            Namespace::SortNS | Namespace::ReftNS => None,
+            Namespace::ReftNS => None,
         }
     }
 }
@@ -795,7 +792,6 @@ pub struct PerNS<T> {
     pub type_ns: T,
     pub value_ns: T,
     pub macro_ns: T,
-    pub sort_ns: T,
     pub flux_fn_ns: T,
 }
 
@@ -807,7 +803,6 @@ impl<T> std::ops::Index<Namespace> for PerNS<T> {
             Namespace::TypeNS => &self.type_ns,
             Namespace::ValueNS => &self.value_ns,
             Namespace::MacroNS => &self.macro_ns,
-            Namespace::SortNS => &self.sort_ns,
             Namespace::ReftNS => &self.flux_fn_ns,
         }
     }
@@ -819,7 +814,6 @@ impl<T> std::ops::IndexMut<Namespace> for PerNS<T> {
             Namespace::TypeNS => &mut self.type_ns,
             Namespace::ValueNS => &mut self.value_ns,
             Namespace::MacroNS => &mut self.macro_ns,
-            Namespace::SortNS => &mut self.sort_ns,
             Namespace::ReftNS => &mut self.flux_fn_ns,
         }
     }
@@ -978,15 +972,19 @@ impl InferMode {
     }
 }
 
+/// A primitive sort that has no backing Rust type.
+///
+/// Quirk: `bool`, `char`, and `str` are primitive sorts too, but they share their name with the
+/// corresponding Rust primitive *type*. Since sorts and types are resolved in the same
+/// ([`Namespace::TypeNS`]) namespace, those names resolve to [`Res::PrimTy`] and their sort is
+/// derived from the type in `conv_sort_path`. They are therefore intentionally absent here. The
+/// integer/float `PrimTy`s (`i32`, `f64`, ...) are *not* sorts (only `int`/`real` are).
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum PrimSort {
     Int,
-    Bool,
-    Char,
     Real,
     Set,
     Map,
-    Str,
     RawPtr,
 }
 
@@ -994,9 +992,6 @@ impl PrimSort {
     pub fn name_str(self) -> &'static str {
         match self {
             PrimSort::Int => "int",
-            PrimSort::Str => "str",
-            PrimSort::Bool => "bool",
-            PrimSort::Char => "char",
             PrimSort::Real => "real",
             PrimSort::Set => "Set",
             PrimSort::Map => "Map",
@@ -1007,12 +1002,7 @@ impl PrimSort {
     /// Number of generics expected by this primitive sort
     pub fn generics(self) -> usize {
         match self {
-            PrimSort::Int
-            | PrimSort::Bool
-            | PrimSort::Real
-            | PrimSort::Char
-            | PrimSort::Str
-            | PrimSort::RawPtr => 0,
+            PrimSort::Int | PrimSort::Real | PrimSort::RawPtr => 0,
             PrimSort::Set => 1,
             PrimSort::Map => 2,
         }
@@ -1230,7 +1220,9 @@ impl<Id> Res<Id> {
             }
             Res::Param(..) => Some(Namespace::ValueNS),
             Res::GlobalFunc(..) => Some(Namespace::ReftNS),
-            Res::PrimSort(..) | Res::SortParam(..) | Res::UserSort(..) => Some(Namespace::SortNS),
+            // Sorts share the type namespace: primitive/user sorts live in the type prelude and
+            // sort parameters in the type ribs, so they resolve through `TypeNS` alongside types.
+            Res::PrimSort(..) | Res::SortParam(..) | Res::UserSort(..) => Some(Namespace::TypeNS),
             Res::Err => None,
         }
     }

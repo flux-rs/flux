@@ -100,7 +100,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 type_ns: vec![],
                 value_ns: vec![],
                 macro_ns: vec![],
-                sort_ns: vec![],
                 flux_fn_ns: vec![],
             },
             crates: mk_crate_mapping(genv.tcx()),
@@ -108,7 +107,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 type_ns: builtin_types_rib(),
                 value_ns: Rib::new(RibKind::Misc),
                 macro_ns: Rib::new(RibKind::Misc),
-                sort_ns: prim_sorts_rib(),
                 flux_fn_ns: theory_funcs_rib(),
             },
             err: None,
@@ -154,7 +152,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         self.define_in_prelude(
                             sort_decl.name.name,
                             fhir::Res::UserSort(def_id),
-                            SortNS,
+                            TypeNS,
                         );
                     }
                 }
@@ -946,14 +944,25 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
     }
 }
 
+/// The [`Namespace::TypeNS`] prelude: builtin Rust types (`bool`, `i32`, `str`, ...) together with
+/// the sort-only primitive sorts (`int`, `real`, `Set`, `Map`, `ptr`). Sorts and types share the
+/// type namespace; `bool`/`char`/`str` are resolved as [`fhir::Res::PrimTy`] and their sort is
+/// derived in `conv_sort_path` (see [`fhir::PrimSort`]).
 fn builtin_types_rib() -> Rib {
-    Rib {
-        kind: RibKind::Misc,
-        bindings: PrimTy::ALL
-            .into_iter()
-            .map(|pty| (pty.name(), fhir::Res::PrimTy(pty)))
-            .collect(),
-    }
+    use flux_middle::fhir::PrimSort;
+    let types = PrimTy::ALL
+        .into_iter()
+        .map(|pty| (pty.name(), fhir::Res::PrimTy(pty)));
+    let prim_sorts = [
+        (sym::int, PrimSort::Int),
+        (sym::real, PrimSort::Real),
+        (sym::Set, PrimSort::Set),
+        (sym::Map, PrimSort::Map),
+        (sym::ptr, PrimSort::RawPtr),
+    ]
+    .into_iter()
+    .map(|(name, prim)| (name, fhir::Res::PrimSort(prim)));
+    Rib { kind: RibKind::Misc, bindings: types.chain(prim_sorts).collect() }
 }
 
 /// The [`Namespace::ReftNS`] prelude: theory functions and `cast`.
@@ -967,28 +976,6 @@ fn theory_funcs_rib() -> Rib {
     rib.bindings
         .insert(sym::cast, fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast));
     rib
-}
-
-/// The [`Namespace::SortNS`] prelude: primitive sorts (`int`, `bool`, `Set`, `Map`, ...).
-fn prim_sorts_rib() -> Rib {
-    use flux_middle::fhir::PrimSort;
-    let bindings = [
-        (sym::int, PrimSort::Int),
-        (sym::bool, PrimSort::Bool),
-        (sym::char, PrimSort::Char),
-        (sym::real, PrimSort::Real),
-        (sym::Set, PrimSort::Set),
-        (sym::Map, PrimSort::Map),
-        (sym::str, PrimSort::Str),
-        (sym::ptr, PrimSort::RawPtr),
-    ];
-    Rib {
-        kind: RibKind::Misc,
-        bindings: bindings
-            .into_iter()
-            .map(|(name, prim)| (name, fhir::Res::PrimSort(prim)))
-            .collect(),
-    }
 }
 
 fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
