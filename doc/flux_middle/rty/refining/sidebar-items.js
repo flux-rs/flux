@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["refine_bound_variables","refine_default","refine_generic_param_def","refine_generic_param_def_kind","refine_generics"],"struct":["Refiner"],"trait":["Refine"]};
+window.SIDEBAR_ITEMS = {"fn":["make_vars_and_sorts_from_bound_vars","make_weak_kvar","refine_bound_variables","refine_default","refine_generic_param_def","refine_generic_param_def_kind","refine_generics","shift_in_vars","shift_out_vars"],"struct":["Refiner","WeakKVarInserter"],"trait":["Refine"]};

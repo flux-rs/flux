@@ -1515,7 +1515,7 @@
 <a href=#1515 id=1515 data-nosnippet>1515</a>                </span><span class="kw">let </span>ty = <span class="kw-2">&amp;</span>env.lookup_rust_ty(genv, place).with_span(stmt_span)<span class="question-mark">?</span>;
 <a href=#1516 id=1516 data-nosnippet>1516</a>                <span class="kw">let </span>ctor = <span class="self">self
 <a href=#1517 id=1517 data-nosnippet>1517</a>                    </span>.default_refiner
-<a href=#1518 id=1518 data-nosnippet>1518</a>                    .refine_ty_or_base(<span class="kw-2">&amp;</span>ty)
+<a href=#1518 id=1518 data-nosnippet>1518</a>                    .refine_ty_or_base(ty)
 <a href=#1519 id=1519 data-nosnippet>1519</a>                    .with_span(stmt_span)<span class="question-mark">?
 <a href=#1520 id=1520 data-nosnippet>1520</a>                    </span>.expect_base();
 <a href=#1521 id=1521 data-nosnippet>1521</a>                raw_ptr_with_size(genv, kind, ctor)
