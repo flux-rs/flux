@@ -14,10 +14,11 @@ use flux_syntax::{
     surface::{self, FluxItem, Ident, NodeId, visit::Visitor as _},
     walk_list,
 };
+use itertools::Itertools;
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hash::FxHashMap;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::ErrorGuaranteed;
+use rustc_span::{ErrorGuaranteed, Span};
 
 use super::{CrateResolver, RibKind, Segment};
 
@@ -438,7 +439,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             return;
         }
 
-        self.errors.emit(errors::UnresolvedVar::from_path(path));
+        self.emit_unresolved_expr_path(path);
     }
 
     fn resolve_ident(&mut self, ident: Ident, node_id: NodeId) {
@@ -447,7 +448,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             self.path_res_map.insert(node_id, res);
             return;
         }
-        self.errors.emit(errors::UnresolvedVar::from_ident(ident));
+        self.emit_unresolved_ident(ident);
     }
 
     /// Emit an error if `res` resolved to a param that cannot be refined.
@@ -477,12 +478,12 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         // Sorts resolve in the type namespace: primitive/user sorts and sort parameters live there
         // alongside types, and any type can also denote a sort. We only report a *name* that fails
         // to resolve here; whether the resolved item is admissible as a sort (and the corresponding
-        // diagnostic) is decided later in `conv_sort_path`, which is the single source of truth.
+        // diagnostic) is decided later in `conv_sort_path`.
         let res = self
             .resolver
             .resolve_path_with_ribs(&path.segments, TypeNS)
             .unwrap_or_else(|| {
-                self.errors.emit(errors::UnresolvedSort::new(path));
+                self.emit_unresolved_sort_path(path);
                 PartialRes::new(fhir::Res::Err)
             });
         self.resolver.output.path_res_map.insert(path.node_id, res);
@@ -537,6 +538,35 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     fn resolver_output(&self) -> &ResolverOutput {
         &self.resolver.output
+    }
+
+    fn emit_unresolved_ident(&mut self, ident: Ident) {
+        self.errors.emit(super::errors::UnresolvedName {
+            span: ident.span,
+            name: ident.to_string(),
+            kind: "value",
+        });
+    }
+
+    fn emit_unresolved_expr_path(&mut self, path: &surface::ExprPath) {
+        self.errors.emit(super::errors::UnresolvedName {
+            span: path.span,
+            name: path.segments.iter().map(|s| s.ident).join("::"),
+            kind: "value",
+        });
+    }
+
+    fn emit_unresolved_sort_path(&mut self, path: &surface::SortPath) {
+        self.errors.emit(super::errors::UnresolvedName {
+            span: path
+                .segments
+                .iter()
+                .map(|ident| ident.span)
+                .reduce(Span::to)
+                .unwrap_or_default(),
+            name: path.segments.iter().join("::"),
+            kind: "sort",
+        });
     }
 }
 
@@ -703,7 +733,6 @@ mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_syntax::surface;
-    use itertools::Itertools;
     use rustc_span::{Span, Symbol, symbol::Ident};
 
     #[derive(Diagnostic)]
@@ -721,56 +750,6 @@ mod errors {
         pub(super) fn new(old_ident: Ident, new_ident: Ident) -> Self {
             debug_assert_eq!(old_ident.name, new_ident.name);
             Self { span: new_ident.span, name: new_ident.name, first_use: old_ident.span }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_sort, code = E0999)]
-    pub(super) struct UnresolvedSort {
-        #[primary_span]
-        #[label]
-        span: Span,
-        name: String,
-    }
-
-    impl UnresolvedSort {
-        pub(super) fn new(path: &surface::SortPath) -> Self {
-            Self {
-                span: path
-                    .segments
-                    .iter()
-                    .map(|ident| ident.span)
-                    .reduce(Span::to)
-                    .unwrap_or_default(),
-                name: format!("{}", path.segments.iter().format("::")),
-            }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_var, code = E0999)]
-    pub(super) struct UnresolvedVar {
-        #[primary_span]
-        #[label]
-        span: Span,
-        var: String,
-    }
-
-    impl UnresolvedVar {
-        pub(super) fn from_path(path: &surface::ExprPath) -> Self {
-            Self {
-                span: path.span,
-                var: format!(
-                    "{}",
-                    path.segments
-                        .iter()
-                        .format_with("::", |s, f| f(&s.ident.name))
-                ),
-            }
-        }
-
-        pub(super) fn from_ident(ident: Ident) -> Self {
-            Self { span: ident.span, var: format!("{ident}") }
         }
     }
 

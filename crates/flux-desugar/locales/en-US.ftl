@@ -56,16 +56,8 @@ desugar_unsupported_signature =
     unsupported function signature
     .note = {$note}
 
-desugar_unresolved_path =
-    cannot resolve {$ns} `{$path}` in this scope
-    .label = not found in this scope
-
-desugar_unresolved_var =
-    cannot find value `{$var}` in this scope
-    .label = not found in this scope
-
-desugar_unresolved_sort =
-    cannot find sort `{$name}` in this scope
+desugar_unresolved_name =
+    cannot find {$kind} `{$name}` in this scope
     .label = not found in this scope
 
 desugar_invalid_unrefined_param =

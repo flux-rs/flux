@@ -96,12 +96,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             genv,
             output: ResolverOutput::default(),
             specs,
-            ribs: PerNS {
-                type_ns: vec![],
-                value_ns: vec![],
-                macro_ns: vec![],
-                flux_fn_ns: vec![],
-            },
+            ribs: PerNS { type_ns: vec![], value_ns: vec![], macro_ns: vec![], flux_fn_ns: vec![] },
             crates: mk_crate_mapping(genv.tcx()),
             prelude: PerNS {
                 type_ns: builtin_types_rib(),
@@ -806,7 +801,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
                 .path_res_map
                 .insert(path.node_id, partial_res);
         } else {
-            self.errors.emit(errors::UnresolvedPath::new(path, ns));
+            self.emit_unresolved_path(path, ns);
         }
     }
 
@@ -874,6 +869,14 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
             }
         }
         self.resolver.output.reveal_res_map.insert(item_id, reveals);
+    }
+
+    fn emit_unresolved_path(&mut self, path: &surface::Path, ns: Namespace) {
+        self.errors.emit(errors::UnresolvedName {
+            span: path.span,
+            name: path.segments.iter().map(|segment| segment.ident).join("::"),
+            kind: ns.descr(),
+        });
     }
 }
 
@@ -950,19 +953,16 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
 /// derived in `conv_sort_path` (see [`fhir::PrimSort`]).
 fn builtin_types_rib() -> Rib {
     use flux_middle::fhir::PrimSort;
+    let sorts = PrimSort::ALL
+        .into_iter()
+        .map(|prim| (prim.name(), fhir::Res::PrimSort(prim)));
     let types = PrimTy::ALL
         .into_iter()
         .map(|pty| (pty.name(), fhir::Res::PrimTy(pty)));
-    let prim_sorts = [
-        (sym::int, PrimSort::Int),
-        (sym::real, PrimSort::Real),
-        (sym::Set, PrimSort::Set),
-        (sym::Map, PrimSort::Map),
-        (sym::ptr, PrimSort::RawPtr),
-    ]
-    .into_iter()
-    .map(|(name, prim)| (name, fhir::Res::PrimSort(prim)));
-    Rib { kind: RibKind::Misc, bindings: types.chain(prim_sorts).collect() }
+
+    // Types go after such that they override sorts with the same name
+    let bindings = sorts.chain(types).collect();
+    Rib { kind: RibKind::Misc, bindings }
 }
 
 /// The [`Namespace::ReftNS`] prelude: theory functions and `cast`.
@@ -994,28 +994,20 @@ fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_syntax::surface;
-    use itertools::Itertools;
     use rustc_span::{Ident, Span};
 
+    /// A name that could not be resolved. `kind` is the user-facing description of what was being
+    /// looked for (`"type"`, `"value"`, `"sort"`, ...); it is passed explicitly by each call site
+    /// because it no longer matches the resolution [`Namespace`](flux_middle::fhir::Namespace)
+    /// (e.g. sorts are resolved in the type namespace).
     #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_path, code = E0999)]
-    pub struct UnresolvedPath {
+    #[diag(desugar_unresolved_name, code = E0999)]
+    pub(crate) struct UnresolvedName {
         #[primary_span]
         #[label]
         pub span: Span,
-        pub path: String,
-        pub ns: &'static str,
-    }
-
-    impl UnresolvedPath {
-        pub fn new(path: &surface::Path, ns: flux_middle::fhir::Namespace) -> Self {
-            Self {
-                span: path.span,
-                path: path.segments.iter().map(|segment| segment.ident).join("::"),
-                ns: ns.descr(),
-            }
-        }
+        pub kind: &'static str,
+        pub name: String,
     }
 
     #[derive(Diagnostic)]

@@ -20,7 +20,10 @@ use std::{borrow::Cow, fmt, iter};
 use flux_common::{bug, span_bug};
 use flux_config::PartialInferOpts;
 pub use flux_syntax::surface::{BinOp, UnOp};
-use flux_syntax::surface::{Ignored, ParamMode, Trusted};
+use flux_syntax::{
+    surface::{Ignored, ParamMode, Trusted},
+    symbols::sym,
+};
 use itertools::Itertools;
 use rustc_abi;
 pub use rustc_abi::VariantIdx;
@@ -742,6 +745,8 @@ pub enum ConstArgKind {
 /// Therefore, they each have a separate universe (known as a "namespace").
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum Namespace {
+    /// We also put sorts in this namespace.
+    ///
     /// See [`rustc_hir::def::Namespace::TypeNS`]
     TypeNS,
     /// See [`rustc_hir::def::Namespace::ValueNS`]
@@ -842,13 +847,11 @@ pub enum Res<Id = ParamId> {
     Param(ParamKind, Id),
     /// A refinement function defined with `flux::defs! { ... }`
     GlobalFunc(SpecFuncKind),
-    /// A primitive sort, e.g., `int`, `bool`, `Set`, `Map`. Only ever produced by the sort
-    /// resolver, never via [`TryFrom<rustc_hir::def::Res>`] or Rust path resolution.
+    /// A primitive sort, e.g., `int`, `bool`, `Set`, `Map`.
     PrimSort(PrimSort),
-    /// A sort parameter inside a polymorphic function or data sort. Only ever produced by the
-    /// sort resolver.
+    /// A sort parameter inside a polymorphic function or data sort.
     SortParam(usize),
-    /// A user declared sort. Only ever produced by the sort resolver.
+    /// A user declared sort.
     UserSort(FluxDefId),
     Err,
 }
@@ -972,13 +975,9 @@ impl InferMode {
     }
 }
 
-/// A primitive sort that has no backing Rust type.
-///
-/// Quirk: `bool`, `char`, and `str` are primitive sorts too, but they share their name with the
-/// corresponding Rust primitive *type*. Since sorts and types are resolved in the same
-/// ([`Namespace::TypeNS`]) namespace, those names resolve to [`Res::PrimTy`] and their sort is
-/// derived from the type in `conv_sort_path`. They are therefore intentionally absent here. The
-/// integer/float `PrimTy`s (`i32`, `f64`, ...) are *not* sorts (only `int`/`real` are).
+/// `bool`, `char`, and `str` are primitive sorts, but because sorts and types are in the same
+/// namespace we resolve them to [`Res::PrimTy`] and then make them into a sort during `conv`
+/// they share their name with the
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum PrimSort {
     Int,
@@ -986,9 +985,35 @@ pub enum PrimSort {
     Set,
     Map,
     RawPtr,
+    Bool,
+    Char,
+    Str,
 }
 
 impl PrimSort {
+    pub const ALL: [Self; 8] = [
+        Self::Int,
+        Self::Real,
+        Self::Set,
+        Self::Map,
+        Self::RawPtr,
+        Self::Bool,
+        Self::Char,
+        Self::Str,
+    ];
+
+    pub fn name(self) -> Symbol {
+        match self {
+            PrimSort::Int => sym::int,
+            PrimSort::Real => sym::real,
+            PrimSort::Set => sym::Set,
+            PrimSort::Map => sym::Map,
+            PrimSort::RawPtr => sym::ptr,
+            PrimSort::Bool => sym::bool,
+            PrimSort::Char => sym::char,
+            PrimSort::Str => sym::str,
+        }
+    }
     pub fn name_str(self) -> &'static str {
         match self {
             PrimSort::Int => "int",
@@ -996,13 +1021,21 @@ impl PrimSort {
             PrimSort::Set => "Set",
             PrimSort::Map => "Map",
             PrimSort::RawPtr => "ptr",
+            PrimSort::Bool => "bool",
+            PrimSort::Char => "char",
+            PrimSort::Str => "str",
         }
     }
 
     /// Number of generics expected by this primitive sort
     pub fn generics(self) -> usize {
         match self {
-            PrimSort::Int | PrimSort::Real | PrimSort::RawPtr => 0,
+            PrimSort::Bool
+            | PrimSort::Char
+            | PrimSort::Str
+            | PrimSort::Int
+            | PrimSort::Real
+            | PrimSort::RawPtr => 0,
             PrimSort::Set => 1,
             PrimSort::Map => 2,
         }
@@ -1218,9 +1251,8 @@ impl<Id> Res<Id> {
             Res::PrimTy(..) | Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => {
                 Some(Namespace::TypeNS)
             }
-            Res::Param(..) => Some(Namespace::ValueNS),
-            Res::GlobalFunc(..) => Some(Namespace::ReftNS),
-            // Sorts share the type namespace: primitive/user sorts live in the type prelude and
+            Res::Param(..) | Res::GlobalFunc(..) => Some(Namespace::ReftNS),
+            // Sorts share the type namespace: primitive sorts live in the type prelude and
             // sort parameters in the type ribs, so they resolve through `TypeNS` alongside types.
             Res::PrimSort(..) | Res::SortParam(..) | Res::UserSort(..) => Some(Namespace::TypeNS),
             Res::Err => None,
