@@ -58,9 +58,8 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     ribs: PerNS<Vec<Rib>>,
     /// A mapping from the names of all imported crates to their [`DefId`]
     crates: UnordMap<Symbol, DefId>,
-    /// Names available everywhere: Rust builtin types plus flux's global funcs (theory funcs,
-    /// `cast`, and user-defined refinement functions) and sorts (primitive sorts and user-defined
-    /// sorts). Flux funcs live in [`Namespace::FluxFnNS`] and sorts in [`Namespace::SortNS`].
+    /// Names available everywhere: Rust builtin types plus flux's global funcs (theory funcs, `cast`)
+    /// and primitive sorts.
     prelude: PerNS<Rib>,
     qualifiers: UnordMap<Symbol, FluxLocalDefId>,
     primop_props: UnordMap<Symbol, FluxDefId>,
@@ -145,7 +144,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         let name = defn.name.name;
                         let def_id = FluxDefId::new(parent, name);
                         let kind = fhir::SpecFuncKind::Def(def_id);
-                        self.define_in_prelude(name, fhir::Res::GlobalFunc(kind), FluxFnNS);
+                        self.define_in_prelude(name, fhir::Res::GlobalFunc(kind), ReftNS);
                     }
                     surface::FluxItem::PrimOpProp(primop_prop) => {
                         let name = primop_prop.name.name;
@@ -757,7 +756,7 @@ impl Segment for surface::ExprPathSegment {
             res.map_param_id(|_| bug!("expr path segment resolved to a refinement parameter"));
         resolver
             .output
-            .expr_path_res_map
+            .path_res_map
             .insert(segment.node_id, fhir::PartialRes::new(res));
     }
 
@@ -887,7 +886,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         let mut reveals = Vec::with_capacity(reveal_names.len());
         for reveal in reveal_names {
             if let Some(fhir::Res::GlobalFunc(kind)) =
-                self.resolver.resolve_ident_with_ribs(*reveal, FluxFnNS)
+                self.resolver.resolve_ident_with_ribs(*reveal, ReftNS)
                 && let Some(def_id) = kind.def_id()
             {
                 reveals.push(def_id);
@@ -977,8 +976,7 @@ fn builtin_types_rib() -> Rib {
     }
 }
 
-/// The [`Namespace::FluxFnNS`] prelude: theory functions and `cast`. User-defined refinement
-/// functions are added on top in [`CrateResolver::define_flux_global_items`].
+/// The [`Namespace::ReftNS`] prelude: theory functions and `cast`.
 fn theory_funcs_rib() -> Rib {
     let mut rib = Rib::new(RibKind::Misc);
     rib.bindings.extend_unord(
@@ -987,12 +985,11 @@ fn theory_funcs_rib() -> Rib {
             .map(|(_, itf)| (itf.name, fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf.itf)))),
     );
     rib.bindings
-        .insert(Symbol::intern("cast"), fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast));
+        .insert(sym::cast, fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast));
     rib
 }
 
-/// The [`Namespace::SortNS`] prelude: primitive sorts (`int`, `bool`, `Set`, `Map`, ...). User-defined
-/// sorts are added on top in [`CrateResolver::define_flux_global_items`].
+/// The [`Namespace::SortNS`] prelude: primitive sorts (`int`, `bool`, `Set`, `Map`, ...).
 fn prim_sorts_rib() -> Rib {
     use flux_middle::fhir::PrimSort;
     let bindings = [

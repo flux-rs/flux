@@ -491,6 +491,7 @@ pub enum ExternSpecMappingErr {
 
 #[derive(Default)]
 pub struct ResolverOutput {
+    /// Resolution of type, refinement, and sort paths
     pub path_res_map: UnordMap<NodeId, fhir::PartialRes>,
     /// Resolution of explicitly and implicitly scoped parameters. The [`fhir::ParamId`] is unique
     /// per item. The [`NodeId`] used as the key corresponds to the node introducing the parameter.
@@ -501,8 +502,6 @@ pub struct ResolverOutput {
     /// the node introducing the scope, e.g., [`surface::FnSig`], [`surface::FnOutput`], or
     /// [`surface::VariantDef`]. The [`NodeId`]s in the vectors are keys in [`Self::param_res_map`].
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
-    pub sort_path_res_map: UnordMap<NodeId, fhir::PartialRes>,
-    pub expr_path_res_map: UnordMap<NodeId, fhir::PartialRes>,
     /// The resolved list of local qualifiers per function.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
     pub qualifier_res_map: UnordMap<NodeId, Vec<def_id::FluxLocalDefId>>,
