@@ -25,6 +25,7 @@ symbols! {
         Set,
         addr,
         base,
+        cast,
         int,
         no_panic,
         no_panic_if,

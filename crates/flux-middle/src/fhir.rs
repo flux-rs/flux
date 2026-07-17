@@ -738,17 +738,21 @@ pub enum ConstArgKind {
     Infer,
 }
 
-/// The namespaces flux resolves names in. This extends [`rustc_hir::def::Namespace`]'s three Rust
-/// namespaces with flux-specific ones: [`Namespace::SortNS`] for sorts and [`Namespace::FluxFnNS`]
-/// for refinement functions. Refinement functions live in their own namespace, separate from Rust's
-/// value namespace.
+/// Different kinds of symbols can coexist even if they share the same textual name.
+/// Therefore, they each have a separate universe (known as a "namespace").
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum Namespace {
+    /// See [`rustc_hir::def::Namespace::TypeNS`]
     TypeNS,
+    /// See [`rustc_hir::def::Namespace::ValueNS`]
     ValueNS,
+    /// See [`rustc_hir::def::Namespace::MacroNS`]
     MacroNS,
+    /// The sort namespace includes primitive sorts, sort variables, and user defined sorts.
     SortNS,
-    FluxFnNS,
+    /// The refinement namespace includes refinement functions, theory function,
+    /// refinement parameters, ...
+    ReftNS,
 }
 
 impl Namespace {
@@ -759,7 +763,7 @@ impl Namespace {
             Namespace::ValueNS => "value",
             Namespace::MacroNS => "macro",
             Namespace::SortNS => "sort",
-            Namespace::FluxFnNS => "function",
+            Namespace::ReftNS => "value",
         }
     }
 
@@ -769,7 +773,7 @@ impl Namespace {
             Namespace::TypeNS => Some(rustc_hir::def::Namespace::TypeNS),
             Namespace::ValueNS => Some(rustc_hir::def::Namespace::ValueNS),
             Namespace::MacroNS => Some(rustc_hir::def::Namespace::MacroNS),
-            Namespace::SortNS | Namespace::FluxFnNS => None,
+            Namespace::SortNS | Namespace::ReftNS => None,
         }
     }
 }
@@ -804,7 +808,7 @@ impl<T> std::ops::Index<Namespace> for PerNS<T> {
             Namespace::ValueNS => &self.value_ns,
             Namespace::MacroNS => &self.macro_ns,
             Namespace::SortNS => &self.sort_ns,
-            Namespace::FluxFnNS => &self.flux_fn_ns,
+            Namespace::ReftNS => &self.flux_fn_ns,
         }
     }
 }
@@ -816,7 +820,7 @@ impl<T> std::ops::IndexMut<Namespace> for PerNS<T> {
             Namespace::ValueNS => &mut self.value_ns,
             Namespace::MacroNS => &mut self.macro_ns,
             Namespace::SortNS => &mut self.sort_ns,
-            Namespace::FluxFnNS => &mut self.flux_fn_ns,
+            Namespace::ReftNS => &mut self.flux_fn_ns,
         }
     }
 }
@@ -1225,7 +1229,7 @@ impl<Id> Res<Id> {
                 Some(Namespace::TypeNS)
             }
             Res::Param(..) => Some(Namespace::ValueNS),
-            Res::GlobalFunc(..) => Some(Namespace::FluxFnNS),
+            Res::GlobalFunc(..) => Some(Namespace::ReftNS),
             Res::PrimSort(..) | Res::SortParam(..) | Res::UserSort(..) => Some(Namespace::SortNS),
             Res::Err => None,
         }
