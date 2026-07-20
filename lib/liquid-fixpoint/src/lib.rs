@@ -404,9 +404,16 @@ impl<T: Types> Task<T> {
 
     #[cfg(not(feature = "rust-fixpoint"))]
     pub fn run_spacer(&self) -> io::Result<VerificationResult<T::Tag>> {
-        use std::io::Write as IOWrite;
+        if matches!(self.backend, Backend::SmtHorn(BackendMode::Emit)) {
+            return Ok(VerificationResult {
+                status: FixpointStatus::Safe(Stats::default()),
+                solution: vec![],
+                non_cuts_solution: vec![],
+                lean_status: LeanStatus::Invalid,
+            });
+        }
 
-        let tags = smt_horn::smt_horn_tags(self);
+        use std::io::Write as IOWrite;
         let smt_str = format!("{}", smt_horn::SmtFormatter(self));
 
         // Run z3
@@ -431,7 +438,7 @@ impl<T: Types> Task<T> {
             "unsat" => {
                 // For now, just return ALL the tags; maybe better to specialize
                 // constraint per-tag.
-                let errors = tags
+                let errors = smt_horn::smt_horn_tags(self)
                     .into_iter()
                     .enumerate()
                     .map(|(id, tag)| Error { id: id as i32, tag })

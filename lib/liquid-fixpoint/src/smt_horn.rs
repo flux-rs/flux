@@ -120,7 +120,7 @@ fn fmt_kvar_as_fun<T: Types>(kvar: &KVarDecl<T>, f: &mut fmt::Formatter<'_>) -> 
         if i > 0 {
             write!(f, " ")?;
         }
-        fmt_sort_smt(sort, f)?;
+        fmt_sort_smt(sort, Mode::Other, f)?;
     }
     writeln!(f, ") Bool)")
 }
@@ -133,7 +133,7 @@ fn fmt_assert<T: Types>(clause: &HornClause<'_, T>, f: &mut fmt::Formatter<'_>) 
         write!(f, "(forall (")?;
         for (var, sort) in &clause.vars {
             write!(f, "({} ", var.display())?;
-            fmt_sort_smt(sort, f)?;
+            fmt_sort_smt(sort, Mode::Other, f)?;
             write!(f, ")")?;
         }
         write!(f, ") ")?;
@@ -243,7 +243,7 @@ impl<T: Types> fmt::Display for SmtFormatter<'_, T> {
 
 // ---- SMT-LIB sort formatting ----
 
-fn fmt_sort_smt<T: Types>(sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn fmt_sort_smt<T: Types>(sort: &Sort<T>, mode: Mode, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match sort {
         Sort::Int => write!(f, "Int"),
         Sort::Bool => write!(f, "Bool"),
@@ -251,21 +251,26 @@ fn fmt_sort_smt<T: Types>(sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
         Sort::Str => write!(f, "String"),
         Sort::BitVec(size) => {
             write!(f, "(_ BitVec ")?;
-            fmt_sort_smt(size, f)?;
+            fmt_sort_smt(size, mode, f)?;
             write!(f, ")")
         }
         Sort::BvSize(size) => write!(f, "{size}"),
-        Sort::Var(i) => write!(f, "T{i}"),
+        Sort::Var(i) => {
+            match mode {
+                Mode::DataDecl => write!(f, "S{i}"),
+                Mode::Other => write!(f, "T{i}"),
+            }
+        }
         Sort::Func(fsort) => {
             // Function sorts mapped to (Array input output) as an approximation
             let [input, output] = &**fsort;
             write!(f, "(Array ")?;
-            fmt_sort_smt(input, f)?;
+            fmt_sort_smt(input, mode, f)?;
             write!(f, " ")?;
-            fmt_sort_smt(output, f)?;
+            fmt_sort_smt(output, mode, f)?;
             write!(f, ")")
         }
-        Sort::Abs(_, sort) => fmt_sort_smt(sort, f),
+        Sort::Abs(_, sort) => fmt_sort_smt(sort, mode, f),
         Sort::App(ctor, args) => {
             if args.is_empty() {
                 fmt_sort_ctor_smt(ctor, f)
@@ -274,7 +279,7 @@ fn fmt_sort_smt<T: Types>(sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
                 fmt_sort_ctor_smt(ctor, f)?;
                 for arg in args {
                     write!(f, " ")?;
-                    fmt_sort_smt(arg, f)?;
+                    fmt_sort_smt(arg, mode, f)?;
                 }
                 write!(f, ")")
             }
@@ -296,6 +301,11 @@ fn fmt_expr_smt<T: Types>(expr: &Expr<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
     match expr {
         Expr::Constant(c) => fmt_constant_smt(c, f),
         Expr::Var(x) => write!(f, "{}", x.display()),
+        Expr::App(func, _sort_args, args, _out_sort) if args.is_empty() => {
+            // TODO(RJ): this is not quite right BUT a hacky workaround since we CANNOT encode `
+            // nullary applications as `(c0)` when `c0` was declared as a constant Bool...
+            fmt_expr_smt(func, f)
+        }
         Expr::App(func, _sort_args, args, _out_sort) => {
             write!(f, "(")?;
             fmt_expr_smt(func, f)?;
@@ -508,23 +518,32 @@ fn fmt_data_decl_smt<T: Types>(decl: &DataDecl<T>, f: &mut fmt::Formatter<'_>) -
         writeln!(f)
     } else {
         write!(f, "(declare-datatypes (")?;
-        write!(f, "({} {})", decl.name.display(), decl.vars)?;
-        write!(f, ") ((")?;
-        for (i, ctor) in decl.ctors.iter().enumerate() {
+        for i in 0..decl.vars {
             if i > 0 {
                 write!(f, " ")?;
             }
+            write!(f, "S{i}")?;
+        }
+        write!(f, ") (({}", decl.name.display())?;
+        for ctor in &decl.ctors {
+            write!(f, " ")?;
             fmt_data_ctor_smt(ctor, f)?;
         }
         writeln!(f, ")))")
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    DataDecl,
+    Other,
+}
+
 fn fmt_data_ctor_smt<T: Types>(ctor: &DataCtor<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "({}", ctor.name.display())?;
     for field in &ctor.fields {
         write!(f, " ({} ", field.name.display())?;
-        fmt_sort_smt(&field.sort, f)?;
+        fmt_sort_smt(&field.sort, Mode::DataDecl, f)?;
         write!(f, ")")?;
     }
     write!(f, ")")
@@ -532,7 +551,7 @@ fn fmt_data_ctor_smt<T: Types>(ctor: &DataCtor<T>, f: &mut fmt::Formatter<'_>) -
 
 fn fmt_const_decl<T: Types>(decl: &ConstDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "(declare-const {} ", decl.name.display())?;
-    fmt_sort_smt(&decl.sort, f)?;
+    fmt_sort_smt(&decl.sort, Mode::Other, f)?;
     writeln!(f, ")")
 }
 
@@ -544,11 +563,11 @@ fn fmt_fun_def<T: Types>(fun: &FunDef<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
                 write!(f, " ")?;
             }
             write!(f, "({} ", name.display())?;
-            fmt_sort_smt(sort, f)?;
+            fmt_sort_smt(sort, Mode::Other, f)?;
             write!(f, ")")?;
         }
         write!(f, ") ")?;
-        fmt_sort_smt(&fun.sort.output, f)?;
+        fmt_sort_smt(&fun.sort.output, Mode::Other, f)?;
         write!(f, " ")?;
         fmt_expr_smt(&body.expr, f)?;
         writeln!(f, ")")
@@ -558,10 +577,10 @@ fn fmt_fun_def<T: Types>(fun: &FunDef<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
             if i > 0 {
                 write!(f, " ")?;
             }
-            fmt_sort_smt(sort, f)?;
+            fmt_sort_smt(sort, Mode::Other, f)?;
         }
         write!(f, ") ")?;
-        fmt_sort_smt(&fun.sort.output, f)?;
+        fmt_sort_smt(&fun.sort.output, Mode::Other, f)?;
         writeln!(f, ")")
     }
 }

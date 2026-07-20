@@ -9,3 +9,9 @@ pub fn inc(x: i32) -> i32 {
 pub fn dec_spacer(x: i32) -> i32 {
     x + 99 //~ ERROR refinement type
 }
+
+#[flux::opts(solver = "spacer-emit")]
+#[flux::spec(fn(x:i32) -> i32{v: v < x})]
+pub fn dec_spacer_emit(x: i32) -> i32 {
+    x + 99
+}
