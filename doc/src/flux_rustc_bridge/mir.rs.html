@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-rustc-bridge/src/mir.rs`."><title>mir.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_rustc_bridge" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (c871d09d1 2025-11-24)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_rustc_bridge/</div>mir.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! A simplified version of rust mir.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-rustc-bridge/src/mir.rs`."><title>mir.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_rustc_bridge" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (db3e99bba 2026-02-04)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-f9617a14.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_rustc_bridge/</div>mir.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! A simplified version of rust mir.
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use </span>std::{fmt, rc::Rc};
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -12,7 +12,7 @@
 <a href=#12 id=12 data-nosnippet>12</a>    graph::{<span class="self">self</span>, DirectedGraph, StartNode, dominators::Dominators},
 <a href=#13 id=13 data-nosnippet>13</a>    unord::UnordMap,
 <a href=#14 id=14 data-nosnippet>14</a>};
-<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>rustc_hir::def_id::DefId;
+<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, def_id::DefId};
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>rustc_index::IndexSlice;
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>rustc_macros::{TyDecodable, TyEncodable};
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>rustc_middle::mir::{Promoted, VarDebugInfoContents};
@@ -26,7 +26,7 @@
 <a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>rustc_span::{Span, Symbol};
 <a href=#27 id=27 data-nosnippet>27</a>
 <a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span><span class="kw">super</span>::ty::{Const, GenericArg, GenericArgs, Region, Ty};
-<a href=#29 id=29 data-nosnippet>29</a><span class="kw">use crate</span>::{
+<a href=#29 id=29 data-nosnippet>29</a><span class="kw">use </span>crate::{
 <a href=#30 id=30 data-nosnippet>30</a>    def_id_to_string,
 <a href=#31 id=31 data-nosnippet>31</a>    ty::{Binder, FnSig, region_to_string},
 <a href=#32 id=32 data-nosnippet>32</a>};
@@ -292,7 +292,7 @@
 <a href=#292 id=292 data-nosnippet>292</a>    MutToConstPointer,
 <a href=#293 id=293 data-nosnippet>293</a>    Unsize,
 <a href=#294 id=294 data-nosnippet>294</a>    ClosureFnPointer,
-<a href=#295 id=295 data-nosnippet>295</a>    ReifyFnPointer,
+<a href=#295 id=295 data-nosnippet>295</a>    ReifyFnPointer(hir::Safety),
 <a href=#296 id=296 data-nosnippet>296</a>}
 <a href=#297 id=297 data-nosnippet>297</a>
 <a href=#298 id=298 data-nosnippet>298</a><span class="attr">#[derive(Debug)]
@@ -777,7 +777,7 @@
 <a href=#777 id=777 data-nosnippet>777</a>            PointerCast::MutToConstPointer =&gt; <span class="macro">write!</span>(f, <span class="string">"MutToConstPointer"</span>),
 <a href=#778 id=778 data-nosnippet>778</a>            PointerCast::Unsize =&gt; <span class="macro">write!</span>(f, <span class="string">"Unsize"</span>),
 <a href=#779 id=779 data-nosnippet>779</a>            PointerCast::ClosureFnPointer =&gt; <span class="macro">write!</span>(f, <span class="string">"ClosureFnPointer"</span>),
-<a href=#780 id=780 data-nosnippet>780</a>            PointerCast::ReifyFnPointer =&gt; <span class="macro">write!</span>(f, <span class="string">"ReifyFnPointer"</span>),
+<a href=#780 id=780 data-nosnippet>780</a>            PointerCast::ReifyFnPointer(safety) =&gt; <span class="macro">write!</span>(f, <span class="string">"ReifyFnPointer({safety})"</span>),
 <a href=#781 id=781 data-nosnippet>781</a>        }
 <a href=#782 id=782 data-nosnippet>782</a>    }
 <a href=#783 id=783 data-nosnippet>783</a>}

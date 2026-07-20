@@ -1,9 +1,9 @@
 (function() {
-    var implementors = Object.fromEntries([["flux_rustc_bridge",[]]]);
+    const implementors = Object.fromEntries([["flux_rustc_bridge",[]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {
         window.pending_implementors = implementors;
     }
 })()
-//{"start":57,"fragment_lengths":[24]}
+//{"start":59,"fragment_lengths":[24]}

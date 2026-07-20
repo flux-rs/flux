@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-driver/src/callbacks.rs`."><title>callbacks.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (c871d09d1 2025-11-24)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_driver/</div>callbacks.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-driver/src/callbacks.rs`."><title>callbacks.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (db3e99bba 2026-02-04)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-f9617a14.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_driver/</div>callbacks.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config};
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>flux_errors::FluxSession;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>flux_infer::{
@@ -24,10 +24,10 @@
 <a href=#24 id=24 data-nosnippet>24</a>    def_id::{LOCAL_CRATE, LocalDefId},
 <a href=#25 id=25 data-nosnippet>25</a>};
 <a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>rustc_interface::interface::Compiler;
-<a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>rustc_middle::{query, ty::TyCtxt};
+<a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>rustc_middle::{queries, ty::TyCtxt, util};
 <a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span>rustc_session::config::OutputType;
 <a href=#29 id=29 data-nosnippet>29</a>
-<a href=#30 id=30 data-nosnippet>30</a><span class="kw">use crate</span>::{DEFAULT_LOCALE_RESOURCES, collector::SpecCollector};
+<a href=#30 id=30 data-nosnippet>30</a><span class="kw">use </span>crate::{DEFAULT_LOCALE_RESOURCES, collector::SpecCollector};
 <a href=#31 id=31 data-nosnippet>31</a>
 <a href=#32 id=32 data-nosnippet>32</a><span class="attr">#[derive(Default)]
 <a href=#33 id=33 data-nosnippet>33</a></span><span class="kw">pub struct </span>FluxCallbacks;
@@ -37,7 +37,7 @@
 <a href=#37 id=37 data-nosnippet>37</a>        <span class="macro">assert!</span>(config.override_queries.is_none());
 <a href=#38 id=38 data-nosnippet>38</a>
 <a href=#39 id=39 data-nosnippet>39</a>        config.override_queries = <span class="prelude-val">Some</span>(|<span class="kw">_</span>, local| {
-<a href=#40 id=40 data-nosnippet>40</a>            local.mir_borrowck = mir_borrowck;
+<a href=#40 id=40 data-nosnippet>40</a>            local.queries.mir_borrowck = mir_borrowck;
 <a href=#41 id=41 data-nosnippet>41</a>        });
 <a href=#42 id=42 data-nosnippet>42</a>        <span class="comment">// this should always be empty otherwise something changed in rustc and all our assumptions
 <a href=#43 id=43 data-nosnippet>43</a>        // about symbol interning are wrong.
@@ -378,7 +378,7 @@
 <a href=#378 id=378 data-nosnippet>378</a><span class="kw">fn </span>mir_borrowck&lt;<span class="lifetime">'tcx</span>&gt;(
 <a href=#379 id=379 data-nosnippet>379</a>    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
 <a href=#380 id=380 data-nosnippet>380</a>    def_id: LocalDefId,
-<a href=#381 id=381 data-nosnippet>381</a>) -&gt; query::queries::mir_borrowck::ProvidedValue&lt;<span class="lifetime">'tcx</span>&gt; {
+<a href=#381 id=381 data-nosnippet>381</a>) -&gt; queries::mir_borrowck::ProvidedValue&lt;<span class="lifetime">'tcx</span>&gt; {
 <a href=#382 id=382 data-nosnippet>382</a>    <span class="kw">let </span>bodies_with_facts = rustc_borrowck::consumers::get_bodies_with_borrowck_facts(
 <a href=#383 id=383 data-nosnippet>383</a>        tcx,
 <a href=#384 id=384 data-nosnippet>384</a>        def_id,
@@ -391,9 +391,9 @@
 <a href=#391 id=391 data-nosnippet>391</a>            flux_common::mir_storage::store_mir_body(tcx, def_id, body_with_facts);
 <a href=#392 id=392 data-nosnippet>392</a>        }
 <a href=#393 id=393 data-nosnippet>393</a>    }
-<a href=#394 id=394 data-nosnippet>394</a>    <span class="kw">let </span><span class="kw-2">mut </span>providers = query::Providers::default();
-<a href=#395 id=395 data-nosnippet>395</a>    rustc_borrowck::provide(<span class="kw-2">&amp;mut </span>providers);
-<a href=#396 id=396 data-nosnippet>396</a>    <span class="kw">let </span>original_mir_borrowck = providers.mir_borrowck;
+<a href=#394 id=394 data-nosnippet>394</a>    <span class="kw">let </span><span class="kw-2">mut </span>providers = util::Providers::default();
+<a href=#395 id=395 data-nosnippet>395</a>    rustc_borrowck::provide(<span class="kw-2">&amp;mut </span>providers.queries);
+<a href=#396 id=396 data-nosnippet>396</a>    <span class="kw">let </span>original_mir_borrowck = providers.queries.mir_borrowck;
 <a href=#397 id=397 data-nosnippet>397</a>    original_mir_borrowck(tcx, def_id)
 <a href=#398 id=398 data-nosnippet>398</a>}
 </code></pre></div></section></main></body></html>

@@ -781,7 +781,10 @@ impl&lt;T&gt; Vec&lt;T&gt; {
 impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
     fn push(v: &amp;mut Vec&lt;T, A&gt;, value: T);
+}
 
+#[extern_spec]
+impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     #[spec(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
 
@@ -2943,7 +2946,10 @@ impl&lt;T&gt; Vec&lt;T&gt; {
 impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
     fn push(v: &amp;mut Vec&lt;T, A&gt;, value: T);
+}
 
+#[extern_spec]
+impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     #[spec(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
 
@@ -3466,7 +3472,10 @@ impl&lt;T&gt; Vec&lt;T&gt; {
 impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
     fn push(v: &amp;mut Vec&lt;T, A&gt;, value: T);
+}
 
+#[extern_spec]
+impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     #[spec(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
 
