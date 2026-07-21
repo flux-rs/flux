@@ -854,16 +854,6 @@ impl FluxAttrs {
         read_attrs!(self, Items).into_iter().flatten().collect()
     }
 
-    fn fn_sig(&mut self) -> Option<surface::FnSig> {
-        let mut fn_sig = read_attr!(self, FnSig);
-        // FIXME(nilehmann) the `no_panic_if` annotation should work even if there's no `flux::spec`
-        // annotation or we should at least show an error.
-        if let Some(fn_sig) = &mut fn_sig {
-            fn_sig.no_panic = read_attr!(self, NoPanicIf);
-        }
-        fn_sig
-    }
-
     fn fn_sig_with_attr_span(&mut self) -> Option<(surface::FnSig, Span)> {
         self.map
             .swap_remove(attr_name!(FnSig))
