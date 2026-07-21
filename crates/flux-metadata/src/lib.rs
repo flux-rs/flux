@@ -181,7 +181,7 @@ pub struct Tables<'tcx, K: Eq + Hash> {
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
     no_panic: UnordMap<K, bool>,
     assume_parametric_params: UnordMap<K, UnordSet<u32>>,
-    spec_attr_string: UnordMap<K, String>,
+    spec_attr_span: UnordMap<K, Span>,
     no_panic_specs: UnordMap<NodeKey<'tcx>, PanicSpec>,
 }
 
@@ -233,7 +233,7 @@ impl<'tcx> CStore<'tcx> {
         merge_extern_table!(self, tcx, type_of, extern_tables);
         merge_extern_table!(self, tcx, no_panic, extern_tables);
         merge_extern_table!(self, tcx, assume_parametric_params, extern_tables);
-        merge_extern_table!(self, tcx, spec_attr_string, extern_tables);
+        merge_extern_table!(self, tcx, spec_attr_span, extern_tables);
         merge_extern_table!(self, tcx, static_info, extern_tables);
     }
 }
@@ -360,8 +360,8 @@ impl<'tcx> CrateStore<'tcx> for CStore<'tcx> {
         get!(self, sort_decl_param_count, key)
     }
 
-    fn spec_attr_string(&self, def_id: DefId) -> Option<String> {
-        get!(self, spec_attr_string, def_id)
+    fn spec_attr_span(&self, def_id: DefId) -> Option<Span> {
+        get!(self, spec_attr_span, def_id)
     }
 }
 
@@ -519,8 +519,8 @@ fn encode_def_ids<'tcx, K: Eq + Hash + Copy>(
                 tables
                     .assume_parametric_params
                     .insert(key, genv.assume_parametric_params(def_id));
-                if let Some(s) = genv.spec_attr_string(def_id) {
-                    tables.spec_attr_string.insert(key, s);
+                if let Some(span) = genv.spec_attr_span(def_id) {
+                    tables.spec_attr_span.insert(key, span);
                 }
             }
             DefKind::Ctor(_, CtorKind::Fn) => {

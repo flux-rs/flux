@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::def_id::CrateNum;
-use rustc_span::def_id::DefId;
+use rustc_span::{Span, def_id::DefId};
 
 use crate::{PanicSpec, call_graph::NodeKey, def_id::FluxDefId, queries::QueryResult, rty};
 
@@ -39,7 +39,7 @@ pub trait CrateStore<'tcx> {
     fn sort_decl_param_count(&self, def_id: FluxDefId) -> Option<usize>;
     fn no_panic(&self, def_id: DefId) -> Option<bool>;
     fn assume_parametric_params(&self, def_id: DefId) -> Option<UnordSet<u32>>;
-    fn spec_attr_string(&self, def_id: DefId) -> Option<String>;
+    fn spec_attr_span(&self, def_id: DefId) -> Option<Span>;
     fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec>>;
     fn has_crate(&self, krate: CrateNum) -> bool;
 }

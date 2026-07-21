@@ -128,11 +128,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                         },
                     )?;
                     if let Some(span) = attr_span {
-                        let def_id = owner_id.def_id.to_def_id();
-                        self.specs.set_spec_attr_span(def_id, span);
-                        if let Ok(snippet) = self.tcx.sess.source_map().span_to_snippet(span) {
-                            self.specs.set_spec_attr_string(def_id, snippet);
-                        }
+                        self.specs
+                            .set_spec_attr_span(owner_id.def_id.to_def_id(), span);
                     }
                 }
             }
@@ -196,11 +193,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
             )?;
             if let Some(span) = attr_span {
-                let def_id = owner_id.def_id.to_def_id();
-                self.specs.set_spec_attr_span(def_id, span);
-                if let Ok(snippet) = self.tcx.sess.source_map().span_to_snippet(span) {
-                    self.specs.set_spec_attr_string(def_id, snippet);
-                }
+                self.specs
+                    .set_spec_attr_span(owner_id.def_id.to_def_id(), span);
             }
         }
         hir::intravisit::walk_trait_item(self, trait_item);
@@ -227,11 +221,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
             )?;
             if let Some(span) = attr_span {
-                let def_id = owner_id.def_id.to_def_id();
-                self.specs.set_spec_attr_span(def_id, span);
-                if let Ok(snippet) = self.tcx.sess.source_map().span_to_snippet(span) {
-                    self.specs.set_spec_attr_string(def_id, snippet);
-                }
+                self.specs
+                    .set_spec_attr_span(owner_id.def_id.to_def_id(), span);
             }
         }
         hir::intravisit::walk_impl_item(self, impl_item);

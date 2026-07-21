@@ -84,11 +84,9 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
                 },
             )?;
             if let Some(span) = attr_span {
-                let def_id = item.owner_id.def_id.to_def_id();
-                self.inner.specs.set_spec_attr_span(def_id, span);
-                if let Ok(snippet) = self.tcx().sess.source_map().span_to_snippet(span) {
-                    self.inner.specs.set_spec_attr_string(def_id, snippet);
-                }
+                self.inner
+                    .specs
+                    .set_spec_attr_span(item.owner_id.def_id.to_def_id(), span);
             }
         }
 
@@ -240,11 +238,9 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
                 surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
             )?;
             if let Some(span) = attr_span {
-                let def_id = item.owner_id.def_id.to_def_id();
-                self.inner.specs.set_spec_attr_span(def_id, span);
-                if let Ok(snippet) = self.tcx().sess.source_map().span_to_snippet(span) {
-                    self.inner.specs.set_spec_attr_string(def_id, snippet);
-                }
+                self.inner
+                    .specs
+                    .set_spec_attr_span(item.owner_id.def_id.to_def_id(), span);
             }
         }
 
@@ -303,11 +299,9 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
                 surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
             )?;
             if let Some(span) = attr_span {
-                let def_id = item.owner_id.def_id.to_def_id();
-                self.inner.specs.set_spec_attr_span(def_id, span);
-                if let Ok(snippet) = self.tcx().sess.source_map().span_to_snippet(span) {
-                    self.inner.specs.set_spec_attr_string(def_id, snippet);
-                }
+                self.inner
+                    .specs
+                    .set_spec_attr_span(item.owner_id.def_id.to_def_id(), span);
             }
         }
 
