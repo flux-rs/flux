@@ -163,7 +163,7 @@ function parseLineInfo(event: any): [string, LineInfo] | undefined {
  * Parse a flux definition (hyperlink) event
  */
 function parseFluxDef(event: any): FluxDef | undefined {
-    if (event.fields && event.fields.event === "hyperlink") {
+    if (event.fields && (event.fields.event === "hyperlink" || event.fields.event === "call")) {
         try {
             const srcSpan = JSON.parse(event.fields.src_span) as StmtSpan;
             const dstSpan = JSON.parse(event.fields.dst_span) as StmtSpan;
