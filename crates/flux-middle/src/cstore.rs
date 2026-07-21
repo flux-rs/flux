@@ -39,6 +39,7 @@ pub trait CrateStore<'tcx> {
     fn sort_decl_param_count(&self, def_id: FluxDefId) -> Option<usize>;
     fn no_panic(&self, def_id: DefId) -> Option<bool>;
     fn assume_parametric_params(&self, def_id: DefId) -> Option<UnordSet<u32>>;
+    fn spec_attr_string(&self, def_id: DefId) -> Option<String>;
     fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec>>;
     fn has_crate(&self, krate: CrateNum) -> bool;
 }

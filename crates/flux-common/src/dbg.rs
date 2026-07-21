@@ -141,6 +141,29 @@ macro_rules! _statement{
 pub use crate::_statement as statement;
 
 #[macro_export]
+macro_rules! _call{
+    ($genv:expr, $callee_def_id:expr, $span:expr) => {{
+        let genv = $genv;
+        let tcx = genv.tcx();
+        let callee_def_id: DefId = $callee_def_id;
+        let callee_path = tcx.def_path_str(callee_def_id);
+        let callee_spec = genv
+            .spec_attr_string(callee_def_id)
+            .unwrap_or_default();
+        let span_json = SpanTrace::new(tcx, $span);
+        let callee_span_json = SpanTrace::new(tcx, tcx.def_span(callee_def_id));
+        tracing::warn!(
+            event = "call",
+            callee_path = callee_path.as_str(),
+            callee_spec = callee_spec.as_str(),
+            src_span = ?span_json,
+            dst_span = ?callee_span_json,
+        )
+    }};
+}
+pub use crate::_call as call;
+
+#[macro_export]
 macro_rules! _terminator{
     ($pos:literal, $terminator:expr, $rcx:expr, $env:expr) => {{
         tracing::debug!(event = concat!("terminator_", $pos), terminator = ?$terminator, rcx = ?$rcx, env = ?$env)

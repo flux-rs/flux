@@ -907,6 +907,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
+        if let Some(callee_def_id) = callee_def_id {
+            dbg::call!(genv, callee_def_id, span);
+        }
+
         let actuals =
             unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());

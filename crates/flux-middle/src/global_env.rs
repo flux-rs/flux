@@ -810,9 +810,29 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fhir_attr_map(def_id).proven_externally()
     }
 
-    /// Get the span of the #[sig(...)] attribute for a function, if it exists
+    /// Get the span of the #[sig(...)] attribute for a function, if it exists.
+    /// For extern specs, falls back to the local item that defines the spec.
     pub fn spec_attr_span(self, def_id: DefId) -> Option<Span> {
-        self.collect_specs().get_spec_attr_span(def_id)
+        let specs = self.collect_specs();
+        specs.get_spec_attr_span(def_id).or_else(|| {
+            let local_id = specs.extern_id_to_local_id.get(&def_id)?;
+            specs.get_spec_attr_span(local_id.to_def_id())
+        })
+    }
+
+    /// Get the source text of the #[sig(...)] attribute for a function.
+    /// Checks local specs (including extern spec mapping) then falls back to cross-crate metadata.
+    pub fn spec_attr_string(self, def_id: DefId) -> Option<String> {
+        let specs = self.collect_specs();
+        if let Some(s) = specs.get_spec_attr_string(def_id) {
+            return Some(s.to_string());
+        }
+        if let Some(local_id) = specs.extern_id_to_local_id.get(&def_id) {
+            if let Some(s) = specs.get_spec_attr_string(local_id.to_def_id()) {
+                return Some(s.to_string());
+            }
+        }
+        self.cstore().spec_attr_string(def_id)
     }
 
     /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
