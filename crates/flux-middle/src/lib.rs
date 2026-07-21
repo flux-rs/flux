@@ -439,7 +439,6 @@ impl Specs {
         self.spec_attr_spans.get(&def_id).copied()
     }
 
-
     pub fn get_item(&self, owner_id: OwnerId) -> Option<&surface::Item> {
         self.items.get(&owner_id)
     }
