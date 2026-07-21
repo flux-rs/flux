@@ -13,7 +13,7 @@ use flux_rustc_bridge::{
     mir::{self},
     ty,
 };
-use flux_syntax::symbols::sym;
+use flux_syntax::{surface, symbols::sym};
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_errors::Diagnostic;
@@ -261,6 +261,7 @@ pub struct Queries<'genv, 'tcx> {
     mir: Cache<LocalDefId, QueryResult<Rc<mir::BodyRoot<'tcx>>>>,
     collect_specs: OnceCell<crate::Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
+    flux_module_children: Cache<DefId, &'genv [fhir::FluxModChild]>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
     fhir_attr_map: Cache<LocalDefId, fhir::AttrMap<'genv>>,
     fhir_crate: OnceCell<fhir::FluxItems<'genv>>,
@@ -306,6 +307,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             mir: Default::default(),
             collect_specs: Default::default(),
             resolve_crate: Default::default(),
+            flux_module_children: Default::default(),
             desugar: Default::default(),
             fhir_attr_map: Default::default(),
             fhir_crate: Default::default(),
@@ -370,6 +372,58 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     ) -> &'genv crate::ResolverOutput {
         self.resolve_crate
             .get_or_init(|| (self.providers.resolve_crate)(genv))
+    }
+
+    /// Akin to `rustc_middle::ty::TyCtxt::module_children` but for flux items (`defs!` and
+    /// sort declarations) defined directly in a module.
+    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
+    pub(crate) fn flux_module_children(
+        &'genv self,
+        genv: GlobalEnv<'genv, 'tcx>,
+        def_id: DefId,
+    ) -> &'genv [fhir::FluxModChild] {
+        run_with_cache(&self.flux_module_children, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                self,
+                |def_id| -> &'genv [fhir::FluxModChild] {
+                    // Local modules: build children from surface specs (safe to call from the
+                    // resolver; `fhir_crate` would create a query cycle). Modules cannot
+                    // have extern specs, so `local_id()` is sound.
+                    let specs = genv.collect_specs();
+                    let parent = def_id.local_id();
+                    let items = specs
+                        .flux_items_by_parent
+                        .get(&rustc_hir::OwnerId { def_id: parent })
+                        .map_or(&[][..], Vec::as_ref);
+                    genv.alloc_slice(
+                        &items
+                            .iter()
+                            .filter_map(|item| {
+                                let res = match item {
+                                    surface::FluxItem::FuncDef(_) => {
+                                        fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
+                                            FluxDefId::new(parent.to_def_id(), item.name().name),
+                                        ))
+                                    }
+                                    surface::FluxItem::SortDecl(_) => {
+                                        fhir::Res::UserSort(FluxDefId::new(
+                                            parent.to_def_id(),
+                                            item.name().name,
+                                        ))
+                                    }
+                                    surface::FluxItem::Qualifier(_)
+                                    | surface::FluxItem::PrimOpProp(_) => return None,
+                                };
+                                Some(fhir::FluxModChild { ident: item.name(), res })
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                },
+                |def_id| genv.cstore().flux_module_children(def_id),
+                |_| &[], // crates without flux metadata have no flux children
+            )
+        })
     }
 
     pub(crate) fn desugar(

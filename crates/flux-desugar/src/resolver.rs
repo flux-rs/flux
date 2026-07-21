@@ -111,45 +111,52 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
+    /// Qualifiers and primop-props are global
     #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
     fn define_flux_global_items(&mut self) {
-        // Note that names are defined globally so we check for duplicates globally in the crate.
-        let mut definitions = DefinitionMap::default();
         for (parent, items) in &self.specs.flux_items_by_parent {
             for item in items {
-                // NOTE: This is putting all items in the same namespace. In principle, we could have
-                // qualifiers in a different namespace.
-                definitions
-                    .define(item.name())
-                    .emit(&self.genv)
-                    .collect_err(&mut self.err);
-
                 match item {
                     surface::FluxItem::Qualifier(qual) => {
                         let def_id = FluxLocalDefId::new(parent.def_id, qual.name.name);
                         self.qualifiers.insert(qual.name.name, def_id);
                     }
-                    surface::FluxItem::FuncDef(defn) => {
-                        let parent = parent.def_id.to_def_id();
-                        let name = defn.name.name;
-                        let def_id = FluxDefId::new(parent, name);
-                        let kind = fhir::SpecFuncKind::Def(def_id);
-                        self.define_in_prelude(name, fhir::Res::GlobalFunc(kind), ReftNS);
-                    }
                     surface::FluxItem::PrimOpProp(primop_prop) => {
-                        let name = primop_prop.name.name;
-                        let parent = parent.def_id.to_def_id();
-                        let def_id = FluxDefId::new(parent, name);
-                        self.primop_props.insert(name, def_id);
+                        let def_id =
+                            FluxDefId::new(parent.def_id.to_def_id(), primop_prop.name.name);
+                        self.primop_props.insert(primop_prop.name.name, def_id);
                     }
-                    surface::FluxItem::SortDecl(sort_decl) => {
-                        let def_id = FluxDefId::new(parent.def_id.to_def_id(), sort_decl.name.name);
-                        self.define_in_prelude(
-                            sort_decl.name.name,
-                            fhir::Res::UserSort(def_id),
-                            TypeNS,
-                        );
-                    }
+                    surface::FluxItem::FuncDef(_) | surface::FluxItem::SortDecl(_) => {}
+                }
+            }
+        }
+    }
+
+    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
+    fn define_module_flux_items(&mut self, parent: OwnerId) {
+        let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
+        // Names are defined per-module so duplicates are only checked within this module.
+        let mut definitions = DefinitionMap::default();
+        for item in items {
+            // NOTE: This is putting all items in the same namespace. In principle, we could have
+            // qualifiers in a different namespace.
+            definitions
+                .define(item.name())
+                .emit(&self.genv)
+                .collect_err(&mut self.err);
+
+            match item {
+                // Already registered in `define_global_qualifiers_and_primop_props`.
+                surface::FluxItem::Qualifier(_) | surface::FluxItem::PrimOpProp(_) => {}
+                surface::FluxItem::FuncDef(defn) => {
+                    let name = defn.name.name;
+                    let def_id = FluxDefId::new(parent.def_id.to_def_id(), name);
+                    let kind = fhir::SpecFuncKind::Def(def_id);
+                    self.define_res_in(name, fhir::Res::GlobalFunc(kind), ReftNS);
+                }
+                surface::FluxItem::SortDecl(sort_decl) => {
+                    let def_id = FluxDefId::new(parent.def_id.to_def_id(), sort_decl.name.name);
+                    self.define_res_in(sort_decl.name.name, fhir::Res::UserSort(def_id), TypeNS);
                 }
             }
         }
@@ -430,16 +437,30 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let tcx = self.genv.tcx();
         match module.kind {
             ModuleKind::Mod => {
-                // Module children are Rust items, so we only ever resolve them in a Rust namespace.
-                let rustc_ns = ns.to_rustc()?;
                 let module_id = module.def_id;
                 let current_mod = self.current_module.to_def_id();
-                visible_module_children(tcx, module_id, current_mod)
-                    .find(|child| {
-                        child.res.matches_ns(rustc_ns)
-                            && tcx.hygienic_eq(ident, child.ident, current_mod)
+                // Rust module children take precedence, but are only resolved in a Rust
+                // namespace.
+                ns.to_rustc()
+                    .and_then(|rustc_ns| {
+                        visible_module_children(tcx, module_id, current_mod)
+                            .find(|child| {
+                                child.res.matches_ns(rustc_ns)
+                                    && tcx.hygienic_eq(ident, child.ident, current_mod)
+                            })
+                            .and_then(|child| {
+                                fhir::Res::<surface::NodeId>::try_from(child.res).ok()
+                            })
                     })
-                    .and_then(|child| fhir::Res::<surface::NodeId>::try_from(child.res).ok())
+                    .or_else(|| {
+                        self.genv
+                            .flux_module_children(module_id)
+                            .iter()
+                            .find(|child| {
+                                child.res.ns() == Some(ns) && child.ident.name == ident.name
+                            })
+                            .map(|child| child.res.map_param_id(|id| match id {}))
+                    })
             }
             ModuleKind::Trait => {
                 // Associated items are Rust items, so we only ever resolve them in a Rust namespace.
@@ -486,36 +507,43 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.current_module = hir_id.expect_owner();
         self.push_rib(TypeNS, RibKind::Module);
         self.push_rib(ValueNS, RibKind::Module);
+        self.push_rib(ReftNS, RibKind::Module);
 
         self.define_items(module.item_ids);
 
-        // Flux items are made globally available as if they were defined at the top of the crate
+        // Flux primops and wualifiers are made globally available as if they were defined at the top of the crate
         if hir_id == CRATE_HIR_ID {
             self.define_flux_global_items();
         }
+        // Other items are defined in the module they are declared in.
+        self.define_module_flux_items(hir_id.expect_owner());
 
-        // But we resolve names in them as if they were defined in their containing module
         self.resolve_flux_items(hir_id.expect_owner());
-
         hir::intravisit::walk_mod(self, module);
 
+        self.pop_rib(ReftNS);
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
         self.current_module = old_mod;
     }
 
     fn visit_block(&mut self, block: &'tcx hir::Block<'tcx>) {
+        let parent = self.genv.tcx().hir_get_parent_item(block.hir_id);
+
         self.push_rib(TypeNS, RibKind::Misc);
         self.push_rib(ValueNS, RibKind::Misc);
+        self.push_rib(ReftNS, RibKind::Misc);
 
         let item_ids = block.stmts.iter().filter_map(|stmt| {
             if let hir::StmtKind::Item(item_id) = &stmt.kind { Some(item_id) } else { None }
         });
         self.define_items(item_ids);
-        self.resolve_flux_items(self.genv.tcx().hir_get_parent_item(block.hir_id));
+        self.define_module_flux_items(parent);
 
+        self.resolve_flux_items(parent);
         hir::intravisit::walk_block(self, block);
 
+        self.pop_rib(ReftNS);
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }

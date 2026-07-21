@@ -637,7 +637,12 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
     }
 
     fn on_refine_param(&mut self, param: &surface::RefineParam) {
-        self.define_param(param.ident, fhir::ParamKind::Explicit(param.mode), param.node_id, None);
+        self.define_param(
+            param.ident,
+            fhir::ParamKind::Explicit(param.mode.map(Into::into)),
+            param.node_id,
+            None,
+        );
     }
 
     fn on_loc(&mut self, loc: Ident, node_id: NodeId) {
