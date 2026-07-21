@@ -142,11 +142,14 @@ pub use crate::_statement as statement;
 
 #[macro_export]
 macro_rules! _call{
-    ($genv:expr, $callee_def_id:expr, $span:expr) => {{
+    ($genv:expr, $callee_def_id:expr, $caller_def_id:expr, $span:expr) => {{
         let genv = $genv;
         let tcx = genv.tcx();
         let callee_def_id: DefId = $callee_def_id;
         let callee_path = tcx.def_path_str(callee_def_id);
+        let caller_path = ($caller_def_id as Option<DefId>)
+            .map(|id| tcx.def_path_str(id))
+            .unwrap_or_default();
         let callee_spec = genv
             .spec_attr_string(callee_def_id)
             .unwrap_or_default();
@@ -154,6 +157,7 @@ macro_rules! _call{
         let callee_span_json = SpanTrace::new(tcx, tcx.def_span(callee_def_id));
         tracing::warn!(
             event = "call",
+            caller_path = caller_path.as_str(),
             callee_path = callee_path.as_str(),
             callee_spec = callee_spec.as_str(),
             src_span = ?span_json,

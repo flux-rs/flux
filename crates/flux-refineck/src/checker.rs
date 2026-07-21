@@ -906,9 +906,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<ResolvedCall> {
         let genv = self.genv;
         let tcx = genv.tcx();
-
+        // Recover the resolved callee `NodeKey` from the call graph by the call-site location,
+        // then query the no-panic spec map.
+        let body_def_id = match self.checker_id {
+            CheckerId::DefId(def_id) => Some(def_id.to_def_id()),
+            CheckerId::Promoted(..) => None,
+        };
         if let Some(callee_def_id) = callee_def_id {
-            dbg::call!(genv, callee_def_id, span);
+            dbg::call!(genv, callee_def_id, body_def_id, span);
         }
 
         let actuals =
@@ -969,12 +974,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         {
             let callee_no_panic = fn_sig.no_panic();
 
-            // Recover the resolved callee `NodeKey` from the call graph by the call-site location,
-            // then query the no-panic spec map.
-            let body_def_id = match self.checker_id {
-                CheckerId::DefId(def_id) => Some(def_id.to_def_id()),
-                CheckerId::Promoted(..) => None,
-            };
             let callee_inferred_spec = body_def_id
                 .zip(location)
                 .and_then(|(body_def_id, location)| {
