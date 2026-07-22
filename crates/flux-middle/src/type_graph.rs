@@ -1,22 +1,13 @@
 //! Type dependency graph: maps each local struct/enum to the other local
 //! struct/enums referenced in its field definitions.
 
-use std::{fs, io, path::Path};
+use std::{io, path::Path};
 
-use flux_common::dbg::SpanTrace;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::{self, TyCtxt};
-use serde::Serialize;
-use toposort_scc::IndexGraph;
 
-#[derive(Serialize)]
-struct JsonNode {
-    uid: usize,
-    path: String,
-    span: SpanTrace,
-    deps: Vec<usize>,
-}
+use crate::call_graph::dump_dep_graph_json;
 
 /// Collect DefIds of all ADTs (struct/enum) referenced in `ty`, recursively.
 fn collect_adt_refs<'tcx>(ty: ty::Ty<'tcx>, out: &mut Vec<DefId>) {
@@ -45,15 +36,9 @@ fn collect_adt_refs<'tcx>(ty: ty::Ty<'tcx>, out: &mut Vec<DefId>) {
 }
 
 pub fn dump_type_graph(tcx: TyCtxt<'_>, dir: &Path) -> io::Result<()> {
-    // Collect all local struct/enum DefIds
     let local_adts: Vec<DefId> = tcx
         .iter_local_def_id()
-        .filter(|&local_id| {
-            matches!(
-                tcx.def_kind(local_id),
-                DefKind::Struct | DefKind::Enum
-            )
-        })
+        .filter(|&local_id| matches!(tcx.def_kind(local_id), DefKind::Struct | DefKind::Enum))
         .map(|local_id| local_id.to_def_id())
         .collect();
 
@@ -63,7 +48,6 @@ pub fn dump_type_graph(tcx: TyCtxt<'_>, dir: &Path) -> io::Result<()> {
         .map(|(i, &did)| (did, i))
         .collect();
 
-    // Build adjacency: type -> types it references in its fields
     let adj: Vec<Vec<usize>> = local_adts
         .iter()
         .map(|&def_id| {
@@ -81,43 +65,11 @@ pub fn dump_type_graph(tcx: TyCtxt<'_>, dir: &Path) -> io::Result<()> {
                 .collect();
             local_refs.sort_unstable();
             local_refs.dedup();
-            // Remove self-references
             let self_idx = adt_to_idx.get(&def_id).copied().unwrap();
             local_refs.retain(|&idx| idx != self_idx);
             local_refs
         })
         .collect();
 
-    // Toposort: transpose so deps come first
-    let mut graph = IndexGraph::from_adjacency_list(&adj);
-    graph.transpose();
-    let topo_order = graph.toposort_or_scc().unwrap_or_else(|sccs| {
-        sccs.into_iter().flatten().collect()
-    });
-
-    let mut uid_of: Vec<usize> = vec![0; local_adts.len()];
-    for (uid, &orig_idx) in topo_order.iter().enumerate() {
-        uid_of[orig_idx] = uid;
-    }
-
-    let json_nodes: Vec<JsonNode> = topo_order
-        .iter()
-        .enumerate()
-        .map(|(uid, &orig_idx)| {
-            let def_id = local_adts[orig_idx];
-            let dep_uids: Vec<usize> = adj[orig_idx].iter().map(|&j| uid_of[j]).collect();
-            JsonNode {
-                uid,
-                path: tcx.def_path_str(def_id),
-                span: SpanTrace::new(tcx, tcx.def_span(def_id)),
-                deps: dep_uids,
-            }
-        })
-        .collect();
-
-    fs::create_dir_all(dir)?;
-    let path = dir.join("type_graph.json");
-    let file = fs::File::create(path)?;
-    serde_json::to_writer_pretty(file, &json_nodes)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    dump_dep_graph_json(tcx, dir, "type_graph.json", &local_adts, &adj)
 }

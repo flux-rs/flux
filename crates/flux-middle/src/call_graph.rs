@@ -213,11 +213,53 @@ impl<'tcx> fmt::Display for CallGraph<'tcx> {
 }
 
 #[derive(Serialize)]
-struct JsonNode {
-    uid: usize,
-    path: String,
-    span: SpanTrace,
-    callees: Vec<usize>,
+pub struct JsonNode {
+    pub uid: usize,
+    pub path: String,
+    pub span: SpanTrace,
+    pub deps: Vec<usize>,
+}
+
+/// Topologically sort `def_ids` by `adj` (deps before dependents) and emit as JSON to `file_name`
+/// inside `dir`.
+pub fn dump_dep_graph_json(
+    tcx: TyCtxt<'_>,
+    dir: &Path,
+    file_name: &str,
+    def_ids: &[DefId],
+    adj: &[Vec<usize>],
+) -> io::Result<()> {
+    let mut graph = IndexGraph::from_adjacency_list(adj);
+    graph.transpose();
+    let topo_order = graph.toposort_or_scc().unwrap_or_else(|sccs| {
+        sccs.into_iter().flatten().collect()
+    });
+
+    let mut uid_of: Vec<usize> = vec![0; def_ids.len()];
+    for (uid, &orig_idx) in topo_order.iter().enumerate() {
+        uid_of[orig_idx] = uid;
+    }
+
+    let json_nodes: Vec<JsonNode> = topo_order
+        .iter()
+        .enumerate()
+        .map(|(uid, &orig_idx)| {
+            let def_id = def_ids[orig_idx];
+            let dep_uids: Vec<usize> = adj[orig_idx].iter().map(|&j| uid_of[j]).collect();
+            JsonNode {
+                uid,
+                path: tcx.def_path_str(def_id),
+                span: SpanTrace::new(tcx, tcx.def_span(def_id)),
+                deps: dep_uids,
+            }
+        })
+        .collect();
+
+    fs::create_dir_all(dir)?;
+    let path = dir.join(file_name);
+    let file = fs::File::create(path)?;
+    serde_json::to_writer_pretty(file, &json_nodes)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
 
 impl<'tcx> CallGraph<'tcx> {
@@ -237,59 +279,26 @@ impl<'tcx> CallGraph<'tcx> {
             .map(|(i, &k)| (k, i))
             .collect();
 
-        // Build adjacency list: caller -> unique callees, restricted to local items
+        let def_ids: Vec<DefId> = local_keys.iter().map(|k| k.def_id()).collect();
+
         let adj: Vec<Vec<usize>> = local_keys
             .iter()
             .map(|key| {
                 self.nodes
                     .get(key)
                     .map(|node| {
-                        let mut callees: Vec<usize> = node
+                        let mut deps: Vec<usize> = node
                             .resolved_callees()
                             .filter_map(|callee| key_to_idx.get(&callee).copied())
                             .collect();
-                        callees.sort_unstable();
-                        callees.dedup();
-                        callees
+                        deps.sort_unstable();
+                        deps.dedup();
+                        deps
                     })
                     .unwrap_or_default()
             })
             .collect();
 
-        // Transpose so edges point callee -> caller, then toposort gives callees first
-        let mut graph = IndexGraph::from_adjacency_list(&adj);
-        graph.transpose();
-        let topo_order = graph.toposort_or_scc().unwrap_or_else(|sccs| {
-            // Cycles: flatten SCCs in the order returned
-            sccs.into_iter().flatten().collect()
-        });
-
-        // Assign UIDs in output order
-        let mut uid_of: Vec<usize> = vec![0; local_keys.len()];
-        for (uid, &orig_idx) in topo_order.iter().enumerate() {
-            uid_of[orig_idx] = uid;
-        }
-
-        let json_nodes: Vec<JsonNode> = topo_order
-            .iter()
-            .enumerate()
-            .map(|(uid, &orig_idx)| {
-                let key = local_keys[orig_idx];
-                let def_id = key.def_id();
-                let callee_uids: Vec<usize> = adj[orig_idx].iter().map(|&j| uid_of[j]).collect();
-                JsonNode {
-                    uid,
-                    path: tcx.def_path_str(def_id),
-                    span: SpanTrace::new(tcx, tcx.def_span(def_id)),
-                    callees: callee_uids,
-                }
-            })
-            .collect();
-
-        fs::create_dir_all(dir)?;
-        let path = dir.join("call_graph.json");
-        let file = fs::File::create(path)?;
-        serde_json::to_writer_pretty(file, &json_nodes)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        dump_dep_graph_json(tcx, dir, "call_graph.json", &def_ids, &adj)
     }
 }
