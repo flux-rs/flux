@@ -147,7 +147,7 @@ pub struct Flags {
     #[arg(
         long = flux_arg!("dump-call-graph"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "false"
     )]
     pub dump_call_graph: bool,
     /// Saves the checker's trace (debugging)
