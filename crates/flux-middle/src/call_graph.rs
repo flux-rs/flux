@@ -5,7 +5,7 @@
 //! (no-panic inference) and `flux-refineck` (the checker, which recovers the resolved callee at a
 //! call site by location).
 
-use std::{collections::VecDeque, fmt, fs, io, path::Path};
+use std::{fmt, fs, io, path::Path};
 
 use flux_common::dbg::SpanTrace;
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
@@ -16,6 +16,7 @@ use rustc_middle::{
     ty::{GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt},
 };
 use serde::Serialize;
+use toposort_scc::IndexGraph;
 
 /// Identity of a call-graph node. Distinguishes an item *as defined in source* from a
 /// *monomorphization* synthesized while building the graph.
@@ -223,7 +224,6 @@ impl<'tcx> CallGraph<'tcx> {
     /// Dump the local portion of the call graph as a JSON array, topologically sorted so that
     /// callees appear before callers (leaves first).
     pub fn dump_json(&self, tcx: TyCtxt<'tcx>, dir: &Path) -> io::Result<()> {
-        // Collect local Item nodes and assign indices
         let local_keys: Vec<NodeKey<'tcx>> = self
             .nodes
             .keys()
@@ -237,56 +237,31 @@ impl<'tcx> CallGraph<'tcx> {
             .map(|(i, &k)| (k, i))
             .collect();
 
-        let n = local_keys.len();
+        // Build adjacency list: caller -> callees, restricted to local items
+        let adj: Vec<Vec<usize>> = local_keys
+            .iter()
+            .map(|key| {
+                self.nodes
+                    .get(key)
+                    .map(|node| {
+                        node.resolved_callees()
+                            .filter_map(|callee| key_to_idx.get(&callee).copied())
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            })
+            .collect();
 
-        // Build adjacency (caller -> callees) restricted to local items, and in-degree counts
-        let mut adj: Vec<Vec<usize>> = vec![vec![]; n];
-        let mut in_degree: Vec<usize> = vec![0; n];
+        // Transpose so edges point callee -> caller, then toposort gives callees first
+        let mut graph = IndexGraph::from_adjacency_list(&adj);
+        graph.transpose();
+        let topo_order = graph.toposort_or_scc().unwrap_or_else(|sccs| {
+            // Cycles: flatten SCCs in the order returned
+            sccs.into_iter().flatten().collect()
+        });
 
-        for (i, key) in local_keys.iter().enumerate() {
-            if let Some(node) = self.nodes.get(key) {
-                for callee_key in node.resolved_callees() {
-                    if let Some(&j) = key_to_idx.get(&callee_key) {
-                        adj[i].push(j);
-                        in_degree[j] += 1;
-                    }
-                }
-            }
-        }
-
-        // Kahn's algorithm: nodes with in_degree 0 are leaves (no local caller depends on them
-        // being checked first — they only call out of the crate).
-        let mut queue: VecDeque<usize> = VecDeque::new();
-        for i in 0..n {
-            if in_degree[i] == 0 {
-                queue.push_back(i);
-            }
-        }
-
-        let mut topo_order: Vec<usize> = Vec::with_capacity(n);
-        while let Some(i) = queue.pop_front() {
-            topo_order.push(i);
-            for &j in &adj[i] {
-                in_degree[j] -= 1;
-                if in_degree[j] == 0 {
-                    queue.push_back(j);
-                }
-            }
-        }
-
-        // Nodes in cycles (if any) won't be in topo_order; append them at the end
-        for i in 0..n {
-            if in_degree[i] > 0 {
-                topo_order.push(i);
-            }
-        }
-
-        // The topo_order has callers before callees (roots first). We want callees first,
-        // so reverse it.
-        topo_order.reverse();
-
-        // Assign UIDs in output order and build the JSON
-        let mut uid_of: Vec<usize> = vec![0; n];
+        // Assign UIDs in output order
+        let mut uid_of: Vec<usize> = vec![0; local_keys.len()];
         for (uid, &orig_idx) in topo_order.iter().enumerate() {
             uid_of[orig_idx] = uid;
         }
@@ -297,10 +272,8 @@ impl<'tcx> CallGraph<'tcx> {
             .map(|(uid, &orig_idx)| {
                 let key = local_keys[orig_idx];
                 let def_id = key.def_id();
-                let callee_uids: Vec<usize> = adj[orig_idx]
-                    .iter()
-                    .map(|&j| uid_of[j])
-                    .collect();
+                let callee_uids: Vec<usize> =
+                    adj[orig_idx].iter().map(|&j| uid_of[j]).collect();
                 JsonNode {
                     uid,
                     path: tcx.def_path_str(def_id),
