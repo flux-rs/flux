@@ -231,9 +231,9 @@ pub fn dump_dep_graph_json(
 ) -> io::Result<()> {
     let mut graph = IndexGraph::from_adjacency_list(adj);
     graph.transpose();
-    let topo_order = graph.toposort_or_scc().unwrap_or_else(|sccs| {
-        sccs.into_iter().flatten().collect()
-    });
+    let topo_order = graph
+        .toposort_or_scc()
+        .unwrap_or_else(|sccs| sccs.into_iter().flatten().collect());
 
     let mut uid_of: Vec<usize> = vec![0; def_ids.len()];
     for (uid, &orig_idx) in topo_order.iter().enumerate() {
