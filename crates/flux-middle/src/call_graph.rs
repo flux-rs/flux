@@ -5,8 +5,9 @@
 //! (no-panic inference) and `flux-refineck` (the checker, which recovers the resolved callee at a
 //! call site by location).
 
-use std::fmt;
+use std::{collections::VecDeque, fmt, fs, io, path::Path};
 
+use flux_common::dbg::SpanTrace;
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_macros::{TyDecodable, TyEncodable};
@@ -14,6 +15,7 @@ use rustc_middle::{
     mir::Location,
     ty::{GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt},
 };
+use serde::Serialize;
 
 /// Identity of a call-graph node. Distinguishes an item *as defined in source* from a
 /// *monomorphization* synthesized while building the graph.
@@ -206,5 +208,112 @@ impl<'tcx> fmt::Display for CallGraph<'tcx> {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Serialize)]
+struct JsonNode {
+    uid: usize,
+    path: String,
+    span: SpanTrace,
+    callees: Vec<usize>,
+}
+
+impl<'tcx> CallGraph<'tcx> {
+    /// Dump the local portion of the call graph as a JSON array, topologically sorted so that
+    /// callees appear before callers (leaves first).
+    pub fn dump_json(&self, tcx: TyCtxt<'tcx>, dir: &Path) -> io::Result<()> {
+        // Collect local Item nodes and assign indices
+        let local_keys: Vec<NodeKey<'tcx>> = self
+            .nodes
+            .keys()
+            .copied()
+            .filter(|k| k.is_local_item())
+            .collect();
+
+        let key_to_idx: UnordMap<NodeKey<'tcx>, usize> = local_keys
+            .iter()
+            .enumerate()
+            .map(|(i, &k)| (k, i))
+            .collect();
+
+        let n = local_keys.len();
+
+        // Build adjacency (caller -> callees) restricted to local items, and in-degree counts
+        let mut adj: Vec<Vec<usize>> = vec![vec![]; n];
+        let mut in_degree: Vec<usize> = vec![0; n];
+
+        for (i, key) in local_keys.iter().enumerate() {
+            if let Some(node) = self.nodes.get(key) {
+                for callee_key in node.resolved_callees() {
+                    if let Some(&j) = key_to_idx.get(&callee_key) {
+                        adj[i].push(j);
+                        in_degree[j] += 1;
+                    }
+                }
+            }
+        }
+
+        // Kahn's algorithm: nodes with in_degree 0 are leaves (no local caller depends on them
+        // being checked first — they only call out of the crate).
+        let mut queue: VecDeque<usize> = VecDeque::new();
+        for i in 0..n {
+            if in_degree[i] == 0 {
+                queue.push_back(i);
+            }
+        }
+
+        let mut topo_order: Vec<usize> = Vec::with_capacity(n);
+        while let Some(i) = queue.pop_front() {
+            topo_order.push(i);
+            for &j in &adj[i] {
+                in_degree[j] -= 1;
+                if in_degree[j] == 0 {
+                    queue.push_back(j);
+                }
+            }
+        }
+
+        // Nodes in cycles (if any) won't be in topo_order; append them at the end
+        for i in 0..n {
+            if in_degree[i] > 0 {
+                topo_order.push(i);
+            }
+        }
+
+        // The topo_order has callers before callees (roots first). We want callees first,
+        // so reverse it.
+        topo_order.reverse();
+
+        // Assign UIDs in output order and build the JSON
+        let mut uid_of: Vec<usize> = vec![0; n];
+        for (uid, &orig_idx) in topo_order.iter().enumerate() {
+            uid_of[orig_idx] = uid;
+        }
+
+        let json_nodes: Vec<JsonNode> = topo_order
+            .iter()
+            .enumerate()
+            .map(|(uid, &orig_idx)| {
+                let key = local_keys[orig_idx];
+                let def_id = key.def_id();
+                let callee_uids: Vec<usize> = adj[orig_idx]
+                    .iter()
+                    .map(|&j| uid_of[j])
+                    .collect();
+                JsonNode {
+                    uid,
+                    path: tcx.def_path_str(def_id),
+                    span: SpanTrace::new(tcx, tcx.def_span(def_id)),
+                    callees: callee_uids,
+                }
+            })
+            .collect();
+
+        fs::create_dir_all(dir)?;
+        let path = dir.join("call_graph.json");
+        let file = fs::File::create(path)?;
+        serde_json::to_writer_pretty(file, &json_nodes)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 }

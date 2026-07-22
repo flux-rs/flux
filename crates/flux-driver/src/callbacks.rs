@@ -142,6 +142,13 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let _ = genv.qualifiers().emit(&genv)?;
         let _ = genv.normalized_defns(LOCAL_CRATE);
 
+        if config::dump_call_graph() {
+            let graph = genv.call_graph();
+            if let Err(e) = graph.dump_json(genv.tcx(), config::log_dir()) {
+                tracing::warn!("failed to dump call graph: {e}");
+            }
+        }
+
         let mut ck = CrateChecker::new(genv);
 
         // Iterate over all def ids including dummy items for extern specs
