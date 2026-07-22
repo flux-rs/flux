@@ -237,16 +237,20 @@ impl<'tcx> CallGraph<'tcx> {
             .map(|(i, &k)| (k, i))
             .collect();
 
-        // Build adjacency list: caller -> callees, restricted to local items
+        // Build adjacency list: caller -> unique callees, restricted to local items
         let adj: Vec<Vec<usize>> = local_keys
             .iter()
             .map(|key| {
                 self.nodes
                     .get(key)
                     .map(|node| {
-                        node.resolved_callees()
+                        let mut callees: Vec<usize> = node
+                            .resolved_callees()
                             .filter_map(|callee| key_to_idx.get(&callee).copied())
-                            .collect()
+                            .collect();
+                        callees.sort_unstable();
+                        callees.dedup();
+                        callees
                     })
                     .unwrap_or_default()
             })
@@ -272,8 +276,7 @@ impl<'tcx> CallGraph<'tcx> {
             .map(|(uid, &orig_idx)| {
                 let key = local_keys[orig_idx];
                 let def_id = key.def_id();
-                let callee_uids: Vec<usize> =
-                    adj[orig_idx].iter().map(|&j| uid_of[j]).collect();
+                let callee_uids: Vec<usize> = adj[orig_idx].iter().map(|&j| uid_of[j]).collect();
                 JsonNode {
                     uid,
                     path: tcx.def_path_str(def_id),
