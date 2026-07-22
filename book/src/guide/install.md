@@ -250,3 +250,18 @@ FLUXFLAGS="-Fflux-verbose" cargo flux
 ```
 
 This will make flux print out a log of what it is upto, e.g. the name of the last function checked. This is helpful, e.g. if flux ICEs (hits an internal error), so you can see _which_ function's code caused the issue, so you might mark it as `trusted`, so flux can skip checking its body, and hence, live to fight another day...
+
+### Call/Dependency Graph
+
+`flux` will generate a call/dependency graph of the local crate or file being checked,
+inside a file `log/call_graph.json` if you run it with
+
+```
+cargo xtask run path/to/file.rs -- -Fdump-call-graph
+```
+
+or
+
+```
+FLUXFLAGS="-Fdump-call-graph" cargo flux check
+```
