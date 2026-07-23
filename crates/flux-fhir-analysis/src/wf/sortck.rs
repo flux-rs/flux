@@ -783,6 +783,14 @@ impl<'genv> InferCtxt<'genv, '_> {
         {
             Some((sort_def.did(), sort.clone()))
         } else {
+            eprintln!("[DEBUG] is_single_field_struct({sort:?}) => None");
+            if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = sort {
+                eprintln!("[DEBUG]   is_struct={}, variants={}, sort_args={:?}", sort_def.is_struct(), sort_def.variants().len(), sort_args);
+                if let Some(v) = sort_def.opt_struct_variant() {
+                    eprintln!("[DEBUG]   raw sorts={:?}", v.field_sorts_instantiate_identity());
+                    eprintln!("[DEBUG]   field_sorts(sort_args) len={}", v.field_sorts(sort_args).len());
+                }
+            }
             None
         }
     }
