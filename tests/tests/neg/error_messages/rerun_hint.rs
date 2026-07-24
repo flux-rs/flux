@@ -13,7 +13,7 @@ use flux_attrs::*;
 fn foo() -> i32 {
     0 //~ ERROR refinement type
       //~| NOTE a postcondition cannot be proved
-      //~| NOTE to rerun: `cargo flux check -p mycrate --only-check 'def:foo'`
+      //~| NOTE to rerun: `cargo flux check -p mycrate --only-check='def:foo'`
 }
 
 // Nested modules -> `def:<a>::<b>::<name>`.
@@ -23,7 +23,7 @@ mod a {
         pub fn baz() -> i32 {
             0 //~ ERROR refinement type
               //~| NOTE a postcondition cannot be proved
-              //~| NOTE to rerun: `cargo flux check -p mycrate --only-check 'def:a::b::baz'`
+              //~| NOTE to rerun: `cargo flux check -p mycrate --only-check='def:a::b::baz'`
         }
     }
 }
@@ -36,7 +36,7 @@ impl S {
     fn inherent() -> i32 {
         0 //~ ERROR refinement type
           //~| NOTE a postcondition cannot be proved
-          //~| NOTE to rerun: `cargo flux check -p mycrate --only-check 'def:S::inherent'`
+          //~| NOTE to rerun: `cargo flux check -p mycrate --only-check='def:S::inherent'`
     }
 }
 
@@ -48,7 +48,7 @@ trait T {
 impl T for S {
     fn f() -> i32 { //~ ERROR refinement type
         //~| NOTE a postcondition cannot be proved
-        //~| NOTE to rerun: `cargo flux check -p mycrate --only-check 'def:<S as T>::f'`
+        //~| NOTE to rerun: `cargo flux check -p mycrate --only-check='def:<S as T>::f'`
         0
     }
 }

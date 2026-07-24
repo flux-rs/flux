@@ -234,6 +234,7 @@ fn report_errors(
             solutions_by_tag.insert(error.tag, (error.tag_idx, error.possible_solutions));
         }
     }
+    let mut rerun_note = rerun_hint_note(genv, local_id);
     let mut e = None;
     for (tag, (tag_idx, possible_solutions)) in solutions_by_tag {
         let span = tag.src_span;
@@ -312,6 +313,9 @@ fn report_errors(
             .flat_map(|(wkvid, solutions)| solutions.iter().map(move |solution| (wkvid, solution)));
         for (wkvid, solution) in wkvar_solutions {
             add_fn_fix_diagnostic(genv, &mut err_diag, wkvid.clone(), solution);
+        }
+        if let Some(note) = rerun_note.take() {
+            err_diag.note(note);
         }
         if let Some(path) = &log_path {
             err_diag.arg("path", path.display().to_string());
@@ -392,6 +396,24 @@ fn fn_first_line<'a>(genv: GlobalEnv<'a, '_>, def_id: DefId) -> Span {
         .unwrap_or_else(|_| panic!("span for {:?} doesn't have a first line", def_id));
     let first_line_range = first_line.sf.line_bounds(first_line.line);
     Span::new(first_line_range.start, first_line_range.end, span.ctxt(), None)
+}
+
+fn rerun_hint_note(genv: GlobalEnv, def_id: LocalDefId) -> Option<String> {
+    if !config::rerun_hint() || !config::is_cargo() {
+        return None;
+    }
+    let pattern = format!("def:{}", genv.tcx().def_path_str(def_id));
+    let pkg = std::env::var("CARGO_PKG_NAME")
+        .map(|p| format!(" -p {p}"))
+        .unwrap_or_default();
+    Some(format!(
+        "to rerun: `cargo flux check{pkg} --only-check={}`",
+        shell_quote_arg(&pattern)
+    ))
+}
+
+fn shell_quote_arg(arg: &str) -> String {
+    format!("'{}'", arg.replace('\'', "'\\''"))
 }
 
 mod errors {

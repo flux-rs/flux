@@ -157,6 +157,8 @@ pub fn verbose() -> bool {
 
 pub fn no_suggestions_default() -> bool {
     FLAGS.no_suggestions_default
+}
+
 pub fn rerun_hint() -> bool {
     FLAGS.rerun_hint
 }
