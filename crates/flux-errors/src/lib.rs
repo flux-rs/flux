@@ -11,7 +11,7 @@ use flux_common::result::{ErrorCollector, ErrorEmitter};
 use rustc_data_structures::sync;
 pub use rustc_errors::ErrorGuaranteed;
 use rustc_errors::{
-    Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle, Level, TerminalUrl,
+    Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle, TerminalUrl,
     annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
     emitter::{Emitter, HumanReadableErrorType, OutputTheme, stderr_destination},
     json::JsonEmitter,
@@ -22,7 +22,6 @@ use rustc_span::source_map::SourceMap;
 
 pub struct FluxSession {
     pub parse_sess: ParseSess,
-    next_err_notes: Cell<Vec<String>>,
 }
 
 // FIXME(nilehmann) We probably need to move out of this error reporting
@@ -36,10 +35,7 @@ impl FluxSession {
     ) -> Self {
         let emitter = emitter(opts, source_map.clone(), fallback_bundle);
         let dcx = rustc_errors::DiagCtxt::new(emitter);
-        Self {
-            parse_sess: ParseSess::with_dcx(dcx, source_map),
-            next_err_notes: Cell::new(Vec::new()),
-        }
+        Self { parse_sess: ParseSess::with_dcx(dcx, source_map) }
     }
 
     pub fn err_count(&self) -> usize {
@@ -48,11 +44,7 @@ impl FluxSession {
 
     #[track_caller]
     pub fn emit_err<'a>(&'a self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
-        let mut diag = err.into_diag(self.parse_sess.dcx(), Level::Error);
-        for note in self.next_err_notes.take() {
-            diag.note(note);
-        }
-        diag.emit()
+        self.parse_sess.dcx().emit_err(err)
     }
 
     #[track_caller]
