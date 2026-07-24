@@ -406,10 +406,7 @@ fn rerun_hint_note(genv: GlobalEnv, def_id: LocalDefId) -> Option<String> {
     let pkg = std::env::var("CARGO_PKG_NAME")
         .map(|p| format!(" -p {p}"))
         .unwrap_or_default();
-    Some(format!(
-        "to rerun: `cargo flux check{pkg} --only-check={}`",
-        shell_quote_arg(&pattern)
-    ))
+    Some(format!("to rerun: `cargo flux check{pkg} --only-check={}`", shell_quote_arg(&pattern)))
 }
 
 fn shell_quote_arg(arg: &str) -> String {
