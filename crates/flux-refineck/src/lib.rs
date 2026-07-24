@@ -234,7 +234,7 @@ fn report_errors(
             solutions_by_tag.insert(error.tag, (error.tag_idx, error.possible_solutions));
         }
     }
-    let mut rerun_note = rerun_hint_note(genv, local_id);
+    let rerun_note = rerun_hint_note(genv, local_id);
     let mut e = None;
     for (tag, (tag_idx, possible_solutions)) in solutions_by_tag {
         let span = tag.src_span;
@@ -314,8 +314,8 @@ fn report_errors(
         for (wkvid, solution) in wkvar_solutions {
             add_fn_fix_diagnostic(genv, &mut err_diag, wkvid.clone(), solution);
         }
-        if let Some(note) = rerun_note.take() {
-            err_diag.note(note);
+        if let Some(note) = &rerun_note {
+            err_diag.note(note.clone());
         }
         if let Some(path) = &log_path {
             err_diag.arg("path", path.display().to_string());
