@@ -229,9 +229,17 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        let mut this = std::panic::AssertUnwindSafe(self);
-        let msg = format!("def_id: {:?}, span: {:?}", def_id, this.genv.tcx().def_span(def_id));
-        flux_common::bug::catch_bugs(&msg, move || this.check_def(def_id))?
+        let genv = self.genv;
+        // Stage the re-run hint for the scope of the check so it gets attached as a note to the
+        // first error this item emits.
+        let note = config::rerun_hint()
+            .then(|| rerun_hint_note(genv, def_id))
+            .flatten();
+        genv.sess().with_next_err_notes(note, || {
+            let mut this = std::panic::AssertUnwindSafe(self);
+            let msg = format!("def_id: {:?}, span: {:?}", def_id, this.genv.tcx().def_span(def_id));
+            flux_common::bug::catch_bugs(&msg, move || this.check_def(def_id))
+        })?
     }
 
     fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -316,6 +324,23 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         }
         Ok(())
     }
+}
+
+/// Build the "re-run this check" note for `def_id`, attached by [`FluxSession::emit_err`] to the
+/// item's first error. Only emitted under `cargo flux`.
+fn rerun_hint_note(genv: GlobalEnv, def_id: LocalDefId) -> Option<String> {
+    if !config::is_cargo() {
+        return None;
+    }
+    let pattern = format!("def:{}", genv.tcx().def_path_str(def_id));
+    let pkg = std::env::var("CARGO_PKG_NAME")
+        .map(|p| format!(" -p {p}"))
+        .unwrap_or_default();
+    Some(format!("to rerun: `cargo flux check{pkg} --only-check {}`", shell_quote_arg(&pattern)))
+}
+
+fn shell_quote_arg(arg: &str) -> String {
+    format!("'{}'", arg.replace('\'', "'\\''"))
 }
 
 /// Triggers queries for the given `def_id` to mark it as "reached" for metadata encoding.
