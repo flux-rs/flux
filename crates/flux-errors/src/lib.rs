@@ -42,18 +42,6 @@ impl FluxSession {
         }
     }
 
-    /// Run `f` with `notes` staged for the next error emitted through this session, restoring the
-    /// previous staged notes afterwards. The notes are attached once, to the first error emitted in
-    /// the scope, by [`Self::emit_err`].
-    pub fn with_next_err_notes<R>(
-        &self,
-        notes: impl IntoIterator<Item = String>,
-        f: impl FnOnce() -> R,
-    ) -> R {
-        let _guard = NextErrNotesGuard::new(self, notes.into_iter().collect());
-        f()
-    }
-
     pub fn err_count(&self) -> usize {
         self.parse_sess.dcx().err_count()
     }
@@ -88,24 +76,6 @@ impl FluxSession {
 
     pub fn dcx(&self) -> &rustc_errors::DiagCtxt {
         &self.parse_sess.dcx()
-    }
-}
-
-struct NextErrNotesGuard<'sess> {
-    sess: &'sess FluxSession,
-    prev: Vec<String>,
-}
-
-impl<'sess> NextErrNotesGuard<'sess> {
-    fn new(sess: &'sess FluxSession, notes: Vec<String>) -> Self {
-        let prev = sess.next_err_notes.replace(notes);
-        Self { sess, prev }
-    }
-}
-
-impl Drop for NextErrNotesGuard<'_> {
-    fn drop(&mut self) {
-        self.sess.next_err_notes.set(std::mem::take(&mut self.prev));
     }
 }
 
