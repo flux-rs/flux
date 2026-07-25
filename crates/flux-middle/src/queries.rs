@@ -1017,7 +1017,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     //   1. There are no weak kvars already
                     //   2. The function does NOT have a `#[no_suggestions]` annotation
                     //      in its parent.
-                    #[cfg(feature = "wick")]
+                    // #[cfg(feature = "wick")]
                     if genv.weak_kvars_for(def_id).is_none()
                         && genv.resolve_id(def_id).as_maybe_extern().is_some()
                         && def_id
