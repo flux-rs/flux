@@ -142,17 +142,6 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let _ = genv.qualifiers().emit(&genv)?;
         let _ = genv.normalized_defns(LOCAL_CRATE);
 
-        if config::dump_call_graph() {
-            let graph = genv.call_graph();
-            if let Err(e) = graph.dump_json(genv.tcx(), config::log_dir()) {
-                tracing::warn!("failed to dump call graph: {e}");
-            }
-            if let Err(e) = flux_middle::type_graph::dump_type_graph(genv.tcx(), config::log_dir())
-            {
-                tracing::warn!("failed to dump type graph: {e}");
-            }
-        }
-
         let mut ck = CrateChecker::new(genv);
 
         // Iterate over all def ids including dummy items for extern specs
