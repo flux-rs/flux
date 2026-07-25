@@ -237,6 +237,14 @@ pub struct Flags {
         default_missing_value = "false"
     )]
     pub no_suggestions_default: bool,
+    /// If `true` (the default), attach a note to each failing item with a copy-pasteable command to
+    /// re-run the check on just that item. Only applies when running under `cargo flux`.
+    #[arg(
+        long = flux_arg!("rerun-hint"),
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub rerun_hint: bool,
 }
 
 impl Default for Flags {
@@ -274,6 +282,7 @@ impl Default for Flags {
             std_extern_specs: false,
             flux_verbose: false,
             no_suggestions_default: false,
+            rerun_hint: true,
         }
     }
 }
@@ -319,6 +328,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "std-extern-specs" => parse_bool(&mut flags.std_extern_specs, value),
             "flux-verbose" => parse_bool(&mut flags.flux_verbose, value),
             "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
+            "rerun-hint" => parse_bool(&mut flags.rerun_hint, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
