@@ -114,28 +114,46 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    /// Qualifiers and primop-props are global
+    /// Qualifiers and primop-props are global, so their names are checked for duplicates across
+    /// the whole crate (unlike other flux items, which are scoped per-module via [`Self::define_res_in`]).
     #[allow(
         clippy::disallowed_methods,
         reason = "`flux_items_by_parent` is the source of truth for `FluxDefId`"
     )]
     fn define_flux_global_items(&mut self) {
+        let mut definitions = DefinitionMap::default();
         for (parent, items) in &self.specs.flux_items_by_parent {
             for item in items {
+                // We are putting qualifiers and primpops in the same namespace.
                 match item {
                     surface::FluxItem::Qualifier(qual) => {
-                        let def_id = FluxLocalDefId::new(parent.def_id, qual.name.name);
-                        self.qualifiers.insert(qual.name.name, def_id);
+                        let ident = qual.name;
+                        if definitions
+                            .define(ident)
+                            .emit(&self.genv)
+                            .collect_err(&mut self.err)
+                            .is_some()
+                        {
+                            let def_id = FluxLocalDefId::new(parent.def_id, ident.name);
+                            self.qualifiers.insert(ident.name, def_id);
+                        }
                     }
-                    surface::FluxItem::PrimOpProp(primop_prop) => {
-                        let def_id =
-                            FluxDefId::new(parent.def_id.to_def_id(), primop_prop.name.name);
-                        self.primop_props.insert(primop_prop.name.name, def_id);
+                    surface::FluxItem::PrimOpProp(primop) => {
+                        let ident = primop.name;
+                        if definitions
+                            .define(ident)
+                            .emit(&self.genv)
+                            .collect_err(&mut self.err)
+                            .is_some()
+                        {
+                            let def_id = FluxDefId::new(parent.def_id.to_def_id(), ident.name);
+                            self.primop_props.insert(ident.name, def_id);
+                        }
                     }
                     surface::FluxItem::Use(_)
                     | surface::FluxItem::FuncDef(_)
                     | surface::FluxItem::SortDecl(_) => {}
-                }
+                };
             }
         }
     }
@@ -152,18 +170,17 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     // Already registered in `define_global_qualifiers_and_primop_props`.
                 }
                 surface::FluxItem::FuncDef(defn) => {
-                    let name = defn.name.name;
-                    let def_id = FluxDefId::new(parent.def_id.to_def_id(), name);
+                    let def_id = FluxDefId::new(parent.def_id.to_def_id(), defn.name.name);
                     let kind = fhir::SpecFuncKind::Def(def_id);
-                    self.define_res_in(name, fhir::Res::GlobalFunc(kind), ReftNS);
+                    self.define_res_in(defn.name, fhir::Res::GlobalFunc(kind), ReftNS);
                 }
                 surface::FluxItem::SortDecl(sort_decl) => {
                     let def_id = FluxDefId::new(parent.def_id.to_def_id(), sort_decl.name.name);
-                    self.define_res_in(sort_decl.name.name, fhir::Res::UserSort(def_id), TypeNS);
+                    self.define_res_in(sort_decl.name, fhir::Res::UserSort(def_id), TypeNS);
                 }
                 surface::FluxItem::Use(path) => {
                     for (ident, res, ns) in self.resolve_flux_use_path(path) {
-                        self.define_res_in(ident.name, res, ns);
+                        self.define_res_in(ident, res, ns);
                     }
                 }
             }
@@ -177,16 +194,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 ItemKind::Use(path, kind) => {
                     match kind {
                         hir::UseKind::Single(ident) => {
-                            let name = ident.name;
                             if let Some(res) = path.res.value_ns
                                 && let Ok(res) = fhir::Res::try_from(res)
                             {
-                                self.define_res_in(name, res, ValueNS);
+                                self.define_res_in(ident, res, ValueNS);
                             }
                             if let Some(res) = path.res.type_ns
                                 && let Ok(res) = fhir::Res::try_from(res)
                             {
-                                self.define_res_in(name, res, TypeNS);
+                                self.define_res_in(ident, res, TypeNS);
                             }
                         }
                         hir::UseKind::Glob => {
@@ -195,11 +211,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                                 if let Ok(res) = fhir::Res::try_from(mod_child.res)
                                     && let Some(ns @ (TypeNS | ValueNS)) = res.ns()
                                 {
-                                    let name = mod_child.ident.name;
                                     if is_prelude {
-                                        self.define_in_prelude(name, res, ns);
+                                        self.define_in_prelude(mod_child.ident, res, ns);
                                     } else {
-                                        self.define_res_in(name, res, ns);
+                                        self.define_res_in(mod_child.ident, res, ns);
                                     }
                                 }
                             }
@@ -224,11 +239,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             if let Some(ns) = def_kind.ns().map(Namespace::from)
                 && let Some(ident) = item.kind.ident()
             {
-                self.define_res_in(
-                    ident.name,
-                    fhir::Res::Def(def_kind, item.owner_id.to_def_id()),
-                    ns,
-                );
+                self.define_res_in(ident, fhir::Res::Def(def_kind, item.owner_id.to_def_id()), ns);
             }
         }
     }
@@ -239,7 +250,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             match item.kind {
                 rustc_hir::ForeignItemKind::Type => {
                     self.define_res_in(
-                        item.ident.name,
+                        item.ident,
                         fhir::Res::Def(DefKind::ForeignTy, item.owner_id.to_def_id()),
                         TypeNS,
                     );
@@ -249,25 +260,33 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    /// Define `name` in the innermost rib of `ns`. If the rib already binds `name`, keep the existing
-    /// binding and return it.
-    fn define_res_in(
-        &mut self,
-        name: Symbol,
-        res: fhir::Res<surface::NodeId>,
-        ns: Namespace,
-    ) -> Option<fhir::Res<surface::NodeId>> {
-        match self.ribs[ns].last_mut().unwrap().bindings.entry(name) {
-            hash_map::Entry::Occupied(entry) => Some(*entry.get()),
+    /// Define `ident` in the innermost rib of `ns`. If the rib already binds that name, keep the
+    /// existing binding, report the clash against its original location.
+    fn define_res_in(&mut self, ident: Ident, res: fhir::Res<surface::NodeId>, ns: Namespace) {
+        if ident.name == kw::Underscore {
+            return;
+        }
+        match self.ribs[ns].last_mut().unwrap().bindings.entry(ident) {
+            hash_map::Entry::Occupied(entry) => {
+                let prev_ident = *entry.key();
+                if let fhir::Res::Param(..) = entry.get() {
+                    self.emit(errors::DuplicateParam::new(prev_ident, ident));
+                } else {
+                    self.emit(errors::DuplicateDefinition {
+                        span: ident.span,
+                        previous_definition: prev_ident.span,
+                        name: ident,
+                    });
+                }
+            }
             hash_map::Entry::Vacant(entry) => {
                 entry.insert(res);
-                None
             }
-        }
+        };
     }
 
-    fn define_in_prelude(&mut self, name: Symbol, res: fhir::Res<surface::NodeId>, ns: Namespace) {
-        self.prelude[ns].bindings.insert(name, res);
+    fn define_in_prelude(&mut self, ident: Ident, res: fhir::Res<surface::NodeId>, ns: Namespace) {
+        self.prelude[ns].bindings.insert(ident, res);
     }
 
     fn push_rib(&mut self, ns: Namespace, kind: RibKind) {
@@ -291,7 +310,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             {
                 debug_assert!(matches!(def_kind, DefKind::TyParam | DefKind::ConstParam));
                 let param_id = self.genv.maybe_extern_id(param.def_id).resolved_id();
-                self.define_res_in(name.name, fhir::Res::Def(def_kind, param_id), ns);
+                self.define_res_in(name, fhir::Res::Def(def_kind, param_id), ns);
             }
         }
     }
@@ -437,7 +456,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 span: path.span,
                 name: Segment::format_path(&path.segments),
                 reason: not_found_reason(last.ident(), module_id, prefix),
-            })
+            });
         }
 
         resolutions
@@ -450,7 +469,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     ) -> Option<fhir::Res<surface::NodeId>> {
         let mut ribs = self.ribs[ns].iter().rev();
         while let Some(rib) = ribs.next() {
-            if let Some(res) = rib.bindings.get(&ident.name) {
+            if let Some(res) = rib.bindings.get(&ident) {
                 return Some(*res);
             }
             match rib.kind {
@@ -482,7 +501,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             }
         }
 
-        if let Some(res) = self.prelude[ns].bindings.get(&ident.name) {
+        if let Some(res) = self.prelude[ns].bindings.get(&ident) {
             return Some(*res);
         }
         None
@@ -650,7 +669,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             ItemKind::Trait(..) => {
                 self.define_generics(def_id);
                 self.define_res_in(
-                    kw::SelfUpper,
+                    Ident::with_dummy_span(kw::SelfUpper),
                     fhir::Res::SelfTyParam { trait_: def_id.resolved_id() },
                     TypeNS,
                 );
@@ -658,7 +677,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             ItemKind::Impl(hir::Impl { of_trait, .. }) => {
                 self.define_generics(def_id);
                 self.define_res_in(
-                    kw::SelfUpper,
+                    Ident::with_dummy_span(kw::SelfUpper),
                     fhir::Res::SelfTyAlias {
                         alias_to: def_id.resolved_id(),
                         is_trait_impl: of_trait.is_some(),
@@ -672,7 +691,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             ItemKind::Enum(..) => {
                 self.define_generics(def_id);
                 self.define_res_in(
-                    kw::SelfUpper,
+                    Ident::with_dummy_span(kw::SelfUpper),
                     fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: false },
                     TypeNS,
                 );
@@ -680,7 +699,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             ItemKind::Struct(..) => {
                 self.define_generics(def_id);
                 self.define_res_in(
-                    kw::SelfUpper,
+                    Ident::with_dummy_span(kw::SelfUpper),
                     fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: false },
                     TypeNS,
                 );
@@ -775,7 +794,7 @@ pub(crate) enum RibKind {
 #[derive(Debug)]
 struct Rib {
     kind: RibKind,
-    bindings: UnordMap<Symbol, fhir::Res<surface::NodeId>>,
+    bindings: UnordMap<Ident, fhir::Res<surface::NodeId>>,
 }
 
 impl Rib {
@@ -1072,10 +1091,10 @@ fn builtin_types_rib() -> Rib {
     use flux_middle::fhir::PrimSort;
     let sorts = PrimSort::ALL
         .into_iter()
-        .map(|prim| (prim.name(), fhir::Res::PrimSort(prim)));
+        .map(|prim| (Ident::with_dummy_span(prim.name()), fhir::Res::PrimSort(prim)));
     let types = PrimTy::ALL
         .into_iter()
-        .map(|pty| (pty.name(), fhir::Res::PrimTy(pty)));
+        .map(|pty| (Ident::with_dummy_span(pty.name()), fhir::Res::PrimTy(pty)));
 
     // Types go after such that they override sorts with the same name
     let bindings = sorts.chain(types).collect();
@@ -1085,13 +1104,15 @@ fn builtin_types_rib() -> Rib {
 /// The [`Namespace::ReftNS`] prelude: theory functions and `cast`.
 fn theory_funcs_rib() -> Rib {
     let mut rib = Rib::new(RibKind::Misc);
-    rib.bindings.extend_unord(
-        flux_middle::THEORY_FUNCS
-            .items()
-            .map(|(_, itf)| (itf.name, fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf.itf)))),
-    );
     rib.bindings
-        .insert(sym::cast, fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast));
+        .extend_unord(flux_middle::THEORY_FUNCS.items().map(|(_, itf)| {
+            (
+                Ident::with_dummy_span(itf.name),
+                fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf.itf)),
+            )
+        }));
+    rib.bindings
+        .insert(Ident::with_dummy_span(sym::cast), fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast));
     rib
 }
 
@@ -1111,7 +1132,7 @@ fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use rustc_span::{Ident, Span};
+    use rustc_span::{Ident, Span, Symbol};
 
     /// A name that could not be resolved. `kind` is the user-facing description of what was being
     /// looked for (`"type"`, `"value"`, `"sort"`, ...); it is passed explicitly by each call site
@@ -1189,5 +1210,23 @@ mod errors {
         #[label(desugar_previous_definition)]
         pub previous_definition: Span,
         pub name: Ident,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_duplicate_param, code = E0999)]
+    pub(super) struct DuplicateParam {
+        #[primary_span]
+        #[label]
+        span: Span,
+        name: Symbol,
+        #[label(desugar_first_use)]
+        first_use: Span,
+    }
+
+    impl DuplicateParam {
+        pub(super) fn new(old_ident: Ident, new_ident: Ident) -> Self {
+            debug_assert_eq!(old_ident.name, new_ident.name);
+            Self { span: new_ident.span, name: new_ident.name, first_use: old_ident.span }
+        }
     }
 }

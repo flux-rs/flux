@@ -406,7 +406,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.resolver.push_rib(TypeNS, RibKind::Misc);
         for (idx, ident) in sort_vars.iter().enumerate() {
             self.resolver
-                .define_res_in(ident.name, Res::SortParam(idx), TypeNS);
+                .define_res_in(*ident, Res::SortParam(idx), TypeNS);
         }
         let mut wrapper = self.wrap();
         f(&mut wrapper);
@@ -425,14 +425,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.param_defs
             .insert(param_id, ParamDef { ident, kind, scope });
 
-        if let Some(Res::Param(_, prev_id)) =
-            self.resolver
-                .define_res_in(ident.name, Res::Param(kind, param_id), ReftNS)
-        {
-            let prev_ident = self.param_defs[&prev_id].ident;
-            self.errors
-                .emit(errors::DuplicateParam::new(prev_ident, ident));
-        }
+        self.resolver
+            .define_res_in(ident, Res::Param(kind, param_id), ReftNS);
     }
 
     fn resolve_path(&mut self, path: &surface::ExprPath) {
@@ -741,25 +735,7 @@ mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_syntax::surface;
-    use rustc_span::{Span, Symbol, symbol::Ident};
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_duplicate_param, code = E0999)]
-    pub(super) struct DuplicateParam {
-        #[primary_span]
-        #[label]
-        span: Span,
-        name: Symbol,
-        #[label(desugar_first_use)]
-        first_use: Span,
-    }
-
-    impl DuplicateParam {
-        pub(super) fn new(old_ident: Ident, new_ident: Ident) -> Self {
-            debug_assert_eq!(old_ident.name, new_ident.name);
-            Self { span: new_ident.span, name: new_ident.name, first_use: old_ident.span }
-        }
-    }
+    use rustc_span::{Span, symbol::Ident};
 
     #[derive(Diagnostic)]
     #[diag(desugar_invalid_unrefined_param, code = E0999)]

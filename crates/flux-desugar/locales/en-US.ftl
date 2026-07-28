@@ -48,8 +48,8 @@ desugar_duplicate_definition =
     .previous_definition = previous definition of `{$name}`
 
 desugar_duplicate_param =
-    the name `{$name}` is already used as a parameter
-    .label = already used
+    identifier `{$name}` is bound more than once in this parameter list
+    .label = used as a parameter more than once
     .first_use = first use of `{$name}`
 
 desugar_unsupported_signature =
