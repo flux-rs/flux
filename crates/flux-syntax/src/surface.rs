@@ -3,7 +3,6 @@ pub mod visit;
 use std::{borrow::Cow, fmt, ops::Range};
 
 use flux_config::PartialInferOpts;
-use itertools::Itertools;
 pub use rustc_ast::{
     Mutability,
     token::{Lit, LitKind},
@@ -754,12 +753,6 @@ pub struct ExprPath {
     pub segments: Vec<ExprPathSegment>,
     pub node_id: NodeId,
     pub span: Span,
-}
-
-impl ExprPath {
-    pub fn display(&self) -> String {
-        self.segments.iter().map(|s| s.ident).join("::")
-    }
 }
 
 #[derive(Debug, Clone)]

@@ -60,6 +60,10 @@ desugar_unresolved_name =
     cannot find {$kind} `{$name}` in this scope
     .label = not found in this scope
 
+desugar_unresolved_import =
+    unresolved import `{$name}`
+    .label = {$reason}
+
 desugar_invalid_unrefined_param =
     invalid use of refinement parameter
     .label = parameter `{$var}` refers to a type with no indices

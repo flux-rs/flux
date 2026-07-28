@@ -146,20 +146,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     )]
     fn define_module_flux_items(&mut self, parent: OwnerId) {
         let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
-        // Names are defined per-module so duplicates are only checked within this module.
-        // let mut definitions = DefinitionMap::default();
         for item in items {
-            // let Some(ident) = item.name() else { continue };
-            // // NOTE: This is putting all items in the same namespace. In principle, we could have
-            // // qualifiers in a different namespace.
-            // definitions
-            //     .define(ident)
-            //     .emit(&self.genv)
-            //     .collect_err(&mut self.err);
-
             match item {
-                // Already registered in `define_global_qualifiers_and_primop_props`.
-                surface::FluxItem::Qualifier(_) | surface::FluxItem::PrimOpProp(_) => {}
+                surface::FluxItem::Qualifier(_) | surface::FluxItem::PrimOpProp(_) => {
+                    // Already registered in `define_global_qualifiers_and_primop_props`.
+                }
                 surface::FluxItem::FuncDef(defn) => {
                     let name = defn.name.name;
                     let def_id = FluxDefId::new(parent.def_id.to_def_id(), name);
@@ -387,20 +378,29 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             bug!("path must have at least one segment")
         };
 
+        let not_found_reason =
+            |ident: Ident, module_id: Option<DefId>, resolved: &[surface::ExprPathSegment]| {
+                match module_id {
+                    None => "not found in this scope".to_string(),
+                    Some(_) => format!("no `{ident}` in `{}`", Segment::format_path(resolved)),
+                }
+            };
+
         // 1. Resolve prefix
         let mut module_id: Option<DefId> = None;
-        for segment in prefix {
+        for (idx, segment) in prefix.iter().enumerate() {
+            let ident = segment.ident();
             let res = if let Some(module_id) = module_id {
                 let module = Module::new(ModuleKind::Mod, module_id);
-                self.resolve_ident_in_module(module, segment.ident(), TypeNS)
+                self.resolve_ident_in_module(module, ident, TypeNS)
             } else {
-                self.resolve_ident_with_ribs(segment.ident(), TypeNS)
+                self.resolve_ident_with_ribs(ident, TypeNS)
             };
             let Some(res) = res else {
-                self.emit(errors::UnresolvedName {
-                    span: segment.ident().span,
-                    name: segment.ident().to_string(),
-                    kind: "import",
+                self.emit(errors::UnresolvedImport {
+                    span: ident.span,
+                    name: Segment::format_path(&prefix[..=idx]),
+                    reason: not_found_reason(ident, module_id, &prefix[..idx]),
                 });
                 return vec![];
             };
@@ -408,10 +408,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             if let Res::Def(DefKind::Mod, def_id) = res {
                 module_id = Some(def_id);
             } else {
-                self.emit(errors::UnresolvedName {
-                    span: segment.ident().span,
-                    name: segment.ident().to_string(),
-                    kind: "import",
+                self.emit(errors::UnresolvedImport {
+                    span: ident.span,
+                    name: Segment::format_path(&prefix[..=idx]),
+                    reason: format!("`{ident}` is not a module"),
                 });
                 return vec![];
             }
@@ -433,10 +433,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
         // 3. Report error if no valid resolution
         if resolutions.is_empty() {
-            self.emit(errors::UnresolvedName {
+            self.emit(errors::UnresolvedImport {
                 span: path.span,
-                name: path.display(),
-                kind: "import",
+                name: Segment::format_path(&path.segments),
+                reason: not_found_reason(last.ident(), module_id, prefix),
             })
         }
 
@@ -820,6 +820,13 @@ trait Segment: std::fmt::Debug {
         res: fhir::Res<surface::NodeId>,
     );
     fn ident(&self) -> Ident;
+
+    fn format_path(segments: &[Self]) -> String
+    where
+        Self: Sized,
+    {
+        segments.iter().map(|s| s.ident()).join("::")
+    }
 }
 
 impl Segment for surface::PathSegment {
@@ -984,7 +991,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     fn emit_unresolved_path(&mut self, path: &surface::Path, ns: Namespace) {
         self.errors.emit(errors::UnresolvedName {
             span: path.span,
-            name: path.segments.iter().map(|segment| segment.ident).join("::"),
+            name: Segment::format_path(&path.segments),
             kind: ns.descr(),
         });
     }
@@ -1118,6 +1125,20 @@ mod errors {
         pub span: Span,
         pub kind: &'static str,
         pub name: String,
+    }
+
+    /// An import path (`flux::use foo::bar::baz`) that could not be resolved. Unlike
+    /// [`UnresolvedName`], this always reports the full requested path in the message and
+    /// explains, via `reason`, what specifically went wrong at the failing segment (not found,
+    /// or found but not a module).
+    #[derive(Diagnostic)]
+    #[diag(desugar_unresolved_import, code = E0999)]
+    pub(crate) struct UnresolvedImport {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        pub name: String,
+        pub reason: String,
     }
 
     #[derive(Diagnostic)]

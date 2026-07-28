@@ -14,7 +14,6 @@ use flux_syntax::{
     surface::{self, FluxItem, Ident, NodeId, visit::Visitor as _},
     walk_list,
 };
-use itertools::Itertools;
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hash::FxHashMap;
 use rustc_middle::ty::TyCtxt;
@@ -555,7 +554,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     fn emit_unresolved_expr_path(&mut self, path: &surface::ExprPath) {
         self.errors.emit(super::errors::UnresolvedName {
             span: path.span,
-            name: path.display(),
+            name: Segment::format_path(&path.segments),
             kind: "value",
         });
     }
@@ -568,7 +567,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 .map(|ident| ident.span)
                 .reduce(Span::to)
                 .unwrap_or_default(),
-            name: path.segments.iter().join("::"),
+            name: Segment::format_path(&path.segments),
             kind: "sort",
         });
     }
