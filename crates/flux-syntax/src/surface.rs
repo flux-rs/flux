@@ -36,7 +36,7 @@ pub enum FluxItem {
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
     PrimOpProp(PrimOpProp),
-    Use(ExprPath),
+    Use(UseTree),
 }
 
 impl FluxItem {
@@ -49,6 +49,20 @@ impl FluxItem {
             FluxItem::Use(_) => None,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct UseTree {
+    pub prefix: ExprPath,
+    pub kind: UseTreeKind,
+}
+
+#[derive(Debug)]
+pub enum UseTreeKind {
+    /// `use a::b::c`
+    Simple,
+    /// `use a::b::{...}`
+    Nested(Vec<UseTree>),
 }
 
 #[derive(Debug)]

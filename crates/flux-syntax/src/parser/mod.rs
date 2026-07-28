@@ -24,7 +24,7 @@ use crate::{
         ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
         RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
         StaticInfo, StructDef, TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp,
-        VariantDef, VariantRet, WhereBoundPredicate,
+        UseTree, UseTreeKind, VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
@@ -583,13 +583,28 @@ fn parse_primop_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
 }
 
 /// ```text
-/// ⟨use_item⟩ := use ⟨expr_path⟩ ;
+/// ⟨use_item⟩ := use ⟨use_tree⟩ ;
 /// ```
-fn parse_use_item(cx: &mut ParseCtxt) -> ParseResult<ExprPath> {
+fn parse_use_item(cx: &mut ParseCtxt) -> ParseResult<UseTree> {
     cx.expect(kw::Use)?;
-    let path = parse_expr_path(cx)?;
+    let tree = parse_use_tree(cx)?;
     cx.expect(token::Semi)?;
-    Ok(path)
+    Ok(tree)
+}
+
+/// ```text
+/// ⟨use_tree⟩ := ⟨expr_path⟩
+///            | ⟨expr_path⟩ { ⟨use_tree⟩,* }
+/// ```
+fn parse_use_tree(cx: &mut ParseCtxt) -> ParseResult<UseTree> {
+    let prefix = parse_expr_path(cx)?;
+    let kind = if cx.advance_if(token::OpenBrace) {
+        let items = punctuated_until(cx, token::Comma, token::CloseBrace, parse_use_tree)?;
+        UseTreeKind::Nested(items)
+    } else {
+        UseTreeKind::Simple
+    };
+    Ok(UseTree { prefix, kind })
 }
 
 pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<TraitAssocReft>> {

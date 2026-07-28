@@ -548,7 +548,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     fn emit_unresolved_expr_path(&mut self, path: &surface::ExprPath) {
         self.errors.emit(super::errors::UnresolvedName {
             span: path.span,
-            name: Segment::format_path(&path.segments),
+            name: Segment::format_iter(&path.segments),
             kind: "value",
         });
     }
@@ -561,7 +561,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 .map(|ident| ident.span)
                 .reduce(Span::to)
                 .unwrap_or_default(),
-            name: Segment::format_path(&path.segments),
+            name: Segment::format_iter(&path.segments),
             kind: "sort",
         });
     }

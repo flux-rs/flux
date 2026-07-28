@@ -178,8 +178,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     let def_id = FluxDefId::new(parent.def_id.to_def_id(), sort_decl.name.name);
                     self.define_res_in(sort_decl.name, fhir::Res::UserSort(def_id), TypeNS);
                 }
-                surface::FluxItem::Use(path) => {
-                    for (ident, res, ns) in self.resolve_flux_use_path(path) {
+                surface::FluxItem::Use(use_tree) => {
+                    for (ident, res, ns) in self.resolve_flux_use_tree(use_tree) {
                         self.define_res_in(ident, res, ns);
                     }
                 }
@@ -388,78 +388,81 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         None
     }
 
-    fn resolve_flux_use_path(
+    fn resolve_flux_use_tree(
         &mut self,
-        path: &surface::ExprPath,
+        use_tree: &surface::UseTree,
     ) -> Vec<(Ident, fhir::Res<surface::NodeId>, Namespace)> {
-        use fhir::Res;
-        let [prefix @ .., last] = &path.segments[..] else {
+        self.resolve_flux_use_tree_rec(use_tree, None, &mut vec![])
+    }
+
+    fn resolve_flux_use_tree_rec(
+        &mut self,
+        use_tree: &surface::UseTree,
+        mut resolved_module_id: Option<DefId>,
+        resolved_prefix: &mut Vec<Ident>,
+    ) -> Vec<(Ident, fhir::Res<surface::NodeId>, Namespace)> {
+        let Some((last, all_but_last)) = use_tree.prefix.segments.split_last() else {
             bug!("path must have at least one segment")
         };
+        let module_segments = match &use_tree.kind {
+            surface::UseTreeKind::Simple => all_but_last,
+            surface::UseTreeKind::Nested(_) => &use_tree.prefix.segments[..],
+        };
 
-        let not_found_reason =
-            |ident: Ident, module_id: Option<DefId>, resolved: &[surface::ExprPathSegment]| {
-                match module_id {
-                    None => "not found in this scope".to_string(),
-                    Some(_) => format!("no `{ident}` in `{}`", Segment::format_path(resolved)),
-                }
-            };
-
-        // 1. Resolve prefix
-        let mut module_id: Option<DefId> = None;
-        for (idx, segment) in prefix.iter().enumerate() {
+        for segment in module_segments {
             let ident = segment.ident();
-            let res = if let Some(module_id) = module_id {
+            let res = if let Some(module_id) = resolved_module_id {
                 let module = Module::new(ModuleKind::Mod, module_id);
                 self.resolve_ident_in_module(module, ident, TypeNS)
             } else {
                 self.resolve_ident_with_ribs(ident, TypeNS)
             };
             let Some(res) = res else {
-                self.emit(errors::UnresolvedImport {
-                    span: ident.span,
-                    name: Segment::format_path(&prefix[..=idx]),
-                    reason: not_found_reason(ident, module_id, &prefix[..idx]),
-                });
+                self.emit_unresolved_import(ident, resolved_module_id, resolved_prefix);
                 return vec![];
             };
-
-            if let Res::Def(DefKind::Mod, def_id) = res {
-                module_id = Some(def_id);
+            if let fhir::Res::Def(DefKind::Mod, def_id) = res {
+                resolved_module_id = Some(def_id);
             } else {
-                self.emit(errors::UnresolvedImport {
-                    span: ident.span,
-                    name: Segment::format_path(&prefix[..=idx]),
-                    reason: format!("`{ident}` is not a module"),
-                });
+                self.emit_not_a_module(ident, resolved_prefix);
                 return vec![];
             }
+            resolved_prefix.push(ident);
         }
 
-        // 2. Resolve last ident in all namespaces
-        let mut resolutions = vec![];
-        for ns in [TypeNS, ValueNS, ReftNS] {
-            let res = if let Some(module_id) = module_id {
-                let module = Module::new(ModuleKind::Mod, module_id);
-                self.resolve_ident_in_module(module, last.ident(), ns)
-            } else {
-                self.resolve_ident_with_ribs(last.ident(), ns)
-            };
-            if let Some(res) = res {
-                resolutions.push((last.ident(), res, ns));
+        match &use_tree.kind {
+            surface::UseTreeKind::Simple => {
+                let mut resolutions = vec![];
+                for ns in [TypeNS, ValueNS, ReftNS] {
+                    let res = if let Some(module_id) = resolved_module_id {
+                        let module = Module::new(ModuleKind::Mod, module_id);
+                        self.resolve_ident_in_module(module, last.ident(), ns)
+                    } else {
+                        self.resolve_ident_with_ribs(last.ident(), ns)
+                    };
+                    if let Some(res) = res {
+                        resolutions.push((last.ident(), res, ns));
+                    }
+                }
+                if resolutions.is_empty() {
+                    self.emit_unresolved_import(last.ident, resolved_module_id, resolved_prefix);
+                }
+                resolutions
+            }
+            surface::UseTreeKind::Nested(items) => {
+                let mut resolutions = vec![];
+                for item in items {
+                    let len = resolved_prefix.len();
+                    resolutions.extend(self.resolve_flux_use_tree_rec(
+                        item,
+                        resolved_module_id,
+                        resolved_prefix,
+                    ));
+                    resolved_prefix.truncate(len);
+                }
+                resolutions
             }
         }
-
-        // 3. Report error if no valid resolution
-        if resolutions.is_empty() {
-            self.emit(errors::UnresolvedImport {
-                span: path.span,
-                name: Segment::format_path(&path.segments),
-                reason: not_found_reason(last.ident(), module_id, prefix),
-            });
-        }
-
-        resolutions
     }
 
     fn resolve_ident_with_ribs(
@@ -595,7 +598,30 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         Ok(self.output)
     }
 
-    pub fn emit(&mut self, err: impl rustc_errors::Diagnostic<'genv>) {
+    fn emit_unresolved_import(
+        &mut self,
+        ident: Ident,
+        module_id: Option<DefId>,
+        resolved_prefix: &[Ident],
+    ) {
+        let reason = match module_id {
+            None => "not found in this scope".to_string(),
+            Some(_) => format!("no `{ident}` in `{}`", Segment::format_iter(resolved_prefix)),
+        };
+        let name = Segment::format_iter(resolved_prefix.iter().chain(&[ident]));
+        self.emit(errors::UnresolvedImport { span: ident.span, name, reason });
+    }
+
+    fn emit_not_a_module(&mut self, ident: Ident, resolved_prefix: &[Ident]) {
+        let name = Segment::format_iter(resolved_prefix.iter().chain(&[ident]));
+        self.emit(errors::UnresolvedImport {
+            span: ident.span,
+            name,
+            reason: format!("`{ident}` is not a module"),
+        });
+    }
+
+    fn emit(&mut self, err: impl rustc_errors::Diagnostic<'genv>) {
         self.err.collect(self.genv.sess().emit_err(err));
     }
 }
@@ -840,11 +866,11 @@ trait Segment: std::fmt::Debug {
     );
     fn ident(&self) -> Ident;
 
-    fn format_path(segments: &[Self]) -> String
+    fn format_iter<'a>(segments: impl IntoIterator<Item = &'a Self>) -> String
     where
-        Self: Sized,
+        Self: Sized + 'a,
     {
-        segments.iter().map(|s| s.ident()).join("::")
+        segments.into_iter().map(|s| s.ident()).join("::")
     }
 }
 
@@ -1010,7 +1036,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     fn emit_unresolved_path(&mut self, path: &surface::Path, ns: Namespace) {
         self.errors.emit(errors::UnresolvedName {
             span: path.span,
-            name: Segment::format_path(&path.segments),
+            name: Segment::format_iter(&path.segments),
             kind: ns.descr(),
         });
     }

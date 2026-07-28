@@ -12,10 +12,10 @@ use super::{
     Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput,
     FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft,
     Indices, ItemKind, Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath,
-    SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef,
-    VariantRet, WhereBoundPredicate,
+    SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UseTreeKind,
+    VariantDef, VariantRet, WhereBoundPredicate,
 };
-use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn};
+use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn, UseTree};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -218,7 +218,19 @@ pub fn walk_flux_item<V: Visitor>(vis: &mut V, item: &FluxItem) {
         FluxItem::FuncDef(spec_func) => vis.visit_defn(spec_func),
         FluxItem::SortDecl(sort_decl) => vis.visit_sort_decl(sort_decl),
         FluxItem::PrimOpProp(prim_op_prop) => vis.visit_primop_prop(prim_op_prop),
-        FluxItem::Use(qpath) => vis.visit_path_expr(qpath),
+        FluxItem::Use(use_tree) => walk_use_tree(vis, use_tree),
+    }
+}
+
+pub fn walk_use_tree<V: Visitor>(vis: &mut V, use_tree: &UseTree) {
+    vis.visit_path_expr(&use_tree.prefix);
+    match &use_tree.kind {
+        UseTreeKind::Simple => {}
+        UseTreeKind::Nested(items) => {
+            for item in items {
+                walk_use_tree(vis, item);
+            }
+        }
     }
 }
 
