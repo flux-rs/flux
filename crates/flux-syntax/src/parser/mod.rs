@@ -593,17 +593,25 @@ fn parse_use_item(cx: &mut ParseCtxt) -> ParseResult<UseTree> {
 }
 
 /// ```text
-/// ⟨use_tree⟩ := ⟨expr_path⟩
-///            | ⟨expr_path⟩ { ⟨use_tree⟩,* }
+/// ⟨use_tree⟩ := ⟨ident⟩ ( :: ⟨ident⟩ )* ( :: { ⟨use_tree⟩,* } )?
 /// ```
 fn parse_use_tree(cx: &mut ParseCtxt) -> ParseResult<UseTree> {
-    let prefix = parse_expr_path(cx)?;
-    let kind = if cx.advance_if(token::OpenBrace) {
-        let items = punctuated_until(cx, token::Comma, token::CloseBrace, parse_use_tree)?;
-        UseTreeKind::Nested(items)
-    } else {
-        UseTreeKind::Simple
+    let lo = cx.lo();
+    let mut segments = vec![parse_expr_path_segment(cx)?];
+    let mut hi = cx.hi();
+    let kind = loop {
+        if !cx.advance_if(token::PathSep) {
+            break UseTreeKind::Simple;
+        }
+        if cx.advance_if(token::OpenBrace) {
+            let items = punctuated_until(cx, token::Comma, token::CloseBrace, parse_use_tree)?;
+            cx.expect(token::CloseBrace)?;
+            break UseTreeKind::Nested(items);
+        }
+        segments.push(parse_expr_path_segment(cx)?);
+        hi = cx.hi();
     };
+    let prefix = ExprPath { segments, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) };
     Ok(UseTree { prefix, kind })
 }
 
