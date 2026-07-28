@@ -266,27 +266,29 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         if ident.name == kw::Underscore {
             return;
         }
-        match self.ribs[ns].last_mut().unwrap().bindings.entry(ident) {
+        match self.ribs[ns].last_mut().unwrap().bindings.entry(ident.name) {
             hash_map::Entry::Occupied(entry) => {
-                let prev_ident = *entry.key();
-                if let fhir::Res::Param(..) = entry.get() {
-                    self.emit(errors::DuplicateParam::new(prev_ident, ident));
+                let prev = *entry.get();
+                if let fhir::Res::Param(..) = prev.res {
+                    self.emit(errors::DuplicateParam::new(prev.ident, ident));
                 } else {
                     self.emit(errors::DuplicateDefinition {
                         span: ident.span,
-                        previous_definition: prev_ident.span,
+                        previous_definition: prev.ident.span,
                         name: ident,
                     });
                 }
             }
             hash_map::Entry::Vacant(entry) => {
-                entry.insert(res);
+                entry.insert(Binding { ident, res });
             }
         };
     }
 
     fn define_in_prelude(&mut self, ident: Ident, res: fhir::Res<surface::NodeId>, ns: Namespace) {
-        self.prelude[ns].bindings.insert(ident, res);
+        self.prelude[ns]
+            .bindings
+            .insert(ident.name, Binding { ident, res });
     }
 
     fn push_rib(&mut self, ns: Namespace, kind: RibKind) {
@@ -472,8 +474,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     ) -> Option<fhir::Res<surface::NodeId>> {
         let mut ribs = self.ribs[ns].iter().rev();
         while let Some(rib) = ribs.next() {
-            if let Some(res) = rib.bindings.get(&ident) {
-                return Some(*res);
+            if let Some(binding) = rib.bindings.get(&ident.name) {
+                return Some(binding.res);
             }
             match rib.kind {
                 // A module boundary stops item resolution.
@@ -504,8 +506,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             }
         }
 
-        if let Some(res) = self.prelude[ns].bindings.get(&ident) {
-            return Some(*res);
+        if let Some(binding) = self.prelude[ns].bindings.get(&ident.name) {
+            return Some(binding.res);
         }
         None
     }
@@ -817,10 +819,19 @@ pub(crate) enum RibKind {
     FnTraitInput,
 }
 
+/// The value stored for each binding in a [`Rib`]. `ident` is the original identifier (kept for
+/// its span, used to point at the previous location on a duplicate-definition clash); lookups
+/// and clash detection are keyed by `ident.name` alone.
+#[derive(Clone, Copy, Debug)]
+struct Binding {
+    ident: Ident,
+    res: fhir::Res<surface::NodeId>,
+}
+
 #[derive(Debug)]
 struct Rib {
     kind: RibKind,
-    bindings: UnordMap<Ident, fhir::Res<surface::NodeId>>,
+    bindings: UnordMap<Symbol, Binding>,
 }
 
 impl Rib {
@@ -1115,12 +1126,14 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
 /// derived in `conv_sort_path` (see [`fhir::PrimSort`]).
 fn builtin_types_rib() -> Rib {
     use flux_middle::fhir::PrimSort;
-    let sorts = PrimSort::ALL
-        .into_iter()
-        .map(|prim| (Ident::with_dummy_span(prim.name()), fhir::Res::PrimSort(prim)));
-    let types = PrimTy::ALL
-        .into_iter()
-        .map(|pty| (Ident::with_dummy_span(pty.name()), fhir::Res::PrimTy(pty)));
+    let sorts = PrimSort::ALL.into_iter().map(|prim| {
+        let ident = Ident::with_dummy_span(prim.name());
+        (ident.name, Binding { ident, res: fhir::Res::PrimSort(prim) })
+    });
+    let types = PrimTy::ALL.into_iter().map(|pty| {
+        let ident = Ident::with_dummy_span(pty.name());
+        (ident.name, Binding { ident, res: fhir::Res::PrimTy(pty) })
+    });
 
     // Types go after such that they override sorts with the same name
     let bindings = sorts.chain(types).collect();
@@ -1132,13 +1145,15 @@ fn theory_funcs_rib() -> Rib {
     let mut rib = Rib::new(RibKind::Misc);
     rib.bindings
         .extend_unord(flux_middle::THEORY_FUNCS.items().map(|(_, itf)| {
-            (
-                Ident::with_dummy_span(itf.name),
-                fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf.itf)),
-            )
+            let ident = Ident::with_dummy_span(itf.name);
+            let res = fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf.itf));
+            (ident.name, Binding { ident, res })
         }));
-    rib.bindings
-        .insert(Ident::with_dummy_span(sym::cast), fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast));
+    let cast_ident = Ident::with_dummy_span(sym::cast);
+    rib.bindings.insert(
+        cast_ident.name,
+        Binding { ident: cast_ident, res: fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast) },
+    );
     rib
 }
 
