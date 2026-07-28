@@ -2,7 +2,10 @@ pub(crate) mod refinement_resolver;
 
 use std::collections::hash_map;
 
-use flux_common::result::{ErrorCollector, ResultExt};
+use flux_common::{
+    bug,
+    result::{ErrorCollector, ResultExt},
+};
 use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput, Specs,
@@ -112,7 +115,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     /// Qualifiers and primop-props are global
-    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "`flux_items_by_parent` is the source of truth for `FluxDefId`"
+    )]
     fn define_flux_global_items(&mut self) {
         for (parent, items) in &self.specs.flux_items_by_parent {
             for item in items {
@@ -126,24 +132,30 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                             FluxDefId::new(parent.def_id.to_def_id(), primop_prop.name.name);
                         self.primop_props.insert(primop_prop.name.name, def_id);
                     }
-                    surface::FluxItem::FuncDef(_) | surface::FluxItem::SortDecl(_) => {}
+                    surface::FluxItem::Use(_)
+                    | surface::FluxItem::FuncDef(_)
+                    | surface::FluxItem::SortDecl(_) => {}
                 }
             }
         }
     }
 
-    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "`flux_items_by_parent` is the source of truth for `FluxDefId`"
+    )]
     fn define_module_flux_items(&mut self, parent: OwnerId) {
         let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
         // Names are defined per-module so duplicates are only checked within this module.
-        let mut definitions = DefinitionMap::default();
+        // let mut definitions = DefinitionMap::default();
         for item in items {
-            // NOTE: This is putting all items in the same namespace. In principle, we could have
-            // qualifiers in a different namespace.
-            definitions
-                .define(item.name())
-                .emit(&self.genv)
-                .collect_err(&mut self.err);
+            // let Some(ident) = item.name() else { continue };
+            // // NOTE: This is putting all items in the same namespace. In principle, we could have
+            // // qualifiers in a different namespace.
+            // definitions
+            //     .define(ident)
+            //     .emit(&self.genv)
+            //     .collect_err(&mut self.err);
 
             match item {
                 // Already registered in `define_global_qualifiers_and_primop_props`.
@@ -157,6 +169,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 surface::FluxItem::SortDecl(sort_decl) => {
                     let def_id = FluxDefId::new(parent.def_id.to_def_id(), sort_decl.name.name);
                     self.define_res_in(sort_decl.name.name, fhir::Res::UserSort(def_id), TypeNS);
+                }
+                surface::FluxItem::Use(path) => {
+                    for (ident, res, ns) in self.resolve_flux_use_path(path) {
+                        self.define_res_in(ident.name, res, ns);
+                    }
                 }
             }
         }
@@ -328,7 +345,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             let is_last = segment_idx + 1 == segments.len();
             let ns = if is_last { ns } else { TypeNS };
 
-            let base_res = if let Some(module) = &module {
+            let base_res = if let Some(module) = module {
                 self.resolve_ident_in_module(module, segment.ident(), ns)?
             } else {
                 self.resolve_ident_with_ribs(segment.ident(), ns)?
@@ -359,6 +376,71 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             }
         }
         None
+    }
+
+    fn resolve_flux_use_path(
+        &mut self,
+        path: &surface::ExprPath,
+    ) -> Vec<(Ident, fhir::Res<surface::NodeId>, Namespace)> {
+        use fhir::Res;
+        let [prefix @ .., last] = &path.segments[..] else {
+            bug!("path must have at least one segment")
+        };
+
+        // 1. Resolve prefix
+        let mut module_id: Option<DefId> = None;
+        for segment in prefix {
+            let res = if let Some(module_id) = module_id {
+                let module = Module::new(ModuleKind::Mod, module_id);
+                self.resolve_ident_in_module(module, segment.ident(), TypeNS)
+            } else {
+                self.resolve_ident_with_ribs(segment.ident(), TypeNS)
+            };
+            let Some(res) = res else {
+                self.emit(errors::UnresolvedName {
+                    span: segment.ident().span,
+                    name: segment.ident().to_string(),
+                    kind: "import",
+                });
+                return vec![];
+            };
+
+            if let Res::Def(DefKind::Mod, def_id) = res {
+                module_id = Some(def_id);
+            } else {
+                self.emit(errors::UnresolvedName {
+                    span: segment.ident().span,
+                    name: segment.ident().to_string(),
+                    kind: "import",
+                });
+                return vec![];
+            }
+        }
+
+        // 2. Resolve last ident in all namespaces
+        let mut resolutions = vec![];
+        for ns in [TypeNS, ValueNS, ReftNS] {
+            let res = if let Some(module_id) = module_id {
+                let module = Module::new(ModuleKind::Mod, module_id);
+                self.resolve_ident_in_module(module, last.ident(), ns)
+            } else {
+                self.resolve_ident_with_ribs(last.ident(), ns)
+            };
+            if let Some(res) = res {
+                resolutions.push((last.ident(), res, ns));
+            }
+        }
+
+        // 3. Report error if no valid resolution
+        if resolutions.is_empty() {
+            self.emit(errors::UnresolvedName {
+                span: path.span,
+                name: path.display(),
+                kind: "import",
+            })
+        }
+
+        resolutions
     }
 
     fn resolve_ident_with_ribs(
@@ -430,7 +512,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_ident_in_module(
         &self,
-        module: &Module,
+        module: Module,
         ident: Ident,
         ns: Namespace,
     ) -> Option<fhir::Res<surface::NodeId>> {
@@ -492,6 +574,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     pub fn into_output(self) -> Result<ResolverOutput> {
         self.err.into_result()?;
         Ok(self.output)
+    }
+
+    pub fn emit(&mut self, err: impl rustc_errors::Diagnostic<'genv>) {
+        self.err.collect(self.genv.sess().emit_err(err));
     }
 }
 
@@ -648,7 +734,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 }
 
 /// Akin to `rustc_resolve::Module` but specialized to what we support
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Module {
     kind: ModuleKind,
     def_id: DefId,
@@ -661,7 +747,7 @@ impl Module {
 }
 
 /// Akin to `rustc_resolve::ModuleKind` but specialized to what we support
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 enum ModuleKind {
     Mod,
     Trait,
@@ -818,11 +904,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         Self { resolver, errors, item_id }
     }
 
-    fn resolve_type_path(&mut self, path: &surface::Path) {
-        self.resolve_path_in(path, TypeNS);
-    }
-
-    fn resolve_path_in(&mut self, path: &surface::Path, ns: Namespace) {
+    fn resolve_path_in(&mut self, ns: Namespace, path: &surface::Path) {
         if let Some(partial_res) = self.resolver.resolve_path_with_ribs(&path.segments, ns) {
             self.resolver
                 .output
@@ -955,7 +1037,7 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
             };
 
             if !check_ns(TypeNS) && check_ns(ValueNS) {
-                self.resolve_path_in(path, ValueNS);
+                self.resolve_path_in(ValueNS, path);
                 return;
             }
         }
@@ -964,13 +1046,13 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
 
     fn visit_const_arg(&mut self, const_arg: &surface::ConstArg) {
         if let surface::ConstArgKind::Path(path) = &const_arg.kind {
-            self.resolve_path_in(path, ValueNS);
+            self.resolve_path_in(ValueNS, path);
             surface::visit::walk_path(self, path);
         }
     }
 
     fn visit_path(&mut self, path: &surface::Path) {
-        self.resolve_type_path(path);
+        self.resolve_path_in(TypeNS, path);
         surface::visit::walk_path(self, path);
     }
 }

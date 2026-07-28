@@ -365,6 +365,10 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             FluxItem::FuncDef(defn) => &defn.sort_vars[..],
             FluxItem::SortDecl(sort_decl) => &sort_decl.sort_vars[..],
             FluxItem::Qualifier(_) | FluxItem::PrimOpProp(_) => &[],
+            FluxItem::Use(_) => {
+                // Use paths are resolved `CrateResolver::resolve_use_path`
+                return Ok(());
+            }
         };
         Self::new(resolver).run(sort_vars, |r| r.visit_flux_item(item))
     }
@@ -551,7 +555,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     fn emit_unresolved_expr_path(&mut self, path: &surface::ExprPath) {
         self.errors.emit(super::errors::UnresolvedName {
             span: path.span,
-            name: path.segments.iter().map(|s| s.ident).join("::"),
+            name: path.display(),
             kind: "value",
         });
     }

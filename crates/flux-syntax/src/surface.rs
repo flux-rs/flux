@@ -1,7 +1,9 @@
 pub mod visit;
+
 use std::{borrow::Cow, fmt, ops::Range};
 
 use flux_config::PartialInferOpts;
+use itertools::Itertools;
 pub use rustc_ast::{
     Mutability,
     token::{Lit, LitKind},
@@ -35,15 +37,17 @@ pub enum FluxItem {
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
     PrimOpProp(PrimOpProp),
+    Use(ExprPath),
 }
 
 impl FluxItem {
-    pub fn name(&self) -> Ident {
+    pub fn name(&self) -> Option<Ident> {
         match self {
-            FluxItem::Qualifier(qualifier) => qualifier.name,
-            FluxItem::FuncDef(spec_func) => spec_func.name,
-            FluxItem::SortDecl(sort_decl) => sort_decl.name,
-            FluxItem::PrimOpProp(primop_prop) => primop_prop.name,
+            FluxItem::Qualifier(qualifier) => Some(qualifier.name),
+            FluxItem::FuncDef(spec_func) => Some(spec_func.name),
+            FluxItem::SortDecl(sort_decl) => Some(sort_decl.name),
+            FluxItem::PrimOpProp(primop_prop) => Some(primop_prop.name),
+            FluxItem::Use(_) => None,
         }
     }
 }
@@ -750,6 +754,12 @@ pub struct ExprPath {
     pub segments: Vec<ExprPathSegment>,
     pub node_id: NodeId,
     pub span: Span,
+}
+
+impl ExprPath {
+    pub fn display(&self) -> String {
+        self.segments.iter().map(|s| s.ident).join("::")
+    }
 }
 
 #[derive(Debug, Clone)]

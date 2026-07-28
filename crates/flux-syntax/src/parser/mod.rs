@@ -164,6 +164,7 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<FluxItem>>
 ///              | ⟨qualifier⟩
 ///              | ⟨sort_decl⟩
 ///              | ⟨primop_prop⟩
+///              | ⟨use_item⟩
 /// ```
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
     let mut lookahead = cx.lookahead1();
@@ -178,6 +179,8 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
         parse_sort_decl(cx).map(FluxItem::SortDecl)
     } else if lookahead.peek(kw::Property) {
         parse_primop_property(cx).map(FluxItem::PrimOpProp)
+    } else if lookahead.peek(kw::Use) {
+        parse_use_item(cx).map(FluxItem::Use)
     } else {
         Err(lookahead.into_error())
     }
@@ -577,6 +580,16 @@ fn parse_primop_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
     let hi = cx.hi();
 
     Ok(PrimOpProp { name, op, params, body, span: cx.mk_span(lo, hi) })
+}
+
+/// ```text
+/// ⟨use_item⟩ := use ⟨expr_path⟩ ;
+/// ```
+fn parse_use_item(cx: &mut ParseCtxt) -> ParseResult<ExprPath> {
+    cx.expect(kw::Use)?;
+    let path = parse_expr_path(cx)?;
+    cx.expect(token::Semi)?;
+    Ok(path)
 }
 
 pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<TraitAssocReft>> {

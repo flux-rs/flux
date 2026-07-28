@@ -852,6 +852,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
                 let sort_decl = self.desugar_sort_decl(sort_decl);
                 fhir::FluxItem::SortDecl(self.genv.alloc(sort_decl))
             }
+            surface::FluxItem::Use(..) => bug!("unexpected use item"),
         }
     }
 

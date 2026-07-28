@@ -11,6 +11,8 @@ test = false
 [dependencies]
 flux-macros.workspace = true
 flux-config.workspace = true
+
+itertools.workspace = true
 rustc-hash.workspace = true
 
 

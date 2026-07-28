@@ -400,22 +400,27 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         &items
                             .iter()
                             .filter_map(|item| {
-                                let res = match item {
-                                    surface::FluxItem::FuncDef(_) => {
-                                        fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
-                                            FluxDefId::new(parent.to_def_id(), item.name().name),
-                                        ))
+                                let res;
+                                let ident;
+                                match item {
+                                    surface::FluxItem::FuncDef(func) => {
+                                        ident = func.name;
+                                        res = fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
+                                            FluxDefId::new(parent.to_def_id(), ident.name),
+                                        ));
                                     }
-                                    surface::FluxItem::SortDecl(_) => {
-                                        fhir::Res::UserSort(FluxDefId::new(
+                                    surface::FluxItem::SortDecl(sort) => {
+                                        ident = sort.name;
+                                        res = fhir::Res::UserSort(FluxDefId::new(
                                             parent.to_def_id(),
-                                            item.name().name,
-                                        ))
+                                            ident.name,
+                                        ));
                                     }
                                     surface::FluxItem::Qualifier(_)
-                                    | surface::FluxItem::PrimOpProp(_) => return None,
+                                    | surface::FluxItem::PrimOpProp(_)
+                                    | surface::FluxItem::Use(_) => return None,
                                 };
-                                Some(fhir::FluxModChild { ident: item.name(), res })
+                                Some(fhir::FluxModChild { ident, res })
                             })
                             .collect::<Vec<_>>(),
                     )

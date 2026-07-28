@@ -218,6 +218,7 @@ pub fn walk_flux_item<V: Visitor>(vis: &mut V, item: &FluxItem) {
         FluxItem::FuncDef(spec_func) => vis.visit_defn(spec_func),
         FluxItem::SortDecl(sort_decl) => vis.visit_sort_decl(sort_decl),
         FluxItem::PrimOpProp(prim_op_prop) => vis.visit_primop_prop(prim_op_prop),
+        FluxItem::Use(qpath) => vis.visit_path_expr(qpath),
     }
 }
 
