@@ -535,7 +535,7 @@ impl rty::PolyFnSig {
                 existential_params: Vec::new(),
                 params: params.clone(),
             };
-            let requires_wkvar = make_weak_kvar(
+            let requires_wkvar = make_weak_kvar_with_vars(
                 &mut wkvar_inserter.wkvar_map,
                 def_id,
                 &mut wkvar_inserter.kvid,
@@ -552,7 +552,7 @@ impl rty::PolyFnSig {
             params.extend(output_binder_params);
             wkvar_inserter.params = params.clone();
             let ensures = if !fn_sig.output.vars().is_empty() {
-                let ensures_wkvar = make_weak_kvar(
+                let ensures_wkvar = make_weak_kvar_with_vars(
                     &mut wkvar_inserter.wkvar_map,
                     def_id,
                     &mut wkvar_inserter.kvid,
@@ -641,7 +641,7 @@ impl TypeFolder for WeakKVarInserter {
                 // in both $wk0 and $wk1. But the self arg ensures that we don't
                 // put it in $wk1, since it requires the expression contain one
                 // of its self args (in this case, just `v0`).
-                let wkvar = make_weak_kvar(
+                let wkvar = make_weak_kvar_with_vars(
                     &mut self.wkvar_map,
                     self.def_id,
                     &mut self.kvid,
@@ -691,7 +691,7 @@ impl TypeFolder for WeakKVarInserter {
                                     .collect();
                                 // We pass the params immediately under this binder as the self args.
                                 // see the TyKind::Exists case.
-                                let wkvar = make_weak_kvar(
+                                let wkvar = make_weak_kvar_with_vars(
                                     &mut self.wkvar_map,
                                     self.def_id,
                                     &mut self.kvid,
@@ -782,24 +782,35 @@ fn shift_out_vars(vars: &mut [(rty::Var, rty::Sort)]) {
 
 // TODO: Don't make a weak kvar if the self_args is empty if there's a weak kvar
 //        that's been created before it with a superset of its params.
-pub fn make_weak_kvar(
+fn make_weak_kvar_with_vars(
     wkvar_map: &mut WeakKvarMap,
     def_id: DefId,
     kvid: &mut rty::KVid,
     self_args: Vec<(rty::Var, rty::Sort)>,
     params: Vec<(rty::Var, rty::Sort)>,
 ) -> rty::WKVar {
+    let self_args = self_args.into_iter().map(|(v, s)| (rty::Expr::var(v), s)).collect();
+    let params = params.into_iter().map(|(v, s)| (rty::Expr::var(v), s)).collect();
+    make_weak_kvar(wkvar_map, def_id, kvid, self_args, params)
+}
+
+pub fn make_weak_kvar(
+    wkvar_map: &mut WeakKvarMap,
+    def_id: DefId,
+    kvid: &mut rty::KVid,
+    self_args: Vec<(rty::Expr, rty::Sort)>,
+    params: Vec<(rty::Expr, rty::Sort)>,
+) -> rty::WKVar {
     let num_self_args = self_args.len();
-    let (args, sorts): (Vec<rty::Var>, Vec<rty::Sort>) =
+    let (args, sorts): (Vec<rty::Expr>, Vec<rty::Sort>) =
         self_args.into_iter().chain(params).unzip();
-    let arg_exprs = args.into_iter().map(rty::Expr::var).collect();
     // We don't have any solutions because these weak kvars are being generated
     // (solutions only come from user annotations).
     wkvar_map.insert(kvid.as_u32(), WeakKvarInfo { solutions: vec![], sorts });
     let ret = rty::WKVar {
         wkvid: rty::WKVid::new(def_id, *kvid),
         self_args: num_self_args,
-        args: arg_exprs,
+        args: args.into(),
     };
     *kvid += 1;
     ret

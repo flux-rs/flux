@@ -1451,7 +1451,7 @@ struct PromotedWKVar {
     source_self_args: usize,
 }
 
-fn flatten_kvar_args(
+pub fn flatten_kvar_args(
     args: impl IntoIterator<Item = (rty::Expr, rty::Sort)>,
     self_args: usize,
 ) -> (Vec<rty::Sort>, Vec<rty::Expr>, usize) {

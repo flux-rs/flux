@@ -20,6 +20,7 @@ use conv::{AfterSortck, ConvPhase, struct_compat};
 use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
+use flux_infer::fixpoint_encoding::flatten_kvar_args;
 use flux_macros::fluent_messages;
 use flux_middle::{
     def_id::{FluxDefId, FluxId, MaybeExternId},
@@ -203,9 +204,15 @@ fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
     let args = rty::GenericArg::identity_for_item(genv, def_id.resolved_id())?;
     let sort = adt_sort.to_sort(&args);
     let mut wkvar_map = WeakKvarMap::default();
-    let bound_reft = rty::BoundReft { var: rty::BoundVar::from(0_usize), kind: rty::BoundReftKind::Anon };
-    let self_args = vec![(rty::Var::Bound(INNERMOST, bound_reft), sort.clone())];
-    let adt_wkvar = make_weak_kvar(&mut wkvar_map, def_id.resolved_id(), &mut rty::KVid::from(999_usize), self_args, vec![]);
+    let self_args = vec![(rty::Expr::bvar(INNERMOST, rty::BoundVar::from(0_usize), rty::BoundReftKind::Anon), sort.clone())];
+    let (flattened_self_arg_sorts, flattened_self_args, _) = flatten_kvar_args(self_args.into_iter(), 1);
+    let adt_wkvar = make_weak_kvar(
+        &mut wkvar_map,
+        def_id.resolved_id(),
+        &mut rty::KVid::from(999_usize),
+        flattened_self_args.into_iter().zip(flattened_self_arg_sorts.into_iter()).collect(),
+        vec![]
+    );
     let wkvar_inv = Binder::bind_with_sort(rty::Expr::wkvar(adt_wkvar), sort);
     invariants.push(rty::Invariant::new(wkvar_inv));
     genv.feed_weak_kvars(def_id.resolved_id(), wkvar_map);
