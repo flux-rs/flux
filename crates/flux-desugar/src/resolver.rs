@@ -35,6 +35,42 @@ use self::refinement_resolver::RefinementResolver;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
+/// The reason a name lookup (`resolve_ident_with_ribs`, `resolve_ident_in_module`,
+/// `resolve_path_with_ribs`) failed.
+enum ResolveError {
+    NotFound,
+    /// The name resolved to two or more distinct, competing bindings (e.g. two different glob
+    /// imports bringing in different items under the same name) with nothing more specific to
+    /// disambiguate. Carries everything needed to emit [`errors::AmbiguousName`], so that callers
+    /// deep in the path walk don't have to reconstruct which segment went wrong.
+    Ambiguous(Ambiguity),
+}
+
+/// A name that two competing glob imports bind to different items:
+///
+/// ```ignore
+/// mod a { pub struct S; }
+/// mod b { pub struct S; }
+///
+/// use a::*;
+/// use b::*;
+///
+/// #[flux::spec(fn(x: S))]
+/// fn f(x: a::S) {}
+/// ```
+#[derive(Clone, Copy, Debug)]
+struct Ambiguity {
+    /// The use site that hit the ambiguity: the `S` inside the signature.
+    span: Span,
+    /// The contested name: `S`.
+    name: Symbol,
+    /// Where the first candidate was brought into scope: the `use a::*;` statement.
+    first: Span,
+    /// Same for the second candidate: `use b::*;`. It can coincide with `first` when a single
+    /// glob imports a module that is itself ambiguously re-exporting the name.
+    second: Span,
+}
+
 pub(crate) fn resolve_crate(genv: GlobalEnv) -> ResolverOutput {
     match try_resolve_crate(genv) {
         Ok(output) => output,
@@ -82,7 +118,7 @@ impl DefinitionMap {
                 Err(errors::DuplicateDefinition {
                     span: name.span,
                     previous_definition: entry.key().span,
-                    name,
+                    name: name.name,
                 })
             }
             hash_map::Entry::Vacant(entry) => {
@@ -172,15 +208,24 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 surface::FluxItem::FuncDef(defn) => {
                     let def_id = FluxDefId::new(parent.def_id.to_def_id(), defn.name.name);
                     let kind = fhir::SpecFuncKind::Def(def_id);
-                    self.define_res_in(defn.name, fhir::Res::GlobalFunc(kind), ReftNS);
+                    self.define_res_in(
+                        fhir::Res::GlobalFunc(kind),
+                        ReftNS,
+                        BindingSource::Explicit(defn.name),
+                    );
                 }
                 surface::FluxItem::SortDecl(sort_decl) => {
                     let def_id = FluxDefId::new(parent.def_id.to_def_id(), sort_decl.name.name);
-                    self.define_res_in(sort_decl.name, fhir::Res::UserSort(def_id), TypeNS);
+                    self.define_res_in(
+                        fhir::Res::UserSort(def_id),
+                        TypeNS,
+                        BindingSource::Explicit(sort_decl.name),
+                    );
                 }
                 surface::FluxItem::Use(use_tree) => {
+                    // Flux's `use` has no glob form, so every name it brings in is explicit.
                     for (ident, res, ns) in self.resolve_flux_use_tree(use_tree) {
-                        self.define_res_in(ident, res, ns);
+                        self.define_res_in(res, ns, BindingSource::Explicit(ident));
                     }
                 }
             }
@@ -197,16 +242,17 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                             if let Some(res) = path.res.value_ns
                                 && let Ok(res) = fhir::Res::try_from(res)
                             {
-                                self.define_res_in(ident, res, ValueNS);
+                                self.define_res_in(res, ValueNS, BindingSource::Explicit(ident));
                             }
                             if let Some(res) = path.res.type_ns
                                 && let Ok(res) = fhir::Res::try_from(res)
                             {
-                                self.define_res_in(ident, res, TypeNS);
+                                self.define_res_in(res, TypeNS, BindingSource::Explicit(ident));
                             }
                         }
                         hir::UseKind::Glob => {
                             let is_prelude = is_prelude_import(self.genv.tcx(), item);
+                            let glob_span = item.span;
                             for mod_child in self.glob_imports(path) {
                                 if let Ok(res) = fhir::Res::try_from(mod_child.res)
                                     && let Some(ns @ (TypeNS | ValueNS)) = res.ns()
@@ -214,7 +260,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                                     if is_prelude {
                                         self.define_in_prelude(mod_child.ident, res, ns);
                                     } else {
-                                        self.define_res_in(mod_child.ident, res, ns);
+                                        let source = BindingSource::Glob {
+                                            ident: mod_child.ident,
+                                            glob_span,
+                                        };
+                                        self.define_res_in(res, ns, source);
                                     }
                                 }
                             }
@@ -239,7 +289,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             if let Some(ns) = def_kind.ns().map(Namespace::from)
                 && let Some(ident) = item.kind.ident()
             {
-                self.define_res_in(ident, fhir::Res::Def(def_kind, item.owner_id.to_def_id()), ns);
+                self.define_res_in(
+                    fhir::Res::Def(def_kind, item.owner_id.to_def_id()),
+                    ns,
+                    BindingSource::Explicit(ident),
+                );
             }
         }
     }
@@ -250,9 +304,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             match item.kind {
                 rustc_hir::ForeignItemKind::Type => {
                     self.define_res_in(
-                        item.ident,
                         fhir::Res::Def(DefKind::ForeignTy, item.owner_id.to_def_id()),
                         TypeNS,
+                        BindingSource::Explicit(item.ident),
                     );
                 }
                 rustc_hir::ForeignItemKind::Fn(..) | rustc_hir::ForeignItemKind::Static(..) => {}
@@ -260,35 +314,48 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    /// Define `ident` in the innermost rib of `ns`. If the rib already binds that name, keep the
-    /// existing binding, report the clash against its original location.
-    fn define_res_in(&mut self, ident: Ident, res: fhir::Res<surface::NodeId>, ns: Namespace) {
+    /// Define the name in `source` in the innermost rib of `ns`.
+    fn define_res_in(
+        &mut self,
+        res: fhir::Res<surface::NodeId>,
+        ns: Namespace,
+        source: BindingSource,
+    ) {
+        let ident = source.ident();
         if ident.name == kw::Underscore {
             return;
         }
-        match self.ribs[ns].last_mut().unwrap().bindings.entry(ident.name) {
-            hash_map::Entry::Occupied(entry) => {
-                let prev = *entry.get();
-                if let fhir::Res::Param(..) = prev.res {
-                    self.emit(errors::DuplicateParam::new(prev.ident, ident));
-                } else {
-                    self.emit(errors::DuplicateDefinition {
-                        span: ident.span,
-                        previous_definition: prev.ident.span,
-                        name: ident,
-                    });
-                }
+        let entry = self.ribs[ns]
+            .last_mut()
+            .unwrap()
+            .bindings
+            .entry(ident.name)
+            .or_default();
+
+        if let Some(prev) = entry.define(source, res) {
+            if let fhir::Res::Param(..) = prev.res {
+                self.emit(errors::DuplicateParam {
+                    span: ident.span,
+                    name: ident.name,
+                    first_use: prev.span,
+                });
+            } else {
+                self.emit(errors::DuplicateDefinition {
+                    span: ident.span,
+                    previous_definition: prev.span,
+                    name: ident.name,
+                });
             }
-            hash_map::Entry::Vacant(entry) => {
-                entry.insert(Binding { ident, res });
-            }
-        };
+        }
     }
 
+    /// Define `ident` in the prelude of `ns`. The prelude is only ever populated from the single
+    /// `#[prelude_import]` glob, so unlike [`Self::define_res_in`] it keeps plain last-one-wins
+    /// semantics: there is no second glob to be ambiguous with.
     fn define_in_prelude(&mut self, ident: Ident, res: fhir::Res<surface::NodeId>, ns: Namespace) {
         self.prelude[ns]
             .bindings
-            .insert(ident.name, Binding { ident, res });
+            .insert(ident.name, NameResolution::from_explicit(Binding { span: ident.span, res }));
     }
 
     fn push_rib(&mut self, ns: Namespace, kind: RibKind) {
@@ -312,7 +379,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             {
                 debug_assert!(matches!(def_kind, DefKind::TyParam | DefKind::ConstParam));
                 let param_id = self.genv.maybe_extern_id(param.def_id).resolved_id();
-                self.define_res_in(name, fhir::Res::Def(def_kind, param_id), ns);
+                self.define_res_in(
+                    fhir::Res::Def(def_kind, param_id),
+                    ns,
+                    BindingSource::Explicit(name),
+                );
             }
         }
     }
@@ -351,7 +422,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         &mut self,
         segments: &[S],
         ns: Namespace,
-    ) -> Option<fhir::PartialRes<surface::NodeId>> {
+    ) -> std::result::Result<fhir::PartialRes<surface::NodeId>, ResolveError> {
         let mut module: Option<Module> = None;
         for (segment_idx, segment) in segments.iter().enumerate() {
             let is_last = segment_idx + 1 == segments.len();
@@ -366,7 +437,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             S::record_segment_res(self, segment, base_res);
 
             if is_last {
-                return Some(fhir::PartialRes::new(base_res));
+                return Ok(fhir::PartialRes::new(base_res));
             }
 
             match base_res {
@@ -380,14 +451,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     module = Some(Module::new(ModuleKind::Enum, module_id));
                 }
                 _ => {
-                    return Some(fhir::PartialRes::with_unresolved_segments(
+                    return Ok(fhir::PartialRes::with_unresolved_segments(
                         base_res,
                         segments.len() - segment_idx - 1,
                     ));
                 }
             }
         }
-        None
+        Err(ResolveError::NotFound)
     }
 
     fn resolve_flux_use_tree(
@@ -419,9 +490,16 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             } else {
                 self.resolve_ident_with_ribs(ident, TypeNS)
             };
-            let Some(res) = res else {
-                self.emit_unresolved_import(ident, resolved_module_id, resolved_prefix);
-                return vec![];
+            let res = match res {
+                Ok(res) => res,
+                Err(ResolveError::NotFound) => {
+                    self.emit_unresolved_import(ident, resolved_module_id, resolved_prefix);
+                    return vec![];
+                }
+                Err(ResolveError::Ambiguous(ambiguity)) => {
+                    self.emit_ambiguity_err(ambiguity);
+                    return vec![];
+                }
             };
             if let fhir::Res::Def(DefKind::Mod, def_id) = res {
                 resolved_module_id = Some(def_id);
@@ -435,6 +513,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         match &use_tree.kind {
             surface::UseTreeKind::Simple => {
                 let mut resolutions = vec![];
+                // An import names an item in every namespace at once, so an ambiguity in any one
+                // of them is an error even if the others resolve. Keeping only the first means one
+                // import is one error.
+                let mut ambiguity = None;
                 for ns in [TypeNS, ValueNS, ReftNS] {
                     let res = if let Some(module_id) = resolved_module_id {
                         let module = Module::new(ModuleKind::Mod, module_id);
@@ -442,11 +524,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     } else {
                         self.resolve_ident_with_ribs(last.ident(), ns)
                     };
-                    if let Some(res) = res {
-                        resolutions.push((last.ident(), res, ns));
+                    match res {
+                        Ok(res) => resolutions.push((last.ident(), res, ns)),
+                        Err(ResolveError::Ambiguous(amb)) => ambiguity = ambiguity.or(Some(amb)),
+                        Err(ResolveError::NotFound) => {}
                     }
                 }
-                if resolutions.is_empty() {
+                if let Some(ambiguity) = ambiguity {
+                    self.emit_ambiguity_err(ambiguity);
+                } else if resolutions.is_empty() {
                     self.emit_unresolved_import(last.ident, resolved_module_id, resolved_prefix);
                 }
                 resolutions
@@ -471,11 +557,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         &self,
         ident: Ident,
         ns: Namespace,
-    ) -> Option<fhir::Res<surface::NodeId>> {
+    ) -> std::result::Result<fhir::Res<surface::NodeId>, ResolveError> {
         let mut ribs = self.ribs[ns].iter().rev();
         while let Some(rib) = ribs.next() {
-            if let Some(binding) = rib.bindings.get(&ident.name) {
-                return Some(binding.res);
+            // An ambiguous name is still a name: it stops the climb here rather than falling
+            // through to outer scopes or the prelude.
+            if let Some(name_res) = rib.bindings.get(&ident.name)
+                && let Some(res) = name_res.resolve(ident)
+            {
+                return res.map_err(ResolveError::Ambiguous);
             }
             match rib.kind {
                 // A module boundary stops item resolution.
@@ -493,23 +583,25 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
         if ns == TypeNS {
             if let Some(crate_id) = self.crates.get(&ident.name) {
-                return Some(fhir::Res::Def(DefKind::Mod, *crate_id));
+                return Ok(fhir::Res::Def(DefKind::Mod, *crate_id));
             }
             // FIXME: `crate` and `super` should only be allowed as the first segment
             if ident.name == kw::Crate {
-                return Some(fhir::Res::Def(DefKind::Mod, CRATE_DEF_ID.to_def_id()));
+                return Ok(fhir::Res::Def(DefKind::Mod, CRATE_DEF_ID.to_def_id()));
             }
             if ident.name == kw::Super
                 && let Some(parent) = self.genv.tcx().opt_local_parent(self.current_module.def_id)
             {
-                return Some(fhir::Res::Def(DefKind::Mod, parent.to_def_id()));
+                return Ok(fhir::Res::Def(DefKind::Mod, parent.to_def_id()));
             }
         }
 
-        if let Some(binding) = self.prelude[ns].bindings.get(&ident.name) {
-            return Some(binding.res);
+        if let Some(name_res) = self.prelude[ns].bindings.get(&ident.name)
+            && let Some(res) = name_res.resolve(ident)
+        {
+            return res.map_err(ResolveError::Ambiguous);
         }
-        None
+        Err(ResolveError::NotFound)
     }
 
     fn glob_imports(
@@ -522,6 +614,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let tcx = self.genv.tcx();
         let curr_mod = self.current_module.to_def_id();
         self.resolve_path_with_ribs(path.segments, TypeNS)
+            .ok()
             .and_then(|partial_res| partial_res.full_res())
             .and_then(|res| {
                 if let fhir::Res::Def(DefKind::Mod, module_id) = res {
@@ -539,42 +632,69 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         module: Module,
         ident: Ident,
         ns: Namespace,
-    ) -> Option<fhir::Res<surface::NodeId>> {
+    ) -> std::result::Result<fhir::Res<surface::NodeId>, ResolveError> {
         let tcx = self.genv.tcx();
-        match module.kind {
+        let res = match module.kind {
             ModuleKind::Mod => {
                 let module_id = module.def_id;
                 let current_mod = self.current_module.to_def_id();
-                // Rust module children take precedence, but are only resolved in a Rust
-                // namespace.
-                ns.to_rustc()
-                    .and_then(|rustc_ns| {
-                        visible_module_children(tcx, module_id, current_mod)
-                            .find(|child| {
-                                child.res.matches_ns(rustc_ns)
-                                    && tcx.hygienic_eq(ident, child.ident, current_mod)
-                            })
-                            .and_then(|child| {
-                                fhir::Res::<surface::NodeId>::try_from(child.res).ok()
-                            })
+
+                // Three sources, tried in order, first one with the name wins: the module's Rust
+                // children, then the ambiguous ones rustc leaves out of `module_children`, then
+                // its flux items. Only the first two have a Rust namespace to look in.
+                //
+                // Keeping them apart matters because the folds below read every candidate as a
+                // glob, so one pool would make `mod m { struct Bag; defs! { opaque sort Bag; } }`
+                // ambiguous at each `m::Bag`. It isn't: two explicit definitions clash as a
+                // duplicate definition, already reported when `m`'s rib was built.
+                let mut resolution: NameResolution = ns
+                    .to_rustc()
+                    .into_iter()
+                    .flat_map(|rustc_ns| {
+                        visible_module_children(tcx, module_id, current_mod).filter(move |child| {
+                            child.res.matches_ns(rustc_ns)
+                                && tcx.hygienic_eq(ident, child.ident, current_mod)
+                        })
                     })
-                    .or_else(|| {
-                        self.genv
-                            .flux_module_children(module_id)
-                            .iter()
-                            .find(|child| {
-                                child.res.ns() == Some(ns) && child.ident.name == ident.name
-                            })
-                            .map(|child| child.res.map_param_id(|id| match id {}))
+                    .filter_map(|child| {
+                        Some(Binding {
+                            span: child.ident.span,
+                            res: fhir::Res::try_from(child.res).ok()?,
+                        })
                     })
+                    .collect();
+                if resolution.is_empty() {
+                    // Still a Rust name, so it comes before any flux item.
+                    if let Some(ambiguity) = self.ambiguous_module_child(module_id, ident, ns) {
+                        return Err(ResolveError::Ambiguous(ambiguity));
+                    }
+                    resolution = self
+                        .genv
+                        .flux_module_children(module_id)
+                        .iter()
+                        .filter(|child| {
+                            child.res.ns() == Some(ns) && child.ident.name == ident.name
+                        })
+                        .map(|child| {
+                            Binding {
+                                span: child.ident.span,
+                                res: child.res.map_param_id(|id| match id {}),
+                            }
+                        })
+                        .collect();
+                }
+                resolution.resolve(ident)
             }
             ModuleKind::Trait => {
                 // Associated items are Rust items, so we only ever resolve them in a Rust namespace.
-                let rustc_ns = ns.to_rustc()?;
-                let trait_id = module.def_id;
-                tcx.associated_items(trait_id)
-                    .find_by_ident_and_namespace(tcx, ident, rustc_ns, trait_id)
-                    .map(|assoc| fhir::Res::Def(assoc.kind.as_def_kind(), assoc.def_id))
+                ns.to_rustc()
+                    .and_then(|rustc_ns| {
+                        let trait_id = module.def_id;
+                        tcx.associated_items(trait_id)
+                            .find_by_ident_and_namespace(tcx, ident, rustc_ns, trait_id)
+                            .map(|assoc| fhir::Res::Def(assoc.kind.as_def_kind(), assoc.def_id))
+                    })
+                    .map(Ok)
             }
             ModuleKind::Enum => {
                 tcx.adt_def(module.def_id)
@@ -591,8 +711,63 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         };
                         Some(fhir::Res::Def(kind, def_id))
                     })
+                    .map(Ok)
             }
+        };
+        match res {
+            Some(res) => res.map_err(ResolveError::Ambiguous),
+            None => Err(ResolveError::NotFound),
         }
+    }
+
+    /// The ambiguity for `ident` in `module_id`, if the module's *own* glob re-exports bind the
+    /// name to two different items (`mod m { pub use a::*; pub use b::*; }`). rustc keeps such
+    /// bindings out of `module_children` — they go into a separate `ambig_module_children` map —
+    /// so they need their own lookup.
+    ///
+    /// Only *local* modules are covered. The data for a foreign module is reachable only through an
+    /// untracked `CStore` accessor, and rustc doesn't report `E0659` across a crate boundary
+    /// anyway: it resolves to the first candidate and fires the `ambiguous_glob_imports`
+    /// future-incompatibility lint instead (see rust-lang/rust#114095). We report those as
+    /// unresolved.
+    #[expect(clippy::disallowed_methods, reason = "modules cannot have extern specs")]
+    fn ambiguous_module_child(
+        &self,
+        module_id: DefId,
+        ident: Ident,
+        ns: Namespace,
+    ) -> Option<Ambiguity> {
+        let tcx = self.genv.tcx();
+        let module_id = module_id.as_local()?;
+        let rustc_ns = ns.to_rustc()?;
+        let current_mod = self.current_module.to_def_id();
+        let child = tcx
+            .resolutions(())
+            .ambig_module_children
+            .get(&module_id)?
+            .iter()
+            .find(|child| {
+                child.main.res.matches_ns(rustc_ns)
+                    && tcx.hygienic_eq(ident, child.main.ident, current_mod)
+                    && child.main.vis.is_accessible_from(current_mod, tcx)
+            })?;
+        Some(Ambiguity {
+            span: ident.span,
+            name: ident.name,
+            first: self.glob_span(&child.main),
+            second: self.glob_span(&child.second),
+        })
+    }
+
+    /// Where a module child was brought into its module: the `use ...::*;` statement it was
+    /// re-exported by, or the item's own definition. Mirrors rustc's `child_span`.
+    fn glob_span(&self, child: &ModChild) -> Span {
+        let def_id = child
+            .reexport_chain
+            .first()
+            .and_then(|reexport| reexport.id())
+            .unwrap_or_else(|| child.res.def_id());
+        self.genv.tcx().def_span(def_id)
     }
 
     pub fn into_output(self) -> Result<ResolverOutput> {
@@ -600,6 +775,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         Ok(self.output)
     }
 
+    #[track_caller]
     fn emit_unresolved_import(
         &mut self,
         ident: Ident,
@@ -614,6 +790,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         self.emit(errors::UnresolvedImport { span: ident.span, name, reason });
     }
 
+    #[track_caller]
+    fn emit_ambiguity_err(&mut self, ambiguity: Ambiguity) {
+        self.emit(errors::AmbiguousName::new(ambiguity));
+    }
+
     fn emit_not_a_module(&mut self, ident: Ident, resolved_prefix: &[Ident]) {
         let name = Segment::format_iter(resolved_prefix.iter().chain(&[ident]));
         self.emit(errors::UnresolvedImport {
@@ -623,6 +804,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         });
     }
 
+    #[track_caller]
     fn emit(&mut self, err: impl rustc_errors::Diagnostic<'genv>) {
         self.err.collect(self.genv.sess().emit_err(err));
     }
@@ -697,20 +879,20 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             ItemKind::Trait(..) => {
                 self.define_generics(def_id);
                 self.define_res_in(
-                    Ident::with_dummy_span(kw::SelfUpper),
                     fhir::Res::SelfTyParam { trait_: def_id.resolved_id() },
                     TypeNS,
+                    BindingSource::Explicit(Ident::with_dummy_span(kw::SelfUpper)),
                 );
             }
             ItemKind::Impl(hir::Impl { of_trait, .. }) => {
                 self.define_generics(def_id);
                 self.define_res_in(
-                    Ident::with_dummy_span(kw::SelfUpper),
                     fhir::Res::SelfTyAlias {
                         alias_to: def_id.resolved_id(),
                         is_trait_impl: of_trait.is_some(),
                     },
                     TypeNS,
+                    BindingSource::Explicit(Ident::with_dummy_span(kw::SelfUpper)),
                 );
             }
             ItemKind::TyAlias(..) => {
@@ -719,17 +901,17 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             ItemKind::Enum(..) => {
                 self.define_generics(def_id);
                 self.define_res_in(
-                    Ident::with_dummy_span(kw::SelfUpper),
                     fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: false },
                     TypeNS,
+                    BindingSource::Explicit(Ident::with_dummy_span(kw::SelfUpper)),
                 );
             }
             ItemKind::Struct(..) => {
                 self.define_generics(def_id);
                 self.define_res_in(
-                    Ident::with_dummy_span(kw::SelfUpper),
                     fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: false },
                     TypeNS,
+                    BindingSource::Explicit(Ident::with_dummy_span(kw::SelfUpper)),
                 );
             }
             ItemKind::Fn { .. } => {
@@ -819,19 +1001,148 @@ pub(crate) enum RibKind {
     FnTraitInput,
 }
 
-/// The value stored for each binding in a [`Rib`]. `ident` is the original identifier (kept for
-/// its span, used to point at the previous location on a duplicate-definition clash); lookups
-/// and clash detection are keyed by `ident.name` alone.
+/// The value stored for each binding in a [`Rib`]. Lookups and clash detection are keyed by the
+/// name in the [`Rib`]'s map, so all a binding carries is where it came from, for diagnostics that
+/// point at the previous location of a name.
 #[derive(Clone, Copy, Debug)]
 struct Binding {
-    ident: Ident,
+    /// Where the name was brought into scope: the item, generic or param itself, or, for a
+    /// glob-imported binding, the `use ...::*;` statement rather than the imported item's
+    /// declaration, matching where rustc points its `E0659` notes.
+    span: Span,
     res: fhir::Res<surface::NodeId>,
+}
+
+/// How a name was brought into a rib. Explicit definitions (items, generics, params, single
+/// `use`s, flux `use`s) shadow glob imports of the same name in the same namespace, regardless of
+/// declaration order; only globs can be ambiguous with each other.
+#[derive(Clone, Copy, Debug)]
+enum BindingSource {
+    /// A name written where it is defined: an item, generic, param or single `use`.
+    Explicit(Ident),
+    /// A glob-imported name: the imported item's ident, plus the span of the `use ...::*;`
+    /// statement that brought it in, which is the one diagnostics cite.
+    Glob { ident: Ident, glob_span: Span },
+}
+
+impl BindingSource {
+    fn ident(self) -> Ident {
+        match self {
+            BindingSource::Explicit(ident) | BindingSource::Glob { ident, .. } => ident,
+        }
+    }
+
+    /// Where the name was brought into scope.
+    fn span(self) -> Span {
+        match self {
+            BindingSource::Explicit(ident) => ident.span,
+            BindingSource::Glob { glob_span, .. } => glob_span,
+        }
+    }
+}
+
+/// The glob-imported candidate(s) for a name, mirroring rustc's `glob_decl` slot.
+#[derive(Clone, Copy, Debug)]
+enum GlobBinding {
+    Single(Binding),
+    /// Two competing globs bound this name to different items. Frozen once set: further
+    /// candidates never change it. We deliberately diverge from rustc here, which keeps updating
+    /// the second span as new distinct competitors show up; with three or more globs we therefore
+    /// report the first two rather than the first and the last.
+    Ambiguous(Span, Span),
+}
+
+/// All candidates for a single name in a single namespace, split into the two slots
+/// (`non_glob_decl`/`glob_decl`). The non-glob slot always wins.
+#[derive(Clone, Copy, Debug, Default)]
+struct NameResolution {
+    non_glob: Option<Binding>,
+    glob: Option<GlobBinding>,
+}
+
+impl NameResolution {
+    fn from_explicit(binding: Binding) -> Self {
+        Self { non_glob: Some(binding), glob: None }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.non_glob.is_none() && self.glob.is_none()
+    }
+
+    /// Define the binding. Return previously defined binding if there's a clash
+    fn define(
+        &mut self,
+        source: BindingSource,
+        res: fhir::Res<surface::NodeId>,
+    ) -> Option<Binding> {
+        let binding = Binding { span: source.span(), res };
+        match source {
+            BindingSource::Explicit(_) => {
+                if let Some(prev) = self.non_glob {
+                    Some(prev)
+                } else {
+                    self.non_glob = Some(binding);
+                    None
+                }
+            }
+            BindingSource::Glob { .. } => {
+                self.add_glob(binding);
+                None
+            }
+        }
+    }
+
+    /// Fold one more glob candidate into the glob slot. A candidate resolving to the same item as
+    /// the one already recorded (the same item reached through two different globs) is not an
+    /// ambiguity.
+    fn add_glob(&mut self, binding: Binding) {
+        self.glob = Some(match self.glob {
+            None => GlobBinding::Single(binding),
+            Some(GlobBinding::Single(prev)) => {
+                if prev.res == binding.res {
+                    GlobBinding::Single(prev)
+                } else {
+                    GlobBinding::Ambiguous(prev.span, binding.span)
+                }
+            }
+            Some(ambiguous @ GlobBinding::Ambiguous(..)) => ambiguous,
+        });
+    }
+
+    /// The resolution for `ident`, or `None` if this holds no candidate at all (in which case the
+    /// caller should keep looking in outer scopes).
+    fn resolve(
+        &self,
+        ident: Ident,
+    ) -> Option<std::result::Result<fhir::Res<surface::NodeId>, Ambiguity>> {
+        if let Some(binding) = self.non_glob {
+            return Some(Ok(binding.res));
+        }
+        match self.glob? {
+            GlobBinding::Single(binding) => Some(Ok(binding.res)),
+            GlobBinding::Ambiguous(first, second) => {
+                Some(Err(Ambiguity { span: ident.span, name: ident.name, first, second }))
+            }
+        }
+    }
+}
+
+impl FromIterator<Binding> for NameResolution {
+    /// Fold a stream of *glob* candidates. Used to merge a module's children, where two entries
+    /// for the same name can only come from an ambiguous glob re-export.
+    fn from_iter<T: IntoIterator<Item = Binding>>(iter: T) -> Self {
+        let mut resolution = Self::default();
+        for binding in iter {
+            resolution.add_glob(binding);
+        }
+        resolution
+    }
 }
 
 #[derive(Debug)]
 struct Rib {
     kind: RibKind,
-    bindings: UnordMap<Symbol, Binding>,
+    bindings: UnordMap<Symbol, NameResolution>,
 }
 
 impl Rib {
@@ -968,13 +1279,15 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_path_in(&mut self, ns: Namespace, path: &surface::Path) {
-        if let Some(partial_res) = self.resolver.resolve_path_with_ribs(&path.segments, ns) {
-            self.resolver
-                .output
-                .path_res_map
-                .insert(path.node_id, partial_res);
-        } else {
-            self.emit_unresolved_path(path, ns);
+        match self.resolver.resolve_path_with_ribs(&path.segments, ns) {
+            Ok(partial_res) => {
+                self.resolver
+                    .output
+                    .path_res_map
+                    .insert(path.node_id, partial_res);
+            }
+            Err(ResolveError::NotFound) => self.emit_unresolved_path(path, ns),
+            Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
         }
     }
 
@@ -1031,17 +1344,27 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     fn resolve_reveals(&mut self, item_id: surface::NodeId, reveal_names: &[Ident]) {
         let mut reveals = Vec::with_capacity(reveal_names.len());
         for reveal in reveal_names {
-            if let Some(fhir::Res::GlobalFunc(kind)) =
-                self.resolver.resolve_ident_with_ribs(*reveal, ReftNS)
-                && let Some(def_id) = kind.def_id()
-            {
-                reveals.push(def_id);
-            } else {
-                self.errors
-                    .emit(errors::UnknownRevealDefinition::new(reveal.span));
+            match self.resolver.resolve_ident_with_ribs(*reveal, ReftNS) {
+                Ok(fhir::Res::GlobalFunc(kind)) => {
+                    if let Some(def_id) = kind.def_id() {
+                        reveals.push(def_id);
+                    } else {
+                        self.errors
+                            .emit(errors::UnknownRevealDefinition::new(reveal.span));
+                    }
+                }
+                Ok(_) | Err(ResolveError::NotFound) => {
+                    self.errors
+                        .emit(errors::UnknownRevealDefinition::new(reveal.span));
+                }
+                Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
             }
         }
         self.resolver.output.reveal_res_map.insert(item_id, reveals);
+    }
+
+    fn emit_ambiguity_err(&mut self, ambiguity: Ambiguity) {
+        self.errors.emit(errors::AmbiguousName::new(ambiguity));
     }
 
     fn emit_unresolved_path(&mut self, path: &surface::Path, ns: Namespace) {
@@ -1093,10 +1416,14 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
             // parsing. We try to resolve that ambiguity by attempting resolution in both the
             // type and value namespaces. If we resolved the path in the value namespace, we
             // transform it into a generic const argument.
+            // A name that is *ambiguous* in a namespace still counts as present there: rerouting
+            // to the other namespace would hide the ambiguity instead of reporting it. The real
+            // diagnostic comes from `resolve_path_in` below.
             let check_ns = |ns| {
-                self.resolver
-                    .resolve_ident_with_ribs(path.last().ident, ns)
-                    .is_some()
+                !matches!(
+                    self.resolver.resolve_ident_with_ribs(path.last().ident, ns),
+                    Err(ResolveError::NotFound)
+                )
             };
 
             if !check_ns(TypeNS) && check_ns(ValueNS) {
@@ -1128,14 +1455,28 @@ fn builtin_types_rib() -> Rib {
     use flux_middle::fhir::PrimSort;
     let sorts = PrimSort::ALL.into_iter().map(|prim| {
         let ident = Ident::with_dummy_span(prim.name());
-        (ident.name, Binding { ident, res: fhir::Res::PrimSort(prim) })
+        (
+            ident.name,
+            NameResolution::from_explicit(Binding {
+                span: ident.span,
+                res: fhir::Res::PrimSort(prim),
+            }),
+        )
     });
     let types = PrimTy::ALL.into_iter().map(|pty| {
         let ident = Ident::with_dummy_span(pty.name());
-        (ident.name, Binding { ident, res: fhir::Res::PrimTy(pty) })
+        (
+            ident.name,
+            NameResolution::from_explicit(Binding {
+                span: ident.span,
+                res: fhir::Res::PrimTy(pty),
+            }),
+        )
     });
 
-    // Types go after such that they override sorts with the same name
+    // Types go after such that they override sorts with the same name. Note this collects into a
+    // map, so it is a plain last-one-wins overwrite, not the shadowing/ambiguity fold used for
+    // user-written definitions.
     let bindings = sorts.chain(types).collect();
     Rib { kind: RibKind::Misc, bindings }
 }
@@ -1147,12 +1488,15 @@ fn theory_funcs_rib() -> Rib {
         .extend_unord(flux_middle::THEORY_FUNCS.items().map(|(_, itf)| {
             let ident = Ident::with_dummy_span(itf.name);
             let res = fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf.itf));
-            (ident.name, Binding { ident, res })
+            (ident.name, NameResolution::from_explicit(Binding { span: ident.span, res }))
         }));
     let cast_ident = Ident::with_dummy_span(sym::cast);
     rib.bindings.insert(
         cast_ident.name,
-        Binding { ident: cast_ident, res: fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast) },
+        NameResolution::from_explicit(Binding {
+            span: cast_ident.span,
+            res: fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast),
+        }),
     );
     rib
 }
@@ -1173,7 +1517,7 @@ fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use rustc_span::{Ident, Span, Symbol};
+    use rustc_span::{Span, Symbol};
 
     /// A name that could not be resolved. `kind` is the user-facing description of what was being
     /// looked for (`"type"`, `"value"`, `"sort"`, ...); it is passed explicitly by each call site
@@ -1250,7 +1594,33 @@ mod errors {
         pub span: Span,
         #[label(desugar_previous_definition)]
         pub previous_definition: Span,
-        pub name: Ident,
+        pub name: Symbol,
+    }
+
+    /// A name bound to two different items by two competing glob imports, reported at the first
+    /// use of the name (imports themselves are never an error). Mirrors rustc's `E0659`.
+    #[derive(Diagnostic)]
+    #[diag(desugar_ambiguous_name, code = E0999)]
+    #[note]
+    pub(super) struct AmbiguousName {
+        #[primary_span]
+        #[label]
+        span: Span,
+        name: Symbol,
+        #[label(desugar_first_candidate)]
+        first: Span,
+        #[label(desugar_second_candidate)]
+        second: Option<Span>,
+    }
+
+    impl AmbiguousName {
+        pub(super) fn new(ambiguity: super::Ambiguity) -> Self {
+            let super::Ambiguity { span, name, first, second } = ambiguity;
+            // Both candidates can come from the same glob statement, when it imports a module
+            // that is itself ambiguously glob re-exporting the name. Pointing a second, identical
+            // label at it reads as a bug, so drop it.
+            Self { span, name, first, second: (first != second).then_some(second) }
+        }
     }
 
     #[derive(Diagnostic)]
@@ -1258,16 +1628,9 @@ mod errors {
     pub(super) struct DuplicateParam {
         #[primary_span]
         #[label]
-        span: Span,
-        name: Symbol,
+        pub span: Span,
+        pub name: Symbol,
         #[label(desugar_first_use)]
-        first_use: Span,
-    }
-
-    impl DuplicateParam {
-        pub(super) fn new(old_ident: Ident, new_ident: Ident) -> Self {
-            debug_assert_eq!(old_ident.name, new_ident.name);
-            Self { span: new_ident.span, name: new_ident.name, first_use: old_ident.span }
-        }
+        pub first_use: Span,
     }
 }

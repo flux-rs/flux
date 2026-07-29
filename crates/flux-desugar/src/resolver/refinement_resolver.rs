@@ -19,7 +19,7 @@ use rustc_hash::FxHashMap;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{ErrorGuaranteed, Span};
 
-use super::{CrateResolver, RibKind, Segment};
+use super::{BindingSource, CrateResolver, ResolveError, RibKind, Segment};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -405,8 +405,11 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         // Sort variables share the type namespace with sorts/types (see [`fhir::Namespace`]).
         self.resolver.push_rib(TypeNS, RibKind::Misc);
         for (idx, ident) in sort_vars.iter().enumerate() {
-            self.resolver
-                .define_res_in(*ident, Res::SortParam(idx), TypeNS);
+            self.resolver.define_res_in(
+                Res::SortParam(idx),
+                TypeNS,
+                BindingSource::Explicit(*ident),
+            );
         }
         let mut wrapper = self.wrap();
         f(&mut wrapper);
@@ -425,27 +428,38 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.param_defs
             .insert(param_id, ParamDef { ident, kind, scope });
 
-        self.resolver
-            .define_res_in(ident, Res::Param(kind, param_id), ReftNS);
+        self.resolver.define_res_in(
+            Res::Param(kind, param_id),
+            ReftNS,
+            BindingSource::Explicit(ident),
+        );
+    }
+
+    fn emit_ambiguity_err(&mut self, ambiguity: super::Ambiguity) {
+        self.errors
+            .emit(super::errors::AmbiguousName::new(ambiguity));
     }
 
     fn resolve_path(&mut self, path: &surface::ExprPath) {
-        if let Some(res) = self.try_resolve_expr_with_ribs(&path.segments) {
-            self.check_unrefined_param(res, path.segments.last().unwrap().ident);
-            self.path_res_map.insert(path.node_id, res);
-            return;
+        match self.try_resolve_expr_with_ribs(&path.segments) {
+            Ok(res) => {
+                self.check_unrefined_param(res, path.segments.last().unwrap().ident);
+                self.path_res_map.insert(path.node_id, res);
+            }
+            Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
+            Err(ResolveError::NotFound) => self.emit_unresolved_expr_path(path),
         }
-
-        self.emit_unresolved_expr_path(path);
     }
 
     fn resolve_ident(&mut self, ident: Ident, node_id: NodeId) {
-        if let Some(res) = self.try_resolve_expr_with_ribs(&[ident]) {
-            self.check_unrefined_param(res, ident);
-            self.path_res_map.insert(node_id, res);
-            return;
+        match self.try_resolve_expr_with_ribs(&[ident]) {
+            Ok(res) => {
+                self.check_unrefined_param(res, ident);
+                self.path_res_map.insert(node_id, res);
+            }
+            Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
+            Err(ResolveError::NotFound) => self.emit_unresolved_ident(ident),
         }
-        self.emit_unresolved_ident(ident);
     }
 
     /// Emit an error if `res` resolved to a param that cannot be refined.
@@ -459,16 +473,24 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     fn try_resolve_expr_with_ribs<S: Segment>(
         &mut self,
         segments: &[S],
-    ) -> Option<PartialRes<NodeId>> {
+    ) -> std::result::Result<PartialRes<NodeId>, ResolveError> {
         // Try the refinement namespace first so that refinement params (and then flux funcs) take
         // precedence over Rust value/type bindings — in particular, a param shadows a Rust const of
         // the same name.
+        //
+        // An ambiguity in one namespace doesn't stop us from trying the next: a later namespace
+        // may still resolve the name unambiguously, exactly as it would shadow it. But if nothing
+        // resolves anywhere, we report the ambiguity rather than "unresolved name", which would
+        // point the user at the wrong problem.
+        let mut ambiguity = None;
         for ns in [ReftNS, ValueNS, TypeNS] {
-            if let Some(partial_res) = self.resolver.resolve_path_with_ribs(segments, ns) {
-                return Some(partial_res);
+            match self.resolver.resolve_path_with_ribs(segments, ns) {
+                Ok(partial_res) => return Ok(partial_res),
+                Err(ResolveError::Ambiguous(amb)) => ambiguity = ambiguity.or(Some(amb)),
+                Err(ResolveError::NotFound) => {}
             }
         }
-        None
+        Err(ambiguity.map_or(ResolveError::NotFound, ResolveError::Ambiguous))
     }
 
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
@@ -476,13 +498,17 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         // alongside types, and any type can also denote a sort. We only report a *name* that fails
         // to resolve here; whether the resolved item is admissible as a sort (and the corresponding
         // diagnostic) is decided later in `conv_sort_path`.
-        let res = self
-            .resolver
-            .resolve_path_with_ribs(&path.segments, TypeNS)
-            .unwrap_or_else(|| {
+        let res = match self.resolver.resolve_path_with_ribs(&path.segments, TypeNS) {
+            Ok(res) => res,
+            Err(ResolveError::NotFound) => {
                 self.emit_unresolved_sort_path(path);
                 PartialRes::new(fhir::Res::Err)
-            });
+            }
+            Err(ResolveError::Ambiguous(ambiguity)) => {
+                self.emit_ambiguity_err(ambiguity);
+                PartialRes::new(fhir::Res::Err)
+            }
+        };
         self.resolver.output.path_res_map.insert(path.node_id, res);
     }
 

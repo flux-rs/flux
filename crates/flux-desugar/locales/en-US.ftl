@@ -47,6 +47,13 @@ desugar_duplicate_definition =
     .label = `{$name}` redefined here
     .previous_definition = previous definition of `{$name}`
 
+desugar_ambiguous_name =
+    the name `{$name}` is ambiguous
+    .label = ambiguous name
+    .note = two different items named `{$name}` are in scope through glob imports
+    .first_candidate = `{$name}` could refer to the item imported here
+    .second_candidate = `{$name}` could also refer to the item imported here
+
 desugar_duplicate_param =
     identifier `{$name}` is bound more than once in this parameter list
     .label = used as a parameter more than once

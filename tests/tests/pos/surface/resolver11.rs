@@ -1,5 +1,5 @@
-//! Regression test: an identifier declared and referenced inside the same `macro_rules!`
-//! expansion must resolve inside a flux attribute (`#[sig]`), even when it's written as a
+//! An identifier declared and referenced inside the same `macro_rules!`
+//! expansion must resolve inside a flux attribute (`#[spec]`), even when it's written as a
 //! literal token in the macro body (as opposed to a substituted `$name:ident` metavariable).
 #![allow(dead_code)]
 
@@ -11,7 +11,7 @@ struct Wrapper<T>(T);
 macro_rules! wrapper_specs {
     ($m:tt) => {
         impl<T> Wrapper<T> {
-            #[sig(fn(x: T) -> T)]
+            #[spec(fn(x: T) -> T)]
             fn identity(x: T) -> T {
                 x
             }
@@ -26,7 +26,7 @@ macro_rules! make_stuff {
     () => {
         struct Foo;
 
-        #[sig(fn(x: Foo) -> Foo)]
+        #[spec(fn(x: Foo) -> Foo)]
         fn identity_foo(x: Foo) -> Foo {
             x
         }
@@ -46,7 +46,7 @@ macro_rules! declare_s {
 
 declare_s!();
 
-#[sig(fn(x: S) -> S)]
+#[spec(fn(x: S) -> S)]
 fn identity_s(x: S) -> S {
     x
 }
