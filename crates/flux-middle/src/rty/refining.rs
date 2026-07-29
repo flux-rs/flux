@@ -782,7 +782,7 @@ fn shift_out_vars(vars: &mut [(rty::Var, rty::Sort)]) {
 
 // TODO: Don't make a weak kvar if the self_args is empty if there's a weak kvar
 //        that's been created before it with a superset of its params.
-fn make_weak_kvar(
+pub fn make_weak_kvar(
     wkvar_map: &mut WeakKvarMap,
     def_id: DefId,
     kvid: &mut rty::KVid,

@@ -27,13 +27,13 @@ use flux_middle::{
         self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
         TraitItemKind,
     },
-    global_env::GlobalEnv,
+    global_env::{GlobalEnv, WeakKvarMap},
     queries::{Providers, QueryResult},
     query_bug,
     rty::{
         self, AssocReft, Binder, WfckResults,
         fold::TypeFoldable,
-        refining::{self, Refiner},
+        refining::{self, Refiner, make_weak_kvar},
     },
 };
 use flux_rustc_bridge::lowering::Lower;
@@ -46,6 +46,7 @@ use rustc_hir::{
     def::{CtorOf, DefKind},
     def_id::{DefId, LocalDefId},
 };
+use rustc_type_ir::INNERMOST;
 use rustc_span::Span;
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -192,13 +193,24 @@ fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> 
 
 fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
     let item = genv.fhir_expect_item(def_id.local_id())?;
-    let invariants = invariants_of(genv, item)?;
+    let mut invariants = invariants_of(genv, item)?;
 
     let adt_def = genv.tcx().adt_def(def_id.resolved_id()).lower(genv.tcx());
 
     let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());
 
-    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, invariants, is_opaque))
+    let adt_sort = genv.adt_sort_def_of(def_id)?;
+    let args = rty::GenericArg::identity_for_item(genv, def_id.resolved_id())?;
+    let sort = adt_sort.to_sort(&args);
+    let mut wkvar_map = WeakKvarMap::default();
+    let bound_reft = rty::BoundReft { var: rty::BoundVar::from(0_usize), kind: rty::BoundReftKind::Anon };
+    let self_args = vec![(rty::Var::Bound(INNERMOST, bound_reft), sort.clone())];
+    let adt_wkvar = make_weak_kvar(&mut wkvar_map, def_id.resolved_id(), &mut rty::KVid::from(999_usize), self_args, vec![]);
+    let wkvar_inv = Binder::bind_with_sort(rty::Expr::wkvar(adt_wkvar), sort);
+    invariants.push(rty::Invariant::new(wkvar_inv));
+    genv.feed_weak_kvars(def_id.resolved_id(), wkvar_map);
+
+    Ok(rty::AdtDef::new(adt_def, adt_sort, invariants, is_opaque))
 }
 
 fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::ConstantInfo> {
