@@ -867,6 +867,28 @@ fn downcast_enum(
     Ok(variant_sig.fields.to_vec())
 }
 
+/// A field of an aggregate can be *blocked* if there's a live mutable borrow into it, e.g., after
+/// `let r = &mut s.f`. To fold `s` back we use the *guard* of the borrow, i.e., the (upper) bound
+/// `r` is allowed to write back, as the type of the field. The aggregate itself remains blocked
+/// because the borrow is still live.
+///
+/// Returns whether any field was blocked together with the unblocked fields.
+fn unblock_fields(infcx: &mut InferCtxtAt, fields: &[Ty]) -> (bool, Vec<Ty>) {
+    let mut blocked = false;
+    let fields = fields
+        .iter()
+        .map(|ty| {
+            if let TyKind::Blocked(bound) = ty.kind() {
+                blocked = true;
+                infcx.hoister(true).hoist(bound)
+            } else {
+                ty.clone()
+            }
+        })
+        .collect_vec();
+    (blocked, fields)
+}
+
 fn fold(
     bindings: &mut PlacesTree,
     infcx: &mut InferCtxtAt,
@@ -903,9 +925,11 @@ fn fold(
                 let ty = if partially_moved {
                     Ty::uninit()
                 } else {
-                    infcx
+                    let (blocked, fields) = unblock_fields(infcx, &fields);
+                    let ty = infcx
                         .check_constructor(variant_sig, args, &fields, ConstrReason::Fold)
-                        .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
+                        .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
+                    if blocked { Ty::blocked(ty) } else { ty }
                 };
 
                 Ok(ty)
@@ -922,7 +946,13 @@ fn fold(
                 .try_collect_vec()?;
 
             let partially_moved = fields.iter().any(Ty::is_uninit);
-            let ty = if partially_moved { Ty::uninit() } else { Ty::tuple(fields) };
+            let ty = if partially_moved {
+                Ty::uninit()
+            } else {
+                let (blocked, fields) = unblock_fields(infcx, &fields);
+                let ty = Ty::tuple(fields);
+                if blocked { Ty::blocked(ty) } else { ty }
+            };
             Ok(ty)
         }
         _ => Ok(ty.clone()),
