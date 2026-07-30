@@ -399,7 +399,7 @@
 <a href=#399 id=399 data-nosnippet>399</a>}
 <a href=#400 id=400 data-nosnippet>400</a>
 <a href=#401 id=401 data-nosnippet>401</a><span class="kw">fn </span>rerun_hint_note(genv: GlobalEnv, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-<a href=#402 id=402 data-nosnippet>402</a>    <span class="kw">if </span>!config::rerun_hint() || !config::is_cargo() {
+<a href=#402 id=402 data-nosnippet>402</a>    <span class="kw">if </span>!config::rerun_hint() || !config::inside_cargo() {
 <a href=#403 id=403 data-nosnippet>403</a>        <span class="kw">return </span><span class="prelude-val">None</span>;
 <a href=#404 id=404 data-nosnippet>404</a>    }
 <a href=#405 id=405 data-nosnippet>405</a>    <span class="kw">let </span>pattern = <span class="macro">format!</span>(<span class="string">"def:{}"</span>, genv.tcx().def_path_str(def_id));

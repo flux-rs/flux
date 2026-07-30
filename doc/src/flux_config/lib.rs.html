@@ -165,7 +165,7 @@
 <a href=#165 id=165 data-nosnippet>165</a>
 <a href=#166 id=166 data-nosnippet>166</a><span class="doccomment">/// Whether the driver is running under `cargo flux` (which sets `FLUX_CARGO=1`), as opposed to a
 <a href=#167 id=167 data-nosnippet>167</a>/// direct `flux`/`flux-driver` invocation. Used to decide whether to emit the re-run hint.
-<a href=#168 id=168 data-nosnippet>168</a></span><span class="kw">pub fn </span>is_cargo() -&gt; bool {
+<a href=#168 id=168 data-nosnippet>168</a></span><span class="kw">pub fn </span>inside_cargo() -&gt; bool {
 <a href=#169 id=169 data-nosnippet>169</a>    std::env::var_os(<span class="string">"FLUX_CARGO"</span>).is_some()
 <a href=#170 id=170 data-nosnippet>170</a>}
 <a href=#171 id=171 data-nosnippet>171</a>
