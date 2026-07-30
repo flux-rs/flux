@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["DuplicateDefinition","UnknownParametricParam","UnknownQualifier","UnknownRevealDefinition","UnresolvedName"]};
+window.SIDEBAR_ITEMS = {"struct":["AmbiguousName","DuplicateDefinition","DuplicateParam","UnknownParametricParam","UnknownQualifier","UnknownRevealDefinition","UnresolvedImport","UnresolvedName"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["DuplicateParam","IllegalBinder","InvalidUnrefinedParam"]};
+window.SIDEBAR_ITEMS = {"struct":["IllegalBinder","InvalidUnrefinedParam"]};
