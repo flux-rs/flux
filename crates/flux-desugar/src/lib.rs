@@ -162,7 +162,8 @@ fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::FluxItem
     let mut err: Option<ErrorGuaranteed> = None;
     for (parent, items) in &specs.flux_items_by_parent {
         for item in items {
-            let def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
+            let Some(ident) = item.name() else { continue };
+            let def_id = FluxLocalDefId::new(parent.def_id, ident.name);
             FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
                 fhir.items.insert(def_id, cx.desugar_flux_item(item));
             })

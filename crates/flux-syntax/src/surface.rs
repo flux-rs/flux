@@ -1,4 +1,5 @@
 pub mod visit;
+
 use std::{borrow::Cow, fmt, ops::Range};
 
 use flux_config::PartialInferOpts;
@@ -35,17 +36,33 @@ pub enum FluxItem {
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
     PrimOpProp(PrimOpProp),
+    Use(UseTree),
 }
 
 impl FluxItem {
-    pub fn name(&self) -> Ident {
+    pub fn name(&self) -> Option<Ident> {
         match self {
-            FluxItem::Qualifier(qualifier) => qualifier.name,
-            FluxItem::FuncDef(spec_func) => spec_func.name,
-            FluxItem::SortDecl(sort_decl) => sort_decl.name,
-            FluxItem::PrimOpProp(primop_prop) => primop_prop.name,
+            FluxItem::Qualifier(qualifier) => Some(qualifier.name),
+            FluxItem::FuncDef(spec_func) => Some(spec_func.name),
+            FluxItem::SortDecl(sort_decl) => Some(sort_decl.name),
+            FluxItem::PrimOpProp(primop_prop) => Some(primop_prop.name),
+            FluxItem::Use(_) => None,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct UseTree {
+    pub prefix: ExprPath,
+    pub kind: UseTreeKind,
+}
+
+#[derive(Debug)]
+pub enum UseTreeKind {
+    /// `use a::b::c`
+    Simple,
+    /// `use a::b::{...}`
+    Nested(Vec<UseTree>),
 }
 
 #[derive(Debug)]

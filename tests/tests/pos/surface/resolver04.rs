@@ -5,11 +5,11 @@ struct S;
 mod a {
     use super::*;
 
-    #[flux_rs::spec(fn(S))]
+    #[flux_attrs::spec(fn(S))]
     fn foo(s: S) {}
 }
 
 mod b {
-    #[flux_rs::spec(fn(super::S))]
+    #[flux_attrs::spec(fn(super::S))]
     fn foo(s: super::S) {}
 }

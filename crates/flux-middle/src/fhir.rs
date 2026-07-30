@@ -21,7 +21,7 @@ use flux_common::{bug, span_bug};
 use flux_config::PartialInferOpts;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use flux_syntax::{
-    surface::{Ignored, ParamMode, Trusted},
+    surface::{self, Ignored, Trusted},
     symbols::sym,
 };
 use itertools::Itertools;
@@ -835,7 +835,7 @@ impl<T> std::ops::IndexMut<Namespace> for PerNS<T> {
 ///
 /// The enum contains a subset of the variants in [`rustc_hir::def::Res`] plus some extra variants
 /// for stuff refinements resolve to.
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Encodable, Decodable)]
 pub enum Res<Id = ParamId> {
     /// See [`rustc_hir::def::Res::Def`]
     Def(DefKind, DefId),
@@ -861,6 +861,13 @@ pub enum Res<Id = ParamId> {
     /// A user declared sort.
     UserSort(FluxDefId),
     Err,
+}
+
+/// Akin to `rustc_middle::metadata::ModChild` but for flux items defined in a module
+#[derive(Debug, Clone, Copy, Encodable, Decodable)]
+pub struct FluxModChild {
+    pub ident: Ident,
+    pub res: Res<!>,
 }
 
 /// See [`rustc_hir::def::PartialRes`]
@@ -920,8 +927,23 @@ pub struct RefineParam<'fhir> {
     pub fhir_id: FhirId,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Encodable, Decodable)]
+pub enum ParamMode {
+    Horn,
+    Hindley,
+}
+
+impl From<surface::ParamMode> for ParamMode {
+    fn from(value: surface::ParamMode) -> Self {
+        match value {
+            surface::ParamMode::Horn => Self::Horn,
+            surface::ParamMode::Hindley => Self::Hindley,
+        }
+    }
+}
+
 /// How a parameter was declared in the surface syntax.
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Encodable, Decodable)]
 pub enum ParamKind {
     /// A parameter declared in an explicit scope, e.g., `fn foo[hdl n: int](x: i32[n])`
     Explicit(Option<ParamMode>),
@@ -985,7 +1007,7 @@ impl InferMode {
 /// `bool`, `char`, and `str` are primitive sorts, but because sorts and types are in the same
 /// namespace we resolve them to [`Res::PrimTy`] and then make them into a sort during `conv`
 /// they share their name with the
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Encodable, Decodable)]
 pub enum PrimSort {
     Int,
     Real,
@@ -1199,6 +1221,7 @@ impl<'fhir> PathExpr<'fhir> {
 
 newtype_index! {
     #[debug_format = "a{}"]
+    #[encodable]
     pub struct ParamId {}
 }
 
@@ -1364,7 +1387,7 @@ pub struct PrimOpProp<'fhir> {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum SpecFuncKind {
     /// Theory symbols *interpreted* by the SMT solver
     Thy(liquid_fixpoint::ThyFunc),

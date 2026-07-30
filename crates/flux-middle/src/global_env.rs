@@ -130,6 +130,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.resolve_crate(self)
     }
 
+    /// Akin to `rustc_middle::ty::TyCtxt::module_children` but for flux items (`defs!` and
+    /// sort declarations) defined directly in a module.
+    pub fn flux_module_children(self, def_id: DefId) -> &'genv [fhir::FluxModChild] {
+        self.inner.queries.flux_module_children(self, def_id)
+    }
+
     /// Parent directory of the Lean project.
     pub fn lean_parent_dir(self) -> PathBuf {
         lean_parent_dir(self.tcx())

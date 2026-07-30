@@ -16,7 +16,7 @@ fn dipa(f: &mut f32) -> i32 {
     0
 }
 
-#[flux::sig(fn(x: i32, i32[@x]))] //~ ERROR the name `x` is already used
+#[flux::sig(fn(x: i32, i32[@x]))] //~ ERROR identifier `x` is bound more than once
 fn stout(x: i32, y: i32) {}
 
 #[flux::refined_by()]
