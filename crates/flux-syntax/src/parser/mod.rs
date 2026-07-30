@@ -24,7 +24,7 @@ use crate::{
         ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
         RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
         StaticInfo, StructDef, TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp,
-        VariantDef, VariantRet, WhereBoundPredicate,
+        UseTree, UseTreeKind, VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
@@ -164,6 +164,7 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<FluxItem>>
 ///              | ⟨qualifier⟩
 ///              | ⟨sort_decl⟩
 ///              | ⟨primop_prop⟩
+///              | ⟨use_item⟩
 /// ```
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
     let mut lookahead = cx.lookahead1();
@@ -178,6 +179,8 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
         parse_sort_decl(cx).map(FluxItem::SortDecl)
     } else if lookahead.peek(kw::Property) {
         parse_primop_property(cx).map(FluxItem::PrimOpProp)
+    } else if lookahead.peek(kw::Use) {
+        parse_use_item(cx).map(FluxItem::Use)
     } else {
         Err(lookahead.into_error())
     }
@@ -577,6 +580,39 @@ fn parse_primop_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
     let hi = cx.hi();
 
     Ok(PrimOpProp { name, op, params, body, span: cx.mk_span(lo, hi) })
+}
+
+/// ```text
+/// ⟨use_item⟩ := use ⟨use_tree⟩ ;
+/// ```
+fn parse_use_item(cx: &mut ParseCtxt) -> ParseResult<UseTree> {
+    cx.expect(kw::Use)?;
+    let tree = parse_use_tree(cx)?;
+    cx.expect(token::Semi)?;
+    Ok(tree)
+}
+
+/// ```text
+/// ⟨use_tree⟩ := ⟨ident⟩ ( :: ⟨ident⟩ )* ( :: { ⟨use_tree⟩,* } )?
+/// ```
+fn parse_use_tree(cx: &mut ParseCtxt) -> ParseResult<UseTree> {
+    let lo = cx.lo();
+    let mut segments = vec![parse_expr_path_segment(cx)?];
+    let mut hi = cx.hi();
+    let kind = loop {
+        if !cx.advance_if(token::PathSep) {
+            break UseTreeKind::Simple;
+        }
+        if cx.advance_if(token::OpenBrace) {
+            let items = punctuated_until(cx, token::Comma, token::CloseBrace, parse_use_tree)?;
+            cx.expect(token::CloseBrace)?;
+            break UseTreeKind::Nested(items);
+        }
+        segments.push(parse_expr_path_segment(cx)?);
+        hi = cx.hi();
+    };
+    let prefix = ExprPath { segments, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) };
+    Ok(UseTree { prefix, kind })
 }
 
 pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<TraitAssocReft>> {

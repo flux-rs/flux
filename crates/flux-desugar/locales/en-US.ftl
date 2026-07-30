@@ -47,9 +47,16 @@ desugar_duplicate_definition =
     .label = `{$name}` redefined here
     .previous_definition = previous definition of `{$name}`
 
+desugar_ambiguous_name =
+    the name `{$name}` is ambiguous
+    .label = ambiguous name
+    .note = two different items named `{$name}` are in scope through glob imports
+    .first_candidate = `{$name}` could refer to the item imported here
+    .second_candidate = `{$name}` could also refer to the item imported here
+
 desugar_duplicate_param =
-    the name `{$name}` is already used as a parameter
-    .label = already used
+    identifier `{$name}` is bound more than once in this parameter list
+    .label = used as a parameter more than once
     .first_use = first use of `{$name}`
 
 desugar_unsupported_signature =
@@ -59,6 +66,10 @@ desugar_unsupported_signature =
 desugar_unresolved_name =
     cannot find {$kind} `{$name}` in this scope
     .label = not found in this scope
+
+desugar_unresolved_import =
+    unresolved import `{$name}`
+    .label = {$reason}
 
 desugar_invalid_unrefined_param =
     invalid use of refinement parameter

@@ -28,7 +28,7 @@ mod slice;
 mod array;
 
 #[cfg(flux)]
-mod num;
+pub mod num;
 
 #[cfg(flux)]
 mod ptr;
