@@ -399,7 +399,7 @@ fn fn_first_line<'a>(genv: GlobalEnv<'a, '_>, def_id: DefId) -> Span {
 }
 
 fn rerun_hint_note(genv: GlobalEnv, def_id: LocalDefId) -> Option<String> {
-    if !config::rerun_hint() || !config::is_cargo() {
+    if !config::rerun_hint() || !config::inside_cargo() {
         return None;
     }
     let pattern = format!("def:{}", genv.tcx().def_path_str(def_id));
