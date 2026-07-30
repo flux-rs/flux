@@ -3,41 +3,41 @@
 #![cfg_attr(flux, feature(sized_hierarchy))]
 #![cfg_attr(flux, flux::no_suggestions)]
 
-mod iter;
-mod ops;
+pub mod iter;
+pub mod ops;
 
 #[cfg(flux)]
-mod mem;
+pub mod mem;
 
 #[cfg(flux)]
-mod option;
+pub mod option;
 
 #[cfg(flux)]
-mod result;
+pub mod result;
 
 #[cfg(flux)]
-mod cmp;
+pub mod cmp;
 
 #[cfg(flux)]
-mod clone;
+pub mod clone;
 
 #[cfg(flux)]
-mod slice;
+pub mod slice;
 
 #[cfg(flux)]
-mod array;
+pub mod array;
 
 #[cfg(flux)]
 pub mod num;
 
 #[cfg(flux)]
-mod ptr;
+pub mod ptr;
 
 #[cfg(flux)]
-mod convert;
+pub mod convert;
 
 #[cfg(flux)]
-mod alloc;
+pub mod alloc;
 
 // -------------------------------------------------------------------
 
