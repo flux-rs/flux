@@ -1770,10 +1770,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     _ => self.refine_default(to)?,
                 }
             }
+            CastKind::PtrToPtr => {
+                match (from.kind(), to.kind()) {
+                    (
+                        TyKind::Indexed(BaseTy::RawPtr(from_inner_ty, _), idx),
+                        RustTy::RawPtr(to_inner_ty, to_mutbl),
+                    ) if from_inner_ty.to_rustc(self.genv.tcx())
+                        == to_inner_ty.to_rustc(self.genv.tcx()) =>
+                    {
+                        Ty::indexed(BaseTy::RawPtr(from_inner_ty.clone(), *to_mutbl), idx.clone())
+                    }
+                    _ => self.refine_default(to)?,
+                }
+            }
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::FloatToFloat
-            | CastKind::PtrToPtr
             | CastKind::PointerCoercion(mir::PointerCast::ClosureFnPointer)
             | CastKind::PointerWithExposedProvenance => self.refine_default(to)?,
             CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer(_)) => {
