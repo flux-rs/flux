@@ -927,14 +927,29 @@ impl Expr {
 
         impl visit::Visitor for FreeVarsVisitor {
             fn visit_expr(&mut self, expr: &Expr) {
-                if let ExprKind::Path(path) = &expr.kind {
-                    // Only collect paths with a single segment
-                    if let [segment] = path.segments.as_slice() {
-                        self.vars.insert(segment.ident);
+                match &expr.kind {
+                    ExprKind::Path(path) => {
+                        // Only collect paths with a single segment
+                        if let [segment] = path.segments.as_slice() {
+                            self.vars.insert(segment.ident);
+                        }
+                        visit::walk_expr(self, expr);
                     }
+                    ExprKind::Call(callee, args) => {
+                        // The callee of a call is a refinement function, not a variable, so
+                        // don't collect it. Anything more complex than a single-segment path
+                        // may contain free variables, so visit it normally.
+                        if !matches!(&callee.kind, ExprKind::Path(path) if path.segments.len() == 1)
+                        {
+                            self.visit_expr(callee);
+                        }
+                        for arg in args {
+                            self.visit_expr(arg);
+                        }
+                    }
+                    // Continue visiting child expressions
+                    _ => visit::walk_expr(self, expr),
                 }
-                // Continue visiting child expressions
-                visit::walk_expr(self, expr);
             }
         }
 
