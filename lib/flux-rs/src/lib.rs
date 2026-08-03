@@ -28,7 +28,7 @@ pub fn unreachable() -> ! {
 #[doc(hidden)]
 macro_rules! __private_detached_spec {
     ($($e:tt)*) => {
-        #[flux_rs::specs {
+        #[$crate::specs {
             $($e)*
         }]
         const _: () = ();
@@ -44,11 +44,10 @@ macro_rules! __private_detached_spec {
 #[doc(hidden)]
 macro_rules! __private_invariant {
     ($($param:ident : $ty:ty),* ; $expr:expr) => {
-        #[flux::defs{
+        $crate::defs! {
             invariant qualifier Auto($($param: $ty),*) { $expr }
-        }]
-        const _: () = ();
-        flux_rs::assert($expr);
+        }
+        $crate::assert($expr);
     };
 }
 
@@ -67,16 +66,14 @@ macro_rules! __private_invariant {
 #[doc(hidden)]
 macro_rules! __private_qualifier {
     ($($param:ident : $ty:ty),+ ; $($body:tt)*) => {
-        #[flux::defs{
+        $crate::defs! {
             invariant qualifier Auto($($param: $ty),+) { $($body)* }
-        }]
-        const _: () = ();
+        }
     };
     ($($body:tt)*) => {
-        #[flux::defs{
+        $crate::defs! {
             invariant qualifier Auto() { $($body)* }
-        }]
-        const _: () = ();
+        }
     };
 }
 
