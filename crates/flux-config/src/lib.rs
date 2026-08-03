@@ -163,6 +163,14 @@ pub fn no_suggestions_default() -> bool {
     FLAGS.no_suggestions_default
 }
 
+pub fn safety_multi_check() -> bool {
+    FLAGS.safety_multi_check.is_some()
+}
+
+pub fn safety_multi_check_crate() -> Option<&'static str> {
+    FLAGS.safety_multi_check.as_deref()
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Pos {

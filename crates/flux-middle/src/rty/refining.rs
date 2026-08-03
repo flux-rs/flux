@@ -535,18 +535,42 @@ impl rty::PolyFnSig {
                 existential_params: Vec::new(),
                 params: params.clone(),
             };
-            let requires_wkvar = make_weak_kvar_with_vars(
-                &mut wkvar_inserter.wkvar_map,
-                def_id,
-                &mut wkvar_inserter.kvid,
-                Vec::new(),
-                params.clone(),
-            );
-            let inputs = fn_sig
-                .inputs
-                .iter()
-                .map(|input| wkvar_inserter.fold_ty(input))
-                .collect();
+            let requires =
+                // Always add wkvars to the inputs of unsafe fns (even if we do a multi_check)
+                //
+                // If we aren't doing a multi check, add them.
+                if !genv.safety_multi_check() || matches!(fn_sig.safety, rty::Safety::Unsafe) {
+                    let requires_wkvar = make_weak_kvar_with_vars(
+                        &mut wkvar_inserter.wkvar_map,
+                        def_id,
+                        &mut wkvar_inserter.kvid,
+                        Vec::new(),
+                        params.clone(),
+                    );
+                    // NOTE(CK): Not sure whether we can avoid the clone.
+                    fn_sig
+                        .requires
+                        .iter()
+                        .cloned()
+                        .chain(std::iter::once(rty::Expr::wkvar(requires_wkvar)))
+                        .collect()
+                } else {
+                    fn_sig.requires
+                };
+            let inputs =
+                // Always add wkvars to the inputs of unsafe fns (even if we do a multi_check)
+                //
+                // If we aren't doing a multi check, add them.
+                if !genv.safety_multi_check() || matches!(fn_sig.safety, rty::Safety::Unsafe) {
+                    fn_sig
+                        .inputs
+                        .iter()
+                        .map(|input| wkvar_inserter.fold_ty(input))
+                        .collect()
+                } else {
+                    fn_sig
+                        .inputs
+                };
             shift_in_vars(&mut params);
             let output_binder_params = make_vars_and_sorts_from_bound_vars(fn_sig.output.vars());
             params.extend(output_binder_params);
@@ -579,13 +603,7 @@ impl rty::PolyFnSig {
                 abi: fn_sig.abi,
                 safety: fn_sig.safety,
                 inputs,
-                // NOTE(CK): Not sure whether we can avoid the clone.
-                requires: fn_sig
-                    .requires
-                    .iter()
-                    .cloned()
-                    .chain(std::iter::once(rty::Expr::wkvar(requires_wkvar)))
-                    .collect(),
+                requires,
                 output,
                 lifted: fn_sig.lifted,
                 no_panic: fn_sig.no_panic,

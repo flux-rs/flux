@@ -329,8 +329,12 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_middle::queries::QueryErr::bug(None, format!("failed to run multi-query: {err}"))
         })?;
         match result.status {
-            liquid_fixpoint::FixpointStatus::Safe(_) => Ok(vec![]),
+            liquid_fixpoint::FixpointStatus::Safe(_) => {
+                println!("SAFE");
+                Ok(vec![])
+            }
             liquid_fixpoint::FixpointStatus::Unsafe(_, errors) => {
+                println!("UNSAFE");
                 Ok(fcx.errors_for_tags(errors.into_iter().map(|error| error.tag)))
             }
             liquid_fixpoint::FixpointStatus::Crash(err) => Err(

@@ -1340,16 +1340,29 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
         // taking an intersection, but we'll use this set to default otherwise).
         let all_candidates: FxHashSet<rty::WKVid> =
             heads.union(&assumptions).cloned().collect();
-        let promotable = if false {
+        let promotable = if true {
             let tree_refs: Vec<&RefineTree> = trees.iter().map(|(_, tree, _)| tree).collect();
-            RefineTree::promotable_wkvids(&tree_refs, &all_candidates)
+            RefineTree::promotable_wkvids(&tree_refs, &all_candidates.iter().cloned().collect())
         } else {
             all_candidates.clone()
         };
         println!("wkvar promotable: {:?} (of {:?} candidates)", promotable.len(), all_candidates.len());
 
         let mut next_kvid = fixpoint::KVid::from_u32(0);
-        for wkvid in &promotable {
+        for wkvid in &all_candidates {
+            // Promote all wkvars unless it's a struct invariant...  in which
+            // case we only promote if the invariant has a chance to be
+            // non-vacuous.
+            if wkvid.id == rty::KVid::from_u32(999) && !promotable.contains(wkvid) {
+                continue;
+            }
+            // We only want local wkvars
+            if !matches!(
+                self.genv.resolve_id(wkvid.parent_fn),
+                ResolvedDefId::Local(..) | ResolvedDefId::ExternSpec(..)
+            ) {
+                continue;
+            }
             println!("Promoting wkvar from {:?}", def_id_to_string(wkvid.parent_fn));
             let wkvars = self
                 .genv
@@ -2620,7 +2633,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             self.genv.resolve_id(wkvid.parent_fn),
             ResolvedDefId::Local(..) | ResolvedDefId::ExternSpec(..)
         ) {
-            unreachable!("should not ever trigger");
+            return None;
         }
         let key = ConstKey::WKVar(wkvid.clone(), self_args);
         let arg_sorts = self

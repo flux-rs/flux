@@ -240,6 +240,17 @@ pub struct Flags {
         default_missing_value = "false"
     )]
     pub no_suggestions_default: bool,
+    /// If `true`, collect all non-trusted constraints into one big constraint to check.
+    /// (implies multi_check). If multi_check is supplied, only uses those defs.
+    /// 
+    /// SKIPS adding wkvars to the REQUIRES of safe fns, but still adds wkvars to the
+    /// ensures. Adds wkvars everywhere for unsafe fns.
+    #[arg(
+        long = flux_arg!("safety-multi-check"),
+        num_args = 0..=1,
+        default_missing_value = "false"
+    )]
+    pub safety_multi_check: Option<String>,
 }
 
 impl Default for Flags {
@@ -278,6 +289,7 @@ impl Default for Flags {
             std_extern_specs: false,
             flux_verbose: false,
             no_suggestions_default: false,
+            safety_multi_check: None,
         }
     }
 }
@@ -325,6 +337,9 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "std-extern-specs" => parse_bool(&mut flags.std_extern_specs, value),
             "flux-verbose" => parse_bool(&mut flags.flux_verbose, value),
             "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
+            "safety-multi-check" => {
+                parse_opt_string(&mut flags.safety_multi_check, value)
+            }
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
@@ -353,6 +368,11 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             process::exit(1);
         });
         flags.multi_check = Some(multi_check);
+    } else if flags.safety_multi_check.is_some() {
+        // Add everything if we are doing a safety multi check (and there is no
+        // multi check provided).
+        flags.multi_check = Some(IncludePattern::new(vec!["*".to_string()]).expect("should be a glob pattern matching all files"));
+        
     }
     if !trusteds.is_empty() {
         let trusted = IncludePattern::new(trusteds).unwrap_or_else(|err| {
@@ -405,6 +425,16 @@ fn parse_string(slot: &mut String, v: Option<&str>) -> Result<(), &'static str> 
     match v {
         Some(s) => {
             *slot = s.to_string();
+            Ok(())
+        }
+        None => Err("expected a string"),
+    }
+}
+
+fn parse_opt_string(slot: &mut Option<String>, v: Option<&str>) -> Result<(), &'static str> {
+    match v {
+        Some(s) => {
+            *slot = Some(s.to_string());
             Ok(())
         }
         None => Err("expected a string"),
