@@ -28,7 +28,7 @@ pub fn unreachable() -> ! {
 #[doc(hidden)]
 macro_rules! __private_detached_spec {
     ($($e:tt)*) => {
-        #[flux_rs::specs {
+        #[$crate::specs {
             $($e)*
         }]
         const _: () = ();
@@ -44,11 +44,36 @@ macro_rules! __private_detached_spec {
 #[doc(hidden)]
 macro_rules! __private_invariant {
     ($($param:ident : $ty:ty),* ; $expr:expr) => {
-        #[flux::defs{
+        $crate::defs! {
             invariant qualifier Auto($($param: $ty),*) { $expr }
-        }]
-        const _: () = ();
-        flux_rs::assert($expr);
+        }
+        $crate::assert($expr);
+    };
+}
+
+/// Macro for creating `invariant qualifier`s without an assertion.
+///
+/// Unlike [`invariant`](crate::macros::invariant), the body is never re-emitted as Rust, so it
+/// may use refinement-only syntax. Sorts are inferred; annotate the ones that can't be, using
+/// the same `params ; body` syntax as [`invariant`](crate::macros::invariant).
+///
+/// # Example
+/// ```
+/// flux_rs::macros::qualifier!(my_plus(res, i) == n);
+/// flux_rs::macros::qualifier!(res: int, i: int ; res + i == n);
+/// ```
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __private_qualifier {
+    ($($param:ident : $ty:ty),+ ; $($body:tt)*) => {
+        $crate::defs! {
+            invariant qualifier Auto($($param: $ty),+) { $($body)* }
+        }
+    };
+    ($($body:tt)*) => {
+        $crate::defs! {
+            invariant qualifier Auto() { $($body)* }
+        }
     };
 }
 
@@ -69,4 +94,11 @@ pub mod macros {
     /// flux_rs::macros::invariant!(res: int, i: int, n: int ; res + i == n);
     /// ```
     pub use crate::__private_invariant as invariant;
+    /// Macro for creating a local `invariant qualifier` hint.
+    /// # Example
+    /// ```
+    /// flux_rs::macros::qualifier!(my_plus(res, i) == n);
+    /// flux_rs::macros::qualifier!(res: int, i: int ; res + i == n);
+    /// ```
+    pub use crate::__private_qualifier as qualifier;
 }
