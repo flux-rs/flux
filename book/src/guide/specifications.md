@@ -1043,3 +1043,14 @@ that assertion.
 ```rust,noplayground
 {{#include ../../../tests/tests/with_deps/pos/surface/invariant_macro00.rs}}
 ```
+
+## Qualifier Macro
+
+The `qualifier!` macro specifies just the qualifier, leaving the assertion to you. Use
+`invariant!` when the invariant is valid Rust as well as a valid refinement, and `qualifier!`
+plus `assert` when it isn't: its body is never re-emitted as Rust, so it can use
+refinement-only syntax. Sorts are inferred, or annotated as in `invariant!`.
+
+```rust,noplayground
+{{#include ../../../tests/tests/with_deps/pos/surface/qualifier_macro00.rs}}
+```

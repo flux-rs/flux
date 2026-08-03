@@ -529,8 +529,18 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
             }
         }));
 
+        // Uniquify the name so hints don't collide with each other (qualifier names are
+        // crate-global). The span alone is not enough: every expansion of a macro like
+        // `qualifier!` transcribes the same `name` token, so all of them share a span. The
+        // node id is a session-global counter, so it distinguishes them.
         let span = name.span;
-        let str = format!("{}_{}_{}", name.name.to_ident_string(), span.lo().0, span.hi().0);
+        let str = format!(
+            "{}_{}_{}_{}",
+            name.name.to_ident_string(),
+            span.lo().0,
+            span.hi().0,
+            cx.next_node_id().as_usize()
+        );
         name = Ident { name: Symbol::intern(&str), ..name };
     }
 
