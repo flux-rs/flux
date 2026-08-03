@@ -40,6 +40,7 @@ use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_infer::infer::TyCtxtInferExt as _;
@@ -1317,7 +1318,9 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
         let mut heads = FxIndexSet::default();
         let mut assumptions = FxIndexSet::default();
         let mut self_args: FxIndexMap<rty::WKVid, usize> = FxIndexMap::default();
-        for (_, tree, _) in &trees {
+        println!("Multi check analysis:");
+        for (def_id, tree, _) in &trees {
+            println!("  Including fn {:?}", def_id_to_string(def_id.resolved_id()));
             let (tree_heads, tree_assumptions, tree_self_args) = tree.wkvars_in_positions();
             heads.extend(tree_heads);
             assumptions.extend(tree_assumptions);
@@ -1329,10 +1332,25 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
                 }
             }
         }
-        println!("wkvar heads: {:?}", heads);
-        println!("wkvar assumptions: {:?}", assumptions);
+        // println!("wkvar heads: {:?}", heads);
+        // println!("wkvar assumptions: {:?}", assumptions);
+
+        // Compute the set of WKVids to promote:
+        // (we could filter out those that would trivially solve to false by
+        // taking an intersection, but we'll use this set to default otherwise).
+        let all_candidates: FxHashSet<rty::WKVid> =
+            heads.union(&assumptions).cloned().collect();
+        let promotable = if false {
+            let tree_refs: Vec<&RefineTree> = trees.iter().map(|(_, tree, _)| tree).collect();
+            RefineTree::promotable_wkvids(&tree_refs, &all_candidates)
+        } else {
+            all_candidates.clone()
+        };
+        println!("wkvar promotable: {:?} (of {:?} candidates)", promotable.len(), all_candidates.len());
+
         let mut next_kvid = fixpoint::KVid::from_u32(0);
-        for wkvid in heads.intersection(&assumptions) {
+        for wkvid in &promotable {
+            println!("Promoting wkvar from {:?}", def_id_to_string(wkvid.parent_fn));
             let wkvars = self
                 .genv
                 .weak_kvars_for(wkvid.parent_fn)

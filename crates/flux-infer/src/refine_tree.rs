@@ -1144,3 +1144,139 @@ impl Assignment {
         Expr::and_from_iter(preds)
     }
 }
+
+// ---------------------------------------------------------------------------
+// WKVar bot analysis: determines which WKVids would trivially solve to false
+// if promoted to KVars. This mirrors the KVar bot_kvars analysis but operates
+// on WKVids independently.
+// ---------------------------------------------------------------------------
+
+newtype_index! {
+    struct WClauseId {}
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum WHead {
+    WKVar(WKVid),
+    Conc,
+}
+
+#[derive(Debug)]
+struct WKVarConstraintDeps {
+    assumptions: IndexVec<WClauseId, FxHashSet<WKVid>>,
+    heads: IndexVec<WClauseId, WHead>,
+}
+
+impl WKVarConstraintDeps {
+    #[allow(dead_code)]
+    fn new(node: &Node) -> Self {
+        let mut graph = Self { assumptions: IndexVec::default(), heads: IndexVec::default() };
+        graph.build(node, &mut vec![]);
+        graph
+    }
+
+    fn from_trees(trees: &[&RefineTree]) -> Self {
+        let mut graph = Self { assumptions: IndexVec::default(), heads: IndexVec::default() };
+        for tree in trees {
+            graph.build(&tree.root.borrow(), &mut vec![]);
+        }
+        graph
+    }
+
+    fn insert_clause(&mut self, assumptions: &[WKVid], head: WHead) {
+        self.assumptions.push(assumptions.iter().cloned().collect());
+        self.heads.push(head);
+    }
+
+    fn build(&mut self, node: &Node, assumptions: &mut Vec<WKVid>) {
+        let n = assumptions.len();
+        match &node.kind {
+            NodeKind::Head(expr, _) => {
+                expr.visit_conj(|e| {
+                    if let ExprKind::WKVar(wkvar) = e.kind() {
+                        self.insert_clause(assumptions, WHead::WKVar(wkvar.wkvid.clone()));
+                    } else {
+                        self.insert_clause(assumptions, WHead::Conc);
+                    }
+                });
+            }
+            NodeKind::Assumption(expr) => {
+                expr.visit_conj(|e| {
+                    if let ExprKind::WKVar(wkvar) = e.kind() {
+                        assumptions.push(wkvar.wkvid.clone());
+                    }
+                });
+            }
+            _ => {}
+        };
+
+        for child in &node.children {
+            self.build(&child.borrow(), assumptions);
+        }
+
+        assumptions.truncate(n);
+    }
+
+    fn wkv_lhs(&self) -> UnordMap<WKVid, Vec<WClauseId>> {
+        let mut res: UnordMap<WKVid, Vec<WClauseId>> = UnordMap::default();
+        for (clause_id, wkvids) in self.assumptions.iter_enumerated() {
+            for wkvid in wkvids {
+                res.entry(wkvid.clone()).or_default().push(clause_id);
+            }
+        }
+        res
+    }
+
+    /// Computes the set of WKVids that would trivially solve to false (bot) if promoted.
+    /// Returns the set of WKVids that are NOT bot (i.e., safe to promote).
+    fn promotable_wkvids(self, candidates: &FxHashSet<WKVid>) -> FxHashSet<WKVid> {
+        let wkv_lhs = self.wkv_lhs();
+
+        // bot_assms: for each clause, the set of WKVids in its assumptions that are still "bot"
+        let mut bot_assms: IndexVec<WClauseId, FxHashSet<WKVid>> = self
+            .assumptions
+            .iter()
+            .map(|assms| assms.iter().filter(|wkvid| candidates.contains(*wkvid)).cloned().collect())
+            .collect();
+
+        // Track which wkvids are still considered bot (start: all candidates)
+        let mut is_bot: FxHashSet<WKVid> = candidates.clone();
+
+        // Seed: clauses with no bot wkvars in assumptions
+        let mut worklist: Vec<WClauseId> = bot_assms
+            .iter_enumerated()
+            .filter_map(|(cid, lhs)| if lhs.is_empty() { Some(cid) } else { None })
+            .collect();
+
+        while let Some(cid) = worklist.pop() {
+            if let WHead::WKVar(ref wkvid) = self.heads[cid] {
+                if !is_bot.remove(wkvid) {
+                    continue;
+                }
+                // Remove this wkvid from all assumption sets where it appears
+                for dep_cid in wkv_lhs.get(wkvid).unwrap_or(&vec![]) {
+                    if let WHead::WKVar(ref rhs_wkvid) = self.heads[*dep_cid] {
+                        let assms = &mut bot_assms[*dep_cid];
+                        assms.remove(wkvid);
+                        if is_bot.contains(rhs_wkvid) && assms.is_empty() {
+                            worklist.push(*dep_cid);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Return the wkvids that are NOT bot
+        candidates.difference(&is_bot).cloned().collect()
+    }
+}
+
+impl RefineTree {
+    /// Given a set of candidate WKVids (those that appear in both head and assumption positions),
+    /// returns the subset that are safe to promote to KVars (i.e., would NOT trivially solve to
+    /// false).
+    pub(crate) fn promotable_wkvids(trees: &[&RefineTree], candidates: &FxHashSet<WKVid>) -> FxHashSet<WKVid> {
+        let graph = WKVarConstraintDeps::from_trees(trees);
+        graph.promotable_wkvids(candidates)
+    }
+}
