@@ -933,14 +933,12 @@ impl Expr {
                         if let [segment] = path.segments.as_slice() {
                             self.vars.insert(segment.ident);
                         }
-                        visit::walk_expr(self, expr);
                     }
                     ExprKind::Call(callee, args) => {
                         // The callee of a call is a refinement function, not a variable, so
-                        // don't collect it. Anything more complex than a single-segment path
-                        // may contain free variables, so visit it normally.
-                        if !matches!(&callee.kind, ExprKind::Path(path) if path.segments.len() == 1)
-                        {
+                        // don't collect it. Anything that's not a path may contain free
+                        // variables, so visit it normally.
+                        if !matches!(&callee.kind, ExprKind::Path(_)) {
                             self.visit_expr(callee);
                         }
                         for arg in args {
