@@ -927,20 +927,33 @@
 <a href=#927 id=927 data-nosnippet>927</a>
 <a href=#928 id=928 data-nosnippet>928</a>        <span class="kw">impl </span>visit::Visitor <span class="kw">for </span>FreeVarsVisitor {
 <a href=#929 id=929 data-nosnippet>929</a>            <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) {
-<a href=#930 id=930 data-nosnippet>930</a>                <span class="kw">if let </span>ExprKind::Path(path) = <span class="kw-2">&amp;</span>expr.kind {
-<a href=#931 id=931 data-nosnippet>931</a>                    <span class="comment">// Only collect paths with a single segment
-<a href=#932 id=932 data-nosnippet>932</a>                    </span><span class="kw">if let </span>[segment] = path.segments.as_slice() {
-<a href=#933 id=933 data-nosnippet>933</a>                        <span class="self">self</span>.vars.insert(segment.ident);
-<a href=#934 id=934 data-nosnippet>934</a>                    }
-<a href=#935 id=935 data-nosnippet>935</a>                }
-<a href=#936 id=936 data-nosnippet>936</a>                <span class="comment">// Continue visiting child expressions
-<a href=#937 id=937 data-nosnippet>937</a>                </span>visit::walk_expr(<span class="self">self</span>, expr);
-<a href=#938 id=938 data-nosnippet>938</a>            }
-<a href=#939 id=939 data-nosnippet>939</a>        }
-<a href=#940 id=940 data-nosnippet>940</a>
-<a href=#941 id=941 data-nosnippet>941</a>        <span class="kw">let </span><span class="kw-2">mut </span>visitor = FreeVarsVisitor { vars: FxHashSet::default() };
-<a href=#942 id=942 data-nosnippet>942</a>        visitor.visit_expr(<span class="self">self</span>);
-<a href=#943 id=943 data-nosnippet>943</a>        visitor.vars
-<a href=#944 id=944 data-nosnippet>944</a>    }
-<a href=#945 id=945 data-nosnippet>945</a>}
+<a href=#930 id=930 data-nosnippet>930</a>                <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
+<a href=#931 id=931 data-nosnippet>931</a>                    ExprKind::Path(path) =&gt; {
+<a href=#932 id=932 data-nosnippet>932</a>                        <span class="comment">// Only collect paths with a single segment
+<a href=#933 id=933 data-nosnippet>933</a>                        </span><span class="kw">if let </span>[segment] = path.segments.as_slice() {
+<a href=#934 id=934 data-nosnippet>934</a>                            <span class="self">self</span>.vars.insert(segment.ident);
+<a href=#935 id=935 data-nosnippet>935</a>                        }
+<a href=#936 id=936 data-nosnippet>936</a>                    }
+<a href=#937 id=937 data-nosnippet>937</a>                    ExprKind::Call(callee, args) =&gt; {
+<a href=#938 id=938 data-nosnippet>938</a>                        <span class="comment">// The callee of a call is a refinement function, not a variable, so
+<a href=#939 id=939 data-nosnippet>939</a>                        // don't collect it. Anything that's not a path may contain free
+<a href=#940 id=940 data-nosnippet>940</a>                        // variables, so visit it normally.
+<a href=#941 id=941 data-nosnippet>941</a>                        </span><span class="kw">if </span>!<span class="macro">matches!</span>(<span class="kw-2">&amp;</span>callee.kind, ExprKind::Path(<span class="kw">_</span>)) {
+<a href=#942 id=942 data-nosnippet>942</a>                            <span class="self">self</span>.visit_expr(callee);
+<a href=#943 id=943 data-nosnippet>943</a>                        }
+<a href=#944 id=944 data-nosnippet>944</a>                        <span class="kw">for </span>arg <span class="kw">in </span>args {
+<a href=#945 id=945 data-nosnippet>945</a>                            <span class="self">self</span>.visit_expr(arg);
+<a href=#946 id=946 data-nosnippet>946</a>                        }
+<a href=#947 id=947 data-nosnippet>947</a>                    }
+<a href=#948 id=948 data-nosnippet>948</a>                    <span class="comment">// Continue visiting child expressions
+<a href=#949 id=949 data-nosnippet>949</a>                    </span><span class="kw">_ </span>=&gt; visit::walk_expr(<span class="self">self</span>, expr),
+<a href=#950 id=950 data-nosnippet>950</a>                }
+<a href=#951 id=951 data-nosnippet>951</a>            }
+<a href=#952 id=952 data-nosnippet>952</a>        }
+<a href=#953 id=953 data-nosnippet>953</a>
+<a href=#954 id=954 data-nosnippet>954</a>        <span class="kw">let </span><span class="kw-2">mut </span>visitor = FreeVarsVisitor { vars: FxHashSet::default() };
+<a href=#955 id=955 data-nosnippet>955</a>        visitor.visit_expr(<span class="self">self</span>);
+<a href=#956 id=956 data-nosnippet>956</a>        visitor.vars
+<a href=#957 id=957 data-nosnippet>957</a>    }
+<a href=#958 id=958 data-nosnippet>958</a>}
 </code></pre></div></section></main></body></html>

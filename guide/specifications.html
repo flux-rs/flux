@@ -4180,6 +4180,93 @@ pub fn test(n: usize) -&gt; usize {
     }
     res
 }</code></pre>
+<h2 id="qualifier-macro"><a class="header" href="#qualifier-macro">Qualifier Macro</a></h2>
+<p>The <code>qualifier!</code> macro specifies just the qualifier, leaving the assertion to you. Use
+<code>invariant!</code> when the invariant is valid Rust as well as a valid refinement, and <code>qualifier!</code>
+plus <code>assert</code> when it isn't: its body is never re-emitted as Rust, so it can use
+refinement-only syntax. Sorts are inferred, or annotated as in <code>invariant!</code>.</p>
+<pre><code class="language-rust noplayground">use flux_rs::{assert, attrs::*, macros::qualifier};
+
+defs! {
+    fn my_plus(x: int, y: int) -&gt; int { x + y }
+}
+
+#[spec(fn (n: usize) -&gt; usize[n])]
+pub fn test_with_hand_written_qualifier(n: usize) -&gt; usize {
+    let mut i = n;
+    let mut res = 0;
+    while i &gt; 0 {
+        #[flux::defs{
+            invariant qualifier Auto(res: int) { res + i == n }
+         }]
+        const _: () = ();
+        assert(res + i == n);
+        i -= 1;
+        res += 1;
+    }
+    res
+}
+
+/// Same as above, with the sort of `res` annotated. This should expand to exactly the
+/// hand-written form.
+#[spec(fn (n: usize) -&gt; usize[n])]
+pub fn test(n: usize) -&gt; usize {
+    let mut i = n;
+    let mut res = 0;
+    while i &gt; 0 {
+        qualifier!(res: int ; res + i == n);
+        assert(res + i == n);
+        i -= 1;
+        res += 1;
+    }
+    res
+}
+
+/// Sorts are inferred when the body constrains them; here the `n &gt;= 0` conjunct does it.
+#[spec(fn (n: usize) -&gt; usize[n])]
+pub fn test_inferred_sorts(n: usize) -&gt; usize {
+    let mut i = n;
+    let mut res = 0;
+    while i &gt; 0 {
+        qualifier!(res + i == n &amp;&amp; n &gt;= 0);
+        assert(res + i == n);
+        i -= 1;
+        res += 1;
+    }
+    res
+}
+
+/// Two `qualifier!`s in the same function, plus one more in a different function, to check
+/// the generated qualifier names don't collide.
+#[spec(fn (n: usize) -&gt; usize[n])]
+pub fn test_multiple_qualifiers(n: usize) -&gt; usize {
+    let mut i = n;
+    let mut res = 0;
+    while i &gt; 0 {
+        qualifier!(res: int, i: int, n: int ; res + i == n);
+        qualifier!(res &gt;= 0 &amp;&amp; i &gt;= 0);
+        assert(res + i == n);
+        i -= 1;
+        res += 1;
+    }
+    res
+}
+
+/// The body of `qualifier!` is never re-emitted as Rust, so it can use refinement-only
+/// syntax: a call to a refinement function, and `=&gt;`, which is not a Rust operator.
+#[spec(fn (n: usize) -&gt; usize[n])]
+pub fn test_refinement_syntax(n: usize) -&gt; usize {
+    let mut i = n;
+    let mut res = 0;
+    while i &gt; 0 {
+        qualifier!(my_plus(res, i) == n);
+        qualifier!(i &gt;= 0 =&gt; res + i == n);
+        assert(res + i == n);
+        i -= 1;
+        res += 1;
+    }
+    res
+}</code></pre>
 <hr>
 <ol class="footnote-definition"><li id="footnote-ignore-shorthand">
 <p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>
