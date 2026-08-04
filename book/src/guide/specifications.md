@@ -494,6 +494,35 @@ However, there should be no _cyclic dependencies_ in the function definitions.
 {{#include ../../../tests/tests/neg/error_messages/dfn_cycle.rs}}
 ```
 
+### Importing Flux Definitions
+
+Spec functions defined in _another_ crate can be brought into scope with a `use`
+inside `defs!`, mirroring Rust's own `use`. For example, `flux-core` defines
+
+```rust,noplayground
+{{#include ../../../lib/flux-core/src/num/mod.rs:1:2}}
+```
+
+which a client crate can import and then use unqualified in its refinements:
+
+```rust,noplayground
+{{#include ../../../tests/tests/with_deps/pos/surface/use_flux_core_defs.rs:4:21}}
+```
+
+The import is a convenience, not a requirement: a _fully qualified_ path names the
+same definition and resolves to it whether or not it was imported.
+
+```rust,noplayground
+{{#include ../../../tests/tests/with_deps/pos/surface/use_flux_core_defs.rs:23:27}}
+```
+
+Like Rust `use`, the import is scoped to the module it appears in, so a nested
+module that wants the short name must import it again.
+
+```rust,noplayground
+{{#include ../../../tests/tests/with_deps/pos/surface/use_flux_core_defs.rs:29:41}}
+```
+
 ## Uninterpreted Function Declarations
 
 You can also declare _uninterpreted_ functions -- about which `flux` knows nothing
