@@ -23,7 +23,7 @@ use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, Loc},
+    rty::{self, Loc, Path},
 };
 use rustc_abi::FieldIdx;
 use rustc_data_structures::stack::ensure_sufficient_stack;
@@ -117,16 +117,40 @@ impl<'a> PointsToAnalysis<'a> {
                     }
                 }
             }
-            _ => {}
+            // Conservatively assume the target may point anywhere. Flooding is necessary, or a
+            // place assigned by an unmodeled r-value, e.g., an unsizing cast, would keep the `⊥`
+            // it was given by `StorageLive`.
+            _ => state.flood(target.as_ref(), self.map),
         }
     }
 
-    fn handle_ref(&self, place: &mir::Place, state: &State) -> FlatSet<Loc> {
-        match &place.projection[..] {
-            [] => FlatSet::Elem(Loc::Local(place.local)),
-            [mir::PlaceElem::Deref] => state.get(place.local.into(), self.map),
-            _ => FlatSet::Top,
+    /// This mirrors the way `PlacesTree::lookup_inner` walks a place: a dereference moves the root
+    /// of the path to whatever the pointer points to, and fields are accumulated onto it.
+    fn handle_ref(&self, place: &mir::Place, state: &State) -> FlatSet<Path> {
+        let mut loc = Loc::Local(place.local);
+        let mut projection = vec![];
+        for (i, elem) in place.projection.iter().enumerate() {
+            match elem {
+                mir::PlaceElem::Deref => {
+                    // Move the root to the path pointed to by the prefix we've walked so far.
+                    let prefix =
+                        mir::PlaceRef { local: place.local, projection: &place.projection[..i] };
+                    match state.get(prefix, self.map) {
+                        FlatSet::Elem(path) => {
+                            loc = path.loc;
+                            projection = path.projection().to_vec();
+                        }
+                        FlatSet::Top => return FlatSet::TOP,
+                        // `⊥` means the place is uninitialized, which can't be dereferenced.
+                        FlatSet::Bottom => tracked_span_bug!("dereference of uninitialized place"),
+                    }
+                }
+                mir::PlaceElem::Field(field, _) => projection.push(field),
+                mir::PlaceElem::Downcast(..) => {}
+                _ => return FlatSet::TOP,
+            }
         }
+        FlatSet::Elem(Path::new(loc, projection))
     }
 
     fn handle_operand(&self, operand: &mir::Operand) -> Option<PlaceIndex> {
@@ -197,8 +221,8 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
             let fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
             for (local, ty) in iter::zip(body.args_iter(), fn_sig.inputs()) {
                 if let rty::TyKind::Ptr(_, path) = ty.kind() {
-                    let loc = FlatSet::Elem(path.to_loc().unwrap_or_else(|| tracked_span_bug!()));
-                    state.flood_with(mir::PlaceRef { local, projection: &[] }, self.map, loc);
+                    let path = FlatSet::Elem(path.clone());
+                    state.flood_with(mir::PlaceRef { local, projection: &[] }, self.map, path);
                 } else {
                     state.flood(mir::PlaceRef { local, projection: &[] }, self.map);
                 }
@@ -242,7 +266,7 @@ struct CollectPointerToBorrows<'a> {
     map: &'a Map,
     tracked_places: FxHashMap<PlaceIndex, flux_rustc_bridge::mir::Place>,
     stmts: &'a mut GhostStatements,
-    before_state: Vec<(PlaceIndex, FlatSet<Loc>)>,
+    before_state: Vec<(PlaceIndex, FlatSet<Path>)>,
     results: &'a IndexSlice<BasicBlock, State>,
 }
 
@@ -656,7 +680,7 @@ rustc_index::newtype_index!(
 
 /// Used as the result for r-value.
 enum PlaceOrValue {
-    Value(FlatSet<Loc>),
+    Value(FlatSet<Path>),
     Place(PlaceIndex),
 }
 
@@ -676,7 +700,7 @@ impl PlaceOrValue {
 /// Flooding means assigning a value (by default `⊤`) to all tracked projections of a given place.
 #[derive(PartialEq, Eq, Debug)]
 struct State {
-    values: IndexVec<ValueIndex, FlatSet<Loc>>,
+    values: IndexVec<ValueIndex, FlatSet<Path>>,
 }
 
 impl Clone for State {
@@ -705,9 +729,9 @@ impl State {
         self.flood_with(place, map, FlatSet::TOP);
     }
 
-    fn flood_with(&mut self, place: mir::PlaceRef<'_>, map: &Map, value: FlatSet<Loc>) {
+    fn flood_with(&mut self, place: mir::PlaceRef<'_>, map: &Map, value: FlatSet<Path>) {
         map.for_each_aliasing_place(place, &mut |vi| {
-            self.values[vi] = value;
+            self.values[vi] = value.clone();
         });
     }
 
@@ -744,7 +768,7 @@ impl State {
         if let Some(target_value) = map.places[target].value_index
             && let Some(source_value) = map.places[source].value_index
         {
-            self.values[target_value] = self.values[source_value];
+            self.values[target_value] = self.values[source_value].clone();
         }
         for target_child in map.children(target) {
             // Try to find corresponding child and recurse. Reasoning is similar as above.
@@ -761,26 +785,28 @@ impl State {
     /// This does nothing if the place is not tracked.
     ///
     /// The target place must have been flooded before calling this method.
-    fn insert_value_idx(&mut self, target: PlaceIndex, value: FlatSet<Loc>, map: &Map) {
+    fn insert_value_idx(&mut self, target: PlaceIndex, value: FlatSet<Path>, map: &Map) {
         if let Some(value_index) = map.places[target].value_index {
             self.values[value_index] = value;
         }
     }
 
     /// Retrieve the value stored for a place, or ⊤ if it is not tracked.
-    fn get(&self, place: mir::PlaceRef<'_>, map: &Map) -> FlatSet<Loc> {
+    fn get(&self, place: mir::PlaceRef<'_>, map: &Map) -> FlatSet<Path> {
         map.find(place)
             .map_or(FlatSet::TOP, |place| self.get_idx(place, map))
     }
 
     /// Retrieve the value stored for a place index, or ⊤ if it is not tracked.
-    fn get_idx(&self, place: PlaceIndex, map: &Map) -> FlatSet<Loc> {
+    fn get_idx(&self, place: PlaceIndex, map: &Map) -> FlatSet<Path> {
         self.get_tracked_idx(place, map).unwrap_or(FlatSet::Top)
     }
 
     /// Retrieve the value stored for a place index if tracked
-    fn get_tracked_idx(&self, place: PlaceIndex, map: &Map) -> Option<FlatSet<Loc>> {
-        map.places[place].value_index.map(|v| self.values[v])
+    fn get_tracked_idx(&self, place: PlaceIndex, map: &Map) -> Option<FlatSet<Path>> {
+        map.places[place]
+            .value_index
+            .map(|v| self.values[v].clone())
     }
 }
 
