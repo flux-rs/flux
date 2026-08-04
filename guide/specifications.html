@@ -1832,6 +1832,55 @@ pub fn test_exi_r(n: i32) -&gt; bool {
 pub fn test(x: i32) -&gt; i32 {
     x + 1
 }</code></pre>
+<h3 id="importing-flux-definitions"><a class="header" href="#importing-flux-definitions">Importing Flux Definitions</a></h3>
+<p>Spec functions defined in <em>another</em> crate can be brought into scope with a <code>use</code>
+inside <code>defs!</code>, mirroring Rust's own <code>use</code>. For example, <code>flux-core</code> defines a
+<code>clamp</code> function in <code>lib/flux-core/src/num/mod.rs</code>:</p>
+<pre><code class="language-rust noplayground">#![flux::defs {
+    fn clamp(v: int, lo: int, hi: int) -&gt; int { if v &lt; lo { lo } else if v &gt; hi { hi } else { v } }
+    // ...
+}]</code></pre>
+<p>which a client crate can import and then use unqualified in its refinements:</p>
+<pre><code class="language-rust noplayground">extern crate flux_core;
+
+use flux_attrs::*;
+
+defs! {
+    use flux_core::num::clamp;
+}
+
+#[spec(fn(x: i32) -&gt; i32[clamp(x, 0, 10)])]
+fn clamp_to_range(x: i32) -&gt; i32 {
+    if x &lt; 0 {
+        0
+    } else if x &gt; 10 {
+        10
+    } else {
+        x
+    }
+}</code></pre>
+<p>The import is a convenience, not a requirement: a <em>fully qualified</em> path names the
+same definition and resolves to it whether or not it was imported.</p>
+<pre><code class="language-rust noplayground">// A qualified path to the same def resolves to what the import brought in.
+#[spec(fn(x: i32{0 &lt;= x &amp;&amp; x &lt; 10}) -&gt; i32[flux_core::num::clamp(x, 0, 10)])]
+fn already_in_range(x: i32) -&gt; i32 {
+    x
+}</code></pre>
+<p>Like Rust <code>use</code>, the import is scoped to the module it appears in, so a nested
+module that wants the short name must import it again.</p>
+<pre><code class="language-rust noplayground">// The def is importable again from a nested module.
+mod inner {
+    use flux_attrs::*;
+
+    defs! {
+        use flux_core::num::clamp;
+    }
+
+    #[spec(fn(x: i32{x &gt; 10}) -&gt; i32[clamp(x, 0, 10)])]
+    fn above_range(_x: i32) -&gt; i32 {
+        10
+    }
+}</code></pre>
 <h2 id="uninterpreted-function-declarations"><a class="header" href="#uninterpreted-function-declarations">Uninterpreted Function Declarations</a></h2>
 <p>You can also declare <em>uninterpreted</em> functions -- about which <code>flux</code> knows nothing
 other than the congruence property -- and then use them in refinements. Note that
