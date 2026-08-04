@@ -117,7 +117,10 @@ impl<'a> PointsToAnalysis<'a> {
                     }
                 }
             }
-            _ => {}
+            // Conservatively assume the target may point anywhere. Flooding is necessary, or a
+            // place assigned by an unmodeled r-value, e.g., an unsizing cast, would keep the `⊥`
+            // it was given by `StorageLive`.
+            _ => state.flood(target.as_ref(), self.map),
         }
     }
 
@@ -138,7 +141,8 @@ impl<'a> PointsToAnalysis<'a> {
                             projection = path.projection().to_vec();
                         }
                         FlatSet::Top => return FlatSet::TOP,
-                        FlatSet::Bottom => return FlatSet::BOTTOM,
+                        // `⊥` means the place is uninitialized, which can't be dereferenced.
+                        FlatSet::Bottom => tracked_span_bug!("dereference of uninitialized place"),
                     }
                 }
                 mir::PlaceElem::Field(field, _) => projection.push(field),
