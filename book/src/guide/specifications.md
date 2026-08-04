@@ -497,10 +497,14 @@ However, there should be no _cyclic dependencies_ in the function definitions.
 ### Importing Flux Definitions
 
 Spec functions defined in _another_ crate can be brought into scope with a `use`
-inside `defs!`, mirroring Rust's own `use`. For example, `flux-core` defines
+inside `defs!`, mirroring Rust's own `use`. For example, `flux-core` defines a
+`clamp` function in `lib/flux-core/src/num/mod.rs`:
 
 ```rust,noplayground
-{{#include ../../../lib/flux-core/src/num/mod.rs:1:2}}
+#![flux::defs {
+    fn clamp(v: int, lo: int, hi: int) -> int { if v < lo { lo } else if v > hi { hi } else { v } }
+    // ...
+}]
 ```
 
 which a client crate can import and then use unqualified in its refinements:
