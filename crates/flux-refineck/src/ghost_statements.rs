@@ -113,8 +113,10 @@ impl GhostStatements {
                 };
 
             let fold_unfolds = fold_unfold::run(genv, body, fn_sig.as_ref())?;
+            let ptr_to_refs =
+                points_to::run(genv, body.rustc_body(), fn_sig.as_ref(), &fold_unfolds)?;
             let mut stmts = Self::from_fold_unfolds(fold_unfolds);
-            points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
+            stmts.prepend(ptr_to_refs);
             // We only add unblock statements for the main body because borrows in promoted constants
             // have to be live in the main body so they never go out of scope in the promoted body.
             if !checker_id.is_promoted() {
@@ -153,6 +155,25 @@ impl GhostStatements {
         }
     }
 
+    /// Inserts `stmts` *before* the fold/unfold operations already at the same [`Point`].
+    ///
+    /// A pointer into a location that a `fold` collapses has to be converted to a reference before
+    /// that fold runs, otherwise the conversion would look up a path that no longer exists.
+    fn prepend(&mut self, stmts: Vec<(Point, GhostStatement)>) {
+        // Walk backwards so statements sharing a point keep their relative order.
+        for (point, stmt) in stmts.into_iter().rev() {
+            self.at_mut(point).insert(0, stmt);
+        }
+    }
+
+    fn at_mut(&mut self, point: Point) -> &mut Vec<GhostStatement> {
+        match point {
+            Point::FunEntry => &mut self.at_start,
+            Point::BeforeLocation(location) => self.at_location.entry(location).or_default(),
+            Point::Edge(from, to) => self.at_edge.entry(from).or_default().entry(to).or_default(),
+        }
+    }
+
     fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body_root: &BodyRoot<'tcx>) {
         for (location, borrows) in body_root.calculate_borrows_out_of_scope_at_location() {
             let stmts = borrows
@@ -188,26 +209,7 @@ impl GhostStatements {
     }
 
     fn insert_at(&mut self, point: Point, stmt: GhostStatement) {
-        self.extend_at(point, [stmt]);
-    }
-
-    fn extend_at(&mut self, point: Point, stmts: impl IntoIterator<Item = GhostStatement>) {
-        match point {
-            Point::FunEntry => {
-                self.at_start.extend(stmts);
-            }
-            Point::BeforeLocation(location) => {
-                self.at_location.entry(location).or_default().extend(stmts);
-            }
-            Point::Edge(from, to) => {
-                self.at_edge
-                    .entry(from)
-                    .or_default()
-                    .entry(to)
-                    .or_default()
-                    .extend(stmts);
-            }
-        }
+        self.at_mut(point).push(stmt);
     }
 
     pub(crate) fn statements_at(&self, point: Point) -> impl Iterator<Item = &GhostStatement> {

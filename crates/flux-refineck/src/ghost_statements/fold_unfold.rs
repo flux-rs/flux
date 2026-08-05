@@ -157,6 +157,18 @@ impl FoldUnfolds {
         }
     }
 
+    pub(super) fn at_start(&self) -> &[FoldUnfold] {
+        &self.at_start
+    }
+
+    pub(super) fn at_location(&self, location: Location) -> &[FoldUnfold] {
+        self.at_location.get(&location).map_or(&[], Vec::as_slice)
+    }
+
+    pub(super) fn out_edges(&self, bb: BasicBlock) -> Option<&OutEdges> {
+        self.at_edge.get(&bb)
+    }
+
     fn record_out_edges(&mut self, bb: BasicBlock, out_edges: OutEdges) {
         // Blocks are elaborated at most once, so this never discards operations collected for a
         // previous visit.

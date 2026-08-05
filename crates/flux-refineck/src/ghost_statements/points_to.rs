@@ -25,56 +25,108 @@ use flux_middle::{
     queries::QueryResult,
     rty::{self, Loc, Path},
 };
+use flux_rustc_bridge::{lowering, mir as bridge};
 use rustc_abi::FieldIdx;
 use rustc_hash::FxHashMap;
 use rustc_index::{IndexSlice, IndexVec, bit_set::DenseBitSet};
 use rustc_middle::{
     mir::{self, BasicBlock, traversal, visit::Visitor},
-    ty,
+    ty::{self, TyCtxt},
 };
 use rustc_mir_dataflow::{
     Analysis, JoinSemiLattice, ResultsVisitor,
     fmt::DebugWithContext,
+    SwitchTargetIndex,
     lattice::{FlatSet, HasBottom, HasTop},
     visit_results,
 };
 
-use super::GhostStatements;
+use super::fold_unfold::{FoldUnfold, FoldUnfolds, OutEdges};
 use crate::ghost_statements::{GhostStatement, Point};
 
-pub(crate) fn add_ghost_statements<'tcx>(
-    stmts: &mut GhostStatements,
+/// Runs the points-to analysis, returning the [`GhostStatement::PtrToRef`] it computed together
+/// with the [`Point`] each one goes at.
+pub(crate) fn run<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     body: &mir::Body<'tcx>,
     fn_sig: Option<&rty::EarlyBinder<rty::PolyFnSig>>,
-) -> QueryResult {
+    fold_unfolds: &FoldUnfolds,
+) -> QueryResult<Vec<(Point, GhostStatement)>> {
     let map = Map::new(body);
-    let points_to = PointsToAnalysis::new(&map, fn_sig);
+    let points_to = PointsToAnalysis::new(genv.tcx(), &map, fn_sig, fold_unfolds);
     let results = points_to.iterate_to_fixpoint(genv.tcx(), body, None);
-    let mut visitor = CollectPointerToBorrows::new(&map, stmts, &results.entry_states);
+    let mut visitor = CollectPointerToBorrows::new(&map, &results.entry_states);
     for (bb, _) in traversal::reachable(body) {
         visitor.visit_block_start(&results.entry_states[bb]);
         visit_results(body, [bb], &results, &mut visitor);
     }
 
-    Ok(())
+    Ok(visitor.stmts)
 }
 
 /// This implement a points to analysis for mutable references over a [`FlatSet`]. The analysis is
 /// a may analysis. If you want to know if a reference definitively points to a location you have to
 /// combine it with the result of a definitely initialized analysis. See module level documentation
 /// for more details.
-struct PointsToAnalysis<'a> {
+struct PointsToAnalysis<'a, 'tcx> {
+    tcx: TyCtxt<'tcx>,
     fn_sig: Option<&'a rty::EarlyBinder<rty::PolyFnSig>>,
     map: &'a Map,
+    fold_unfolds: &'a FoldUnfolds,
 }
 
-impl<'a> PointsToAnalysis<'a> {
-    fn new(map: &'a Map, fn_sig: Option<&'a rty::EarlyBinder<rty::PolyFnSig>>) -> Self {
-        Self { fn_sig, map }
+impl<'a, 'tcx> PointsToAnalysis<'a, 'tcx> {
+    fn new(
+        tcx: TyCtxt<'tcx>,
+        map: &'a Map,
+        fn_sig: Option<&'a rty::EarlyBinder<rty::PolyFnSig>>,
+        fold_unfolds: &'a FoldUnfolds,
+    ) -> Self {
+        Self { tcx, fn_sig, map, fold_unfolds }
     }
 
-    fn handle_statement(&self, statement: &mir::Statement, state: &mut State) {
+    /// Resolves `place` to the [`Path`] it names, mirroring the way `PlacesTree::lookup_inner`
+    /// walks a place: a dereference moves the root of the path to whatever the pointer points to,
+    /// and fields are accumulated onto it.
+    ///
+    /// `None` means the place names no path this analysis can talk about: a `⊤` pointer is one it
+    /// already converted to a `&mut`, so in the checker the deref goes through a real reference and
+    /// `lookup_inner` marks the lookup non-strong; the same holds for a deref of an untracked place
+    /// and for an index projection.
+    fn resolve(&self, place: &bridge::Place, state: &State) -> Option<Path> {
+        let mut loc = Loc::Local(place.local);
+        let mut projection = vec![];
+        for (i, elem) in place.projection.iter().enumerate() {
+            match elem {
+                bridge::PlaceElem::Deref => {
+                    // Move the root to the path pointed to by the prefix we've walked so far.
+                    let value = self
+                        .map
+                        .find(place.local, &place.projection[..i])
+                        .map_or(FlatSet::TOP, |idx| state.get_idx(idx, self.map));
+                    match value {
+                        FlatSet::Elem(path) => {
+                            loc = path.loc;
+                            projection = path.projection().to_vec();
+                        }
+                        FlatSet::Top => return None,
+                        // `⊥` means the place is uninitialized, which can't be dereferenced.
+                        FlatSet::Bottom => {
+                            tracked_span_bug!("dereference of uninitialized place {place:?}")
+                        }
+                    }
+                }
+                bridge::PlaceElem::Field(field) => projection.push(*field),
+                bridge::PlaceElem::Downcast(..) => {}
+                bridge::PlaceElem::Index(_) | bridge::PlaceElem::ConstantIndex { .. } => {
+                    return None;
+                }
+            }
+        }
+        Some(Path::new(loc, projection))
+    }
+
+    fn handle_statement(&self, statement: &mir::Statement<'tcx>, state: &mut State) {
         match &statement.kind {
             mir::StatementKind::Assign(deref!((target, rvalue))) => {
                 self.handle_assign(*target, rvalue, state);
@@ -96,7 +148,20 @@ impl<'a> PointsToAnalysis<'a> {
         }
     }
 
-    fn handle_assign(&self, target: mir::Place, rvalue: &mir::Rvalue, state: &mut State) {
+    /// Applies the effect of the folds in `stmts`: a `fold(p)` destroys every path strictly inside
+    /// the location `p` resolves to, so any pointer into it can no longer be given a `ptr(mut, π)`
+    /// type and must become a `&mut`.
+    fn handle_folds(&self, state: &mut State, stmts: &[FoldUnfold]) {
+        for stmt in stmts {
+            if let FoldUnfold::Fold(place) = stmt
+                && let Some(path) = self.resolve(place, state)
+            {
+                state.fold(&path);
+            }
+        }
+    }
+
+    fn handle_assign(&self, target: mir::Place, rvalue: &mir::Rvalue<'tcx>, state: &mut State) {
         match rvalue {
             mir::Rvalue::Use(operand, _) => {
                 let result = self
@@ -110,7 +175,7 @@ impl<'a> PointsToAnalysis<'a> {
             }
             mir::Rvalue::Aggregate(deref!(mir::AggregateKind::Tuple), operands) => {
                 state.flood(target.as_ref(), self.map);
-                let Some(target_idx) = self.map.find(target.as_ref()) else { return };
+                let Some(target_idx) = self.map.find_ref(target.as_ref()) else { return };
                 for (elem, operand) in operands.iter_enumerated() {
                     let Some(rhs_idx) = self.handle_operand(operand) else { continue };
                     if let Some(field) = self.map.apply(target_idx, elem) {
@@ -125,33 +190,13 @@ impl<'a> PointsToAnalysis<'a> {
         }
     }
 
-    /// This mirrors the way `PlacesTree::lookup_inner` walks a place: a dereference moves the root
-    /// of the path to whatever the pointer points to, and fields are accumulated onto it.
-    fn handle_ref(&self, place: &mir::Place, state: &State) -> FlatSet<Path> {
-        let mut loc = Loc::Local(place.local);
-        let mut projection = vec![];
-        for (i, elem) in place.projection.iter().enumerate() {
-            match elem {
-                mir::PlaceElem::Deref => {
-                    // Move the root to the path pointed to by the prefix we've walked so far.
-                    let prefix =
-                        mir::PlaceRef { local: place.local, projection: &place.projection[..i] };
-                    match state.get(prefix, self.map) {
-                        FlatSet::Elem(path) => {
-                            loc = path.loc;
-                            projection = path.projection().to_vec();
-                        }
-                        FlatSet::Top => return FlatSet::TOP,
-                        // `⊥` means the place is uninitialized, which can't be dereferenced.
-                        FlatSet::Bottom => tracked_span_bug!("dereference of uninitialized place"),
-                    }
-                }
-                mir::PlaceElem::Field(field, _) => projection.push(field),
-                mir::PlaceElem::Downcast(..) => {}
-                _ => return FlatSet::TOP,
-            }
-        }
-        FlatSet::Elem(Path::new(loc, projection))
+    /// Resolves the place of a borrow, `⊤` if it names no trackable path.
+    fn handle_ref(&self, place: &mir::Place<'tcx>, state: &State) -> FlatSet<Path> {
+        // A place we cannot lower is one with a projection the bridge doesn't model, which is no
+        // more trackable than an index.
+        let Ok(place) = lowering::lower_place(self.tcx, place) else { return FlatSet::TOP };
+        self.resolve(&place, state)
+            .map_or(FlatSet::TOP, FlatSet::Elem)
     }
 
     fn handle_operand(&self, operand: &mir::Operand) -> Option<PlaceIndex> {
@@ -159,7 +204,7 @@ impl<'a> PointsToAnalysis<'a> {
             mir::Operand::Copy(place) | mir::Operand::Move(place) => {
                 // On move, we would ideally flood the place with bottom. But with the current
                 // framework this is not possible (similar to `InterpCx::eval_operand`).
-                self.map.find(place.as_ref())
+                self.map.find_ref(place.as_ref())
             }
             mir::Operand::Constant(..) | mir::Operand::RuntimeChecks(_) => None,
         }
@@ -167,7 +212,7 @@ impl<'a> PointsToAnalysis<'a> {
 
     /// The effect of a successful function call return should not be
     /// applied here, see [`Analysis::apply_primary_terminator_effect`].
-    fn handle_terminator<'tcx>(&self, terminator: &mir::Terminator<'tcx>, state: &mut State) {
+    fn handle_terminator(&self, terminator: &mir::Terminator<'tcx>, state: &mut State) {
         match &terminator.kind {
             mir::TerminatorKind::TailCall { .. }
             | mir::TerminatorKind::Call { .. }
@@ -200,8 +245,11 @@ impl<'a> PointsToAnalysis<'a> {
     }
 }
 
-impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
+impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_, 'tcx> {
     type Domain = State;
+    /// The block a `SwitchInt` belongs to and its targets, so its edge folds can be looked up
+    /// per target.
+    type SwitchIntData = (BasicBlock, mir::SwitchTargets);
 
     const NAME: &'static str = "PointsToAnalysis";
 
@@ -216,7 +264,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
         if let Some(fn_sig) = self.fn_sig {
             let fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
             for (local, ty) in iter::zip(body.args_iter(), fn_sig.inputs()) {
-                if let rty::TyKind::Ptr(_, path) = ty.kind() {
+                if let rty::TyKind::StrgRef(_, path, _) = ty.kind() {
                     let path = FlatSet::Elem(path.clone());
                     state.flood_with(mir::PlaceRef { local, projection: &[] }, self.map, path);
                 } else {
@@ -228,6 +276,18 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
                 state.flood(mir::PlaceRef { local, projection: &[] }, self.map);
             }
         }
+        self.handle_folds(state, self.fold_unfolds.at_start());
+    }
+
+    /// Ghost statements at a location run before that location, so the folds there take effect
+    /// before the statement's own effect.
+    fn apply_early_statement_effect(
+        &self,
+        state: &mut Self::Domain,
+        _statement: &mir::Statement<'tcx>,
+        location: mir::Location,
+    ) {
+        self.handle_folds(state, self.fold_unfolds.at_location(location));
     }
 
     fn apply_primary_statement_effect(
@@ -239,13 +299,65 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
         self.handle_statement(statement, state);
     }
 
+    fn apply_early_terminator_effect(
+        &self,
+        state: &mut Self::Domain,
+        _terminator: &mir::Terminator<'tcx>,
+        location: mir::Location,
+    ) {
+        self.handle_folds(state, self.fold_unfolds.at_location(location));
+    }
+
     fn apply_primary_terminator_effect(
         &self,
         state: &mut Self::Domain,
         terminator: &mir::Terminator<'tcx>,
-        _location: mir::Location,
+        location: mir::Location,
     ) {
         self.handle_terminator(terminator, state);
+        // A terminator with a single successor has no per-edge hook: the framework hands the exit
+        // state straight to `propagate`, so this is the last point at which we can apply the folds
+        // on that edge. `SwitchInt` is handled by `apply_switch_int_edge_effect` instead.
+        if let Some(OutEdges::Single(_, stmts)) = self.fold_unfolds.out_edges(location.block) {
+            self.handle_folds(state, stmts);
+        }
+    }
+
+    fn get_switch_int_data(
+        &self,
+        block: BasicBlock,
+        targets: &mir::SwitchTargets,
+        _discr: &mir::Operand<'tcx>,
+    ) -> Option<Self::SwitchIntData> {
+        // Returning `Some` makes the framework clone the state once per outgoing edge, so only ask
+        // for per-edge treatment when there is actually a fold to apply.
+        match self.fold_unfolds.out_edges(block) {
+            Some(OutEdges::SwitchInt(edges)) => {
+                edges
+                    .values()
+                    .flatten()
+                    .any(|stmt| matches!(stmt, FoldUnfold::Fold(_)))
+                    .then(|| (block, targets.clone()))
+            }
+            _ => None,
+        }
+    }
+
+    fn apply_switch_int_edge_effect(
+        &self,
+        state: &mut Self::Domain,
+        (block, targets): &Self::SwitchIntData,
+        target_idx: SwitchTargetIndex,
+    ) {
+        let target = match target_idx {
+            SwitchTargetIndex::Normal(i) => targets.all_targets()[i],
+            SwitchTargetIndex::Otherwise => targets.otherwise(),
+        };
+        if let Some(OutEdges::SwitchInt(edges)) = self.fold_unfolds.out_edges(*block)
+            && let Some(stmts) = edges.get(&target)
+        {
+            self.handle_folds(state, stmts);
+        }
     }
 
     fn apply_call_return_effect(
@@ -260,28 +372,24 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
 
 struct CollectPointerToBorrows<'a> {
     map: &'a Map,
-    tracked_places: FxHashMap<PlaceIndex, flux_rustc_bridge::mir::Place>,
-    stmts: &'a mut GhostStatements,
+    tracked_places: FxHashMap<PlaceIndex, bridge::Place>,
+    stmts: Vec<(Point, GhostStatement)>,
     before_state: Vec<(PlaceIndex, FlatSet<Path>)>,
     results: &'a IndexSlice<BasicBlock, State>,
 }
 
 impl<'a> CollectPointerToBorrows<'a> {
-    fn new(
-        map: &'a Map,
-        stmts: &'a mut GhostStatements,
-        results: &'a IndexSlice<BasicBlock, State>,
-    ) -> Self {
+    fn new(map: &'a Map, results: &'a IndexSlice<BasicBlock, State>) -> Self {
         let mut tracked_places = FxHashMap::default();
         map.for_each_tracked_place(|place_idx, local, projection| {
             let projection = projection
                 .iter()
                 .copied()
-                .map(flux_rustc_bridge::mir::PlaceElem::Field)
+                .map(bridge::PlaceElem::Field)
                 .collect();
-            tracked_places.insert(place_idx, flux_rustc_bridge::mir::Place::new(local, projection));
+            tracked_places.insert(place_idx, bridge::Place::new(local, projection));
         });
-        Self { map, tracked_places, stmts, before_state: vec![], results }
+        Self { map, tracked_places, stmts: vec![], before_state: vec![], results }
     }
 }
 
@@ -295,7 +403,7 @@ impl CollectPointerToBorrows<'_> {
     }
 }
 
-impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBorrows<'_> {
+impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a, 'tcx>> for CollectPointerToBorrows<'_> {
     fn visit_after_primary_statement_effect(
         &mut self,
         state: &State,
@@ -311,7 +419,7 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBo
                     .get(place_idx)
                     .unwrap_or_else(|| tracked_span_bug!())
                     .clone();
-                self.stmts.insert_at(point, GhostStatement::PtrToRef(place));
+                self.stmts.push((point, GhostStatement::PtrToRef(place)));
             }
             *old_value = new_value;
         }
@@ -335,7 +443,7 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBo
                         .get(place_idx)
                         .unwrap_or_else(|| tracked_span_bug!())
                         .clone();
-                    self.stmts.insert_at(point, GhostStatement::PtrToRef(place));
+                    self.stmts.push((point, GhostStatement::PtrToRef(place)));
                 }
             }
         }
@@ -481,12 +589,24 @@ impl Map {
     }
 
     /// Locates the given place, if it exists in the tree.
-    fn find(&self, place: mir::PlaceRef<'_>) -> Option<PlaceIndex> {
+    fn find_ref(&self, place: mir::PlaceRef<'_>) -> Option<PlaceIndex> {
         let mut index = *self.locals[place.local].as_ref()?;
 
         for &elem in place.projection {
             let mir::ProjectionElem::Field(elem, _) = elem else { return None };
             index = self.apply(index, elem)?;
+        }
+
+        Some(index)
+    }
+
+    /// Like [`Map::find_ref`], but over the places produced by the fold/unfold analysis.
+    fn find(&self, local: mir::Local, projection: &[bridge::PlaceElem]) -> Option<PlaceIndex> {
+        let mut index = *self.locals[local].as_ref()?;
+
+        for elem in projection {
+            let bridge::PlaceElem::Field(elem) = elem else { return None };
+            index = self.apply(index, *elem)?;
         }
 
         Some(index)
@@ -734,7 +854,7 @@ impl State {
     /// Helper method to interpret `target = result`.
     fn assign(&mut self, target: mir::PlaceRef<'_>, result: PlaceOrValue, map: &Map) {
         self.flood(target, map);
-        if let Some(target) = map.find(target) {
+        if let Some(target) = map.find_ref(target) {
             self.insert_idx(target, result, map);
         }
     }
@@ -787,10 +907,22 @@ impl State {
         }
     }
 
-    /// Retrieve the value stored for a place, or ⊤ if it is not tracked.
-    fn get(&self, place: mir::PlaceRef<'_>, map: &Map) -> FlatSet<Path> {
-        map.find(place)
-            .map_or(FlatSet::TOP, |place| self.get_idx(place, map))
+    /// Applies the effect of a `fold` of the location `path`.
+    ///
+    /// The fold collapses everything *strictly* inside `path`, so a value naming a path under it
+    /// no longer denotes anything the checker can resolve and becomes `⊤`. A value naming `path`
+    /// exactly is left alone: that is the pointer *to* the location being folded, which stays a
+    /// valid `ptr(mut, path)`.
+    fn fold(&mut self, path: &Path) {
+        for value in &mut self.values {
+            if let FlatSet::Elem(elem) = &*value
+                && elem.loc == path.loc
+                && elem.projection().len() > path.projection().len()
+                && elem.projection().starts_with(path.projection())
+            {
+                *value = FlatSet::TOP;
+            }
+        }
     }
 
     /// Retrieve the value stored for a place index, or ⊤ if it is not tracked.
@@ -807,15 +939,19 @@ impl State {
 }
 
 /// This is used to visualize the dataflow analysis.
-impl DebugWithContext<PointsToAnalysis<'_>> for State {
-    fn fmt_with(&self, ctxt: &PointsToAnalysis, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+impl DebugWithContext<PointsToAnalysis<'_, '_>> for State {
+    fn fmt_with(
+        &self,
+        ctxt: &PointsToAnalysis<'_, '_>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         debug_with_context(&self.values, None, ctxt.map, f)
     }
 
     fn fmt_diff_with(
         &self,
         old: &Self,
-        ctxt: &PointsToAnalysis,
+        ctxt: &PointsToAnalysis<'_, '_>,
         f: &mut fmt::Formatter<'_>,
     ) -> std::fmt::Result {
         debug_with_context(&self.values, Some(&old.values), ctxt.map, f)
