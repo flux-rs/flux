@@ -18,22 +18,151 @@ use rustc_hir::def_id::DefId;
 use rustc_index::{Idx, IndexVec, bit_set::DenseBitSet};
 use rustc_middle::mir::{FakeReadCause, START_BLOCK};
 
-use super::{GhostStatements, StatementsAt};
 use crate::{
     ghost_statements::{GhostStatement, Point},
     queue::WorkQueue,
 };
 
-pub(crate) fn add_ghost_statements<'tcx>(
-    stmts: &mut GhostStatements,
+/// Runs the fold/unfold analysis and returns the operations it computed. The result is later
+/// lowered into ghost statements, see [`super::GhostStatements::from_fold_unfolds`].
+pub(crate) fn run<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     body: &Body<'tcx>,
     fn_sig: Option<&rty::EarlyBinder<rty::PolyFnSig>>,
-) -> QueryResult {
+) -> QueryResult<FoldUnfolds> {
     let mut bb_envs = UnordMap::default();
     FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Infer).run(fn_sig)?;
 
-    FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Elaboration { stmts }).run(fn_sig)
+    let mut fold_unfolds = FoldUnfolds::default();
+    let elaboration = Elaboration { fold_unfolds: &mut fold_unfolds };
+    FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, elaboration).run(fn_sig)?;
+    Ok(fold_unfolds)
+}
+
+/// A single operation computed by the fold/unfold analysis.
+pub(super) enum FoldUnfold {
+    Fold(Place),
+    Unfold(Place),
+}
+
+impl From<FoldUnfold> for GhostStatement {
+    fn from(stmt: FoldUnfold) -> Self {
+        match stmt {
+            FoldUnfold::Fold(place) => GhostStatement::Fold(place),
+            FoldUnfold::Unfold(place) => GhostStatement::Unfold(place),
+        }
+    }
+}
+
+/// The operations on the edges out of a basic block, together with the shape of those edges *as
+/// modeled by the fold/unfold analysis*.
+///
+/// This is deliberately not rustc's `TerminatorEdges`: we ignore unwind and cleanup edges, and
+/// `FalseEdge`/`FalseUnwind` contribute only their real target. Recording the shape here means
+/// consumers don't have to re-derive it from the terminator, which would duplicate the successor
+/// model in [`FoldUnfoldAnalysis::terminator`].
+pub(super) enum OutEdges {
+    /// The terminator has no successors, e.g., `Return` or `Unreachable`.
+    None,
+    /// The terminator has exactly one successor, so any edge operation belongs to that edge.
+    Single(BasicBlock, Vec<FoldUnfold>),
+    /// A `SwitchInt`. Operations are keyed by target block, which is the granularity a dataflow
+    /// analysis can distinguish via `apply_switch_int_edge_effect`. Note two switch values sharing
+    /// a target collapse into a single entry.
+    SwitchInt(FxHashMap<BasicBlock, Vec<FoldUnfold>>),
+}
+
+impl OutEdges {
+    /// Lowers into the per-target map used by [`super::GhostStatements`], dropping targets without
+    /// any operation.
+    pub(super) fn into_target_map(self) -> super::EdgeTargets {
+        let targets = match self {
+            OutEdges::None => vec![],
+            OutEdges::Single(target, stmts) => vec![(target, stmts)],
+            OutEdges::SwitchInt(targets) => targets.into_iter().collect(),
+        };
+        targets
+            .into_iter()
+            .filter(|(_, stmts)| !stmts.is_empty())
+            .map(|(target, stmts)| (target, stmts.into_iter().map(GhostStatement::from).collect()))
+            .collect()
+    }
+}
+
+/// The successors of a terminator, as modeled by [`FoldUnfoldAnalysis::terminator`].
+///
+/// The shape is fixed by construction rather than re-derived from the number of successors, so
+/// [`OutEdges`] can be built without matching on [`TerminatorKind`] a second time. In particular,
+/// producing more than one successor requires naming [`Successors::SwitchInt`], which is the only
+/// shape a dataflow consumer can split per edge.
+enum Successors {
+    None,
+    Single(Env, BasicBlock),
+    SwitchInt(Vec<(Env, BasicBlock)>),
+}
+
+impl Successors {
+    fn out_edges(&self) -> OutEdges {
+        match self {
+            Successors::None => OutEdges::None,
+            Successors::Single(_, target) => OutEdges::Single(*target, vec![]),
+            Successors::SwitchInt(_) => OutEdges::SwitchInt(Default::default()),
+        }
+    }
+}
+
+impl IntoIterator for Successors {
+    type Item = (Env, BasicBlock);
+    type IntoIter = std::vec::IntoIter<(Env, BasicBlock)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            Successors::None => vec![],
+            Successors::Single(env, target) => vec![(env, target)],
+            Successors::SwitchInt(successors) => successors,
+        }
+        .into_iter()
+    }
+}
+
+/// The output of the fold/unfold analysis.
+#[derive(Default)]
+pub(super) struct FoldUnfolds {
+    pub(super) at_start: Vec<FoldUnfold>,
+    pub(super) at_location: UnordMap<Location, Vec<FoldUnfold>>,
+    pub(super) at_edge: UnordMap<BasicBlock, OutEdges>,
+}
+
+impl FoldUnfolds {
+    /// The operations collected at `point`, to be pushed into.
+    ///
+    /// For a [`Point::Edge`] the shape of the edge must already have been recorded by
+    /// [`FoldUnfolds::record_out_edges`], which happens before any edge is walked.
+    fn at(&mut self, point: Point) -> &mut Vec<FoldUnfold> {
+        match point {
+            Point::FunEntry => &mut self.at_start,
+            Point::BeforeLocation(location) => self.at_location.entry(location).or_default(),
+            Point::Edge(from, to) => {
+                match self.at_edge.get_mut(&from) {
+                    Some(OutEdges::Single(target, stmts)) => {
+                        tracked_span_assert_eq!(*target, to);
+                        stmts
+                    }
+                    Some(OutEdges::SwitchInt(targets)) => targets.entry(to).or_default(),
+                    Some(OutEdges::None) | None => {
+                        tracked_span_bug!("unrecorded edge `{from:?} -> {to:?}`")
+                    }
+                }
+            }
+        }
+    }
+
+    fn record_out_edges(&mut self, bb: BasicBlock, out_edges: OutEdges) {
+        // Blocks are elaborated at most once, so this never discards operations collected for a
+        // previous visit.
+        debug_assert!(!self.at_edge.contains_key(&bb));
+        self.at_edge.insert(bb, out_edges);
+    }
 }
 
 #[derive(Clone)]
@@ -101,13 +230,13 @@ impl Env {
         Ok(modified)
     }
 
-    fn collect_fold_unfolds_at_goto(&self, target: &Env, stmts: &mut StatementsAt) {
+    fn collect_fold_unfolds_at_goto(&self, target: &Env, stmts: &mut Vec<FoldUnfold>) {
         for (local, node) in self.map.iter_enumerated() {
             node.collect_fold_unfolds(&target.map[local], &mut Place::new(local, vec![]), stmts);
         }
     }
 
-    fn collect_folds_at_ret(&self, body: &Body, stmts: &mut StatementsAt) {
+    fn collect_folds_at_ret(&self, body: &Body, stmts: &mut Vec<FoldUnfold>) {
         for local in body.args_iter() {
             self.map[local].collect_folds_at_ret(&mut Place::new(local, vec![]), stmts);
         }
@@ -143,17 +272,24 @@ trait Mode: Sized {
     ) -> QueryResult<bool>;
 
     fn ret(analysis: &mut FoldUnfoldAnalysis<Self>, env: &Env);
+
+    /// Records the shape of the edges out of `bb` before any edge operation is collected for them.
+    fn record_out_edges(
+        analysis: &mut FoldUnfoldAnalysis<Self>,
+        bb: BasicBlock,
+        successors: &Successors,
+    );
 }
 
 struct Infer;
 
 struct Elaboration<'a> {
-    stmts: &'a mut GhostStatements,
+    fold_unfolds: &'a mut FoldUnfolds,
 }
 
 impl Elaboration<'_> {
-    fn insert_at(&mut self, point: Point, stmt: GhostStatement) {
-        self.stmts.insert_at(point, stmt);
+    fn insert_at(&mut self, point: Point, stmt: FoldUnfold) {
+        self.fold_unfolds.at(point).push(stmt);
     }
 }
 
@@ -192,6 +328,8 @@ impl Mode for Infer {
     }
 
     fn ret(_: &mut FoldUnfoldAnalysis<Self>, _: &Env) {}
+
+    fn record_out_edges(_: &mut FoldUnfoldAnalysis<Self>, _: BasicBlock, _: &Successors) {}
 }
 
 impl Mode for Elaboration<'_> {
@@ -209,7 +347,7 @@ impl Mode for Elaboration<'_> {
                 let place = place.clone();
                 analysis
                     .mode
-                    .insert_at(analysis.point, GhostStatement::Fold(place));
+                    .insert_at(analysis.point, FoldUnfold::Fold(place));
             }
             // `place_ref` is the longest prefix of `place` that `ensure_unfolded` could walk
             // through. It is a strict prefix when `place` indexes into an array or slice, in
@@ -219,7 +357,7 @@ impl Mode for Elaboration<'_> {
                     Some((base, PlaceElem::Deref | PlaceElem::Field(..))) => {
                         analysis
                             .mode
-                            .insert_at(analysis.point, GhostStatement::Unfold(base.to_place()));
+                            .insert_at(analysis.point, FoldUnfold::Unfold(base.to_place()));
                     }
                     _ => Err(query_bug!("invalid projection for unfolding {place_ref:?}"))?,
                 }
@@ -233,15 +371,24 @@ impl Mode for Elaboration<'_> {
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool> {
-        env.collect_fold_unfolds_at_goto(
-            &analysis.bb_envs[&target],
-            &mut analysis.mode.stmts.at(analysis.point),
-        );
+        let stmts = analysis.mode.fold_unfolds.at(analysis.point);
+        env.collect_fold_unfolds_at_goto(&analysis.bb_envs[&target], stmts);
         Ok(!analysis.visited.contains(target))
     }
 
     fn ret(analysis: &mut FoldUnfoldAnalysis<Self>, env: &Env) {
-        env.collect_folds_at_ret(analysis.body, &mut analysis.mode.stmts.at(analysis.point));
+        env.collect_folds_at_ret(analysis.body, analysis.mode.fold_unfolds.at(analysis.point));
+    }
+
+    fn record_out_edges(
+        analysis: &mut FoldUnfoldAnalysis<Self>,
+        bb: BasicBlock,
+        successors: &Successors,
+    ) {
+        analysis
+            .mode
+            .fold_unfolds
+            .record_out_edges(bb, successors.out_edges());
     }
 }
 
@@ -284,6 +431,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
         if let Some(terminator) = &data.terminator {
             self.point = Point::BeforeLocation(self.body.terminator_loc(bb));
             let successors = self.terminator(terminator, env)?;
+            M::record_out_edges(self, bb, &successors);
             for (env, target) in successors {
                 self.point = Point::Edge(bb, target);
                 self.goto(target, env)?;
@@ -367,23 +515,20 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
         Ok(())
     }
 
-    fn terminator(
-        &mut self,
-        terminator: &Terminator,
-        mut env: Env,
-    ) -> QueryResult<Vec<(Env, BasicBlock)>> {
-        let mut successors = vec![];
-        match &terminator.kind {
+    fn terminator(&mut self, terminator: &Terminator, mut env: Env) -> QueryResult<Successors> {
+        let successors = match &terminator.kind {
             TerminatorKind::Return => {
                 M::ret(self, &env);
+                Successors::None
             }
             TerminatorKind::Call { args, destination, target, .. } => {
                 for arg in args {
                     self.operand(arg, &mut env)?;
                 }
                 M::projection(self, &mut env, destination)?;
-                if let Some(target) = target {
-                    successors.push((env, *target));
+                match target {
+                    Some(target) => Successors::Single(env, *target),
+                    None => Successors::None,
                 }
             }
             TerminatorKind::SwitchInt { discr, targets } => {
@@ -394,6 +539,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
                     }
                     Operand::Constant(_) => None,
                 };
+                let mut successors = vec![];
                 if let Some(place) = is_match {
                     let discr_ty = place.ty(self.genv, &self.body.local_decls)?.ty;
                     let (adt, _) = discr_ty.expect_adt();
@@ -427,32 +573,29 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
                         successors.push((env, *target));
                     }
                 }
+                Successors::SwitchInt(successors)
             }
-            TerminatorKind::Goto { target } => {
-                successors.push((env, *target));
-            }
+            TerminatorKind::Goto { target } => Successors::Single(env, *target),
             TerminatorKind::Yield { resume, resume_arg, .. } => {
                 M::projection(self, &mut env, resume_arg)?;
-                successors.push((env, *resume));
+                Successors::Single(env, *resume)
             }
             TerminatorKind::Drop { place, target, .. } => {
                 M::projection(self, &mut env, place)?;
-                successors.push((env, *target));
+                Successors::Single(env, *target)
             }
             TerminatorKind::Assert { cond, target, .. } => {
                 self.operand(cond, &mut env)?;
-                successors.push((env, *target));
+                Successors::Single(env, *target)
             }
-            TerminatorKind::FalseEdge { real_target, .. } => {
-                successors.push((env, *real_target));
-            }
+            TerminatorKind::FalseEdge { real_target, .. } => Successors::Single(env, *real_target),
             TerminatorKind::FalseUnwind { real_target, .. } => {
-                successors.push((env, *real_target));
+                Successors::Single(env, *real_target)
             }
             TerminatorKind::Unreachable
             | TerminatorKind::UnwindResume
-            | TerminatorKind::CoroutineDrop => {}
-        }
+            | TerminatorKind::CoroutineDrop => Successors::None,
+        };
         Ok(successors)
     }
 
@@ -691,7 +834,7 @@ impl PlaceNode {
         &self,
         target: &PlaceNode,
         place: &mut Place,
-        stmts: &mut StatementsAt,
+        stmts: &mut Vec<FoldUnfold>,
     ) {
         let (fields1, fields2) = match (self, target) {
             (PlaceNode::Deref(_, node1), PlaceNode::Deref(_, node2)) => {
@@ -719,7 +862,7 @@ impl PlaceNode {
                 return;
             }
             (_, PlaceNode::Ty(_)) => {
-                stmts.insert(GhostStatement::Fold(place.clone()));
+                stmts.push(FoldUnfold::Fold(place.clone()));
                 return;
             }
             _ => tracked_span_bug!("{self:?} {target:?}"),
@@ -731,12 +874,12 @@ impl PlaceNode {
         }
     }
 
-    fn collect_unfolds(&self, place: &mut Place, stmts: &mut StatementsAt) {
+    fn collect_unfolds(&self, place: &mut Place, stmts: &mut Vec<FoldUnfold>) {
         match self {
             PlaceNode::Ty(_) => {}
             PlaceNode::Deref(_, node) => {
                 if node.is_ty() {
-                    stmts.insert(GhostStatement::Unfold(place.clone()));
+                    stmts.push(FoldUnfold::Unfold(place.clone()));
                 } else {
                     place.projection.push(PlaceElem::Deref);
                     node.collect_unfolds(place, stmts);
@@ -749,7 +892,7 @@ impl PlaceNode {
             | PlaceNode::Tuple(.., fields) => {
                 let all_leaves = fields.iter().all(PlaceNode::is_ty);
                 if all_leaves {
-                    stmts.insert(GhostStatement::Unfold(place.clone()));
+                    stmts.push(FoldUnfold::Unfold(place.clone()));
                 } else {
                     if let Some(idx) = self.enum_variant() {
                         place.projection.push(PlaceElem::Downcast(None, idx));
@@ -767,12 +910,12 @@ impl PlaceNode {
         }
     }
 
-    fn collect_folds_at_ret(&self, place: &mut Place, stmts: &mut StatementsAt) {
+    fn collect_folds_at_ret(&self, place: &mut Place, stmts: &mut Vec<FoldUnfold>) {
         let fields = match self {
             PlaceNode::Deref(ty, deref_ty) => {
                 place.projection.push(PlaceElem::Deref);
                 if ty.is_mut_ref() {
-                    stmts.insert(GhostStatement::Fold(place.clone()));
+                    stmts.push(FoldUnfold::Fold(place.clone()));
                 } else if ty.is_box() {
                     deref_ty.collect_folds_at_ret(place, stmts);
                 }

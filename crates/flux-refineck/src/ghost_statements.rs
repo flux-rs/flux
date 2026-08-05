@@ -21,7 +21,8 @@ use rustc_middle::{
 };
 
 type LocationMap = UnordMap<Location, Vec<GhostStatement>>;
-type EdgeMap = UnordMap<BasicBlock, FxHashMap<BasicBlock, Vec<GhostStatement>>>;
+type EdgeTargets = FxHashMap<BasicBlock, Vec<GhostStatement>>;
+type EdgeMap = UnordMap<BasicBlock, EdgeTargets>;
 
 /// A type to indicate _who_ the ghost statements are for: either a regular `DefId` (including closures)  a promoted body.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -101,12 +102,6 @@ impl GhostStatements {
         };
 
         bug::track_span(body.span(), || {
-            let mut stmts = Self {
-                at_start: Default::default(),
-                at_location: LocationMap::default(),
-                at_edge: EdgeMap::default(),
-            };
-
             // We have fn_sig for function items, but not for closures, generators, statics, or promoteds.
             let fn_sig =
                 if matches!(genv.def_kind(def_id), DefKind::Closure | DefKind::Static { .. })
@@ -117,7 +112,8 @@ impl GhostStatements {
                     Some(genv.fn_sig(def_id)?)
                 };
 
-            fold_unfold::add_ghost_statements(&mut stmts, genv, body, fn_sig.as_ref())?;
+            let fold_unfolds = fold_unfold::run(genv, body, fn_sig.as_ref())?;
+            let mut stmts = Self::from_fold_unfolds(fold_unfolds);
             points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
             // We only add unblock statements for the main body because borrows in promoted constants
             // have to be live in the main body so they never go out of scope in the promoted body.
@@ -131,6 +127,30 @@ impl GhostStatements {
 
             Ok(stmts)
         })
+    }
+
+    /// Lowers the output of the fold/unfold analysis into ghost statements. This runs before the
+    /// points-to analysis, so its statements come first at every [`Point`], as they did when
+    /// `fold_unfold` wrote into [`GhostStatements`] directly.
+    fn from_fold_unfolds(fold_unfolds: fold_unfold::FoldUnfolds) -> Self {
+        let fold_unfold::FoldUnfolds { at_start, at_location, at_edge } = fold_unfolds;
+        Self {
+            at_start: at_start.into_iter().map(GhostStatement::from).collect(),
+            at_location: at_location
+                .into_items()
+                .filter(|(_, stmts)| !stmts.is_empty())
+                .map(|(location, stmts)| {
+                    (location, stmts.into_iter().map(GhostStatement::from).collect())
+                })
+                .collect(),
+            at_edge: at_edge
+                .into_items()
+                .filter_map(|(bb, out_edges)| {
+                    let targets = out_edges.into_target_map();
+                    (!targets.is_empty()).then_some((bb, targets))
+                })
+                .collect(),
+        }
     }
 
     fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body_root: &BodyRoot<'tcx>) {
@@ -188,10 +208,6 @@ impl GhostStatements {
                     .extend(stmts);
             }
         }
-    }
-
-    fn at(&mut self, point: Point) -> StatementsAt<'_> {
-        StatementsAt { stmts: self, point }
     }
 
     pub(crate) fn statements_at(&self, point: Point) -> impl Iterator<Item = &GhostStatement> {
@@ -259,17 +275,6 @@ pub(crate) enum Point {
     BeforeLocation(Location),
     /// An edge between two basic blocks.
     Edge(BasicBlock, BasicBlock),
-}
-
-struct StatementsAt<'a> {
-    stmts: &'a mut GhostStatements,
-    point: Point,
-}
-
-impl StatementsAt<'_> {
-    fn insert(&mut self, stmt: GhostStatement) {
-        self.stmts.insert_at(self.point, stmt);
-    }
 }
 
 fn all_nested_bodies(tcx: TyCtxt, def_id: LocalDefId) -> impl Iterator<Item = LocalDefId> {
