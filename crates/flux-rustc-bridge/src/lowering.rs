@@ -277,9 +277,9 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                         .emit(self.sess)?,
                 )
             }
-            rustc_mir::StatementKind::Nop
-            | rustc_mir::StatementKind::StorageLive(_)
-            | rustc_mir::StatementKind::StorageDead(_) => StatementKind::Nop,
+            rustc_mir::StatementKind::Nop => StatementKind::Nop,
+            rustc_mir::StatementKind::StorageLive(local) => StatementKind::StorageLive(*local),
+            rustc_mir::StatementKind::StorageDead(local) => StatementKind::StorageDead(*local),
             rustc_mir::StatementKind::AscribeUserType(
                 deref!((place, rustc_mir::UserTypeProjection { projs, .. })),
                 variance,

@@ -343,6 +343,8 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
             | StatementKind::FakeRead(_)
             | StatementKind::AscribeUserType(_, _)
             | StatementKind::PlaceMention(_)
+            | StatementKind::StorageLive(_)
+            | StatementKind::StorageDead(_)
             | StatementKind::Nop => {}
         }
         Ok(())

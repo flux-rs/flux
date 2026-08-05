@@ -253,6 +253,8 @@ pub enum StatementKind<'tcx> {
     AscribeUserType(Place, Variance),
     Intrinsic(NonDivergingIntrinsic<'tcx>),
     PlaceMention(Place),
+    StorageLive(Local),
+    StorageDead(Local),
     Nop,
 }
 
@@ -421,6 +423,14 @@ impl Statement<'_> {
     pub fn is_nop(&self) -> bool {
         matches!(self.kind, StatementKind::Nop)
     }
+
+    /// Whether this statement has no effect on the refinement environment.
+    pub fn is_inert(&self) -> bool {
+        matches!(
+            self.kind,
+            StatementKind::Nop | StatementKind::StorageLive(_) | StatementKind::StorageDead(_)
+        )
+    }
 }
 
 impl<'tcx> BodyRoot<'tcx> {
@@ -570,6 +580,8 @@ impl fmt::Debug for Statement<'_> {
             StatementKind::PlaceMention(place) => {
                 write!(f, "PlaceMention({place:?})")
             }
+            StatementKind::StorageLive(local) => write!(f, "StorageLive({local:?})"),
+            StatementKind::StorageDead(local) => write!(f, "StorageDead({local:?})"),
             StatementKind::SetDiscriminant(place, variant_idx) => {
                 write!(f, "discriminant({place:?}) = {variant_idx:?}")
             }

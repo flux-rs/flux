@@ -510,7 +510,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 dbg::statement!("end", stmt, &infcx, &env, span, &self);
                 Ok(())
             })?;
-            if !stmt.is_nop() {
+            if !stmt.is_inert() {
                 last_stmt_span = Some(span);
             }
             location = location.successor_within_block();
@@ -585,6 +585,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Place mentions are a no-op used to detect uses of unsafe that would
                 // otherwise be optimized away.
             }
+            StatementKind::StorageLive(_) | StatementKind::StorageDead(_) => {
+                // Storage transitions are delivered to the environment via ghost statements.
+            }
             StatementKind::Nop => {}
             StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) => {
                 // Currently, we only have the `assume` intrinsic, which if we're to trust rustc should be a NOP.
@@ -600,7 +603,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn is_exit_block(&self, bb: BasicBlock) -> bool {
         let data = &self.body.basic_blocks[bb];
-        let is_no_op = data.statements.iter().all(Statement::is_nop);
+        let is_no_op = data.statements.iter().all(Statement::is_inert);
         let is_ret = match &data.terminator {
             None => false,
             Some(term) => term.is_return(),
