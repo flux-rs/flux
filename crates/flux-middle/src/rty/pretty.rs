@@ -312,13 +312,19 @@ struct IdxFmt(Expr);
 impl PrettyNested for IdxFmt {
     fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
         let kind = self.0.kind();
-        match kind {
-            ExprKind::Ctor(ctor, flds) => aggregate_nested(cx, ctor, flds, false),
+        let nested = match kind {
+            ExprKind::Ctor(ctor, flds) => aggregate_nested(cx, ctor, flds, false)?,
             ExprKind::Tuple(flds) if flds.is_empty() => {
-                Ok(NestedString { text: String::new(), key: None, children: None })
+                NestedString { text: String::new(), key: None, children: None }
             }
-            ExprKind::Var(Var::Free(name)) => name.fmt_nested(cx),
-            _ => self.0.fmt_nested(cx),
+            ExprKind::Var(Var::Free(name)) => name.fmt_nested(cx)?,
+            _ => self.0.fmt_nested(cx)?,
+        };
+        // Mirror `Pretty for IdxFmt` and wrap a non-empty index in brackets, e.g. `usize[n]`
+        if nested.text.is_empty() {
+            Ok(nested)
+        } else {
+            Ok(NestedString { text: format!("[{}]", nested.text), ..nested })
         }
     }
 }
