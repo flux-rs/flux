@@ -1771,14 +1771,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
             CastKind::PtrToPtr => {
+                // A `*const T` to `*mut U` cast changes how the pointed-to bytes are
+                // interpreted, but preserves the `base`/`addr`/`size` fields indexing a
+                // raw pointer which are independent of the pointee type.
+                // All (pointee) type-dependent obligations re size and alignment will be
+                // re-checked at the point of *use* with the new pointee.
                 match (from.kind(), to.kind()) {
                     (
-                        TyKind::Indexed(BaseTy::RawPtr(from_inner_ty, _), idx),
+                        TyKind::Indexed(BaseTy::RawPtr(_, _), idx),
                         RustTy::RawPtr(to_inner_ty, to_mutbl),
-                    ) if from_inner_ty.to_rustc(self.genv.tcx())
-                        == to_inner_ty.to_rustc(self.genv.tcx()) =>
-                    {
-                        Ty::indexed(BaseTy::RawPtr(from_inner_ty.clone(), *to_mutbl), idx.clone())
+                    ) => {
+                        let inner_ty = self.refine_default(to_inner_ty)?;
+                        Ty::indexed(BaseTy::RawPtr(inner_ty, *to_mutbl), idx.clone())
                     }
                     _ => self.refine_default(to)?,
                 }

@@ -161,6 +161,72 @@ pub fn test_offset_from_unsigned_mut(buf: &mut [i32; 4]) {
 }
 
 
+// --- ptr-to-ptr casts ---
+//
+// A cast changes how the pointed-to bytes are interpreted, but not the address or
+// the extent of the allocation, so the `base`/`addr`/`size` index carries over to
+// the casted pointer. The type-dependent obligations (`valid`, `aligned_to`) are
+// re-checked at each use against the *new* pointee.
+
+// Narrowing: `size >= 4` is more than enough for a 1-byte read.
+#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}))]
+pub fn test_cast_narrow_read(ptr: *const i32) {
+    let byte_ptr = ptr as *const u8;
+    unsafe {
+        let _b = std::ptr::read(byte_ptr);
+    }
+}
+
+// Widening: reading an `i64` needs 8 bytes and 8-byte alignment, both of which the
+// preserved index supplies.
+#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 8 && addr % 8 == 0}))]
+pub fn test_cast_widen_read(ptr: *const i32) {
+    let wide_ptr = ptr as *const i64;
+    unsafe {
+        let _v = std::ptr::read(wide_ptr);
+    }
+}
+
+// The preserved `size` supports byte-level arithmetic on the casted pointer:
+// `byte_add(3)` stays inside the 4 bytes of the original `i32`.
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}))]
+pub fn test_cast_byte_add_write(ptr: *mut i32) {
+    let byte_ptr = ptr as *mut u8;
+    unsafe {
+        std::ptr::write(byte_ptr.byte_add(3), 255);
+    }
+}
+
+// Round trip: the index survives both casts, so the final write is still known to
+// be in bounds and properly aligned.
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}))]
+pub fn test_cast_round_trip(ptr: *mut i32) {
+    let byte_ptr = ptr as *mut u8;
+    let int_ptr = byte_ptr as *mut i32;
+    unsafe {
+        std::ptr::write(int_ptr, 10);
+    }
+}
+
+// Mutability change and pointee change at once.
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}))]
+pub fn test_cast_mut_to_const(ptr: *mut i32) {
+    let byte_ptr = ptr as *const u8;
+    unsafe {
+        let _b = std::ptr::read(byte_ptr);
+    }
+}
+
+// Through a real allocation: `as_ptr` gives `size == 4 * 4`, and the cast to
+// `*const u8` keeps it, so the last byte of the array is readable.
+pub fn test_cast_slice_bytes(buf: &[i32; 4]) {
+    let ptr = buf.as_ptr();
+    let byte_ptr = ptr as *const u8;
+    unsafe {
+        let _b = std::ptr::read(byte_ptr.byte_add(15));
+    }
+}
+
 pub fn ref_to_ptr_read(z: i32) -> i32 {
     unsafe { std::ptr::read(&z) }
 }
