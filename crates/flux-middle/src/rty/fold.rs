@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
-    rty::{BoundReft, BoundRegion, Var, VariantSig, expr::HoleKind},
+    rty::{BoundReft, BoundReftKind, BoundRegion, Var, VariantSig, expr::HoleKind},
 };
 
 pub trait TypeVisitor: Sized {
@@ -506,6 +506,37 @@ pub trait TypeFoldable: TypeVisitable {
             }
         }
         self.fold_with(&mut Shifter { amount, current_index: INNERMOST })
+    }
+
+    /// Replaces each `Var::Free(names[i])` with variable `i` of the innermost binder. Inverse of
+    /// [`Binder::replace_bound_refts`]. The caller must shift `self` in to make room for the
+    /// binder and wrap the result, e.g., with [`Binder::rebind`].
+    fn close_over(&self, names: &[Name]) -> Self {
+        struct Closer<'a> {
+            names: &'a [Name],
+            current_index: DebruijnIndex,
+        }
+
+        impl TypeFolder for Closer<'_> {
+            fn enter_binder(&mut self, _: &BoundVariableKinds) {
+                self.current_index.shift_in(1);
+            }
+
+            fn exit_binder(&mut self) {
+                self.current_index.shift_out(1);
+            }
+
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::Var(Var::Free(name)) = expr.kind()
+                    && let Some(idx) = self.names.iter().position(|n| n == name)
+                {
+                    Expr::bvar(self.current_index, BoundVar::from_usize(idx), BoundReftKind::Anon)
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+        self.fold_with(&mut Closer { names, current_index: INNERMOST })
     }
 
     fn shift_out_escaping(&self, amount: u32) -> Self {

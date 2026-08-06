@@ -11,6 +11,7 @@ use flux_middle::{
     rty::{
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, FIRST_VARIANT, GenericArg, GenericArgsExt, List,
         Loc, Mutability, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig,
+        canonicalize::{Hoister, LocalHoister},
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
     },
 };
@@ -876,6 +877,64 @@ fn downcast_enum(
     Ok(variant_sig.fields.to_vec())
 }
 
+/// A field of an aggregate can be *blocked* if there's a live mutable borrow into it, e.g., after
+/// `let r = &mut s.f`. To fold `s` back we use the *guard* of the borrow, i.e., the bound `r` is
+/// allowed to write back, as the type of the field.
+///
+/// The guards are *not* unpacked into the enclosing refinement context, which would leave both the
+/// fresh names and the guards themselves in scope for everything checked after the fold. Instead
+/// they are opened in a branch of the refinement tree, used to build the aggregate, and then closed
+/// back into a binder on the resulting type. So folding
+/// ```text
+/// Foo { foo: usize[a], bar: †usize{v: a <= v} }
+/// ```
+/// checks `Foo`'s invariants under a local `∀b. a <= b ⇒ …` and yields
+/// ```text
+/// †∃b. { Foo[a, b] | a <= b }
+/// ```
+/// The result stays blocked because the borrow is still live.
+///
+/// `mk` builds the aggregate from the opened fields; it is where field subtyping and the
+/// aggregate's invariants get checked.
+fn fold_guarded(
+    infcx: &mut InferCtxtAt,
+    fields: &[Ty],
+    mk: impl FnOnce(&mut InferCtxtAt, &[Ty]) -> QueryResult<Ty>,
+) -> QueryResult<Ty> {
+    let span = infcx.span;
+
+    // Hoist the fields into a binder. Unblocking first is what picks up the guards; the other
+    // fields go through the same path so there's one uniform notion of "the fields, opened".
+    let mut delegate = LocalHoister::default();
+    let opened = {
+        let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
+        fields
+            .iter()
+            // Shift to make room for the binder `bind` introduces. Undone by `replace_bound_refts`.
+            .map(|ty| hoister.hoist(&ty.unblocked().shift_in_escaping(1)))
+            .collect::<List<Ty>>()
+    };
+    let poly = delegate.bind(|_, preds| (opened, Expr::and_from_iter(preds)));
+
+    let mut branch = infcx.branch();
+    let names = branch.define_bound_reft_vars(poly.vars());
+    let exprs = names.iter().copied().map(Expr::fvar).collect_vec();
+    let (fields, guard) = poly.replace_bound_refts(&exprs);
+
+    for ty in &fields {
+        branch.assume_invariants(ty);
+    }
+    // Assumed *locally* so the aggregate's invariants can be discharged against the guards. The
+    // branch is dropped on return, so the guards travel in the type instead, as the `Ty::constr`.
+    branch.assume_pred(guard.clone());
+
+    let ty = Ty::constr(guard, mk(&mut branch.at(span), &fields)?);
+    Ok(Ty::blocked(
+        poly.rebind(ty.shift_in_escaping(1).close_over(&names))
+            .to_ty(),
+    ))
+}
+
 fn fold(
     bindings: &mut PlacesTree,
     infcx: &mut InferCtxtAt,
@@ -908,13 +967,20 @@ fn fold(
                     .map(|ty| fold(bindings, infcx, ty, is_strg))
                     .try_collect_vec()?;
 
+                let mk = |infcx: &mut InferCtxtAt, fields: &[Ty]| {
+                    Ok(infcx
+                        .check_constructor(variant_sig, args, fields, ConstrReason::Fold)
+                        .unwrap_or_else(|err| tracked_span_bug!("{err:?}")))
+                };
+
                 let partially_moved = fields.iter().any(Ty::is_uninit);
+                let guarded = fields.iter().any(Ty::is_blocked);
                 let ty = if partially_moved {
                     Ty::uninit()
+                } else if guarded {
+                    fold_guarded(infcx, &fields, mk)?
                 } else {
-                    infcx
-                        .check_constructor(variant_sig, args, &fields, ConstrReason::Fold)
-                        .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
+                    mk(infcx, &fields)?
                 };
 
                 Ok(ty)
@@ -930,8 +996,17 @@ fn fold(
                 .map(|ty| fold(bindings, infcx, ty, is_strg))
                 .try_collect_vec()?;
 
+            let mk = |_: &mut InferCtxtAt, fields: &[Ty]| Ok(Ty::tuple(fields.to_vec()));
+
             let partially_moved = fields.iter().any(Ty::is_uninit);
-            let ty = if partially_moved { Ty::uninit() } else { Ty::tuple(fields) };
+            let guarded = fields.iter().any(Ty::is_blocked);
+            let ty = if partially_moved {
+                Ty::uninit()
+            } else if guarded {
+                fold_guarded(infcx, &fields, mk)?
+            } else {
+                mk(infcx, &fields)?
+            };
             Ok(ty)
         }
         _ => Ok(ty.clone()),

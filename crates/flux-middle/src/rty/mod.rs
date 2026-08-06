@@ -1819,6 +1819,10 @@ impl Ty {
         matches!(self.kind(), TyKind::Uninit)
     }
 
+    pub fn is_blocked(&self) -> bool {
+        matches!(self.kind(), TyKind::Blocked(_))
+    }
+
     pub fn is_box(&self) -> bool {
         self.as_bty_skipping_existentials()
             .map(BaseTy::is_box)

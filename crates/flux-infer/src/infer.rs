@@ -520,6 +520,18 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.define_var(sort, NameProvenance::UnfoldBoundReft(kind))
     }
 
+    /// Define a variable for each variable in `vars`, e.g., to open a [`Binder`]. The returned
+    /// names are in the same order as `vars`, so the binder can be closed back up with
+    /// [`TypeFoldable::close_over`].
+    pub fn define_bound_reft_vars(&mut self, vars: &[rty::BoundVariableKind]) -> Vec<Name> {
+        vars.iter()
+            .map(|var| {
+                let (sort, _, kind) = var.expect_refine();
+                self.define_bound_reft_var(sort, kind)
+            })
+            .collect()
+    }
+
     pub fn define_unknown_var(&mut self, sort: &Sort) -> Name {
         self.cursor.define_var(sort, NameProvenance::Unknown)
     }
