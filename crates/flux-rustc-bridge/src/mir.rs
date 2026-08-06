@@ -13,7 +13,7 @@ use rustc_data_structures::{
     unord::UnordMap,
 };
 use rustc_hir::{self as hir, def_id::DefId};
-use rustc_index::IndexSlice;
+use rustc_index::{IndexSlice, bit_set::DenseBitSet};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::mir::{Promoted, VarDebugInfoContents, WithRetag};
 pub use rustc_middle::{
@@ -23,6 +23,7 @@ pub use rustc_middle::{
     },
     ty::{UserTypeAnnotationIndex, Variance},
 };
+use rustc_mir_dataflow::impls::always_storage_live_locals;
 use rustc_span::{Span, Symbol};
 
 use super::ty::{Const, GenericArg, GenericArgs, Region, Ty};
@@ -107,6 +108,10 @@ pub struct Body<'tcx> {
     facts: Rc<BodyWithBorrowckFacts<'tcx>>,
     /// Identifies which [`rustc_middle::mir::Body`] inside `facts` this body corresponds to.
     kind: BodyKind,
+    /// The locals without `StorageLive`/`StorageDead` annotations, i.e., the ones with storage for
+    /// the entire body. Computed once here because both the checker and the storage liveness
+    /// analysis need it and they must not disagree.
+    always_storage_live_locals: DenseBitSet<Local>,
 }
 
 /// Selects a particular [`rustc_middle::mir::Body`] within a [`BodyWithBorrowckFacts`].
@@ -474,6 +479,7 @@ impl<'tcx> Body<'tcx> {
                 }
             })
             .collect();
+        let always_storage_live_locals = always_storage_live_locals(rustc_body);
         Self {
             basic_blocks,
             local_decls,
@@ -482,7 +488,19 @@ impl<'tcx> Body<'tcx> {
             local_names,
             facts,
             kind,
+            always_storage_live_locals,
         }
+    }
+
+    /// Whether `local` has storage for the entire body, i.e., it has no `StorageLive`/`StorageDead`
+    /// annotations.
+    pub fn is_always_storage_live(&self, local: Local) -> bool {
+        self.always_storage_live_locals.contains(local)
+    }
+
+    /// See [`Body::is_always_storage_live`].
+    pub fn always_storage_live_locals(&self) -> &DenseBitSet<Local> {
+        &self.always_storage_live_locals
     }
 
     /// The unrefined [`rustc_middle::mir::Body`] backing this body. It still contains region

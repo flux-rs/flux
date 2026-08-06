@@ -126,7 +126,7 @@ impl GhostStatements {
             }
             // This must run last so that, at any point, a local is folded and unblocked before the
             // kill that removes it.
-            storage::add_ghost_statements(&mut stmts, genv.tcx(), body.rustc_body())?;
+            storage::add_ghost_statements(&mut stmts, genv.tcx(), body)?;
             stmts.dump_ghost_mir(genv.tcx(), body);
 
             Ok(stmts)
@@ -152,6 +152,18 @@ impl GhostStatements {
                     GhostStatement::Unblock(place)
                 });
             self.at_location.entry(location).or_default().extend(stmts);
+        }
+    }
+
+    /// Keep only the statements at `point` satisfying `f`.
+    fn retain_at(&mut self, point: Point, f: impl Fn(&GhostStatement) -> bool) {
+        let stmts = match point {
+            Point::FunEntry => Some(&mut self.at_start),
+            Point::BeforeLocation(location) => self.at_location.get_mut(&location),
+            Point::Edge(from, to) => self.at_edge.get_mut(&from).and_then(|m| m.get_mut(&to)),
+        };
+        if let Some(stmts) = stmts {
+            stmts.retain(f);
         }
     }
 

@@ -75,14 +75,19 @@ impl<'a> TypeEnv<'a> {
         for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
             let ty = infcx.unpack(ty);
             infcx.assume_invariants(&ty);
-            env.alloc_with_ty(local, ty);
+            env.init_with_ty(local, ty);
         }
 
+        // Locals with `StorageLive`/`StorageDead` annotations are dead on entry; they get a
+        // binding when the `Init` ghost statement at their `StorageLive` runs. This makes the
+        // domain of the environment agree with the storage liveness analysis at every point.
         for local in body.vars_and_temps_iter() {
-            env.alloc(local);
+            if body.is_always_storage_live(local) {
+                env.init(local);
+            }
         }
 
-        env.alloc(RETURN_PLACE);
+        env.init(RETURN_PLACE);
         env
     }
 
@@ -90,14 +95,23 @@ impl<'a> TypeEnv<'a> {
         TypeEnv { bindings: PlacesTree::default(), local_decls: IndexSlice::empty() }
     }
 
-    fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
+    /// A local enters scope with a known type. Used for the arguments at function entry.
+    fn init_with_ty(&mut self, local: Local, ty: Ty) {
         let ty = ty_match_regions(&ty, &self.local_decls[local].ty);
         self.bindings.insert(local.into(), LocKind::Local, ty);
     }
 
-    fn alloc(&mut self, local: Local) {
+    /// A local enters scope: it gets an uninitialized binding.
+    pub(crate) fn init(&mut self, local: Local) {
         self.bindings
             .insert(local.into(), LocKind::Local, Ty::uninit());
+    }
+
+    /// A local leaves scope: its binding is removed, not set to uninitialized. A storage-dead
+    /// local has no location to speak of, and keeping a binding for it makes the domain of this
+    /// environment disagree with `fold_unfold`'s at joins.
+    pub(crate) fn kill(&mut self, local: Local) {
+        self.bindings.remove_local(&local.into());
     }
 
     pub(crate) fn into_infer(self, scope: Scope) -> BasicBlockEnvShape {

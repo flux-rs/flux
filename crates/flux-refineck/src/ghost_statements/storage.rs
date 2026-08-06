@@ -28,17 +28,17 @@
 //!
 //! bb3: { ... }                        // so it has no binding here, either way
 //! ```
+use std::borrow::Cow;
+
+use flux_common::tracked_span_bug;
 use flux_middle::queries::QueryResult;
+use flux_rustc_bridge::mir::{Body, PlaceElem};
 use rustc_index::{IndexSlice, bit_set::DenseBitSet};
 use rustc_middle::{
     mir::{self, BasicBlock, Local, traversal},
     ty::TyCtxt,
 };
-use rustc_mir_dataflow::{
-    Analysis, ResultsVisitor,
-    impls::{MaybeStorageDead, always_storage_live_locals},
-    visit_results,
-};
+use rustc_mir_dataflow::{Analysis, ResultsVisitor, impls::MaybeStorageDead, visit_results};
 
 use super::GhostStatements;
 use crate::ghost_statements::{GhostStatement, Point};
@@ -46,19 +46,19 @@ use crate::ghost_statements::{GhostStatement, Point};
 pub(crate) fn add_ghost_statements<'tcx>(
     stmts: &mut GhostStatements,
     tcx: TyCtxt<'tcx>,
-    body: &mir::Body<'tcx>,
+    body: &Body<'tcx>,
 ) -> QueryResult {
-    let always_live_locals = always_storage_live_locals(body);
-    let results = MaybeStorageDead::new(std::borrow::Cow::Owned(always_live_locals))
-        .iterate_to_fixpoint(tcx, body, None);
+    let rustc_body = body.rustc_body();
+    let results = MaybeStorageDead::new(Cow::Borrowed(body.always_storage_live_locals()))
+        .iterate_to_fixpoint(tcx, rustc_body, None);
     let mut visitor = CollectStorageEvents {
         stmts,
         entry_states: &results.entry_states,
-        before: DenseBitSet::new_empty(body.local_decls.len()),
+        before: DenseBitSet::new_empty(rustc_body.local_decls.len()),
     };
-    for (bb, _) in traversal::reachable(body) {
+    for (bb, _) in traversal::reachable(rustc_body) {
         visitor.before.clone_from(&results.entry_states[bb]);
-        visit_results(body, [bb], &results, &mut visitor);
+        visit_results(rustc_body, [bb], &results, &mut visitor);
     }
 
     Ok(())
@@ -111,6 +111,40 @@ fn difference<'a>(
     new.iter().filter(|local| !old.contains(*local))
 }
 
+impl CollectStorageEvents<'_> {
+    /// Drop the [`GhostStatement::Unblock`]s at `point` whose place is rooted at a local that is
+    /// already dead.
+    ///
+    /// `PlacesTree::unblock` walks *through* the root local, which requires its binding to still be
+    /// a `Ptr` to the blocked place, and a dead local has no binding at all. Rustc lets a reborrow
+    /// outlive the storage of the reference it was taken through (a shallow access to the pointer
+    /// can't touch anything behind it), so this is not a rare shape.
+    ///
+    /// The place still gets unblocked, by the `Unblock` of the borrow the dead local was reborrowed
+    /// from: a local we kill is never an argument, so its `Ptr` came from a borrow in this body,
+    /// and that borrow's place is rooted either at a local that is still live --- it survives, and
+    /// since the original borrow outlives the reborrow it fires no earlier than this point --- or
+    /// at another dying local, whose kill removes its binding and the block inside it altogether.
+    ///
+    /// That argument covers the *whole* place the dead local pointed to, so it only holds for a
+    /// bare deref. For a deeper place the surviving unblock is coarser than the one dropped here
+    /// (`Ty::unblocked` strips a `Blocked` only at the cursor, not nested under it) and the block
+    /// would leak, hence the bug below rather than a silent drop.
+    fn drop_unblocks_of_dead_locals(&mut self, point: Point) {
+        let dead = &self.before;
+        self.stmts.retain_at(point, |stmt| {
+            let GhostStatement::Unblock(place) = stmt else { return true };
+            if !dead.contains(place.local) {
+                return true;
+            }
+            if !matches!(&place.projection[..], [] | [PlaceElem::Deref]) {
+                tracked_span_bug!("unblock of dead local through a projection {place:?}");
+            }
+            false
+        });
+    }
+}
+
 impl<'tcx> ResultsVisitor<'tcx, MaybeStorageDead<'_>> for CollectStorageEvents<'_> {
     fn visit_after_primary_statement_effect(
         &mut self,
@@ -121,6 +155,7 @@ impl<'tcx> ResultsVisitor<'tcx, MaybeStorageDead<'_>> for CollectStorageEvents<'
         let point = Point::BeforeLocation(location);
         // The state is the set of *dead* locals, so a local entering the set is dying and a local
         // leaving it is coming into scope.
+        self.drop_unblocks_of_dead_locals(point);
         for local in difference(state, &self.before) {
             self.stmts.insert_at(point, GhostStatement::Kill(local));
         }
@@ -136,6 +171,7 @@ impl<'tcx> ResultsVisitor<'tcx, MaybeStorageDead<'_>> for CollectStorageEvents<'
         terminator: &mir::Terminator<'tcx>,
         location: mir::Location,
     ) {
+        self.drop_unblocks_of_dead_locals(Point::BeforeLocation(location));
         let block = location.block;
         for target in dataflow_successors(terminator) {
             let target_state = &self.entry_states[target];
