@@ -135,7 +135,15 @@ impl PlacesTree {
     pub fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place) {
         let mut cursor = self.cursor_for(place);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
-        while let Some(elem) = cursor.next() {
+        loop {
+            // `fold_guarded` blocks an entire aggregate to block one of its fields, so the block
+            // can sit above `place`. Unblock the aggregate: everything below is inaccessible
+            // anyway, and the projections past it wouldn't traverse a `Blocked`.
+            if ty.is_blocked() {
+                cursor.truncate();
+                break;
+            }
+            let Some(elem) = cursor.next() else { break };
             match elem {
                 PlaceElem::Deref => {
                     if let TyKind::Ptr(_, path) = ty.kind() {
@@ -762,6 +770,13 @@ impl Cursor {
         } else {
             None
         }
+    }
+
+    /// Drops the elements not yet consumed, so a [`Cursor::reset`] replays only the path walked
+    /// so far.
+    fn truncate(&mut self) {
+        self.proj.drain(..self.pos);
+        self.pos = 0;
     }
 
     fn is_exhausted(&self) -> bool {
