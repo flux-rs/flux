@@ -1964,6 +1964,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             GhostStatement::PtrToRef(place) => {
                 env.ptr_to_ref_at_place(&mut infcx.at(span), place)?;
             }
+            GhostStatement::Init(_) | GhostStatement::Kill(_) => {
+                // TODO: the environment doesn't track storage liveness yet.
+            }
         }
         dbg::statement!("end", stmt, infcx, env, span, &self);
         Ok(())

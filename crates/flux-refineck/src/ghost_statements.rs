@@ -2,6 +2,7 @@
 //! extracted from the compiler or some additional analysis.
 mod fold_unfold;
 mod points_to;
+mod storage;
 
 use std::{fmt, iter};
 
@@ -15,7 +16,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_middle::{
-    mir::{BorrowKind, Location, Promoted, START_BLOCK},
+    mir::{BorrowKind, Local, Location, Promoted, START_BLOCK},
     ty::TyCtxt,
 };
 
@@ -65,6 +66,10 @@ pub(crate) enum GhostStatement {
     Unfold(Place),
     Unblock(Place),
     PtrToRef(Place),
+    /// A local enters scope: insert an uninitialized binding for it.
+    Init(Local),
+    /// A local leaves scope: remove its binding.
+    Kill(Local),
 }
 
 impl fmt::Debug for GhostStatement {
@@ -74,6 +79,8 @@ impl fmt::Debug for GhostStatement {
             GhostStatement::Unfold(place) => write!(f, "unfold({place:?})"),
             GhostStatement::Unblock(place) => write!(f, "unblock({place:?})"),
             GhostStatement::PtrToRef(place) => write!(f, "ptr_to_ref({place:?})"),
+            GhostStatement::Init(local) => write!(f, "init({local:?})"),
+            GhostStatement::Kill(local) => write!(f, "kill({local:?})"),
         }
     }
 }
@@ -117,6 +124,9 @@ impl GhostStatements {
             if !checker_id.is_promoted() {
                 stmts.add_unblocks(genv.tcx(), &body_root);
             }
+            // This must run last so that, at any point, a local is folded and unblocked before the
+            // kill that removes it.
+            storage::add_ghost_statements(&mut stmts, genv.tcx(), body.rustc_body())?;
             stmts.dump_ghost_mir(genv.tcx(), body);
 
             Ok(stmts)
