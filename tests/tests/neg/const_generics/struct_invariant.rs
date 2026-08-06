@@ -22,5 +22,5 @@ pub fn bar<const N: usize>(x: usize, _mpu: MPUGOOD<N>) {
 pub fn baz<const N: usize>() -> i32 {
   let mpu = MPUGOOD::<N> { field: 12 }; //~ ERROR refinement type
   mpu.field
-}
+} //~ ERROR type invariant
 

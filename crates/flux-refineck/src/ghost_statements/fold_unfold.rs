@@ -339,12 +339,19 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
             StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) => {
                 self.operand(op, env)?;
             }
+            StatementKind::StorageLive(local) | StatementKind::StorageDead(local) => {
+                // Project the bare local to reset its `PlaceNode` to `Ty`. A local must be folded
+                // whole before it dies, or the checker's `kill` would orphan anything hanging off
+                // it (most concretely the contents of a `Box`, which live in a separate `Loc`).
+                // Going through `M::projection` (instead of assigning the node directly) is what
+                // emits the `Fold` the checker needs. A `StorageLive` on an already-live local is
+                // legal mir that implicitly kills it first, so it gets the same treatment.
+                M::projection(self, env, &Place::new(*local, vec![]))?;
+            }
             StatementKind::SetDiscriminant(_, _)
             | StatementKind::FakeRead(_)
             | StatementKind::AscribeUserType(_, _)
             | StatementKind::PlaceMention(_)
-            | StatementKind::StorageLive(_)
-            | StatementKind::StorageDead(_)
             | StatementKind::Nop => {}
         }
         Ok(())
