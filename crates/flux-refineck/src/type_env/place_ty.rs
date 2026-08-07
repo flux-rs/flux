@@ -171,7 +171,13 @@ impl PlacesTree {
         cursor.reset();
         Updater::update(self, cursor, |_, ty| {
             let unblocked = ty.unblocked();
-            infcx.hoister(true).hoist(&unblocked)
+            let hoisted = infcx.hoister(true).hoist(&unblocked);
+            // SPIKE(blocked-ensures): a block introduced by an `ensures` clause carries a type
+            // that came from the callee's signature, so its invariants were never assumed. For
+            // blocks introduced by `ptr_to_ref` this is redundant (the bound is derived from a
+            // type already in scope) but harmless.
+            infcx.assume_invariants(&hoisted);
+            hoisted
         });
     }
 
@@ -352,6 +358,16 @@ impl PlacesTree {
         for (loc, binding) in &self.map {
             go(loc, &binding.kind, &binding.ty, &mut vec![], &mut f);
         }
+    }
+
+    /// Whether `path` is rooted at a synthetic [`LocKind::LocalPtr`] location, i.e. one created by
+    /// [`TypeEnv::unfold_local_ptr`] to give a `&strg` view of a weak `&mut` across a call.
+    ///
+    /// [`TypeEnv::unfold_local_ptr`]: super::TypeEnv::unfold_local_ptr
+    pub(crate) fn is_local_ptr(&self, path: &Path) -> bool {
+        self.map
+            .get(&path.loc)
+            .is_some_and(|binding| matches!(binding.kind, LocKind::LocalPtr(_)))
     }
 
     pub(crate) fn get_loc(&self, loc: &Loc) -> &Binding {

@@ -813,7 +813,11 @@ pub trait LocEnv {
         for constraint in ensures {
             match constraint {
                 rty::Ensures::Type(path, ty) => {
-                    let actual_ty = self.get(path).unblocked(); // HACK
+                    // SPIKE(blocked-ensures): stripping the block here is now *justified* rather
+                    // than a hack. The obligation is that the contents are a subtype of `ty`; the
+                    // caller only ever receives the place blocked, so it cannot use the value
+                    // until the outstanding borrow dies.
+                    let actual_ty = self.get(path).unblocked();
                     at.subtyping(&actual_ty, ty, reason)?;
                 }
                 rty::Ensures::Pred(e) => {

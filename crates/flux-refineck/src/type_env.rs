@@ -18,9 +18,9 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
-        BaseTy, Binder, BoundReftKind, BoundVariableKind, Ctor, Expr, ExprKind, FnOutput, FnSig,
-        GenericArg, HoleKind, INNERMOST, Lambda, List, Loc, Mutability, Path, PolyFnSig, PtrKind,
-        Region, SortCtor, SubsetTy, SubsetTyCtor, Ty, TyKind, VariantIdx,
+        BaseTy, Binder, BoundReftKind, BoundVariableKind, Ctor, Ensures, Expr, ExprKind, FnOutput,
+        FnSig, GenericArg, HoleKind, INNERMOST, Lambda, List, Loc, Mutability, Path, PolyFnSig,
+        PtrKind, Region, SortCtor, SubsetTy, SubsetTyCtor, Ty, TyKind, VariantIdx,
         canonicalize::{Hoister, LocalHoister},
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
@@ -431,6 +431,33 @@ impl flux_infer::infer::LocEnv for TypeEnv<'_> {
 
     fn update_path(&mut self, path: &Path, new_ty: Ty, span: Span) {
         self.update_path(path, new_ty, span);
+    }
+
+    fn assume_ensures(&mut self, infcx: &mut InferCtxt, ensures: &[Ensures], span: Span) {
+        for ensure in ensures {
+            match ensure {
+                Ensures::Type(path, updated_ty) => {
+                    // SPIKE(blocked-ensures): the caller gets the place back *blocked*: any
+                    // borrow the callee handed out may still be live. The `Unblock` ghost
+                    // statement emitted for that borrow (see `GhostStatements::add_unblocks`)
+                    // is what hands over real ownership, and it is what unpacks the type and
+                    // assumes its invariants.
+                    //
+                    // A `LocalPtr` location is synthetic: it exists only to give a `&strg` view
+                    // of a weak `&mut` for the duration of the call, and `fold_local_ptrs` folds
+                    // it back immediately. There is no caller-side place for it, so no `Unblock`
+                    // will ever fire; blocking it would strand the binding.
+                    if self.bindings.is_local_ptr(path) {
+                        let updated_ty = infcx.unpack(updated_ty);
+                        infcx.assume_invariants(&updated_ty);
+                        self.update_path(path, updated_ty, span);
+                    } else {
+                        self.update_path(path, Ty::blocked(updated_ty.clone()), span);
+                    }
+                }
+                Ensures::Pred(e) => infcx.assume_pred(e),
+            }
+        }
     }
 }
 
