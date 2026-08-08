@@ -1447,6 +1447,7 @@ pub enum Ensures {
 pub struct Qualifier {
     pub def_id: FluxLocalDefId,
     pub body: Binder<Expr>,
+    pub wildcards: List<bool>,
     pub kind: QualifierKind,
 }
 

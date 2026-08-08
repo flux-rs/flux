@@ -1058,6 +1058,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     span: ident.span,
                     kind,
                     sort,
+                    is_wildcard: false,
                     fhir_id: self.next_fhir_id(),
                 }
             })
@@ -1086,6 +1087,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             span: param.ident.span,
             kind,
             sort: self.desugar_sort(&param.sort, None),
+            is_wildcard: param.is_wildcard,
             fhir_id: self.next_fhir_id(),
         }
     }
@@ -1256,6 +1258,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     span: bind.span,
                     sort: fhir::Sort::Infer,
                     kind,
+                    is_wildcard: false,
                     fhir_id: self.next_fhir_id(),
                 };
                 let path = fhir::PathExpr {

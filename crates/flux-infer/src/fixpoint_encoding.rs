@@ -2559,9 +2559,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Qualifier> {
         let (args, body) = self.body_to_fixpoint(&qualifier.body, scx)?;
         let name = qualifier.def_id.name().to_string();
-        let args = args
-            .into_iter()
-            .map(|(name, sort)| fixpoint::QualParam::new(name, sort))
+        // `body_to_fixpoint` returns args in `body.vars()` order, which is how `wildcards` is indexed.
+        debug_assert_eq!(args.len(), qualifier.wildcards.len());
+        let args = iter::zip(args, &qualifier.wildcards)
+            .map(|((name, sort), &is_wildcard)| fixpoint::QualParam { name, sort, is_wildcard })
             .collect();
         Ok(fixpoint::Qualifier { name, args, body })
     }

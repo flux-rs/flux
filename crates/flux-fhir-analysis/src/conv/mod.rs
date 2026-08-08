@@ -473,7 +473,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env.push_layer(Layer::list(self.results(), 0, qualifier.args));
         let body = self.conv_expr(&mut env, &qualifier.expr)?;
         let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(self.genv())?);
-        Ok(rty::Qualifier { def_id: qualifier.def_id, body, kind: qualifier.kind })
+        let wildcards: rty::List<bool> = qualifier
+            .args
+            .iter()
+            .map(|param| param.is_wildcard)
+            .collect();
+        debug_assert_eq!(wildcards.len(), body.vars().len());
+        Ok(rty::Qualifier { def_id: qualifier.def_id, body, wildcards, kind: qualifier.kind })
     }
 
     pub(crate) fn conv_defn(

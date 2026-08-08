@@ -924,6 +924,7 @@ pub struct RefineParam<'fhir> {
     pub span: Span,
     pub sort: Sort<'fhir>,
     pub kind: ParamKind,
+    pub is_wildcard: bool,
     pub fhir_id: FhirId,
 }
 
