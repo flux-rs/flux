@@ -36,6 +36,11 @@ fhir_analysis_expected_fun =
 fhir_analysis_unsupported_primop =
     properties for `{$op}` are not yet supported
 
+fhir_analysis_invalid_wildcard_sort =
+    wildcard parameter cannot have sort `{$found}`
+    .label = this parameter is marked as a wildcard with `#`
+    .note = a wildcard parameter is instantiated with literal constants, so its sort must be one that has literals: `int`, `real`, `str`, or a bit vector
+
 fhir_analysis_invalid_param_in_func_pos =
     illegal use of refinement parameter
     .label = {$is_pred ->
