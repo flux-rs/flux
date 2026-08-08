@@ -292,6 +292,7 @@ pub struct RefineParam {
     pub ident: Ident,
     pub sort: Sort,
     pub mode: Option<ParamMode>,
+    pub is_wildcard: bool,
     pub span: Span,
     pub node_id: NodeId,
 }
