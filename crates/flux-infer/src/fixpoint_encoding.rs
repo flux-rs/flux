@@ -2559,6 +2559,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Qualifier> {
         let (args, body) = self.body_to_fixpoint(&qualifier.body, scx)?;
         let name = qualifier.def_id.name().to_string();
+        let args = args
+            .into_iter()
+            .map(|(name, sort)| fixpoint::QualParam::new(name, sort))
+            .collect();
         Ok(fixpoint::Qualifier { name, args, body })
     }
 }
