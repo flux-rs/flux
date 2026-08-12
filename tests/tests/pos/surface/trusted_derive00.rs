@@ -1,26 +1,33 @@
-// Test that `#[flux::trusted_derive]` opts a type's derive-generated code out of checking.
+// Test that derive-generated code is skipped for types that trust their derives, either
+// implicitly via `#[flux::opaque]` or explicitly via `#[flux::trusted_derive]`.
 
-// The derived `Debug`/`Hash` read the internal representation of an opaque struct, which flux
-// cannot check. Derive-generated code can't be annotated directly, so the *type* opts out.
+// A `#[flux::opaque]` type implicitly trusts its derives: the derived `Debug`/`Hash` read the
+// internal representation, which is exactly what opacity forbids, so no annotation is needed.
 #[derive(Debug, Clone, Copy, Hash)]
+#[flux::opaque]
+#[flux::refined_by(n: int)]
+pub struct ImplicitlyTrusted(u32);
+
+// The explicit annotation is still accepted (and is what a non-opaque type would use).
+#[derive(Debug, Hash)]
 #[flux::opaque]
 #[flux::trusted_derive]
 #[flux::refined_by(n: int)]
-pub struct Opaque(u32);
+pub struct Explicit(u32);
 
-// Same, with a reason.
+// ... with a reason,
 #[derive(Debug, Hash)]
 #[flux::opaque]
 #[flux::trusted_derive(reason = "the derived code reads the opaque representation")]
 #[flux::refined_by(n: int)]
-pub struct OpaqueWithReason(u32);
+pub struct ExplicitWithReason(u32);
 
-// The explicit `yes` form is also accepted.
+// ... and with the explicit `yes`.
 #[derive(Debug, Hash)]
 #[flux::opaque]
 #[flux::trusted_derive(yes)]
 #[flux::refined_by(n: int)]
-pub struct OpaqueExplicitYes(u32);
+pub struct ExplicitYes(u32);
 
 // The attribute is accepted on enums too (`derive_self_ty` resolves any local ADT).
 #[derive(Debug, Hash)]
@@ -30,8 +37,7 @@ pub enum MyEnum {
     B,
 }
 
-// A type with no derives at all is unaffected by the attribute.
+// A type with no derives at all is unaffected.
 #[flux::opaque]
-#[flux::trusted_derive]
 #[flux::refined_by(n: int)]
 pub struct NoDerives(u32);

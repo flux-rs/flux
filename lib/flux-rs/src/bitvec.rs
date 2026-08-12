@@ -9,7 +9,6 @@ use flux_attrs::*;
 
 #[derive(Debug, Clone, Copy, Hash)]
 #[opaque]
-#[trusted_derive(reason = "the derived `Debug`/`Hash` read the opaque representation")]
 #[refined_by(x: bitvec<32>)]
 #[repr(transparent)]
 pub struct BV32(u32);
@@ -244,7 +243,6 @@ impl Eq for BV32 {}
 
 #[derive(Debug, Clone, Copy, Hash)]
 #[opaque]
-#[trusted_derive(reason = "the derived `Debug`/`Hash` read the opaque representation")]
 #[refined_by(x: bitvec<8>)]
 pub struct BV8(u8);
 
