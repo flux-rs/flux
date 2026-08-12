@@ -429,7 +429,7 @@ struct](#opaque-structs), where the generated `Debug` or `Hash` reads the very f
 opacity hides.
 attribute to code you did not write.
 
-For these cases, the _type_ carries the annotation instead: `#[flux_rs::trusted_derive]` tells
+For these cases, `#[flux_rs::trusted_derive]` tells
 Flux to skip checking the bodies that this type's derives generate.
 
 ```rust,noplayground
