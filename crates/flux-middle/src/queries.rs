@@ -1082,12 +1082,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                                .as_maybe_extern()
                                .map(|id| id.is_local())
                                .unwrap_or(false)
-                        && def_id
-                            .as_local()
-                            .map(|local_id|
-                                 !genv.no_suggestions(local_id)
-                                 && !genv.trusted(local_id))
-                            .unwrap_or(false)
                     {
                         poly_sig = poly_sig.add_weak_kvars(genv, def_id)?;
                     }
