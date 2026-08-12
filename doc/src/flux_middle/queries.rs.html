@@ -1329,34 +1329,42 @@
 <a href=#1329 id=1329 data-nosnippet>1329</a>                        diag.span_label(cx_span, fluent::_subdiag::label);
 <a href=#1330 id=1330 data-nosnippet>1330</a>                        <span class="kw">if let </span>ErrCtxt::FnCheck(<span class="kw">_</span>, fn_def_id) = <span class="self">self</span>.cx {
 <a href=#1331 id=1331 data-nosnippet>1331</a>                            <span class="kw">let </span>fn_span = tcx.def_span(fn_def_id);
-<a href=#1332 id=1332 data-nosnippet>1332</a>                            diag.arg(<span class="string">"def_kind"</span>, tcx.def_descr(fn_def_id.to_def_id()));
-<a href=#1333 id=1333 data-nosnippet>1333</a>                            diag.span_label(fn_span, fluent::middle_query_opaque_struct_help);
-<a href=#1334 id=1334 data-nosnippet>1334</a>                            diag.note(fluent::middle_query_opaque_struct_note);
-<a href=#1335 id=1335 data-nosnippet>1335</a>                        }
-<a href=#1336 id=1336 data-nosnippet>1336</a>                        diag
-<a href=#1337 id=1337 data-nosnippet>1337</a>                    }
-<a href=#1338 id=1338 data-nosnippet>1338</a>                    QueryErr::InvalidGenericArg { .. }
-<a href=#1339 id=1339 data-nosnippet>1339</a>                    | QueryErr::Emitted(<span class="kw">_</span>)
-<a href=#1340 id=1340 data-nosnippet>1340</a>                    | QueryErr::Bug { .. } =&gt; {
-<a href=#1341 id=1341 data-nosnippet>1341</a>                        <span class="kw">let </span><span class="kw-2">mut </span>diag = <span class="self">self</span>.err.into_diag(dcx, level);
-<a href=#1342 id=1342 data-nosnippet>1342</a>                        diag.span(cx_span);
-<a href=#1343 id=1343 data-nosnippet>1343</a>                        diag
-<a href=#1344 id=1344 data-nosnippet>1344</a>                    }
-<a href=#1345 id=1345 data-nosnippet>1345</a>                };
-<a href=#1346 id=1346 data-nosnippet>1346</a>                diag.code(E0999);
-<a href=#1347 id=1347 data-nosnippet>1347</a>                diag
-<a href=#1348 id=1348 data-nosnippet>1348</a>            },
-<a href=#1349 id=1349 data-nosnippet>1349</a>        )
-<a href=#1350 id=1350 data-nosnippet>1350</a>    }
-<a href=#1351 id=1351 data-nosnippet>1351</a>}
-<a href=#1352 id=1352 data-nosnippet>1352</a>
-<a href=#1353 id=1353 data-nosnippet>1353</a><span class="kw">impl </span>From&lt;ErrorGuaranteed&gt; <span class="kw">for </span>QueryErr {
-<a href=#1354 id=1354 data-nosnippet>1354</a>    <span class="kw">fn </span>from(err: ErrorGuaranteed) -&gt; <span class="self">Self </span>{
-<a href=#1355 id=1355 data-nosnippet>1355</a>        <span class="self">Self</span>::Emitted(err)
-<a href=#1356 id=1356 data-nosnippet>1356</a>    }
-<a href=#1357 id=1357 data-nosnippet>1357</a>}
-<a href=#1358 id=1358 data-nosnippet>1358</a>
-<a href=#1359 id=1359 data-nosnippet>1359</a><span class="kw">pub fn </span>try_query&lt;T&gt;(f: <span class="kw">impl </span>FnOnce() -&gt; QueryResult&lt;T&gt;) -&gt; QueryResult&lt;T&gt; {
-<a href=#1360 id=1360 data-nosnippet>1360</a>    f()
-<a href=#1361 id=1361 data-nosnippet>1361</a>}
+<a href=#1332 id=1332 data-nosnippet>1332</a>                            <span class="kw">if </span>fn_span.in_derive_expansion() {
+<a href=#1333 id=1333 data-nosnippet>1333</a>                                <span class="comment">// the type instead.
+<a href=#1334 id=1334 data-nosnippet>1334</a>                                </span>diag.span_label(
+<a href=#1335 id=1335 data-nosnippet>1335</a>                                    tcx.def_span(struct_id),
+<a href=#1336 id=1336 data-nosnippet>1336</a>                                    fluent::middle_query_opaque_struct_derive_help,
+<a href=#1337 id=1337 data-nosnippet>1337</a>                                );
+<a href=#1338 id=1338 data-nosnippet>1338</a>                            } <span class="kw">else </span>{
+<a href=#1339 id=1339 data-nosnippet>1339</a>                                diag.arg(<span class="string">"def_kind"</span>, tcx.def_descr(fn_def_id.to_def_id()));
+<a href=#1340 id=1340 data-nosnippet>1340</a>                                diag.span_label(fn_span, fluent::middle_query_opaque_struct_help);
+<a href=#1341 id=1341 data-nosnippet>1341</a>                            }
+<a href=#1342 id=1342 data-nosnippet>1342</a>                            diag.note(fluent::middle_query_opaque_struct_note);
+<a href=#1343 id=1343 data-nosnippet>1343</a>                        }
+<a href=#1344 id=1344 data-nosnippet>1344</a>                        diag
+<a href=#1345 id=1345 data-nosnippet>1345</a>                    }
+<a href=#1346 id=1346 data-nosnippet>1346</a>                    QueryErr::InvalidGenericArg { .. }
+<a href=#1347 id=1347 data-nosnippet>1347</a>                    | QueryErr::Emitted(<span class="kw">_</span>)
+<a href=#1348 id=1348 data-nosnippet>1348</a>                    | QueryErr::Bug { .. } =&gt; {
+<a href=#1349 id=1349 data-nosnippet>1349</a>                        <span class="kw">let </span><span class="kw-2">mut </span>diag = <span class="self">self</span>.err.into_diag(dcx, level);
+<a href=#1350 id=1350 data-nosnippet>1350</a>                        diag.span(cx_span);
+<a href=#1351 id=1351 data-nosnippet>1351</a>                        diag
+<a href=#1352 id=1352 data-nosnippet>1352</a>                    }
+<a href=#1353 id=1353 data-nosnippet>1353</a>                };
+<a href=#1354 id=1354 data-nosnippet>1354</a>                diag.code(E0999);
+<a href=#1355 id=1355 data-nosnippet>1355</a>                diag
+<a href=#1356 id=1356 data-nosnippet>1356</a>            },
+<a href=#1357 id=1357 data-nosnippet>1357</a>        )
+<a href=#1358 id=1358 data-nosnippet>1358</a>    }
+<a href=#1359 id=1359 data-nosnippet>1359</a>}
+<a href=#1360 id=1360 data-nosnippet>1360</a>
+<a href=#1361 id=1361 data-nosnippet>1361</a><span class="kw">impl </span>From&lt;ErrorGuaranteed&gt; <span class="kw">for </span>QueryErr {
+<a href=#1362 id=1362 data-nosnippet>1362</a>    <span class="kw">fn </span>from(err: ErrorGuaranteed) -&gt; <span class="self">Self </span>{
+<a href=#1363 id=1363 data-nosnippet>1363</a>        <span class="self">Self</span>::Emitted(err)
+<a href=#1364 id=1364 data-nosnippet>1364</a>    }
+<a href=#1365 id=1365 data-nosnippet>1365</a>}
+<a href=#1366 id=1366 data-nosnippet>1366</a>
+<a href=#1367 id=1367 data-nosnippet>1367</a><span class="kw">pub fn </span>try_query&lt;T&gt;(f: <span class="kw">impl </span>FnOnce() -&gt; QueryResult&lt;T&gt;) -&gt; QueryResult&lt;T&gt; {
+<a href=#1368 id=1368 data-nosnippet>1368</a>    f()
+<a href=#1369 id=1369 data-nosnippet>1369</a>}
 </code></pre></div></section></main></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/global_env.rs`."><title>global_env.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (db3e99bba 2026-02-04)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-f9617a14.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_middle/</div>global_env.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::{
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/global_env.rs`."><title>global_env.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (db3e99bba 2026-02-04)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-f9617a14.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_middle/</div>global_env.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::{
 <a href=#2 id=2 data-nosnippet>2</a>    alloc,
 <a href=#3 id=3 data-nosnippet>3</a>    cell::RefCell,
 <a href=#4 id=4 data-nosnippet>4</a>    path::{Path, PathBuf},
@@ -770,199 +770,244 @@
 <a href=#770 id=770 data-nosnippet>770</a>        annotation || <span class="self">self</span>.matches_trusted_impl_pattern(MaybeExternId::Local(def_id))
 <a href=#771 id=771 data-nosnippet>771</a>    }
 <a href=#772 id=772 data-nosnippet>772</a>
-<a href=#773 id=773 data-nosnippet>773</a>    <span class="doccomment">/// Same behavior as [`trusted`], but for the `#[no_suggestions]` attribute.
-<a href=#774 id=774 data-nosnippet>774</a>    </span><span class="kw">pub fn </span>no_suggestions(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
-<a href=#775 id=775 data-nosnippet>775</a>        <span class="self">self</span>.traverse_parents(def_id, |did| {
-<a href=#776 id=776 data-nosnippet>776</a>            <span class="comment">// A parent has no_suggestions, we inherit it
-<a href=#777 id=777 data-nosnippet>777</a>            </span><span class="kw">if </span><span class="self">self</span>.fhir_attr_map(did).no_suggestions() {
-<a href=#778 id=778 data-nosnippet>778</a>                <span class="prelude-val">Some</span>(<span class="bool-val">true</span>)
-<a href=#779 id=779 data-nosnippet>779</a>            <span class="comment">// It doesn't have it, keep trying
-<a href=#780 id=780 data-nosnippet>780</a>            </span>} <span class="kw">else </span>{
-<a href=#781 id=781 data-nosnippet>781</a>                <span class="prelude-val">None
-<a href=#782 id=782 data-nosnippet>782</a>            </span>}
-<a href=#783 id=783 data-nosnippet>783</a>        })
-<a href=#784 id=784 data-nosnippet>784</a>        .unwrap_or_else(config::no_suggestions_default)
-<a href=#785 id=785 data-nosnippet>785</a>    }
-<a href=#786 id=786 data-nosnippet>786</a>
-<a href=#787 id=787 data-nosnippet>787</a>    <span class="doccomment">/// Whether the item is a dummy item created by the extern spec macro.
-<a href=#788 id=788 data-nosnippet>788</a>    ///
-<a href=#789 id=789 data-nosnippet>789</a>    /// See [`crate::Specs::dummy_extern`]
-<a href=#790 id=790 data-nosnippet>790</a>    </span><span class="kw">pub fn </span>is_dummy(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
-<a href=#791 id=791 data-nosnippet>791</a>        <span class="self">self</span>.traverse_parents(def_id, |did| {
-<a href=#792 id=792 data-nosnippet>792</a>            <span class="self">self</span>.collect_specs()
-<a href=#793 id=793 data-nosnippet>793</a>                .dummy_extern
-<a href=#794 id=794 data-nosnippet>794</a>                .contains(<span class="kw-2">&amp;</span>did)
-<a href=#795 id=795 data-nosnippet>795</a>                .then_some(())
-<a href=#796 id=796 data-nosnippet>796</a>        })
-<a href=#797 id=797 data-nosnippet>797</a>        .is_some()
-<a href=#798 id=798 data-nosnippet>798</a>    }
-<a href=#799 id=799 data-nosnippet>799</a>
-<a href=#800 id=800 data-nosnippet>800</a>    <span class="doccomment">/// Transitively follow the parent-chain of `def_id` to find the first containing item with an
-<a href=#801 id=801 data-nosnippet>801</a>    /// explicit `#[flux::ignore(..)]` annotation and return whether that item is ignored or not.
-<a href=#802 id=802 data-nosnippet>802</a>    /// If no explicit annotation is found, return `false`.
-<a href=#803 id=803 data-nosnippet>803</a>    </span><span class="kw">pub fn </span>ignored(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
-<a href=#804 id=804 data-nosnippet>804</a>        <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.fhir_attr_map(did).ignored())
-<a href=#805 id=805 data-nosnippet>805</a>            .map(|ignored| ignored.to_bool())
-<a href=#806 id=806 data-nosnippet>806</a>            .unwrap_or_else(config::ignore_default)
-<a href=#807 id=807 data-nosnippet>807</a>    }
-<a href=#808 id=808 data-nosnippet>808</a>
-<a href=#809 id=809 data-nosnippet>809</a>    <span class="doccomment">/// Whether the function is marked with `#[flux::should_fail]`
-<a href=#810 id=810 data-nosnippet>810</a>    </span><span class="kw">pub fn </span>should_fail(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
-<a href=#811 id=811 data-nosnippet>811</a>        <span class="self">self</span>.fhir_attr_map(def_id).should_fail()
-<a href=#812 id=812 data-nosnippet>812</a>    }
-<a href=#813 id=813 data-nosnippet>813</a>
-<a href=#814 id=814 data-nosnippet>814</a>    <span class="doccomment">/// Whether the function is marked with `#[proven_externally]`
-<a href=#815 id=815 data-nosnippet>815</a>    </span><span class="kw">pub fn </span>proven_externally(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
-<a href=#816 id=816 data-nosnippet>816</a>        <span class="self">self</span>.fhir_attr_map(def_id).proven_externally()
-<a href=#817 id=817 data-nosnippet>817</a>    }
-<a href=#818 id=818 data-nosnippet>818</a>
-<a href=#819 id=819 data-nosnippet>819</a>    <span class="doccomment">/// Get the span of the #[sig(...)] attribute for a function, if it exists.
-<a href=#820 id=820 data-nosnippet>820</a>    /// Checks local specs (including extern spec mapping) then falls back to cross-crate metadata.
-<a href=#821 id=821 data-nosnippet>821</a>    </span><span class="kw">pub fn </span>spec_attr_span(<span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
-<a href=#822 id=822 data-nosnippet>822</a>        <span class="kw">let </span>specs = <span class="self">self</span>.collect_specs();
-<a href=#823 id=823 data-nosnippet>823</a>        specs
-<a href=#824 id=824 data-nosnippet>824</a>            .get_spec_attr_span(def_id)
-<a href=#825 id=825 data-nosnippet>825</a>            .or_else(|| {
-<a href=#826 id=826 data-nosnippet>826</a>                <span class="kw">let </span>local_id = specs.extern_id_to_local_id.get(<span class="kw-2">&amp;</span>def_id)<span class="question-mark">?</span>;
-<a href=#827 id=827 data-nosnippet>827</a>                specs.get_spec_attr_span(local_id.to_def_id())
-<a href=#828 id=828 data-nosnippet>828</a>            })
-<a href=#829 id=829 data-nosnippet>829</a>            .or_else(|| <span class="self">self</span>.cstore().spec_attr_span(def_id))
+<a href=#773 id=773 data-nosnippet>773</a>    <span class="doccomment">/// Whether code generated by a `#[derive(..)]` on this ADT should be trusted.
+<a href=#774 id=774 data-nosnippet>774</a>    ///
+<a href=#775 id=775 data-nosnippet>775</a>    /// A `#[flux::opaque]` type implicitly trusts its derives:
+<a href=#776 id=776 data-nosnippet>776</a>    /// An explicit `#[flux::trusted_derive(..)]` takes precedence, which lets an opaque
+<a href=#777 id=777 data-nosnippet>777</a>    /// type opt back in to checking with `#[flux::trusted_derive(no)]`.
+<a href=#778 id=778 data-nosnippet>778</a>    ///
+<a href=#779 id=779 data-nosnippet>779</a>    /// Unlike [`Self::trusted`], this does *not* traverse the parent chain: the annotation must
+<a href=#780 id=780 data-nosnippet>780</a>    /// be on the type itself.
+<a href=#781 id=781 data-nosnippet>781</a>    </span><span class="kw">pub fn </span>trusted_derive(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+<a href=#782 id=782 data-nosnippet>782</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(trusted) = <span class="self">self</span>.fhir_attr_map(def_id).trusted_derive() {
+<a href=#783 id=783 data-nosnippet>783</a>            <span class="kw">return </span>trusted.to_bool();
+<a href=#784 id=784 data-nosnippet>784</a>        }
+<a href=#785 id=785 data-nosnippet>785</a>        <span class="comment">// If the query fails the error is reported when the ADT itself is checked, so it's fine
+<a href=#786 id=786 data-nosnippet>786</a>        // to fall back to "not opaque" here.
+<a href=#787 id=787 data-nosnippet>787</a>        </span><span class="self">self</span>.adt_def(def_id)
+<a href=#788 id=788 data-nosnippet>788</a>            .is_ok_and(|adt_def| adt_def.is_opaque())
+<a href=#789 id=789 data-nosnippet>789</a>    }
+<a href=#790 id=790 data-nosnippet>790</a>
+<a href=#791 id=791 data-nosnippet>791</a>    <span class="doccomment">/// For a `def_id` generated by a `#[derive(..)]`, the ADT the derive was applied to, i.e. the
+<a href=#792 id=792 data-nosnippet>792</a>    /// self type of the enclosing impl.
+<a href=#793 id=793 data-nosnippet>793</a>    ///
+<a href=#794 id=794 data-nosnippet>794</a>    /// Returns `None` if `def_id` is not an impl item or if the self type is not a local ADT. A
+<a href=#795 id=795 data-nosnippet>795</a>    /// derive is not obliged to generate impl items: a proc-macro derive can emit a free function
+<a href=#796 id=796 data-nosnippet>796</a>    /// at module scope, or a function inside a generated trait. In those cases the parent is a
+<a href=#797 id=797 data-nosnippet>797</a>    /// module or trait, for which `type_of` is not defined, so the parent's kind must be checked
+<a href=#798 id=798 data-nosnippet>798</a>    /// before asking for its type.
+<a href=#799 id=799 data-nosnippet>799</a>    </span><span class="kw">pub fn </span>derive_self_ty(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;LocalDefId&gt; {
+<a href=#800 id=800 data-nosnippet>800</a>        <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
+<a href=#801 id=801 data-nosnippet>801</a>        <span class="kw">let </span>impl_id = tcx.local_parent(def_id);
+<a href=#802 id=802 data-nosnippet>802</a>        <span class="kw">if </span>!<span class="macro">matches!</span>(tcx.def_kind(impl_id), DefKind::Impl { .. }) {
+<a href=#803 id=803 data-nosnippet>803</a>            <span class="kw">return </span><span class="prelude-val">None</span>;
+<a href=#804 id=804 data-nosnippet>804</a>        }
+<a href=#805 id=805 data-nosnippet>805</a>        <span class="kw">let </span>adt_def_id = tcx
+<a href=#806 id=806 data-nosnippet>806</a>            .type_of(impl_id)
+<a href=#807 id=807 data-nosnippet>807</a>            .instantiate_identity()
+<a href=#808 id=808 data-nosnippet>808</a>            .ty_adt_def()<span class="question-mark">?
+<a href=#809 id=809 data-nosnippet>809</a>            </span>.did();
+<a href=#810 id=810 data-nosnippet>810</a>        <span class="kw">match </span><span class="self">self</span>.resolve_id(adt_def_id) {
+<a href=#811 id=811 data-nosnippet>811</a>            ResolvedDefId::Local(local_id) | ResolvedDefId::ExternSpec(local_id, <span class="kw">_</span>) =&gt; {
+<a href=#812 id=812 data-nosnippet>812</a>                <span class="prelude-val">Some</span>(local_id)
+<a href=#813 id=813 data-nosnippet>813</a>            }
+<a href=#814 id=814 data-nosnippet>814</a>            ResolvedDefId::Extern(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+<a href=#815 id=815 data-nosnippet>815</a>        }
+<a href=#816 id=816 data-nosnippet>816</a>    }
+<a href=#817 id=817 data-nosnippet>817</a>
+<a href=#818 id=818 data-nosnippet>818</a>    <span class="doccomment">/// Same behavior as [`trusted`], but for the `#[no_suggestions]` attribute.
+<a href=#819 id=819 data-nosnippet>819</a>    </span><span class="kw">pub fn </span>no_suggestions(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+<a href=#820 id=820 data-nosnippet>820</a>        <span class="self">self</span>.traverse_parents(def_id, |did| {
+<a href=#821 id=821 data-nosnippet>821</a>            <span class="comment">// A parent has no_suggestions, we inherit it
+<a href=#822 id=822 data-nosnippet>822</a>            </span><span class="kw">if </span><span class="self">self</span>.fhir_attr_map(did).no_suggestions() {
+<a href=#823 id=823 data-nosnippet>823</a>                <span class="prelude-val">Some</span>(<span class="bool-val">true</span>)
+<a href=#824 id=824 data-nosnippet>824</a>            <span class="comment">// It doesn't have it, keep trying
+<a href=#825 id=825 data-nosnippet>825</a>            </span>} <span class="kw">else </span>{
+<a href=#826 id=826 data-nosnippet>826</a>                <span class="prelude-val">None
+<a href=#827 id=827 data-nosnippet>827</a>            </span>}
+<a href=#828 id=828 data-nosnippet>828</a>        })
+<a href=#829 id=829 data-nosnippet>829</a>        .unwrap_or_else(config::no_suggestions_default)
 <a href=#830 id=830 data-nosnippet>830</a>    }
 <a href=#831 id=831 data-nosnippet>831</a>
-<a href=#832 id=832 data-nosnippet>832</a>    <span class="doccomment">/// Get the source text of the #[sig(...)] attribute for a function.
-<a href=#833 id=833 data-nosnippet>833</a>    /// Reconstructs the string from the spec attribute span via the source map.
-<a href=#834 id=834 data-nosnippet>834</a>    </span><span class="kw">pub fn </span>spec_attr_string(<span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-<a href=#835 id=835 data-nosnippet>835</a>        <span class="kw">let </span>span = <span class="self">self</span>.spec_attr_span(def_id)<span class="question-mark">?</span>;
-<a href=#836 id=836 data-nosnippet>836</a>        <span class="self">self</span>.tcx().sess.source_map().span_to_snippet(span).ok()
-<a href=#837 id=837 data-nosnippet>837</a>    }
-<a href=#838 id=838 data-nosnippet>838</a>
-<a href=#839 id=839 data-nosnippet>839</a>    <span class="doccomment">/// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
-<a href=#840 id=840 data-nosnippet>840</a>    </span><span class="kw">fn </span>traverse_parents&lt;T&gt;(
-<a href=#841 id=841 data-nosnippet>841</a>        <span class="self">self</span>,
-<a href=#842 id=842 data-nosnippet>842</a>        <span class="kw-2">mut </span>def_id: LocalDefId,
-<a href=#843 id=843 data-nosnippet>843</a>        <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;,
-<a href=#844 id=844 data-nosnippet>844</a>    ) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt; {
-<a href=#845 id=845 data-nosnippet>845</a>        <span class="kw">loop </span>{
-<a href=#846 id=846 data-nosnippet>846</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = f(def_id) {
-<a href=#847 id=847 data-nosnippet>847</a>                <span class="kw">break </span><span class="prelude-val">Some</span>(v);
-<a href=#848 id=848 data-nosnippet>848</a>            }
-<a href=#849 id=849 data-nosnippet>849</a>
-<a href=#850 id=850 data-nosnippet>850</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = <span class="self">self</span>.tcx().opt_local_parent(def_id) {
-<a href=#851 id=851 data-nosnippet>851</a>                def_id = parent;
-<a href=#852 id=852 data-nosnippet>852</a>            } <span class="kw">else </span>{
-<a href=#853 id=853 data-nosnippet>853</a>                <span class="kw">break </span><span class="prelude-val">None</span>;
-<a href=#854 id=854 data-nosnippet>854</a>            }
-<a href=#855 id=855 data-nosnippet>855</a>        }
-<a href=#856 id=856 data-nosnippet>856</a>    }
-<a href=#857 id=857 data-nosnippet>857</a>}
+<a href=#832 id=832 data-nosnippet>832</a>    <span class="doccomment">/// Whether the item is a dummy item created by the extern spec macro.
+<a href=#833 id=833 data-nosnippet>833</a>    ///
+<a href=#834 id=834 data-nosnippet>834</a>    /// See [`crate::Specs::dummy_extern`]
+<a href=#835 id=835 data-nosnippet>835</a>    </span><span class="kw">pub fn </span>is_dummy(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+<a href=#836 id=836 data-nosnippet>836</a>        <span class="self">self</span>.traverse_parents(def_id, |did| {
+<a href=#837 id=837 data-nosnippet>837</a>            <span class="self">self</span>.collect_specs()
+<a href=#838 id=838 data-nosnippet>838</a>                .dummy_extern
+<a href=#839 id=839 data-nosnippet>839</a>                .contains(<span class="kw-2">&amp;</span>did)
+<a href=#840 id=840 data-nosnippet>840</a>                .then_some(())
+<a href=#841 id=841 data-nosnippet>841</a>        })
+<a href=#842 id=842 data-nosnippet>842</a>        .is_some()
+<a href=#843 id=843 data-nosnippet>843</a>    }
+<a href=#844 id=844 data-nosnippet>844</a>
+<a href=#845 id=845 data-nosnippet>845</a>    <span class="doccomment">/// Transitively follow the parent-chain of `def_id` to find the first containing item with an
+<a href=#846 id=846 data-nosnippet>846</a>    /// explicit `#[flux::ignore(..)]` annotation and return whether that item is ignored or not.
+<a href=#847 id=847 data-nosnippet>847</a>    /// If no explicit annotation is found, return `false`.
+<a href=#848 id=848 data-nosnippet>848</a>    </span><span class="kw">pub fn </span>ignored(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+<a href=#849 id=849 data-nosnippet>849</a>        <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.fhir_attr_map(did).ignored())
+<a href=#850 id=850 data-nosnippet>850</a>            .map(|ignored| ignored.to_bool())
+<a href=#851 id=851 data-nosnippet>851</a>            .unwrap_or_else(config::ignore_default)
+<a href=#852 id=852 data-nosnippet>852</a>    }
+<a href=#853 id=853 data-nosnippet>853</a>
+<a href=#854 id=854 data-nosnippet>854</a>    <span class="doccomment">/// Whether the function is marked with `#[flux::should_fail]`
+<a href=#855 id=855 data-nosnippet>855</a>    </span><span class="kw">pub fn </span>should_fail(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+<a href=#856 id=856 data-nosnippet>856</a>        <span class="self">self</span>.fhir_attr_map(def_id).should_fail()
+<a href=#857 id=857 data-nosnippet>857</a>    }
 <a href=#858 id=858 data-nosnippet>858</a>
-<a href=#859 id=859 data-nosnippet>859</a><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-<a href=#860 id=860 data-nosnippet>860</a>    <span class="kw">pub fn </span>fhir_iter_flux_items(
-<a href=#861 id=861 data-nosnippet>861</a>        <span class="self">self</span>,
-<a href=#862 id=862 data-nosnippet>862</a>    ) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (FluxLocalDefId, fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;)&gt; {
-<a href=#863 id=863 data-nosnippet>863</a>        <span class="self">self</span>.fhir_crate()
-<a href=#864 id=864 data-nosnippet>864</a>            .items
-<a href=#865 id=865 data-nosnippet>865</a>            .iter()
-<a href=#866 id=866 data-nosnippet>866</a>            .map(|(id, item)| (<span class="kw-2">*</span>id, <span class="kw-2">*</span>item))
-<a href=#867 id=867 data-nosnippet>867</a>    }
-<a href=#868 id=868 data-nosnippet>868</a>
-<a href=#869 id=869 data-nosnippet>869</a>    <span class="kw">pub fn </span>fhir_sort_decl(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: FluxLocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>fhir::SortDecl&gt; {
-<a href=#870 id=870 data-nosnippet>870</a>        <span class="self">self</span>.fhir_crate().items.get(<span class="kw-2">&amp;</span>def_id).and_then(|item| {
-<a href=#871 id=871 data-nosnippet>871</a>            <span class="kw">if let </span>fhir::FluxItem::SortDecl(sort_decl) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>sort_decl) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
-<a href=#872 id=872 data-nosnippet>872</a>        })
-<a href=#873 id=873 data-nosnippet>873</a>    }
-<a href=#874 id=874 data-nosnippet>874</a>
-<a href=#875 id=875 data-nosnippet>875</a>    <span class="kw">pub fn </span>fhir_spec_func_body(
-<a href=#876 id=876 data-nosnippet>876</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#877 id=877 data-nosnippet>877</a>        def_id: FluxLocalDefId,
-<a href=#878 id=878 data-nosnippet>878</a>    ) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-<a href=#879 id=879 data-nosnippet>879</a>        <span class="self">self</span>.fhir_crate()
-<a href=#880 id=880 data-nosnippet>880</a>            .items
-<a href=#881 id=881 data-nosnippet>881</a>            .get(<span class="kw-2">&amp;</span>def_id)
-<a href=#882 id=882 data-nosnippet>882</a>            .and_then(|item| <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>defn) } <span class="kw">else </span>{ <span class="prelude-val">None </span>})
-<a href=#883 id=883 data-nosnippet>883</a>    }
-<a href=#884 id=884 data-nosnippet>884</a>
-<a href=#885 id=885 data-nosnippet>885</a>    <span class="kw">pub fn </span>fhir_qualifiers(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Qualifier&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-<a href=#886 id=886 data-nosnippet>886</a>        <span class="self">self</span>.fhir_crate().items.values().filter_map(|item| {
-<a href=#887 id=887 data-nosnippet>887</a>            <span class="kw">if let </span>fhir::FluxItem::Qualifier(qual) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>qual) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
-<a href=#888 id=888 data-nosnippet>888</a>        })
-<a href=#889 id=889 data-nosnippet>889</a>    }
-<a href=#890 id=890 data-nosnippet>890</a>
-<a href=#891 id=891 data-nosnippet>891</a>    <span class="kw">pub fn </span>fhir_primop_props(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::PrimOpProp&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-<a href=#892 id=892 data-nosnippet>892</a>        <span class="self">self</span>.fhir_crate().items.values().filter_map(|item| {
-<a href=#893 id=893 data-nosnippet>893</a>            <span class="kw">if let </span>fhir::FluxItem::PrimOpProp(prop) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>prop) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
-<a href=#894 id=894 data-nosnippet>894</a>        })
-<a href=#895 id=895 data-nosnippet>895</a>    }
-<a href=#896 id=896 data-nosnippet>896</a>
-<a href=#897 id=897 data-nosnippet>897</a>    <span class="kw">pub fn </span>fhir_get_generics(
-<a href=#898 id=898 data-nosnippet>898</a>        <span class="self">self</span>,
-<a href=#899 id=899 data-nosnippet>899</a>        def_id: LocalDefId,
-<a href=#900 id=900 data-nosnippet>900</a>    ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt; {
-<a href=#901 id=901 data-nosnippet>901</a>        <span class="comment">// We don't have nodes for closures and coroutines
-<a href=#902 id=902 data-nosnippet>902</a>        </span><span class="kw">if </span><span class="macro">matches!</span>(<span class="self">self</span>.def_kind(def_id), DefKind::Closure) {
-<a href=#903 id=903 data-nosnippet>903</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
-<a href=#904 id=904 data-nosnippet>904</a>        } <span class="kw">else </span>{
-<a href=#905 id=905 data-nosnippet>905</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.fhir_expect_owner_node(def_id)<span class="question-mark">?</span>.generics()))
-<a href=#906 id=906 data-nosnippet>906</a>        }
-<a href=#907 id=907 data-nosnippet>907</a>    }
-<a href=#908 id=908 data-nosnippet>908</a>
-<a href=#909 id=909 data-nosnippet>909</a>    <span class="kw">pub fn </span>fhir_expect_refinement_kind(
-<a href=#910 id=910 data-nosnippet>910</a>        <span class="self">self</span>,
-<a href=#911 id=911 data-nosnippet>911</a>        def_id: LocalDefId,
-<a href=#912 id=912 data-nosnippet>912</a>    ) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::RefinementKind&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-<a href=#913 id=913 data-nosnippet>913</a>        <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.fhir_expect_item(def_id)<span class="question-mark">?</span>.kind {
-<a href=#914 id=914 data-nosnippet>914</a>            fhir::ItemKind::Enum(enum_def) =&gt; <span class="kw-2">&amp;</span>enum_def.refinement,
-<a href=#915 id=915 data-nosnippet>915</a>            fhir::ItemKind::Struct(struct_def) =&gt; <span class="kw-2">&amp;</span>struct_def.refinement,
-<a href=#916 id=916 data-nosnippet>916</a>            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected struct, enum or type alias"</span>),
-<a href=#917 id=917 data-nosnippet>917</a>        };
-<a href=#918 id=918 data-nosnippet>918</a>        <span class="prelude-val">Ok</span>(kind)
-<a href=#919 id=919 data-nosnippet>919</a>    }
-<a href=#920 id=920 data-nosnippet>920</a>
-<a href=#921 id=921 data-nosnippet>921</a>    <span class="kw">pub fn </span>fhir_expect_item(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-<a href=#922 id=922 data-nosnippet>922</a>        <span class="kw">if let </span>fhir::Node::Item(item) = <span class="self">self</span>.fhir_node(def_id)<span class="question-mark">? </span>{
-<a href=#923 id=923 data-nosnippet>923</a>            <span class="prelude-val">Ok</span>(item)
-<a href=#924 id=924 data-nosnippet>924</a>        } <span class="kw">else </span>{
-<a href=#925 id=925 data-nosnippet>925</a>            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"expected item: `{def_id:?}`"</span>))
-<a href=#926 id=926 data-nosnippet>926</a>        }
-<a href=#927 id=927 data-nosnippet>927</a>    }
-<a href=#928 id=928 data-nosnippet>928</a>
-<a href=#929 id=929 data-nosnippet>929</a>    <span class="kw">pub fn </span>fhir_expect_owner_node(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;fhir::OwnerNode&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-<a href=#930 id=930 data-nosnippet>930</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(owner) = <span class="self">self</span>.fhir_node(def_id)<span class="question-mark">?</span>.as_owner() <span class="kw">else </span>{
-<a href=#931 id=931 data-nosnippet>931</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"cannot find owner node"</span>));
-<a href=#932 id=932 data-nosnippet>932</a>        };
-<a href=#933 id=933 data-nosnippet>933</a>        <span class="prelude-val">Ok</span>(owner)
+<a href=#859 id=859 data-nosnippet>859</a>    <span class="doccomment">/// Whether the function is marked with `#[proven_externally]`
+<a href=#860 id=860 data-nosnippet>860</a>    </span><span class="kw">pub fn </span>proven_externally(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
+<a href=#861 id=861 data-nosnippet>861</a>        <span class="self">self</span>.fhir_attr_map(def_id).proven_externally()
+<a href=#862 id=862 data-nosnippet>862</a>    }
+<a href=#863 id=863 data-nosnippet>863</a>
+<a href=#864 id=864 data-nosnippet>864</a>    <span class="doccomment">/// Get the span of the #[sig(...)] attribute for a function, if it exists.
+<a href=#865 id=865 data-nosnippet>865</a>    /// Checks local specs (including extern spec mapping) then falls back to cross-crate metadata.
+<a href=#866 id=866 data-nosnippet>866</a>    </span><span class="kw">pub fn </span>spec_attr_span(<span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
+<a href=#867 id=867 data-nosnippet>867</a>        <span class="kw">let </span>specs = <span class="self">self</span>.collect_specs();
+<a href=#868 id=868 data-nosnippet>868</a>        specs
+<a href=#869 id=869 data-nosnippet>869</a>            .get_spec_attr_span(def_id)
+<a href=#870 id=870 data-nosnippet>870</a>            .or_else(|| {
+<a href=#871 id=871 data-nosnippet>871</a>                <span class="kw">let </span>local_id = specs.extern_id_to_local_id.get(<span class="kw-2">&amp;</span>def_id)<span class="question-mark">?</span>;
+<a href=#872 id=872 data-nosnippet>872</a>                specs.get_spec_attr_span(local_id.to_def_id())
+<a href=#873 id=873 data-nosnippet>873</a>            })
+<a href=#874 id=874 data-nosnippet>874</a>            .or_else(|| <span class="self">self</span>.cstore().spec_attr_span(def_id))
+<a href=#875 id=875 data-nosnippet>875</a>    }
+<a href=#876 id=876 data-nosnippet>876</a>
+<a href=#877 id=877 data-nosnippet>877</a>    <span class="doccomment">/// Get the source text of the #[sig(...)] attribute for a function.
+<a href=#878 id=878 data-nosnippet>878</a>    /// Reconstructs the string from the spec attribute span via the source map.
+<a href=#879 id=879 data-nosnippet>879</a>    </span><span class="kw">pub fn </span>spec_attr_string(<span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+<a href=#880 id=880 data-nosnippet>880</a>        <span class="kw">let </span>span = <span class="self">self</span>.spec_attr_span(def_id)<span class="question-mark">?</span>;
+<a href=#881 id=881 data-nosnippet>881</a>        <span class="self">self</span>.tcx().sess.source_map().span_to_snippet(span).ok()
+<a href=#882 id=882 data-nosnippet>882</a>    }
+<a href=#883 id=883 data-nosnippet>883</a>
+<a href=#884 id=884 data-nosnippet>884</a>    <span class="doccomment">/// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
+<a href=#885 id=885 data-nosnippet>885</a>    </span><span class="kw">fn </span>traverse_parents&lt;T&gt;(
+<a href=#886 id=886 data-nosnippet>886</a>        <span class="self">self</span>,
+<a href=#887 id=887 data-nosnippet>887</a>        <span class="kw-2">mut </span>def_id: LocalDefId,
+<a href=#888 id=888 data-nosnippet>888</a>        <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;,
+<a href=#889 id=889 data-nosnippet>889</a>    ) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt; {
+<a href=#890 id=890 data-nosnippet>890</a>        <span class="kw">loop </span>{
+<a href=#891 id=891 data-nosnippet>891</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = f(def_id) {
+<a href=#892 id=892 data-nosnippet>892</a>                <span class="kw">break </span><span class="prelude-val">Some</span>(v);
+<a href=#893 id=893 data-nosnippet>893</a>            }
+<a href=#894 id=894 data-nosnippet>894</a>
+<a href=#895 id=895 data-nosnippet>895</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = <span class="self">self</span>.tcx().opt_local_parent(def_id) {
+<a href=#896 id=896 data-nosnippet>896</a>                def_id = parent;
+<a href=#897 id=897 data-nosnippet>897</a>            } <span class="kw">else </span>{
+<a href=#898 id=898 data-nosnippet>898</a>                <span class="kw">break </span><span class="prelude-val">None</span>;
+<a href=#899 id=899 data-nosnippet>899</a>            }
+<a href=#900 id=900 data-nosnippet>900</a>        }
+<a href=#901 id=901 data-nosnippet>901</a>    }
+<a href=#902 id=902 data-nosnippet>902</a>}
+<a href=#903 id=903 data-nosnippet>903</a>
+<a href=#904 id=904 data-nosnippet>904</a><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+<a href=#905 id=905 data-nosnippet>905</a>    <span class="kw">pub fn </span>fhir_iter_flux_items(
+<a href=#906 id=906 data-nosnippet>906</a>        <span class="self">self</span>,
+<a href=#907 id=907 data-nosnippet>907</a>    ) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (FluxLocalDefId, fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;)&gt; {
+<a href=#908 id=908 data-nosnippet>908</a>        <span class="self">self</span>.fhir_crate()
+<a href=#909 id=909 data-nosnippet>909</a>            .items
+<a href=#910 id=910 data-nosnippet>910</a>            .iter()
+<a href=#911 id=911 data-nosnippet>911</a>            .map(|(id, item)| (<span class="kw-2">*</span>id, <span class="kw-2">*</span>item))
+<a href=#912 id=912 data-nosnippet>912</a>    }
+<a href=#913 id=913 data-nosnippet>913</a>
+<a href=#914 id=914 data-nosnippet>914</a>    <span class="kw">pub fn </span>fhir_sort_decl(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: FluxLocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>fhir::SortDecl&gt; {
+<a href=#915 id=915 data-nosnippet>915</a>        <span class="self">self</span>.fhir_crate().items.get(<span class="kw-2">&amp;</span>def_id).and_then(|item| {
+<a href=#916 id=916 data-nosnippet>916</a>            <span class="kw">if let </span>fhir::FluxItem::SortDecl(sort_decl) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>sort_decl) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
+<a href=#917 id=917 data-nosnippet>917</a>        })
+<a href=#918 id=918 data-nosnippet>918</a>    }
+<a href=#919 id=919 data-nosnippet>919</a>
+<a href=#920 id=920 data-nosnippet>920</a>    <span class="kw">pub fn </span>fhir_spec_func_body(
+<a href=#921 id=921 data-nosnippet>921</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#922 id=922 data-nosnippet>922</a>        def_id: FluxLocalDefId,
+<a href=#923 id=923 data-nosnippet>923</a>    ) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+<a href=#924 id=924 data-nosnippet>924</a>        <span class="self">self</span>.fhir_crate()
+<a href=#925 id=925 data-nosnippet>925</a>            .items
+<a href=#926 id=926 data-nosnippet>926</a>            .get(<span class="kw-2">&amp;</span>def_id)
+<a href=#927 id=927 data-nosnippet>927</a>            .and_then(|item| <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>defn) } <span class="kw">else </span>{ <span class="prelude-val">None </span>})
+<a href=#928 id=928 data-nosnippet>928</a>    }
+<a href=#929 id=929 data-nosnippet>929</a>
+<a href=#930 id=930 data-nosnippet>930</a>    <span class="kw">pub fn </span>fhir_qualifiers(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Qualifier&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+<a href=#931 id=931 data-nosnippet>931</a>        <span class="self">self</span>.fhir_crate().items.values().filter_map(|item| {
+<a href=#932 id=932 data-nosnippet>932</a>            <span class="kw">if let </span>fhir::FluxItem::Qualifier(qual) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>qual) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
+<a href=#933 id=933 data-nosnippet>933</a>        })
 <a href=#934 id=934 data-nosnippet>934</a>    }
 <a href=#935 id=935 data-nosnippet>935</a>
-<a href=#936 id=936 data-nosnippet>936</a>    <span class="kw">pub fn </span>fhir_node(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;fhir::Node&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-<a href=#937 id=937 data-nosnippet>937</a>        <span class="self">self</span>.desugar(def_id)
-<a href=#938 id=938 data-nosnippet>938</a>    }
-<a href=#939 id=939 data-nosnippet>939</a>}
-<a href=#940 id=940 data-nosnippet>940</a>
-<a href=#941 id=941 data-nosnippet>941</a><span class="attr">#[macro_export]
-<a href=#942 id=942 data-nosnippet>942</a></span><span class="macro">macro_rules!</span> try_alloc_slice {
-<a href=#943 id=943 data-nosnippet>943</a>    (<span class="macro-nonterminal">$genv</span>:expr, <span class="macro-nonterminal">$slice</span>:expr, <span class="macro-nonterminal">$map</span>:expr $(,)<span class="question-mark">?</span>) =&gt; {{
-<a href=#944 id=944 data-nosnippet>944</a>        <span class="kw">let </span>slice = <span class="macro-nonterminal">$slice</span>;
-<a href=#945 id=945 data-nosnippet>945</a>        <span class="macro-nonterminal">$crate::try_alloc_slice</span>!(<span class="macro-nonterminal">$genv</span>, cap: slice.len(), slice.into_iter().map(<span class="macro-nonterminal">$map</span>))
-<a href=#946 id=946 data-nosnippet>946</a>    }};
-<a href=#947 id=947 data-nosnippet>947</a>    (<span class="macro-nonterminal">$genv</span>:expr, cap: <span class="macro-nonterminal">$cap</span>:expr, <span class="macro-nonterminal">$it</span>:expr $(,)<span class="question-mark">?</span>) =&gt; {{
-<a href=#948 id=948 data-nosnippet>948</a>        <span class="kw">let </span><span class="kw-2">mut </span>err = <span class="prelude-val">None</span>;
-<a href=#949 id=949 data-nosnippet>949</a>        <span class="kw">let </span>slice = <span class="macro-nonterminal">$genv</span>.alloc_slice_with_capacity(<span class="macro-nonterminal">$cap</span>, <span class="macro-nonterminal">$it</span>.into_iter().collect_errors(<span class="kw-2">&amp;mut </span>err));
-<a href=#950 id=950 data-nosnippet>950</a>        err.map_or(<span class="prelude-val">Ok</span>(slice), <span class="prelude-val">Err</span>)
-<a href=#951 id=951 data-nosnippet>951</a>    }};
-<a href=#952 id=952 data-nosnippet>952</a>}
+<a href=#936 id=936 data-nosnippet>936</a>    <span class="kw">pub fn </span>fhir_primop_props(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::PrimOpProp&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+<a href=#937 id=937 data-nosnippet>937</a>        <span class="self">self</span>.fhir_crate().items.values().filter_map(|item| {
+<a href=#938 id=938 data-nosnippet>938</a>            <span class="kw">if let </span>fhir::FluxItem::PrimOpProp(prop) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>prop) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
+<a href=#939 id=939 data-nosnippet>939</a>        })
+<a href=#940 id=940 data-nosnippet>940</a>    }
+<a href=#941 id=941 data-nosnippet>941</a>
+<a href=#942 id=942 data-nosnippet>942</a>    <span class="kw">pub fn </span>fhir_get_generics(
+<a href=#943 id=943 data-nosnippet>943</a>        <span class="self">self</span>,
+<a href=#944 id=944 data-nosnippet>944</a>        def_id: LocalDefId,
+<a href=#945 id=945 data-nosnippet>945</a>    ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt; {
+<a href=#946 id=946 data-nosnippet>946</a>        <span class="comment">// We don't have nodes for closures and coroutines
+<a href=#947 id=947 data-nosnippet>947</a>        </span><span class="kw">if </span><span class="macro">matches!</span>(<span class="self">self</span>.def_kind(def_id), DefKind::Closure) {
+<a href=#948 id=948 data-nosnippet>948</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
+<a href=#949 id=949 data-nosnippet>949</a>        } <span class="kw">else </span>{
+<a href=#950 id=950 data-nosnippet>950</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.fhir_expect_owner_node(def_id)<span class="question-mark">?</span>.generics()))
+<a href=#951 id=951 data-nosnippet>951</a>        }
+<a href=#952 id=952 data-nosnippet>952</a>    }
 <a href=#953 id=953 data-nosnippet>953</a>
-<a href=#954 id=954 data-nosnippet>954</a><span class="kw">impl </span>ErrorEmitter <span class="kw">for </span>GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-<a href=#955 id=955 data-nosnippet>955</a>    <span class="kw">fn </span>emit&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, err: <span class="kw">impl </span>rustc_errors::Diagnostic&lt;<span class="lifetime">'a</span>&gt;) -&gt; rustc_span::ErrorGuaranteed {
-<a href=#956 id=956 data-nosnippet>956</a>        <span class="self">self</span>.sess().emit(err)
-<a href=#957 id=957 data-nosnippet>957</a>    }
-<a href=#958 id=958 data-nosnippet>958</a>}
-<a href=#959 id=959 data-nosnippet>959</a>
-<a href=#960 id=960 data-nosnippet>960</a><span class="kw">fn </span>lean_parent_dir(tcx: TyCtxt) -&gt; PathBuf {
-<a href=#961 id=961 data-nosnippet>961</a>    tcx.sess
-<a href=#962 id=962 data-nosnippet>962</a>        .source_map()
-<a href=#963 id=963 data-nosnippet>963</a>        .working_dir()
-<a href=#964 id=964 data-nosnippet>964</a>        .local_path()
-<a href=#965 id=965 data-nosnippet>965</a>        .unwrap()
-<a href=#966 id=966 data-nosnippet>966</a>        .join(config::lean_dir())
-<a href=#967 id=967 data-nosnippet>967</a>}
+<a href=#954 id=954 data-nosnippet>954</a>    <span class="kw">pub fn </span>fhir_expect_refinement_kind(
+<a href=#955 id=955 data-nosnippet>955</a>        <span class="self">self</span>,
+<a href=#956 id=956 data-nosnippet>956</a>        def_id: LocalDefId,
+<a href=#957 id=957 data-nosnippet>957</a>    ) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::RefinementKind&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+<a href=#958 id=958 data-nosnippet>958</a>        <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.fhir_expect_item(def_id)<span class="question-mark">?</span>.kind {
+<a href=#959 id=959 data-nosnippet>959</a>            fhir::ItemKind::Enum(enum_def) =&gt; <span class="kw-2">&amp;</span>enum_def.refinement,
+<a href=#960 id=960 data-nosnippet>960</a>            fhir::ItemKind::Struct(struct_def) =&gt; <span class="kw-2">&amp;</span>struct_def.refinement,
+<a href=#961 id=961 data-nosnippet>961</a>            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected struct, enum or type alias"</span>),
+<a href=#962 id=962 data-nosnippet>962</a>        };
+<a href=#963 id=963 data-nosnippet>963</a>        <span class="prelude-val">Ok</span>(kind)
+<a href=#964 id=964 data-nosnippet>964</a>    }
+<a href=#965 id=965 data-nosnippet>965</a>
+<a href=#966 id=966 data-nosnippet>966</a>    <span class="kw">pub fn </span>fhir_expect_item(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+<a href=#967 id=967 data-nosnippet>967</a>        <span class="kw">if let </span>fhir::Node::Item(item) = <span class="self">self</span>.fhir_node(def_id)<span class="question-mark">? </span>{
+<a href=#968 id=968 data-nosnippet>968</a>            <span class="prelude-val">Ok</span>(item)
+<a href=#969 id=969 data-nosnippet>969</a>        } <span class="kw">else </span>{
+<a href=#970 id=970 data-nosnippet>970</a>            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"expected item: `{def_id:?}`"</span>))
+<a href=#971 id=971 data-nosnippet>971</a>        }
+<a href=#972 id=972 data-nosnippet>972</a>    }
+<a href=#973 id=973 data-nosnippet>973</a>
+<a href=#974 id=974 data-nosnippet>974</a>    <span class="kw">pub fn </span>fhir_expect_owner_node(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;fhir::OwnerNode&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+<a href=#975 id=975 data-nosnippet>975</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(owner) = <span class="self">self</span>.fhir_node(def_id)<span class="question-mark">?</span>.as_owner() <span class="kw">else </span>{
+<a href=#976 id=976 data-nosnippet>976</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"cannot find owner node"</span>));
+<a href=#977 id=977 data-nosnippet>977</a>        };
+<a href=#978 id=978 data-nosnippet>978</a>        <span class="prelude-val">Ok</span>(owner)
+<a href=#979 id=979 data-nosnippet>979</a>    }
+<a href=#980 id=980 data-nosnippet>980</a>
+<a href=#981 id=981 data-nosnippet>981</a>    <span class="kw">pub fn </span>fhir_node(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;fhir::Node&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+<a href=#982 id=982 data-nosnippet>982</a>        <span class="self">self</span>.desugar(def_id)
+<a href=#983 id=983 data-nosnippet>983</a>    }
+<a href=#984 id=984 data-nosnippet>984</a>}
+<a href=#985 id=985 data-nosnippet>985</a>
+<a href=#986 id=986 data-nosnippet>986</a><span class="attr">#[macro_export]
+<a href=#987 id=987 data-nosnippet>987</a></span><span class="macro">macro_rules!</span> try_alloc_slice {
+<a href=#988 id=988 data-nosnippet>988</a>    (<span class="macro-nonterminal">$genv</span>:expr, <span class="macro-nonterminal">$slice</span>:expr, <span class="macro-nonterminal">$map</span>:expr $(,)<span class="question-mark">?</span>) =&gt; {{
+<a href=#989 id=989 data-nosnippet>989</a>        <span class="kw">let </span>slice = <span class="macro-nonterminal">$slice</span>;
+<a href=#990 id=990 data-nosnippet>990</a>        <span class="macro-nonterminal">$crate::try_alloc_slice</span>!(<span class="macro-nonterminal">$genv</span>, cap: slice.len(), slice.into_iter().map(<span class="macro-nonterminal">$map</span>))
+<a href=#991 id=991 data-nosnippet>991</a>    }};
+<a href=#992 id=992 data-nosnippet>992</a>    (<span class="macro-nonterminal">$genv</span>:expr, cap: <span class="macro-nonterminal">$cap</span>:expr, <span class="macro-nonterminal">$it</span>:expr $(,)<span class="question-mark">?</span>) =&gt; {{
+<a href=#993 id=993 data-nosnippet>993</a>        <span class="kw">let </span><span class="kw-2">mut </span>err = <span class="prelude-val">None</span>;
+<a href=#994 id=994 data-nosnippet>994</a>        <span class="kw">let </span>slice = <span class="macro-nonterminal">$genv</span>.alloc_slice_with_capacity(<span class="macro-nonterminal">$cap</span>, <span class="macro-nonterminal">$it</span>.into_iter().collect_errors(<span class="kw-2">&amp;mut </span>err));
+<a href=#995 id=995 data-nosnippet>995</a>        err.map_or(<span class="prelude-val">Ok</span>(slice), <span class="prelude-val">Err</span>)
+<a href=#996 id=996 data-nosnippet>996</a>    }};
+<a href=#997 id=997 data-nosnippet>997</a>}
+<a href=#998 id=998 data-nosnippet>998</a>
+<a href=#999 id=999 data-nosnippet>999</a><span class="kw">impl </span>ErrorEmitter <span class="kw">for </span>GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<a href=#1000 id=1000 data-nosnippet>1000</a>    <span class="kw">fn </span>emit&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, err: <span class="kw">impl </span>rustc_errors::Diagnostic&lt;<span class="lifetime">'a</span>&gt;) -&gt; rustc_span::ErrorGuaranteed {
+<a href=#1001 id=1001 data-nosnippet>1001</a>        <span class="self">self</span>.sess().emit(err)
+<a href=#1002 id=1002 data-nosnippet>1002</a>    }
+<a href=#1003 id=1003 data-nosnippet>1003</a>}
+<a href=#1004 id=1004 data-nosnippet>1004</a>
+<a href=#1005 id=1005 data-nosnippet>1005</a><span class="kw">fn </span>lean_parent_dir(tcx: TyCtxt) -&gt; PathBuf {
+<a href=#1006 id=1006 data-nosnippet>1006</a>    tcx.sess
+<a href=#1007 id=1007 data-nosnippet>1007</a>        .source_map()
+<a href=#1008 id=1008 data-nosnippet>1008</a>        .working_dir()
+<a href=#1009 id=1009 data-nosnippet>1009</a>        .local_path()
+<a href=#1010 id=1010 data-nosnippet>1010</a>        .unwrap()
+<a href=#1011 id=1011 data-nosnippet>1011</a>        .join(config::lean_dir())
+<a href=#1012 id=1012 data-nosnippet>1012</a>}
 </code></pre></div></section></main></body></html>

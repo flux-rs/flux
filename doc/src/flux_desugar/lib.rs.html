@@ -200,33 +200,36 @@
 <a href=#200 id=200 data-nosnippet>200</a>                        surface::Attr::TrustedImpl(trusted) =&gt; {
 <a href=#201 id=201 data-nosnippet>201</a>                            <span class="prelude-val">Some</span>(fhir::Attr::TrustedImpl(trusted))
 <a href=#202 id=202 data-nosnippet>202</a>                        }
-<a href=#203 id=203 data-nosnippet>203</a>                        surface::Attr::Ignore(ignored) =&gt; <span class="prelude-val">Some</span>(fhir::Attr::Ignore(ignored)),
-<a href=#204 id=204 data-nosnippet>204</a>                        surface::Attr::ProvenExternally(span) =&gt; {
-<a href=#205 id=205 data-nosnippet>205</a>                            <span class="prelude-val">Some</span>(fhir::Attr::ProvenExternally(span))
-<a href=#206 id=206 data-nosnippet>206</a>                        }
-<a href=#207 id=207 data-nosnippet>207</a>                        surface::Attr::ShouldFail =&gt; <span class="prelude-val">Some</span>(fhir::Attr::ShouldFail),
-<a href=#208 id=208 data-nosnippet>208</a>                        surface::Attr::InferOpts(opts) =&gt; <span class="prelude-val">Some</span>(fhir::Attr::InferOpts(opts)),
-<a href=#209 id=209 data-nosnippet>209</a>                        surface::Attr::NoPanic =&gt; <span class="prelude-val">Some</span>(fhir::Attr::NoPanic),
-<a href=#210 id=210 data-nosnippet>210</a>                        surface::Attr::NoSuggestions =&gt; <span class="prelude-val">Some</span>(fhir::Attr::NoSuggestions),
-<a href=#211 id=211 data-nosnippet>211</a>                        surface::Attr::Qualifiers(<span class="kw">_</span>)
-<a href=#212 id=212 data-nosnippet>212</a>                        | surface::Attr::Reveal(<span class="kw">_</span>)
-<a href=#213 id=213 data-nosnippet>213</a>                        | surface::Attr::AssumeParametric(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-<a href=#214 id=214 data-nosnippet>214</a>                    }
-<a href=#215 id=215 data-nosnippet>215</a>                })
-<a href=#216 id=216 data-nosnippet>216</a>                .collect_vec(),
-<a href=#217 id=217 data-nosnippet>217</a>        ),
-<a href=#218 id=218 data-nosnippet>218</a>        qualifiers: resolver_output
-<a href=#219 id=219 data-nosnippet>219</a>            .qualifier_res_map
-<a href=#220 id=220 data-nosnippet>220</a>            .get(<span class="kw-2">&amp;</span>node_id)
-<a href=#221 id=221 data-nosnippet>221</a>            .map_or(<span class="kw-2">&amp;</span>[][..], Vec::as_slice),
-<a href=#222 id=222 data-nosnippet>222</a>        reveals: resolver_output
-<a href=#223 id=223 data-nosnippet>223</a>            .reveal_res_map
-<a href=#224 id=224 data-nosnippet>224</a>            .get(<span class="kw-2">&amp;</span>node_id)
-<a href=#225 id=225 data-nosnippet>225</a>            .map_or(<span class="kw-2">&amp;</span>[][..], Vec::as_slice),
-<a href=#226 id=226 data-nosnippet>226</a>        parametric_params: resolver_output
-<a href=#227 id=227 data-nosnippet>227</a>            .parametric_param_res_map
-<a href=#228 id=228 data-nosnippet>228</a>            .get(<span class="kw-2">&amp;</span>node_id)
-<a href=#229 id=229 data-nosnippet>229</a>            .map_or(<span class="kw-2">&amp;</span>[][..], Vec::as_slice),
-<a href=#230 id=230 data-nosnippet>230</a>    }
-<a href=#231 id=231 data-nosnippet>231</a>}
+<a href=#203 id=203 data-nosnippet>203</a>                        surface::Attr::TrustedDerive(trusted) =&gt; {
+<a href=#204 id=204 data-nosnippet>204</a>                            <span class="prelude-val">Some</span>(fhir::Attr::TrustedDerive(trusted))
+<a href=#205 id=205 data-nosnippet>205</a>                        }
+<a href=#206 id=206 data-nosnippet>206</a>                        surface::Attr::Ignore(ignored) =&gt; <span class="prelude-val">Some</span>(fhir::Attr::Ignore(ignored)),
+<a href=#207 id=207 data-nosnippet>207</a>                        surface::Attr::ProvenExternally(span) =&gt; {
+<a href=#208 id=208 data-nosnippet>208</a>                            <span class="prelude-val">Some</span>(fhir::Attr::ProvenExternally(span))
+<a href=#209 id=209 data-nosnippet>209</a>                        }
+<a href=#210 id=210 data-nosnippet>210</a>                        surface::Attr::ShouldFail =&gt; <span class="prelude-val">Some</span>(fhir::Attr::ShouldFail),
+<a href=#211 id=211 data-nosnippet>211</a>                        surface::Attr::InferOpts(opts) =&gt; <span class="prelude-val">Some</span>(fhir::Attr::InferOpts(opts)),
+<a href=#212 id=212 data-nosnippet>212</a>                        surface::Attr::NoPanic =&gt; <span class="prelude-val">Some</span>(fhir::Attr::NoPanic),
+<a href=#213 id=213 data-nosnippet>213</a>                        surface::Attr::NoSuggestions =&gt; <span class="prelude-val">Some</span>(fhir::Attr::NoSuggestions),
+<a href=#214 id=214 data-nosnippet>214</a>                        surface::Attr::Qualifiers(<span class="kw">_</span>)
+<a href=#215 id=215 data-nosnippet>215</a>                        | surface::Attr::Reveal(<span class="kw">_</span>)
+<a href=#216 id=216 data-nosnippet>216</a>                        | surface::Attr::AssumeParametric(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+<a href=#217 id=217 data-nosnippet>217</a>                    }
+<a href=#218 id=218 data-nosnippet>218</a>                })
+<a href=#219 id=219 data-nosnippet>219</a>                .collect_vec(),
+<a href=#220 id=220 data-nosnippet>220</a>        ),
+<a href=#221 id=221 data-nosnippet>221</a>        qualifiers: resolver_output
+<a href=#222 id=222 data-nosnippet>222</a>            .qualifier_res_map
+<a href=#223 id=223 data-nosnippet>223</a>            .get(<span class="kw-2">&amp;</span>node_id)
+<a href=#224 id=224 data-nosnippet>224</a>            .map_or(<span class="kw-2">&amp;</span>[][..], Vec::as_slice),
+<a href=#225 id=225 data-nosnippet>225</a>        reveals: resolver_output
+<a href=#226 id=226 data-nosnippet>226</a>            .reveal_res_map
+<a href=#227 id=227 data-nosnippet>227</a>            .get(<span class="kw-2">&amp;</span>node_id)
+<a href=#228 id=228 data-nosnippet>228</a>            .map_or(<span class="kw-2">&amp;</span>[][..], Vec::as_slice),
+<a href=#229 id=229 data-nosnippet>229</a>        parametric_params: resolver_output
+<a href=#230 id=230 data-nosnippet>230</a>            .parametric_param_res_map
+<a href=#231 id=231 data-nosnippet>231</a>            .get(<span class="kw-2">&amp;</span>node_id)
+<a href=#232 id=232 data-nosnippet>232</a>            .map_or(<span class="kw-2">&amp;</span>[][..], Vec::as_slice),
+<a href=#233 id=233 data-nosnippet>233</a>    }
+<a href=#234 id=234 data-nosnippet>234</a>}
 </code></pre></div></section></main></body></html>
