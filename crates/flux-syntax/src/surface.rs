@@ -644,6 +644,8 @@ pub enum Attr {
     Trusted(Trusted),
     /// A `#[trusted_impl(...)]` attribute
     TrustedImpl(Trusted),
+    /// A `#[trusted_derive(...)]` attribute
+    TrustedDerive(Trusted),
     /// A `#[ignore(...)]` attribute
     Ignore(Ignored),
     /// A `#[proven_externally]` attribute

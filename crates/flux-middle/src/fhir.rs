@@ -53,6 +53,7 @@ use crate::{
 pub enum Attr {
     Trusted(Trusted),
     TrustedImpl(Trusted),
+    TrustedDerive(Trusted),
     Ignore(Ignored),
     ProvenExternally(Span),
     ShouldFail,
@@ -94,6 +95,12 @@ impl AttrMap<'_> {
     pub(crate) fn trusted_impl(&self) -> Option<Trusted> {
         self.attrs.iter().find_map(|attr| {
             if let Attr::TrustedImpl(trusted) = *attr { Some(trusted) } else { None }
+        })
+    }
+
+    pub(crate) fn trusted_derive(&self) -> Option<Trusted> {
+        self.attrs.iter().find_map(|attr| {
+            if let Attr::TrustedDerive(trusted) = *attr { Some(trusted) } else { None }
         })
     }
 

@@ -7,6 +7,7 @@ use flux_rs::{assert, attrs::*};
 pub mod wrapper {
 
     #[flux_rs::reflect]
+    #[flux_rs::trusted_derive(reason = "require spec for discriminant_value in detached spec")]
     #[derive(PartialEq)]
     pub enum Role {
         User,

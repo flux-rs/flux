@@ -200,6 +200,9 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
                         surface::Attr::TrustedImpl(trusted) => {
                             Some(fhir::Attr::TrustedImpl(trusted))
                         }
+                        surface::Attr::TrustedDerive(trusted) => {
+                            Some(fhir::Attr::TrustedDerive(trusted))
+                        }
                         surface::Attr::Ignore(ignored) => Some(fhir::Attr::Ignore(ignored)),
                         surface::Attr::ProvenExternally(span) => {
                             Some(fhir::Attr::ProvenExternally(span))
