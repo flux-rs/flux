@@ -1330,7 +1330,6 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                         if let ErrCtxt::FnCheck(_, fn_def_id) = self.cx {
                             let fn_span = tcx.def_span(fn_def_id);
                             if fn_span.in_derive_expansion() {
-                                // Derive-generated code can't be annotated directly, so point at
                                 // the type instead.
                                 diag.span_label(
                                     tcx.def_span(struct_id),
