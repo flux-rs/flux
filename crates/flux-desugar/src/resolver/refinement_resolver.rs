@@ -254,7 +254,6 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                         ident: *bind,
                         mode: None,
                         sort: surface::Sort::Infer,
-                        is_wildcard: false,
                         node_id,
                         span: bind.span,
                     };

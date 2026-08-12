@@ -365,7 +365,9 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
         self.check_expr(&qual.expr, &rty::Sort::Bool);
 
         // A sort with no literals to scrape would silently make the qualifier inert.
-        for param in qual.args.iter().filter(|param| param.is_wildcard) {
+        let wildcards = std::iter::zip(qual.args, qual.wildcards)
+            .filter_map(|(param, &is_wildcard)| is_wildcard.then_some(param));
+        for param in wildcards {
             let sort = self.infcx.param_sort(param.id);
             if !matches!(
                 sort,

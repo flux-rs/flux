@@ -510,7 +510,10 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let kind = parse_qualifier_kind(cx)?;
     cx.expect(kw::Qualifier)?;
     let mut name = parse_ident(cx)?;
-    let mut params = parens(cx, Comma, parse_qualifier_param)?;
+    let (mut params, mut wildcards): (RefineParams, Vec<bool>) =
+        parens(cx, Comma, parse_qualifier_param)?
+            .into_iter()
+            .unzip();
     let expr = parse_block(cx)?;
     let hi = cx.hi();
 
@@ -519,18 +522,18 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
         for param in &params {
             fvars.remove(&param.ident);
         }
-        // Params synthesized from the body's free variables are bound to values in the enclosing
-        // function, so they are never wildcards.
         params.extend(fvars.into_iter().map(|ident| {
             RefineParam {
                 ident,
                 sort: Sort::Infer,
                 mode: None,
-                is_wildcard: false,
                 span: ident.span,
                 node_id: cx.next_node_id(),
             }
         }));
+        // Params synthesized from the body's free variables are bound to values in the enclosing
+        // function, so they are never wildcards.
+        wildcards.resize(params.len(), false);
 
         // Uniquify the name so hints don't collide with each other (qualifier names are
         // crate-global). The span alone is not enough: every expansion of a macro like
@@ -547,7 +550,8 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
         name = Ident { name: Symbol::intern(&str), ..name };
     }
 
-    Ok(Qualifier { name, params, expr, span: cx.mk_span(lo, hi), kind })
+    debug_assert_eq!(params.len(), wildcards.len());
+    Ok(Qualifier { name, params, wildcards, expr, span: cx.mk_span(lo, hi), kind })
 }
 
 /// ```text
@@ -1370,48 +1374,30 @@ fn parse_sort_if_required(cx: &mut ParseCtxt, require_sort: RequireSort) -> Pars
     }
 }
 
-enum AllowWildcard {
-    Yes,
-    No,
-}
-
 /// ```text
 /// ⟨refine_param⟩ := ⟨mode⟩? ⟨ident⟩ ⟨ : ⟨sort⟩ ⟩?    if require_sort is Maybe
 ///                 | ⟨mode⟩? ⟨ident⟩ : ⟨sort⟩         if require_sort is Yes
 ///                 | ⟨mode⟩? ⟨ident⟩                  if require_sort is No
 /// ```
 fn parse_refine_param(cx: &mut ParseCtxt, require_sort: RequireSort) -> ParseResult<RefineParam> {
-    parse_refine_param_inner(cx, require_sort, AllowWildcard::No)
-}
-
-/// ```text
-/// ⟨qualifier_param⟩ := #? ⟨mode⟩? ⟨ident⟩ : ⟨sort⟩
-/// ```
-fn parse_qualifier_param(cx: &mut ParseCtxt) -> ParseResult<RefineParam> {
-    parse_refine_param_inner(cx, RequireSort::Yes, AllowWildcard::Yes)
-}
-
-fn parse_refine_param_inner(
-    cx: &mut ParseCtxt,
-    require_sort: RequireSort,
-    allow_wildcard: AllowWildcard,
-) -> ParseResult<RefineParam> {
     let lo = cx.lo();
-    // `#a: int` rather than fixpoint's `a#: int` because rustc lexes the attribute first and
-    // rejects `a#` as a reserved prefix.
-    let is_wildcard = matches!(allow_wildcard, AllowWildcard::Yes) && cx.advance_if(token::Pound);
     let mode = parse_opt_param_mode(cx);
     let ident = parse_ident(cx)?;
     let sort = parse_sort_if_required(cx, require_sort)?;
     let hi = cx.hi();
-    Ok(RefineParam {
-        mode,
-        ident,
-        sort,
-        is_wildcard,
-        span: cx.mk_span(lo, hi),
-        node_id: cx.next_node_id(),
-    })
+    Ok(RefineParam { mode, ident, sort, span: cx.mk_span(lo, hi), node_id: cx.next_node_id() })
+}
+
+/// ```text
+/// ⟨qualifier_param⟩ := #? ⟨refine_param⟩
+/// ```
+///
+/// `#a: int` rather than fixpoint's `a#: int` because rustc lexes the enclosing attribute first and
+/// rejects `a#` as a reserved prefix.
+fn parse_qualifier_param(cx: &mut ParseCtxt) -> ParseResult<(RefineParam, bool)> {
+    let is_wildcard = cx.advance_if(token::Pound);
+    let param = parse_refine_param(cx, RequireSort::Yes)?;
+    Ok((param, is_wildcard))
 }
 
 /// ```text

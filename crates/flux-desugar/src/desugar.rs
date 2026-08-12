@@ -877,6 +877,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         fhir::Qualifier {
             def_id: self.owner,
             args: self.desugar_refine_params(&qualifier.params),
+            wildcards: self.genv().alloc_slice(&qualifier.wildcards),
             kind,
             expr: self.desugar_expr(&qualifier.expr),
         }
@@ -1058,7 +1059,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     span: ident.span,
                     kind,
                     sort,
-                    is_wildcard: false,
                     fhir_id: self.next_fhir_id(),
                 }
             })
@@ -1087,7 +1087,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             span: param.ident.span,
             kind,
             sort: self.desugar_sort(&param.sort, None),
-            is_wildcard: param.is_wildcard,
             fhir_id: self.next_fhir_id(),
         }
     }
@@ -1258,7 +1257,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     span: bind.span,
                     sort: fhir::Sort::Infer,
                     kind,
-                    is_wildcard: false,
                     fhir_id: self.next_fhir_id(),
                 };
                 let path = fhir::PathExpr {
