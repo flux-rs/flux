@@ -22,6 +22,7 @@ pub mod wrapper {
             #[reft] fn is_ne(self: Role, other: Role, res: bool) -> bool {
                 res <=> (self != other)
             }
+            #[trusted]
             fn eq(&Role[@r1], other: &Role[@r2]) -> bool[r1 == r2];
         }
 
