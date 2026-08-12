@@ -1385,7 +1385,7 @@ fn parse_refine_param(cx: &mut ParseCtxt, require_sort: RequireSort) -> ParseRes
 }
 
 /// ```text
-/// ⟨qualifier_param⟩ := ⟨mode⟩? ⟨ident⟩ #? : ⟨sort⟩
+/// ⟨qualifier_param⟩ := #? ⟨mode⟩? ⟨ident⟩ : ⟨sort⟩
 /// ```
 fn parse_qualifier_param(cx: &mut ParseCtxt) -> ParseResult<RefineParam> {
     parse_refine_param_inner(cx, RequireSort::Yes, AllowWildcard::Yes)
@@ -1397,14 +1397,11 @@ fn parse_refine_param_inner(
     allow_wildcard: AllowWildcard,
 ) -> ParseResult<RefineParam> {
     let lo = cx.lo();
+    // `#a: int` rather than fixpoint's `a#: int` because rustc lexes the attribute first and
+    // rejects `a#` as a reserved prefix.
+    let is_wildcard = matches!(allow_wildcard, AllowWildcard::Yes) && cx.advance_if(token::Pound);
     let mode = parse_opt_param_mode(cx);
     let ident = parse_ident(cx)?;
-    // `a #: int` rather than fixpoint's `a#: int` because rustc lexes the attribute first and
-    // rejects `a#` as a reserved prefix.
-    let is_wildcard = matches!(allow_wildcard, AllowWildcard::Yes) && cx.peek(token::Pound);
-    if is_wildcard {
-        cx.advance();
-    }
     let sort = parse_sort_if_required(cx, require_sort)?;
     let hi = cx.hi();
     Ok(RefineParam {

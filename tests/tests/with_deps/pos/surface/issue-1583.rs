@@ -3,7 +3,7 @@
 // it. This does not verify without the `#` marker.
 #![allow(unused)]
 #![flux::defs {
-    qualifier LeLit(x: int, a #: int) { x <= a }
+    qualifier LeLit(x: int, #a: int) { x <= a }
 }]
 
 extern crate flux_core;

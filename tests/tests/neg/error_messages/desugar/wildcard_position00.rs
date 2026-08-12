@@ -2,5 +2,5 @@
 // anywhere else a refinement parameter can appear.
 
 #![flux::defs {
-    fn dbl(x #: int) -> int { x + x } //~ ERROR syntax error
+    fn dbl(#x: int) -> int { x + x } //~ ERROR syntax error
 }]

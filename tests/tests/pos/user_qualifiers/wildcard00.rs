@@ -4,7 +4,7 @@
 // instantiated with it.
 
 #![flux::defs {
-    qualifier LeLit(x: int, a #: int) { x <= a }
+    qualifier LeLit(x: int, #a: int) { x <= a }
 }]
 
 #[flux::sig(fn() -> usize[10])]
