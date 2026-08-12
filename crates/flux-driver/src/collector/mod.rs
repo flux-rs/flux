@@ -642,6 +642,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 FluxAttrKind::ProvenExternally(span)
             }
             ("trusted_impl", hir::AttrArgs::Empty) => FluxAttrKind::TrustedImpl(Trusted::Yes),
+            ("trusted_derive", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_yes_or_no_with_reason, |b| {
+                    FluxAttrKind::TrustedDerive(b.into())
+                })?
+            }
+            ("trusted_derive", hir::AttrArgs::Empty) => FluxAttrKind::TrustedDerive(Trusted::Yes),
             ("opaque", hir::AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
             ("extern_spec", hir::AttrArgs::Empty) => FluxAttrKind::ExternSpec,
@@ -751,6 +757,7 @@ struct FluxAttr {
 enum FluxAttrKind {
     Trusted(Trusted),
     TrustedImpl(Trusted),
+    TrustedDerive(Trusted),
     ProvenExternally(Span),
     Opaque,
     Reflect,
@@ -931,6 +938,7 @@ impl FluxAttrs {
             let attr = match attr.kind {
                 FluxAttrKind::Trusted(trusted) => surface::Attr::Trusted(trusted),
                 FluxAttrKind::TrustedImpl(trusted) => surface::Attr::TrustedImpl(trusted),
+                FluxAttrKind::TrustedDerive(trusted) => surface::Attr::TrustedDerive(trusted),
                 FluxAttrKind::ProvenExternally(span) => surface::Attr::ProvenExternally(span),
                 FluxAttrKind::QualNames(names) => surface::Attr::Qualifiers(names),
                 FluxAttrKind::RevealNames(names) => surface::Attr::Reveal(names),
@@ -969,6 +977,7 @@ impl FluxAttrKind {
         match self {
             FluxAttrKind::Trusted(_) => attr_name!(Trusted),
             FluxAttrKind::TrustedImpl(_) => attr_name!(TrustedImpl),
+            FluxAttrKind::TrustedDerive(_) => attr_name!(TrustedDerive),
             FluxAttrKind::ProvenExternally(_) => attr_name!(ProvenExternally),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::Reflect => attr_name!(Reflect),
