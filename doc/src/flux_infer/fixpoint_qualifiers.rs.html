@@ -4,23 +4,23 @@
 <a href=#4 id=4 data-nosnippet>4</a>
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span><span class="kw">crate</span>::fixpoint_encoding::fixpoint::{
 <a href=#6 id=6 data-nosnippet>6</a>    LocalVar, Var,
-<a href=#7 id=7 data-nosnippet>7</a>    fixpoint_generated::{Expr, Qualifier},
+<a href=#7 id=7 data-nosnippet>7</a>    fixpoint_generated::{Expr, QualParam, Qualifier},
 <a href=#8 id=8 data-nosnippet>8</a>};
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">static </span>FIXPOINT_QUALIFIERS: LazyLock&lt;[Qualifier; <span class="number">13</span>]&gt; = LazyLock::new(|| {
 <a href=#10 id=10 data-nosnippet>10</a>    <span class="comment">// UNARY
 <a href=#11 id=11 data-nosnippet>11</a>    </span><span class="kw">let </span>eqtrue = Qualifier {
 <a href=#12 id=12 data-nosnippet>12</a>        name: String::from(<span class="string">"EqTrue"</span>),
-<a href=#13 id=13 data-nosnippet>13</a>        args: <span class="macro">vec!</span>[(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Bool)],
+<a href=#13 id=13 data-nosnippet>13</a>        args: <span class="macro">vec!</span>[QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Bool)],
 <a href=#14 id=14 data-nosnippet>14</a>        body: Expr::Var(Var::Local(LocalVar::from(<span class="number">0u32</span>))),
 <a href=#15 id=15 data-nosnippet>15</a>    };
 <a href=#16 id=16 data-nosnippet>16</a>    <span class="kw">let </span>eqfalse = Qualifier {
 <a href=#17 id=17 data-nosnippet>17</a>        name: String::from(<span class="string">"EqFalse"</span>),
-<a href=#18 id=18 data-nosnippet>18</a>        args: <span class="macro">vec!</span>[(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Bool)],
+<a href=#18 id=18 data-nosnippet>18</a>        args: <span class="macro">vec!</span>[QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Bool)],
 <a href=#19 id=19 data-nosnippet>19</a>        body: Expr::Not(Box::new(Expr::Var(Var::Local(LocalVar::from(<span class="number">0u32</span>))))),
 <a href=#20 id=20 data-nosnippet>20</a>    };
 <a href=#21 id=21 data-nosnippet>21</a>    <span class="kw">let </span>eqzero = Qualifier {
 <a href=#22 id=22 data-nosnippet>22</a>        name: String::from(<span class="string">"EqZero"</span>),
-<a href=#23 id=23 data-nosnippet>23</a>        args: <span class="macro">vec!</span>[(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int)],
+<a href=#23 id=23 data-nosnippet>23</a>        args: <span class="macro">vec!</span>[QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int)],
 <a href=#24 id=24 data-nosnippet>24</a>        body: Expr::Atom(
 <a href=#25 id=25 data-nosnippet>25</a>            BinRel::Eq,
 <a href=#26 id=26 data-nosnippet>26</a>            Box::new([Expr::Var(Var::Local(LocalVar::from(<span class="number">0u32</span>))), Expr::int(<span class="number">0</span>)]),
@@ -28,7 +28,7 @@
 <a href=#28 id=28 data-nosnippet>28</a>    };
 <a href=#29 id=29 data-nosnippet>29</a>    <span class="kw">let </span>gtzero = Qualifier {
 <a href=#30 id=30 data-nosnippet>30</a>        name: String::from(<span class="string">"GtZero"</span>),
-<a href=#31 id=31 data-nosnippet>31</a>        args: <span class="macro">vec!</span>[(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int)],
+<a href=#31 id=31 data-nosnippet>31</a>        args: <span class="macro">vec!</span>[QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int)],
 <a href=#32 id=32 data-nosnippet>32</a>        body: Expr::Atom(
 <a href=#33 id=33 data-nosnippet>33</a>            BinRel::Gt,
 <a href=#34 id=34 data-nosnippet>34</a>            Box::new([Expr::Var(Var::Local(LocalVar::from(<span class="number">0u32</span>))), Expr::int(<span class="number">0</span>)]),
@@ -36,7 +36,7 @@
 <a href=#36 id=36 data-nosnippet>36</a>    };
 <a href=#37 id=37 data-nosnippet>37</a>    <span class="kw">let </span>gezero = Qualifier {
 <a href=#38 id=38 data-nosnippet>38</a>        name: String::from(<span class="string">"GeZero"</span>),
-<a href=#39 id=39 data-nosnippet>39</a>        args: <span class="macro">vec!</span>[(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int)],
+<a href=#39 id=39 data-nosnippet>39</a>        args: <span class="macro">vec!</span>[QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int)],
 <a href=#40 id=40 data-nosnippet>40</a>        body: Expr::Atom(
 <a href=#41 id=41 data-nosnippet>41</a>            BinRel::Ge,
 <a href=#42 id=42 data-nosnippet>42</a>            Box::new([Expr::Var(Var::Local(LocalVar::from(<span class="number">0u32</span>))), Expr::int(<span class="number">0</span>)]),
@@ -44,7 +44,7 @@
 <a href=#44 id=44 data-nosnippet>44</a>    };
 <a href=#45 id=45 data-nosnippet>45</a>    <span class="kw">let </span>ltzero = Qualifier {
 <a href=#46 id=46 data-nosnippet>46</a>        name: String::from(<span class="string">"LtZero"</span>),
-<a href=#47 id=47 data-nosnippet>47</a>        args: <span class="macro">vec!</span>[(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int)],
+<a href=#47 id=47 data-nosnippet>47</a>        args: <span class="macro">vec!</span>[QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int)],
 <a href=#48 id=48 data-nosnippet>48</a>        body: Expr::Atom(
 <a href=#49 id=49 data-nosnippet>49</a>            BinRel::Lt,
 <a href=#50 id=50 data-nosnippet>50</a>            Box::new([Expr::Var(Var::Local(LocalVar::from(<span class="number">0u32</span>))), Expr::int(<span class="number">0</span>)]),
@@ -52,7 +52,7 @@
 <a href=#52 id=52 data-nosnippet>52</a>    };
 <a href=#53 id=53 data-nosnippet>53</a>    <span class="kw">let </span>lezero = Qualifier {
 <a href=#54 id=54 data-nosnippet>54</a>        name: String::from(<span class="string">"LeZero"</span>),
-<a href=#55 id=55 data-nosnippet>55</a>        args: <span class="macro">vec!</span>[(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int)],
+<a href=#55 id=55 data-nosnippet>55</a>        args: <span class="macro">vec!</span>[QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int)],
 <a href=#56 id=56 data-nosnippet>56</a>        body: Expr::Atom(
 <a href=#57 id=57 data-nosnippet>57</a>            BinRel::Le,
 <a href=#58 id=58 data-nosnippet>58</a>            Box::new([Expr::Var(Var::Local(LocalVar::from(<span class="number">0u32</span>))), Expr::int(<span class="number">0</span>)]),
@@ -63,8 +63,8 @@
 <a href=#63 id=63 data-nosnippet>63</a>    </span><span class="kw">let </span>eq = Qualifier {
 <a href=#64 id=64 data-nosnippet>64</a>        name: String::from(<span class="string">"Eq"</span>),
 <a href=#65 id=65 data-nosnippet>65</a>        args: <span class="macro">vec!</span>[
-<a href=#66 id=66 data-nosnippet>66</a>            (Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
-<a href=#67 id=67 data-nosnippet>67</a>            (Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
+<a href=#66 id=66 data-nosnippet>66</a>            QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
+<a href=#67 id=67 data-nosnippet>67</a>            QualParam::new(Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
 <a href=#68 id=68 data-nosnippet>68</a>        ],
 <a href=#69 id=69 data-nosnippet>69</a>        body: Expr::Atom(
 <a href=#70 id=70 data-nosnippet>70</a>            BinRel::Eq,
@@ -77,8 +77,8 @@
 <a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">let </span>gt = Qualifier {
 <a href=#78 id=78 data-nosnippet>78</a>        name: String::from(<span class="string">"Gt"</span>),
 <a href=#79 id=79 data-nosnippet>79</a>        args: <span class="macro">vec!</span>[
-<a href=#80 id=80 data-nosnippet>80</a>            (Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
-<a href=#81 id=81 data-nosnippet>81</a>            (Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
+<a href=#80 id=80 data-nosnippet>80</a>            QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
+<a href=#81 id=81 data-nosnippet>81</a>            QualParam::new(Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
 <a href=#82 id=82 data-nosnippet>82</a>        ],
 <a href=#83 id=83 data-nosnippet>83</a>        body: Expr::Atom(
 <a href=#84 id=84 data-nosnippet>84</a>            BinRel::Gt,
@@ -92,8 +92,8 @@
 <a href=#92 id=92 data-nosnippet>92</a>        Qualifier {
 <a href=#93 id=93 data-nosnippet>93</a>            name: String::from(<span class="string">"Ge"</span>),
 <a href=#94 id=94 data-nosnippet>94</a>            args: <span class="macro">vec!</span>[
-<a href=#95 id=95 data-nosnippet>95</a>                (Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
-<a href=#96 id=96 data-nosnippet>96</a>                (Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
+<a href=#95 id=95 data-nosnippet>95</a>                QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
+<a href=#96 id=96 data-nosnippet>96</a>                QualParam::new(Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
 <a href=#97 id=97 data-nosnippet>97</a>            ],
 <a href=#98 id=98 data-nosnippet>98</a>            body: Expr::Atom(
 <a href=#99 id=99 data-nosnippet>99</a>                BinRel::Ge,
@@ -106,8 +106,8 @@
 <a href=#106 id=106 data-nosnippet>106</a>    <span class="kw">let </span>lt = Qualifier {
 <a href=#107 id=107 data-nosnippet>107</a>        name: String::from(<span class="string">"Lt"</span>),
 <a href=#108 id=108 data-nosnippet>108</a>        args: <span class="macro">vec!</span>[
-<a href=#109 id=109 data-nosnippet>109</a>            (Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
-<a href=#110 id=110 data-nosnippet>110</a>            (Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
+<a href=#109 id=109 data-nosnippet>109</a>            QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
+<a href=#110 id=110 data-nosnippet>110</a>            QualParam::new(Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
 <a href=#111 id=111 data-nosnippet>111</a>        ],
 <a href=#112 id=112 data-nosnippet>112</a>        body: Expr::Atom(
 <a href=#113 id=113 data-nosnippet>113</a>            BinRel::Lt,
@@ -120,8 +120,8 @@
 <a href=#120 id=120 data-nosnippet>120</a>    <span class="kw">let </span>le = Qualifier {
 <a href=#121 id=121 data-nosnippet>121</a>        name: String::from(<span class="string">"Le"</span>),
 <a href=#122 id=122 data-nosnippet>122</a>        args: <span class="macro">vec!</span>[
-<a href=#123 id=123 data-nosnippet>123</a>            (Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
-<a href=#124 id=124 data-nosnippet>124</a>            (Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
+<a href=#123 id=123 data-nosnippet>123</a>            QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
+<a href=#124 id=124 data-nosnippet>124</a>            QualParam::new(Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
 <a href=#125 id=125 data-nosnippet>125</a>        ],
 <a href=#126 id=126 data-nosnippet>126</a>        body: Expr::Atom(
 <a href=#127 id=127 data-nosnippet>127</a>            BinRel::Le,
@@ -134,8 +134,8 @@
 <a href=#134 id=134 data-nosnippet>134</a>    <span class="kw">let </span>le1 = Qualifier {
 <a href=#135 id=135 data-nosnippet>135</a>        name: String::from(<span class="string">"Le1"</span>),
 <a href=#136 id=136 data-nosnippet>136</a>        args: <span class="macro">vec!</span>[
-<a href=#137 id=137 data-nosnippet>137</a>            (Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
-<a href=#138 id=138 data-nosnippet>138</a>            (Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
+<a href=#137 id=137 data-nosnippet>137</a>            QualParam::new(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Int),
+<a href=#138 id=138 data-nosnippet>138</a>            QualParam::new(Var::Local(LocalVar::from(<span class="number">1u32</span>)), Sort::Int),
 <a href=#139 id=139 data-nosnippet>139</a>        ],
 <a href=#140 id=140 data-nosnippet>140</a>        body: Expr::Atom(
 <a href=#141 id=141 data-nosnippet>141</a>            BinRel::Le,

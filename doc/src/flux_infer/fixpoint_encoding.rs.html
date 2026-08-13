@@ -2559,221 +2559,226 @@
 <a href=#2559 id=2559 data-nosnippet>2559</a>    ) -&gt; QueryResult&lt;fixpoint::Qualifier&gt; {
 <a href=#2560 id=2560 data-nosnippet>2560</a>        <span class="kw">let </span>(args, body) = <span class="self">self</span>.body_to_fixpoint(<span class="kw-2">&amp;</span>qualifier.body, scx)<span class="question-mark">?</span>;
 <a href=#2561 id=2561 data-nosnippet>2561</a>        <span class="kw">let </span>name = qualifier.def_id.name().to_string();
-<a href=#2562 id=2562 data-nosnippet>2562</a>        <span class="prelude-val">Ok</span>(fixpoint::Qualifier { name, args, body })
-<a href=#2563 id=2563 data-nosnippet>2563</a>    }
-<a href=#2564 id=2564 data-nosnippet>2564</a>}
-<a href=#2565 id=2565 data-nosnippet>2565</a>
-<a href=#2566 id=2566 data-nosnippet>2566</a><span class="kw">fn </span>parse_kvid(kvid: <span class="kw-2">&amp;</span>str) -&gt; fixpoint::KVid {
-<a href=#2567 id=2567 data-nosnippet>2567</a>    <span class="kw">if </span>kvid.starts_with(<span class="string">"k"</span>)
-<a href=#2568 id=2568 data-nosnippet>2568</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(kvid) = kvid[<span class="number">1</span>..].parse::&lt;u32&gt;().ok()
-<a href=#2569 id=2569 data-nosnippet>2569</a>    {
-<a href=#2570 id=2570 data-nosnippet>2570</a>        fixpoint::KVid::from_u32(kvid)
-<a href=#2571 id=2571 data-nosnippet>2571</a>    } <span class="kw">else </span>{
-<a href=#2572 id=2572 data-nosnippet>2572</a>        <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected kvar name {kvid}"</span>)
-<a href=#2573 id=2573 data-nosnippet>2573</a>    }
-<a href=#2574 id=2574 data-nosnippet>2574</a>}
-<a href=#2575 id=2575 data-nosnippet>2575</a>
-<a href=#2576 id=2576 data-nosnippet>2576</a><span class="kw">fn </span>parse_local_var(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
-<a href=#2577 id=2577 data-nosnippet>2577</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">'a'</span>)
-<a href=#2578 id=2578 data-nosnippet>2578</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(idx) = rest.parse::&lt;u32&gt;()
-<a href=#2579 id=2579 data-nosnippet>2579</a>    {
-<a href=#2580 id=2580 data-nosnippet>2580</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::Local(fixpoint::LocalVar::from(idx)));
-<a href=#2581 id=2581 data-nosnippet>2581</a>    }
-<a href=#2582 id=2582 data-nosnippet>2582</a>    <span class="prelude-val">None
-<a href=#2583 id=2583 data-nosnippet>2583</a></span>}
-<a href=#2584 id=2584 data-nosnippet>2584</a>
-<a href=#2585 id=2585 data-nosnippet>2585</a><span class="kw">fn </span>parse_global_var(
-<a href=#2586 id=2586 data-nosnippet>2586</a>    name: <span class="kw-2">&amp;</span>str,
-<a href=#2587 id=2587 data-nosnippet>2587</a>    fun_decl_map: <span class="kw-2">&amp;</span>HashMap&lt;usize, FluxDefId&gt;,
-<a href=#2588 id=2588 data-nosnippet>2588</a>    const_decl_map: <span class="kw-2">&amp;</span>HashMap&lt;usize, DefId&gt;,
-<a href=#2589 id=2589 data-nosnippet>2589</a>) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
-<a href=#2590 id=2590 data-nosnippet>2590</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">'c'</span>)
-<a href=#2591 id=2591 data-nosnippet>2591</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(idx) = rest.parse::&lt;u32&gt;()
-<a href=#2592 id=2592 data-nosnippet>2592</a>    {
-<a href=#2593 id=2593 data-nosnippet>2593</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::Const(
-<a href=#2594 id=2594 data-nosnippet>2594</a>            fixpoint::GlobalVar::from(idx),
-<a href=#2595 id=2595 data-nosnippet>2595</a>            const_decl_map.get(<span class="kw-2">&amp;</span>(idx <span class="kw">as </span>usize)).copied(),
-<a href=#2596 id=2596 data-nosnippet>2596</a>        ));
-<a href=#2597 id=2597 data-nosnippet>2597</a>    }
-<a href=#2598 id=2598 data-nosnippet>2598</a>    <span class="comment">// try parsing as a named global variable
-<a href=#2599 id=2599 data-nosnippet>2599</a>    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">"f$"</span>)
-<a href=#2600 id=2600 data-nosnippet>2600</a>        &amp;&amp; <span class="kw">let </span>parts = rest.split(<span class="string">'$'</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
-<a href=#2601 id=2601 data-nosnippet>2601</a>        &amp;&amp; parts.len() == <span class="number">2
-<a href=#2602 id=2602 data-nosnippet>2602</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(global_idx) = parts[<span class="number">1</span>].parse::&lt;u32&gt;()
-<a href=#2603 id=2603 data-nosnippet>2603</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(def_id) = fun_decl_map.get(<span class="kw-2">&amp;</span>(global_idx <span class="kw">as </span>usize)).copied()
-<a href=#2604 id=2604 data-nosnippet>2604</a>    {
-<a href=#2605 id=2605 data-nosnippet>2605</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::Global(fixpoint::GlobalVar::from(global_idx), def_id));
-<a href=#2606 id=2606 data-nosnippet>2606</a>    }
-<a href=#2607 id=2607 data-nosnippet>2607</a>    <span class="prelude-val">None
-<a href=#2608 id=2608 data-nosnippet>2608</a></span>}
-<a href=#2609 id=2609 data-nosnippet>2609</a>
-<a href=#2610 id=2610 data-nosnippet>2610</a><span class="kw">fn </span>parse_param(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
-<a href=#2611 id=2611 data-nosnippet>2611</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">"reftgen$"</span>)
-<a href=#2612 id=2612 data-nosnippet>2612</a>        &amp;&amp; <span class="kw">let </span>parts = rest.split(<span class="string">'$'</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
-<a href=#2613 id=2613 data-nosnippet>2613</a>        &amp;&amp; parts.len() == <span class="number">2
-<a href=#2614 id=2614 data-nosnippet>2614</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(index) = parts[<span class="number">1</span>].parse::&lt;u32&gt;()
-<a href=#2615 id=2615 data-nosnippet>2615</a>    {
-<a href=#2616 id=2616 data-nosnippet>2616</a>        <span class="kw">let </span>name = Symbol::intern(parts[<span class="number">0</span>]);
-<a href=#2617 id=2617 data-nosnippet>2617</a>        <span class="kw">let </span>param = EarlyReftParam { index, name };
-<a href=#2618 id=2618 data-nosnippet>2618</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::Param(param));
-<a href=#2619 id=2619 data-nosnippet>2619</a>    }
-<a href=#2620 id=2620 data-nosnippet>2620</a>    <span class="prelude-val">None
-<a href=#2621 id=2621 data-nosnippet>2621</a></span>}
-<a href=#2622 id=2622 data-nosnippet>2622</a>
-<a href=#2623 id=2623 data-nosnippet>2623</a><span class="kw">fn </span>parse_data_proj(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
-<a href=#2624 id=2624 data-nosnippet>2624</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">"fld"</span>)
-<a href=#2625 id=2625 data-nosnippet>2625</a>        &amp;&amp; <span class="kw">let </span>parts = rest.split(<span class="string">'$'</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
-<a href=#2626 id=2626 data-nosnippet>2626</a>        &amp;&amp; parts.len() == <span class="number">2
-<a href=#2627 id=2627 data-nosnippet>2627</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_id) = parts[<span class="number">0</span>].parse::&lt;u32&gt;()
-<a href=#2628 id=2628 data-nosnippet>2628</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(field) = parts[<span class="number">1</span>].parse::&lt;u32&gt;()
-<a href=#2629 id=2629 data-nosnippet>2629</a>    {
-<a href=#2630 id=2630 data-nosnippet>2630</a>        <span class="kw">let </span>adt_id = fixpoint::AdtId::from(adt_id);
-<a href=#2631 id=2631 data-nosnippet>2631</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::DataProj { adt_id, field });
-<a href=#2632 id=2632 data-nosnippet>2632</a>    }
-<a href=#2633 id=2633 data-nosnippet>2633</a>    <span class="prelude-val">None
-<a href=#2634 id=2634 data-nosnippet>2634</a></span>}
-<a href=#2635 id=2635 data-nosnippet>2635</a>
-<a href=#2636 id=2636 data-nosnippet>2636</a><span class="kw">fn </span>parse_data_ctor(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
-<a href=#2637 id=2637 data-nosnippet>2637</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">"mkadt"</span>)
-<a href=#2638 id=2638 data-nosnippet>2638</a>        &amp;&amp; <span class="kw">let </span>parts = rest.split(<span class="string">'$'</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
-<a href=#2639 id=2639 data-nosnippet>2639</a>        &amp;&amp; parts.len() == <span class="number">2
-<a href=#2640 id=2640 data-nosnippet>2640</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_id) = parts[<span class="number">0</span>].parse::&lt;u32&gt;()
-<a href=#2641 id=2641 data-nosnippet>2641</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(variant_idx) = parts[<span class="number">1</span>].parse::&lt;u32&gt;()
-<a href=#2642 id=2642 data-nosnippet>2642</a>    {
-<a href=#2643 id=2643 data-nosnippet>2643</a>        <span class="kw">let </span>adt_id = fixpoint::AdtId::from(adt_id);
-<a href=#2644 id=2644 data-nosnippet>2644</a>        <span class="kw">let </span>variant_idx = VariantIdx::from(variant_idx);
-<a href=#2645 id=2645 data-nosnippet>2645</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::DataCtor(adt_id, variant_idx));
-<a href=#2646 id=2646 data-nosnippet>2646</a>    }
-<a href=#2647 id=2647 data-nosnippet>2647</a>    <span class="prelude-val">None
-<a href=#2648 id=2648 data-nosnippet>2648</a></span>}
-<a href=#2649 id=2649 data-nosnippet>2649</a>
-<a href=#2650 id=2650 data-nosnippet>2650</a><span class="kw">fn </span>parse_weak_kvar(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
-<a href=#2651 id=2651 data-nosnippet>2651</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">"wk$"</span>)
-<a href=#2652 id=2652 data-nosnippet>2652</a>        &amp;&amp; <span class="kw">let </span>parts = rest.split(<span class="string">'$'</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
-<a href=#2653 id=2653 data-nosnippet>2653</a>        &amp;&amp; parts.len() == <span class="number">2
-<a href=#2654 id=2654 data-nosnippet>2654</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(index) = parts[<span class="number">1</span>].parse::&lt;u32&gt;()
-<a href=#2655 id=2655 data-nosnippet>2655</a>    {
-<a href=#2656 id=2656 data-nosnippet>2656</a>        <span class="kw">let </span>name = Symbol::intern(parts[<span class="number">0</span>]);
-<a href=#2657 id=2657 data-nosnippet>2657</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::WKVar(name, index));
-<a href=#2658 id=2658 data-nosnippet>2658</a>    }
-<a href=#2659 id=2659 data-nosnippet>2659</a>    <span class="prelude-val">None
-<a href=#2660 id=2660 data-nosnippet>2660</a></span>}
-<a href=#2661 id=2661 data-nosnippet>2661</a>
-<a href=#2662 id=2662 data-nosnippet>2662</a><span class="kw">struct </span>SexpParseCtxt&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#2663 id=2663 data-nosnippet>2663</a>    local_var_env: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>LocalVarEnv,
-<a href=#2664 id=2664 data-nosnippet>2664</a>    fun_decl_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>HashMap&lt;usize, FluxDefId&gt;,
-<a href=#2665 id=2665 data-nosnippet>2665</a>    const_decl_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>HashMap&lt;usize, DefId&gt;,
-<a href=#2666 id=2666 data-nosnippet>2666</a>}
-<a href=#2667 id=2667 data-nosnippet>2667</a>
-<a href=#2668 id=2668 data-nosnippet>2668</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; SexpParseCtxt&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#2669 id=2669 data-nosnippet>2669</a>    <span class="kw">fn </span>new(
-<a href=#2670 id=2670 data-nosnippet>2670</a>        local_var_env: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>LocalVarEnv,
-<a href=#2671 id=2671 data-nosnippet>2671</a>        fun_decl_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>HashMap&lt;usize, FluxDefId&gt;,
-<a href=#2672 id=2672 data-nosnippet>2672</a>        const_decl_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>HashMap&lt;usize, DefId&gt;,
-<a href=#2673 id=2673 data-nosnippet>2673</a>    ) -&gt; <span class="self">Self </span>{
-<a href=#2674 id=2674 data-nosnippet>2674</a>        <span class="self">Self </span>{ local_var_env, fun_decl_map, const_decl_map }
-<a href=#2675 id=2675 data-nosnippet>2675</a>    }
-<a href=#2676 id=2676 data-nosnippet>2676</a>}
-<a href=#2677 id=2677 data-nosnippet>2677</a>
-<a href=#2678 id=2678 data-nosnippet>2678</a><span class="kw">impl </span>FromSexp&lt;FixpointTypes&gt; <span class="kw">for </span>SexpParseCtxt&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#2679 id=2679 data-nosnippet>2679</a>    <span class="kw">fn </span>fresh_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fixpoint::Var {
-<a href=#2680 id=2680 data-nosnippet>2680</a>        fixpoint::Var::Local(<span class="self">self</span>.local_var_env.fresh_name())
-<a href=#2681 id=2681 data-nosnippet>2681</a>    }
+<a href=#2562 id=2562 data-nosnippet>2562</a>        <span class="comment">// `body_to_fixpoint` returns args in `body.vars()` order, which is how `wildcards` is indexed.
+<a href=#2563 id=2563 data-nosnippet>2563</a>        </span><span class="macro">debug_assert_eq!</span>(args.len(), qualifier.wildcards.len());
+<a href=#2564 id=2564 data-nosnippet>2564</a>        <span class="kw">let </span>args = iter::zip(args, <span class="kw-2">&amp;</span>qualifier.wildcards)
+<a href=#2565 id=2565 data-nosnippet>2565</a>            .map(|((name, sort), <span class="kw-2">&amp;</span>is_wildcard)| fixpoint::QualParam { name, sort, is_wildcard })
+<a href=#2566 id=2566 data-nosnippet>2566</a>            .collect();
+<a href=#2567 id=2567 data-nosnippet>2567</a>        <span class="prelude-val">Ok</span>(fixpoint::Qualifier { name, args, body })
+<a href=#2568 id=2568 data-nosnippet>2568</a>    }
+<a href=#2569 id=2569 data-nosnippet>2569</a>}
+<a href=#2570 id=2570 data-nosnippet>2570</a>
+<a href=#2571 id=2571 data-nosnippet>2571</a><span class="kw">fn </span>parse_kvid(kvid: <span class="kw-2">&amp;</span>str) -&gt; fixpoint::KVid {
+<a href=#2572 id=2572 data-nosnippet>2572</a>    <span class="kw">if </span>kvid.starts_with(<span class="string">"k"</span>)
+<a href=#2573 id=2573 data-nosnippet>2573</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(kvid) = kvid[<span class="number">1</span>..].parse::&lt;u32&gt;().ok()
+<a href=#2574 id=2574 data-nosnippet>2574</a>    {
+<a href=#2575 id=2575 data-nosnippet>2575</a>        fixpoint::KVid::from_u32(kvid)
+<a href=#2576 id=2576 data-nosnippet>2576</a>    } <span class="kw">else </span>{
+<a href=#2577 id=2577 data-nosnippet>2577</a>        <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected kvar name {kvid}"</span>)
+<a href=#2578 id=2578 data-nosnippet>2578</a>    }
+<a href=#2579 id=2579 data-nosnippet>2579</a>}
+<a href=#2580 id=2580 data-nosnippet>2580</a>
+<a href=#2581 id=2581 data-nosnippet>2581</a><span class="kw">fn </span>parse_local_var(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
+<a href=#2582 id=2582 data-nosnippet>2582</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">'a'</span>)
+<a href=#2583 id=2583 data-nosnippet>2583</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(idx) = rest.parse::&lt;u32&gt;()
+<a href=#2584 id=2584 data-nosnippet>2584</a>    {
+<a href=#2585 id=2585 data-nosnippet>2585</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::Local(fixpoint::LocalVar::from(idx)));
+<a href=#2586 id=2586 data-nosnippet>2586</a>    }
+<a href=#2587 id=2587 data-nosnippet>2587</a>    <span class="prelude-val">None
+<a href=#2588 id=2588 data-nosnippet>2588</a></span>}
+<a href=#2589 id=2589 data-nosnippet>2589</a>
+<a href=#2590 id=2590 data-nosnippet>2590</a><span class="kw">fn </span>parse_global_var(
+<a href=#2591 id=2591 data-nosnippet>2591</a>    name: <span class="kw-2">&amp;</span>str,
+<a href=#2592 id=2592 data-nosnippet>2592</a>    fun_decl_map: <span class="kw-2">&amp;</span>HashMap&lt;usize, FluxDefId&gt;,
+<a href=#2593 id=2593 data-nosnippet>2593</a>    const_decl_map: <span class="kw-2">&amp;</span>HashMap&lt;usize, DefId&gt;,
+<a href=#2594 id=2594 data-nosnippet>2594</a>) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
+<a href=#2595 id=2595 data-nosnippet>2595</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">'c'</span>)
+<a href=#2596 id=2596 data-nosnippet>2596</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(idx) = rest.parse::&lt;u32&gt;()
+<a href=#2597 id=2597 data-nosnippet>2597</a>    {
+<a href=#2598 id=2598 data-nosnippet>2598</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::Const(
+<a href=#2599 id=2599 data-nosnippet>2599</a>            fixpoint::GlobalVar::from(idx),
+<a href=#2600 id=2600 data-nosnippet>2600</a>            const_decl_map.get(<span class="kw-2">&amp;</span>(idx <span class="kw">as </span>usize)).copied(),
+<a href=#2601 id=2601 data-nosnippet>2601</a>        ));
+<a href=#2602 id=2602 data-nosnippet>2602</a>    }
+<a href=#2603 id=2603 data-nosnippet>2603</a>    <span class="comment">// try parsing as a named global variable
+<a href=#2604 id=2604 data-nosnippet>2604</a>    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">"f$"</span>)
+<a href=#2605 id=2605 data-nosnippet>2605</a>        &amp;&amp; <span class="kw">let </span>parts = rest.split(<span class="string">'$'</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+<a href=#2606 id=2606 data-nosnippet>2606</a>        &amp;&amp; parts.len() == <span class="number">2
+<a href=#2607 id=2607 data-nosnippet>2607</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(global_idx) = parts[<span class="number">1</span>].parse::&lt;u32&gt;()
+<a href=#2608 id=2608 data-nosnippet>2608</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(def_id) = fun_decl_map.get(<span class="kw-2">&amp;</span>(global_idx <span class="kw">as </span>usize)).copied()
+<a href=#2609 id=2609 data-nosnippet>2609</a>    {
+<a href=#2610 id=2610 data-nosnippet>2610</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::Global(fixpoint::GlobalVar::from(global_idx), def_id));
+<a href=#2611 id=2611 data-nosnippet>2611</a>    }
+<a href=#2612 id=2612 data-nosnippet>2612</a>    <span class="prelude-val">None
+<a href=#2613 id=2613 data-nosnippet>2613</a></span>}
+<a href=#2614 id=2614 data-nosnippet>2614</a>
+<a href=#2615 id=2615 data-nosnippet>2615</a><span class="kw">fn </span>parse_param(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
+<a href=#2616 id=2616 data-nosnippet>2616</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">"reftgen$"</span>)
+<a href=#2617 id=2617 data-nosnippet>2617</a>        &amp;&amp; <span class="kw">let </span>parts = rest.split(<span class="string">'$'</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+<a href=#2618 id=2618 data-nosnippet>2618</a>        &amp;&amp; parts.len() == <span class="number">2
+<a href=#2619 id=2619 data-nosnippet>2619</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(index) = parts[<span class="number">1</span>].parse::&lt;u32&gt;()
+<a href=#2620 id=2620 data-nosnippet>2620</a>    {
+<a href=#2621 id=2621 data-nosnippet>2621</a>        <span class="kw">let </span>name = Symbol::intern(parts[<span class="number">0</span>]);
+<a href=#2622 id=2622 data-nosnippet>2622</a>        <span class="kw">let </span>param = EarlyReftParam { index, name };
+<a href=#2623 id=2623 data-nosnippet>2623</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::Param(param));
+<a href=#2624 id=2624 data-nosnippet>2624</a>    }
+<a href=#2625 id=2625 data-nosnippet>2625</a>    <span class="prelude-val">None
+<a href=#2626 id=2626 data-nosnippet>2626</a></span>}
+<a href=#2627 id=2627 data-nosnippet>2627</a>
+<a href=#2628 id=2628 data-nosnippet>2628</a><span class="kw">fn </span>parse_data_proj(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
+<a href=#2629 id=2629 data-nosnippet>2629</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">"fld"</span>)
+<a href=#2630 id=2630 data-nosnippet>2630</a>        &amp;&amp; <span class="kw">let </span>parts = rest.split(<span class="string">'$'</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+<a href=#2631 id=2631 data-nosnippet>2631</a>        &amp;&amp; parts.len() == <span class="number">2
+<a href=#2632 id=2632 data-nosnippet>2632</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_id) = parts[<span class="number">0</span>].parse::&lt;u32&gt;()
+<a href=#2633 id=2633 data-nosnippet>2633</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(field) = parts[<span class="number">1</span>].parse::&lt;u32&gt;()
+<a href=#2634 id=2634 data-nosnippet>2634</a>    {
+<a href=#2635 id=2635 data-nosnippet>2635</a>        <span class="kw">let </span>adt_id = fixpoint::AdtId::from(adt_id);
+<a href=#2636 id=2636 data-nosnippet>2636</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::DataProj { adt_id, field });
+<a href=#2637 id=2637 data-nosnippet>2637</a>    }
+<a href=#2638 id=2638 data-nosnippet>2638</a>    <span class="prelude-val">None
+<a href=#2639 id=2639 data-nosnippet>2639</a></span>}
+<a href=#2640 id=2640 data-nosnippet>2640</a>
+<a href=#2641 id=2641 data-nosnippet>2641</a><span class="kw">fn </span>parse_data_ctor(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
+<a href=#2642 id=2642 data-nosnippet>2642</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">"mkadt"</span>)
+<a href=#2643 id=2643 data-nosnippet>2643</a>        &amp;&amp; <span class="kw">let </span>parts = rest.split(<span class="string">'$'</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+<a href=#2644 id=2644 data-nosnippet>2644</a>        &amp;&amp; parts.len() == <span class="number">2
+<a href=#2645 id=2645 data-nosnippet>2645</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_id) = parts[<span class="number">0</span>].parse::&lt;u32&gt;()
+<a href=#2646 id=2646 data-nosnippet>2646</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(variant_idx) = parts[<span class="number">1</span>].parse::&lt;u32&gt;()
+<a href=#2647 id=2647 data-nosnippet>2647</a>    {
+<a href=#2648 id=2648 data-nosnippet>2648</a>        <span class="kw">let </span>adt_id = fixpoint::AdtId::from(adt_id);
+<a href=#2649 id=2649 data-nosnippet>2649</a>        <span class="kw">let </span>variant_idx = VariantIdx::from(variant_idx);
+<a href=#2650 id=2650 data-nosnippet>2650</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::DataCtor(adt_id, variant_idx));
+<a href=#2651 id=2651 data-nosnippet>2651</a>    }
+<a href=#2652 id=2652 data-nosnippet>2652</a>    <span class="prelude-val">None
+<a href=#2653 id=2653 data-nosnippet>2653</a></span>}
+<a href=#2654 id=2654 data-nosnippet>2654</a>
+<a href=#2655 id=2655 data-nosnippet>2655</a><span class="kw">fn </span>parse_weak_kvar(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Var&gt; {
+<a href=#2656 id=2656 data-nosnippet>2656</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = name.strip_prefix(<span class="string">"wk$"</span>)
+<a href=#2657 id=2657 data-nosnippet>2657</a>        &amp;&amp; <span class="kw">let </span>parts = rest.split(<span class="string">'$'</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+<a href=#2658 id=2658 data-nosnippet>2658</a>        &amp;&amp; parts.len() == <span class="number">2
+<a href=#2659 id=2659 data-nosnippet>2659</a>        </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(index) = parts[<span class="number">1</span>].parse::&lt;u32&gt;()
+<a href=#2660 id=2660 data-nosnippet>2660</a>    {
+<a href=#2661 id=2661 data-nosnippet>2661</a>        <span class="kw">let </span>name = Symbol::intern(parts[<span class="number">0</span>]);
+<a href=#2662 id=2662 data-nosnippet>2662</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(fixpoint::Var::WKVar(name, index));
+<a href=#2663 id=2663 data-nosnippet>2663</a>    }
+<a href=#2664 id=2664 data-nosnippet>2664</a>    <span class="prelude-val">None
+<a href=#2665 id=2665 data-nosnippet>2665</a></span>}
+<a href=#2666 id=2666 data-nosnippet>2666</a>
+<a href=#2667 id=2667 data-nosnippet>2667</a><span class="kw">struct </span>SexpParseCtxt&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#2668 id=2668 data-nosnippet>2668</a>    local_var_env: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>LocalVarEnv,
+<a href=#2669 id=2669 data-nosnippet>2669</a>    fun_decl_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>HashMap&lt;usize, FluxDefId&gt;,
+<a href=#2670 id=2670 data-nosnippet>2670</a>    const_decl_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>HashMap&lt;usize, DefId&gt;,
+<a href=#2671 id=2671 data-nosnippet>2671</a>}
+<a href=#2672 id=2672 data-nosnippet>2672</a>
+<a href=#2673 id=2673 data-nosnippet>2673</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; SexpParseCtxt&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#2674 id=2674 data-nosnippet>2674</a>    <span class="kw">fn </span>new(
+<a href=#2675 id=2675 data-nosnippet>2675</a>        local_var_env: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>LocalVarEnv,
+<a href=#2676 id=2676 data-nosnippet>2676</a>        fun_decl_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>HashMap&lt;usize, FluxDefId&gt;,
+<a href=#2677 id=2677 data-nosnippet>2677</a>        const_decl_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>HashMap&lt;usize, DefId&gt;,
+<a href=#2678 id=2678 data-nosnippet>2678</a>    ) -&gt; <span class="self">Self </span>{
+<a href=#2679 id=2679 data-nosnippet>2679</a>        <span class="self">Self </span>{ local_var_env, fun_decl_map, const_decl_map }
+<a href=#2680 id=2680 data-nosnippet>2680</a>    }
+<a href=#2681 id=2681 data-nosnippet>2681</a>}
 <a href=#2682 id=2682 data-nosnippet>2682</a>
-<a href=#2683 id=2683 data-nosnippet>2683</a>    <span class="kw">fn </span>kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;fixpoint::KVid, ParseError&gt; {
-<a href=#2684 id=2684 data-nosnippet>2684</a>        <span class="macro">bug!</span>(<span class="string">"TODO: SexpParse: kvar: {name}"</span>)
-<a href=#2685 id=2685 data-nosnippet>2685</a>    }
-<a href=#2686 id=2686 data-nosnippet>2686</a>
-<a href=#2687 id=2687 data-nosnippet>2687</a>    <span class="kw">fn </span>string(<span class="kw-2">&amp;</span><span class="self">self</span>, s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;fixpoint::SymStr, ParseError&gt; {
-<a href=#2688 id=2688 data-nosnippet>2688</a>        <span class="prelude-val">Ok</span>(fixpoint::SymStr(Symbol::intern(s)))
-<a href=#2689 id=2689 data-nosnippet>2689</a>    }
-<a href=#2690 id=2690 data-nosnippet>2690</a>
-<a href=#2691 id=2691 data-nosnippet>2691</a>    <span class="kw">fn </span>var(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;fixpoint::Var, ParseError&gt; {
-<a href=#2692 id=2692 data-nosnippet>2692</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_local_var(name) {
-<a href=#2693 id=2693 data-nosnippet>2693</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
-<a href=#2694 id=2694 data-nosnippet>2694</a>        }
-<a href=#2695 id=2695 data-nosnippet>2695</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_global_var(name, <span class="self">self</span>.fun_decl_map, <span class="self">self</span>.const_decl_map) {
-<a href=#2696 id=2696 data-nosnippet>2696</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
-<a href=#2697 id=2697 data-nosnippet>2697</a>        }
-<a href=#2698 id=2698 data-nosnippet>2698</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_weak_kvar(name) {
-<a href=#2699 id=2699 data-nosnippet>2699</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
-<a href=#2700 id=2700 data-nosnippet>2700</a>        }
-<a href=#2701 id=2701 data-nosnippet>2701</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_param(name) {
-<a href=#2702 id=2702 data-nosnippet>2702</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
-<a href=#2703 id=2703 data-nosnippet>2703</a>        }
-<a href=#2704 id=2704 data-nosnippet>2704</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_data_proj(name) {
-<a href=#2705 id=2705 data-nosnippet>2705</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
-<a href=#2706 id=2706 data-nosnippet>2706</a>        }
-<a href=#2707 id=2707 data-nosnippet>2707</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_data_ctor(name) {
-<a href=#2708 id=2708 data-nosnippet>2708</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
-<a href=#2709 id=2709 data-nosnippet>2709</a>        }
-<a href=#2710 id=2710 data-nosnippet>2710</a>        <span class="prelude-val">Err</span>(ParseError::err(<span class="macro">format!</span>(<span class="string">"Unknown variable: {name}"</span>)))
-<a href=#2711 id=2711 data-nosnippet>2711</a>    }
-<a href=#2712 id=2712 data-nosnippet>2712</a>
-<a href=#2713 id=2713 data-nosnippet>2713</a>    <span class="kw">fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;fixpoint::DataSort, ParseError&gt; {
-<a href=#2714 id=2714 data-nosnippet>2714</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(idx) = name.strip_prefix(<span class="string">"Adt"</span>)
-<a href=#2715 id=2715 data-nosnippet>2715</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_id) = idx.parse::&lt;u32&gt;()
-<a href=#2716 id=2716 data-nosnippet>2716</a>        {
-<a href=#2717 id=2717 data-nosnippet>2717</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::DataSort::Adt(fixpoint::AdtId::from(adt_id)));
-<a href=#2718 id=2718 data-nosnippet>2718</a>        }
-<a href=#2719 id=2719 data-nosnippet>2719</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(idx) = name.strip_prefix(<span class="string">"OpaqueAdt"</span>)
-<a href=#2720 id=2720 data-nosnippet>2720</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(opaque_id) = idx.parse::&lt;u32&gt;()
+<a href=#2683 id=2683 data-nosnippet>2683</a><span class="kw">impl </span>FromSexp&lt;FixpointTypes&gt; <span class="kw">for </span>SexpParseCtxt&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#2684 id=2684 data-nosnippet>2684</a>    <span class="kw">fn </span>fresh_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fixpoint::Var {
+<a href=#2685 id=2685 data-nosnippet>2685</a>        fixpoint::Var::Local(<span class="self">self</span>.local_var_env.fresh_name())
+<a href=#2686 id=2686 data-nosnippet>2686</a>    }
+<a href=#2687 id=2687 data-nosnippet>2687</a>
+<a href=#2688 id=2688 data-nosnippet>2688</a>    <span class="kw">fn </span>kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;fixpoint::KVid, ParseError&gt; {
+<a href=#2689 id=2689 data-nosnippet>2689</a>        <span class="macro">bug!</span>(<span class="string">"TODO: SexpParse: kvar: {name}"</span>)
+<a href=#2690 id=2690 data-nosnippet>2690</a>    }
+<a href=#2691 id=2691 data-nosnippet>2691</a>
+<a href=#2692 id=2692 data-nosnippet>2692</a>    <span class="kw">fn </span>string(<span class="kw-2">&amp;</span><span class="self">self</span>, s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;fixpoint::SymStr, ParseError&gt; {
+<a href=#2693 id=2693 data-nosnippet>2693</a>        <span class="prelude-val">Ok</span>(fixpoint::SymStr(Symbol::intern(s)))
+<a href=#2694 id=2694 data-nosnippet>2694</a>    }
+<a href=#2695 id=2695 data-nosnippet>2695</a>
+<a href=#2696 id=2696 data-nosnippet>2696</a>    <span class="kw">fn </span>var(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;fixpoint::Var, ParseError&gt; {
+<a href=#2697 id=2697 data-nosnippet>2697</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_local_var(name) {
+<a href=#2698 id=2698 data-nosnippet>2698</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
+<a href=#2699 id=2699 data-nosnippet>2699</a>        }
+<a href=#2700 id=2700 data-nosnippet>2700</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_global_var(name, <span class="self">self</span>.fun_decl_map, <span class="self">self</span>.const_decl_map) {
+<a href=#2701 id=2701 data-nosnippet>2701</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
+<a href=#2702 id=2702 data-nosnippet>2702</a>        }
+<a href=#2703 id=2703 data-nosnippet>2703</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_weak_kvar(name) {
+<a href=#2704 id=2704 data-nosnippet>2704</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
+<a href=#2705 id=2705 data-nosnippet>2705</a>        }
+<a href=#2706 id=2706 data-nosnippet>2706</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_param(name) {
+<a href=#2707 id=2707 data-nosnippet>2707</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
+<a href=#2708 id=2708 data-nosnippet>2708</a>        }
+<a href=#2709 id=2709 data-nosnippet>2709</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_data_proj(name) {
+<a href=#2710 id=2710 data-nosnippet>2710</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
+<a href=#2711 id=2711 data-nosnippet>2711</a>        }
+<a href=#2712 id=2712 data-nosnippet>2712</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = parse_data_ctor(name) {
+<a href=#2713 id=2713 data-nosnippet>2713</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(var);
+<a href=#2714 id=2714 data-nosnippet>2714</a>        }
+<a href=#2715 id=2715 data-nosnippet>2715</a>        <span class="prelude-val">Err</span>(ParseError::err(<span class="macro">format!</span>(<span class="string">"Unknown variable: {name}"</span>)))
+<a href=#2716 id=2716 data-nosnippet>2716</a>    }
+<a href=#2717 id=2717 data-nosnippet>2717</a>
+<a href=#2718 id=2718 data-nosnippet>2718</a>    <span class="kw">fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;fixpoint::DataSort, ParseError&gt; {
+<a href=#2719 id=2719 data-nosnippet>2719</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(idx) = name.strip_prefix(<span class="string">"Adt"</span>)
+<a href=#2720 id=2720 data-nosnippet>2720</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_id) = idx.parse::&lt;u32&gt;()
 <a href=#2721 id=2721 data-nosnippet>2721</a>        {
-<a href=#2722 id=2722 data-nosnippet>2722</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::DataSort::User(fixpoint::OpaqueId::from(opaque_id)));
+<a href=#2722 id=2722 data-nosnippet>2722</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::DataSort::Adt(fixpoint::AdtId::from(adt_id)));
 <a href=#2723 id=2723 data-nosnippet>2723</a>        }
-<a href=#2724 id=2724 data-nosnippet>2724</a>
-<a href=#2725 id=2725 data-nosnippet>2725</a>        <span class="prelude-val">Err</span>(ParseError::err(<span class="macro">format!</span>(<span class="string">"Unknown sort: {name}"</span>)))
-<a href=#2726 id=2726 data-nosnippet>2726</a>    }
-<a href=#2727 id=2727 data-nosnippet>2727</a>}
-<a href=#2728 id=2728 data-nosnippet>2728</a>
-<a href=#2729 id=2729 data-nosnippet>2729</a><span class="kw">fn </span>parse_wkvars(expr: <span class="kw-2">&amp;mut </span>fixpoint::Expr) {
-<a href=#2730 id=2730 data-nosnippet>2730</a>    <span class="kw">use </span>fixpoint::<span class="kw-2">*</span>;
-<a href=#2731 id=2731 data-nosnippet>2731</a>    <span class="kw">match </span>expr {
-<a href=#2732 id=2732 data-nosnippet>2732</a>        Expr::Constant(<span class="kw">_</span>) | Expr::ThyFunc(<span class="kw">_</span>) | Expr::Var(<span class="kw">_</span>) =&gt; {}
-<a href=#2733 id=2733 data-nosnippet>2733</a>        Expr::App(head, _sort_args, args, _out_sort) =&gt; {
-<a href=#2734 id=2734 data-nosnippet>2734</a>            <span class="kw">match </span><span class="kw-2">&amp;mut **</span>head {
-<a href=#2735 id=2735 data-nosnippet>2735</a>                Expr::Var(v @ Var::WKVar(..)) =&gt; {
-<a href=#2736 id=2736 data-nosnippet>2736</a>                    <span class="kw-2">*</span>expr = Expr::WKVar(WKVar { wkvid: <span class="kw-2">*</span>v, args: args.clone() });
-<a href=#2737 id=2737 data-nosnippet>2737</a>                }
-<a href=#2738 id=2738 data-nosnippet>2738</a>                e =&gt; {
-<a href=#2739 id=2739 data-nosnippet>2739</a>                    parse_wkvars(e);
-<a href=#2740 id=2740 data-nosnippet>2740</a>                }
-<a href=#2741 id=2741 data-nosnippet>2741</a>            }
-<a href=#2742 id=2742 data-nosnippet>2742</a>        }
-<a href=#2743 id=2743 data-nosnippet>2743</a>        Expr::Neg(e) | Expr::Not(e) =&gt; parse_wkvars(e),
-<a href=#2744 id=2744 data-nosnippet>2744</a>        Expr::BinaryOp(<span class="kw">_</span>, exprs) | Expr::Imp(exprs) | Expr::Iff(exprs) | Expr::Atom(<span class="kw">_</span>, exprs) =&gt; {
-<a href=#2745 id=2745 data-nosnippet>2745</a>            <span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;mut **</span>exprs;
-<a href=#2746 id=2746 data-nosnippet>2746</a>            parse_wkvars(e1);
-<a href=#2747 id=2747 data-nosnippet>2747</a>            parse_wkvars(e2);
-<a href=#2748 id=2748 data-nosnippet>2748</a>        }
-<a href=#2749 id=2749 data-nosnippet>2749</a>        Expr::IfThenElse(exprs) =&gt; {
-<a href=#2750 id=2750 data-nosnippet>2750</a>            <span class="kw">let </span>[p, e1, e2] = <span class="kw-2">&amp;mut **</span>exprs;
-<a href=#2751 id=2751 data-nosnippet>2751</a>            parse_wkvars(p);
-<a href=#2752 id=2752 data-nosnippet>2752</a>            parse_wkvars(e1);
-<a href=#2753 id=2753 data-nosnippet>2753</a>            parse_wkvars(e2);
-<a href=#2754 id=2754 data-nosnippet>2754</a>        }
-<a href=#2755 id=2755 data-nosnippet>2755</a>        Expr::And(exprs) | Expr::Or(exprs) =&gt; {
-<a href=#2756 id=2756 data-nosnippet>2756</a>            <span class="kw">for </span>e <span class="kw">in </span>exprs {
-<a href=#2757 id=2757 data-nosnippet>2757</a>                parse_wkvars(e);
-<a href=#2758 id=2758 data-nosnippet>2758</a>            }
+<a href=#2724 id=2724 data-nosnippet>2724</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(idx) = name.strip_prefix(<span class="string">"OpaqueAdt"</span>)
+<a href=#2725 id=2725 data-nosnippet>2725</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(opaque_id) = idx.parse::&lt;u32&gt;()
+<a href=#2726 id=2726 data-nosnippet>2726</a>        {
+<a href=#2727 id=2727 data-nosnippet>2727</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::DataSort::User(fixpoint::OpaqueId::from(opaque_id)));
+<a href=#2728 id=2728 data-nosnippet>2728</a>        }
+<a href=#2729 id=2729 data-nosnippet>2729</a>
+<a href=#2730 id=2730 data-nosnippet>2730</a>        <span class="prelude-val">Err</span>(ParseError::err(<span class="macro">format!</span>(<span class="string">"Unknown sort: {name}"</span>)))
+<a href=#2731 id=2731 data-nosnippet>2731</a>    }
+<a href=#2732 id=2732 data-nosnippet>2732</a>}
+<a href=#2733 id=2733 data-nosnippet>2733</a>
+<a href=#2734 id=2734 data-nosnippet>2734</a><span class="kw">fn </span>parse_wkvars(expr: <span class="kw-2">&amp;mut </span>fixpoint::Expr) {
+<a href=#2735 id=2735 data-nosnippet>2735</a>    <span class="kw">use </span>fixpoint::<span class="kw-2">*</span>;
+<a href=#2736 id=2736 data-nosnippet>2736</a>    <span class="kw">match </span>expr {
+<a href=#2737 id=2737 data-nosnippet>2737</a>        Expr::Constant(<span class="kw">_</span>) | Expr::ThyFunc(<span class="kw">_</span>) | Expr::Var(<span class="kw">_</span>) =&gt; {}
+<a href=#2738 id=2738 data-nosnippet>2738</a>        Expr::App(head, _sort_args, args, _out_sort) =&gt; {
+<a href=#2739 id=2739 data-nosnippet>2739</a>            <span class="kw">match </span><span class="kw-2">&amp;mut **</span>head {
+<a href=#2740 id=2740 data-nosnippet>2740</a>                Expr::Var(v @ Var::WKVar(..)) =&gt; {
+<a href=#2741 id=2741 data-nosnippet>2741</a>                    <span class="kw-2">*</span>expr = Expr::WKVar(WKVar { wkvid: <span class="kw-2">*</span>v, args: args.clone() });
+<a href=#2742 id=2742 data-nosnippet>2742</a>                }
+<a href=#2743 id=2743 data-nosnippet>2743</a>                e =&gt; {
+<a href=#2744 id=2744 data-nosnippet>2744</a>                    parse_wkvars(e);
+<a href=#2745 id=2745 data-nosnippet>2745</a>                }
+<a href=#2746 id=2746 data-nosnippet>2746</a>            }
+<a href=#2747 id=2747 data-nosnippet>2747</a>        }
+<a href=#2748 id=2748 data-nosnippet>2748</a>        Expr::Neg(e) | Expr::Not(e) =&gt; parse_wkvars(e),
+<a href=#2749 id=2749 data-nosnippet>2749</a>        Expr::BinaryOp(<span class="kw">_</span>, exprs) | Expr::Imp(exprs) | Expr::Iff(exprs) | Expr::Atom(<span class="kw">_</span>, exprs) =&gt; {
+<a href=#2750 id=2750 data-nosnippet>2750</a>            <span class="kw">let </span>[e1, e2] = <span class="kw-2">&amp;mut **</span>exprs;
+<a href=#2751 id=2751 data-nosnippet>2751</a>            parse_wkvars(e1);
+<a href=#2752 id=2752 data-nosnippet>2752</a>            parse_wkvars(e2);
+<a href=#2753 id=2753 data-nosnippet>2753</a>        }
+<a href=#2754 id=2754 data-nosnippet>2754</a>        Expr::IfThenElse(exprs) =&gt; {
+<a href=#2755 id=2755 data-nosnippet>2755</a>            <span class="kw">let </span>[p, e1, e2] = <span class="kw-2">&amp;mut **</span>exprs;
+<a href=#2756 id=2756 data-nosnippet>2756</a>            parse_wkvars(p);
+<a href=#2757 id=2757 data-nosnippet>2757</a>            parse_wkvars(e1);
+<a href=#2758 id=2758 data-nosnippet>2758</a>            parse_wkvars(e2);
 <a href=#2759 id=2759 data-nosnippet>2759</a>        }
-<a href=#2760 id=2760 data-nosnippet>2760</a>        Expr::Let(<span class="kw">_</span>, exprs) =&gt; {
-<a href=#2761 id=2761 data-nosnippet>2761</a>            <span class="kw">let </span>[var_e, body_e] = <span class="kw-2">&amp;mut **</span>exprs;
-<a href=#2762 id=2762 data-nosnippet>2762</a>            parse_wkvars(var_e);
-<a href=#2763 id=2763 data-nosnippet>2763</a>            parse_wkvars(body_e);
+<a href=#2760 id=2760 data-nosnippet>2760</a>        Expr::And(exprs) | Expr::Or(exprs) =&gt; {
+<a href=#2761 id=2761 data-nosnippet>2761</a>            <span class="kw">for </span>e <span class="kw">in </span>exprs {
+<a href=#2762 id=2762 data-nosnippet>2762</a>                parse_wkvars(e);
+<a href=#2763 id=2763 data-nosnippet>2763</a>            }
 <a href=#2764 id=2764 data-nosnippet>2764</a>        }
-<a href=#2765 id=2765 data-nosnippet>2765</a>        Expr::IsCtor(_v, expr) =&gt; {
-<a href=#2766 id=2766 data-nosnippet>2766</a>            parse_wkvars(expr);
-<a href=#2767 id=2767 data-nosnippet>2767</a>        }
-<a href=#2768 id=2768 data-nosnippet>2768</a>        Expr::Quantifier(fixpoint::Quantifier::Exists, _binder, expr)
-<a href=#2769 id=2769 data-nosnippet>2769</a>        | Expr::Quantifier(fixpoint::Quantifier::Forall, _binder, expr) =&gt; {
-<a href=#2770 id=2770 data-nosnippet>2770</a>            parse_wkvars(expr);
-<a href=#2771 id=2771 data-nosnippet>2771</a>        }
-<a href=#2772 id=2772 data-nosnippet>2772</a>        Expr::WKVar(fixpoint::WKVar { wkvid: <span class="kw">_</span>, args }) =&gt; {
-<a href=#2773 id=2773 data-nosnippet>2773</a>            <span class="kw">for </span>e <span class="kw">in </span>args {
-<a href=#2774 id=2774 data-nosnippet>2774</a>                parse_wkvars(e);
-<a href=#2775 id=2775 data-nosnippet>2775</a>            }
+<a href=#2765 id=2765 data-nosnippet>2765</a>        Expr::Let(<span class="kw">_</span>, exprs) =&gt; {
+<a href=#2766 id=2766 data-nosnippet>2766</a>            <span class="kw">let </span>[var_e, body_e] = <span class="kw-2">&amp;mut **</span>exprs;
+<a href=#2767 id=2767 data-nosnippet>2767</a>            parse_wkvars(var_e);
+<a href=#2768 id=2768 data-nosnippet>2768</a>            parse_wkvars(body_e);
+<a href=#2769 id=2769 data-nosnippet>2769</a>        }
+<a href=#2770 id=2770 data-nosnippet>2770</a>        Expr::IsCtor(_v, expr) =&gt; {
+<a href=#2771 id=2771 data-nosnippet>2771</a>            parse_wkvars(expr);
+<a href=#2772 id=2772 data-nosnippet>2772</a>        }
+<a href=#2773 id=2773 data-nosnippet>2773</a>        Expr::Quantifier(fixpoint::Quantifier::Exists, _binder, expr)
+<a href=#2774 id=2774 data-nosnippet>2774</a>        | Expr::Quantifier(fixpoint::Quantifier::Forall, _binder, expr) =&gt; {
+<a href=#2775 id=2775 data-nosnippet>2775</a>            parse_wkvars(expr);
 <a href=#2776 id=2776 data-nosnippet>2776</a>        }
-<a href=#2777 id=2777 data-nosnippet>2777</a>    }
-<a href=#2778 id=2778 data-nosnippet>2778</a>}
+<a href=#2777 id=2777 data-nosnippet>2777</a>        Expr::WKVar(fixpoint::WKVar { wkvid: <span class="kw">_</span>, args }) =&gt; {
+<a href=#2778 id=2778 data-nosnippet>2778</a>            <span class="kw">for </span>e <span class="kw">in </span>args {
+<a href=#2779 id=2779 data-nosnippet>2779</a>                parse_wkvars(e);
+<a href=#2780 id=2780 data-nosnippet>2780</a>            }
+<a href=#2781 id=2781 data-nosnippet>2781</a>        }
+<a href=#2782 id=2782 data-nosnippet>2782</a>    }
+<a href=#2783 id=2783 data-nosnippet>2783</a>}
 </code></pre></div></section></main></body></html>
