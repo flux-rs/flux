@@ -44,7 +44,7 @@ use rustc_hash::FxHashSet;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_infer::infer::TyCtxtInferExt as _;
-use rustc_middle::ty::TypingMode;
+use rustc_middle::ty::{TypingMode, Visibility};
 use rustc_span::{DUMMY_SP, Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -604,6 +604,15 @@ pub struct FixpointCheckError<Tag> {
     pub possible_solutions: PossibleSolutions,
 }
 
+pub(crate) struct MultiConstraint {
+    pub(crate) checked_def_id: MaybeExternId,
+    pub(crate) constraint: fixpoint::Constraint,
+    pub(crate) trivial_wkvids: FxIndexSet<rty::WKVid>,
+    kvar_decls: Vec<fixpoint::KVarDecl>,
+    owners: Vec<MaybeExternId>,
+    promoted_wkvar_decls: Vec<fixpoint::KVarDecl>,
+}
+
 impl<Tag> FixpointCheckError<Tag> {
     pub fn new(
         tag: Tag,
@@ -682,7 +691,10 @@ where
         };
 
         let owner_ids = if self.multi_query {
-            self.multi_owners.iter().map(|owner| owner.local_id()).collect_vec()
+            self.multi_owners
+                .iter()
+                .map(|owner| owner.local_id())
+                .collect_vec()
         } else {
             vec![def_id.local_id()]
         };
@@ -708,7 +720,8 @@ where
         // Encode function bodies after qualifiers/assumptions so any functions referenced there
         // are picked up as dependencies.
         let define_funs = if self.multi_query {
-            self.ecx.define_funs_multi(&self.multi_owners, &mut self.scx)?
+            self.ecx
+                .define_funs_multi(&self.multi_owners, &mut self.scx)?
         } else {
             self.ecx.define_funs(def_id, &mut self.scx)?
         };
@@ -764,7 +777,7 @@ where
             solver,
             data_decls: data_decls.clone(),
         };
-        if config::dump_constraint() {
+        if config::dump_constraint() && !self.multi_query {
             let id = def_id.resolved_id();
             dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
         }
@@ -1347,25 +1360,97 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
     pub(crate) fn encode_multi(
         &mut self,
         trees: Vec<(MaybeExternId, RefineTree, KVarGen)>,
-    ) -> QueryResult<(fixpoint::Constraint, FxHashSet<rty::WKVid>)> {
-        self.multi_kvar_decls.clear();
-        self.multi_owners.clear();
-        self.promoted_wkvars.clear();
-        self.promoted_wkvar_decls.clear();
+    ) -> QueryResult<Vec<MultiConstraint>> {
         if trees.is_empty() {
             self.multi_query = false;
-            return Ok((fixpoint::Constraint::TRUE, FxHashSet::default()));
+            return Ok(vec![]);
         }
         self.multi_query = true;
+
+        println!("Multi check analysis: (combining {} fns)", trees.len());
+        let wkvars = trees
+            .iter()
+            .map(|(def_id, tree, _)| {
+                println!("  Including fn {}", def_id_to_string(def_id.resolved_id()));
+                println!("    fn has sig {:?}", self.genv.fn_sig(def_id.resolved_id())?);
+                Ok::<_, QueryErr>(tree.wkvars_in_positions())
+            })
+            .try_collect_vec()?;
+        let tree_by_def_id: FxIndexMap<DefId, usize> = trees
+            .iter()
+            .enumerate()
+            .map(|(idx, (def_id, _, _))| (def_id.resolved_id(), idx))
+            .collect();
+
+        let mut constraints = vec![];
+        for (root, (def_id, _, _)) in trees.iter().enumerate() {
+            let fn_sig = self.genv.fn_sig(def_id.resolved_id())?;
+            let fn_sig = fn_sig.skip_binder_ref().skip_binder_ref();
+            if !(matches!(fn_sig.safety, rustc_hir::Safety::Safe)
+                && matches!(self.genv.tcx().visibility(def_id.resolved_id()), Visibility::Public))
+            {
+                continue;
+            }
+            let mut included = FxIndexSet::default();
+            let mut worklist = vec![root];
+            while let Some(idx) = worklist.pop() {
+                if !included.insert(idx) {
+                    continue;
+                }
+                let (heads, assumptions, _) = &wkvars[idx];
+                for wkvid in heads.union(assumptions) {
+                    if let Some(&dependency) = tree_by_def_id.get(&wkvid.parent_fn) {
+                        worklist.push(dependency);
+                    }
+                }
+            }
+            let subtree = trees
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, tree)| included.contains(&idx).then_some(tree))
+                .collect_vec();
+            let (constraint, trivial_wkvids) = self.encode_multi_subtree(*def_id, &subtree)?;
+            constraints.push(MultiConstraint {
+                checked_def_id: *def_id,
+                constraint,
+                trivial_wkvids,
+                kvar_decls: self.multi_kvar_decls.clone(),
+                owners: self.multi_owners.clone(),
+                promoted_wkvar_decls: self.promoted_wkvar_decls.clone(),
+            });
+        }
+        Ok(constraints)
+    }
+
+    pub(crate) fn create_multi_task(
+        &mut self,
+        multi: MultiConstraint,
+        scrape_quals: bool,
+        solver: SmtSolver,
+    ) -> QueryResult<(MaybeExternId, FxIndexSet<rty::WKVid>, fixpoint::Task)> {
+        self.multi_kvar_decls = multi.kvar_decls;
+        self.multi_owners = multi.owners;
+        self.promoted_wkvar_decls = multi.promoted_wkvar_decls;
+        let (task, _) =
+            self.create_task(multi.checked_def_id, multi.constraint, scrape_quals, solver)?;
+        Ok((multi.checked_def_id, multi.trivial_wkvids, task))
+    }
+
+    fn encode_multi_subtree(
+        &mut self,
+        root_def_id: MaybeExternId,
+        trees: &[&(MaybeExternId, RefineTree, KVarGen)],
+    ) -> QueryResult<(fixpoint::Constraint, FxIndexSet<rty::WKVid>)> {
+        println!("Encoding subtree rooted at {}", def_id_to_string(root_def_id.resolved_id()));
+        self.multi_kvar_decls.clear();
         self.multi_owners = trees.iter().map(|(owner, _, _)| *owner).collect();
+        self.promoted_wkvars.clear();
+        self.promoted_wkvar_decls.clear();
 
         let mut heads = FxIndexSet::default();
         let mut assumptions = FxIndexSet::default();
         let mut self_args: FxIndexMap<rty::WKVid, usize> = FxIndexMap::default();
-        println!("Multi check analysis: (combining {} fns)", trees.len());
-        for (def_id, tree, _) in &trees {
-            println!("  Including fn {}", def_id_to_string(def_id.resolved_id()));
-            println!("    fn has sig {:?}", self.genv.fn_sig(def_id.resolved_id())?);
+        for (_, tree, _) in trees {
             let (tree_heads, tree_assumptions, tree_self_args) = tree.wkvars_in_positions();
             heads.extend(tree_heads);
             assumptions.extend(tree_assumptions);
@@ -1377,23 +1462,28 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
                 }
             }
         }
-        // println!("wkvar heads: {:?}", heads);
-        // println!("wkvar assumptions: {:?}", assumptions);
-
-        // Compute the set of WKVids to promote:
-        // (we could filter out those that would trivially solve to false by
-        // taking an intersection, but we'll use this set to default otherwise).
-        let all_candidates: FxHashSet<rty::WKVid> =
-            heads.union(&assumptions).cloned().collect();
-        let promotable = {
-            let tree_refs: Vec<&RefineTree> = trees.iter().map(|(_, tree, _)| tree).collect();
-            RefineTree::promotable_wkvids(&tree_refs, &all_candidates.iter().cloned().collect())
-        };
-        let trivial_wkvids = all_candidates.difference(&promotable).cloned().collect();
-        println!("wkvar promotable: {:?} (of {:?} candidates)", promotable.len(), all_candidates.len());
+        let all_candidates: FxIndexSet<rty::WKVid> = heads.union(&assumptions).cloned().collect();
+        let tree_refs = trees.iter().map(|tree| &tree.1).collect_vec();
+        let promotable = RefineTree::promotable_wkvids(
+            &tree_refs,
+            &all_candidates.iter().cloned().collect::<FxHashSet<_>>(),
+        );
+        let trivial_wkvids = all_candidates
+            .iter()
+            .filter(|wkvid| !promotable.contains(*wkvid))
+            .cloned()
+            .collect();
+        println!(
+            "wkvar promotable: {:?} (of {:?} candidates)",
+            promotable.len(),
+            all_candidates.len()
+        );
 
         let mut next_kvid = fixpoint::KVid::from_u32(0);
-        for wkvid in &promotable {
+        for wkvid in all_candidates
+            .iter()
+            .filter(|wkvid| promotable.contains(*wkvid))
+        {
             if !matches!(self.genv.resolve_id(wkvid.parent_fn), ResolvedDefId::Local(_)) {
                 println!("WARN: not local id {}", def_id_to_string(wkvid.parent_fn));
             }
@@ -1435,15 +1525,14 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
                 sorts.push(fixpoint::Sort::Int);
             }
             next_kvid = range.end;
-            self.promoted_wkvars
-                .insert(
-                    wkvid.clone(),
-                    PromotedWKVar {
-                        range,
-                        source_sorts: info.sorts.clone(),
-                        source_self_args: self_args,
-                    },
-                );
+            self.promoted_wkvars.insert(
+                wkvid.clone(),
+                PromotedWKVar {
+                    range,
+                    source_sorts: info.sorts.clone(),
+                    source_self_args: self_args,
+                },
+            );
             let start = fixpoint::KVid::from_u32(
                 next_kvid.as_u32() - usize::max(promoted_self_args, 1) as u32,
             );
@@ -1457,12 +1546,11 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
         }
 
         let mut constraints = vec![];
-        for (def_id, mut tree, kvars) in trees {
-            let old_kvars = std::mem::replace(&mut self.kvars, kvars);
+        for (def_id, tree, kvars) in trees {
+            let old_kvars = std::mem::replace(&mut self.kvars, kvars.clone());
             let old_kcx = std::mem::replace(&mut self.kcx, KVarEncodingCtxt::new(next_kvid));
-            let old_local_vars =
-                std::mem::replace(&mut self.ecx.local_var_env, LocalVarEnv::new());
-            let old_def_id = self.ecx.def_id.replace(def_id);
+            let old_local_vars = std::mem::replace(&mut self.ecx.local_var_env, LocalVarEnv::new());
+            let old_def_id = self.ecx.def_id.replace(*def_id);
 
             let result = (|| {
                 self.ecx
@@ -1473,7 +1561,6 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
                         self.ecx.local_var_env.insert_early_param(param);
                     }
                 }
-                tree.simplify(self.genv);
                 let constraint = tree.to_fixpoint(self)?;
                 let decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
                 next_kvid = self.kcx.next_kvid();
@@ -1562,10 +1649,7 @@ impl KVarEncodingCtxt {
         backend: &Backend,
     ) -> Range<fixpoint::KVid> {
         // The start of the next range
-        let start = self
-            .ranges
-            .last()
-            .map_or(self.start, |(_, r)| r.end);
+        let start = self.ranges.last().map_or(self.start, |(_, r)| r.end);
 
         self.ranges
             .entry(kvid)
@@ -1588,7 +1672,9 @@ impl KVarEncodingCtxt {
 
     #[allow(dead_code, reason = "used by dormant multi-query encoding")]
     fn next_kvid(&self) -> fixpoint::KVid {
-        self.ranges.last().map_or(self.start, |(_, range)| range.end)
+        self.ranges
+            .last()
+            .map_or(self.start, |(_, range)| range.end)
     }
 
     fn encode_kvars(&self, kvars: &KVarGen, scx: &mut SortEncodingCtxt) -> Vec<fixpoint::KVarDecl> {
@@ -1736,6 +1822,7 @@ impl LocalVarEnv {
     }
 }
 
+#[derive(Clone)]
 pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
     /// If true, generate dummy [holes] instead of kvars. Used during shape mode to avoid generating

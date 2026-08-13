@@ -39,11 +39,13 @@ use std::{
 use std::{
     io::{BufWriter, Write as IOWrite},
     process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
-    FlatConstraint, FunSort, Pred, Qualifier, Quantifier, Sort, SortCtor, SortDecl, WKVar,
+    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, FlatConstraint,
+    FunSort, Pred, Qualifier, Quantifier, Sort, SortCtor, SortDecl, WKVar,
 };
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
@@ -393,6 +395,22 @@ impl<T: Types> Task<T> {
             let mut w = BufWriter::new(stdin.unwrap());
             // Use compact formatting to reduce overhead when communicating with fixpoint
             writeln!(w, "{}", format::CompactTask(self))?;
+        }
+        let timeout = Duration::from_secs(10);
+        let start = Instant::now();
+        loop {
+            if child.try_wait()?.is_some() {
+                break;
+            }
+            if start.elapsed() >= timeout {
+                child.kill()?;
+                child.wait()?;
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "fixpoint timed out after 10 seconds",
+                ));
+            }
+            thread::sleep(Duration::from_millis(10));
         }
         let out = child.wait_with_output()?;
 

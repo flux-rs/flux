@@ -3260,7 +3260,7 @@ pub fn auto_strong(
         let inner_ty = inner_ty.shift_in_escaping(1);
         let inner_ty = if let TyKind::Exists(inner_ty) = inner_ty.kind() {
             let output_var_idx = output_vars.len();
-            let promoted_vars = inner_ty.vars().clone();
+            let promoted_vars = inner_ty.vars();
             let replacements = promoted_vars
                 .iter()
                 .enumerate()

@@ -6,6 +6,7 @@ use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
     FixpointQueryKind, PanicSpec,
     def_id::MaybeExternId,
+    def_id_to_string,
     global_env::GlobalEnv,
     metrics::{self, Metric},
     queries::{QueryErr, QueryResult},
@@ -314,48 +315,50 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
         let mut fcx = FixpointCtxt::new(genv, def_id, KVarGen::new(false), Backend::Fixpoint);
-        let (cstr, trivial_wkvids) = fcx.encode_multi(trees)?;
-        if cstr.concrete_head_count() == 0 {
-            return Ok(vec![]);
-        }
-        let (task, _) = fcx.create_task(def_id, cstr, opts.scrape_quals, backend)?;
-        if config::dump_constraint() {
-            dbg::dump_multi_item_info(genv.tcx(), "smt2", &task)
-                .unwrap();
-        }
-        // FIXME: Decode solutions and report unsafe tags per owning function. For now, preserve
-        // the solver status while intentionally ignoring its solution payload.
-        let result = task.run().map_err(|err| {
-            flux_middle::queries::QueryErr::bug(None, format!("failed to run multi-query: {err}"))
-        })?;
-        match result.status {
-            liquid_fixpoint::FixpointStatus::Safe(_) => {
-                println!("SAFE");
-                Ok(vec![])
+        let constraints = fcx.encode_multi(trees)?;
+        let mut all_errors = vec![];
+        for multi in constraints {
+            if multi.constraint.concrete_head_count() == 0 {
+                continue;
             }
-            liquid_fixpoint::FixpointStatus::Unsafe(_, errors) => {
-                println!("UNSAFE");
-                let mut errors = fcx.errors_for_tags(errors.into_iter().map(|error| error.tag));
-                for error in &mut errors {
-                    error.multi_query = true;
-                    error.trivial_wkvids = trivial_wkvids
-                        .iter()
-                        .filter(|wkvid| wkvid.parent_fn == error.checked_def_id)
-                        .cloned()
-                        .collect();
+            let (checked_def_id, trivial_wkvids, task) =
+                fcx.create_multi_task(multi, opts.scrape_quals, backend)?;
+            println!("Checking {}", def_id_to_string(checked_def_id.resolved_id()));
+            if config::dump_constraint() {
+                dbg::dump_multi_item_info_for(genv.tcx(), checked_def_id.resolved_id(), "smt2", &task)
+                    .unwrap();
+            }
+            let result = match task.run() {
+                Ok(result) => result,
+                Err(err) => {
+                    eprintln!("failed to run multi-query: {err}");
+                    continue;
                 }
-                let (legitimate, possibly_trivial): (Vec<_>, Vec<_>) = errors
-                    .into_iter()
-                    .partition(|error| error.trivial_wkvids.is_empty());
-                Ok(legitimate.into_iter().chain(possibly_trivial).collect())
+            };
+            match result.status {
+                liquid_fixpoint::FixpointStatus::Safe(_) => println!("SAFE"),
+                liquid_fixpoint::FixpointStatus::Unsafe(_, errors) => {
+                    println!("UNSAFE");
+                    let mut errors = fcx.errors_for_tags(errors.into_iter().map(|error| error.tag));
+                    for error in &mut errors {
+                        error.multi_query = true;
+                        error.trivial_wkvids = trivial_wkvids
+                            .iter()
+                            .filter(|wkvid| wkvid.parent_fn == error.checked_def_id)
+                            .cloned()
+                            .collect();
+                    }
+                    let (legitimate, possibly_trivial): (Vec<_>, Vec<_>) = errors
+                        .into_iter()
+                        .partition(|error| error.trivial_wkvids.is_empty());
+                    all_errors.extend(legitimate.into_iter().chain(possibly_trivial));
+                }
+                liquid_fixpoint::FixpointStatus::Crash(err) => {
+                    eprintln!("multi-query fixpoint crashed: {err:?}");
+                }
             }
-            liquid_fixpoint::FixpointStatus::Crash(err) => Err(
-                flux_middle::queries::QueryErr::bug(
-                    Some(def_id.resolved_id()),
-                    format!("multi-query fixpoint crashed: {err:?}"),
-                ),
-            ),
         }
+        Ok(all_errors)
     }
 }
 
