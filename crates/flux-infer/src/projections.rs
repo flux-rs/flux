@@ -218,7 +218,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 // 2. Gather the ProjectionPredicates and solve them see issue-808.rs
                 self.resolve_projection_predicates(&mut subst, impl_def_id)?;
 
-                let args = subst.finish(self.tcx(), generics)?;
+                let mut args = subst.finish(self.tcx(), generics)?;
 
                 // 3. Get the associated type in the impl block and apply the substitution to it
                 let assoc_type_id = tcx
@@ -229,6 +229,15 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                     .ok_or_else(|| {
                         query_bug!("no associated type for {obligation:?} in impl {impl_def_id:?}")
                     })?;
+
+                // 4. Append the GAT's own generic args from the obligation.
+                //    The obligation's args are [trait_args..., gat_own_args...].
+                //    The trait-level args were matched above; the GAT's own args
+                //    (e.g., lifetime parameters on `type Tok<'a>`) start after
+                //    the trait's generic params.
+                let trait_arg_count = impl_trait_ref.args.len();
+                args.extend(obligation.args[trait_arg_count..].iter().cloned());
+
                 Ok(self
                     .genv()
                     .type_of(assoc_type_id)?
