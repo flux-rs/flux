@@ -11,12 +11,13 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AliasKind, AliasTy, BaseTy, Binder, BoundReftKind, BoundVariableKinds,
-        CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj,
-        GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, NameProvenance, Path,
-        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
+        self, AliasKind, AliasTy, BaseTy, Binder, BoundRegion, BoundRegionKind, BoundReftKind,
+        BoundVariableKind, BoundVariableKinds, CoroutineObligPredicate, Ctor, ESpan, EVid,
+        EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode, Lambda, List,
+        Loc, Mutability, Name, NameProvenance, Path, PolyVariant, PtrKind, RefineArgs,
+        RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
-        fold::TypeFoldable,
+        fold::{TypeFoldable, TypeFolder},
     },
 };
 use itertools::{Itertools, izip};
@@ -1032,7 +1033,13 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) => {
-                tracked_span_assert_eq!(sig_a.erase_regions(), sig_b.erase_regions());
+                // Two `FnPtr` types may have the same structure but differ in bound region *names*
+                // (e.g., `BrNamed` vs `BrAnon`), which is only relevant for diagnostics. We
+                // therefore anonymize bound region kinds before comparing.
+                tracked_span_assert_eq!(
+                    anonymize_bound_regions(sig_a).erase_regions(),
+                    anonymize_bound_regions(sig_b).erase_regions()
+                );
                 Ok(())
             }
             (BaseTy::Never, BaseTy::Never) => Ok(()),
@@ -1235,6 +1242,39 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         }
         Ok(())
     }
+}
+
+/// Normalize all [`BoundRegionKind`] variants to [`BoundRegionKind::Anon`] in a `PolyFnSig`.
+///
+/// Two `FnPtr` types that are semantically identical may differ in the *names* of their bound
+/// region variables (e.g., `BrNamed` vs `BrAnon`).  These names are purely for diagnostics and
+/// carry no semantic meaning, so we erase them before doing equality checks.
+fn anonymize_bound_regions(poly_sig: &rty::PolyFnSig) -> rty::PolyFnSig {
+    struct BoundRegionAnonymizer;
+    impl TypeFolder for BoundRegionAnonymizer {
+        fn fold_region(&mut self, r: &Region) -> Region {
+            if let Region::ReBound(db, br) = *r {
+                Region::ReBound(db, BoundRegion { var: br.var, kind: BoundRegionKind::Anon })
+            } else {
+                *r
+            }
+        }
+    }
+
+    let vars: List<BoundVariableKind> = poly_sig
+        .vars()
+        .iter()
+        .map(|kind| {
+            if let BoundVariableKind::Region(_) = kind {
+                BoundVariableKind::Region(BoundRegionKind::Anon)
+            } else {
+                kind.clone()
+            }
+        })
+        .collect();
+
+    let value = poly_sig.skip_binder_ref().fold_with(&mut BoundRegionAnonymizer);
+    Binder::bind_with_vars(value, vars)
 }
 
 fn mk_coroutine_obligations(
