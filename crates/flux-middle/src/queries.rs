@@ -1069,7 +1069,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     //   LOCAL
                     //   NOT TRUSTED
                     //   INCLUDED in the multi-check
-                    //   
+                    //
                     // (this should exclude extern specs...)
                     if genv.strip_for_multi_check(def_id) {
                         let local_id = def_id.expect_local();
@@ -1077,14 +1077,16 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         let poly_sig = genv
                             .lower_fn_sig(local_id)?
                             .skip_binder()
-                            .refine(&Refiner::default_for_item(genv, local_id.into())?)?
-                            .hoist_input_binders();
+                            .refine(&Refiner::default_for_item(genv, local_id.into())?)?;
                         // Skip auto strong everywhere but plain fns
-                        let poly_sig = if matches!(genv.fhir_node(def_id.local_id())?, fhir::Node::Item(..)){
+                        let poly_sig = if true
+                            || matches!(genv.fhir_node(def_id.local_id())?, fhir::Node::Item(..))
+                        {
                             rty::auto_strong(genv, local_id, poly_sig)
                         } else {
                             poly_sig
                         };
+                        let poly_sig = poly_sig.hoist_input_binders();
                         let poly_sig = poly_sig.add_weak_kvars(genv, local_id.into())?;
                         Ok(rty::EarlyBinder(poly_sig))
                     } else {
@@ -1121,7 +1123,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
                     // Per Nico: not sure we should be inserting wkvars here because
                     // they will not be local.
-                    // 
+                    //
                     // // We only will add weak kvars if
                     // //   0. If suggestions are enabled.
                     // //   1. There are no weak kvars already

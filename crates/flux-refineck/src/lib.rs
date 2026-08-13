@@ -44,12 +44,13 @@ use flux_macros::fluent_messages;
 use flux_middle::{
     FixpointQueryKind,
     def_id::MaybeExternId,
+    def_id_to_string,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     pretty,
     rty::{self, ESpan, EarlyBinder, fold::TypeFoldable},
 };
-use rustc_data_structures::{fx::FxHashMap, unord::UnordMap};
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_errors::{Applicability, Diag, ErrorGuaranteed};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_span::Span;
@@ -262,17 +263,31 @@ fn report_errors(
     } else {
         None
     };
-    let mut solutions_by_tag: FxHashMap<Tag, (TagIdx, PossibleSolutions)> = FxHashMap::default();
+    let mut solutions_by_tag: FxIndexMap<
+        (Tag, DefId),
+        (TagIdx, PossibleSolutions, bool, Vec<rty::WKVid>),
+    > = FxIndexMap::default();
     for error in errors {
-        if let Some((_, val)) = solutions_by_tag.get_mut(&error.tag) {
+        if let Some((_, val, _, _)) = solutions_by_tag.get_mut(&(error.tag, error.checked_def_id)) {
             val.extend(error.possible_solutions);
         } else {
-            solutions_by_tag.insert(error.tag, (error.tag_idx, error.possible_solutions));
+            solutions_by_tag.insert(
+                (error.tag, error.checked_def_id),
+                (
+                    error.tag_idx,
+                    error.possible_solutions,
+                    error.multi_query,
+                    error.trivial_wkvids,
+                ),
+            );
         }
     }
     let rerun_note = rerun_hint_note(genv, local_id);
     let mut e = None;
-    for (tag, (tag_idx, possible_solutions)) in solutions_by_tag {
+    let mut printed_possibly_trivial_separator = false;
+    for ((tag, checked_def_id), (tag_idx, possible_solutions, multi_query, trivial_wkvids)) in
+        solutions_by_tag
+    {
         let span = tag.src_span;
         let mut err_diag = match tag.reason {
             ConstrReason::Call
@@ -358,7 +373,30 @@ fn report_errors(
             err_diag.arg("tag", tag_idx.to_string());
             err_diag.note(crate::fluent_generated::refineck_constraint_log_note);
         }
+        if multi_query {
+            let category = if trivial_wkvids.is_empty() {
+                "legitimate"
+            } else {
+                if !printed_possibly_trivial_separator {
+                    eprintln!("\n--- Possibly trivial multi-query errors ---");
+                    printed_possibly_trivial_separator = true;
+                }
+                "possibly trivial"
+            };
+            eprintln!(
+                "flux: multi-query {category} error checked in {} (tag {tag_idx})",
+                def_id_to_string(checked_def_id)
+            );
+        }
         e = Some(err_diag.emit());
+        if !trivial_wkvids.is_empty() {
+            eprintln!("flux: possibly trivial error context:");
+            eprintln!("  fn {}", def_id_to_string(checked_def_id));
+            eprintln!("    fn has sig {:?}", genv.fn_sig(checked_def_id).unwrap());
+            for wkvid in trivial_wkvids {
+                eprintln!("    wkvar {}_{}", def_id_to_string(wkvid.parent_fn), wkvid.id.as_u32());
+            }
+        }
     }
 
     if let Some(e) = e { Err(e) } else { Ok(()) }

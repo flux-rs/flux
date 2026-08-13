@@ -314,7 +314,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
         let mut fcx = FixpointCtxt::new(genv, def_id, KVarGen::new(false), Backend::Fixpoint);
-        let cstr = fcx.encode_multi(trees)?;
+        let (cstr, trivial_wkvids) = fcx.encode_multi(trees)?;
         if cstr.concrete_head_count() == 0 {
             return Ok(vec![]);
         }
@@ -335,7 +335,19 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             }
             liquid_fixpoint::FixpointStatus::Unsafe(_, errors) => {
                 println!("UNSAFE");
-                Ok(fcx.errors_for_tags(errors.into_iter().map(|error| error.tag)))
+                let mut errors = fcx.errors_for_tags(errors.into_iter().map(|error| error.tag));
+                for error in &mut errors {
+                    error.multi_query = true;
+                    error.trivial_wkvids = trivial_wkvids
+                        .iter()
+                        .filter(|wkvid| wkvid.parent_fn == error.checked_def_id)
+                        .cloned()
+                        .collect();
+                }
+                let (legitimate, possibly_trivial): (Vec<_>, Vec<_>) = errors
+                    .into_iter()
+                    .partition(|error| error.trivial_wkvids.is_empty());
+                Ok(legitimate.into_iter().chain(possibly_trivial).collect())
             }
             liquid_fixpoint::FixpointStatus::Crash(err) => Err(
                 flux_middle::queries::QueryErr::bug(

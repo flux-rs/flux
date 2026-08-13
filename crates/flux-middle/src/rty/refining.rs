@@ -575,8 +575,9 @@ impl rty::PolyFnSig {
                 } else {
                     fn_sig
                         .inputs
-                };
+            };
             shift_in_vars(&mut params);
+            let output_params = params.clone();
             let output_binder_params = make_vars_and_sorts_from_bound_vars(fn_sig.output.vars());
             params.extend(output_binder_params);
             wkvar_inserter.params = params.clone();
@@ -586,7 +587,7 @@ impl rty::PolyFnSig {
                     def_id,
                     &mut wkvar_inserter.kvid,
                     make_vars_and_sorts_from_bound_vars(fn_sig.output.vars()),
-                    params.clone(),
+                    output_params,
                 );
                 fn_sig
                     .output

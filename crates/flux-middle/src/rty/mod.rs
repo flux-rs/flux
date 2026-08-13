@@ -3251,16 +3251,39 @@ pub fn auto_strong(
     for _ in 0..strg_bvars.len() {
         vars.push(BoundVariableKind::Refine(Sort::Loc, InferMode::EVar, kind));
     }
-    // 3. Add ensures for strong locations
-    let output = fn_sig.output.map(|out| {
-        let mut ens = out.ensures.to_vec();
-        for (var, inner_ty) in strg_bvars {
-            let loc = Loc::Var(Var::Bound(INNERMOST.shifted_in(1), BoundReft { var, kind }));
-            let path = Path::new(loc, List::empty());
-            ens.push(Ensures::Type(path, inner_ty.shift_in_escaping(1)));
-        }
-        FnOutput { ensures: List::from_vec(ens), ..out }
-    });
+    // 3. Promote the referent's existential index to the output binder and add
+    //    ensures for the strong locations.
+    let mut output_vars = fn_sig.output.vars().to_vec();
+    let output = fn_sig.output.skip_binder_ref().clone();
+    let mut ens = output.ensures.to_vec();
+    for (var, inner_ty) in strg_bvars {
+        let inner_ty = inner_ty.shift_in_escaping(1);
+        let inner_ty = if let TyKind::Exists(inner_ty) = inner_ty.kind() {
+            let output_var_idx = output_vars.len();
+            let promoted_vars = inner_ty.vars().clone();
+            let replacements = promoted_vars
+                .iter()
+                .enumerate()
+                .map(|(idx, var)| {
+                    let (_, _, kind) = var.expect_refine();
+                    Expr::bvar(INNERMOST, BoundVar::from_usize(output_var_idx + idx), kind)
+                })
+                .collect_vec();
+            let inner_ty = inner_ty.replace_bound_refts(&replacements);
+            output_vars.extend(promoted_vars.iter().cloned());
+            inner_ty
+        } else {
+            inner_ty
+        };
+
+        let loc = Loc::Var(Var::Bound(INNERMOST.shifted_in(1), BoundReft { var, kind }));
+        let path = Path::new(loc, List::empty());
+        ens.push(Ensures::Type(path, inner_ty));
+    }
+    let output = Binder::bind_with_vars(
+        FnOutput { ensures: List::from_vec(ens), ..output },
+        output_vars.into(),
+    );
 
     // 4. Reconstruct fn sig with new inputs and output and vars
     let fn_sig = FnSig { inputs: List::from_vec(strg_inputs), output, ..fn_sig };

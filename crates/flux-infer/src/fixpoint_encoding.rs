@@ -579,6 +579,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     kcx: KVarEncodingCtxt,
     pub(crate) ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
+    tag_owners: IndexVec<TagIdx, DefId>,
     multi_kvar_decls: Vec<fixpoint::KVarDecl>,
     multi_query: bool,
     multi_owners: Vec<MaybeExternId>,
@@ -597,12 +598,27 @@ pub type PossibleSolutions = FxIndexMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>>
 pub struct FixpointCheckError<Tag> {
     pub tag: Tag,
     pub tag_idx: TagIdx,
+    pub checked_def_id: DefId,
+    pub multi_query: bool,
+    pub trivial_wkvids: Vec<rty::WKVid>,
     pub possible_solutions: PossibleSolutions,
 }
 
 impl<Tag> FixpointCheckError<Tag> {
-    pub fn new(tag: Tag, tag_idx: TagIdx, possible_solutions: PossibleSolutions) -> Self {
-        Self { tag, tag_idx, possible_solutions }
+    pub fn new(
+        tag: Tag,
+        tag_idx: TagIdx,
+        checked_def_id: DefId,
+        possible_solutions: PossibleSolutions,
+    ) -> Self {
+        Self {
+            tag,
+            tag_idx,
+            checked_def_id,
+            multi_query: false,
+            trivial_wkvids: vec![],
+            possible_solutions,
+        }
     }
 }
 
@@ -638,6 +654,7 @@ where
             ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend),
             kcx: Default::default(),
             tags: IndexVec::new(),
+            tag_owners: IndexVec::new(),
             multi_kvar_decls: vec![],
             multi_query: false,
             multi_owners: vec![],
@@ -827,7 +844,12 @@ where
                         } else {
                             Default::default()
                         };
-                        FixpointCheckError::new(tag, tag_idx, possible_solutions)
+                        FixpointCheckError::new(
+                            tag,
+                            tag_idx,
+                            self.tag_owners[tag_idx],
+                            possible_solutions,
+                        )
                     })
                     .collect_vec()
             }
@@ -859,7 +881,14 @@ where
     ) -> Vec<FixpointCheckError<Tag>> {
         tags.into_iter()
             .unique()
-            .map(|tag_idx| FixpointCheckError::new(self.tags[tag_idx], tag_idx, Default::default()))
+            .map(|tag_idx| {
+                FixpointCheckError::new(
+                    self.tags[tag_idx],
+                    tag_idx,
+                    self.tag_owners[tag_idx],
+                    Default::default(),
+                )
+            })
             .collect()
     }
 
@@ -1054,6 +1083,12 @@ where
         //
         // *self.tags_inv.entry(tag).or_insert_with(|| {
         let idx = self.tags.push(tag);
+        let owner = self
+            .ecx
+            .def_id
+            .expect("fixpoint tags require an encoding owner")
+            .resolved_id();
+        self.tag_owners.push(owner);
         self.comments.push(format!("Tag {idx}: {tag:?}"));
         idx
         // })
@@ -1312,14 +1347,14 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
     pub(crate) fn encode_multi(
         &mut self,
         trees: Vec<(MaybeExternId, RefineTree, KVarGen)>,
-    ) -> QueryResult<fixpoint::Constraint> {
+    ) -> QueryResult<(fixpoint::Constraint, FxHashSet<rty::WKVid>)> {
         self.multi_kvar_decls.clear();
         self.multi_owners.clear();
         self.promoted_wkvars.clear();
         self.promoted_wkvar_decls.clear();
         if trees.is_empty() {
             self.multi_query = false;
-            return Ok(fixpoint::Constraint::TRUE);
+            return Ok((fixpoint::Constraint::TRUE, FxHashSet::default()));
         }
         self.multi_query = true;
         self.multi_owners = trees.iter().map(|(owner, _, _)| *owner).collect();
@@ -1354,6 +1389,7 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
             let tree_refs: Vec<&RefineTree> = trees.iter().map(|(_, tree, _)| tree).collect();
             RefineTree::promotable_wkvids(&tree_refs, &all_candidates.iter().cloned().collect())
         };
+        let trivial_wkvids = all_candidates.difference(&promotable).cloned().collect();
         println!("wkvar promotable: {:?} (of {:?} candidates)", promotable.len(), all_candidates.len());
 
         let mut next_kvid = fixpoint::KVid::from_u32(0);
@@ -1364,7 +1400,6 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
             // if !promotable.contains(wkvid) {
             //     println!("vacuous wkvar {} {:?}", def_id_to_string(wkvid.parent_fn), wkvid.id);
             // }
-            
             // Promote all wkvars unless it's a struct invariant...  in which
             // case we only promote if the invariant has a chance to be
             // non-vacuous.
@@ -1453,7 +1488,7 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
             constraints.push(result?);
         }
 
-        Ok(fixpoint::Constraint::conj(constraints))
+        Ok((fixpoint::Constraint::conj(constraints), trivial_wkvids))
     }
 }
 
