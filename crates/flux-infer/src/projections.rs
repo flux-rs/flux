@@ -91,12 +91,18 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         // For example, in `issue-1449.rs` when normalizing `<<MyChoice as Choice>::Session as FromState>::Role`
         // we first recursively normalize to get `<End<B> as FromState>::Role`
         let obligation = &obligation.try_fold_with(self)?;
+        tracing::debug!(event = "normalize_projection_ty_enter", ?obligation);
 
         let mut candidates = vec![];
         self.assemble_candidates_from_param_env(obligation, &mut candidates);
         self.assemble_candidates_from_trait_def(obligation, &mut candidates)
             .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
+        tracing::debug!(
+            event = "normalize_projection_ty_candidates",
+            ?obligation,
+            candidates = ?candidates
+        );
         if candidates.is_empty() {
             // TODO: This is a temporary hack that uses rustc's trait selection when FLUX fails;
             //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
@@ -161,6 +167,12 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
         while !projection_preds.is_empty() {
             let (resolved, unresolved) = self.find_resolved_predicates(subst, projection_preds);
+            tracing::debug!(
+                event = "resolve_projection_predicates_step",
+                ?impl_def_id,
+                resolved = resolved.len(),
+                unresolved = unresolved.len()
+            );
 
             if resolved.is_empty() {
                 break; // failed: there is some unresolved projection pred!
@@ -376,9 +388,15 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             self.rustc_param_env(),
             trait_ref,
         );
+        tracing::debug!(event = "assemble_candidates_from_impls_enter", ?obligation, ?trait_pred);
         // FIXME(nilehmann) This is a patch to not panic inside rustc so we are
         // able to catch the bug
         if trait_pred.has_escaping_bound_vars() {
+            tracing::debug!(
+                event = "assemble_candidates_from_impls_escaping_bound_vars",
+                ?obligation,
+                ?trait_pred
+            );
             tracked_span_bug!();
         }
         match self.selcx.select(&trait_pred) {
