@@ -486,6 +486,10 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
             .map_err(InferErr::UnsolvedEvar)
     }
 
+    pub fn unsolved_evars_in_current_scope(&self) -> Vec<EVid> {
+        self.inner.borrow().evars.unsolved_in_current_scope()
+    }
+
     /// Convenience method pairing [`InferCtxt::push_evar_scope`] and [`InferCtxt::pop_evar_scope`].
     pub fn ensure_resolved_evars<R>(
         &mut self,

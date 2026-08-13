@@ -833,7 +833,18 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             def_id.dispatch_query(
                 genv,
                 self,
-                |def_id| (self.providers.refinement_generics_of)(genv, def_id),
+                |def_id| {
+                    if genv.strip_for_multi_check(def_id) {
+                        let parent = genv.tcx().generics_of(def_id).parent;
+                        Ok(rty::EarlyBinder(rty::RefinementGenerics {
+                            parent,
+                            parent_count: 0,
+                            own_params: List::empty(),
+                        }))
+                    } else {
+                        (self.providers.refinement_generics_of)(genv, def_id)
+                    }
+                },
                 |def_id| genv.cstore().refinement_generics_of(def_id),
                 |def_id| {
                     let parent = genv.tcx().generics_of(def_id).parent;
@@ -882,7 +893,17 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             def_id.dispatch_query(
                 genv,
                 self,
-                |def_id| (self.providers.predicates_of)(genv, def_id),
+                |def_id| {
+                    if genv.strip_for_multi_check(def_id) {
+                        let local_id = def_id.expect_local();
+                        let predicates = genv
+                            .lower_predicates_of(local_id)?
+                            .refine(&Refiner::default_for_item(genv, local_id.into())?)?;
+                        Ok(rty::EarlyBinder(predicates))
+                    } else {
+                        (self.providers.predicates_of)(genv, def_id)
+                    }
+                },
                 |def_id| genv.cstore().predicates_of(def_id),
                 |def_id| {
                     let predicates = genv
@@ -1042,7 +1063,34 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             def_id.dispatch_query(
                 genv,
                 self,
-                |def_id| (self.providers.fn_sig)(genv, def_id),
+                |def_id| {
+                    // Strip the sig and add wkvars for the multi-check
+                    // analysis for fns that are...
+                    //   LOCAL
+                    //   NOT TRUSTED
+                    //   INCLUDED in the multi-check
+                    //   
+                    // (this should exclude extern specs...)
+                    if genv.strip_for_multi_check(def_id) {
+                        let local_id = def_id.expect_local();
+                        // println!("Adding wkvar for {:?}", local_id);
+                        let poly_sig = genv
+                            .lower_fn_sig(local_id)?
+                            .skip_binder()
+                            .refine(&Refiner::default_for_item(genv, local_id.into())?)?
+                            .hoist_input_binders();
+                        // Skip auto strong everywhere but plain fns
+                        let poly_sig = if matches!(genv.fhir_node(def_id.local_id())?, fhir::Node::Item(..)){
+                            rty::auto_strong(genv, local_id, poly_sig)
+                        } else {
+                            poly_sig
+                        };
+                        let poly_sig = poly_sig.add_weak_kvars(genv, local_id.into())?;
+                        Ok(rty::EarlyBinder(poly_sig))
+                    } else {
+                        (self.providers.fn_sig)(genv, def_id)
+                    }
+                },
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
                     let tcx = genv.tcx();
@@ -1071,20 +1119,23 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         });
                     }
 
-                    // We only will add weak kvars if
-                    //   0. If suggestions are enabled.
-                    //   1. There are no weak kvars already
-                    //   2. The function does NOT have a `#[no_suggestions]` annotation
-                    //      in its parent. (checked below)
-                    #[cfg(feature = "suggestions")]
-                    if genv.weak_kvars_for(def_id).is_none()
-                        && genv.resolve_id(def_id)
-                               .as_maybe_extern()
-                               .map(|id| id.is_local())
-                               .unwrap_or(false)
-                    {
-                        poly_sig = poly_sig.add_weak_kvars(genv, def_id)?;
-                    }
+                    // Per Nico: not sure we should be inserting wkvars here because
+                    // they will not be local.
+                    // 
+                    // // We only will add weak kvars if
+                    // //   0. If suggestions are enabled.
+                    // //   1. There are no weak kvars already
+                    // //   2. The function does NOT have a `#[no_suggestions]` annotation
+                    // //      in its parent. (checked below)
+                    // #[cfg(feature = "suggestions")]
+                    // if genv.weak_kvars_for(def_id).is_none()
+                    //     && genv.resolve_id(def_id)
+                    //            .as_maybe_extern()
+                    //            .map(|id| id.is_local())
+                    //            .unwrap_or(false)
+                    // {
+                    //     poly_sig = poly_sig.add_weak_kvars(genv, def_id)?;
+                    // }
                     Ok(rty::EarlyBinder(poly_sig))
                 },
             )

@@ -188,6 +188,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
+    pub fn strip_for_multi_check(&self, def_id: MaybeExternId) -> bool {
+        def_id.as_local().is_some_and(|local_id| {
+            self.safety_multi_check() && !self.trusted(local_id) && self.multi_check(def_id)
+        })
+    }
+
     /// Allocates space to store `cap` elements of type `T`.
     ///
     /// The elements are initialized using the supplied iterator. At most `cap` elements will be

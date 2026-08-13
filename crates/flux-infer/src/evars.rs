@@ -42,6 +42,16 @@ impl EVarStore {
         Ok(())
     }
 
+    pub(crate) fn unsolved_in_current_scope(&self) -> Vec<EVid> {
+        self.scopes
+            .last()
+            .into_iter()
+            .flatten()
+            .copied()
+            .filter(|evid| matches!(self.get(*evid), EVarState::Unsolved(..)))
+            .collect()
+    }
+
     pub(crate) fn replace_evars<T: TypeFoldable>(&self, t: &T) -> Result<T, EVid> {
         t.replace_evars(&mut |evid| {
             match self.get(evid) {

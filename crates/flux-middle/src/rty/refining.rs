@@ -541,7 +541,7 @@ impl rty::PolyFnSig {
             //   3. The fn is public
             let force_pre_true = !genv.safety_multi_check() || (matches!(fn_sig.safety, rty::Safety::Safe) && matches!(genv.tcx().visibility(def_id), Visibility::Public));
             if force_pre_true {
-                println!("Forcing pre true for {:?}", def_id);
+                // println!("Forcing pre true for {:?}", def_id);
             }
             let requires =
                 if !force_pre_true {
