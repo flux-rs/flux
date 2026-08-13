@@ -363,6 +363,20 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
 impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_qualifier(&mut self, qual: &fhir::Qualifier<'genv>) {
         self.check_expr(&qual.expr, &rty::Sort::Bool);
+
+        // A sort with no literals to scrape would silently make the qualifier inert.
+        let wildcards = std::iter::zip(qual.args, qual.wildcards)
+            .filter_map(|(param, &is_wildcard)| is_wildcard.then_some(param));
+        for param in wildcards {
+            let sort = self.infcx.param_sort(param.id);
+            if !matches!(
+                sort,
+                rty::Sort::Int | rty::Sort::Real | rty::Sort::Str | rty::Sort::BitVec(_)
+            ) {
+                self.errors
+                    .emit(errors::InvalidWildcardSort::new(param.span, sort));
+            }
+        }
     }
 
     fn visit_primop_prop(&mut self, primop_prop: &fhir::PrimOpProp<'genv>) {

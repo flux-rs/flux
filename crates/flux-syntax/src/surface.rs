@@ -69,6 +69,7 @@ pub enum UseTreeKind {
 pub struct Qualifier {
     pub name: Ident,
     pub params: RefineParams,
+    pub wildcards: Vec<bool>,
     pub expr: Expr,
     pub span: Span,
     pub kind: QualifierKind,

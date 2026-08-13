@@ -502,7 +502,7 @@ fn parse_qualifier_kind(cx: &mut ParseCtxt) -> ParseResult<QualifierKind> {
 
 /// ```text
 /// ⟨qualifier⟩ :=  ⟨ qualifier_kind ⟩?
-///                 qualifier ⟨ident⟩ ( ⟨refine_param⟩,* )
+///                 qualifier ⟨ident⟩ ( ⟨qualifier_param⟩,* )
 ///                 ⟨block⟩
 /// ```
 fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
@@ -510,7 +510,10 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let kind = parse_qualifier_kind(cx)?;
     cx.expect(kw::Qualifier)?;
     let mut name = parse_ident(cx)?;
-    let mut params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
+    let (mut params, mut wildcards): (RefineParams, Vec<bool>) =
+        parens(cx, Comma, parse_qualifier_param)?
+            .into_iter()
+            .unzip();
     let expr = parse_block(cx)?;
     let hi = cx.hi();
 
@@ -528,6 +531,9 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
                 node_id: cx.next_node_id(),
             }
         }));
+        // Params synthesized from the body's free variables are bound to values in the enclosing
+        // function, so they are never wildcards.
+        wildcards.resize(params.len(), false);
 
         // Uniquify the name so hints don't collide with each other (qualifier names are
         // crate-global). The span alone is not enough: every expansion of a macro like
@@ -544,7 +550,8 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
         name = Ident { name: Symbol::intern(&str), ..name };
     }
 
-    Ok(Qualifier { name, params, expr, span: cx.mk_span(lo, hi), kind })
+    debug_assert_eq!(params.len(), wildcards.len());
+    Ok(Qualifier { name, params, wildcards, expr, span: cx.mk_span(lo, hi), kind })
 }
 
 /// ```text
@@ -1379,6 +1386,18 @@ fn parse_refine_param(cx: &mut ParseCtxt, require_sort: RequireSort) -> ParseRes
     let sort = parse_sort_if_required(cx, require_sort)?;
     let hi = cx.hi();
     Ok(RefineParam { mode, ident, sort, span: cx.mk_span(lo, hi), node_id: cx.next_node_id() })
+}
+
+/// ```text
+/// ⟨qualifier_param⟩ := #? ⟨refine_param⟩
+/// ```
+///
+/// `#a: int` rather than fixpoint's `a#: int` because rustc lexes the enclosing attribute first and
+/// rejects `a#` as a reserved prefix.
+fn parse_qualifier_param(cx: &mut ParseCtxt) -> ParseResult<(RefineParam, bool)> {
+    let is_wildcard = cx.advance_if(token::Pound);
+    let param = parse_refine_param(cx, RequireSort::Yes)?;
+    Ok((param, is_wildcard))
 }
 
 /// ```text

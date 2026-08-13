@@ -156,6 +156,7 @@ pub enum GenericParamKind<'fhir> {
 pub struct Qualifier<'fhir> {
     pub def_id: FluxLocalDefId,
     pub args: &'fhir [RefineParam<'fhir>],
+    pub wildcards: &'fhir [bool],
     pub expr: Expr<'fhir>,
     pub kind: QualifierKind,
 }

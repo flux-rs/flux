@@ -43,7 +43,7 @@ use std::{
 
 pub use constraint::{
     BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, FlatConstraint,
-    FunSort, Pred, Qualifier, Quantifier, Sort, SortCtor, SortDecl, WKVar,
+    FunSort, Pred, QualParam, Qualifier, Quantifier, Sort, SortCtor, SortDecl, WKVar,
 };
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
@@ -136,6 +136,7 @@ macro_rules! declare_types {
             pub type FunBody = $crate::FunBody<FixpointTypes>;
             pub type Task = $crate::Task<FixpointTypes>;
             pub type Qualifier = $crate::Qualifier<FixpointTypes>;
+            pub type QualParam = $crate::QualParam<FixpointTypes>;
             pub type Sort = $crate::Sort<FixpointTypes>;
             pub type SortCtor = $crate::SortCtor<FixpointTypes>;
             pub type SortDecl = $crate::SortDecl<FixpointTypes>;

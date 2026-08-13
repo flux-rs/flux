@@ -877,6 +877,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         fhir::Qualifier {
             def_id: self.owner,
             args: self.desugar_refine_params(&qualifier.params),
+            wildcards: self.genv().alloc_slice(&qualifier.wildcards),
             kind,
             expr: self.desugar_expr(&qualifier.expr),
         }
