@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["deref","index","range"]};
+window.SIDEBAR_ITEMS = {"mod":["control_flow","deref","index","range"]};

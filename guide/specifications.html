@@ -2901,6 +2901,31 @@ enum Option&lt;T&gt; {
     Some(T),
 }
 
+/// `?` on an `Option` desugars into `Try::branch` followed by `FromResidual::from_residual`,
+/// routed through a [`core::ops::ControlFlow`]. Without specs for these, the `Some`/`None`
+/// discriminant is dropped crossing the `?`.
+///
+/// `Some(x)` continues with `x` and `None` breaks, so the `ControlFlow`'s arm is exactly the
+/// `Option`'s discriminant.
+#[extern_spec(core::option)]
+impl&lt;T&gt; core::ops::Try for Option&lt;T&gt; {
+    #[spec(fn(Option&lt;T&gt;[@b]) -&gt; core::ops::ControlFlow&lt;&lt;Option&lt;T&gt; as core::ops::Try&gt;::Residual, &lt;Option&lt;T&gt; as core::ops::Try&gt;::Output&gt;[b])]
+    fn branch(
+        self,
+    ) -&gt; core::ops::ControlFlow&lt;
+        &lt;Option&lt;T&gt; as core::ops::Try&gt;::Residual,
+        &lt;Option&lt;T&gt; as core::ops::Try&gt;::Output,
+    &gt;;
+}
+
+/// The residual of an `Option` is always the `None` arm, so a `?` propagating out of an
+/// `Option`-returning function yields `None`.
+#[extern_spec(core::option)]
+impl&lt;T&gt; core::ops::FromResidual&lt;Option&lt;core::convert::Infallible&gt;&gt; for Option&lt;T&gt; {
+    #[spec(fn(Option&lt;core::convert::Infallible&gt;) -&gt; Option&lt;T&gt;[false])]
+    fn from_residual(residual: Option&lt;core::convert::Infallible&gt;) -&gt; Option&lt;T&gt;;
+}
+
 #[extern_spec]
 impl&lt;T&gt; Option&lt;T&gt; {
     #[sig(fn(&amp;Self[@b]) -&gt; bool[b])]
