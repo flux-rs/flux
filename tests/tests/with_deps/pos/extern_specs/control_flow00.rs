@@ -132,3 +132,15 @@ fn qm_converts_error_err(x: Result<i32, i32>) -> Result<i32, Wrapper> {
     let v = x?;
     Ok(v)
 }
+
+#[spec(fn (n: usize) -> Option<usize[n-1]>[n > 0])]
+fn decr(n: usize) -> Option<usize> {
+    if n > 0 { Some(n - 1) } else { None }
+}
+
+#[spec(fn (n: usize) -> Option<usize[n-2]>[n > 1])]
+fn test_decr(n: usize) -> Option<usize> {
+    let n = decr(n)?;
+    let n = decr(n)?;
+    Some(n)
+}
