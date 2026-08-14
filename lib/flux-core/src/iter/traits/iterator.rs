@@ -40,6 +40,11 @@ trait Iterator {
     where
         Self: Sized;
 
+    #[spec(fn(Self[@s], n: usize) -> Take<Self>[n, s])]
+    fn take(self, n: usize) -> Take<Self>
+    where
+        Self: Sized;
+
     #[spec(fn(Self[@s], f: F) where F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> () )]
     fn for_each<F>(self, f: F)
     where
