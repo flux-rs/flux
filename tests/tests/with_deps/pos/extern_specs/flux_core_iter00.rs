@@ -1,5 +1,5 @@
 extern crate flux_core;
-use flux_rs::assert;
+use flux_rs::{assert, macros::qualifier};
 
 // --- position ---
 
@@ -19,15 +19,33 @@ pub fn test_position_safe_index(xs: &[i32]) {
 
 // --- take ---
 
-#[flux_rs::spec(fn(target: &mut [i32][@len], n: usize{n <= len}, iter: I))]
-pub fn test_take<I>(target: &mut [i32], n: usize, iter: I)
+#[flux_rs::spec(fn(target: &mut [i32][100], iter: I))]
+pub fn test_take_easy<I>(target: &mut [i32], iter: I)
 where
     I: IntoIterator<Item = i32>,
 {
-    let mut iter = iter.into_iter();
+    let iter = iter.into_iter();
+    let mut pushed = 0;
+    for element in iter.take(5) {
+        // Relates `pushed` to the `Take`'s remaining count, which the `for` desugaring hides.
+        qualifier!(pushed: int, k: int ; pushed + k == 5);
+        target[pushed] = element;
+        pushed += 1;
+    }
+}
+
+#[flux_rs::spec(fn(target: &mut [i32][@len], n: usize{n <= len}, iter: I))]
+pub fn test_take_loop<I>(target: &mut [i32], n: usize, iter: I)
+where
+    I: IntoIterator<Item = i32>,
+{
+    let iter = iter.into_iter();
     let mut pushed = n;
     let to_take = target.len() - pushed;
-    for element in iter.by_ref().take(to_take) {
+    for element in iter.take(to_take) {
+        // As above, but the sum is `len` rather than a literal: `pushed` starts at `n` and
+        // `to_take` is `len - n`.
+        qualifier!(pushed: int, k: int, len: int ; pushed + k == len);
         target[pushed] = element;
         pushed += 1;
     }
