@@ -1,6 +1,8 @@
 #![allow(unused)]
 use std::slice::Iter;
 
+use flux_rs::{assert, macros::qualifier};
+
 extern crate flux_core;
 
 #[flux_rs::extern_spec(std::slice)]
@@ -23,9 +25,6 @@ trait Iterator {
     where
         Self: Sized;
 }
-
-#[flux_rs::sig(fn (bool[true]))]
-fn assert(_b: bool) {}
 
 #[flux_rs::extern_spec]
 #[flux_rs::assoc(fn done(x: Iter) -> bool { x.idx >= x.len })]
@@ -157,7 +156,7 @@ where
     for element in iter.take(5) {
         // Relates `pushed` to the `Take`'s remaining count, which the `for` desugaring hides.
         qualifier!(pushed: int, k: int ; pushed + k == 5);
-        target[pushed] = element;
-        pushed += 1; //~ ERROR: refinement type
+        target[pushed] = element; //~ ERROR: assertion might fail
+        pushed += 1;
     }
 }
