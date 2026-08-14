@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["enumerate","map","skip"]};
+window.SIDEBAR_ITEMS = {"mod":["enumerate","map","skip","take"]};
