@@ -37,6 +37,10 @@ desugar_multiple_spreads_in_constructor =
 desugar_unsupported_position =
    expression not allowed in this position
 
+desugar_unsupported_hole =
+    invalid use of `_`
+    .label = holes cannot be filled in this position
+
 desugar_final_assoc_without_body =
     final associated refinements must have a body
 

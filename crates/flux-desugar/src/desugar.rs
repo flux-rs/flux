@@ -74,6 +74,32 @@ fn collect_generics_in_params(
         .collect()
 }
 
+/// Collect the spans of every hole (`_`) inside a qualified path `<qself as path>`.
+fn collect_holes(qself: &surface::Ty, path: &surface::Path) -> Vec<Span> {
+    struct HoleCollector {
+        holes: Vec<Span>,
+    }
+    impl surface::visit::Visitor for HoleCollector {
+        fn visit_ty(&mut self, ty: &surface::Ty) {
+            if let surface::TyKind::Hole = ty.kind {
+                self.holes.push(ty.span);
+            }
+            surface::visit::walk_ty(self, ty);
+        }
+
+        fn visit_const_arg(&mut self, const_arg: &surface::ConstArg) {
+            if let surface::ConstArgKind::Infer = const_arg.kind {
+                self.holes.push(const_arg.span);
+            }
+            surface::visit::walk_const_arg(self, const_arg);
+        }
+    }
+    let mut vis = HoleCollector { holes: vec![] };
+    vis.visit_ty(qself);
+    vis.visit_path(path);
+    vis.holes
+}
+
 pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
@@ -948,6 +974,14 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         self.resolver_output().param_res_map.get(&node_id).copied()
     }
 
+    /// Holes are filled in by zipping the annotation against the corresponding rust type, so
+    /// they cannot appear in a qualified path `<qself as path>`, which has no rust counterpart.
+    fn check_no_holes(&self, qself: &surface::Ty, path: &surface::Path) -> Result {
+        collect_holes(qself, path)
+            .into_iter()
+            .try_for_each_exhaust(|span| Err(self.emit(errors::UnsupportedHole::new(span))))
+    }
+
     fn desugar_epath(&self, path: &surface::ExprPath) -> fhir::QPathExpr<'genv> {
         let partial_res = self
             .opt_resolve_path(path.node_id)
@@ -1142,7 +1176,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 fhir::Sort::Path(path)
             }
             surface::BaseSort::SortOf(qself, path) => {
-                fhir::Sort::SortOf(self.desugar_path_to_bty(Some(qself), path))
+                match self.check_no_holes(qself, path) {
+                    Ok(()) => fhir::Sort::SortOf(self.desugar_path_to_bty(Some(qself), path)),
+                    Err(err) => fhir::Sort::Err(err),
+                }
             }
             surface::BaseSort::Tuple(sorts) => {
                 let sorts = genv.alloc_slice_fill_iter(
@@ -1604,6 +1641,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 fhir::ExprKind::PrimApp(*op, &args[0], &args[1])
             }
             surface::ExprKind::AssocReft(qself, path, name) => {
+                if let Err(err) = self.check_no_holes(qself, path) {
+                    return fhir::ExprKind::Err(err);
+                }
                 let qself = self.desugar_ty(qself);
                 let fhir::QPath::Resolved(None, trait_) = self.desugar_qpath(None, path) else {
                     span_bug!(path.span, "desugar_alias_reft: unexpected qpath")
