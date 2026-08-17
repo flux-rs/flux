@@ -37,6 +37,13 @@ pub fn test_allocate_zero_sized<A: Allocator>(a: &A) {
     }
 }
 
+pub fn test_allocate_zeroed<A: Allocator>(a: &A) {
+    let layout = Layout::from_size_align(16, 8).unwrap();
+    if let Ok(block) = a.allocate_zeroed(layout) {
+        check_block(block, 16, 8);
+    }
+}
+
 // --- deallocate ---
 
 #[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], layout: Layout[@lsize, @lalign])
@@ -75,6 +82,15 @@ pub unsafe fn test_grow_same_size_new_align<A: Allocator>(a: &A, ptr: NonNull<u8
     let new = Layout::from_size_align(16, 32).unwrap();
     if let Ok(block) = a.grow(ptr, old, new) {
         check_block(block, 16, 32);
+    }
+}
+
+#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], old: Layout[@osize, @oalign])
+    requires base == addr && osize <= size && addr % oalign == 0 && osize <= 32)]
+pub unsafe fn test_grow_zeroed<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
+    let new = Layout::from_size_align(32, 8).unwrap();
+    if let Ok(block) = a.grow_zeroed(ptr, old, new) {
+        check_block(block, 32, 8);
     }
 }
 
