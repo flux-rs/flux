@@ -29,6 +29,14 @@ pub fn test_allocate_overaligned<A: Allocator>(a: &A) {
     }
 }
 
+// `allocate_zeroed` carries the same guarantees as `allocate`, and no more.
+pub fn test_allocate_zeroed_too_large<A: Allocator>(a: &A) {
+    let layout = Layout::from_size_align(16, 8).unwrap();
+    if let Ok(block) = a.allocate_zeroed(layout) {
+        check_block(block, 17, 8); //~ ERROR refinement type
+    }
+}
+
 // --- deallocate ---
 
 // `ptr` must be aligned to `layout.align()`.
@@ -82,6 +90,14 @@ pub unsafe fn test_grow_too_large<A: Allocator>(a: &A, ptr: NonNull<u8>, old: La
     if let Ok(block) = a.grow(ptr, old, new) {
         check_block(block, 33, 8); //~ ERROR refinement type
     }
+}
+
+// `grow_zeroed` requires `new_layout.size()` to be at least `old_layout.size()` too.
+#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], old: Layout[@osize, @oalign])
+    requires base == addr && osize <= size && addr % oalign == 0 && osize == 16)]
+pub unsafe fn test_grow_zeroed_smaller<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
+    let new = Layout::from_size_align(8, 8).unwrap();
+    let _ = a.grow_zeroed(ptr, old, new); //~ ERROR refinement type
 }
 
 // --- shrink ---
