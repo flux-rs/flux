@@ -772,8 +772,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<Vec<(BasicBlock, Guard)>> {
         let source_info = terminator.source_info;
         let terminator_span = source_info.span;
-        // A pointer to a returned reference (see [`unfold_returned_ref`]) is only kept strong
-        // within the block that created it, so that it never escapes into a join point.
+        // A pointer to a returned reference (see [`unfold_returned_ref`]) is kept strong until
+        // the end of the block that uses it; here is where it is folded back. Note that this
+        // doesn't cover the edge out of the call that created it, see [`Checker::check_goto`].
         fold_local_ptrs(infcx, env, terminator_span).with_span(terminator_span)?;
         match &terminator.kind {
             TerminatorKind::Return => {
@@ -1307,7 +1308,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
         target: BasicBlock,
     ) -> Result {
-        if self.is_exit_block(target) {
+        let is_exit_block = self.is_exit_block(target);
+        // A local pointer may cross the edge from a call into its successor block (see
+        // [`unfold_returned_ref`]), but it must not reach a join point or a return, where the
+        // location it points to would escape the block it was created in.
+        if is_exit_block || self.body.is_join_point(target) {
+            fold_local_ptrs(&mut infcx, &mut env, span).with_span(span)?;
+        }
+        if is_exit_block {
             // We inline *exit basic blocks* (i.e., that just return) because this typically
             // gives us better a better error span.
             let mut location = Location { block: target, statement_index: 0 };
