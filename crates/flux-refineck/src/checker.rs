@@ -760,7 +760,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let terminator_span = source_info.span;
         match &terminator.kind {
             TerminatorKind::Return => {
-                self.check_ret(infcx, env, last_stmt_span.unwrap_or(terminator_span))?;
+                self.check_ret(
+                    infcx,
+                    env,
+                    location,
+                    last_stmt_span.unwrap_or(terminator_span),
+                    terminator_span,
+                )?;
                 Ok(vec![])
             }
             TerminatorKind::Unreachable => Ok(vec![]),
@@ -866,22 +872,44 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
+    /// Checks the `return` terminator at `location`. The returned value is checked against the
+    /// declared output type at `span`, while the folds needed to check the `ensures` clauses are
+    /// reported at `fold_span`, i.e., the span of the terminator itself.
     fn check_ret(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
+        location: Location,
         span: Span,
+        fold_span: Span,
     ) -> Result {
+        // Folds of the arguments needed to check the `ensures` clauses. These have to run *after*
+        // the returned value is checked against the declared output type because that check is what
+        // turns a `ptr(mut, ℓ.f)` into a `&mut` and *blocks* `ℓ.f`.
+        let folds = self
+            .ghost_stmts()
+            .statements_at(Point::AtReturn(location))
+            .map(|stmt| {
+                match stmt {
+                    GhostStatement::Fold(place) => place.clone(),
+                    _ => bug!("unexpected ghost statement at return {stmt:?}"),
+                }
+            })
+            .collect_vec();
+
+        let output = self.fn_sig.output.clone();
         let obligations = infcx
             .at(span)
             .ensure_resolved_evars(|infcx| {
                 let ret_place_ty = env.lookup_place(infcx, Place::RETURN)?;
-                let output = self
-                    .fn_sig
-                    .output
+                let output = output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
                 let obligations =
                     infcx.subtyping_with_env(env, &ret_place_ty, &output.ret, ConstrReason::Ret)?;
+
+                for place in &folds {
+                    env.fold(&mut infcx.at(fold_span), place)?;
+                }
 
                 env.check_ensures(infcx, &output.ensures, ConstrReason::Ret)?;
 
@@ -1309,7 +1337,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Point::BeforeLocation(location),
                 span,
             )?;
-            self.check_ret(&mut infcx, &mut env, span)
+            self.check_ret(&mut infcx, &mut env, location, span, span)
         } else if let Some(real_target) = self.is_dummy_join(target) {
             self.check_goto(infcx, env, span, real_target)
         } else if self.body.is_join_point(target) {
