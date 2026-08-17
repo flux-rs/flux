@@ -7,7 +7,6 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
-    queries::QueryResult,
     rty::{
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, FIRST_VARIANT, GenericArg, GenericArgsExt, List,
         Loc, Mutability, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig,
@@ -314,18 +313,38 @@ impl PlacesTree {
         }
     }
 
-    /// The local pointer locations, together with the type each is bounded by.
-    pub(crate) fn local_ptrs(&self) -> Vec<(Loc, Ty)> {
+    /// The local pointer locations.
+    pub(crate) fn local_ptrs(&self) -> Vec<Loc> {
         self.map
             .iter()
             .filter_map(|(loc, binding)| {
-                if let LocKind::LocalPtr(bound) = &binding.kind {
-                    Some((*loc, bound.clone()))
-                } else {
-                    None
-                }
+                matches!(binding.kind, LocKind::LocalPtr(_)).then_some(*loc)
             })
             .collect()
+    }
+
+    /// The type `loc` is bounded by, if it is a local pointer location that is still around.
+    pub(crate) fn local_ptr_bound(&self, loc: &Loc) -> Option<Ty> {
+        match &self.map.get(loc)?.kind {
+            LocKind::LocalPtr(bound) => Some(bound.clone()),
+            _ => None,
+        }
+    }
+
+    /// Reverts the unfolding of a local pointer location: every live pointer into `loc` becomes
+    /// the mutable reference it stands for, the type currently at `loc` is checked against the
+    /// `bound` recorded for it, and the location is removed.
+    pub(crate) fn fold_local_ptr(
+        &mut self,
+        infcx: &mut InferCtxtAt,
+        loc: &Loc,
+        bound: &Ty,
+    ) -> InferResult {
+        self.ptrs_to_refs(loc, bound);
+        let ty = self.lookup(&Path::from(*loc), infcx.span).fold(infcx)?;
+        infcx.subtyping(&ty, bound, ConstrReason::FoldLocal)?;
+        self.remove_local(loc);
+        Ok(())
     }
 
     fn remove(&mut self, loc: &Loc) -> Binding {
@@ -415,7 +434,7 @@ impl LookupResult<'_> {
         self.update(Ty::blocked(new_ty))
     }
 
-    pub(crate) fn fold(self, infcx: &mut InferCtxtAt) -> QueryResult<Ty> {
+    pub(crate) fn fold(self, infcx: &mut InferCtxtAt) -> InferResult<Ty> {
         let ty = fold(self.bindings, infcx, &self.ty, self.is_strg)?;
         self.update(ty.clone());
         Ok(ty)
@@ -911,8 +930,24 @@ fn fold(
     infcx: &mut InferCtxtAt,
     ty: &Ty,
     is_strg: bool,
-) -> QueryResult<Ty> {
+) -> InferResult<Ty> {
     match ty.kind() {
+        // A pointer to a local pointer location is folded back into the reference it stands for.
+        // `TypeEnv::fold_local_ptrs` does this at the end of a block, but a pointer nested inside
+        // a struct or tuple can be reached before that, by a fold of the value holding it, and a
+        // folded type must not mention the location.
+        TyKind::Ptr(PtrKind::Mut(re), path) => {
+            let Some(bound) = bindings.local_ptr_bound(&path.loc) else {
+                return Ok(ty.clone());
+            };
+            // Same type [`PlacesTree::ptrs_to_refs`] gives the other pointers into the location:
+            // the bound for a pointer to the location itself, the current type of the field for a
+            // pointer into one.
+            let pointee =
+                if path.projection().is_empty() { bound.clone() } else { bindings.get(path) };
+            bindings.fold_local_ptr(infcx, &path.loc, &bound)?;
+            Ok(Ty::mk_ref(*re, pointee, Mutability::Mut))
+        }
         TyKind::Ptr(PtrKind::Box, path) => {
             let loc = path.to_loc().unwrap_or_else(|| tracked_span_bug!());
             let binding = bindings.remove(&loc);

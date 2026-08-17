@@ -231,14 +231,11 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult {
-        for (loc, bound) in self.bindings.local_ptrs() {
-            self.bindings.ptrs_to_refs(&loc, &bound);
-            let ty = self
-                .bindings
-                .lookup(&Path::from(loc), infcx.span)
-                .fold(infcx)?;
-            infcx.subtyping(&ty, &bound, ConstrReason::FoldLocal)?;
-            self.bindings.remove_local(&loc);
+        for loc in self.bindings.local_ptrs() {
+            // Folding a location may fold a pointer stored in it, so one we collected may be gone
+            // by the time we get to it.
+            let Some(bound) = self.bindings.local_ptr_bound(&loc) else { continue };
+            self.bindings.fold_local_ptr(infcx, &loc, &bound)?;
         }
         Ok(())
     }
