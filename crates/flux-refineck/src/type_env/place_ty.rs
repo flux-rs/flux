@@ -331,6 +331,12 @@ impl PlacesTree {
         }
     }
 
+    /// Stops treating `loc` as a local pointer location, i.e. as one [`PlacesTree::fold_local_ptr`]
+    /// still has to fold back.
+    pub(crate) fn demote_local_ptr(&mut self, loc: &Loc) {
+        self.get_loc_mut(loc).kind = LocKind::Local;
+    }
+
     /// Reverts the unfolding of a local pointer location: every live pointer into `loc` becomes
     /// the mutable reference it stands for, the type currently at `loc` is checked against the
     /// `bound` recorded for it, and the location is removed.
@@ -341,6 +347,12 @@ impl PlacesTree {
         bound: &Ty,
     ) -> InferResult {
         self.ptrs_to_refs(loc, bound);
+        // A reference handed out into the location, e.g. by an unsize coercion of a pointer to one
+        // of its fields, blocks the place it points to. Folding the location back ends the strong
+        // window, and with it any such borrow.
+        let unblocked = self.get_loc(loc).ty.fold_with(&mut Unblock);
+        self.get_loc_mut(loc).ty = unblocked;
+
         let ty = self.lookup(&Path::from(*loc), infcx.span).fold(infcx)?;
         infcx.subtyping(&ty, bound, ConstrReason::FoldLocal)?;
         self.remove_local(loc);
@@ -398,6 +410,18 @@ impl PlacesTree {
 
     fn cursor_for(&self, key: &impl LookupKey) -> Cursor {
         Cursor::new(key)
+    }
+}
+
+/// Unblocks every blocked type inside. See [`PlacesTree::fold_local_ptr`].
+struct Unblock;
+
+impl TypeFolder for Unblock {
+    fn fold_ty(&mut self, ty: &Ty) -> Ty {
+        match ty.kind() {
+            TyKind::Blocked(ty) => ty.fold_with(self),
+            _ => ty.super_fold_with(self),
+        }
     }
 }
 

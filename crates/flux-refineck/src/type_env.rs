@@ -218,6 +218,17 @@ impl<'a> TypeEnv<'a> {
         // ℓ: t1
         let t1 = self.bindings.lookup(path, infcx.span).fold(infcx)?;
 
+        // The reference takes over from the pointer, so for a local pointer location this is where
+        // the strong window closes: the bound recorded for it is checked here, and the location is
+        // no longer one [`TypeEnv::fold_local_ptrs`] folds back. Without this, folding it back at
+        // the end of the block would find it blocked.
+        if path.projection().is_empty()
+            && let Some(local_bound) = self.bindings.local_ptr_bound(&path.loc)
+        {
+            infcx.subtyping(&t1, &local_bound, ConstrReason::FoldLocal)?;
+            self.bindings.demote_local_ptr(&path.loc);
+        }
+
         // t1 <: t2
         let t2 = match bound {
             PtrToRefBound::Ty(t2) => {
