@@ -440,6 +440,18 @@ impl LookupResult<'_> {
         Ok(ty)
     }
 
+    /// Folds the value if it is currently unfolded. The fold/unfold analysis inserts a ghost
+    /// statement to fold a place before it is used as a whole, but it runs on the mir, so it
+    /// knows nothing about a struct unfolded by `unfold_returned_refs`; reading one has to fold
+    /// it here.
+    pub(crate) fn fold_if_unfolded(self, infcx: &mut InferCtxtAt) -> InferResult<Ty> {
+        if self.is_strg && matches!(self.ty.kind(), TyKind::Downcast(..)) {
+            self.fold(infcx)
+        } else {
+            Ok(self.ty)
+        }
+    }
+
     pub(crate) fn path(&self) -> Path {
         self.cursor.to_path()
     }

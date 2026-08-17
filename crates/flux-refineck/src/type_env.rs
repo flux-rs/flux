@@ -120,6 +120,20 @@ impl<'a> TypeEnv<'a> {
         Ok(result.ty)
     }
 
+    /// Folds `place` if it holds a struct left unfolded by `unfold_returned_refs`. Reading such a
+    /// struct as a whole has to fold it, because the fold/unfold analysis runs on the mir and so
+    /// doesn't know it was unfolded, i.e. it never inserts a ghost statement to fold it back.
+    pub(crate) fn fold_if_unfolded(
+        &mut self,
+        infcx: &mut InferCtxtAt,
+        place: &Place,
+    ) -> InferResult<Ty> {
+        let span = infcx.span;
+        self.bindings
+            .lookup_unfolding(infcx, place, span)?
+            .fold_if_unfolded(infcx)
+    }
+
     pub(crate) fn get(&self, path: &Path) -> Ty {
         self.bindings.get(path)
     }
@@ -271,6 +285,7 @@ impl<'a> TypeEnv<'a> {
 
     pub(crate) fn move_place(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> InferResult<Ty> {
         let span = infcx.span;
+        self.fold_if_unfolded(infcx, place)?;
         let result = self.bindings.lookup_unfolding(infcx, place, span)?;
         if result.is_strg {
             let uninit = Ty::uninit();
