@@ -230,7 +230,12 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult {
-        for (loc, bound, ty) in self.bindings.local_ptrs() {
+        for (loc, bound) in self.bindings.local_ptrs() {
+            self.bindings.ptrs_to_refs(&loc, &bound);
+            let ty = self
+                .bindings
+                .lookup(&Path::from(loc), infcx.span)
+                .fold(infcx)?;
             infcx.subtyping(&ty, &bound, ConstrReason::FoldLocal)?;
             self.bindings.remove_local(&loc);
         }

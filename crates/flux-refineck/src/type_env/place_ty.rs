@@ -11,12 +11,15 @@ use flux_middle::{
     rty::{
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, FIRST_VARIANT, GenericArg, GenericArgsExt, List,
         Loc, Mutability, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
+        fold::{
+            FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable,
+            TypeVisitor,
+        },
     },
 };
 use flux_rustc_bridge::mir::{FieldIdx, Place, PlaceElem};
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexMap;
+use rustc_data_structures::fx::{FxHashMap, FxIndexMap};
 use rustc_hir::def_id::DefId;
 use rustc_span::Span;
 #[derive(Clone, Default)]
@@ -292,12 +295,32 @@ impl PlacesTree {
         self.map.shift_remove(loc);
     }
 
-    pub(crate) fn local_ptrs(&self) -> Vec<(Loc, Ty, Ty)> {
+    /// Reverts every pointer into `loc` that is still live back into the mutable reference it
+    /// stands for. A pointer to the root of the location gets `bound`, the type the location is
+    /// about to be folded against; a pointer into a field keeps the field's current type.
+    pub(crate) fn ptrs_to_refs(&mut self, loc: &Loc, bound: &Ty) {
+        let mut pointees = FxHashMap::default();
+        self.iter_flatten(|_, _, ty| {
+            if let TyKind::Ptr(PtrKind::Mut(_), path) = ty.kind()
+                && path.loc == *loc
+            {
+                let pointee =
+                    if path.projection().is_empty() { bound.clone() } else { self.get(path) };
+                pointees.insert(path.clone(), pointee);
+            }
+        });
+        if !pointees.is_empty() {
+            self.fmap_mut(|_, ty| ty.fold_with(&mut PtrsToRefs(&pointees)));
+        }
+    }
+
+    /// The local pointer locations, together with the type each is bounded by.
+    pub(crate) fn local_ptrs(&self) -> Vec<(Loc, Ty)> {
         self.map
             .iter()
             .filter_map(|(loc, binding)| {
                 if let LocKind::LocalPtr(bound) = &binding.kind {
-                    Some((*loc, bound.clone(), binding.ty.clone()))
+                    Some((*loc, bound.clone()))
                 } else {
                     None
                 }
@@ -356,6 +379,22 @@ impl PlacesTree {
 
     fn cursor_for(&self, key: &impl LookupKey) -> Cursor {
         Cursor::new(key)
+    }
+}
+
+/// Replaces each pointer to a path in the given map by a mutable reference to the type the path
+/// is mapped to. See [`PlacesTree::ptrs_to_refs`].
+struct PtrsToRefs<'a>(&'a FxHashMap<Path, Ty>);
+
+impl TypeFolder for PtrsToRefs<'_> {
+    fn fold_ty(&mut self, ty: &Ty) -> Ty {
+        if let TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind()
+            && let Some(pointee) = self.0.get(path)
+        {
+            Ty::mk_ref(*re, pointee.clone(), Mutability::Mut)
+        } else {
+            ty.super_fold_with(self)
+        }
     }
 }
 

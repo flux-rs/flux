@@ -473,6 +473,20 @@ fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Infe
     env.fold_local_ptrs(&mut at)
 }
 
+/// Auto-strong a `&mut T` returned by a call: instead of the invariant `&mut T`, which loses
+/// track of the value behind the reference, we hand back a pointer to a fresh local location
+/// holding `T`. Reads through the returned reference are then precise and writes are strong
+/// updates, which get checked against `T` when the pointer is folded back into a `&mut T` by
+/// [`fold_local_ptrs`] at the end of the block.
+fn unfold_returned_ref(infcx: &mut InferCtxt, env: &mut TypeEnv, ret: &Ty) -> InferResult<Ty> {
+    if let TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), _) = ret.kind() {
+        let loc = env.unfold_local_ptr(infcx, bound)?;
+        Ok(Ty::ptr(PtrKind::Mut(*re), Path::from(loc)))
+    } else {
+        Ok(ret.clone())
+    }
+}
+
 fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
     let safety = rustc_hir::Safety::Safe;
     let abi = rustc_abi::ExternAbi::Rust;
@@ -758,6 +772,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<Vec<(BasicBlock, Guard)>> {
         let source_info = terminator.source_info;
         let terminator_span = source_info.span;
+        // A pointer to a returned reference (see [`unfold_returned_ref`]) is only kept strong
+        // within the block that created it, so that it never escapes into a join point.
+        fold_local_ptrs(infcx, env, terminator_span).with_span(terminator_span)?;
         match &terminator.kind {
             TerminatorKind::Return => {
                 self.check_ret(infcx, env, last_stmt_span.unwrap_or(terminator_span))?;
@@ -1021,7 +1038,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         fold_local_ptrs(infcx, env, span).with_span(span)?;
 
         Ok(ResolvedCall {
-            output: output.ret,
+            output: unfold_returned_ref(infcx, env, &output.ret).with_span(span)?,
             _early_args: early_refine_args
                 .into_iter()
                 .map(|arg| infcx.fully_resolve_evars(arg))
