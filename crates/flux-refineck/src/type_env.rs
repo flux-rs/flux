@@ -40,6 +40,7 @@ use rustc_span::{Span, Symbol};
 use rustc_type_ir::BoundVar;
 use serde::Serialize;
 
+pub(crate) use self::place_ty::downcast_struct;
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
 

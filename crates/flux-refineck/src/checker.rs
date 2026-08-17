@@ -20,9 +20,9 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AdtDef, AliasReft, BaseTy, BinOp, Binder, Bool, Clause, Constant,
-        CoroutineObligPredicate, EarlyBinder, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg,
-        GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, RefineArgs,
-        RefineArgsExt,
+        CoroutineObligPredicate, EarlyBinder, Expr, FIRST_VARIANT, FnOutput, FnSig,
+        FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,
+        PtrKind, RefineArgs, RefineArgsExt,
         Region::ReErased,
         Sort, SubsetTyCtor, Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -66,7 +66,9 @@ use crate::{
     primops,
     queue::WorkQueue,
     rty::Char,
-    type_env::{BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, TypeEnv, TypeEnvTrace},
+    type_env::{
+        BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, TypeEnv, TypeEnvTrace, downcast_struct,
+    },
 };
 
 type Result<T = ()> = std::result::Result<T, CheckerError>;
@@ -473,18 +475,74 @@ fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Infe
     env.fold_local_ptrs(&mut at)
 }
 
-/// Auto-strong a `&mut T` returned by a call: instead of the invariant `&mut T`, which loses
-/// track of the value behind the reference, we hand back a pointer to a fresh local location
-/// holding `T`. Reads through the returned reference are then precise and writes are strong
-/// updates, which get checked against `T` when the pointer is folded back into a `&mut T` by
-/// [`fold_local_ptrs`] at the end of the block.
-fn unfold_returned_ref(infcx: &mut InferCtxt, env: &mut TypeEnv, ret: &Ty) -> InferResult<Ty> {
-    if let TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), _) = ret.kind() {
-        let loc = env.unfold_local_ptr(infcx, bound)?;
-        Ok(Ty::ptr(PtrKind::Mut(*re), Path::from(loc)))
-    } else {
-        Ok(ret.clone())
+/// Auto-strong the `&mut T`s in a value returned by a call: instead of the invariant `&mut T`,
+/// which loses track of the value behind the reference, we hand back a pointer to a fresh local
+/// location holding `T`. Reads through the returned reference are then precise and writes are
+/// strong updates, which get checked against `T` when the pointer is folded back into a `&mut T`
+/// by [`fold_local_ptrs`] at the end of the block.
+///
+/// References nested inside a returned tuple or struct get the same treatment, which for a struct
+/// means handing back the struct *unfolded*, i.e. a [`TyKind::Downcast`]. A struct with no nested
+/// `&mut` is handed back as is, so this doesn't force an unfold on every call returning a struct.
+fn unfold_returned_refs(
+    infcx: &mut InferCtxt,
+    env: &mut TypeEnv,
+    ret: &Ty,
+    span: Span,
+) -> InferResult<Ty> {
+    match ret.kind() {
+        TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), _) => {
+            let loc = env.unfold_local_ptr(infcx, bound)?;
+            Ok(Ty::ptr(PtrKind::Mut(*re), Path::from(loc)))
+        }
+        TyKind::Indexed(BaseTy::Tuple(fields), idx) => {
+            match unfold_returned_refs_in_fields(infcx, env, fields, span)? {
+                Some(fields) => Ok(Ty::indexed(BaseTy::Tuple(fields), idx.clone())),
+                None => Ok(ret.clone()),
+            }
+        }
+        // Boxes are excluded because they have their own unfolding into a [`PtrKind::Box`], and
+        // the fields of an opaque struct cannot be accessed at all.
+        TyKind::Indexed(BaseTy::Adt(adt, args), idx)
+            if adt.is_struct() && !adt.is_opaque() && !adt.is_box() =>
+        {
+            // The unfold is speculative, so a struct whose fields we cannot compute is left alone
+            // instead of reporting the error here; accessing such a field reports it anyway.
+            let Ok(fields) = downcast_struct(infcx, adt, args, idx, span) else {
+                return Ok(ret.clone());
+            };
+            match unfold_returned_refs_in_fields(infcx, env, &fields, span)? {
+                Some(fields) => {
+                    Ok(Ty::downcast(
+                        adt.clone(),
+                        args.with_holes(),
+                        ret.clone(),
+                        FIRST_VARIANT,
+                        fields,
+                    ))
+                }
+                None => Ok(ret.clone()),
+            }
+        }
+        _ => Ok(ret.clone()),
     }
+}
+
+/// Unfolds the `&mut`s in each field, returning `None` if there was nothing to unfold.
+fn unfold_returned_refs_in_fields(
+    infcx: &mut InferCtxt,
+    env: &mut TypeEnv,
+    fields: &[Ty],
+    span: Span,
+) -> InferResult<Option<rty::List<Ty>>> {
+    let mut unfolded = Vec::with_capacity(fields.len());
+    let mut changed = false;
+    for field in fields {
+        let unfolded_field = unfold_returned_refs(infcx, env, field, span)?;
+        changed |= &unfolded_field != field;
+        unfolded.push(unfolded_field);
+    }
+    Ok(changed.then(|| unfolded.into()))
 }
 
 fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
@@ -772,7 +830,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<Vec<(BasicBlock, Guard)>> {
         let source_info = terminator.source_info;
         let terminator_span = source_info.span;
-        // A pointer to a returned reference (see [`unfold_returned_ref`]) is kept strong until
+        // A pointer to a returned reference (see [`unfold_returned_refs`]) is kept strong until
         // the end of the block that uses it; here is where it is folded back. Note that this
         // doesn't cover the edge out of the call that created it, see [`Checker::check_goto`].
         fold_local_ptrs(infcx, env, terminator_span).with_span(terminator_span)?;
@@ -855,6 +913,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let name = destination.name(&self.body.local_names);
                 let ret = infcx.unpack_at_name(name, &ret);
                 infcx.assume_invariants(&ret);
+                let ret = unfold_returned_refs(infcx, env, &ret, terminator_span)
+                    .with_span(terminator_span)?;
 
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
                     .with_span(terminator_span)?;
@@ -1039,7 +1099,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         fold_local_ptrs(infcx, env, span).with_span(span)?;
 
         Ok(ResolvedCall {
-            output: unfold_returned_ref(infcx, env, &output.ret).with_span(span)?,
+            output: output.ret,
             _early_args: early_refine_args
                 .into_iter()
                 .map(|arg| infcx.fully_resolve_evars(arg))
@@ -1310,7 +1370,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let is_exit_block = self.is_exit_block(target);
         // A local pointer may cross the edge from a call into its successor block (see
-        // [`unfold_returned_ref`]), but it must not reach a join point or a return, where the
+        // [`unfold_returned_refs`]), but it must not reach a join point or a return, where the
         // location it points to would escape the block it was created in.
         if is_exit_block || self.body.is_join_point(target) {
             fold_local_ptrs(&mut infcx, &mut env, span).with_span(span)?;

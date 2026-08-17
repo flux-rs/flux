@@ -844,7 +844,7 @@ fn downcast(
 /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
-fn downcast_struct(
+pub(crate) fn downcast_struct(
     infcx: &mut InferCtxt,
     adt: &AdtDef,
     args: &[GenericArg],
