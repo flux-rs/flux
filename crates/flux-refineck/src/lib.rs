@@ -273,12 +273,7 @@ fn report_errors(
         } else {
             solutions_by_tag.insert(
                 (error.tag, error.checked_def_id),
-                (
-                    error.tag_idx,
-                    error.possible_solutions,
-                    error.multi_query,
-                    error.trivial_wkvids,
-                ),
+                (error.tag_idx, error.possible_solutions, error.multi_query, error.trivial_wkvids),
             );
         }
     }

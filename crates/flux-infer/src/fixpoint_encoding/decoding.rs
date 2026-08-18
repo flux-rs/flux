@@ -155,7 +155,9 @@ where
                                 ConstKey::Alias(_owner, _flux_id, _args) => {
                                     unreachable!("Should be special-cased as the head of an app")
                                 }
-                                ConstKey::Lambda(_owner, lambda) => Ok(rty::Expr::abs(lambda.clone())),
+                                ConstKey::Lambda(_owner, lambda) => {
+                                    Ok(rty::Expr::abs(lambda.clone()))
+                                }
                                 ConstKey::PrimOp(bin_op) => {
                                     Ok(rty::Expr::internal_func(InternalFuncKind::Rel(
                                         bin_op.clone(),

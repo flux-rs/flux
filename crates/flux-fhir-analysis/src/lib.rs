@@ -23,14 +23,19 @@ use flux_errors::Errors;
 use flux_infer::fixpoint_encoding::flatten_kvar_args;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    def_id::{FluxDefId, FluxId, MaybeExternId}, def_id_to_string, fhir::{
+    def_id::{FluxDefId, FluxId, MaybeExternId},
+    fhir::{
         self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
         TraitItemKind,
-    }, global_env::{GlobalEnv, WeakKvarMap}, queries::{Providers, QueryResult}, query_bug, rty::{
+    },
+    global_env::{GlobalEnv, WeakKvarMap},
+    queries::{Providers, QueryResult},
+    query_bug,
+    rty::{
         self, AssocReft, Binder, WfckResults,
         fold::TypeFoldable,
-        refining::{self, Refine, Refiner, make_weak_kvar},
-    }
+        refining::{self, Refiner, make_weak_kvar},
+    },
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
@@ -42,8 +47,8 @@ use rustc_hir::{
     def::{CtorOf, DefKind},
     def_id::{DefId, LocalDefId},
 };
-use rustc_type_ir::INNERMOST;
 use rustc_span::Span;
+use rustc_type_ir::INNERMOST;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
@@ -202,14 +207,21 @@ fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
         let args = rty::GenericArg::identity_for_item(genv, def_id.resolved_id())?;
         let sort = adt_sort.to_sort(&args);
         let mut wkvar_map = WeakKvarMap::default();
-        let self_args = vec![(rty::Expr::bvar(INNERMOST, rty::BoundVar::from(0_usize), rty::BoundReftKind::Anon), sort.clone())];
-        let (flattened_self_arg_sorts, flattened_self_args, _) = flatten_kvar_args(self_args.into_iter(), 1);
+        let self_args = vec![(
+            rty::Expr::bvar(INNERMOST, rty::BoundVar::from(0_usize), rty::BoundReftKind::Anon),
+            sort.clone(),
+        )];
+        let (flattened_self_arg_sorts, flattened_self_args, _) =
+            flatten_kvar_args(self_args, 1);
         let adt_wkvar = make_weak_kvar(
             &mut wkvar_map,
             def_id.resolved_id(),
             &mut rty::KVid::from(999_usize),
-            flattened_self_args.into_iter().zip(flattened_self_arg_sorts.into_iter()).collect(),
-            vec![]
+            flattened_self_args
+                .into_iter()
+                .zip(flattened_self_arg_sorts)
+                .collect(),
+            vec![],
         );
         let wkvar_inv = Binder::bind_with_sort(rty::Expr::wkvar(adt_wkvar), sort);
 

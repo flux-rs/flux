@@ -8,11 +8,15 @@ use flux_common::{index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config::OverflowMode;
 use flux_macros::DebugAsJson;
 use flux_middle::{
-    def_id_to_string, global_env::GlobalEnv, pretty::{PrettyCx, PrettyNested, format_cx}, queries::QueryResult, rty::{
+    def_id_to_string,
+    global_env::GlobalEnv,
+    pretty::{PrettyCx, PrettyNested, format_cx},
+    queries::QueryResult,
+    rty::{
         BaseTy, EVid, Expr, ExprKind, KVid, Name, NameProvenance, PrettyVar, Sort, Ty, TyKind, Var,
         WKVid,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-    }
+    },
 };
 use itertools::Itertools;
 use rustc_data_structures::{
@@ -99,7 +103,11 @@ impl RefineTree {
             self_args: FxIndexMap<WKVid, usize>,
         }
 
-        fn visit_expr(expr: &Expr, vars: &mut FxHashSet<WKVid>, self_args: &mut FxIndexMap<WKVid, usize>) {
+        fn visit_expr(
+            expr: &Expr,
+            vars: &mut FxHashSet<WKVid>,
+            self_args: &mut FxIndexMap<WKVid, usize>,
+        ) {
             struct Visitor<'a> {
                 vars: &'a mut FxHashSet<WKVid>,
             }
@@ -118,13 +126,13 @@ impl RefineTree {
             }
             impl TypeVisitor for ArgsVisitor<'_> {
                 fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
-                    if let ExprKind::WKVar(wkvar) = expr.kind() {
-                        if let Some(previous) = self.self_args.insert(wkvar.wkvid.clone(), wkvar.self_args)
+                    if let ExprKind::WKVar(wkvar) = expr.kind()
+                        && let Some(previous) =
+                            self.self_args.insert(wkvar.wkvid.clone(), wkvar.self_args)
                             && previous != wkvar.self_args
                         {
                             panic!("inconsistent self_args for weak KVar {:?}", wkvar.wkvid);
                         }
-                    }
                     expr.super_visit_with(self)
                 }
             }
@@ -137,7 +145,7 @@ impl RefineTree {
             match &node.kind {
                 NodeKind::Head(expr, _) => visit_expr(expr, &mut vars.heads, &mut vars.self_args),
                 NodeKind::Assumption(expr) => {
-                    visit_expr(expr, &mut vars.assumptions, &mut vars.self_args)
+                    visit_expr(expr, &mut vars.assumptions, &mut vars.self_args);
                 }
                 _ => {}
             }
@@ -1233,7 +1241,13 @@ impl WKVarConstraintDeps {
         let mut bot_assms: IndexVec<WClauseId, FxHashSet<WKVid>> = self
             .assumptions
             .iter()
-            .map(|assms| assms.iter().filter(|wkvid| candidates.contains(*wkvid)).cloned().collect())
+            .map(|assms| {
+                assms
+                    .iter()
+                    .filter(|wkvid| candidates.contains(*wkvid))
+                    .cloned()
+                    .collect()
+            })
             .collect();
 
         // Track which wkvids are still considered bot (start: all candidates)
@@ -1272,7 +1286,10 @@ impl RefineTree {
     /// Given a set of candidate WKVids (those that appear in both head and assumption positions),
     /// returns the subset that are safe to promote to KVars (i.e., would NOT trivially solve to
     /// false).
-    pub(crate) fn promotable_wkvids(trees: &[&RefineTree], candidates: &FxHashSet<WKVid>) -> FxHashSet<WKVid> {
+    pub(crate) fn promotable_wkvids(
+        trees: &[&RefineTree],
+        candidates: &FxHashSet<WKVid>,
+    ) -> FxHashSet<WKVid> {
         let graph = WKVarConstraintDeps::from_trees(trees);
         // graph.print_graph();
         graph.promotable_wkvids(candidates)
@@ -1398,13 +1415,17 @@ impl WKVarConstraintDeps {
 
             // Pure cycle with no root: just pick the smallest node as an
             // arbitrary starting point so we still render something.
-            if roots.is_empty() {
-                if let Some(n) = comp.iter().min().cloned() {
+            if roots.is_empty()
+                && let Some(n) = comp.iter().min().cloned() {
                     roots.push(n);
                 }
-            }
 
-            println!("-- component {} ({} node(s)), root(s): {} --", i + 1, comp.len(), roots.join(", "));
+            println!(
+                "-- component {} ({} node(s)), root(s): {} --",
+                i + 1,
+                comp.len(),
+                roots.join(", ")
+            );
 
             let mut printed_roots: FxHashSet<String> = FxHashSet::default();
             for root in &roots {
@@ -1412,7 +1433,15 @@ impl WKVarConstraintDeps {
                     continue;
                 }
                 let mut path: Vec<String> = vec![];
-                Self::render_tree(root, &succs, &comp_set, &mut path, &mut Default::default(), "", true);
+                Self::render_tree(
+                    root,
+                    &succs,
+                    &comp_set,
+                    &mut path,
+                    &mut Default::default(),
+                    "",
+                    true,
+                );
             }
         }
         println!("===============================");
@@ -1450,7 +1479,11 @@ impl WKVarConstraintDeps {
 
         let children: Vec<&String> = succs
             .get(node)
-            .map(|v| v.iter().filter(|c| comp_set.contains(*c) || c.starts_with("(conc)")).collect())
+            .map(|v| {
+                v.iter()
+                    .filter(|c| comp_set.contains(*c) || c.starts_with("(conc)"))
+                    .collect()
+            })
             .unwrap_or_default();
 
         for (idx, child) in children.iter().enumerate() {

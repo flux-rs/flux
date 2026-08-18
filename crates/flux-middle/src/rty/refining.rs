@@ -539,29 +539,30 @@ impl rty::PolyFnSig {
             //   1. We are doing a multi check
             //   2. The fn is safe
             //   3. The fn is public
-            let force_pre_true = !genv.safety_multi_check() || (matches!(fn_sig.safety, rty::Safety::Safe) && matches!(genv.tcx().visibility(def_id), Visibility::Public));
+            let force_pre_true = !genv.safety_multi_check()
+                || (matches!(fn_sig.safety, rty::Safety::Safe)
+                    && matches!(genv.tcx().visibility(def_id), Visibility::Public));
             if force_pre_true {
                 // println!("Forcing pre true for {:?}", def_id);
             }
-            let requires =
-                if !force_pre_true {
-                    let requires_wkvar = make_weak_kvar_with_vars(
-                        &mut wkvar_inserter.wkvar_map,
-                        def_id,
-                        &mut wkvar_inserter.kvid,
-                        Vec::new(),
-                        params.clone(),
-                    );
-                    // NOTE(CK): Not sure whether we can avoid the clone.
-                    fn_sig
-                        .requires
-                        .iter()
-                        .cloned()
-                        .chain(std::iter::once(rty::Expr::wkvar(requires_wkvar)))
-                        .collect()
-                } else {
-                    fn_sig.requires
-                };
+            let requires = if !force_pre_true {
+                let requires_wkvar = make_weak_kvar_with_vars(
+                    &mut wkvar_inserter.wkvar_map,
+                    def_id,
+                    &mut wkvar_inserter.kvid,
+                    Vec::new(),
+                    params.clone(),
+                );
+                // NOTE(CK): Not sure whether we can avoid the clone.
+                fn_sig
+                    .requires
+                    .iter()
+                    .cloned()
+                    .chain(std::iter::once(rty::Expr::wkvar(requires_wkvar)))
+                    .collect()
+            } else {
+                fn_sig.requires
+            };
             let inputs =
                 // Always add wkvars to the inputs of unsafe fns (even if we do a multi_check)
                 //
@@ -605,7 +606,9 @@ impl rty::PolyFnSig {
                 .map(|output| rty::FnOutput { ret: wkvar_inserter.fold_ty(&output.ret), ensures });
             genv.feed_weak_kvars(def_id, wkvar_inserter.wkvar_map);
 
-            let ret = rty::FnSig {
+            
+            // println!("Refined FnSig is {:?}", ret);
+            rty::FnSig {
                 abi: fn_sig.abi,
                 safety: fn_sig.safety,
                 inputs,
@@ -613,9 +616,7 @@ impl rty::PolyFnSig {
                 output,
                 lifted: fn_sig.lifted,
                 no_panic: fn_sig.no_panic,
-            };
-            // println!("Refined FnSig is {:?}", ret);
-            ret
+            }
         }))
     }
 }
@@ -815,8 +816,14 @@ fn make_weak_kvar_with_vars(
     self_args: Vec<(rty::Var, rty::Sort)>,
     params: Vec<(rty::Var, rty::Sort)>,
 ) -> rty::WKVar {
-    let self_args = self_args.into_iter().map(|(v, s)| (rty::Expr::var(v), s)).collect();
-    let params = params.into_iter().map(|(v, s)| (rty::Expr::var(v), s)).collect();
+    let self_args = self_args
+        .into_iter()
+        .map(|(v, s)| (rty::Expr::var(v), s))
+        .collect();
+    let params = params
+        .into_iter()
+        .map(|(v, s)| (rty::Expr::var(v), s))
+        .collect();
     make_weak_kvar(wkvar_map, def_id, kvid, self_args, params)
 }
 

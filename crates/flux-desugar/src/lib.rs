@@ -25,7 +25,7 @@ pub mod resolver;
 
 use flux_middle::{
     ResolverOutput,
-    def_id::{FluxLocalDefId, ResolvedDefId},
+    def_id::FluxLocalDefId,
     fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},

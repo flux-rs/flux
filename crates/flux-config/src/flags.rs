@@ -250,7 +250,7 @@ pub struct Flags {
     pub rerun_hint: bool,
     /// If `true`, collect all non-trusted constraints into one big constraint to check.
     /// (implies multi_check). If multi_check is supplied, only uses those defs.
-    /// 
+    ///
     /// SKIPS adding wkvars to the REQUIRES of safe fns, but still adds wkvars to the
     /// ensures. Adds wkvars everywhere for unsafe fns.
     #[arg(
@@ -347,9 +347,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "flux-verbose" => parse_bool(&mut flags.flux_verbose, value),
             "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
             "rerun-hint" => parse_bool(&mut flags.rerun_hint, value),
-            "safety-multi-check" => {
-                parse_opt_string(&mut flags.safety_multi_check, value)
-            }
+            "safety-multi-check" => parse_opt_string(&mut flags.safety_multi_check, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
@@ -381,8 +379,10 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
     } else if flags.safety_multi_check.is_some() {
         // Add everything if we are doing a safety multi check (and there is no
         // multi check provided).
-        flags.multi_check = Some(IncludePattern::new(vec!["*".to_string()]).expect("should be a glob pattern matching all files"));
-        
+        flags.multi_check = Some(
+            IncludePattern::new(vec!["*".to_string()])
+                .expect("should be a glob pattern matching all files"),
+        );
     }
     if !trusteds.is_empty() {
         let trusted = IncludePattern::new(trusteds).unwrap_or_else(|err| {

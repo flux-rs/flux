@@ -320,8 +320,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         }
         let (task, _) = fcx.create_task(def_id, cstr, opts.scrape_quals, backend)?;
         if config::dump_constraint() {
-            dbg::dump_multi_item_info(genv.tcx(), "smt2", &task)
-                .unwrap();
+            dbg::dump_multi_item_info(genv.tcx(), "smt2", &task).unwrap();
         }
         // FIXME: Decode solutions and report unsafe tags per owning function. For now, preserve
         // the solver status while intentionally ignoring its solution payload.
@@ -349,12 +348,12 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                     .partition(|error| error.trivial_wkvids.is_empty());
                 Ok(legitimate.into_iter().chain(possibly_trivial).collect())
             }
-            liquid_fixpoint::FixpointStatus::Crash(err) => Err(
-                flux_middle::queries::QueryErr::bug(
+            liquid_fixpoint::FixpointStatus::Crash(err) => {
+                Err(flux_middle::queries::QueryErr::bug(
                     Some(def_id.resolved_id()),
                     format!("multi-query fixpoint crashed: {err:?}"),
-                ),
-            ),
+                ))
+            }
         }
     }
 }

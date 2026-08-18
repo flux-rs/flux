@@ -682,7 +682,10 @@ where
         };
 
         let owner_ids = if self.multi_query {
-            self.multi_owners.iter().map(|owner| owner.local_id()).collect_vec()
+            self.multi_owners
+                .iter()
+                .map(|owner| owner.local_id())
+                .collect_vec()
         } else {
             vec![def_id.local_id()]
         };
@@ -708,7 +711,8 @@ where
         // Encode function bodies after qualifiers/assumptions so any functions referenced there
         // are picked up as dependencies.
         let define_funs = if self.multi_query {
-            self.ecx.define_funs_multi(&self.multi_owners, &mut self.scx)?
+            self.ecx
+                .define_funs_multi(&self.multi_owners, &mut self.scx)?
         } else {
             self.ecx.define_funs(def_id, &mut self.scx)?
         };
@@ -1383,14 +1387,17 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
         // Compute the set of WKVids to promote:
         // (we could filter out those that would trivially solve to false by
         // taking an intersection, but we'll use this set to default otherwise).
-        let all_candidates: FxHashSet<rty::WKVid> =
-            heads.union(&assumptions).cloned().collect();
+        let all_candidates: FxHashSet<rty::WKVid> = heads.union(&assumptions).cloned().collect();
         let promotable = {
             let tree_refs: Vec<&RefineTree> = trees.iter().map(|(_, tree, _)| tree).collect();
             RefineTree::promotable_wkvids(&tree_refs, &all_candidates.iter().cloned().collect())
         };
         let trivial_wkvids = all_candidates.difference(&promotable).cloned().collect();
-        println!("wkvar promotable: {:?} (of {:?} candidates)", promotable.len(), all_candidates.len());
+        println!(
+            "wkvar promotable: {:?} (of {:?} candidates)",
+            promotable.len(),
+            all_candidates.len()
+        );
 
         let mut next_kvid = fixpoint::KVid::from_u32(0);
         for wkvid in &promotable {
@@ -1435,15 +1442,14 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
                 sorts.push(fixpoint::Sort::Int);
             }
             next_kvid = range.end;
-            self.promoted_wkvars
-                .insert(
-                    wkvid.clone(),
-                    PromotedWKVar {
-                        range,
-                        source_sorts: info.sorts.clone(),
-                        source_self_args: self_args,
-                    },
-                );
+            self.promoted_wkvars.insert(
+                wkvid.clone(),
+                PromotedWKVar {
+                    range,
+                    source_sorts: info.sorts.clone(),
+                    source_self_args: self_args,
+                },
+            );
             let start = fixpoint::KVid::from_u32(
                 next_kvid.as_u32() - usize::max(promoted_self_args, 1) as u32,
             );
@@ -1460,8 +1466,7 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
         for (def_id, mut tree, kvars) in trees {
             let old_kvars = std::mem::replace(&mut self.kvars, kvars);
             let old_kcx = std::mem::replace(&mut self.kcx, KVarEncodingCtxt::new(next_kvid));
-            let old_local_vars =
-                std::mem::replace(&mut self.ecx.local_var_env, LocalVarEnv::new());
+            let old_local_vars = std::mem::replace(&mut self.ecx.local_var_env, LocalVarEnv::new());
             let old_def_id = self.ecx.def_id.replace(def_id);
 
             let result = (|| {
@@ -1562,10 +1567,7 @@ impl KVarEncodingCtxt {
         backend: &Backend,
     ) -> Range<fixpoint::KVid> {
         // The start of the next range
-        let start = self
-            .ranges
-            .last()
-            .map_or(self.start, |(_, r)| r.end);
+        let start = self.ranges.last().map_or(self.start, |(_, r)| r.end);
 
         self.ranges
             .entry(kvid)
@@ -1588,7 +1590,9 @@ impl KVarEncodingCtxt {
 
     #[allow(dead_code, reason = "used by dormant multi-query encoding")]
     fn next_kvid(&self) -> fixpoint::KVid {
-        self.ranges.last().map_or(self.start, |(_, range)| range.end)
+        self.ranges
+            .last()
+            .map_or(self.start, |(_, range)| range.end)
     }
 
     fn encode_kvars(&self, kvars: &KVarGen, scx: &mut SortEncodingCtxt) -> Vec<fixpoint::KVarDecl> {
