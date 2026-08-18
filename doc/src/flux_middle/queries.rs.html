@@ -1330,7 +1330,7 @@
 <a href=#1330 id=1330 data-nosnippet>1330</a>                        <span class="kw">if let </span>ErrCtxt::FnCheck(<span class="kw">_</span>, fn_def_id) = <span class="self">self</span>.cx {
 <a href=#1331 id=1331 data-nosnippet>1331</a>                            <span class="kw">let </span>fn_span = tcx.def_span(fn_def_id);
 <a href=#1332 id=1332 data-nosnippet>1332</a>                            <span class="kw">if </span>fn_span.in_derive_expansion() {
-<a href=#1333 id=1333 data-nosnippet>1333</a>                                <span class="comment">// the type instead.
+<a href=#1333 id=1333 data-nosnippet>1333</a>                                <span class="comment">// reset message span to use the type definition
 <a href=#1334 id=1334 data-nosnippet>1334</a>                                </span>diag.span_label(
 <a href=#1335 id=1335 data-nosnippet>1335</a>                                    tcx.def_span(struct_id),
 <a href=#1336 id=1336 data-nosnippet>1336</a>                                    fluent::middle_query_opaque_struct_derive_help,
