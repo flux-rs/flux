@@ -62,3 +62,11 @@ impl<T> SliceIndex<[T]> for ops::RangeTo<usize> {}
 #[flux::assoc(fn in_bounds(r: Self, len: int) -> bool { r.start <= len })]
 #[flux::assoc(fn output_pred(r: Self, len: int, out: int) -> bool { out == len - r.start })]
 impl<T> SliceIndex<[T]> for ops::RangeFrom<usize> {}
+
+/// A full range is always in bounds and yields the whole slice. Without this impl, `v[..]` cannot
+/// be resolved once a spec mentions `<I as SliceIndex<[T]>>::in_bounds` — which matters for any
+/// `Index`/`IndexMut` impl generic over `I: SliceIndex<[T]>`, since `RangeFull` can instantiate it.
+#[extern_spec(core::slice)]
+#[flux::assoc(fn in_bounds(r: Self, len: int) -> bool { true })]
+#[flux::assoc(fn output_pred(r: Self, len: int, out: int) -> bool { out == len })]
+impl<T> SliceIndex<[T]> for ops::RangeFull {}
