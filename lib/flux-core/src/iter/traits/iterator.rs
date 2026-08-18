@@ -3,7 +3,8 @@ use flux_attrs::*;
 defs! {
     fn default_iterator_size<T>(self: T) -> int;
     fn default_iterator_done<T>(self: T) -> bool;
-    fn max(a: int, b: int) -> int { if a > b { a } else { b } }
+
+    use crate::num::max;
 }
 
 #[extern_spec(core::iter)]

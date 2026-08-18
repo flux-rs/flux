@@ -50,3 +50,28 @@ where
         pushed += 1;
     }
 }
+
+// --- Take::size ---
+
+// `Take::size` is `min(n, inner.size)`, so a position found inside a `take(3)` is bounded by
+// *both* the take count and the underlying length. Each `assert` below needs a different side
+// of the `min`.
+
+pub fn test_take_position_bounded_by_count(xs: &[i32]) {
+    if let Some(i) = xs.iter().take(3).position(|&x| x > 0) {
+        assert(i < 3);
+    }
+}
+
+pub fn test_take_position_bounded_by_len(xs: &[i32]) {
+    if let Some(i) = xs.iter().take(3).position(|&x| x > 0) {
+        assert(i < xs.len());
+    }
+}
+
+// Taking more than the slice holds is still bounded by the slice.
+pub fn test_take_beyond_end(xs: &[i32]) {
+    if let Some(i) = xs.iter().take(1000).position(|&x| x > 0) {
+        assert(i < xs.len());
+    }
+}
