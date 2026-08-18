@@ -19,12 +19,6 @@ trait PartialEq<Rhs: PointeeSized = Self>: PointeeSized {
     fn ne(&self, other: &Rhs) -> bool;
 }
 
-/// `Ord::min`/`Ord::max` are *provided* methods on the trait, so they live on `Ord` itself rather
-/// than in `impl Ord for usize`. Without specs, `x.min(y)` returns a completely unconstrained
-/// value, which loses the bound in capacity arithmetic and everything downstream of it.
-///
-/// The trait spec is generic in `Self`'s sort, so the actual arithmetic goes in an associated
-/// refinement that only the `usize` impl defines; every other `Ord` impl keeps the vacuous default.
 #[extern_spec(core::cmp)]
 #[assoc(
     fn min_res(a: Self, b: Self, res: Self) -> bool { true }
