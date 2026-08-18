@@ -1,5 +1,6 @@
 use flux_attrs::*;
 
+/// See the note at [`IndexMut`] about also implementing the [`index_mut`] method for any type that implements [`Index`].
 #[extern_spec(core::ops)]
 trait Index<Idx> {
     #![assoc(fn in_bounds(v: Self, idx: Idx) -> bool { true })]
@@ -9,10 +10,12 @@ trait Index<Idx> {
     fn index(&self, index: Idx) -> &Self::Output;
 }
 
-/// Without a trait-level spec, `index_mut`'s signature is the unrefined lifted one, so any impl
-/// carrying an `in_bounds` precondition fails the impl-vs-trait subtyping check. `IndexMut: Index`,
-/// so the two associated refinements are inherited rather than redeclared — the same way
-/// `flux-core`'s own `[T]` and `[T; N]` `IndexMut` impls are written.
+/// [NOTE:The [`IndexMut`] trait is a subtrait of [`Index`],
+/// hence any (refined) impl of `Index` should now *also*
+/// have a matching (refined) impl for `IndexMut` as otherwise
+/// the latter will either
+/// - fail the impl-subtyping, (e.g. in the case of regular specs), or worse
+/// - be silently inconsistent (e.g. in the case of extern-specs).
 #[extern_spec(core::ops)]
 trait IndexMut<Idx>: Index<Idx> {
     #[sig(fn(self: &mut Self[@v], index: Idx { <Self as Index<Idx>>::in_bounds(v, index) }) -> &mut Self::Output{out: <Self as Index<Idx>>::output_pred(v, index, out)})]
