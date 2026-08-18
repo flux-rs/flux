@@ -1330,7 +1330,7 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                         if let ErrCtxt::FnCheck(_, fn_def_id) = self.cx {
                             let fn_span = tcx.def_span(fn_def_id);
                             if fn_span.in_derive_expansion() {
-                                // the type instead.
+                                // reset message span to use the type definition
                                 diag.span_label(
                                     tcx.def_span(struct_id),
                                     fluent::middle_query_opaque_struct_derive_help,
