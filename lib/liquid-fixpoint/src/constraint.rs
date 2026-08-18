@@ -955,8 +955,21 @@ pub enum Constant<T: Types> {
 #[derive_where(Debug, Clone, Hash)]
 pub struct Qualifier<T: Types> {
     pub name: String,
-    pub args: Vec<(T::Var, Sort<T>)>,
+    pub args: Vec<QualParam<T>>,
     pub body: Expr<T>,
+}
+
+#[derive_where(Debug, Clone, Hash)]
+pub struct QualParam<T: Types> {
+    pub name: T::Var,
+    pub sort: Sort<T>,
+    pub is_wildcard: bool,
+}
+
+impl<T: Types> QualParam<T> {
+    pub fn new(name: T::Var, sort: Sort<T>) -> Self {
+        Self { name, sort, is_wildcard: false }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

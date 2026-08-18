@@ -325,7 +325,7 @@ impl<T: Types> Pred<T> {
                                 .0
                                 .args
                                 .iter()
-                                .map(|arg| &arg.0)
+                                .map(|param| &param.name)
                                 .zip(qualifier.1.iter().map(|arg_idx| &args[*arg_idx]))
                                 .fold(qualifier.0.body.clone(), |acc, e| {
                                     acc.substitute_var(e.0, e.1)
@@ -347,7 +347,7 @@ impl<T: Types> Pred<T> {
                         .0
                         .args
                         .iter()
-                        .map(|arg| &arg.0)
+                        .map(|param| &param.name)
                         .zip(assignment.1.iter().map(|arg_idx| &args[*arg_idx]))
                         .fold(assignment.0.body.clone(), |acc, e| acc.substitute_var(e.0, e.1)),
                 )

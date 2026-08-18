@@ -115,6 +115,20 @@ impl UnsupportedPosition {
 }
 
 #[derive(Diagnostic)]
+#[diag(desugar_unsupported_hole, code = E0999)]
+pub(super) struct UnsupportedHole {
+    #[primary_span]
+    #[label]
+    span: Span,
+}
+
+impl UnsupportedHole {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(desugar_final_assoc_without_body, code = E0999)]
 pub(super) struct FinalAssocReftWithoutBody {
     #[primary_span]

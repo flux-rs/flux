@@ -403,8 +403,10 @@ impl<T: Types> fmt::Display for Qualifier<T> {
             f,
             "(qualif {} ({}) ({}))",
             self.name,
-            self.args.iter().format_with(" ", |(name, sort), f| {
-                f(&format_args!("({} {sort})", name.display()))
+            self.args.iter().format_with(" ", |param, f| {
+                // The `#` is signature syntax, not part of the variable's name.
+                let wildcard = if param.is_wildcard { "#" } else { "" };
+                f(&format_args!("({}{wildcard} {})", param.name.display(), param.sort))
             }),
             self.body
         )

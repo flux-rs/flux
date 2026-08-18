@@ -78,6 +78,22 @@ impl UnsupportedPrimOp {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_invalid_wildcard_sort, code = E0999)]
+#[note]
+pub(super) struct InvalidWildcardSort {
+    #[primary_span]
+    #[label]
+    span: Span,
+    found: rty::Sort,
+}
+
+impl InvalidWildcardSort {
+    pub(super) fn new(span: Span, found: rty::Sort) -> Self {
+        Self { span, found }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_expected_fun, code = E0999)]
 pub(super) struct ExpectedFun<'a> {
     #[primary_span]
