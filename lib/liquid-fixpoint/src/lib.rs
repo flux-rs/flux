@@ -345,6 +345,7 @@ impl CrashInfo {
 pub struct KVarDecl<T: Types> {
     pub kvid: T::KVar,
     pub sorts: Vec<Sort<T>>,
+    pub force_cut: bool,
     #[derive_where(skip)]
     pub comment: String,
 }
@@ -412,7 +413,12 @@ impl<T: Types> Task<T> {
 
 impl<T: Types> KVarDecl<T> {
     pub fn new(kvid: T::KVar, sorts: Vec<Sort<T>>, comment: String) -> Self {
-        Self { kvid, sorts, comment }
+        Self { kvid, sorts, force_cut: false, comment }
+    }
+
+    pub fn with_force_cut(mut self, force_cut: bool) -> Self {
+        self.force_cut = force_cut;
+        self
     }
 }
 

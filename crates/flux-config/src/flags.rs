@@ -259,6 +259,27 @@ pub struct Flags {
         default_missing_value = "false"
     )]
     pub safety_multi_check: Option<String>,
+    /// Skip parsing and rendering non-cut solutions from a multi-check query. These can be very large.
+    #[arg(
+        long = flux_arg!("multi-check-skip-non-cuts"),
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub multi_check_skip_non_cuts: bool,
+    /// Emit `(cut ...)` for every KVar in a multi-check query to reduce solution sizes.
+    #[arg(
+        long = flux_arg!("multi-check-force-kvar-cuts"),
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub multi_check_force_kvar_cuts: bool,
+    /// Encode each promoted weak KVar as one Fixpoint KVar rather than a range.
+    #[arg(
+        long = flux_arg!("multi-check-single-kvar"),
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub multi_check_single_kvar: bool,
 }
 
 impl Default for Flags {
@@ -299,6 +320,9 @@ impl Default for Flags {
             no_suggestions_default: false,
             rerun_hint: true,
             safety_multi_check: None,
+            multi_check_skip_non_cuts: true,
+            multi_check_force_kvar_cuts: false,
+            multi_check_single_kvar: false,
         }
     }
 }
@@ -348,6 +372,11 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
             "rerun-hint" => parse_bool(&mut flags.rerun_hint, value),
             "safety-multi-check" => parse_opt_string(&mut flags.safety_multi_check, value),
+            "multi-check-skip-non-cuts" => parse_bool(&mut flags.multi_check_skip_non_cuts, value),
+            "multi-check-force-kvar-cuts" => {
+                parse_bool(&mut flags.multi_check_force_kvar_cuts, value)
+            }
+            "multi-check-single-kvar" => parse_bool(&mut flags.multi_check_single_kvar, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);

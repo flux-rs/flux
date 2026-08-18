@@ -181,6 +181,18 @@ pub fn safety_multi_check_crate() -> Option<&'static str> {
     FLAGS.safety_multi_check.as_deref()
 }
 
+pub fn multi_check_skip_non_cuts() -> bool {
+    FLAGS.multi_check_skip_non_cuts
+}
+
+pub fn multi_check_force_kvar_cuts() -> bool {
+    FLAGS.multi_check_force_kvar_cuts
+}
+
+pub fn multi_check_single_kvar() -> bool {
+    FLAGS.multi_check_single_kvar
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Pos {

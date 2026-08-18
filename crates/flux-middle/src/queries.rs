@@ -1073,6 +1073,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     // (this should exclude extern specs...)
                     if genv.strip_for_multi_check(def_id) {
                         let local_id = def_id.expect_local();
+                        // Retain the provider's signature for comparing it with the inferred one.
+                        // We intentionally record every local signature for now; output filtering can
+                        // later use `FnDecl::lifted` to select explicitly written Flux signatures.
+                        let actual_sig = (self.providers.fn_sig)(genv, def_id)?;
+                        genv.record_actual_fn_sig(def_id.resolved_id(), actual_sig);
                         // println!("Adding wkvar for {:?}", local_id);
                         let poly_sig = genv
                             .lower_fn_sig(local_id)?

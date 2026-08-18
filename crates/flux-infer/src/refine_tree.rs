@@ -129,10 +129,10 @@ impl RefineTree {
                     if let ExprKind::WKVar(wkvar) = expr.kind()
                         && let Some(previous) =
                             self.self_args.insert(wkvar.wkvid.clone(), wkvar.self_args)
-                            && previous != wkvar.self_args
-                        {
-                            panic!("inconsistent self_args for weak KVar {:?}", wkvar.wkvid);
-                        }
+                        && previous != wkvar.self_args
+                    {
+                        panic!("inconsistent self_args for weak KVar {:?}", wkvar.wkvid);
+                    }
                     expr.super_visit_with(self)
                 }
             }
@@ -1416,9 +1416,10 @@ impl WKVarConstraintDeps {
             // Pure cycle with no root: just pick the smallest node as an
             // arbitrary starting point so we still render something.
             if roots.is_empty()
-                && let Some(n) = comp.iter().min().cloned() {
-                    roots.push(n);
-                }
+                && let Some(n) = comp.iter().min().cloned()
+            {
+                roots.push(n);
+            }
 
             println!(
                 "-- component {} ({} node(s)), root(s): {} --",

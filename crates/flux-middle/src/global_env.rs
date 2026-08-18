@@ -64,6 +64,8 @@ struct GlobalEnvInner<'genv, 'tcx> {
     queries: Queries<'genv, 'tcx>,
     tempdir: TempDir,
     weak_kvars: RefCell<UnordMap<DefId, Rc<WeakKvarMap>>>,
+    /// Unmodified local signatures captured before the safety multi-check replaces them.
+    actual_fn_sigs: RefCell<UnordMap<DefId, rty::EarlyBinder<rty::PolyFnSig>>>,
 }
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -87,6 +89,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
             queries,
             tempdir,
             weak_kvars: Default::default(),
+            actual_fn_sigs: Default::default(),
         };
         f(GlobalEnv { inner: &inner })
     }
@@ -526,6 +529,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn weak_kvars_for(self, def_id: DefId) -> Option<Rc<WeakKvarMap>> {
         self.inner.weak_kvars.borrow().get(&def_id).cloned()
+    }
+
+    pub fn record_actual_fn_sig(self, def_id: DefId, sig: rty::EarlyBinder<rty::PolyFnSig>) {
+        self.inner.actual_fn_sigs.borrow_mut().insert(def_id, sig);
+    }
+
+    pub fn actual_fn_sig(self, def_id: DefId) -> Option<rty::EarlyBinder<rty::PolyFnSig>> {
+        self.inner.actual_fn_sigs.borrow().get(&def_id).cloned()
     }
 
     pub fn variants_of(

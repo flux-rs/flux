@@ -606,7 +606,6 @@ impl rty::PolyFnSig {
                 .map(|output| rty::FnOutput { ret: wkvar_inserter.fold_ty(&output.ret), ensures });
             genv.feed_weak_kvars(def_id, wkvar_inserter.wkvar_map);
 
-            
             // println!("Refined FnSig is {:?}", ret);
             rty::FnSig {
                 abi: fn_sig.abi,

@@ -21,7 +21,7 @@ use flux_middle::{
     fhir::QuantKind,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
-    pretty::{NestedString, PrettyCx, PrettyNested},
+    pretty::{self, NestedString, PrettyCx, PrettyNested},
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
@@ -56,6 +56,7 @@ use crate::suggestions::{
 use crate::{
     fixpoint_encoding::fixpoint::FixpointTypes, fixpoint_qualifiers::FIXPOINT_QUALIFIERS,
     lean_encoding::LeanEncoder, projections::structurally_normalize_expr, refine_tree::RefineTree,
+    wkvars::WKVarSubst,
 };
 
 pub mod decoding;
@@ -226,6 +227,7 @@ pub type InterpretedConst = (fixpoint::ConstDecl, fixpoint::Expr);
 
 /// A type to represent Solutions for KVars
 pub type Solution = FxIndexMap<rty::KVid, rty::Binder<rty::Expr>>;
+type WKVarSolution = FxIndexMap<rty::WKVid, rty::Binder<rty::Expr>>;
 pub type FixpointSolution = (Vec<(fixpoint::Var, fixpoint::Sort)>, fixpoint::Expr);
 pub type ClosedSolution = (Vec<(fixpoint::Var, fixpoint::Sort)>, FixpointSolution);
 
@@ -584,7 +586,9 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     multi_query: bool,
     multi_owners: Vec<MaybeExternId>,
     promoted_wkvars: FxIndexMap<rty::WKVid, PromotedWKVar>,
+    promoted_kvars: FxIndexMap<fixpoint::KVid, rty::WKVid>,
     promoted_wkvar_decls: Vec<fixpoint::KVarDecl>,
+    multi_local_var_envs: FxIndexMap<DefId, LocalVarEnv>,
     // NOTE: We originally used this to dedup tags, since they were only used as
     // a means of identifying spans. But we use them for suggestions, so, this
     // is no longer true.
@@ -659,7 +663,9 @@ where
             multi_query: false,
             multi_owners: vec![],
             promoted_wkvars: FxIndexMap::default(),
+            promoted_kvars: FxIndexMap::default(),
             promoted_wkvar_decls: vec![],
+            multi_local_var_envs: FxIndexMap::default(),
             // tags_inv: Default::default(),
         }
     }
@@ -900,13 +906,171 @@ where
         &mut self,
         kvar_binds: &[KVarBind],
     ) -> FxIndexMap<fixpoint::KVid, FixpointSolution> {
-        if self.multi_query {
-            panic!("fixpoint solution decoding for multi-query encoding is not supported");
-        }
         kvar_binds
             .iter()
             .map(|b| (parse_kvid(&b.kvar), self.parse_kvar_solution(&b.val)))
             .collect()
+    }
+
+    fn multi_wkvar_solutions(&mut self, kvar_binds: &[KVarBind]) -> WKVarSolution {
+        let mut items = vec![];
+        for bind in kvar_binds {
+            let kvid = parse_kvid(&bind.kvar);
+            let Some(wkvid) = self.promoted_kvars.get(&kvid).cloned() else {
+                continue;
+            };
+            let old_local_var_env = std::mem::replace(
+                &mut self.ecx.local_var_env,
+                self.multi_local_var_envs
+                    .shift_remove(&wkvid.parent_fn)
+                    .expect("missing local-variable map for promoted weak KVar"),
+            );
+            let solution = self.parse_kvar_solution(&bind.val);
+            let solution = self.fixpoint_to_solution(&solution);
+            self.multi_local_var_envs.insert(
+                wkvid.parent_fn,
+                std::mem::replace(&mut self.ecx.local_var_env, old_local_var_env),
+            );
+            items.push((kvid, solution));
+        }
+        self.group_promoted_wkvar_solution(items)
+    }
+
+    fn group_promoted_wkvar_solution(
+        &self,
+        mut items: Vec<(fixpoint::KVid, rty::Binder<rty::Expr>)>,
+    ) -> WKVarSolution {
+        let mut map = FxIndexMap::default();
+        items.sort_by_key(|(kvid, _)| *kvid);
+        items.reverse();
+        for (wkvid, promoted) in &self.promoted_wkvars {
+            let mut preds = vec![];
+            let original_args = promoted
+                .source_sorts
+                .iter()
+                .enumerate()
+                .map(|(idx, _)| {
+                    rty::Expr::bvar(
+                        rustc_type_ir::INNERMOST,
+                        rty::BoundVar::from(idx),
+                        rty::BoundReftKind::Anon,
+                    )
+                })
+                .collect_vec();
+            let (_, mut flattened_args, _) = flatten_kvar_args(
+                promoted
+                    .source_sorts
+                    .iter()
+                    .cloned()
+                    .zip(original_args.iter().cloned())
+                    .map(|(sort, arg)| (arg, sort)),
+                promoted.source_self_args,
+            );
+            // Keep this in sync with `encode_kvar_range`: Fixpoint requires a
+            // dummy argument for zero-argument KVars.
+            if flattened_args.is_empty() {
+                flattened_args.push(rty::Expr::constant(rty::Constant::ZERO));
+            }
+            while let Some((kvid, pred)) = items.pop_if(|(kvid, _)| promoted.range.contains(kvid)) {
+                let offset = kvid.as_usize() - promoted.range.start.as_usize();
+                let args = &flattened_args[offset..];
+                if pred.vars().len() != args.len() {
+                    tracked_span_bug!(
+                        "solution for promoted weak KVar {wkvid:?} has {} parameters, expected {}",
+                        pred.vars().len(),
+                        args.len()
+                    );
+                }
+                preds.push(pred.replace_bound_refts(args));
+            }
+            if preds.len() == promoted.range.end.as_usize() - promoted.range.start.as_usize() {
+                let expr = rty::Expr::and_from_iter(preds);
+                map.insert(
+                    wkvid.clone(),
+                    rty::Binder::bind_with_sorts(expr, &promoted.source_sorts),
+                );
+            }
+        }
+        map
+    }
+
+    pub(crate) fn report_multi_solutions(
+        &mut self,
+        cut_solutions: &[KVarBind],
+        non_cut_solutions: &[KVarBind],
+    ) -> QueryResult {
+        let cut_wkvar_solutions = self.multi_wkvar_solutions(cut_solutions);
+        if !cut_wkvar_solutions.is_empty() {
+            let cut_fns = cut_wkvar_solutions
+                .keys()
+                .map(|wkvid| wkvid.parent_fn)
+                .unique()
+                .map(def_id_to_string)
+                .join("\n  ");
+            println!("\n=== Multi check: functions with cut solutions ===\n  {cut_fns}");
+        }
+        let mut kvar_binds = cut_solutions.to_vec();
+        if !config::multi_check_skip_non_cuts() {
+            kvar_binds.extend_from_slice(non_cut_solutions);
+        }
+        let solutions = self.multi_wkvar_solutions(&kvar_binds);
+        let mut parent_fns = FxIndexSet::default();
+        for wkvid in self.promoted_wkvars.keys() {
+            parent_fns.insert(wkvid.parent_fn);
+        }
+        let mut annotated = vec![];
+        let mut lifted = vec![];
+        for parent_fn in parent_fns {
+            let Some(actual) = self.genv.actual_fn_sig(parent_fn) else {
+                continue;
+            };
+            let mut substitutions = solutions.clone();
+            for (wkvid, promoted) in &self.promoted_wkvars {
+                if wkvid.parent_fn == parent_fn {
+                    substitutions.entry(wkvid.clone()).or_insert_with(|| {
+                        rty::Binder::bind_with_sorts(rty::Expr::tt(), &promoted.source_sorts)
+                    });
+                }
+            }
+            let mut subst = WKVarSubst::new(substitutions.into_iter().collect(), false);
+            let inferred = rty::EarlyBinder(
+                self.genv
+                    .fn_sig(parent_fn)?
+                    .skip_binder_ref()
+                    .fold_with(&mut subst),
+            );
+            let cx = PrettyCx::default(self.genv).hide_regions(true);
+            let mut output = format!(
+                "Multi check signature comparison: {}\n  actual:   {:?}\n",
+                def_id_to_string(parent_fn),
+                pretty::with_cx!(&cx, &actual)
+            );
+            output.push_str(&format!("  inferred: {:?}\n", pretty::with_cx!(&cx, &inferred)));
+            let is_lifted = self
+                .genv
+                .fhir_node(parent_fn.expect_local())?
+                .as_owner()
+                .and_then(|owner| owner.fn_sig())
+                .is_none_or(|sig| sig.decl.lifted);
+            if is_lifted {
+                lifted.push(output);
+            } else {
+                annotated.push(output);
+            }
+        }
+        if !annotated.is_empty() {
+            println!("\n=== Multi check: explicitly annotated signatures ===");
+            for output in annotated {
+                print!("{output}");
+            }
+        }
+        if !lifted.is_empty() {
+            println!("\n=== Multi check: lifted/default signatures ===");
+            for output in lifted {
+                print!("{output}");
+            }
+        }
+        Ok(())
     }
 
     fn parse_kvar_solution(&mut self, expr: &str) -> FixpointSolution {
@@ -1355,7 +1519,9 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
         self.multi_kvar_decls.clear();
         self.multi_owners.clear();
         self.promoted_wkvars.clear();
+        self.promoted_kvars.clear();
         self.promoted_wkvar_decls.clear();
+        self.multi_local_var_envs.clear();
         if trees.is_empty() {
             self.multi_query = false;
             return Ok((fixpoint::Constraint::TRUE, FxHashSet::default()));
@@ -1404,12 +1570,7 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
             if !matches!(self.genv.resolve_id(wkvid.parent_fn), ResolvedDefId::Local(_)) {
                 println!("WARN: not local id {}", def_id_to_string(wkvid.parent_fn));
             }
-            // if !promotable.contains(wkvid) {
-            //     println!("vacuous wkvar {} {:?}", def_id_to_string(wkvid.parent_fn), wkvid.id);
-            // }
-            // Promote all wkvars unless it's a struct invariant...  in which
-            // case we only promote if the invariant has a chance to be
-            // non-vacuous.
+            // Skip invariants
             if wkvid.id == rty::KVid::from_u32(999) {
                 continue;
             }
@@ -1431,6 +1592,8 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
                     .map(|sort| (rty::Expr::tt(), sort)),
                 self_args,
             );
+            let promoted_self_args =
+                if config::multi_check_single_kvar() { 1 } else { promoted_self_args };
             let range = next_kvid..next_kvid + usize::max(promoted_self_args, 1);
             let mut sorts = sorts
                 .iter()
@@ -1445,20 +1608,25 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
             self.promoted_wkvars.insert(
                 wkvid.clone(),
                 PromotedWKVar {
-                    range,
+                    range: range.clone(),
                     source_sorts: info.sorts.clone(),
                     source_self_args: self_args,
                 },
             );
+            self.promoted_kvars
+                .extend(range.clone().map(|kvid| (kvid, wkvid.clone())));
             let start = fixpoint::KVid::from_u32(
                 next_kvid.as_u32() - usize::max(promoted_self_args, 1) as u32,
             );
             for (i, kvid) in (start..next_kvid).enumerate() {
-                self.promoted_wkvar_decls.push(fixpoint::KVarDecl::new(
-                    kvid,
-                    sorts[i..].to_vec(),
-                    format!("promoted weak kvar: {wkvid:?}"),
-                ));
+                self.promoted_wkvar_decls.push(
+                    fixpoint::KVarDecl::new(
+                        kvid,
+                        sorts[i..].to_vec(),
+                        format!("promoted weak kvar: {wkvid:?}"),
+                    )
+                    .with_force_cut(config::multi_check_force_kvar_cuts()),
+                );
             }
         }
 
@@ -1487,7 +1655,9 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
             })();
 
             self.ecx.def_id = old_def_id;
-            self.ecx.local_var_env = old_local_vars;
+            let local_var_env = std::mem::replace(&mut self.ecx.local_var_env, old_local_vars);
+            self.multi_local_var_envs
+                .insert(def_id.resolved_id(), local_var_env);
             self.kcx = old_kcx;
             self.kvars = old_kvars;
             constraints.push(result?);

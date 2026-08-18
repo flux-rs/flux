@@ -211,8 +211,7 @@ fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
             rty::Expr::bvar(INNERMOST, rty::BoundVar::from(0_usize), rty::BoundReftKind::Anon),
             sort.clone(),
         )];
-        let (flattened_self_arg_sorts, flattened_self_args, _) =
-            flatten_kvar_args(self_args, 1);
+        let (flattened_self_arg_sorts, flattened_self_args, _) = flatten_kvar_args(self_args, 1);
         let adt_wkvar = make_weak_kvar(
             &mut wkvar_map,
             def_id.resolved_id(),
