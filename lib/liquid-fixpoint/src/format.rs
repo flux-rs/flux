@@ -97,7 +97,11 @@ impl<T: Types> fmt::Display for KVarDecl<T> {
             self.kvid.display(),
             self.sorts.iter().format(" "),
             self.comment
-        )
+        )?;
+        if self.force_cut {
+            write!(f, "\n(cut ${})", self.kvid.display())?;
+        }
+        Ok(())
     }
 }
 

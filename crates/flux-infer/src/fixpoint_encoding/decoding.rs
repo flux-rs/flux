@@ -15,15 +15,10 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    // Multi-query decoding is intentionally unsupported: local KVar ids and local-variable maps
-    // currently have no owner information at this boundary.
     pub(crate) fn fixpoint_to_solution(
         &mut self,
         sol: &FixpointSolution,
     ) -> rty::Binder<rty::Expr> {
-        if self.multi_query {
-            panic!("fixpoint solution decoding for multi-query encoding is not supported");
-        }
         let mut vars = vec![];
         let mut sorts = vec![];
         for (var, sort) in &sol.0 {
