@@ -3,7 +3,7 @@ use core::marker::PointeeSized;
 use flux_attrs::*;
 
 defs! {
-    use crate::common::{max, min};
+    use crate::num::{max, min};
 }
 
 #[extern_spec]

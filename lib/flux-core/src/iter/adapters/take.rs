@@ -1,7 +1,7 @@
 use flux_attrs::*;
 
 defs! {
-    use crate::common::min;
+    use crate::num::min;
 }
 
 /// `Take` is refined by the number of elements left to take (`n`) together with the inner

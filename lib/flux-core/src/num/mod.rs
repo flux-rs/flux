@@ -1,5 +1,7 @@
 #![flux::defs {
     fn clamp(v: int, lo: int, hi: int) -> int { if v < lo { lo } else if v > hi { hi } else { v } }
+    fn min(a: int, b: int) -> int { if a < b { a } else { b } }
+    fn max(a: int, b: int) -> int { if a > b { a } else { b } }
     // NOTE: This def implements wrapping_arithmetic without relying on the modulus operator, 
     // but it assumes `v` overshoots by at most one period, i.e. v is in [2·lo, 2·hi].
     // This holds for wrapping_add/wrapping_sub when both operands are in [lo, hi],

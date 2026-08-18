@@ -4,7 +4,7 @@ defs! {
     fn default_iterator_size<T>(self: T) -> int;
     fn default_iterator_done<T>(self: T) -> bool;
 
-    use crate::common::max;
+    use crate::num::max;
 }
 
 #[extern_spec(core::iter)]

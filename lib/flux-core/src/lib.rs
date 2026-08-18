@@ -8,9 +8,6 @@ pub mod iter;
 pub mod ops;
 
 #[cfg(flux)]
-pub mod common;
-
-#[cfg(flux)]
 pub mod mem;
 
 #[cfg(flux)]
