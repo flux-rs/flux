@@ -1,7 +1,7 @@
 use flux_attrs::*;
 
 defs! {
-    fn min(a: int, b: int) -> int { if a < b { a } else { b } }
+    use crate::common::min;
 }
 
 /// `Take` is refined by the number of elements left to take (`n`) together with the inner
