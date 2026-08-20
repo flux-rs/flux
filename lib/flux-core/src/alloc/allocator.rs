@@ -1,15 +1,26 @@
 #![flux::defs {
-    // A layout *fits* a memory block when the block is aligned to `layout.align()` and is
-    // at least `layout.size()` bytes long. The `base == addr` conjunct additionally says
-    // the pointer denotes the *start* of its allocation, which is what "currently
-    // allocated via this allocator" amounts to in our model: every such pointer came out
-    // of `allocate`, `grow` or `shrink`, and those all return the start of a block.
-    //
-    // The docs also bound `layout.size()` from below by the size originally requested from
-    // `allocate`; we only track the actual size of the block, so that half is not modelled.
+    // A layout *fits* a memory block when the block is aligned to `layout.align()` and
+    // `layout.size()` lands in `min ..= max`, where `min` is the size of the layout most
+    // recently used to allocate the block and `max` is the actual size handed back by
+    // `allocate`, `grow` or `shrink`.
     // See: https://doc.rust-lang.org/std/alloc/trait.Allocator.html#memory-fitting
+    //
+    // We collapse that interval. Those three methods return a block whose tracked size is
+    // exactly the requested `layout.size()`, so `min == max == p.size` and one equation
+    // covers both bounds. Only tracking the upper bound (`l.size <= p.size`) would let a
+    // caller deallocate — or grow/shrink — with a layout *smaller* than the one it
+    // allocated with, which is UB. The price is that the surplus an allocator may return
+    // above `layout.size()` is dropped on the floor: it cannot be proven in bounds.
+    //
+    // The `base == addr` conjunct says the pointer denotes the *start* of its allocation,
+    // which is what "currently allocated via this allocator" amounts to in our model:
+    // every such pointer came out of `allocate`, `grow` or `shrink`.
+    //
+    // Alignment stays approximate: fitting demands the block was allocated with *the same*
+    // alignment as `layout.align()`, but the pointer does not carry the alignment it was
+    // allocated with, so all we can check is that its address is a multiple of it.
     fn layout_fits(p: NonNull, l: Layout) -> bool {
-        p.base == p.addr && l.size <= p.size && p.addr % l.align == 0
+        p.base == p.addr && l.size == p.size && p.addr % l.align == 0
     }
 }]
 
@@ -20,8 +31,9 @@ use flux_attrs::*;
 #[extern_spec(core::alloc)]
 trait Allocator {
     /// Core impl: https://github.com/rust-lang/rust/blob/dab8d9d1066c4c95008163c7babf275106ce3f32/library/core/src/alloc/mod.rs#L133
-    /// On success the block meets the size and alignment guarantees of `layout`; it may be
-    /// larger than `layout.size()`, hence the `<=` inside `layout_fits`.
+    /// On success the block meets the size and alignment guarantees of `layout`. The real
+    /// block may be larger than `layout.size()`; we track it as exactly `layout.size()`,
+    /// which under-approximates its extent — see `layout_fits`.
     #[spec(fn(&Self, layout: Layout[@l])
         -> Result<NonNull<[u8]>{p: layout_fits(p, l)}, AllocError>)]
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError>;
