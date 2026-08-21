@@ -82,7 +82,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         let generics = self.lift_generics_inner(hir_impl_item.generics);
         let kind = match hir_impl_item.kind {
             hir::ImplItemKind::Fn(fn_sig, ..) => fhir::ImplItemKind::Fn(self.lift_fn_sig(fn_sig)),
-            hir::ImplItemKind::Const(..) => fhir::ImplItemKind::Const,
+            hir::ImplItemKind::Const(..) => fhir::ImplItemKind::Const(None),
             hir::ImplItemKind::Type(..) => fhir::ImplItemKind::Type,
         };
         fhir::ImplItem { owner_id: self.owner, generics, kind }

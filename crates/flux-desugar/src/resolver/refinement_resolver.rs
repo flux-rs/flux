@@ -390,7 +390,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     pub(crate) fn resolve_impl_item(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        item: &surface::ImplItemFn,
+        item: &surface::ImplItem,
     ) -> Result {
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_impl_item(item))?;
         Self::new(resolver).run(&[], |vis| vis.visit_impl_item(item))

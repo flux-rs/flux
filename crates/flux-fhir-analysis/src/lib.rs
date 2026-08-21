@@ -217,9 +217,22 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
                 .conv_constant_expr(expr)?;
             Ok(rty::ConstantInfo::interpreted(rty::EarlyBinder(expr), sort))
         }
+        fhir::Node::ImplItem(fhir::ImplItem {
+            kind: fhir::ImplItemKind::Const(Some(expr)),
+            ..
+        }) => {
+            // As above, but the value may mention the generics of the impl, so we bind it under
+            // them and let normalization instantiate it at the impl's arguments.
+            let owner = def_id.map(|def_id| rustc_hir::OwnerId { def_id });
+            let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
+            let expr = AfterSortck::new(genv, &wfckresults)
+                .into_conv_ctxt()
+                .conv_constant_expr(expr)?;
+            Ok(rty::ConstantInfo::interpreted(rty::EarlyBinder(expr), sort))
+        }
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(None), .. })
         | fhir::Node::AnonConst
-        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const, .. }) => {
+        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const(None), .. }) => {
             // For other constants, we try to evaluate them if they are of a scalar type we can
             // represent in the refinement logic.
             if let Some(ty) = tcx.type_of(def_id).no_bound_vars()
@@ -464,6 +477,10 @@ fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Gener
         | DefKind::Closure
         | DefKind::TraitAlias
         | DefKind::Ctor(..)
+        // A constant has no generics of its own, but a `#[flux::constant]` annotation on an
+        // associated constant may mention the generics of the impl it is defined in.
+        | DefKind::Const
+        | DefKind::AssocConst
         | DefKind::Static { .. } => refining::refine_generics(&genv.lower_generics_of(def_id)),
         kind => {
             Err(query_bug!(
