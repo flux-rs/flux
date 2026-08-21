@@ -16,7 +16,7 @@ use flux_middle::{
     PanicReason, PanicSpec,
     global_env::GlobalEnv,
     pretty::PrettyCx,
-    queries::{QueryResult, try_query},
+    queries::{QueryErr, QueryResult, try_query},
     query_bug,
     rty::{
         self, AdtDef, AliasReft, BaseTy, BinOp, Binder, Bool, Clause, Constant,
@@ -31,6 +31,7 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{
     self, ToRustc,
+    lowering::Lower as _,
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
         ConstOperand, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK,
@@ -1988,9 +1989,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let typing_env = infcx.region_infcx.typing_env(param_env);
             if let Ok(val) = tcx.const_eval_resolve(typing_env, uneval, constant.span) {
                 return self.check_const_val(val, ty);
-            } else {
-                return Ok(None);
             }
+            // The value of a constant declared in a trait depends on the impl, and may not be
+            // known at all if it mentions the impl's generics. Give it the same opaque symbol
+            // the refinement logic uses, so that a spec mentioning `Self::C` and a body reading
+            // `Self::C` agree on what it denotes.
+            if tcx.trait_of_assoc(uneval.def).is_some() {
+                return self.check_trait_assoc_const(constant, uneval);
+            }
+            return Ok(None);
         }
 
         // 3. Try to see if we have `consant_info` for it.
@@ -2002,6 +2009,36 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
 
         Ok(None)
+    }
+
+    /// Refine a constant declared in a trait to the opaque symbol standing for it. `uneval.def`
+    /// is the constant as declared in the trait and `uneval.args` are the arguments of the trait
+    /// reference, which is exactly the key [`conv`] builds for the same constant appearing in a
+    /// refinement.
+    ///
+    /// [`conv`]: flux_fhir_analysis
+    fn check_trait_assoc_const(
+        &mut self,
+        constant: &ConstOperand<'tcx>,
+        uneval: rustc_middle::mir::UnevaluatedConst<'tcx>,
+    ) -> QueryResult<Option<Ty>> {
+        let tcx = self.genv.tcx();
+        let rty::TyOrBase::Base(ctor) = self.default_refiner.refine_ty_or_base(&constant.ty)?
+        else {
+            return Ok(None);
+        };
+        if self.genv.constant_info(uneval.def)?.sort().is_none() {
+            return Ok(None);
+        }
+        let args: flux_rustc_bridge::ty::GenericArgs = uneval
+            .args
+            .lower(tcx)
+            .map_err(|err| QueryErr::unsupported(uneval.def, err.into_err()))?;
+        let args = self
+            .default_refiner
+            .refine_generic_args(tcx.parent(uneval.def), &args)?;
+        let idx = Expr::const_def_id(uneval.def, args);
+        Ok(Some(ctor.replace_bound_reft(&idx).to_ty()))
     }
 
     fn check_scalar(

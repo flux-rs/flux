@@ -1,5 +1,3 @@
-//@ignore-test: needs the MIR constant tied to the same symbol (step 4)
-
 // The body branches on `Self::IS_ZST`. In MIR that is
 // `switchInt(const <Thingy<T> as TraitWithConst>::IS_ZST)`, an unevaluated
 // const that cannot be evaluated because it depends on `T`. It must be given
