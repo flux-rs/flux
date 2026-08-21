@@ -1284,12 +1284,46 @@ pub enum SortArg {
     BvSize(BvSize),
 }
 
+/// What we know about a Rust constant in the refinement logic.
+///
+/// A constant without a [sort] cannot be mentioned in a refinement at all. A constant with a
+/// sort but no [value] is an opaque symbol: we know what sort of thing it is, but not which
+/// one. This is the case for a constant declared in a trait, whose value only becomes known
+/// once we know the impl.
+///
+/// [sort]: ConstantInfo::sort
+/// [value]: ConstantInfo::value
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
-pub enum ConstantInfo {
-    /// An uninterpreted constant
-    Uninterpreted,
-    /// A non-integral constant whose value is specified by the user
-    Interpreted(Expr, Sort),
+pub struct ConstantInfo {
+    sort: Option<Sort>,
+    value: Option<EarlyBinder<Expr>>,
+}
+
+impl ConstantInfo {
+    /// A constant whose type has no sort, and so cannot appear in a refinement.
+    pub fn unsupported() -> Self {
+        ConstantInfo { sort: None, value: None }
+    }
+
+    /// A constant whose sort we know but whose value we don't.
+    pub fn opaque(sort: Sort) -> Self {
+        ConstantInfo { sort: Some(sort), value: None }
+    }
+
+    /// A constant whose value we know. The value is early bound over the generics of the item
+    /// the constant is declared in, so that the value of an associated constant may mention the
+    /// generics of its impl.
+    pub fn interpreted(value: EarlyBinder<Expr>, sort: Sort) -> Self {
+        ConstantInfo { sort: Some(sort), value: Some(value) }
+    }
+
+    pub fn sort(&self) -> Option<&Sort> {
+        self.sort.as_ref()
+    }
+
+    pub fn value(&self) -> Option<&EarlyBinder<Expr>> {
+        self.value.as_ref()
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]

@@ -19,7 +19,7 @@ use super::{
     subst::{self, BoundVarReplacer, FnMutDelegate},
 };
 
-#[derive(Clone, Debug, TyEncodable, TyDecodable)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct EarlyBinder<T>(pub T);
 
 impl<T> EarlyBinder<T> {

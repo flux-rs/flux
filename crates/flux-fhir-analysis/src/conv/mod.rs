@@ -1566,14 +1566,18 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     fn conv_type_relative_const_path(
         &mut self,
+        env: &mut Env,
         fhir_expr: &fhir::Expr,
-        qself: &rty::Ty,
+        qself: &fhir::Ty,
         assoc: Ident,
     ) -> QueryResult<rty::Expr> {
         let tcx = self.genv().tcx();
 
+        // First, try to resolve the constant against an inherent impl of a primitive type,
+        // e.g., `i32::MAX`.
+        let qself_ty = self.conv_ty(env, qself, None)?;
         let mut candidates = vec![];
-        if let Some(simplified_type) = qself.simplify_type() {
+        if let Some(simplified_type) = qself_ty.simplify_type() {
             candidates = tcx
                 .incoherent_impls(simplified_type)
                 .iter()
@@ -1589,7 +1593,16 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         }
         let (expr, sort) = match &candidates[..] {
             [candidate] => self.conv_const(fhir_expr.span, candidate.def_id)?,
-            [] => self.report_assoc_item_not_found(fhir_expr.span, AssocTag::Const)?,
+            // Otherwise, resolve it as a constant declared in a trait, e.g., `Self::C` or
+            // `T::C`. This is the same probing we do for associated types and refinements,
+            // and it reports `AssocItemNotFound` itself if the constant can't be found.
+            [] => {
+                let qself_res =
+                    if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
+                let (assoc_item, _) =
+                    self.conv_type_relative_path(AssocTag::Const, qself_res, assoc)?;
+                self.conv_opaque_const(fhir_expr.span, assoc_item.def_id)?
+            }
             _ => self.report_ambiguous_assoc_item(fhir_expr.span, AssocTag::Const, assoc)?,
         };
         self.0.insert_node_sort(fhir_expr.fhir_id, sort);
@@ -2120,8 +2133,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let expr = match expr.kind {
             fhir::ExprKind::Var(QPathExpr::Resolved(path, _)) => self.conv_path_expr(env, path)?,
             fhir::ExprKind::Var(QPathExpr::TypeRelative(qself, assoc)) => {
-                let qself = self.conv_ty(env, qself, None)?;
-                self.conv_type_relative_const_path(expr, &qself, assoc)?
+                self.conv_type_relative_const_path(env, expr, qself, assoc)?
             }
             fhir::ExprKind::Literal(lit) => {
                 rty::Expr::constant(self.conv_lit(lit, fhir_id, expr.span)?).at(espan)
@@ -2286,15 +2298,25 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(expr)
     }
 
+    /// Convert a constant whose value we require to be known, either because it is integral
+    /// (and so const-evaluated) or because the user gave it a `#[flux::constant]` annotation.
     fn conv_const(&self, span: Span, def_id: DefId) -> QueryResult<(rty::Expr, rty::Sort)> {
-        match self.genv().constant_info(def_id)? {
-            rty::ConstantInfo::Uninterpreted => {
-                Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?
-            }
-            rty::ConstantInfo::Interpreted(_, sort) => {
-                Ok((rty::Expr::const_def_id(def_id).at(ESpan::new(span)), sort))
-            }
+        let info = self.genv().constant_info(def_id)?;
+        if info.value().is_none() {
+            Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?;
         }
+        self.conv_opaque_const(span, def_id)
+    }
+
+    /// Convert a constant we are content to leave opaque. We only need its sort: the symbol
+    /// stands for whatever value the constant has, which for a constant declared in a trait is
+    /// only determined once we know the impl.
+    fn conv_opaque_const(&self, span: Span, def_id: DefId) -> QueryResult<(rty::Expr, rty::Sort)> {
+        let info = self.genv().constant_info(def_id)?;
+        let Some(sort) = info.sort() else {
+            Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?
+        };
+        Ok((rty::Expr::const_def_id(def_id).at(ESpan::new(span)), sort.clone()))
     }
 
     fn conv_constructor_exprs(

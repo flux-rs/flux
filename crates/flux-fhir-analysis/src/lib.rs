@@ -204,7 +204,7 @@ fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
 fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::ConstantInfo> {
     let node = genv.fhir_node(def_id.local_id())?;
     let Some(sort) = genv.sort_of_def_id(def_id.resolved_id()).emit(&genv)? else {
-        return Ok(rty::ConstantInfo::Uninterpreted);
+        return Ok(rty::ConstantInfo::unsupported());
     };
     let tcx = genv.tcx();
     match node {
@@ -215,7 +215,7 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
             let expr = AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_constant_expr(expr)?;
-            Ok(rty::ConstantInfo::Interpreted(expr, sort))
+            Ok(rty::ConstantInfo::interpreted(rty::EarlyBinder(expr), sort))
         }
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(None), .. })
         | fhir::Node::AnonConst
@@ -229,13 +229,18 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
             {
                 // FIXME(nilehmann) we should probably report an error in case const evaluation
                 // fails instead of silently ignore it.
-                Ok(rty::ConstantInfo::Interpreted(rty::Expr::constant(constant_), rty::Sort::Int))
+                Ok(rty::ConstantInfo::interpreted(
+                    rty::EarlyBinder(rty::Expr::constant(constant_)),
+                    rty::Sort::Int,
+                ))
             } else {
-                Ok(rty::ConstantInfo::Uninterpreted)
+                Ok(rty::ConstantInfo::opaque(sort))
             }
         }
         fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. }) => {
-            Ok(rty::ConstantInfo::Uninterpreted)
+            // The value of a constant declared in a trait depends on the impl, so all we know
+            // here is its sort. It is resolved to a value, if there is one, during normalization.
+            Ok(rty::ConstantInfo::opaque(sort))
         }
         _ => Err(query_bug!(def_id.local_id(), "expected const item"))?,
     }

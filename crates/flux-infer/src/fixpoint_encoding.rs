@@ -867,7 +867,7 @@ where
             return self
                 .genv
                 .constant_info(did)
-                .map(|info| matches!(info, rty::ConstantInfo::Interpreted(..)))
+                .map(|info| info.value().is_some())
                 .unwrap_or(false);
         }
         false
@@ -2406,9 +2406,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             match key {
                 ConstKey::RustConst(def_id) => {
                     let info = self.genv.constant_info(def_id)?;
-                    match info {
-                        rty::ConstantInfo::Uninterpreted => {}
-                        rty::ConstantInfo::Interpreted(val, _) => {
+                    match info.value() {
+                        None => {}
+                        Some(val) => {
+                            // A `RustConst` key is a constant referred to without generic
+                            // arguments, so identity instantiation is the right one here.
+                            let val = val.clone().instantiate_identity();
                             let const_name = const_.name;
                             let const_sort = const_.sort.clone();
 

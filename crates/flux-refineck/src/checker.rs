@@ -1995,8 +1995,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // 3. Try to see if we have `consant_info` for it.
         if let rty::TyOrBase::Base(ctor) = self.default_refiner.refine_ty_or_base(&constant.ty)?
-            && let rty::ConstantInfo::Interpreted(idx, _) = self.genv.constant_info(uneval.def)?
+            && let Some(idx) = self.genv.constant_info(uneval.def)?.value()
         {
+            let idx = idx.clone().instantiate_identity();
             return Ok(Some(ctor.replace_bound_reft(&idx).to_ty()));
         }
 
