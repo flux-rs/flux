@@ -1599,9 +1599,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             [] => {
                 let qself_res =
                     if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
-                let (assoc_item, _) =
+                let (assoc_item, trait_ref) =
                     self.conv_type_relative_path(AssocTag::Const, qself_res, assoc)?;
-                self.conv_opaque_const(fhir_expr.span, assoc_item.def_id)?
+                self.conv_opaque_const(fhir_expr.span, assoc_item.def_id, trait_ref.args)?
             }
             _ => self.report_ambiguous_assoc_item(fhir_expr.span, AssocTag::Const, assoc)?,
         };
@@ -2300,23 +2300,30 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     /// Convert a constant whose value we require to be known, either because it is integral
     /// (and so const-evaluated) or because the user gave it a `#[flux::constant]` annotation.
+    /// Such a constant is referred to without generic arguments.
     fn conv_const(&self, span: Span, def_id: DefId) -> QueryResult<(rty::Expr, rty::Sort)> {
         let info = self.genv().constant_info(def_id)?;
         if info.value().is_none() {
             Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?;
         }
-        self.conv_opaque_const(span, def_id)
+        self.conv_opaque_const(span, def_id, List::empty())
     }
 
     /// Convert a constant we are content to leave opaque. We only need its sort: the symbol
     /// stands for whatever value the constant has, which for a constant declared in a trait is
-    /// only determined once we know the impl.
-    fn conv_opaque_const(&self, span: Span, def_id: DefId) -> QueryResult<(rty::Expr, rty::Sort)> {
+    /// only determined once we know the impl. `args` distinguishes the instantiations of the
+    /// constant from one another.
+    fn conv_opaque_const(
+        &self,
+        span: Span,
+        def_id: DefId,
+        args: rty::GenericArgs,
+    ) -> QueryResult<(rty::Expr, rty::Sort)> {
         let info = self.genv().constant_info(def_id)?;
         let Some(sort) = info.sort() else {
             Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?
         };
-        Ok((rty::Expr::const_def_id(def_id).at(ESpan::new(span)), sort.clone()))
+        Ok((rty::Expr::const_def_id(def_id, args).at(ESpan::new(span)), sort.clone()))
     }
 
     fn conv_constructor_exprs(

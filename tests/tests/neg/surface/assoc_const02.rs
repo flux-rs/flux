@@ -1,9 +1,7 @@
-//@ignore-test: unsound until `ConstDefId` carries generic args (step 3)
-
 // `T::C` and `U::C` are associated constants of two unrelated types, so nothing
-// relates their values. Until `ConstDefId` carries the trait ref's generic
-// arguments, every instantiation of an associated constant converts to the same
-// symbol and this is wrongly accepted.
+// relates their values. This is only rejected because `ConstDefId` carries the
+// trait ref's generic arguments; without them every instantiation of an
+// associated constant would convert to the same symbol.
 
 trait Tr {
     const C: bool;

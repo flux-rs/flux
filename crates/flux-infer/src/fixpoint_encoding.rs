@@ -556,6 +556,9 @@ type ConstMap<'tcx> = FxIndexMap<ConstKey<'tcx>, fixpoint::ConstDecl>;
 #[derive(Eq, Hash, PartialEq, Clone)]
 pub(crate) enum ConstKey<'tcx> {
     RustConst(DefId),
+    /// An instantiation of an associated constant. Keyed on the generic arguments so that
+    /// different instantiations get different fixpoint constants.
+    AssocConst(DefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Lambda(Lambda),
     PrimOp(rty::BinOp),
@@ -1767,8 +1770,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let args = self.exprs_to_fixpoint(args, scx)?;
                 fixpoint::Expr::App(Box::new(fixpoint::Expr::Var(ctor)), None, args, None)
             }
-            rty::ExprKind::ConstDefId(did) => {
-                let var = self.define_const_for_rust_const(*did, scx);
+            rty::ExprKind::ConstDefId(did, args) => {
+                let var = if args.is_empty() {
+                    self.define_const_for_rust_const(*did, scx)
+                } else {
+                    self.define_const_for_assoc_const(*did, args, scx)?
+                };
                 fixpoint::Expr::Var(var)
             }
             rty::ExprKind::App(func, sort_args, args) => {
@@ -2276,6 +2283,46 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name
     }
 
+    /// Returns the constant used to represent one instantiation of an associated constant,
+    /// creating and adding it to the const_map if necessary. Unlike an alias refinement this is
+    /// not a function: an associated constant takes no refinement arguments, so it encodes as a
+    /// plain constant of the constant's own sort.
+    fn define_const_for_assoc_const(
+        &mut self,
+        def_id: DefId,
+        args: &rty::GenericArgs,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::Var> {
+        let tcx = self.genv.tcx();
+        let rustc_args = args
+            .to_rustc(tcx)
+            .truncate_to(tcx, tcx.generics_of(tcx.parent(def_id)));
+        // See <https://github.com/flux-rs/flux/issues/1510#issuecomment-3953871782> as an example
+        // for why we erase regions.
+        let rustc_args = tcx.erase_and_anonymize_regions(rustc_args);
+        let key = ConstKey::AssocConst(def_id, rustc_args);
+        let sort = self
+            .genv
+            .constant_info(def_id)?
+            .sort()
+            .cloned()
+            .unwrap_or_else(|| bug!("associated constant without a sort {def_id:?}"));
+        Ok(self
+            .const_env
+            .get_or_insert(key, |global_name| {
+                fixpoint::ConstDecl {
+                    name: fixpoint::Var::Const(global_name, None),
+                    sort: scx.sort_to_fixpoint(&sort),
+                    comment: Some(format!(
+                        "assoc const: {} at {:?}",
+                        def_id_to_string(def_id),
+                        rustc_args
+                    )),
+                }
+            })
+            .name)
+    }
+
     /// returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it
     /// to the const_map if necessary
     fn define_const_for_alias_reft(
@@ -2449,7 +2496,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         Box::new(constraint),
                     );
                 }
-                ConstKey::Alias(..)
+                // The value of an associated constant, if known, is supplied during
+                // normalization rather than assumed here.
+                ConstKey::AssocConst(..)
+                | ConstKey::Alias(..)
                 | ConstKey::Cast(..)
                 | ConstKey::Lambda(..)
                 | ConstKey::PrimOp(..)
