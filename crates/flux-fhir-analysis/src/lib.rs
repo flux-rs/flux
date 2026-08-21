@@ -220,9 +220,10 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(None), .. })
         | fhir::Node::AnonConst
         | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const, .. }) => {
-            // For other constants, we try to evaluate them if they are integral
+            // For other constants, we try to evaluate them if they are of a scalar type we can
+            // represent in the refinement logic.
             if let Some(ty) = tcx.type_of(def_id).no_bound_vars()
-                && ty.is_integral()
+                && (ty.is_integral() || ty.is_bool() || ty.is_char())
                 && let Ok(val) = tcx.const_eval_poly(def_id.resolved_id())
                 && let Some(val) = val.try_to_scalar_int()
                 && let Some(constant_) = rty::Constant::from_scalar_int(tcx, val, &ty)
@@ -231,7 +232,7 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
                 // fails instead of silently ignore it.
                 Ok(rty::ConstantInfo::interpreted(
                     rty::EarlyBinder(rty::Expr::constant(constant_)),
-                    rty::Sort::Int,
+                    sort,
                 ))
             } else {
                 Ok(rty::ConstantInfo::opaque(sort))

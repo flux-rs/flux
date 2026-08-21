@@ -1,5 +1,3 @@
-//@ignore-test: integration test for associated constants in refinements (steps 1-5)
-
 // Split into smaller staged tests in assoc_const02.rs .. assoc_const06.rs.
 
 trait TraitWithConst {

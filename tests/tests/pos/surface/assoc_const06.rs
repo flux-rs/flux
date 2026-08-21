@@ -1,5 +1,3 @@
-//@ignore-test: needs normalization to fall back to a trait default (step 5)
-
 // `Inherit` does not define `IS_ZST`, so there is no impl item to look up and
 // normalization has to fall back to the trait's own default body. Confirmed
 // against rustc: MIR still reports `def` as the *trait* item here, exactly as
