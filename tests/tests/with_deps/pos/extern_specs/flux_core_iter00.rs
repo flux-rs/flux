@@ -75,10 +75,3 @@ pub fn test_take_beyond_end(xs: &[i32]) {
         assert(i < xs.len());
     }
 }
-
-// #[flux_rs::spec(fn(xs: [i32{v: v < 99}; _]))]
-// pub fn test_inner_value(xs: [i32; 5]) {
-//   for x in xs {
-//       assert(x < 99);
-//   }
-// }
