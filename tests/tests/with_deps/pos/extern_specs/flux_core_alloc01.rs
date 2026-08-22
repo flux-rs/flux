@@ -52,7 +52,9 @@ pub unsafe fn test_deallocate<A: Allocator>(a: &A, ptr: NonNull<u8>, layout: Lay
     a.deallocate(ptr, layout);
 }
 
-// The layout may be more aligned than the address requires it to be.
+// KNOWN APPROXIMATION, not a guarantee: this is UB if the block was allocated with align 16,
+// and Flux accepts it anyway, since `layout_fits` can only check the address against
+// `layout.align()` — see the note on alignment in `flux_core::alloc::allocator`.
 #[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], layout: Layout[@lsize, @lalign])
     requires base == addr && lsize == size && addr % 16 == 0 && lalign == 8)]
 pub unsafe fn test_deallocate_aligned<A: Allocator>(a: &A, ptr: NonNull<u8>, layout: Layout) {

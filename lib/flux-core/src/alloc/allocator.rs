@@ -1,24 +1,14 @@
 #![flux::defs {
-    // A layout *fits* a memory block when the block is aligned to `layout.align()` and
-    // `layout.size()` lands in `min ..= max`, where `min` is the size of the layout most
-    // recently used to allocate the block and `max` is the actual size handed back by
-    // `allocate`, `grow` or `shrink`.
+    // A layout *fits* a block when the block is aligned to `layout.align()` and its size
+    // lands between the size it was allocated with and the size actually handed back.
+    // `NonNull` carries one size index, so we collapse that interval and track a block as
+    // exactly the `layout.size()` it was allocated with; keeping only the upper bound would
+    // admit deallocating with a smaller layout than was allocated, which is UB.
     // See: https://doc.rust-lang.org/std/alloc/trait.Allocator.html#memory-fitting
     //
-    // We collapse that interval. Those three methods return a block whose tracked size is
-    // exactly the requested `layout.size()`, so `min == max == p.size` and one equation
-    // covers both bounds. Only tracking the upper bound (`l.size <= p.size`) would let a
-    // caller deallocate — or grow/shrink — with a layout *smaller* than the one it
-    // allocated with, which is UB. The price is that the surplus an allocator may return
-    // above `layout.size()` is dropped on the floor: it cannot be proven in bounds.
-    //
-    // The `base == addr` conjunct says the pointer denotes the *start* of its allocation,
-    // which is what "currently allocated via this allocator" amounts to in our model:
-    // every such pointer came out of `allocate`, `grow` or `shrink`.
-    //
-    // Alignment stays approximate: fitting demands the block was allocated with *the same*
-    // alignment as `layout.align()`, but the pointer does not carry the alignment it was
-    // allocated with, so all we can check is that its address is a multiple of it.
+    // Weaker than the "currently allocated via this allocator" the methods below require:
+    // provenance, liveness and allocator identity are not checked, and the alignment checked
+    // is the address's, not the one the block was allocated with. Those clauses are assumed.
     fn layout_fits(p: NonNull, l: Layout) -> bool {
         p.base == p.addr && l.size == p.size && p.addr % l.align == 0
     }
@@ -36,7 +26,8 @@ trait Allocator {
     /// Core impl: https://github.com/rust-lang/rust/blob/dab8d9d1066c4c95008163c7babf275106ce3f32/library/core/src/alloc/mod.rs#L133
     /// On success the block meets the size and alignment guarantees of `layout`. The real
     /// block may be larger than `layout.size()`; we track it as exactly `layout.size()`,
-    /// which under-approximates its extent — see `layout_fits`.
+    /// which under-approximates its extent — see `layout_fits`. Initialization is not
+    /// tracked either, so reading out of a freshly allocated block type-checks.
     #[spec(fn(&Self, layout: Layout[@l])
         -> Result<NonNull<[u8]>{p: layout_fits(p, l)}, AllocError>)]
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError>;
@@ -48,13 +39,17 @@ trait Allocator {
     fn allocate_zeroed(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/dab8d9d1066c4c95008163c7babf275106ce3f32/library/core/src/alloc/mod.rs#L166
-    /// - `ptr` must denote a block of memory currently allocated via this allocator, and
+    /// - `ptr` must denote a block of memory currently allocated via this allocator
+    ///   (assumed, not checked), and
     /// - `layout` must fit that block of memory.
+    ///
+    /// Deallocating does not invalidate `ptr`, so a later use of it is not rejected.
     #[spec(fn(&Self, ptr: NonNull<u8>[@p], layout: Layout[@l]) requires layout_fits(p, l))]
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout);
 
     /// Core impl: https://github.com/rust-lang/rust/blob/dab8d9d1066c4c95008163c7babf275106ce3f32/library/core/src/alloc/mod.rs#L206
-    /// - `ptr` must denote a block of memory currently allocated via this allocator,
+    /// - `ptr` must denote a block of memory currently allocated via this allocator (assumed,
+    ///   not checked),
     /// - `old_layout` must fit that block (`new_layout` need not), and
     /// - `new_layout.size()` must be greater than or equal to `old_layout.size()`.
     ///
@@ -82,7 +77,8 @@ trait Allocator {
     ) -> Result<NonNull<[u8]>, AllocError>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/dab8d9d1066c4c95008163c7babf275106ce3f32/library/core/src/alloc/mod.rs#L333
-    /// - `ptr` must denote a block of memory currently allocated via this allocator,
+    /// - `ptr` must denote a block of memory currently allocated via this allocator (assumed,
+    ///   not checked),
     /// - `old_layout` must fit that block (`new_layout` need not), and
     /// - `new_layout.size()` must be smaller than or equal to `old_layout.size()`.
     ///
