@@ -7,30 +7,52 @@ use core::{
     ptr::NonNull,
 };
 
-// Implementing `Allocator` under these specs. The trait's postcondition on `allocate` is
-// an obligation on every impl: the impl's own signature has to entail it, so an impl that
-// says nothing is rejected. There are two ways to discharge it.
+use flux_rs::defs;
 
-// 1. Prove it — restate the trait's postcondition on the impl method. This is the honest
-//    option, and the only one that actually checks the allocator against the contract.
-struct Checked;
+// Import the predicate rather than copying its body, which would go stale.
+defs! {
+    use flux_core::alloc::allocator::layout_fits;
+}
 
-unsafe impl Allocator for Checked {
+// The trait's postcondition on `allocate` is an obligation on every impl, so an impl that
+// says nothing is rejected — see `neg/extern_specs/flux_core_alloc02.rs`. Two ways to
+// discharge it.
+
+// 1. Prove it — restate the postcondition on the impl method. `Slab` hands out its whole
+//    block and nothing smaller, so it can only serve a request for exactly `self.len`
+//    bytes, which is what makes the block exactly `layout.size()` long.
+#[flux::refined_by(base: int, addr: int, size: int)]
+#[flux::invariant(base == addr && size >= 0)]
+struct Slab {
+    #[flux::field(NonNull<u8>[base, addr, size])]
+    block: NonNull<u8>,
+    #[flux::field(usize[size])]
+    len: usize,
+    #[flux::field(usize[addr])]
+    addr: usize,
+}
+
+unsafe impl Allocator for Slab {
     #[flux::spec(fn(&Self, layout: Layout[@l])
-        -> Result<NonNull<[u8]>{p: p.base == p.addr && l.size == p.size && p.addr % l.align == 0},
-                  AllocError>)]
-    fn allocate(&self, _layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-        Err(AllocError)
+        -> Result<NonNull<[u8]>{p: layout_fits(p, l)}, AllocError>)]
+    fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
+        // Both guards are load-bearing: dropping either leaves a conjunct unprovable.
+        if layout.size() != self.len {
+            return Err(AllocError);
+        }
+        if self.addr % layout.align() != 0 {
+            return Err(AllocError);
+        }
+        Ok(NonNull::slice_from_raw_parts(self.block, layout.size()))
     }
 
     unsafe fn deallocate(&self, _ptr: NonNull<u8>, _layout: Layout) {}
 }
 
-// 2. Assume it — `#[flux::trusted_impl]` skips the impl-vs-trait check for that method.
-//    `Allocator` is an `unsafe trait`, so `unsafe impl` already asserts this contract;
-//    this makes Flux take the implementor at their word. Note that plain
-//    `#[flux::trusted]` does NOT work here: the obligation is on the signature, not the
-//    body, so skipping body checking does not discharge it.
+// 2. Assume it — `#[flux::trusted_impl]` skips the impl-vs-trait check, taking the
+//    implementor at their word. This is the escape hatch for an allocator that cannot state
+//    its block sizes precisely enough to prove `layout_fits`. Plain `#[flux::trusted]` does
+//    NOT work: the obligation is on the signature, not the body.
 struct Trusted;
 
 unsafe impl Allocator for Trusted {
