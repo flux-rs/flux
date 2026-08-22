@@ -657,13 +657,18 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                             rty::Constant::from_scalar_int(genv.tcx(), val, &ty)
                         });
                         if let Some(constant_) = val {
-                            return Ok(rty::ConstantInfo::Interpreted(
-                                rty::Expr::constant(constant_),
+                            return Ok(rty::ConstantInfo::interpreted(
+                                rty::EarlyBinder(rty::Expr::constant(constant_)),
                                 rty::Sort::Int,
                             ));
                         }
                     }
-                    Ok(rty::ConstantInfo::Uninterpreted)
+                    // We don't know the value, but the constant can still be mentioned in a
+                    // refinement as an opaque symbol if its type has a sort.
+                    match genv.sort_of_def_id(def_id)? {
+                        Some(sort) => Ok(rty::ConstantInfo::opaque(sort)),
+                        None => Ok(rty::ConstantInfo::unsupported()),
+                    }
                 },
             )
         })

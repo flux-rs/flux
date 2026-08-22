@@ -204,7 +204,7 @@ fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
 fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::ConstantInfo> {
     let node = genv.fhir_node(def_id.local_id())?;
     let Some(sort) = genv.sort_of_def_id(def_id.resolved_id()).emit(&genv)? else {
-        return Ok(rty::ConstantInfo::Uninterpreted);
+        return Ok(rty::ConstantInfo::unsupported());
     };
     let tcx = genv.tcx();
     match node {
@@ -215,27 +215,46 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
             let expr = AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_constant_expr(expr)?;
-            Ok(rty::ConstantInfo::Interpreted(expr, sort))
+            Ok(rty::ConstantInfo::interpreted(rty::EarlyBinder(expr), sort))
+        }
+        fhir::Node::ImplItem(fhir::ImplItem {
+            kind: fhir::ImplItemKind::Const(Some(expr)),
+            ..
+        }) => {
+            // As above, but the value may mention the generics of the impl, so we bind it under
+            // them and let normalization instantiate it at the impl's arguments.
+            let owner = def_id.map(|def_id| rustc_hir::OwnerId { def_id });
+            let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
+            let expr = AfterSortck::new(genv, &wfckresults)
+                .into_conv_ctxt()
+                .conv_constant_expr(expr)?;
+            Ok(rty::ConstantInfo::interpreted(rty::EarlyBinder(expr), sort))
         }
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(None), .. })
         | fhir::Node::AnonConst
-        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const, .. }) => {
-            // For other constants, we try to evaluate them if they are integral
+        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const(None), .. }) => {
+            // For other constants, we try to evaluate them if they are of a scalar type we can
+            // represent in the refinement logic.
             if let Some(ty) = tcx.type_of(def_id).no_bound_vars()
-                && ty.is_integral()
+                && (ty.is_integral() || ty.is_bool() || ty.is_char())
                 && let Ok(val) = tcx.const_eval_poly(def_id.resolved_id())
                 && let Some(val) = val.try_to_scalar_int()
                 && let Some(constant_) = rty::Constant::from_scalar_int(tcx, val, &ty)
             {
                 // FIXME(nilehmann) we should probably report an error in case const evaluation
                 // fails instead of silently ignore it.
-                Ok(rty::ConstantInfo::Interpreted(rty::Expr::constant(constant_), rty::Sort::Int))
+                Ok(rty::ConstantInfo::interpreted(
+                    rty::EarlyBinder(rty::Expr::constant(constant_)),
+                    sort,
+                ))
             } else {
-                Ok(rty::ConstantInfo::Uninterpreted)
+                Ok(rty::ConstantInfo::opaque(sort))
             }
         }
         fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. }) => {
-            Ok(rty::ConstantInfo::Uninterpreted)
+            // The value of a constant declared in a trait depends on the impl, so all we know
+            // here is its sort. It is resolved to a value, if there is one, during normalization.
+            Ok(rty::ConstantInfo::opaque(sort))
         }
         _ => Err(query_bug!(def_id.local_id(), "expected const item"))?,
     }
@@ -458,6 +477,10 @@ fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Gener
         | DefKind::Closure
         | DefKind::TraitAlias
         | DefKind::Ctor(..)
+        // A constant has no generics of its own, but a `#[flux::constant]` annotation on an
+        // associated constant may mention the generics of the impl it is defined in.
+        | DefKind::Const
+        | DefKind::AssocConst
         | DefKind::Static { .. } => refining::refine_generics(&genv.lower_generics_of(def_id)),
         kind => {
             Err(query_bug!(

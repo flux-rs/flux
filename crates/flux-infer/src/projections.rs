@@ -7,8 +7,8 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind,
-        EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs, Region,
-        Sort, SubsetTy, SubsetTyCtor, Ty, TyKind, TyOrBase,
+        EarlyBinder, Expr, ExprKind, GenericArg, GenericArgsExt as _, List, ProjectionPredicate,
+        RefineArgs, Region, Sort, SubsetTy, SubsetTyCtor, Ty, TyKind, TyOrBase,
         fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
         refining::Refiner,
         subst::{GenericsSubstDelegate, GenericsSubstFolder},
@@ -470,17 +470,28 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
     }
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
-        if let ExprKind::Alias(alias_pred, refine_args) = expr.kind() {
-            let (changed, e) = normalize_alias_reft(
-                self.genv(),
-                self.def_id(),
-                self.selcx.infcx,
-                alias_pred,
-                refine_args,
-            )?;
-            if changed { e.try_fold_with(self) } else { Ok(e) }
-        } else {
-            expr.try_super_fold_with(self)
+        match expr.kind() {
+            ExprKind::Alias(alias_pred, refine_args) => {
+                let (changed, e) = normalize_alias_reft(
+                    self.genv(),
+                    self.def_id(),
+                    self.selcx.infcx,
+                    alias_pred,
+                    refine_args,
+                )?;
+                if changed { e.try_fold_with(self) } else { Ok(e) }
+            }
+            ExprKind::ConstDefId(assoc_id, args) if !args.is_empty() => {
+                let (changed, e) = normalize_assoc_const(
+                    self.genv(),
+                    self.def_id(),
+                    self.selcx.infcx,
+                    *assoc_id,
+                    args,
+                )?;
+                if changed { e.try_fold_with(self) } else { Ok(e) }
+            }
+            _ => expr.try_super_fold_with(self),
         }
     }
 
@@ -768,12 +779,74 @@ pub fn structurally_normalize_expr<'tcx>(
     infcx: &rustc_infer::infer::InferCtxt<'tcx>,
     expr: &Expr,
 ) -> QueryResult<Expr> {
-    if let ExprKind::Alias(alias_pred, refine_args) = expr.kind() {
-        let (_, e) = normalize_alias_reft(genv, def_id, infcx, alias_pred, refine_args)?;
-        Ok(e)
-    } else {
-        Ok(expr.clone())
+    match expr.kind() {
+        ExprKind::Alias(alias_pred, refine_args) => {
+            let (_, e) = normalize_alias_reft(genv, def_id, infcx, alias_pred, refine_args)?;
+            Ok(e)
+        }
+        ExprKind::ConstDefId(assoc_id, args) if !args.is_empty() => {
+            let (_, e) = normalize_assoc_const(genv, def_id, infcx, *assoc_id, args)?;
+            Ok(e)
+        }
+        _ => Ok(expr.clone()),
     }
+}
+
+/// Normalizes a constant declared in a trait, mirroring [`normalize_alias_reft`]: we use the
+/// trait solver to find the impl and take the value of the constant defined there, if we know
+/// one. Falls back to const evaluation, which resolves through the impl itself and so also
+/// covers a constant the impl inherits from the trait's default.
+fn normalize_assoc_const<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
+    def_id: DefId,
+    infcx: &rustc_infer::infer::InferCtxt<'tcx>,
+    assoc_id: DefId,
+    args: &rty::GenericArgs,
+) -> QueryResult<(bool, Expr)> {
+    let tcx = genv.tcx();
+    let trait_id = tcx.parent(assoc_id);
+    let param_env = tcx.param_env(def_id);
+
+    let rustc_args = args
+        .to_rustc(tcx)
+        .truncate_to(tcx, tcx.generics_of(trait_id));
+    let rustc_args = tcx.erase_and_anonymize_regions(rustc_args);
+
+    // 1. Find the impl and use the value of the constant defined there. This is the path a
+    //    `#[flux::constant]` annotation on the impl's constant flows through, so it takes
+    //    precedence over const evaluation below.
+    let mut selcx = SelectionContext::new(infcx);
+    let trait_ref = rustc_middle::ty::TraitRef::new_from_args(tcx, trait_id, rustc_args);
+    let trait_pred = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
+    if let Ok(Some(ImplSource::UserDefined(impl_data))) = selcx.select(&trait_pred) {
+        let impl_def_id = impl_data.impl_def_id;
+        if let Some(impl_item) = tcx.impl_item_implementor_ids(impl_def_id).get(&assoc_id)
+            && let Some(value) = genv.constant_info(*impl_item)?.value()
+        {
+            let impl_args = Refiner::default_for_item(genv, def_id)?.refine_generic_args(
+                impl_def_id,
+                &impl_data
+                    .args
+                    .lower(tcx)
+                    .map_err(|reason| query_bug!("{reason:?}"))?,
+            )?;
+            return Ok((true, value.clone().instantiate(tcx, &impl_args, &[])));
+        }
+    }
+
+    // 2. Otherwise try to evaluate it.
+    let uneval = rustc_middle::mir::UnevaluatedConst::new(assoc_id, rustc_args);
+    if let Some(ty) = tcx.type_of(assoc_id).no_bound_vars()
+        && (ty.is_integral() || ty.is_bool() || ty.is_char())
+        && let Ok(val) =
+            tcx.const_eval_resolve(infcx.typing_env(param_env), uneval, rustc_span::DUMMY_SP)
+        && let Some(scalar) = val.try_to_scalar_int()
+        && let Some(constant_) = rty::Constant::from_scalar_int(tcx, scalar, &ty)
+    {
+        return Ok((true, Expr::constant(constant_)));
+    }
+
+    Ok((false, Expr::const_def_id(assoc_id, args.clone())))
 }
 
 /// Normalizes an [`AliasReft`]. This uses the trait solver to find the [`ImplSourceUserDefinedData`]
