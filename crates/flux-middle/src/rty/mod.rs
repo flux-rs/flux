@@ -1284,15 +1284,10 @@ pub enum SortArg {
     BvSize(BvSize),
 }
 
-/// What we know about a Rust constant in the refinement logic.
-///
-/// A constant without a [sort] cannot be mentioned in a refinement at all. A constant with a
-/// sort but no [value] is an opaque symbol: we know what sort of thing it is, but not which
-/// one. This is the case for a constant declared in a trait, whose value only becomes known
-/// once we know the impl.
-///
-/// [sort]: ConstantInfo::sort
-/// [value]: ConstantInfo::value
+/// Constants without a sort (i.e. None) cannot appear in refinements.
+/// Constants with sort, but no `value` are "opaque" i.e. uninterpreted (e.g. a constant declared in a trait).
+/// We need the `EarlyBinder<...>` because the value of an associated constant may mention the generics of its impl,
+/// so we need to early bind over those generics.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct ConstantInfo {
     sort: Option<Sort>,
