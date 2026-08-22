@@ -69,7 +69,7 @@ impl<T> TraitWithConst for Blingy<T> {
 // look up and normalization has to fall back to the trait's own
 // default body.
 
-trait TraitWithConst {
+trait AnotherTraitWithConst {
     const IS_ZST: bool = false;
 
     #[flux::spec(fn() -> u32{v: if Self::IS_ZST { v == 0 } else { 10 < v }})]
@@ -78,7 +78,7 @@ trait TraitWithConst {
 
 struct Inherit;
 
-impl TraitWithConst for Inherit {
+impl AnotherTraitWithConst for Inherit {
     #[flux::spec(fn() -> u32[15])]
     fn silly_method() -> u32 {
         15
