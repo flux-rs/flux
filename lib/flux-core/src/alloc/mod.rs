@@ -1,5 +1,5 @@
 #[cfg(any(flux, doc))]
-mod allocator;
+pub mod allocator;
 
 #[cfg(any(flux, doc))]
 mod layout;
