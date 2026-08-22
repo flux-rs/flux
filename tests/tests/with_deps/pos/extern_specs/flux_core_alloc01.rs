@@ -109,3 +109,26 @@ pub unsafe fn test_shrink_new_align<A: Allocator>(a: &A, ptr: NonNull<u8>, old: 
         check_block(block, 16, 32);
     }
 }
+
+// --- round trip ---
+
+// `allocate` returns a `NonNull<[u8]>` and `deallocate` takes a `NonNull<u8>`; `cast`
+// carries the indices across, so the allocating layout still fits.
+pub fn test_allocate_then_deallocate<A: Allocator>(a: &A) {
+    let layout = Layout::from_size_align(16, 8).unwrap();
+    if let Ok(block) = a.allocate(layout) {
+        let ptr = block.cast::<u8>();
+        unsafe { a.deallocate(ptr, layout) };
+    }
+}
+
+// The same round trip through `grow`, which both consumes and produces a block.
+pub fn test_allocate_then_grow_then_deallocate<A: Allocator>(a: &A) {
+    let old = Layout::from_size_align(16, 8).unwrap();
+    let new = Layout::from_size_align(32, 8).unwrap();
+    if let Ok(block) = a.allocate(old) {
+        if let Ok(grown) = unsafe { a.grow(block.cast::<u8>(), old, new) } {
+            unsafe { a.deallocate(grown.cast::<u8>(), new) };
+        }
+    }
+}

@@ -143,3 +143,25 @@ pub unsafe fn test_shrink_overaligned<A: Allocator>(a: &A, ptr: NonNull<u8>, old
         check_block(block, 8, 16); //~ ERROR refinement type
     }
 }
+
+// --- round trip ---
+
+// `cast` carries the indices across, so it cannot launder a layout that does not fit.
+pub fn test_allocate_then_deallocate_wrong_layout<A: Allocator>(a: &A) {
+    let layout = Layout::from_size_align(16, 8).unwrap();
+    let other = Layout::from_size_align(8, 8).unwrap();
+    if let Ok(block) = a.allocate(layout) {
+        unsafe { a.deallocate(block.cast::<u8>(), other) }; //~ ERROR refinement type
+    }
+}
+
+// Nor can `slice_from_raw_parts`: rebuilding the block as a shorter slice does not shrink
+// its recorded size, so `deallocate` still sees the 16 bytes it was allocated with.
+pub fn test_allocate_then_deallocate_narrowed_slice<A: Allocator>(a: &A) {
+    let layout = Layout::from_size_align(16, 8).unwrap();
+    let other = Layout::from_size_align(8, 8).unwrap();
+    if let Ok(block) = a.allocate(layout) {
+        let narrowed = NonNull::slice_from_raw_parts(block.cast::<u8>(), 8);
+        unsafe { a.deallocate(narrowed.cast::<u8>(), other) }; //~ ERROR refinement type
+    }
+}
