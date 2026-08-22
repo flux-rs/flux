@@ -250,3 +250,35 @@ FLUXFLAGS="-Fflux-verbose" cargo flux
 ```
 
 This will make flux print out a log of what it is upto, e.g. the name of the last function checked. This is helpful, e.g. if flux ICEs (hits an internal error), so you can see _which_ function's code caused the issue, so you might mark it as `trusted`, so flux can skip checking its body, and hence, live to fight another day...
+
+### Call/Dependency Graph
+
+The `-Fdump-call-graph` flag makes `flux` generate two dependency graphs for the local crate
+or file being checked:
+
+- `log/call_graph.json` — the **function call graph**: each node is a local function, and its
+  `deps` are the other local functions it calls.
+- `log/type_graph.json` — the **type dependency graph**: each node is a local struct or enum,
+  and its `deps` are the other local types referenced in its field definitions.
+
+Both files are JSON arrays of nodes, topologically sorted so that dependencies appear before
+dependents (leaves first). Each node has the following fields:
+
+| Field  | Type       | Description                                      |
+|--------|------------|--------------------------------------------------|
+| `uid`  | `number`   | Unique integer id (matches the array index)       |
+| `path` | `string`   | The definition's path (e.g. `my_crate::foo::bar`) |
+| `span` | `object`   | Source location (`file`, `start_line`, `start_col`, `end_line`, `end_col`) |
+| `deps` | `number[]` | UIDs of the nodes this node depends on            |
+
+Usage:
+
+```
+cargo xtask run path/to/file.rs -- -Fdump-call-graph
+```
+
+or
+
+```
+FLUXFLAGS="-Fdump-call-graph" cargo flux check
+```
