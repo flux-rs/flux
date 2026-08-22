@@ -2298,8 +2298,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(expr)
     }
 
-    /// Convert a constant whose value we require to be known, either because it is integral
-    /// (and so const-evaluated) or because the user gave it a `#[flux::constant]` annotation.
+    /// Convert a constant whose value we require to be known, as it is integral or the user
+    /// or because the user gave it a `#[flux::constant]` annotation.
     /// Such a constant is referred to without generic arguments.
     fn conv_const(&self, span: Span, def_id: DefId) -> QueryResult<(rty::Expr, rty::Sort)> {
         let info = self.genv().constant_info(def_id)?;
@@ -2309,10 +2309,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         self.conv_opaque_const(span, def_id, List::empty())
     }
 
-    /// Convert a constant we are content to leave opaque. We only need its sort: the symbol
-    /// stands for whatever value the constant has, which for a constant declared in a trait is
-    /// only determined once we know the impl. `args` distinguishes the instantiations of the
-    /// constant from one another.
+    /// Convert an opaque constant for which we only need the sort; the `args`
+    /// will distinguishes the instantiations of the constant from one another.
     fn conv_opaque_const(
         &self,
         span: Span,
