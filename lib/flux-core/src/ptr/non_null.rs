@@ -118,6 +118,10 @@ impl<T> NonNull<T> {
     unsafe fn write(self, val: T)
     where
         T: Sized;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L503
+    #[spec(fn(NonNull<T>[@base, @addr, @size]) -> NonNull<U>[base, addr, size])]
+    fn cast<U>(self) -> NonNull<U>;
 }
 
 #[extern_spec(core::ptr)]
