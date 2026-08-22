@@ -24,6 +24,9 @@
     }
 }]
 
+// Unused to rustc — `Layout` appears only in `spec` attributes — but Flux resolves the
+// `Layout` sort in `layout_fits` through this import.
+#[allow(unused_imports)]
 use core::{alloc::Layout, ptr::NonNull};
 
 use flux_attrs::*;

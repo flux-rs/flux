@@ -1,5 +1,5 @@
 #[cfg(flux)]
-mod allocator;
+pub mod allocator;
 
 #[cfg(flux)]
 mod layout;
