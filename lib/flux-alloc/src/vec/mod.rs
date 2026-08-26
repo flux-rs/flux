@@ -10,6 +10,7 @@ use flux_attrs::*;
 #[extern_spec]
 #[refined_by(len: int)]
 #[invariant(0 <= len)]
+#[invariant(len * T::size_of() <= isize::MAX)]
 struct Vec<T, A: Allocator = Global>;
 
 //---------------------------------------------------------------------------------------
