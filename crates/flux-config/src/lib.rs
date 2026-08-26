@@ -30,6 +30,10 @@ pub fn dump_constraint() -> bool {
     FLAGS.dump_constraint
 }
 
+pub fn dump_fn_sig_deps() -> bool {
+    FLAGS.dump_fn_sig_deps
+}
+
 pub fn dump_fhir() -> bool {
     FLAGS.dump_fhir
 }

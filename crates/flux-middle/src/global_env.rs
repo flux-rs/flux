@@ -13,7 +13,10 @@ use flux_config::{self as config, IncludePattern};
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
-use rustc_data_structures::unord::{UnordMap, UnordSet};
+use rustc_data_structures::{
+    fx::FxHashSet,
+    unord::{UnordMap, UnordSet},
+};
 use rustc_hir::{
     LangItem,
     def::DefKind,
@@ -66,6 +69,7 @@ struct GlobalEnvInner<'genv, 'tcx> {
     weak_kvars: RefCell<UnordMap<DefId, Rc<WeakKvarMap>>>,
     /// Unmodified local signatures captured before the safety multi-check replaces them.
     actual_fn_sigs: RefCell<UnordMap<DefId, rty::EarlyBinder<rty::PolyFnSig>>>,
+    fn_sig_dependencies: RefCell<UnordMap<DefId, FxHashSet<DefId>>>,
 }
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -90,6 +94,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
             tempdir,
             weak_kvars: Default::default(),
             actual_fn_sigs: Default::default(),
+            fn_sig_dependencies: Default::default(),
         };
         f(GlobalEnv { inner: &inner })
     }
@@ -537,6 +542,25 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn actual_fn_sig(self, def_id: DefId) -> Option<rty::EarlyBinder<rty::PolyFnSig>> {
         self.inner.actual_fn_sigs.borrow().get(&def_id).cloned()
+    }
+
+    pub fn record_fn_sig_dependency(self, caller: DefId, callee: DefId) {
+        if config::dump_fn_sig_deps() {
+            self.inner
+                .fn_sig_dependencies
+                .borrow_mut()
+                .entry(caller)
+                .or_default()
+                .insert(callee);
+        }
+    }
+
+    pub fn fn_sig_dependencies(self, caller: DefId) -> Vec<DefId> {
+        self.inner
+            .fn_sig_dependencies
+            .borrow()
+            .get(&caller)
+            .map_or_else(Vec::new, |callees| callees.iter().copied().collect())
     }
 
     pub fn variants_of(

@@ -368,6 +368,47 @@ fn report_errors(
             err_diag.arg("tag", tag_idx.to_string());
             err_diag.note(crate::fluent_generated::refineck_constraint_log_note);
         }
+        let mut fn_sig_dependencies = genv.fn_sig_dependencies(checked_def_id);
+        fn_sig_dependencies.sort_by_key(|def_id| genv.tcx().def_path_str(*def_id));
+        if !fn_sig_dependencies.is_empty() {
+            let mut note = format!(
+                "function signature dependencies for {}:\n",
+                genv.tcx().def_path_str(checked_def_id)
+            );
+            let mut explicit_sigs = vec![];
+            let mut auto_lifted_sigs = vec![];
+            for def_id in &fn_sig_dependencies {
+                let sig = genv.fn_sig(*def_id).unwrap();
+                let name = genv.tcx().def_path_str(*def_id);
+                if sig.skip_binder_ref().skip_binder_ref().lifted {
+                    auto_lifted_sigs.push(name);
+                } else {
+                    explicit_sigs.push((
+                        name,
+                        format!(
+                            "{:?}",
+                            pretty::with_cx!(
+                                &pretty::PrettyCx::default(genv).hide_regions(true),
+                                &sig
+                            )
+                        ),
+                    ));
+                }
+            }
+            if !explicit_sigs.is_empty() {
+                note.push_str("  Explicit Flux signatures:\n");
+                for (name, sig) in explicit_sigs {
+                    note.push_str(&format!("    {name}: {sig}\n"));
+                }
+            }
+            if !auto_lifted_sigs.is_empty() {
+                note.push_str("  Auto-lifted signatures:\n");
+                for name in auto_lifted_sigs {
+                    note.push_str(&format!("    {name}\n"));
+                }
+            }
+            err_diag.note(note);
+        }
         if multi_query {
             let category = if trivial_wkvids.is_empty() {
                 "legitimate"
