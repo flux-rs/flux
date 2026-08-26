@@ -2007,6 +2007,7 @@ impl BaseTy {
             BaseTy::Int(int_ty) => (int_invariants(*int_ty, overflow_mode), &[][..]),
             BaseTy::Char => (char_invariants(), &[][..]),
             BaseTy::Slice(_) => (slice_invariants(overflow_mode), &[][..]),
+            BaseTy::RawPtr(_, _) => (ptr_invariants(overflow_mode), &[][..]),
             _ => (&[][..], &[][..]),
         };
         invariants
@@ -2887,7 +2888,7 @@ fn slice_invariants(overflow_mode: OverflowMode) -> &'static [Invariant] {
             },
             Invariant {
                 pred: Binder::bind_with_sort(
-                    Expr::le(Expr::nu(), Expr::uint_max(UintTy::Usize)),
+                    Expr::le(Expr::nu(), Expr::int_max(IntTy::Isize)),
                     Sort::Int,
                 ),
             },
@@ -2983,6 +2984,48 @@ fn int_invariants(int_ty: IntTy, overflow_mode: OverflowMode) -> &'static [Invar
         &OVERFLOW[&int_ty]
     } else {
         &DEFAULT
+    }
+}
+
+fn ptr_invariants(overflow_mode: OverflowMode) -> &'static [Invariant] {
+    static DEFAULT: LazyLock<[Invariant; 2]> = LazyLock::new(|| {
+        let nu = Expr::nu();
+        let base = Expr::field_proj(&nu, FieldProj::RawPtr { field: RawPtrField::Base });
+        let addr = Expr::field_proj(nu, FieldProj::RawPtr { field: RawPtrField::Addr });
+        [
+            Invariant { pred: Binder::bind_with_sort(Expr::ge(base, Expr::zero()), Sort::RawPtr) },
+            Invariant { pred: Binder::bind_with_sort(Expr::ge(addr, Expr::zero()), Sort::RawPtr) },
+        ]
+    });
+    static OVERFLOW: LazyLock<[Invariant; 4]> = LazyLock::new(|| {
+        let nu = Expr::nu();
+        let base = Expr::field_proj(&nu, FieldProj::RawPtr { field: RawPtrField::Base });
+        let addr = Expr::field_proj(nu, FieldProj::RawPtr { field: RawPtrField::Addr });
+        [
+            Invariant {
+                pred: Binder::bind_with_sort(Expr::ge(base.clone(), Expr::zero()), Sort::RawPtr),
+            },
+            Invariant {
+                pred: Binder::bind_with_sort(
+                    Expr::le(base, Expr::uint_max(UintTy::Usize)),
+                    Sort::RawPtr,
+                ),
+            },
+            Invariant {
+                pred: Binder::bind_with_sort(Expr::ge(addr.clone(), Expr::zero()), Sort::RawPtr),
+            },
+            Invariant {
+                pred: Binder::bind_with_sort(
+                    Expr::le(addr, Expr::uint_max(UintTy::Usize)),
+                    Sort::RawPtr,
+                ),
+            },
+        ]
+    });
+    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
+        &*OVERFLOW
+    } else {
+        &*DEFAULT
     }
 }
 
