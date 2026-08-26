@@ -2878,8 +2878,19 @@ impl TyKind {
 
 /// returns the same invariants as for `usize` which is the length of a slice
 fn slice_invariants(overflow_mode: OverflowMode) -> &'static [Invariant] {
-    static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
-        [Invariant { pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
+    // HACK: enable overflow only for slices for checking bytes
+    static DEFAULT: LazyLock<[Invariant; 2]> = LazyLock::new(|| {
+        [
+            Invariant {
+                pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
+            },
+            Invariant {
+                pred: Binder::bind_with_sort(
+                    Expr::le(Expr::nu(), Expr::int_max(IntTy::Isize)),
+                    Sort::Int,
+                ),
+            },
+        ]
     });
     static OVERFLOW: LazyLock<[Invariant; 2]> = LazyLock::new(|| {
         [
