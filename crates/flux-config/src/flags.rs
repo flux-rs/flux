@@ -145,8 +145,15 @@ pub struct Flags {
         default_missing_value = "false"
     )]
     pub dump_call_graph: bool,
-    /// Saves the checker's trace (debugging).
-    #[arg(long = flux_arg!("dump-checker-trace"), value_name = "LEVEL")]
+    /// Add the named function signatures used by a failed body check to its diagnostics.
+    #[arg(
+        long = flux_arg!("dump-fn-sig-deps"),
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub dump_fn_sig_deps: bool,
+    /// Saves the checker's trace (debugging)
+    #[arg(long = flux_arg!("dump-checker-trace"), value_name = "LEVEL", value_parser = panicking_parser)]
     pub dump_checker_trace: Option<tracing::Level>,
     /// Saves the `fhir` for each item (debugging).
     #[arg(
@@ -285,6 +292,7 @@ impl Default for Flags {
             lean_project: "lean_proofs".to_string(),
             dump_call_graph: false,
             dump_constraint: false,
+            dump_fn_sig_deps: false,
             dump_checker_trace: None,
             dump_fhir: false,
             dump_rty: false,
@@ -382,6 +390,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "lean-project" => parse_string(&mut flags.lean_project, value),
             "dump-call-graph" => parse_bool(&mut flags.dump_call_graph, value),
             "dump-constraint" => parse_bool(&mut flags.dump_constraint, value),
+            "dump-fn-sig-deps" => parse_bool(&mut flags.dump_fn_sig_deps, value),
             "dump-checker-trace" => parse_opt_level(&mut flags.dump_checker_trace, value),
             "dump-fhir" => parse_bool(&mut flags.dump_fhir, value),
             "dump-rty" => parse_bool(&mut flags.dump_rty, value),

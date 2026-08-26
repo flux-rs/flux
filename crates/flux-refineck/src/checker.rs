@@ -131,6 +131,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 pub(crate) trait Mode: Sized {
     #[expect(dead_code)]
     const NAME: &str;
+    const RECORD_FN_SIG_DEPS: bool;
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
         ck: &mut Checker<'ck, 'genv, 'tcx, Self>,
@@ -944,6 +945,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         };
         if let Some(callee_def_id) = callee_def_id {
             dbg::call!(genv, callee_def_id, body_def_id, span);
+            if M::RECORD_FN_SIG_DEPS && genv.def_kind(callee_def_id).is_fn_like() {
+                genv.record_fn_sig_dependency(self.checker_id.root_id().to_def_id(), callee_def_id);
+            }
         }
 
         let actuals =
@@ -2450,6 +2454,7 @@ fn infer_under_mut_ref_hack(rcx: &mut InferCtxt, actuals: &[Ty], fn_sig: &PolyFn
 
 impl Mode for ShapeMode {
     const NAME: &str = "shape";
+    const RECORD_FN_SIG_DEPS: bool = false;
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
         ck: &mut Checker<'ck, 'genv, 'tcx, ShapeMode>,
@@ -2503,6 +2508,7 @@ impl Mode for ShapeMode {
 
 impl Mode for RefineMode {
     const NAME: &str = "refine";
+    const RECORD_FN_SIG_DEPS: bool = true;
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
         ck: &mut Checker<'ck, 'genv, 'tcx, RefineMode>,
