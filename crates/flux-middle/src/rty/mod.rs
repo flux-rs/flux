@@ -1997,18 +1997,22 @@ impl BaseTy {
         &self,
         genv: GlobalEnv,
         overflow_mode: OverflowMode,
-    ) -> impl Iterator<Item = Invariant> {
-        let (invariants, args) = match self {
-            BaseTy::Adt(adt_def, args) => (adt_def.invariants().skip_binder().to_vec(), &args[..]),
-            BaseTy::Uint(uint_ty) => (uint_invariants(*uint_ty, overflow_mode).to_vec(), &[][..]),
-            BaseTy::Int(int_ty) => (int_invariants(*int_ty, overflow_mode).to_vec(), &[][..]),
-            BaseTy::Char => (char_invariants().to_vec(), &[][..]),
-            BaseTy::Slice(ty) => (slice_invariants(genv, ty, overflow_mode), &[][..]),
-            _ => (vec![], &[][..]),
-        };
-        invariants
-            .into_iter()
-            .map(move |inv| EarlyBinder(&inv).instantiate_ref(genv.tcx(), args, &[]))
+    ) -> std::vec::IntoIter<Invariant> {
+        match self {
+            BaseTy::Adt(adt_def, args) => {
+                adt_def
+                    .invariants()
+                    .iter_identity()
+                    .map(|inv| EarlyBinder(inv).instantiate_ref(genv.tcx(), args, &[]))
+                    .collect()
+            }
+            BaseTy::Uint(uint_ty) => uint_invariants(*uint_ty, overflow_mode).to_vec(),
+            BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_mode).to_vec(),
+            BaseTy::Char => char_invariants().to_vec(),
+            BaseTy::Slice(ty) => slice_invariants(genv, ty, overflow_mode),
+            _ => vec![],
+        }
+        .into_iter()
     }
 
     pub fn to_ty(&self) -> Ty {
