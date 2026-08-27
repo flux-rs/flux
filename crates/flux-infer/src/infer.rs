@@ -534,7 +534,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
         self.cursor
-            .assume_invariants(self.genv.tcx(), ty, self.check_overflow);
+            .assume_invariants(self.genv, ty, self.check_overflow);
     }
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
