@@ -154,6 +154,10 @@ fn run_tests(
 }
 
 fn test(args: Test, rust_fixpoint: bool, suggestions: bool) -> anyhow::Result<()> {
+    Command::new("cargo")
+        .args(["test", "-p", "flux-bin", "--lib"])
+        .run()?;
+
     let dst = local_sysroot_dir()?;
 
     let suites: &[Suite] = if args.suite.is_empty() { Suite::ALL } else { &args.suite };

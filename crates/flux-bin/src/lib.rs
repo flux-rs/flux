@@ -2,6 +2,7 @@ use cargo_metadata::camino::Utf8Path;
 use flux_config::{LeanMode, OverflowMode, SmtSolver};
 use serde::Deserialize;
 
+pub mod cargo_flux;
 pub mod cargo_flux_opts;
 pub mod cargo_style;
 pub mod utils;
