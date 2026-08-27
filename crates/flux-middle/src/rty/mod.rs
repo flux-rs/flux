@@ -1996,23 +1996,22 @@ impl BaseTy {
         matches!(self, BaseTy::Str)
     }
 
-    pub fn invariants(
-        &self,
-        genv: GlobalEnv,
-        overflow_mode: OverflowMode,
-    ) -> impl Iterator<Item = Invariant> {
+    pub fn invariants(&self, genv: GlobalEnv, overflow_mode: OverflowMode) -> Vec<Invariant> {
+        if let BaseTy::Slice(ty) = self {
+            return slice_invariants(genv, ty, overflow_mode);
+        }
         let (invariants, args) = match self {
             BaseTy::Adt(adt_def, args) => (adt_def.invariants().skip_binder().to_vec(), &args[..]),
             BaseTy::Uint(uint_ty) => (uint_invariants(*uint_ty, overflow_mode).to_vec(), &[][..]),
             BaseTy::Int(int_ty) => (int_invariants(*int_ty, overflow_mode).to_vec(), &[][..]),
             BaseTy::Char => (char_invariants().to_vec(), &[][..]),
-            BaseTy::Slice(ty) => (slice_invariants(genv, ty, overflow_mode), &[][..]),
             BaseTy::RawPtr(_, _) => (ptr_invariants(overflow_mode).to_vec(), &[][..]),
             _ => (vec![], &[][..]),
         };
         invariants
             .into_iter()
             .map(move |inv| EarlyBinder(&inv).instantiate_ref(genv.tcx(), args, &[]))
+            .collect()
     }
 
     pub fn to_ty(&self) -> Ty {
