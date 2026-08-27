@@ -44,7 +44,10 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     let metadata = cargo_flux_cmd.metadata().cargo_path(&cargo_path).exec()?;
     let sysroot = flux_sysroot_dir();
     let flux_driver_path = get_flux_driver_path(&sysroot)?;
-    let config_file = write_cargo_config(metadata, &sysroot, &cargo_flux_cmd)?;
+    let flux_flags = env_flags("FLUXFLAGS");
+    let local_flux_flags = env_flags("FLUXLOCALFLAGS");
+    let config_file =
+        write_cargo_config(metadata, &sysroot, &cargo_flux_cmd, &flux_flags, &local_flux_flags)?;
 
     let mut cargo_command = Command::new("cargo");
 
@@ -55,6 +58,7 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     cargo_command
         .env("RUSTC", flux_driver_path)
         .env("RUSTC_WRAPPER", "")
+        .env_remove("FLUXLOCALFLAGS")
         .arg(format!("+{toolchain}"));
 
     cargo_flux_cmd.forward_args(&mut cargo_command, config_file.path());
@@ -62,17 +66,19 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     Ok(cargo_command.status()?.code().unwrap_or(EXIT_ERR))
 }
 
+fn env_flags(name: &str) -> Vec<String> {
+    env::var(name)
+        .map(|flags| flags.split(" ").map(Into::into).collect())
+        .unwrap_or_default()
+}
+
 fn write_cargo_config(
     metadata: Metadata,
     sysroot: &std::path::Path,
     cargo_flux_cmd: &CargoFluxCommand,
+    flux_flags: &[String],
+    local_flux_flags: &[String],
 ) -> anyhow::Result<NamedTempFile> {
-    let flux_flags: Option<Vec<String>> = if let Ok(flags) = env::var("FLUXFLAGS") {
-        Some(flags.split(" ").map(Into::into).collect())
-    } else {
-        None
-    };
-
     let flux_toml = config::Config::builder()
         .add_source(config::File::with_name("flux.toml").required(false))
         .build()?;
@@ -102,6 +108,8 @@ incremental = false
         )?;
 
         for package in metadata.packages {
+            let package_local_flags =
+                if targeted_package_ids.contains(&package.id) { local_flux_flags } else { &[] };
             let flux_metadata: FluxMetadata = config::Config::builder()
                 .add_source(FluxMetadataSource::new(
                     package.manifest_path.to_string(),
@@ -138,7 +146,8 @@ rustflags = [{:?}]
                                 .filter(|_| targeted_package_ids.contains(&package.id))
                         )
                         .iter()
-                        .chain(flux_flags.iter().flatten())
+                        .chain(flux_flags)
+                        .chain(package_local_flags)
                         .map(|s| s.as_str())
                         .chain(["-Fverify=on", "-Ffull-compilation=on", sysroot_flag.as_str()])
                         .format(", ")
@@ -179,6 +188,79 @@ impl config::Source for FluxMetadataSource {
         } else {
             Ok(Default::default())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+
+    fn generated_config(args: &[&str], global_flags: &[&str], local_flags: &[&str]) -> String {
+        let Cli::Flux { check_opts, command, .. } = Cli::parse_from(args);
+        let command = command.unwrap_or(CargoFluxCommand::Check(check_opts));
+        let metadata = command.metadata().exec().unwrap();
+        let global_flags = global_flags
+            .iter()
+            .map(|flag| flag.to_string())
+            .collect::<Vec<_>>();
+        let local_flags = local_flags
+            .iter()
+            .map(|flag| flag.to_string())
+            .collect::<Vec<_>>();
+        let config = write_cargo_config(
+            metadata,
+            &flux_sysroot_dir(),
+            &command,
+            &global_flags,
+            &local_flags,
+        )
+        .unwrap();
+        fs::read_to_string(config.path()).unwrap()
+    }
+
+    fn package_profile<'a>(config: &'a str, package: &str) -> &'a str {
+        config
+            .split("[profile.flux.package.")
+            .find(|profile| profile.contains(package))
+            .unwrap_or_else(|| panic!("generated profile for package {package}"))
+    }
+
+    #[test]
+    fn local_flags_are_only_added_to_targeted_packages() {
+        let global_flags = &["-Fcache=off"];
+        let local_flags = &["-Fsummary=off", "-Fdump-constraint=on"];
+        let config = generated_config(
+            &["cargo", "flux", "check", "-p", "flux-alloc"],
+            global_flags,
+            local_flags,
+        );
+        let targeted = package_profile(&config, "flux-alloc");
+        let dependency = package_profile(&config, "flux-core");
+
+        assert!(targeted.contains("-Fcache=off"));
+        assert!(targeted.contains("-Fsummary=off"));
+        assert!(targeted.contains("-Fdump-constraint=on"));
+        assert!(dependency.contains("-Fcache=off"));
+        assert!(!dependency.contains("-Fsummary=off"));
+        assert!(!dependency.contains("-Fdump-constraint=on"));
+
+        let config = generated_config(
+            &["cargo", "flux", "check", "-p", "flux-alloc", "-p", "flux-core"],
+            global_flags,
+            local_flags,
+        );
+        assert!(package_profile(&config, "flux-alloc").contains("-Fsummary=off"));
+        assert!(package_profile(&config, "flux-core").contains("-Fsummary=off"));
+
+        let config = generated_config(
+            &["cargo", "flux", "check", "--workspace", "--exclude", "flux-core"],
+            global_flags,
+            local_flags,
+        );
+        assert!(package_profile(&config, "flux-alloc").contains("-Fsummary=off"));
+        assert!(!package_profile(&config, "flux-core").contains("-Fsummary=off"));
     }
 }
 

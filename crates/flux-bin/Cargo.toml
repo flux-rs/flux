@@ -7,7 +7,7 @@ edition.workspace = true
 [[bin]]
 doctest = false
 name = "cargo-flux"
-test = false
+test = true
 
 [[bin]]
 doctest = false
