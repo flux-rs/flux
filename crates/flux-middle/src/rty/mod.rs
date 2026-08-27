@@ -53,7 +53,7 @@ pub use rustc_middle::{
 };
 use rustc_middle::{
     query::IntoQueryParam,
-    ty::{TyCtxt, fast_reject::SimplifiedType},
+    ty::{ParamEnv, TyCtxt, TypingEnv, TypingMode, fast_reject::SimplifiedType},
 };
 use rustc_span::{DUMMY_SP, Span, Symbol, sym, symbol::kw};
 use rustc_type_ir::Upcast as _;
@@ -1995,20 +1995,20 @@ impl BaseTy {
 
     pub fn invariants(
         &self,
-        tcx: TyCtxt,
+        genv: GlobalEnv,
         overflow_mode: OverflowMode,
     ) -> impl Iterator<Item = Invariant> {
         let (invariants, args) = match self {
-            BaseTy::Adt(adt_def, args) => (adt_def.invariants().skip_binder(), &args[..]),
-            BaseTy::Uint(uint_ty) => (uint_invariants(*uint_ty, overflow_mode), &[][..]),
-            BaseTy::Int(int_ty) => (int_invariants(*int_ty, overflow_mode), &[][..]),
-            BaseTy::Char => (char_invariants(), &[][..]),
-            BaseTy::Slice(_) => (slice_invariants(overflow_mode), &[][..]),
-            _ => (&[][..], &[][..]),
+            BaseTy::Adt(adt_def, args) => (adt_def.invariants().skip_binder().to_vec(), &args[..]),
+            BaseTy::Uint(uint_ty) => (uint_invariants(*uint_ty, overflow_mode).to_vec(), &[][..]),
+            BaseTy::Int(int_ty) => (int_invariants(*int_ty, overflow_mode).to_vec(), &[][..]),
+            BaseTy::Char => (char_invariants().to_vec(), &[][..]),
+            BaseTy::Slice(ty) => (slice_invariants(genv, ty, overflow_mode), &[][..]),
+            _ => (vec![], &[][..]),
         };
         invariants
-            .iter()
-            .map(move |inv| EarlyBinder(inv).instantiate_ref(tcx, args, &[]))
+            .into_iter()
+            .map(move |inv| EarlyBinder(&inv).instantiate_ref(genv.tcx(), args, &[]))
     }
 
     pub fn to_ty(&self) -> Ty {
@@ -2872,29 +2872,66 @@ impl TyKind {
     }
 }
 
-/// returns the same invariants as for `usize` which is the length of a slice
-fn slice_invariants(overflow_mode: OverflowMode) -> &'static [Invariant] {
-    static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
-        [Invariant { pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
-    });
-    static OVERFLOW: LazyLock<[Invariant; 2]> = LazyLock::new(|| {
-        [
-            Invariant {
-                pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
-            },
-            Invariant {
-                pred: Binder::bind_with_sort(
-                    Expr::le(Expr::nu(), Expr::uint_max(UintTy::Usize)),
-                    Sort::Int,
-                ),
-            },
-        ]
-    });
-    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
-        &*OVERFLOW
-    } else {
-        &*DEFAULT
+/// All slices have 0 <= len <= usize::MAX, with the upper bound subject to overflow checking.
+///
+/// Also subject to overflow checking, slices have len * T::size_of() <=
+/// isize::MAX (see [`std::slice::from_raw_parts`]).
+///   
+/// While this holds for all slices, the above condition reduces to true for ZST
+/// slices, so we omit it. Additionally, for ZST slices, the usize::MAX upper
+/// bound is redundant, so we omit it.
+///
+/// [`std::slice::from_raw_parts`]:
+/// https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html
+fn slice_invariants(genv: GlobalEnv, elem_ty: &Ty, overflow_mode: OverflowMode) -> Vec<Invariant> {
+    let mut invariants = vec![Invariant {
+        pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
+    }];
+    if !matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
+        return invariants;
     }
+
+    let typing_env =
+        TypingEnv { param_env: ParamEnv::empty(), typing_mode: TypingMode::non_body_analysis() };
+    if genv
+        .tcx()
+        .layout_of(typing_env.as_query_input(elem_ty.to_rustc(genv.tcx())))
+        .is_ok_and(|layout| layout.size.bytes() == 0)
+    {
+        invariants.push(Invariant {
+            pred: Binder::bind_with_sort(
+                Expr::le(Expr::nu(), Expr::uint_max(UintTy::Usize)),
+                Sort::Int,
+            ),
+        });
+    } else {
+        // NOTE: in theory we could just unwrap and use the size directly, but
+        // just in case let's explicitly make T::size_of() so that if Flux
+        // changes the behavior of this, slices aren't silently divergent.
+        let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
+        let size_of = Expr::alias(
+            AliasReft {
+                assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::size_of),
+                args: List::from_arr([GenericArg::Base(
+                    elem_ty
+                        .as_bty_skipping_existentials()
+                        .expect("slice element type must have a base type")
+                        .to_subset_ty_ctor(),
+                )]),
+            },
+            List::empty(),
+        );
+        invariants.push(Invariant {
+            pred: Binder::bind_with_sort(
+                Expr::le(
+                    Expr::binary_op(BinOp::Mul(Sort::Int), Expr::nu(), size_of),
+                    Expr::int_max(IntTy::Isize),
+                ),
+                Sort::Int,
+            ),
+        });
+    }
+    invariants
 }
 
 fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [Invariant] {
