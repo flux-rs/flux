@@ -241,6 +241,15 @@ for example, to print timing information for all crates checked by Flux:
 FLUXFLAGS="-Ftimings" cargo flux
 ```
 
+### `FLUXLOCALFLAGS` Environment Variable
+
+Flags defined in `FLUXLOCALFLAGS` are passed only to the packages selected on the command line,
+not to their dependencies. Flags are separated by whitespace. For example:
+
+```console
+FLUXLOCALFLAGS="-Ftimings" cargo flux -p my-package
+```
+
 ### Verbose Flag
 
 One particularly useful flag is

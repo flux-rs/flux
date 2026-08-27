@@ -45,21 +45,11 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     let sysroot = flux_sysroot_dir();
     let flux_driver_path = get_flux_driver_path(&sysroot)?;
     let flux_flags = env_flags("FLUXFLAGS");
-    let local_flux_flags = env_flags("FLUXLOCALFLAGS");
+    let local_flux_flags = local_env_flags();
     let config_file =
         write_cargo_config(metadata, &sysroot, &cargo_flux_cmd, &flux_flags, &local_flux_flags)?;
 
-    let mut cargo_command = Command::new("cargo");
-
-    // We set `RUSTC` as an environment variable and not in in the [build]
-    // section of the config file to make sure we run flux even when the
-    // variable is already set. We also unset `RUSTC_WRAPPER` to avoid
-    // conflicts, e.g., see https://github.com/flux-rs/flux/issues/1155
-    cargo_command
-        .env("RUSTC", flux_driver_path)
-        .env("RUSTC_WRAPPER", "")
-        .env_remove("FLUXLOCALFLAGS")
-        .arg(format!("+{toolchain}"));
+    let mut cargo_command = cargo_command(&toolchain, &flux_driver_path);
 
     cargo_flux_cmd.forward_args(&mut cargo_command, config_file.path());
 
@@ -70,6 +60,32 @@ fn env_flags(name: &str) -> Vec<String> {
     env::var(name)
         .map(|flags| flags.split(" ").map(Into::into).collect())
         .unwrap_or_default()
+}
+
+fn local_env_flags() -> Vec<String> {
+    env::var("FLUXLOCALFLAGS")
+        .map(|flags| parse_local_flags(&flags))
+        .unwrap_or_default()
+}
+
+fn parse_local_flags(flags: &str) -> Vec<String> {
+    flags.split_whitespace().map(Into::into).collect()
+}
+
+fn cargo_command(toolchain: &str, flux_driver_path: &std::path::Path) -> Command {
+    let mut command = Command::new("cargo");
+
+    // We set `RUSTC` as an environment variable and not in in the [build]
+    // section of the config file to make sure we run flux even when the
+    // variable is already set. We also unset `RUSTC_WRAPPER` to avoid
+    // conflicts, e.g., see https://github.com/flux-rs/flux/issues/1155.
+    // FLUXLOCALFLAGS is consumed by cargo-flux and must not leak into children.
+    command
+        .env("RUSTC", flux_driver_path)
+        .env("RUSTC_WRAPPER", "")
+        .env_remove("FLUXLOCALFLAGS")
+        .arg(format!("+{toolchain}"));
+    command
 }
 
 fn write_cargo_config(
@@ -261,6 +277,25 @@ mod tests {
         );
         assert!(package_profile(&config, "flux-alloc").contains("-Fsummary=off"));
         assert!(!package_profile(&config, "flux-core").contains("-Fsummary=off"));
+    }
+
+    #[test]
+    fn local_flags_ignore_surrounding_and_repeated_whitespace() {
+        assert_eq!(
+            parse_local_flags("  -Fsummary=off\t\n-Fdump-constraint=on  "),
+            ["-Fsummary=off", "-Fdump-constraint=on"]
+        );
+    }
+
+    #[test]
+    fn local_flags_are_removed_from_the_cargo_environment() {
+        let command = cargo_command("nightly", std::path::Path::new("flux-driver"));
+
+        assert!(
+            command
+                .get_envs()
+                .any(|(name, value)| { name == "FLUXLOCALFLAGS" && value.is_none() })
+        );
     }
 }
 
