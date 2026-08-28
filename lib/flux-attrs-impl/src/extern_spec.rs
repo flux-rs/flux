@@ -124,7 +124,9 @@ fn doc_target(mod_path: &Option<syn::Path>, ident: &Ident) -> String {
 }
 
 fn doc_source(summary: &str, source: &str) -> String {
-    format!("{summary}\n\n```rust,ignore\n{source}\n```")
+    format!(
+        "{summary}\n\nThis is not a real Rust item; it exists only to document the external specification.\n\n```rust,ignore\n{source}\n```"
+    )
 }
 
 fn stable_doc_hash(source: &str) -> u64 {
@@ -833,6 +835,7 @@ mod tests {
         assert!(tokens.contains("pub struct size_of_valSpec_"));
         assert!(tokens.contains("sig (fn (usize) -> usize)"));
         assert!(tokens.contains("core::mem::size_of_val"));
+        assert!(tokens.contains("not a real Rust item"));
     }
 
     #[test]
