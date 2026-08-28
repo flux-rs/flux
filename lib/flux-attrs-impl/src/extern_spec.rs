@@ -37,26 +37,27 @@ pub(crate) fn transform_extern_spec_doc(
     attr: TokenStream,
     tokens: TokenStream,
 ) -> syn::Result<TokenStream> {
+    let attr_source = attr.to_string();
     let mod_path: Option<syn::Path> =
         if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
     let source = tokens.to_string();
-    let hash = stable_doc_hash(&source);
+    let hash = stable_doc_hash(&format!("{attr_source}|{source}"));
     let item = syn::parse2::<ExternItem>(tokens)?;
 
     let tokens = match item {
-        ExternItem::Struct(item) => doc_marker(&item.ident, hash, &source),
-        ExternItem::Enum(item) => doc_marker(&item.ident, hash, &source),
-        ExternItem::Trait(item) => doc_marker(&item.ident, hash, &source),
+        ExternItem::Struct(item) => doc_marker(&mod_path, &item.ident, hash, &source),
+        ExternItem::Enum(item) => doc_marker(&mod_path, &item.ident, hash, &source),
+        ExternItem::Trait(item) => doc_marker(&mod_path, &item.ident, hash, &source),
         ExternItem::Fn(item) => {
             let ident = &item.sig.ident;
-            let target = if let Some(path) = &mod_path {
-                let path = path.to_token_stream().to_string().replace(' ', "");
-                format!("External specification for [`{path}::{ident}`].")
-            } else {
-                format!("External specification for [`{ident}`].")
-            };
+            let target = doc_target(&mod_path, ident);
             let docs = doc_source(&target, &source);
-            quote!(#[doc = #docs] pub fn #ident() {})
+            let marker = format_ident!("{ident}Spec_{hash:016x}");
+            quote!(
+                #[allow(non_camel_case_types)]
+                #[doc = #docs]
+                pub struct #marker;
+            )
         }
         ExternItem::Impl(item) => {
             let self_name = doc_type_name(&item.self_ty);
@@ -66,16 +67,18 @@ pub(crate) fn transform_extern_spec_doc(
             } else {
                 self_name
             };
-            let ident = format_ident!("{base}Spec_{hash:08x}");
+            let ident = format_ident!("{base}Spec_{hash:016x}");
             let self_ty = &item.self_ty;
-            let target = if let Some((_, path, _)) = &item.trait_ {
-                format!(
-                    "External specifications for `impl {} for {}`.",
-                    quote!(#path),
-                    quote!(#self_ty)
-                )
+            let declaration = if let Some((_, path, _)) = &item.trait_ {
+                format!("`impl {} for {}`", quote!(#path), quote!(#self_ty))
             } else {
-                format!("External specifications for `{}`.", quote!(#self_ty))
+                format!("`{}`", quote!(#self_ty))
+            };
+            let target = if let Some(path) = &mod_path {
+                let path = path.to_token_stream().to_string().replace(' ', "");
+                format!("External specifications in `{path}` for {declaration}.")
+            } else {
+                format!("External specifications for {declaration}.")
             };
             let docs = doc_source(&target, &source);
             let methods = item.items.iter().map(|method| {
@@ -84,12 +87,16 @@ pub(crate) fn transform_extern_spec_doc(
                 let sig = &method.sig;
                 let method_source = quote!(#(#attrs)* #sig;).to_string();
                 let method_docs = doc_source("Original declaration.", &method_source);
-                quote!(#[doc = #method_docs] fn #ident();)
+                quote!(
+                    #[allow(non_snake_case)]
+                    #[doc = #method_docs]
+                    pub mod #ident {}
+                )
             });
             quote!(
-                #[allow(non_camel_case_types)]
+                #[allow(non_snake_case)]
                 #[doc = #docs]
-                pub trait #ident { #(#methods)* }
+                pub mod #ident { #(#methods)* }
             )
         }
     };
@@ -97,9 +104,9 @@ pub(crate) fn transform_extern_spec_doc(
     Ok(quote!(#[cfg(doc)] #tokens))
 }
 
-fn doc_marker(ident: &Ident, hash: u32, source: &str) -> TokenStream {
-    let marker = format_ident!("{ident}Spec_{hash:08x}");
-    let docs = doc_source(&format!("External specification for `{ident}`."), source);
+fn doc_marker(mod_path: &Option<syn::Path>, ident: &Ident, hash: u64, source: &str) -> TokenStream {
+    let marker = format_ident!("{ident}Spec_{hash:016x}");
+    let docs = doc_source(&doc_target(mod_path, ident), source);
     quote!(
         #[allow(non_camel_case_types)]
         #[doc = #docs]
@@ -107,23 +114,35 @@ fn doc_marker(ident: &Ident, hash: u32, source: &str) -> TokenStream {
     )
 }
 
+fn doc_target(mod_path: &Option<syn::Path>, ident: &Ident) -> String {
+    if let Some(path) = mod_path {
+        let path = path.to_token_stream().to_string().replace(' ', "");
+        format!("External specification for [`{path}::{ident}`].")
+    } else {
+        format!("External specification for `{ident}`.")
+    }
+}
+
 fn doc_source(summary: &str, source: &str) -> String {
     format!("{summary}\n\n```rust,ignore\n{source}\n```")
 }
 
-fn stable_doc_hash(source: &str) -> u32 {
+fn stable_doc_hash(source: &str) -> u64 {
     source
         .bytes()
-        .fold(2_166_136_261, |hash, byte| hash.wrapping_mul(16_777_619) ^ u32::from(byte))
+        .fold(14_695_981_039_346_656_037, |hash, byte| {
+            hash.wrapping_mul(1_099_511_628_211) ^ u64::from(byte)
+        })
 }
 
 fn doc_type_name(ty: &Type) -> String {
     match ty {
-        Type::Path(path) => path
-            .path
-            .segments
-            .last()
-            .map_or_else(|| "Type".into(), |segment| segment.ident.to_string()),
+        Type::Path(path) => {
+            path.path
+                .segments
+                .last()
+                .map_or_else(|| "Type".into(), |segment| segment.ident.to_string())
+        }
         Type::Reference(reference) => doc_type_name(&reference.elem),
         Type::Slice(slice) => format!("{}Slice", doc_type_name(&slice.elem)),
         Type::Array(array) => format!("{}Array", doc_type_name(&array.elem)),
@@ -796,7 +815,7 @@ impl ToTokens for UseWildcard {
 mod tests {
     use quote::quote;
 
-    use super::transform_extern_spec_doc;
+    use super::{stable_doc_hash, transform_extern_spec_doc};
 
     #[test]
     fn documents_free_function_contract() {
@@ -811,15 +830,15 @@ mod tests {
         .to_string();
 
         assert!(tokens.contains("cfg (doc)"));
-        assert!(tokens.contains("pub fn size_of_val"));
+        assert!(tokens.contains("pub struct size_of_valSpec_"));
         assert!(tokens.contains("sig (fn (usize) -> usize)"));
         assert!(tokens.contains("core::mem::size_of_val"));
     }
 
     #[test]
-    fn documents_impl_methods_as_a_surrogate_trait() {
+    fn documents_impl_methods_as_nested_modules() {
         let tokens = transform_extern_spec_doc(
-            quote!(),
+            quote!(core::option),
             quote!(
                 impl<T> Option<T> {
                     #[sig(fn(&Self[@b]) -> bool[b])]
@@ -830,8 +849,31 @@ mod tests {
         .unwrap()
         .to_string();
 
-        assert!(tokens.contains("pub trait OptionSpec_"));
-        assert!(tokens.contains("fn is_some ()"));
+        assert!(tokens.contains("pub mod OptionSpec_"));
+        assert!(tokens.contains("pub mod is_some"));
         assert!(tokens.contains("sig (fn (& Self [@ b]) -> bool [b])"));
+        assert!(tokens.contains("core::option"));
+    }
+
+    #[test]
+    fn target_path_affects_name_and_summary() {
+        let item = quote!(
+            struct Ordering;
+        );
+        let core = transform_extern_spec_doc(quote!(core::cmp), item.clone())
+            .unwrap()
+            .to_string();
+        let std = transform_extern_spec_doc(quote!(std::cmp), item)
+            .unwrap()
+            .to_string();
+
+        assert_ne!(core, std);
+        assert!(core.contains("core::cmp::Ordering"));
+        assert!(std.contains("std::cmp::Ordering"));
+    }
+
+    #[test]
+    fn documentation_hash_is_stable() {
+        assert_eq!(stable_doc_hash("flux"), 0x0382_677e_e2f5_8e78);
     }
 }
