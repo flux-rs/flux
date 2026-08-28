@@ -1,6 +1,8 @@
 extern crate flux_core;
 
 #[flux_rs::trusted]
+// Exposes the ghost state for transition tests. This is consistent for Windows
+// values reachable through `slice::windows`, whose remaining length is nonnegative.
 #[flux_rs::spec(fn(&std::slice::Windows<T>[@remaining, @size]) -> usize[remaining])]
 fn windows_remaining<T>(_: &std::slice::Windows<T>) -> usize {
     unimplemented!()

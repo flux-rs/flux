@@ -4,6 +4,8 @@ use flux_rs::assert;
 // --- windows ---
 
 #[flux_rs::trusted]
+// Exposes the ghost state for transition tests. This is consistent for Windows
+// values reachable through `slice::windows`, whose remaining length is nonnegative.
 #[flux_rs::spec(fn(&std::slice::Windows<T>[@remaining, @size]) -> usize[remaining])]
 fn windows_remaining<T>(_: &std::slice::Windows<T>) -> usize {
     unimplemented!()
@@ -28,6 +30,16 @@ pub fn test_exhausted_windows_next_preserves_remaining() {
     let _ = it.next();
     assert(windows_remaining(&it) == remaining);
     let _ = it.next();
+    assert(windows_remaining(&it) == remaining);
+}
+
+pub fn test_windows_final_item_then_exhaustion_preserves_remaining() {
+    let v = [1];
+    let mut it = v.windows(1);
+    assert(it.next().is_some());
+    let remaining = windows_remaining(&it);
+    assert(remaining == 0);
+    assert(it.next().is_none());
     assert(windows_remaining(&it) == remaining);
 }
 
