@@ -1,4 +1,5 @@
 #![no_std]
+#![cfg_attr(doc, deny(rustdoc::broken_intra_doc_links))]
 #![cfg_attr(flux, feature(step_trait))]
 #![cfg_attr(flux, feature(sized_hierarchy))]
 #![cfg_attr(flux, feature(try_trait_v2))]

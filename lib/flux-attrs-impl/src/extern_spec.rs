@@ -37,6 +37,11 @@ pub(crate) fn transform_extern_spec_doc(
     attr: TokenStream,
     tokens: TokenStream,
 ) -> syn::Result<TokenStream> {
+    // Rustdoc cannot attach documentation to an item in another crate. Following the approach
+    // introduced by Creusot, emit searchable documentation-only items instead. Unlike Creusot,
+    // Flux cannot reuse the original signatures because refinement syntax and bodyless inherent
+    // impls do not always type-check as ordinary Rust, so marker items carry the complete
+    // declaration as a code block.
     let attr_source = attr.to_string();
     let mod_path: Option<syn::Path> =
         if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
@@ -130,6 +135,8 @@ fn doc_source(summary: &str, source: &str) -> String {
 }
 
 fn stable_doc_hash(source: &str) -> u64 {
+    // The target path participates in `source`, so otherwise identical specs for different crates
+    // cannot collide. FNV-1a keeps names deterministic across builds and platforms.
     source
         .bytes()
         .fold(14_695_981_039_346_656_037, |hash, byte| {
