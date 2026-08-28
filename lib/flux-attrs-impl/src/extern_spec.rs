@@ -45,8 +45,12 @@ pub(crate) fn transform_extern_spec_doc(
     let attr_source = attr.to_string();
     let mod_path: Option<syn::Path> =
         if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
-    let source = tokens.to_string();
-    let hash = stable_doc_hash(&format!("{attr_source}|{source}"));
+    let canonical_source = tokens.to_string();
+    let source = tokens
+        .span()
+        .source_text()
+        .unwrap_or_else(|| canonical_source.clone());
+    let hash = stable_doc_hash(&format!("{attr_source}|{canonical_source}"));
     let item = syn::parse2::<ExternItem>(tokens)?;
 
     let tokens = match item {
@@ -90,7 +94,16 @@ pub(crate) fn transform_extern_spec_doc(
                 let ident = &method.sig.ident;
                 let attrs = &method.attrs;
                 let sig = &method.sig;
-                let method_source = quote!(#(#attrs)* #sig;).to_string();
+                let canonical_method_source = quote!(#(#attrs)* #sig;).to_string();
+                let method_span = method
+                    .attrs
+                    .first()
+                    .and_then(|attr| attr.span().join(method.sig.span()))
+                    .unwrap_or_else(|| method.sig.span());
+                let method_source = method_span
+                    .source_text()
+                    .map(|source| format!("{source};"))
+                    .unwrap_or(canonical_method_source);
                 let method_docs = doc_source("Original declaration.", &method_source);
                 quote!(
                     #[allow(non_snake_case)]
