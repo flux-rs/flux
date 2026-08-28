@@ -15,7 +15,10 @@ impl<'a, T> Iter<'a, T> {
 #[assoc(
     fn size(x: Iter) -> int { x.len - x.idx }
     fn done(x: Iter) -> bool { x.idx >= x.len }
-    fn step(x: Iter, y: Iter) -> bool { x.idx + 1 == y.idx && x.len == y.len}
+    fn step(x: Iter, y: Iter) -> bool {
+        x.len == y.len &&
+        (if x.idx < x.len { y.idx == x.idx + 1 } else { y.idx == x.idx })
+    }
 )]
 impl<'a, T> Iterator for Iter<'a, T> {
     #[no_panic]

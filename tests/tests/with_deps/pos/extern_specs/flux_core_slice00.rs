@@ -34,6 +34,14 @@ fn iter_idx<T>(_: &std::slice::Iter<T>) -> usize {
     unimplemented!()
 }
 
+#[flux_rs::spec(
+    fn(it: &mut I[@curr_s])
+    ensures it: I{next_s: <I as Iterator>::step(curr_s, next_s)}
+)]
+fn advance<I: Iterator>(it: &mut I) {
+    let _ = it.next();
+}
+
 pub fn test_iter_as_slice_len(xs: &[i32]) {
     let it = xs.iter();
     let ys = it.as_slice();
@@ -46,6 +54,13 @@ pub fn test_exhausted_iter_next_preserves_position() {
     let _ = it.next();
     assert(iter_idx(&it) == idx);
     let _ = it.next();
+    assert(iter_idx(&it) == idx);
+}
+
+pub fn test_generic_next_preserves_exhausted_iter_position() {
+    let mut it = [0_i32; 0].iter();
+    let idx = iter_idx(&it);
+    advance(&mut it);
     assert(iter_idx(&it) == idx);
 }
 
