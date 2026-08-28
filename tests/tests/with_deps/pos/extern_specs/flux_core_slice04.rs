@@ -3,6 +3,12 @@ use flux_rs::assert;
 
 // --- windows ---
 
+#[flux_rs::trusted]
+#[flux_rs::spec(fn(&std::slice::Windows<T>[@remaining, @size]) -> usize[remaining])]
+fn windows_remaining<T>(_: &std::slice::Windows<T>) -> usize {
+    unimplemented!()
+}
+
 pub fn test_windows_some_concrete() {
     let v = [1, 2, 3, 4, 5];
     let mut it = v.windows(3);
@@ -13,6 +19,16 @@ pub fn test_windows_none_when_too_short() {
     let v: [i32; 2] = [1, 2];
     let mut it = v.windows(3);
     assert(it.next().is_none());
+}
+
+pub fn test_exhausted_windows_next_preserves_remaining() {
+    let v: [i32; 0] = [];
+    let mut it = v.windows(1);
+    let remaining = windows_remaining(&it);
+    let _ = it.next();
+    assert(windows_remaining(&it) == remaining);
+    let _ = it.next();
+    assert(windows_remaining(&it) == remaining);
 }
 
 pub fn test_windows_some_branch(xs: &[i32]) {

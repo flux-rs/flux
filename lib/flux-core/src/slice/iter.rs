@@ -53,12 +53,17 @@ struct Windows<'a, T>;
 #[assoc(
     fn size(x: Windows) -> int { if x.window_size > x.remaining { 0 } else { x.remaining - x.window_size + 1 } }
     fn done(x: Windows) -> bool { x.remaining < x.window_size }
-    fn step(x: Windows, y: Windows) -> bool { y.remaining == x.remaining - 1 && y.window_size == x.window_size }
+    fn step(x: Windows, y: Windows) -> bool {
+        y.remaining == if x.remaining >= x.window_size { x.remaining - 1 } else { x.remaining }
+        && y.window_size == x.window_size
+    }
 )]
 impl<'a, T> Iterator for Windows<'a, T> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/iter.rs#L1356
     #[no_panic]
     #[spec(fn(self: &mut Windows<T>[@curr_s]) -> Option<&[T][curr_s.window_size]>[curr_s.remaining >= curr_s.window_size]
-           ensures self: Windows<T>{next_s: next_s.remaining == curr_s.remaining - 1 && next_s.window_size == curr_s.window_size})]
+           ensures self: Windows<T>{next_s:
+               next_s.remaining == if curr_s.remaining >= curr_s.window_size { curr_s.remaining - 1 } else { curr_s.remaining }
+               && next_s.window_size == curr_s.window_size})]
     fn next(&mut self) -> Option<&'a [T]>;
 }
