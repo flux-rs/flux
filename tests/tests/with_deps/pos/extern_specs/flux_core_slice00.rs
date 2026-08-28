@@ -28,10 +28,25 @@ pub fn test_first_branch(xs: &[i32]) {
 
 // --- iter ---
 
+#[flux_rs::trusted]
+#[flux_rs::spec(fn(&std::slice::Iter<T>[@idx, @len]) -> usize[idx])]
+fn iter_idx<T>(_: &std::slice::Iter<T>) -> usize {
+    unimplemented!()
+}
+
 pub fn test_iter_as_slice_len(xs: &[i32]) {
     let it = xs.iter();
     let ys = it.as_slice();
     assert(xs.len() == ys.len());
+}
+
+pub fn test_exhausted_iter_next_preserves_position() {
+    let mut it = [0_i32; 0].iter();
+    let idx = iter_idx(&it);
+    let _ = it.next();
+    assert(iter_idx(&it) == idx);
+    let _ = it.next();
+    assert(iter_idx(&it) == idx);
 }
 
 // --- first_mut / last_mut ---
