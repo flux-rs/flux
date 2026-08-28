@@ -46,10 +46,7 @@ pub(crate) fn transform_extern_spec_doc(
     let mod_path: Option<syn::Path> =
         if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
     let canonical_source = tokens.to_string();
-    let source = tokens
-        .span()
-        .source_text()
-        .unwrap_or_else(|| canonical_source.clone());
+    let source = doc_source_text(tokens.span(), &canonical_source);
     let hash = stable_doc_hash(&format!("{attr_source}|{canonical_source}"));
     let item = syn::parse2::<ExternItem>(tokens)?;
 
@@ -100,10 +97,10 @@ pub(crate) fn transform_extern_spec_doc(
                     .first()
                     .and_then(|attr| attr.span().join(method.sig.span()))
                     .unwrap_or_else(|| method.sig.span());
-                let method_source = method_span
-                    .source_text()
-                    .map(|source| format!("{source};"))
-                    .unwrap_or(canonical_method_source);
+                let method_source = doc_source_text(method_span, &canonical_method_source)
+                    .trim_end_matches(';')
+                    .to_string()
+                    + ";";
                 let method_docs = doc_source("Original declaration.", &method_source);
                 quote!(
                     #[allow(non_snake_case)]
@@ -145,6 +142,18 @@ fn doc_source(summary: &str, source: &str) -> String {
     format!(
         "{summary}\n\nThis is not a real Rust item; it exists only to document the external specification.\n\n```rust,ignore\n{source}\n```"
     )
+}
+
+fn doc_source_text(span: Span, canonical_source: &str) -> String {
+    select_doc_source(span.source_text(), canonical_source)
+}
+
+fn select_doc_source(source: Option<String>, canonical_source: &str) -> String {
+    source
+        // A span originating in a macro definition contains metavariables rather than the
+        // concrete expansion users searched for in rustdoc.
+        .filter(|source| !source.contains('$'))
+        .unwrap_or_else(|| canonical_source.to_owned())
 }
 
 fn stable_doc_hash(source: &str) -> u64 {
@@ -837,7 +846,7 @@ impl ToTokens for UseWildcard {
 mod tests {
     use quote::quote;
 
-    use super::{stable_doc_hash, transform_extern_spec_doc};
+    use super::{select_doc_source, stable_doc_hash, transform_extern_spec_doc};
 
     #[test]
     fn documents_free_function_contract() {
@@ -898,5 +907,13 @@ mod tests {
     #[test]
     fn documentation_hash_is_stable() {
         assert_eq!(stable_doc_hash("flux"), 0xd61b_dd79_08af_2642);
+    }
+
+    #[test]
+    fn macro_metavariables_fall_back_to_expanded_tokens() {
+        assert_eq!(
+            select_doc_source(Some("impl $T {}".into()), "impl usize {}"),
+            "impl usize {}"
+        );
     }
 }
