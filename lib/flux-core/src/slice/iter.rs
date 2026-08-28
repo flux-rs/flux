@@ -7,7 +7,7 @@ struct Iter<'a, T>;
 #[extern_spec(core::slice)]
 impl<'a, T> Iter<'a, T> {
     #[no_panic]
-    #[spec(fn(&Self[@it]) -> &[T][it.len])]
+    #[spec(fn(&Self[@it]) -> &[T][it.len - it.idx])]
     fn as_slice(&self) -> &'a [T];
 }
 
