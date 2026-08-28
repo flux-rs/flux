@@ -915,10 +915,7 @@ mod tests {
 
     #[test]
     fn macro_metavariables_fall_back_to_expanded_tokens() {
-        assert_eq!(
-            select_doc_source(Some("impl $T {}".into()), "impl usize {}"),
-            "impl usize {}"
-        );
+        assert_eq!(select_doc_source(Some("impl $T {}".into()), "impl usize {}"), "impl usize {}");
     }
 
     #[test]
