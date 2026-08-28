@@ -140,7 +140,7 @@ fn stable_doc_hash(source: &str) -> u64 {
     source
         .bytes()
         .fold(14_695_981_039_346_656_037, |hash, byte| {
-            hash.wrapping_mul(1_099_511_628_211) ^ u64::from(byte)
+            (hash ^ u64::from(byte)).wrapping_mul(1_099_511_628_211)
         })
 }
 
@@ -884,6 +884,6 @@ mod tests {
 
     #[test]
     fn documentation_hash_is_stable() {
-        assert_eq!(stable_doc_hash("flux"), 0x0382_677e_e2f5_8e78);
+        assert_eq!(stable_doc_hash("flux"), 0xd61b_dd79_08af_2642);
     }
 }
