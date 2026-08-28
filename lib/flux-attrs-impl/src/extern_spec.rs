@@ -150,9 +150,13 @@ fn doc_source_text(span: Span, canonical_source: &str) -> String {
 
 fn select_doc_source(source: Option<String>, canonical_source: &str) -> String {
     source
-        // A span originating in a macro definition contains metavariables rather than the
-        // concrete expansion users searched for in rustdoc.
-        .filter(|source| !source.contains('$'))
+        // Macro-generated spans can point back to template source instead of the concrete
+        // expansion. Preserve source formatting only when it represents the same tokens.
+        .filter(|source| {
+            source
+                .parse::<TokenStream>()
+                .is_ok_and(|tokens| tokens.to_string() == canonical_source)
+        })
         .unwrap_or_else(|| canonical_source.to_owned())
 }
 
@@ -914,6 +918,15 @@ mod tests {
         assert_eq!(
             select_doc_source(Some("impl $T {}".into()), "impl usize {}"),
             "impl usize {}"
+        );
+    }
+
+    #[test]
+    fn equivalent_source_preserves_authored_formatting() {
+        let source = "fn get(\n    value: usize,\n) -> usize;";
+        assert_eq!(
+            select_doc_source(Some(source.into()), "fn get (value : usize ,) -> usize ;"),
+            source
         );
     }
 }
