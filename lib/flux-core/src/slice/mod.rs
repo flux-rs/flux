@@ -2,7 +2,7 @@
 //!
 //! # Soundness of `SliceIndex`-based annotations
 //!
-//! Several annotations rely on `SliceIndex` being a sealed trait: it
+//! Several annotations rely on [`SliceIndex`] being a sealed trait: it
 //! requires `private_slice_index::Sealed`, which has no public path outside of
 //! `core`, so its set of implementations is fixed and exhaustive. The sealed implementations
 //! were inspected to ensure these specs are sound.
