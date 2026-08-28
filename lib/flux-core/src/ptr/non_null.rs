@@ -1,4 +1,4 @@
-#![flux::defs {
+#![cfg_attr(flux, flux::defs {
     // The pointer lies within its allocation: addr >= base (not before the start)
     // and size >= 0. One-past-the-end pointers (size == 0) satisfy this — they
     // are valid starting points for arithmetic but cannot be dereferenced.
@@ -22,7 +22,7 @@
     fn nn_aligned_to(addr: int, alignment: int) -> bool {
         addr % alignment == 0
     }
-}]
+})]
 
 use flux_attrs::*;
 

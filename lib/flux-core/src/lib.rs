@@ -7,37 +7,37 @@
 pub mod iter;
 pub mod ops;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod mem;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod option;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod result;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod cmp;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod clone;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod slice;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod array;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod num;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod ptr;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod convert;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod alloc;
 
 // -------------------------------------------------------------------

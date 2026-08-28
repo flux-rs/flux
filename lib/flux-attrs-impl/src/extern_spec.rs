@@ -33,6 +33,105 @@ pub(crate) fn transform_extern_spec(
     }
 }
 
+pub(crate) fn transform_extern_spec_doc(
+    attr: TokenStream,
+    tokens: TokenStream,
+) -> syn::Result<TokenStream> {
+    let mod_path: Option<syn::Path> =
+        if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
+    let source = tokens.to_string();
+    let hash = stable_doc_hash(&source);
+    let item = syn::parse2::<ExternItem>(tokens)?;
+
+    let tokens = match item {
+        ExternItem::Struct(item) => doc_marker(&item.ident, hash, &source),
+        ExternItem::Enum(item) => doc_marker(&item.ident, hash, &source),
+        ExternItem::Trait(item) => doc_marker(&item.ident, hash, &source),
+        ExternItem::Fn(item) => {
+            let ident = &item.sig.ident;
+            let target = if let Some(path) = &mod_path {
+                let path = path.to_token_stream().to_string().replace(' ', "");
+                format!("External specification for [`{path}::{ident}`].")
+            } else {
+                format!("External specification for [`{ident}`].")
+            };
+            let docs = doc_source(&target, &source);
+            quote!(#[doc = #docs] pub fn #ident() {})
+        }
+        ExternItem::Impl(item) => {
+            let self_name = doc_type_name(&item.self_ty);
+            let base = if let Some((_, path, _)) = &item.trait_ {
+                let trait_name = path.segments.last().unwrap().ident.to_string();
+                format!("{trait_name}For{self_name}")
+            } else {
+                self_name
+            };
+            let ident = format_ident!("{base}Spec_{hash:08x}");
+            let self_ty = &item.self_ty;
+            let target = if let Some((_, path, _)) = &item.trait_ {
+                format!(
+                    "External specifications for `impl {} for {}`.",
+                    quote!(#path),
+                    quote!(#self_ty)
+                )
+            } else {
+                format!("External specifications for `{}`.", quote!(#self_ty))
+            };
+            let docs = doc_source(&target, &source);
+            let methods = item.items.iter().map(|method| {
+                let ident = &method.sig.ident;
+                let attrs = &method.attrs;
+                let sig = &method.sig;
+                let method_source = quote!(#(#attrs)* #sig;).to_string();
+                let method_docs = doc_source("Original declaration.", &method_source);
+                quote!(#[doc = #method_docs] fn #ident();)
+            });
+            quote!(
+                #[allow(non_camel_case_types)]
+                #[doc = #docs]
+                pub trait #ident { #(#methods)* }
+            )
+        }
+    };
+
+    Ok(quote!(#[cfg(doc)] #tokens))
+}
+
+fn doc_marker(ident: &Ident, hash: u32, source: &str) -> TokenStream {
+    let marker = format_ident!("{ident}Spec_{hash:08x}");
+    let docs = doc_source(&format!("External specification for `{ident}`."), source);
+    quote!(
+        #[allow(non_camel_case_types)]
+        #[doc = #docs]
+        pub struct #marker;
+    )
+}
+
+fn doc_source(summary: &str, source: &str) -> String {
+    format!("{summary}\n\n```rust,ignore\n{source}\n```")
+}
+
+fn stable_doc_hash(source: &str) -> u32 {
+    source
+        .bytes()
+        .fold(2_166_136_261, |hash, byte| hash.wrapping_mul(16_777_619) ^ u32::from(byte))
+}
+
+fn doc_type_name(ty: &Type) -> String {
+    match ty {
+        Type::Path(path) => path
+            .path
+            .segments
+            .last()
+            .map_or_else(|| "Type".into(), |segment| segment.ident.to_string()),
+        Type::Reference(reference) => doc_type_name(&reference.elem),
+        Type::Slice(slice) => format!("{}Slice", doc_type_name(&slice.elem)),
+        Type::Array(array) => format!("{}Array", doc_type_name(&array.elem)),
+        Type::Ptr(pointer) => format!("{}Ptr", doc_type_name(&pointer.elem)),
+        _ => "Type".into(),
+    }
+}
+
 fn extern_fn_to_tokens(
     span: Span,
     mod_use: Option<UseWildcard>,
@@ -690,5 +789,49 @@ impl ToTokens for UseWildcard {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let path = &self.0;
         tokens.extend(quote!(use #path::*;))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use quote::quote;
+
+    use super::transform_extern_spec_doc;
+
+    #[test]
+    fn documents_free_function_contract() {
+        let tokens = transform_extern_spec_doc(
+            quote!(core::mem),
+            quote!(
+                #[sig(fn(usize) -> usize)]
+                fn size_of_val(value: usize) -> usize;
+            ),
+        )
+        .unwrap()
+        .to_string();
+
+        assert!(tokens.contains("cfg (doc)"));
+        assert!(tokens.contains("pub fn size_of_val"));
+        assert!(tokens.contains("sig (fn (usize) -> usize)"));
+        assert!(tokens.contains("core::mem::size_of_val"));
+    }
+
+    #[test]
+    fn documents_impl_methods_as_a_surrogate_trait() {
+        let tokens = transform_extern_spec_doc(
+            quote!(),
+            quote!(
+                impl<T> Option<T> {
+                    #[sig(fn(&Self[@b]) -> bool[b])]
+                    const fn is_some(&self) -> bool;
+                }
+            ),
+        )
+        .unwrap()
+        .to_string();
+
+        assert!(tokens.contains("pub trait OptionSpec_"));
+        assert!(tokens.contains("fn is_some ()"));
+        assert!(tokens.contains("sig (fn (& Self [@ b]) -> bool [b])"));
     }
 }

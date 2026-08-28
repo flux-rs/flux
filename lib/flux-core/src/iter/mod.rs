@@ -1,4 +1,4 @@
 mod adapters;
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 mod range;
 mod traits;
