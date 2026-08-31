@@ -15,12 +15,19 @@ impl<'a, T> Iter<'a, T> {
 #[assoc(
     fn size(x: Iter) -> int { x.len - x.idx }
     fn done(x: Iter) -> bool { x.idx >= x.len }
-    fn step(x: Iter, y: Iter) -> bool { x.idx + 1 == y.idx && x.len == y.len}
+    fn step(x: Iter, y: Iter) -> bool {
+        x.len == y.len &&
+        (if x.idx < x.len { y.idx == x.idx + 1 } else { y.idx == x.idx })
+    }
 )]
 impl<'a, T> Iterator for Iter<'a, T> {
     #[no_panic]
     #[spec(fn(self: &mut Iter<T>[@curr_s]) -> Option<_>[curr_s.idx < curr_s.len]
-           ensures self: Iter<T>{next_s: curr_s.idx + 1 == next_s.idx && curr_s.len == next_s.len})]
+           ensures self: Iter<T>{next_s:
+               curr_s.len == next_s.len &&
+               (curr_s.idx < curr_s.len => next_s.idx == curr_s.idx + 1) &&
+               (curr_s.idx >= curr_s.len => next_s.idx == curr_s.idx)
+           })]
     fn next(&mut self) -> Option<&'a T>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/iter/traits/iterator.rs#L3049
