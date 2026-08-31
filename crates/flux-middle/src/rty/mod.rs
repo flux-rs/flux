@@ -53,7 +53,7 @@ pub use rustc_middle::{
 };
 use rustc_middle::{
     query::IntoQueryParam,
-    ty::{ParamEnv, TyCtxt, TypingEnv, TypingMode, fast_reject::SimplifiedType},
+    ty::{TyCtxt, fast_reject::SimplifiedType},
 };
 use rustc_span::{DUMMY_SP, Span, Symbol, sym, symbol::kw};
 use rustc_type_ir::Upcast as _;
@@ -2925,11 +2925,12 @@ fn slice_invariants(genv: GlobalEnv, elem_ty: &Ty, overflow_mode: OverflowMode) 
         pred: Binder::bind_with_sort(
             Expr::le(
                 Expr::nu(),
-                Expr::uint_max(IntTy::Usize),
+                Expr::uint_max(UintTy::Usize),
             ),
             Sort::Int,
         ),
     });
+    invariants
 }
 
 fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [Invariant] {
