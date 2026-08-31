@@ -2972,13 +2972,11 @@ fn slice_invariants(genv: GlobalEnv, elem_ty: &Ty, overflow_mode: OverflowMode) 
     // len <= usize::MAX (only relevant for ZSTs)
     invariants.push(Invariant {
         pred: Binder::bind_with_sort(
-            Expr::le(
-                Expr::nu(),
-                Expr::uint_max(IntTy::Usize),
-            ),
+            Expr::le(Expr::nu(), Expr::uint_max(UintTy::Usize)),
             Sort::Int,
         ),
     });
+    invariants
 }
 
 fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [Invariant] {
