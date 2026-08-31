@@ -75,3 +75,12 @@ pub fn test_take_beyond_end(xs: &[i32]) {
         assert(i < xs.len());
     }
 }
+
+// --- Range::next ---
+
+pub fn test_exhausted_range_is_unchanged() {
+    let mut range = 0..0;
+    let start = range.start;
+    assert(range.next().is_none());
+    assert(range.start == start);
+}
