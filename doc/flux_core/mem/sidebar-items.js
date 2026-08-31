@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["MaybeUninitSpec_50eeb34024c0c383"],"struct":["MaybeUninitSpec_f850271bf37d954e","align_ofSpec_30afea89c45b6b4e","size_ofSpec_50ac31a21b5a5748"]};

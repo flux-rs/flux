@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["adapters","traits"]};
+window.SIDEBAR_ITEMS = {"mod":["adapters","range","traits"]};

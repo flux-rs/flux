@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"macro":["eq"],"mod":["iter","ops"]};
+window.SIDEBAR_ITEMS = {"macro":["eq"],"mod":["alloc","array","clone","cmp","convert","iter","mem","num","ops","option","ptr","result","slice"]};

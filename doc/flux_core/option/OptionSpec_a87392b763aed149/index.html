@@ -1,0 +1,88 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="External specifications for `Option &#60; T &#62;`."><title>flux_core::option::OptionSpec_a87392b763aed149 - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (db3e99bba 2026-02-04)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module OptionSpec_a87392b763aed149</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../flux_core/index.html">flux_<wbr>core</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module Option<wbr>Spec_<wbr>a87392b763aed149</a></h2><h3><a href="#modules">Module Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In flux_<wbr>core::<wbr>option</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">flux_core</a>::<wbr><a href="../index.html">option</a></div><h1>Module <span>Option<wbr>Spec_<wbr>a87392b763aed149</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/flux_core/option.rs.html#37">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>External specifications for <code>Option &lt; T &gt;</code>.</p>
+<p>This is not a real Rust item; it exists only to document the external specification.</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">impl</span>&lt;T&gt; <span class="prelude-ty">Option</span>&lt;T&gt; {
+    <span class="attr">#[sig(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@b]</span>) -&gt; bool[b])]
+    <span class="kw">const fn </span>is_some(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool;
+
+    <span class="attr">#[sig(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@b]</span>) -&gt; bool[!b])]
+    <span class="kw">const fn </span>is_none(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool;
+
+    <span class="attr">#[no_panic]
+    #[sig(<span class="kw">fn</span>(<span class="prelude-ty">Option</span>&lt;T&gt;[<span class="bool-val">true</span>]</span>) -&gt; T)]
+    <span class="kw">const fn </span>unwrap(<span class="self">self</span>) -&gt; T;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L957
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="prelude-ty">Option</span>&lt;T&gt;[<span class="bool-val">true</span>]</span>, <span class="kw-2">&amp;</span>str) -&gt; T)]
+    <span class="kw">const fn </span>expect(<span class="self">self</span>, msg: <span class="kw-2">&amp;</span>str) -&gt; T;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1025
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="prelude-ty">Option</span>&lt;T&gt;[@b]</span>, T) -&gt; T)]
+    <span class="kw">fn </span>unwrap_or(<span class="self">self</span>, default: T) -&gt; T;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1044
+    </span><span class="attr">#[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(<span class="kw">fn</span>(<span class="prelude-ty">Option</span>&lt;T&gt;[@b]</span>, F) -&gt; T <span class="kw">where </span>F: FnOnce() -&gt; T)]
+    <span class="kw">fn </span>unwrap_or_else&lt;F: FnOnce() -&gt; T&gt;(<span class="self">self</span>, f: F) -&gt; T;
+
+    <span class="attr">#[sig(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@b]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;[b])]
+    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;;
+
+    <span class="attr">#[sig(<span class="kw">fn</span>(<span class="kw-2">&amp;mut </span><span class="self">Self</span>[@b]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>T&gt;[b])]
+    <span class="kw">fn </span>as_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>T&gt;;
+
+    <span class="attr">#[sig(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@b]</span>) -&gt; <span class="kw-2">&amp;</span>[T][<span class="kw">if </span>b { <span class="number">1 </span>} <span class="kw">else </span>{ <span class="number">0 </span>}])]
+    <span class="kw">fn </span>as_slice(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[T];
+
+    <span class="attr">#[sig(<span class="kw">fn</span>(<span class="kw-2">&amp;mut </span><span class="self">Self</span>[@b]</span>) -&gt; <span class="kw-2">&amp;mut </span>[T][<span class="kw">if </span>b { <span class="number">1 </span>} <span class="kw">else </span>{ <span class="number">0 </span>}])]
+    <span class="kw">fn </span>as_mut_slice(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>[T];
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1465
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="prelude-ty">Option</span>&lt;T&gt;[@a]</span>, <span class="prelude-ty">Option</span>&lt;U&gt;[@b]) -&gt; <span class="prelude-ty">Option</span>&lt;U&gt;[a &amp;&amp; b])]
+    <span class="kw">fn </span>and&lt;U&gt;(<span class="self">self</span>, optb: <span class="prelude-ty">Option</span>&lt;U&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;U&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1581
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="prelude-ty">Option</span>&lt;T&gt;[@a]</span>, <span class="prelude-ty">Option</span>&lt;T&gt;[@b]) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;[a || b])]
+    <span class="kw">fn </span>or(<span class="self">self</span>, optb: <span class="prelude-ty">Option</span>&lt;T&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1309
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="prelude-ty">Option</span>&lt;T&gt;[@b]</span>, E) -&gt; <span class="prelude-ty">Result</span>&lt;T, E&gt;[b])]
+    <span class="kw">fn </span>ok_or&lt;E&gt;(<span class="self">self</span>, err: E) -&gt; <span class="prelude-ty">Result</span>&lt;T, E&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1334
+    </span><span class="attr">#[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(<span class="kw">fn</span>(<span class="prelude-ty">Option</span>&lt;T&gt;[@b]</span>, F) -&gt; <span class="prelude-ty">Result</span>&lt;T, E&gt;[b] <span class="kw">where </span>F: FnOnce() -&gt; E)]
+    <span class="kw">fn </span>ok_or_else&lt;E, F: FnOnce() -&gt; E&gt;(<span class="self">self</span>, err: F) -&gt; <span class="prelude-ty">Result</span>&lt;T, E&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1504
+    </span><span class="attr">#[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(<span class="kw">fn</span>(<span class="prelude-ty">Option</span>&lt;T&gt;[@b]</span>, F) -&gt; <span class="prelude-ty">Option</span>&lt;U&gt;{s: s =&gt; b} <span class="kw">where </span>F: FnOnce(T) -&gt; <span class="prelude-ty">Option</span>&lt;U&gt;)]
+    <span class="kw">fn </span>and_then&lt;U, F: FnOnce(T) -&gt; <span class="prelude-ty">Option</span>&lt;U&gt;&gt;(<span class="self">self</span>, f: F) -&gt; <span class="prelude-ty">Option</span>&lt;U&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1783
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="self">self</span>: <span class="kw-2">&amp;mut </span><span class="prelude-ty">Option</span>&lt;T&gt;[@b]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;[b]
+           ensures <span class="self">self</span>: <span class="prelude-ty">Option</span>&lt;T&gt;[<span class="bool-val">false</span>])]
+    <span class="kw">const fn </span>take(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/option.rs#L1841
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="self">self</span>: <span class="kw-2">&amp;mut </span><span class="prelude-ty">Option</span>&lt;T&gt;[@b]</span>, T) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;[b]
+           ensures <span class="self">self</span>: <span class="prelude-ty">Option</span>&lt;T&gt;[<span class="bool-val">true</span>])]
+    <span class="kw">const fn </span>replace(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: T) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1160
+    </span><span class="attr">#[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(<span class="kw">fn</span>(<span class="prelude-ty">Option</span>&lt;T&gt;[@b]</span>, F) -&gt; <span class="prelude-ty">Option</span>&lt;U&gt;[b] <span class="kw">where </span>F: FnOnce(T) -&gt; U)]
+    <span class="kw">fn </span>map&lt;U, F: FnOnce(T) -&gt; U&gt;(<span class="self">self</span>, f: F) -&gt; <span class="prelude-ty">Option</span>&lt;U&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1224
+    </span><span class="attr">#[flux_rs::no_panic_if(F::no_panic())]
+    #[spec(<span class="kw">fn</span>(<span class="prelude-ty">Option</span>&lt;T&gt;[@b]</span>, U, F) -&gt; U <span class="kw">where </span>F: FnOnce(T) -&gt; U)]
+    <span class="kw">fn </span>map_or&lt;U, F: FnOnce(T) -&gt; U&gt;(<span class="self">self</span>, default: U, f: F) -&gt; U;
+}</code></pre></div></div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="and/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::and">and</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="and_then/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::and_then">and_<wbr>then</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="as_mut/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::as_mut">as_mut</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="as_mut_slice/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::as_mut_slice">as_<wbr>mut_<wbr>slice</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="as_ref/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::as_ref">as_ref</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="as_slice/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::as_slice">as_<wbr>slice</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="expect/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::expect">expect</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="is_none/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::is_none">is_none</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="is_some/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::is_some">is_some</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="map/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::map">map</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="map_or/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::map_or">map_or</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="ok_or/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::ok_or">ok_or</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="ok_or_else/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::ok_or_else">ok_<wbr>or_<wbr>else</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="or/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::or">or</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="replace/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::replace">replace</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="take/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::take">take</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="unwrap/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::unwrap">unwrap</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="unwrap_or/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::unwrap_or">unwrap_<wbr>or</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="unwrap_or_else/index.html" title="mod flux_core::option::OptionSpec_a87392b763aed149::unwrap_or_else">unwrap_<wbr>or_<wbr>else</a></dt><dd>Original declaration.</dd></dl></section></div></main></body></html>

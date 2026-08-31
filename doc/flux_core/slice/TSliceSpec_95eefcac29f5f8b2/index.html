@@ -1,0 +1,104 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="External specifications in `core::slice` for `[T]`."><title>flux_core::slice::TSliceSpec_95eefcac29f5f8b2 - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (db3e99bba 2026-02-04)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module TSliceSpec_95eefcac29f5f8b2</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../flux_core/index.html">flux_<wbr>core</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module TSlice<wbr>Spec_<wbr>95eefcac29f5f8b2</a></h2><h3><a href="#modules">Module Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In flux_<wbr>core::<wbr>slice</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">flux_core</a>::<wbr><a href="../index.html">slice</a></div><h1>Module <span>TSlice<wbr>Spec_<wbr>95eefcac29f5f8b2</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/flux_core/slice/mod.rs.html#16">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>External specifications in <code>core::slice</code> for <code>[T]</code>.</p>
+<p>This is not a real Rust item; it exists only to document the external specification.</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">impl</span>&lt;T&gt; [T] {
+    <span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>) -&gt; usize[n])]
+    <span class="kw">fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize;
+
+    <span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>) -&gt; bool[n == <span class="number">0</span>])]
+    <span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L154
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;[<span class="macro">n !</span>= <span class="number">0</span>])]
+    <span class="kw">fn </span>first(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L177
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;mut </span><span class="self">Self</span>[@n]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>T&gt;[<span class="macro">n !</span>= <span class="number">0</span>])]
+    <span class="kw">fn </span>first_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>T&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L280
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;[<span class="macro">n !</span>= <span class="number">0</span>])]
+    <span class="kw">fn </span>last(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L303
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;mut </span><span class="self">Self</span>[@n]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>T&gt;[<span class="macro">n !</span>= <span class="number">0</span>])]
+    <span class="kw">fn </span>last_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>T&gt;;
+
+    <span class="doccomment">/// Delegates to `SliceIndex::get`. All sealed impls return `None` out of
+    /// bounds (never panic), and `Some` iff `in_bounds` holds.
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L570
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>, I[@idx]) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>I::Output&gt;[&lt;I <span class="kw">as </span>SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, n)])]
+    <span class="kw">fn </span>get&lt;I: SliceIndex&lt;[T]&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, index: I) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>I::Output&gt;;
+
+    <span class="doccomment">/// See `get`. Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L596
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;mut </span><span class="self">Self</span>[@n]</span>, I[@idx]) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>I::Output&gt;[&lt;I <span class="kw">as </span>SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, n)])]
+    <span class="kw">fn </span>get_mut&lt;I: SliceIndex&lt;[T]&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, index: I) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>I::Output&gt;;
+
+    <span class="doccomment">/// Delegates to `SliceIndex::get_unchecked`. `SliceIndex` documents calling
+    /// with an out-of-bounds index as UB; `in_bounds` encodes that contract.
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L635
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>, {I[@idx] | &lt;I <span class="kw">as </span>SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, n)}) -&gt; <span class="kw-2">&amp;</span>I::Output)]
+    <span class="kw">unsafe fn </span>get_unchecked&lt;I: SliceIndex&lt;[T]&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, index: I) -&gt; <span class="kw-2">&amp;</span>I::Output;
+
+    <span class="doccomment">/// See `get_unchecked`. Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L679
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;mut </span><span class="self">Self</span>[@n]</span>, {I[@idx] | &lt;I <span class="kw">as </span>SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, n)}) -&gt; <span class="kw-2">&amp;mut </span>I::Output)]
+    <span class="kw">unsafe fn </span>get_unchecked_mut&lt;I: SliceIndex&lt;[T]&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, index: I) -&gt; <span class="kw-2">&amp;mut </span>I::Output;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L197
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>T, <span class="kw-2">&amp;</span>[T][n - <span class="number">1</span>])&gt;[<span class="macro">n !</span>= <span class="number">0</span>])]
+    <span class="kw">fn </span>split_first(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>T, <span class="kw-2">&amp;</span>[T])&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L239
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>T, <span class="kw-2">&amp;</span>[T][n - <span class="number">1</span>])&gt;[<span class="macro">n !</span>= <span class="number">0</span>])]
+    <span class="kw">fn </span>split_last(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>T, <span class="kw-2">&amp;</span>[T])&gt;;
+
+    <span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>) -&gt; Iter&lt;T&gt;[<span class="number">0</span>, n])]
+    <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Iter&lt;<span class="lifetime">'_</span>, T&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L1114
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>, {usize[@size] | size &gt; <span class="number">0</span>}) -&gt; Windows&lt;T&gt;[n, size])]
+    <span class="kw">fn </span>windows(<span class="kw-2">&amp;</span><span class="self">self</span>, size: usize) -&gt; Windows&lt;<span class="lifetime">'_</span>, T&gt;;
+
+    <span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>, mid: usize{mid &lt;= n}) -&gt; (<span class="kw-2">&amp;</span>[T][mid], <span class="kw-2">&amp;</span>[T][n - mid]))]
+    <span class="kw">fn </span>split_at(<span class="kw-2">&amp;</span><span class="self">self</span>, mid: usize) -&gt; (<span class="kw-2">&amp;</span>[T], <span class="kw-2">&amp;</span>[T]);
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L2018
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;mut </span><span class="self">Self</span>[@n]</span>, mid: usize{mid &lt;= n}) -&gt; (<span class="kw-2">&amp;mut </span>[T][mid], <span class="kw-2">&amp;mut </span>[T][n - mid]))]
+    <span class="kw">fn </span>split_at_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>, mid: usize) -&gt; (<span class="kw-2">&amp;mut </span>[T], <span class="kw-2">&amp;mut </span>[T]);
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L2185
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>, usize[@mid]) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>[T][mid], <span class="kw-2">&amp;</span>[T][n - mid])&gt;[mid &lt;= n])]
+    <span class="kw">fn </span>split_at_checked(<span class="kw-2">&amp;</span><span class="self">self</span>, mid: usize) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>[T], <span class="kw-2">&amp;</span>[T])&gt;;
+
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L2224
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;mut </span><span class="self">Self</span>[@n]</span>, usize[@mid]) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;mut </span>[T][mid], <span class="kw-2">&amp;mut </span>[T][n - mid])&gt;[mid &lt;= n])]
+    <span class="kw">fn </span>split_at_mut_checked(<span class="kw-2">&amp;mut </span><span class="self">self</span>, mid: usize) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;mut </span>[T], <span class="kw-2">&amp;mut </span>[T])&gt;;
+
+    <span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@n]</span>) -&gt; {base:int, addr:int. <span class="kw-2">*const</span>[base, addr, n * T::size_of()] T
+        | base &gt;= <span class="number">0 </span>&amp;&amp; base % T::align_of() == <span class="number">0 </span>&amp;&amp; base == addr &amp;&amp; <span class="macro">addr !</span>= <span class="number">0</span>})]
+    <span class="kw">fn </span>as_ptr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">*const </span>T;
+
+    <span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;mut </span><span class="self">Self</span>[@n]</span>) -&gt; {base:int, addr:int. <span class="kw-2">*mut</span>[base, addr, n * T::size_of()] T
+        | base &gt;= <span class="number">0 </span>&amp;&amp; base % T::align_of() == <span class="number">0 </span>&amp;&amp; base == addr &amp;&amp; <span class="macro">addr !</span>= <span class="number">0</span>})]
+    <span class="kw">fn </span>as_mut_ptr(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">*mut </span>T;
+}</code></pre></div></div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="as_mut_ptr/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::as_mut_ptr">as_<wbr>mut_<wbr>ptr</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="as_ptr/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::as_ptr">as_ptr</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="first/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::first">first</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="first_mut/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::first_mut">first_<wbr>mut</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="get/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::get">get</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="get_mut/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::get_mut">get_mut</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="get_unchecked/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::get_unchecked">get_<wbr>unchecked</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="get_unchecked_mut/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::get_unchecked_mut">get_<wbr>unchecked_<wbr>mut</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="is_empty/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::is_empty">is_<wbr>empty</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="iter/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::iter">iter</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="last/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::last">last</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="last_mut/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::last_mut">last_<wbr>mut</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="len/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::len">len</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="split_at/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::split_at">split_<wbr>at</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="split_at_checked/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::split_at_checked">split_<wbr>at_<wbr>checked</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="split_at_mut/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::split_at_mut">split_<wbr>at_<wbr>mut</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="split_at_mut_checked/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::split_at_mut_checked">split_<wbr>at_<wbr>mut_<wbr>checked</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="split_first/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::split_first">split_<wbr>first</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="split_last/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::split_last">split_<wbr>last</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="windows/index.html" title="mod flux_core::slice::TSliceSpec_95eefcac29f5f8b2::windows">windows</a></dt><dd>Original declaration.</dd></dl></section></div></main></body></html>

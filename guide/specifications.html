@@ -3675,7 +3675,7 @@ impl&lt;T, A: Allocator&gt; DerefMut for Vec&lt;T, A&gt; {
     fn deref_mut(&amp;mut self) -&gt; &amp;mut [T];
 }</code></pre>
 <pre><code class="language-rust noplayground">mod adapters;
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 mod range;
 mod traits;</code></pre>
 <pre><code class="language-rust noplayground">#![allow(unused)]

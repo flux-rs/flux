@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {};
+window.SIDEBAR_ITEMS = {"struct":["IndexMutSpec_4beea02807e31f5d","IndexSpec_0164bc26f811f9b0"]};

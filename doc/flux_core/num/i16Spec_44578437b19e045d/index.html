@@ -1,0 +1,82 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="External specifications in `core::num` for `i16`."><title>flux_core::num::i16Spec_44578437b19e045d - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (db3e99bba 2026-02-04)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module i16Spec_44578437b19e045d</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../flux_core/index.html">flux_<wbr>core</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module i16Spec_<wbr>44578437b19e045d</a></h2><h3><a href="#modules">Module Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In flux_<wbr>core::<wbr>num</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">flux_core</a>::<wbr><a href="../index.html">num</a></div><h1>Module <span>i16Spec_<wbr>44578437b19e045d</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/flux_core/num/mod.rs.html#203">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>External specifications in <code>core::num</code> for <code>i16</code>.</p>
+<p>This is not a real Rust item; it exists only to document the external specification.</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">impl </span>i16
+{
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L1818-L1820
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(num : i16, rhs : i16) -&gt; i16
+    [clamp(num + rhs, i16 :: MIN, i16 :: MAX)]</span>)] <span class="kw">fn
+    </span>saturating_add(<span class="self">self</span>, rhs : i16) -&gt; i16;
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L1864-L1866
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(num : i16, rhs : i16) -&gt; i16
+    [clamp(num - rhs, i16 :: MIN, i16 :: MAX)]</span>)] <span class="kw">fn
+    </span>saturating_sub(<span class="self">self</span>, rhs : i16) -&gt; i16;
+    <span class="doccomment">/// Panics if `self == T::MIN` (overflow when negating in debug mode). If in release mode, returns `T::MIN` on overflow.
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L3599-L3608
+    </span><span class="attr">#[spec(<span class="kw">fn</span>(num : i16) -&gt; i16
+    [<span class="kw">if </span>num &gt;= <span class="number">0 </span>{ num } <span class="kw">else if </span>num &gt; i16 :: MIN { - num } <span class="kw">else </span>{ num }]</span>)] <span class="kw">fn
+    </span>abs(<span class="self">self</span>) -&gt; i16;
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L496-L499
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(num : i16, rhs : i16) -&gt; <span class="prelude-ty">Option </span>&lt; i16 [num + rhs] </span>&gt;
+    [num + rhs &gt;= i16 :: MIN &amp;&amp; num + rhs &lt;= i16 :: MAX])] <span class="kw">fn
+    </span>checked_add(<span class="self">self</span>, rhs : i16) -&gt; <span class="prelude-ty">Option </span>&lt; i16 &gt; ;
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L646-L649
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(num : i16, rhs : i16) -&gt; <span class="prelude-ty">Option </span>&lt; i16 [num - rhs] </span>&gt;
+    [num - rhs &gt;= i16 :: MIN &amp;&amp; num - rhs &lt;= i16 :: MAX])] <span class="kw">fn
+    </span>checked_sub(<span class="self">self</span>, rhs : i16) -&gt; <span class="prelude-ty">Option </span>&lt; i16 &gt; ;
+    <span class="doccomment">/// # Incomplete: result is bounded but not precisely determined by the input value.
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L82
+    </span><span class="attr">#[no_panic] #[spec(<span class="kw">fn</span>(num : i16) -&gt; u32 {v : v &lt;= i16 :: BITS})] </span><span class="kw">fn
+    </span>count_ones(<span class="self">self</span>) -&gt; u32;
+    <span class="doccomment">/// # Incomplete: result is bounded but not precisely determined by the input value.
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L98-L100
+    </span><span class="attr">#[no_panic] #[spec(<span class="kw">fn</span>(num : i16) -&gt; u32 {v : v &lt;= i16 :: BITS})] </span><span class="kw">fn
+    </span>count_zeros(<span class="self">self</span>) -&gt; u32;
+    <span class="doccomment">/// # Incomplete: result is bounded but not precisely determined by the input value.
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L115-L117
+    </span><span class="attr">#[no_panic] #[spec(<span class="kw">fn</span>(num : i16) -&gt; u32 {v : v &lt;= i16 :: BITS})] </span><span class="kw">fn
+    </span>leading_zeros(<span class="self">self</span>) -&gt; u32;
+    <span class="doccomment">/// # Incomplete: result is bounded but not precisely determined by the input value.
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L131-L133
+    </span><span class="attr">#[no_panic] #[spec(<span class="kw">fn</span>(num : i16) -&gt; u32 {v : v &lt;= i16 :: BITS})] </span><span class="kw">fn
+    </span>trailing_zeros(<span class="self">self</span>) -&gt; u32;
+    <span class="doccomment">/// # Incomplete: result is bounded but not precisely determined by the input value.
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L147-L149
+    </span><span class="attr">#[no_panic] #[spec(<span class="kw">fn</span>(num : i16) -&gt; u32 {v : v &lt;= i16 :: BITS})] </span><span class="kw">fn
+    </span>leading_ones(<span class="self">self</span>) -&gt; u32;
+    <span class="doccomment">/// # Incomplete: result is bounded but not precisely determined by the input value.
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L163-L165
+    </span><span class="attr">#[no_panic] #[spec(<span class="kw">fn</span>(num : i16) -&gt; u32 {v : v &lt;= i16 :: BITS})] </span><span class="kw">fn
+    </span>trailing_ones(<span class="self">self</span>) -&gt; u32;
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L793-L801
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(num : i16) -&gt; <span class="prelude-ty">Option </span>&lt; i16 [- num] </span>&gt; [num &gt; i16 :: MIN])] <span class="kw">fn
+    </span>checked_neg(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option </span>&lt; i16 &gt; ;
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L730-L733
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(num : i16, rhs : i16) -&gt; <span class="prelude-ty">Option </span>&lt; i16 [num * rhs] </span>&gt;
+    [num * rhs &gt;= i16 :: MIN &amp;&amp; num * rhs &lt;= i16 :: MAX])] <span class="kw">fn
+    </span>checked_mul(<span class="self">self</span>, rhs : i16) -&gt; <span class="prelude-ty">Option </span>&lt; i16 &gt; ;
+    <span class="doccomment">/// Flux's `/` follows SMT-LIB's Euclidean `div` (floor for positive divisors, ceiling
+    /// for negative), which differs from Rust's truncating division for negative operands.
+    /// We use `sdiv` to recover truncating semantics. See: https://smt-lib.org/theories-Ints.shtml
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L780-L789
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(num : i16, rhs : i16) -&gt; <span class="prelude-ty">Option </span>&lt; i16 [sdiv(num, rhs)] </span>&gt;
+    [<span class="macro">rhs !</span>= <span class="number">0 </span>&amp;&amp; (<span class="macro">num !</span>= i16 :: MIN || <span class="macro">rhs !</span>= - <span class="number">1</span>)])] <span class="kw">fn
+    </span>checked_div(<span class="self">self</span>, rhs : i16) -&gt; <span class="prelude-ty">Option </span>&lt; i16 &gt; ;
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L2010-L2012
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(num : i16, rhs : i16) -&gt; i16
+    [wrap_once(num + rhs, i16 :: MIN, i16 :: MAX)]</span>)] <span class="kw">fn
+    </span>wrapping_add(<span class="self">self</span>, rhs : i16) -&gt; i16;
+    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/num/int_macros.rs#L2060-L2062
+    </span><span class="attr">#[no_panic]
+    #[spec(<span class="kw">fn</span>(num : i16, rhs : i16) -&gt; i16
+    [wrap_once(num - rhs, i16 :: MIN, i16 :: MAX)]</span>)] <span class="kw">fn
+    </span>wrapping_sub(<span class="self">self</span>, rhs : i16) -&gt; i16;
+}</code></pre></div></div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="abs/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::abs">abs</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="checked_add/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::checked_add">checked_<wbr>add</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="checked_div/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::checked_div">checked_<wbr>div</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="checked_mul/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::checked_mul">checked_<wbr>mul</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="checked_neg/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::checked_neg">checked_<wbr>neg</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="checked_sub/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::checked_sub">checked_<wbr>sub</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="count_ones/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::count_ones">count_<wbr>ones</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="count_zeros/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::count_zeros">count_<wbr>zeros</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="leading_ones/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::leading_ones">leading_<wbr>ones</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="leading_zeros/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::leading_zeros">leading_<wbr>zeros</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="saturating_add/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::saturating_add">saturating_<wbr>add</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="saturating_sub/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::saturating_sub">saturating_<wbr>sub</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="trailing_ones/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::trailing_ones">trailing_<wbr>ones</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="trailing_zeros/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::trailing_zeros">trailing_<wbr>zeros</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="wrapping_add/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::wrapping_add">wrapping_<wbr>add</a></dt><dd>Original declaration.</dd><dt><a class="mod" href="wrapping_sub/index.html" title="mod flux_core::num::i16Spec_44578437b19e045d::wrapping_sub">wrapping_<wbr>sub</a></dt><dd>Original declaration.</dd></dl></section></div></main></body></html>

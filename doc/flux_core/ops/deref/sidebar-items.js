@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {};
+window.SIDEBAR_ITEMS = {"struct":["DerefMutSpec_281be73f0f1f5139","DerefSpec_95973bde80160d18"]};

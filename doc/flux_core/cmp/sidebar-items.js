@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["OrdForusizeSpec_d1229248cdcbb705"],"struct":["OrdSpec_ce02979cc507d5e2","PartialEqSpec_07b952d2846cd656"]};
