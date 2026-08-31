@@ -1534,8 +1534,8 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
         let mut self_args: FxIndexMap<rty::WKVid, usize> = FxIndexMap::default();
         println!("Multi check analysis: (combining {} fns)", trees.len());
         for (def_id, tree, _) in &trees {
-            println!("  Including fn {}", def_id_to_string(def_id.resolved_id()));
-            println!("    fn has sig {:?}", self.genv.fn_sig(def_id.resolved_id())?);
+            // println!("  Including fn {}", def_id_to_string(def_id.resolved_id()));
+            // println!("    fn has sig {:?}", self.genv.fn_sig(def_id.resolved_id())?);
             let (tree_heads, tree_assumptions, tree_self_args) = tree.wkvars_in_positions();
             heads.extend(tree_heads);
             assumptions.extend(tree_assumptions);
@@ -1574,7 +1574,7 @@ impl<'genv, 'tcx> FixpointCtxt<'genv, 'tcx, crate::infer::Tag> {
             if wkvid.id == rty::KVid::from_u32(999) {
                 continue;
             }
-            println!("Promoting wkvar {}_{}", def_id_to_string(wkvid.parent_fn), wkvid.id.as_u32());
+            // println!("Promoting wkvar {}_{}", def_id_to_string(wkvid.parent_fn), wkvid.id.as_u32());
             let wkvars = self
                 .genv
                 .weak_kvars_for(wkvid.parent_fn)
