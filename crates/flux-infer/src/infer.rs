@@ -327,7 +327,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         let result = task.run().map_err(|err| {
             flux_middle::queries::QueryErr::bug(None, format!("failed to run multi-query: {err}"))
         })?;
-        fcx.report_multi_solutions(&result.solution, &result.non_cuts_solution)?;
+        // fcx.report_multi_solutions(&result.solution, &result.non_cuts_solution)?;
         match result.status {
             liquid_fixpoint::FixpointStatus::Safe(_) => {
                 println!("SAFE");
