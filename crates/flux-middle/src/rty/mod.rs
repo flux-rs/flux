@@ -2895,47 +2895,41 @@ fn slice_invariants(genv: GlobalEnv, elem_ty: &Ty, overflow_mode: OverflowMode) 
         return invariants;
     }
 
-    let typing_env =
-        TypingEnv { param_env: ParamEnv::empty(), typing_mode: TypingMode::non_body_analysis() };
-    if genv
-        .tcx()
-        .layout_of(typing_env.as_query_input(elem_ty.to_rustc(genv.tcx())))
-        .is_ok_and(|layout| layout.size.bytes() == 0)
-    {
-        invariants.push(Invariant {
-            pred: Binder::bind_with_sort(
-                Expr::le(Expr::nu(), Expr::uint_max(UintTy::Usize)),
-                Sort::Int,
+    let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
+    let size_of = Expr::alias(
+        AliasReft {
+            assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::size_of),
+            args: List::from_arr([GenericArg::Base(
+                elem_ty
+                    .with_holes()
+                    .replace_holes(|_, _| Expr::tt())
+                    .as_bty_skipping_existentials()
+                    .expect("slice element type must have a base type")
+                    .to_subset_ty_ctor(),
+            )]),
+        },
+        List::empty(),
+    );
+    // T::size_of() * len <= isize::MAX
+    invariants.push(Invariant {
+        pred: Binder::bind_with_sort(
+            Expr::le(
+                Expr::binary_op(BinOp::Mul(Sort::Int), Expr::nu(), size_of),
+                Expr::int_max(IntTy::Isize),
             ),
-        });
-    } else {
-        // NOTE: in theory we could just unwrap and use the size directly, but
-        // just in case let's explicitly make T::size_of() so that if Flux
-        // changes the behavior of this, slices aren't silently divergent.
-        let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
-        let size_of = Expr::alias(
-            AliasReft {
-                assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::size_of),
-                args: List::from_arr([GenericArg::Base(
-                    elem_ty
-                        .as_bty_skipping_existentials()
-                        .expect("slice element type must have a base type")
-                        .to_subset_ty_ctor(),
-                )]),
-            },
-            List::empty(),
-        );
-        invariants.push(Invariant {
-            pred: Binder::bind_with_sort(
-                Expr::le(
-                    Expr::binary_op(BinOp::Mul(Sort::Int), Expr::nu(), size_of),
-                    Expr::int_max(IntTy::Isize),
-                ),
-                Sort::Int,
+            Sort::Int,
+        ),
+    });
+    // len <= usize::MAX (only relevant for ZSTs)
+    invariants.push(Invariant {
+        pred: Binder::bind_with_sort(
+            Expr::le(
+                Expr::nu(),
+                Expr::uint_max(IntTy::Usize),
             ),
-        });
-    }
-    invariants
+            Sort::Int,
+        ),
+    });
 }
 
 fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [Invariant] {
