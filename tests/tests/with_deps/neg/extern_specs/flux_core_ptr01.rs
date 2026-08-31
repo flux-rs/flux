@@ -98,3 +98,37 @@ pub fn test_offset_from_unsigned_reversed(p: *const i32, q: *const i32) {
         let _ = p.offset_from_unsigned(q); //~ ERROR refinement type error
     }
 }
+
+// --- cast ---
+
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] u8 | addr >= base && addr > 0 && size == 1 && addr % 8 == 0}))]
+pub fn test_cast_method_does_not_create_extent(ptr: *mut u8) {
+    let wide = ptr.cast::<u64>();
+    unsafe {
+        std::ptr::write(wide, 0); //~ ERROR refinement type error
+    }
+}
+
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] u8 | addr >= base && addr > 0 && size >= 8 && addr % 8 != 0}))]
+pub fn test_cast_method_does_not_create_alignment(ptr: *mut u8) {
+    let wide = ptr.cast::<u64>();
+    unsafe {
+        std::ptr::write(wide, 0); //~ ERROR refinement type error
+    }
+}
+
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && addr > 0 && size < 4 && addr % 4 == 0}))]
+pub fn test_cast_const_method_preserves_extent(ptr: *mut i32) {
+    let const_ptr = ptr.cast_const();
+    unsafe {
+        let _value = std::ptr::read(const_ptr); //~ ERROR refinement type error
+    }
+}
+
+#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && addr > 0 && size < 4 && addr % 4 == 0}))]
+pub fn test_cast_mut_method_preserves_extent(ptr: *const i32) {
+    let mut_ptr = ptr.cast_mut();
+    unsafe {
+        std::ptr::write(mut_ptr, 0); //~ ERROR refinement type error
+    }
+}
