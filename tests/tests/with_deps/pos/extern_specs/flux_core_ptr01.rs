@@ -227,6 +227,67 @@ pub fn test_cast_slice_bytes(buf: &[i32; 4]) {
     }
 }
 
+// --- cast ---
+//
+// These mirror the ptr-to-ptr `as` casts above.
+
+#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}))]
+pub fn test_cast_method_narrow_read(ptr: *const i32) {
+    let byte_ptr = ptr.cast::<u8>();
+    unsafe {
+        let _b = std::ptr::read(byte_ptr);
+    }
+}
+
+#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 8 && addr % 8 == 0}))]
+pub fn test_cast_method_widen_read(ptr: *const i32) {
+    let wide_ptr = ptr.cast::<i64>();
+    unsafe {
+        let _v = std::ptr::read(wide_ptr);
+    }
+}
+
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}))]
+pub fn test_cast_method_byte_add_write(ptr: *mut i32) {
+    let byte_ptr = ptr.cast::<u8>();
+    unsafe {
+        std::ptr::write(byte_ptr.byte_add(3), 255);
+    }
+}
+
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}))]
+pub fn test_cast_method_round_trip(ptr: *mut i32) {
+    let byte_ptr = ptr.cast::<u8>();
+    let int_ptr = byte_ptr.cast::<i32>();
+    unsafe {
+        std::ptr::write(int_ptr, 10);
+    }
+}
+
+pub fn test_cast_method_slice_bytes(buf: &[i32; 4]) {
+    let ptr = buf.as_ptr();
+    let byte_ptr = ptr.cast::<u8>();
+    unsafe {
+        let _b = std::ptr::read(byte_ptr.byte_add(15));
+    }
+}
+
+#[flux::spec(fn (ptr: {*mut[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}))]
+pub fn test_cast_const_method(ptr: *mut i32) {
+    let const_ptr = ptr.cast_const();
+    unsafe {
+        let _value = std::ptr::read(const_ptr);
+    }
+}
+
+#[flux::spec(fn (ptr: {*const[@base, @addr, @size] i32 | addr >= base && addr > 0 && size >= 4 && addr % 4 == 0}))]
+pub fn test_cast_mut_method(ptr: *const i32) {
+    let mut_ptr = ptr.cast_mut();
+    unsafe {
+        std::ptr::write(mut_ptr, 10);
+    }
+}
+
 pub fn ref_to_ptr_read(z: i32) -> i32 {
     unsafe { std::ptr::read(&z) }
 }

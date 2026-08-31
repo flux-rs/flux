@@ -139,17 +139,22 @@ macro_rules! ptr_specs {
             unsafe fn read(self) -> T
             where T: Sized;
 
+            // Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L48
+            #[spec(fn(me: *$mutable[@p] T) -> *$mutable[p.base, p.addr, p.size] U)]
+            fn cast<U>(self) -> *$mutable U;
+
             $($($extra)*)?
         }
     };
 }
 
-ptr_specs!(const);
-
 // Rustfmt likes inserting a comma in here that breaks compilation, so we disable it for this macro invocation
 #[rustfmt::skip]
 ptr_specs!(
     mut,
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/mut_ptr.rs#L134
+    #[spec(fn(me: *mut[@p] T) -> *const[p.base, p.addr, p.size] T)]
+    fn cast_const(self) -> *const T;
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/mut_ptr.rs#L1413
     #[spec(fn (me: *mut[@p] T, val: T)
         requires valid(p, T::size_of()) && aligned_to(p, T::align_of()))]
@@ -162,6 +167,14 @@ ptr_specs!(
     unsafe fn replace(self, src: T) -> T
     where
         T: Sized;
+);
+
+#[rustfmt::skip]
+ptr_specs!(
+    const,
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/const_ptr.rs#L145
+    #[spec(fn(me: *const[@p] T) -> *mut[p.base, p.addr, p.size] T)]
+    fn cast_mut(self) -> *mut T;
 );
 
 #[extern_spec(core::ptr)]
