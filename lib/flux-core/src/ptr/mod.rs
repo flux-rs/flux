@@ -1,4 +1,4 @@
-#![flux::defs {
+#![cfg_attr(flux, flux::defs {
     // The memory range [addr, addr + num_bytes) is entirely contained within
     // the pointer's allocation. In our model this is: addr >= base (not before
     // the start) and num_bytes <= size (num_bytes remaining bytes fit before
@@ -43,7 +43,7 @@
     // starting points for pointer arithmetic but cannot be dereferenced.
     // Required as a precondition for all pointer arithmetic methods.
     fn in_bounds(p: ptr) -> bool { dereferenceable(p, 0) }
-}]
+})]
 /// These specs on `core::ptr` allow flux to enforce 2 safety properties:
 /// 1. Spatial safety: A pointer may only be read or written if pointer is derived from
 /// a valid allocation and the entire access would fall within the bounds of that allocation.

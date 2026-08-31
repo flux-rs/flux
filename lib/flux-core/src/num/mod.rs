@@ -1,4 +1,4 @@
-#![flux::defs {
+#![cfg_attr(flux, flux::defs {
     fn clamp(v: int, lo: int, hi: int) -> int { if v < lo { lo } else if v > hi { hi } else { v } }
     fn min(a: int, b: int) -> int { if a < b { a } else { b } }
     fn max(a: int, b: int) -> int { if a > b { a } else { b } }
@@ -16,7 +16,7 @@
         else if a < 0 && b > 0 { -((-a) / b) }
         else { (-a) / (-b) }
     }
-}]
+})]
 
 use flux_attrs::*;
 

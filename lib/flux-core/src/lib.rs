@@ -1,4 +1,5 @@
 #![no_std]
+#![cfg_attr(doc, deny(rustdoc::broken_intra_doc_links))]
 #![cfg_attr(flux, feature(step_trait))]
 #![cfg_attr(flux, feature(sized_hierarchy))]
 #![cfg_attr(flux, feature(try_trait_v2))]
@@ -7,37 +8,37 @@
 pub mod iter;
 pub mod ops;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod mem;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod option;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod result;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod cmp;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod clone;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod slice;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod array;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod num;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod ptr;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod convert;
 
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 pub mod alloc;
 
 // -------------------------------------------------------------------

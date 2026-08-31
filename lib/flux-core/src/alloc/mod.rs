@@ -1,2 +1,2 @@
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 mod layout;

@@ -210,8 +210,8 @@ mod attr_dummy {
         TokenStream::new()
     }
 
-    pub fn extern_spec(_attrs: TokenStream, _tokens: TokenStream) -> TokenStream {
-        TokenStream::new()
+    pub fn extern_spec(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+        flux_attrs_impl::extern_spec_doc(attrs.into(), tokens.into()).into()
     }
 
     macro_rules! no_op {

@@ -33,6 +33,159 @@ pub(crate) fn transform_extern_spec(
     }
 }
 
+pub(crate) fn transform_extern_spec_doc(
+    attr: TokenStream,
+    tokens: TokenStream,
+) -> syn::Result<TokenStream> {
+    // Rustdoc cannot attach documentation to an item in another crate. Following the approach
+    // introduced by Creusot, emit searchable documentation-only items instead. Unlike Creusot,
+    // Flux cannot reuse the original signatures because refinement syntax and bodyless inherent
+    // impls do not always type-check as ordinary Rust, so marker items carry the complete
+    // declaration as a code block.
+    let attr_source = attr.to_string();
+    let mod_path: Option<syn::Path> =
+        if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
+    let canonical_source = tokens.to_string();
+    let source = doc_source_text(tokens.span(), &canonical_source);
+    let hash = stable_doc_hash(&format!("{attr_source}|{canonical_source}"));
+    let item = syn::parse2::<ExternItem>(tokens)?;
+
+    let tokens = match item {
+        ExternItem::Struct(item) => doc_marker(&mod_path, &item.ident, hash, &source),
+        ExternItem::Enum(item) => doc_marker(&mod_path, &item.ident, hash, &source),
+        ExternItem::Trait(item) => doc_marker(&mod_path, &item.ident, hash, &source),
+        ExternItem::Fn(item) => {
+            let ident = &item.sig.ident;
+            let target = doc_target(&mod_path, ident);
+            let docs = doc_source(&target, &source);
+            let marker = format_ident!("{ident}Spec_{hash:016x}");
+            quote!(
+                #[allow(non_camel_case_types)]
+                #[doc = #docs]
+                pub struct #marker;
+            )
+        }
+        ExternItem::Impl(item) => {
+            let self_name = doc_type_name(&item.self_ty);
+            let base = if let Some((_, path, _)) = &item.trait_ {
+                let trait_name = path.segments.last().unwrap().ident.to_string();
+                format!("{trait_name}For{self_name}")
+            } else {
+                self_name
+            };
+            let ident = format_ident!("{base}Spec_{hash:016x}");
+            let self_ty = &item.self_ty;
+            let declaration = if let Some((_, path, _)) = &item.trait_ {
+                format!("`impl {} for {}`", quote!(#path), quote!(#self_ty))
+            } else {
+                format!("`{}`", quote!(#self_ty))
+            };
+            let target = if let Some(path) = &mod_path {
+                let path = path.to_token_stream().to_string().replace(' ', "");
+                format!("External specifications in `{path}` for {declaration}.")
+            } else {
+                format!("External specifications for {declaration}.")
+            };
+            let docs = doc_source(&target, &source);
+            let methods = item.items.iter().map(|method| {
+                let ident = &method.sig.ident;
+                let attrs = &method.attrs;
+                let sig = &method.sig;
+                let canonical_method_source = quote!(#(#attrs)* #sig;).to_string();
+                let method_span = method
+                    .attrs
+                    .first()
+                    .and_then(|attr| attr.span().join(method.sig.span()))
+                    .unwrap_or_else(|| method.sig.span());
+                let method_source = doc_source_text(method_span, &canonical_method_source)
+                    .trim_end_matches(';')
+                    .to_string()
+                    + ";";
+                let method_docs = doc_source("Original declaration.", &method_source);
+                quote!(
+                    #[allow(non_snake_case)]
+                    #[doc = #method_docs]
+                    pub mod #ident {}
+                )
+            });
+            quote!(
+                #[allow(non_snake_case)]
+                #[doc = #docs]
+                pub mod #ident { #(#methods)* }
+            )
+        }
+    };
+
+    Ok(quote!(#[cfg(doc)] #tokens))
+}
+
+fn doc_marker(mod_path: &Option<syn::Path>, ident: &Ident, hash: u64, source: &str) -> TokenStream {
+    let marker = format_ident!("{ident}Spec_{hash:016x}");
+    let docs = doc_source(&doc_target(mod_path, ident), source);
+    quote!(
+        #[allow(non_camel_case_types)]
+        #[doc = #docs]
+        pub struct #marker;
+    )
+}
+
+fn doc_target(mod_path: &Option<syn::Path>, ident: &Ident) -> String {
+    if let Some(path) = mod_path {
+        let path = path.to_token_stream().to_string().replace(' ', "");
+        format!("External specification for [`{path}::{ident}`].")
+    } else {
+        format!("External specification for `{ident}`.")
+    }
+}
+
+fn doc_source(summary: &str, source: &str) -> String {
+    format!(
+        "{summary}\n\nThis is not a real Rust item; it exists only to document the external specification.\n\n```rust,ignore\n{source}\n```"
+    )
+}
+
+fn doc_source_text(span: Span, canonical_source: &str) -> String {
+    select_doc_source(span.source_text(), canonical_source)
+}
+
+fn select_doc_source(source: Option<String>, canonical_source: &str) -> String {
+    source
+        // Macro-generated spans can point back to template source instead of the concrete
+        // expansion. Preserve source formatting only when it represents the same tokens.
+        .filter(|source| {
+            source
+                .parse::<TokenStream>()
+                .is_ok_and(|tokens| tokens.to_string() == canonical_source)
+        })
+        .unwrap_or_else(|| canonical_source.to_owned())
+}
+
+fn stable_doc_hash(source: &str) -> u64 {
+    // The target path participates in `source`, so otherwise identical specs for different crates
+    // cannot collide. FNV-1a keeps names deterministic across builds and platforms.
+    source
+        .bytes()
+        .fold(14_695_981_039_346_656_037, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(1_099_511_628_211)
+        })
+}
+
+fn doc_type_name(ty: &Type) -> String {
+    match ty {
+        Type::Path(path) => {
+            path.path
+                .segments
+                .last()
+                .map_or_else(|| "Type".into(), |segment| segment.ident.to_string())
+        }
+        Type::Reference(reference) => doc_type_name(&reference.elem),
+        Type::Slice(slice) => format!("{}Slice", doc_type_name(&slice.elem)),
+        Type::Array(array) => format!("{}Array", doc_type_name(&array.elem)),
+        Type::Ptr(pointer) => format!("{}Ptr", doc_type_name(&pointer.elem)),
+        _ => "Type".into(),
+    }
+}
+
 fn extern_fn_to_tokens(
     span: Span,
     mod_use: Option<UseWildcard>,
@@ -690,5 +843,87 @@ impl ToTokens for UseWildcard {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let path = &self.0;
         tokens.extend(quote!(use #path::*;))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use quote::quote;
+
+    use super::{select_doc_source, stable_doc_hash, transform_extern_spec_doc};
+
+    #[test]
+    fn documents_free_function_contract() {
+        let tokens = transform_extern_spec_doc(
+            quote!(core::mem),
+            quote!(
+                #[sig(fn(usize) -> usize)]
+                fn size_of_val(value: usize) -> usize;
+            ),
+        )
+        .unwrap()
+        .to_string();
+
+        assert!(tokens.contains("cfg (doc)"));
+        assert!(tokens.contains("pub struct size_of_valSpec_"));
+        assert!(tokens.contains("sig (fn (usize) -> usize)"));
+        assert!(tokens.contains("core::mem::size_of_val"));
+        assert!(tokens.contains("not a real Rust item"));
+    }
+
+    #[test]
+    fn documents_impl_methods_as_nested_modules() {
+        let tokens = transform_extern_spec_doc(
+            quote!(core::option),
+            quote!(
+                impl<T> Option<T> {
+                    #[sig(fn(&Self[@b]) -> bool[b])]
+                    const fn is_some(&self) -> bool;
+                }
+            ),
+        )
+        .unwrap()
+        .to_string();
+
+        assert!(tokens.contains("pub mod OptionSpec_"));
+        assert!(tokens.contains("pub mod is_some"));
+        assert!(tokens.contains("sig (fn (& Self [@ b]) -> bool [b])"));
+        assert!(tokens.contains("core::option"));
+    }
+
+    #[test]
+    fn target_path_affects_name_and_summary() {
+        let item = quote!(
+            struct Ordering;
+        );
+        let core = transform_extern_spec_doc(quote!(core::cmp), item.clone())
+            .unwrap()
+            .to_string();
+        let std = transform_extern_spec_doc(quote!(std::cmp), item)
+            .unwrap()
+            .to_string();
+
+        assert_ne!(core, std);
+        assert!(core.contains("core::cmp::Ordering"));
+        assert!(std.contains("std::cmp::Ordering"));
+    }
+
+    #[test]
+    fn documentation_hash_is_stable() {
+        assert_eq!(stable_doc_hash("flux"), 0xd61b_dd79_08af_2642);
+    }
+
+    #[test]
+    fn macro_metavariables_fall_back_to_expanded_tokens() {
+        assert_eq!(select_doc_source(Some("impl $T {}".into()), "impl usize {}"), "impl usize {}");
+    }
+
+    #[test]
+    fn equivalent_source_preserves_authored_formatting() {
+        let source = "fn get(\n    value: usize,\n) -> usize;";
+        assert_eq!(
+            select_doc_source(Some(source.into()), "fn get (value : usize ,) -> usize ;"),
+            source
+        );
     }
 }
