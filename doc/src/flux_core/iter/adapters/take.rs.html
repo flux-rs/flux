@@ -17,14 +17,18 @@
 <a href=#17 id=17 data-nosnippet>17</a>    <span class="kw">fn </span>size(x: Take&lt;I&gt;) -&gt; int { min(x.n, &lt;I <span class="kw">as </span>Iterator&gt;::size(x.inner)) }
 <a href=#18 id=18 data-nosnippet>18</a>    <span class="kw">fn </span>done(x: Take&lt;I&gt;) -&gt; bool { x.n &lt;= <span class="number">0 </span>|| &lt;I <span class="kw">as </span>Iterator&gt;::done(x.inner) }
 <a href=#19 id=19 data-nosnippet>19</a>    <span class="kw">fn </span>step(x: Take&lt;I&gt;, y: Take&lt;I&gt;) -&gt; bool {
-<a href=#20 id=20 data-nosnippet>20</a>        y.n == x.n - <span class="number">1 </span>&amp;&amp; &lt;I <span class="kw">as </span>Iterator&gt;::step(x.inner, y.inner)
-<a href=#21 id=21 data-nosnippet>21</a>    }
-<a href=#22 id=22 data-nosnippet>22</a>)]
-<a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">impl</span>&lt;I: Iterator&gt; Iterator <span class="kw">for </span>Take&lt;I&gt; {
-<a href=#24 id=24 data-nosnippet>24</a>    <span class="attr">#[spec(
-<a href=#25 id=25 data-nosnippet>25</a>        <span class="kw">fn</span>(<span class="self">self</span>: <span class="kw-2">&amp;mut </span><span class="self">Self</span>[@curr_s]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw">_</span>&gt;[!&lt;<span class="self">Self </span><span class="kw">as </span>Iterator&gt;::done(curr_s)]
-<a href=#26 id=26 data-nosnippet>26</a>        ensures <span class="self">self</span>: <span class="self">Self</span>{next_s: &lt;<span class="self">Self </span><span class="kw">as </span>Iterator&gt;::step(curr_s, next_s)}
-<a href=#27 id=27 data-nosnippet>27</a>    )]
-<a href=#28 id=28 data-nosnippet>28</a>    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;I::Item&gt;;
-<a href=#29 id=29 data-nosnippet>29</a>}
+<a href=#20 id=20 data-nosnippet>20</a>        <span class="kw">if </span>x.n &gt; <span class="number">0 </span>{
+<a href=#21 id=21 data-nosnippet>21</a>            y.n == x.n - <span class="number">1 </span>&amp;&amp; &lt;I <span class="kw">as </span>Iterator&gt;::step(x.inner, y.inner)
+<a href=#22 id=22 data-nosnippet>22</a>        } <span class="kw">else </span>{
+<a href=#23 id=23 data-nosnippet>23</a>            y.n == x.n &amp;&amp; y.inner == x.inner
+<a href=#24 id=24 data-nosnippet>24</a>        }
+<a href=#25 id=25 data-nosnippet>25</a>    }
+<a href=#26 id=26 data-nosnippet>26</a>)]
+<a href=#27 id=27 data-nosnippet>27</a></span><span class="kw">impl</span>&lt;I: Iterator&gt; Iterator <span class="kw">for </span>Take&lt;I&gt; {
+<a href=#28 id=28 data-nosnippet>28</a>    <span class="attr">#[spec(
+<a href=#29 id=29 data-nosnippet>29</a>        <span class="kw">fn</span>(<span class="self">self</span>: <span class="kw-2">&amp;mut </span><span class="self">Self</span>[@curr_s]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw">_</span>&gt;[!&lt;<span class="self">Self </span><span class="kw">as </span>Iterator&gt;::done(curr_s)]
+<a href=#30 id=30 data-nosnippet>30</a>        ensures <span class="self">self</span>: <span class="self">Self</span>{next_s: &lt;<span class="self">Self </span><span class="kw">as </span>Iterator&gt;::step(curr_s, next_s)}
+<a href=#31 id=31 data-nosnippet>31</a>    )]
+<a href=#32 id=32 data-nosnippet>32</a>    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;I::Item&gt;;
+<a href=#33 id=33 data-nosnippet>33</a>}
 </code></pre></div></section></main></body></html>

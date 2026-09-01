@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["IteratorForTakeSpec_e562638e9bfefbef"],"struct":["TakeSpec_e90d75aa096ef53a"]};
+window.SIDEBAR_ITEMS = {"mod":["IteratorForTakeSpec_4468d19b8c165a25"],"struct":["TakeSpec_e90d75aa096ef53a"]};
