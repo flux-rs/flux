@@ -143,6 +143,13 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub dump_constraint: bool,
+    /// Dump the call graph as JSON (for tooling)
+    #[arg(
+        long = flux_arg!("dump-call-graph"),
+        num_args = 0..=1,
+        default_missing_value = "false"
+    )]
+    pub dump_call_graph: bool,
     /// Saves the checker's trace (debugging)
     #[arg(long = flux_arg!("dump-checker-trace"), value_name = "LEVEL", value_parser = panicking_parser)]
     pub dump_checker_trace: Option<tracing::Level>,
@@ -253,6 +260,7 @@ impl Default for Flags {
             log_dir: PathBuf::from("./log/"),
             lean_dir: PathBuf::from("./"),
             lean_project: "lean_proofs".to_string(),
+            dump_call_graph: false,
             dump_constraint: false,
             dump_checker_trace: None,
             dump_fhir: false,
@@ -299,6 +307,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "log-dir" => parse_path_buf(&mut flags.log_dir, value),
             "lean-dir" => parse_path_buf(&mut flags.lean_dir, value),
             "lean-project" => parse_string(&mut flags.lean_project, value),
+            "dump-call-graph" => parse_bool(&mut flags.dump_call_graph, value),
             "dump-constraint" => parse_bool(&mut flags.dump_constraint, value),
             "dump-checker-trace" => parse_opt_level(&mut flags.dump_checker_trace, value),
             "dump-fhir" => parse_bool(&mut flags.dump_fhir, value),
