@@ -76,6 +76,22 @@ pub fn test_take_beyond_end(xs: &[i32]) {
     }
 }
 
+#[flux_rs::trusted]
+#[flux_rs::spec(fn(&std::iter::Take<I>[@n, @inner]) -> usize[n])]
+fn take_remaining<I>(_: &std::iter::Take<I>) -> usize {
+    unimplemented!()
+}
+
+pub fn test_exhausted_take_next_preserves_remaining() {
+    let xs: [i32; 0] = [];
+    let mut iter = xs.iter().take(0);
+    let remaining = take_remaining(&iter);
+    let _ = iter.next();
+    assert(take_remaining(&iter) == remaining);
+    let _ = iter.next();
+    assert(take_remaining(&iter) == remaining);
+}
+
 // --- Range::next ---
 
 pub fn test_exhausted_range_is_unchanged() {
