@@ -29,6 +29,16 @@ pub fn test_get_unchecked_index(xs: &[i32], i: usize) {
     assert(xs.get(i).is_some()); //~ ERROR refinement type error
 }
 
+// --- iter ---
+
+#[flux_rs::spec(fn(xs: &[i32][1]))]
+pub fn test_iter_as_slice_after_next(xs: &[i32]) {
+    let mut it = xs.iter();
+    let _ = it.next();
+    let remaining = it.as_slice();
+    let _ = remaining[0]; //~ ERROR possible out-of-bounds access
+}
+
 // --- first_mut / last_mut ---
 
 pub fn test_first_mut(xs: &mut [i32]) {

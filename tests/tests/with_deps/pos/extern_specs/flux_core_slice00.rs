@@ -64,6 +64,14 @@ pub fn test_generic_next_preserves_exhausted_iter_position() {
     assert(iter_idx(&it) == idx);
 }
 
+#[flux_rs::spec(fn(xs: &[i32][1]))]
+pub fn test_iter_as_slice_len_after_next(xs: &[i32]) {
+    let mut it = xs.iter();
+    let _ = it.next();
+    let ys = it.as_slice();
+    assert(ys.len() == 0);
+}
+
 // --- first_mut / last_mut ---
 
 pub fn test_first_mut_empty() {
