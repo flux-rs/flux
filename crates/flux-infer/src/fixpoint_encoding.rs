@@ -870,8 +870,7 @@ where
             return self
                 .genv
                 .constant_info(did)
-                .map(|info| info.value().is_some())
-                .unwrap_or(false);
+                .is_ok_and(|info| info.is_some_and(|info| info.value.is_some()));
         }
         false
     }
@@ -2304,8 +2303,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let sort = self
             .genv
             .constant_info(def_id)?
-            .sort()
-            .cloned()
+            .map(|info| info.sort)
             .unwrap_or_else(|| bug!("associated constant without a sort {def_id:?}"));
         Ok(self
             .const_env
@@ -2453,12 +2451,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             match key {
                 ConstKey::RustConst(def_id) => {
                     let info = self.genv.constant_info(def_id)?;
-                    match info.value() {
+                    match info.and_then(|info| info.value) {
                         None => {}
                         Some(val) => {
                             // A `RustConst` key is a constant referred to without generic
                             // arguments, so identity instantiation is the right one here.
-                            let val = val.clone().instantiate_identity();
+                            let val = val.instantiate_identity();
                             let const_name = const_.name;
                             let const_sort = const_.sort.clone();
 

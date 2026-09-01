@@ -2303,7 +2303,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     /// Such a constant is referred to without generic arguments.
     fn conv_const(&self, span: Span, def_id: DefId) -> QueryResult<(rty::Expr, rty::Sort)> {
         let info = self.genv().constant_info(def_id)?;
-        if info.value().is_none() {
+        if info.is_none_or(|info| info.value.is_none()) {
             Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?;
         }
         self.conv_opaque_const(span, def_id, List::empty())
@@ -2317,11 +2317,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         def_id: DefId,
         args: rty::GenericArgs,
     ) -> QueryResult<(rty::Expr, rty::Sort)> {
-        let info = self.genv().constant_info(def_id)?;
-        let Some(sort) = info.sort() else {
+        let Some(info) = self.genv().constant_info(def_id)? else {
             Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?
         };
-        Ok((rty::Expr::const_def_id(def_id, args).at(ESpan::new(span)), sort.clone()))
+        Ok((rty::Expr::const_def_id(def_id, args).at(ESpan::new(span)), info.sort))
     }
 
     fn conv_constructor_exprs(

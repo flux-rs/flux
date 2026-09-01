@@ -2002,9 +2002,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // 3. Try to see if we have `consant_info` for it.
         if let rty::TyOrBase::Base(ctor) = self.default_refiner.refine_ty_or_base(&constant.ty)?
-            && let Some(idx) = self.genv.constant_info(uneval.def)?.value()
+            && let Some(info) = self.genv.constant_info(uneval.def)?
+            && let Some(idx) = info.value
         {
-            let idx = idx.clone().instantiate_identity();
+            let idx = idx.instantiate_identity();
             return Ok(Some(ctor.replace_bound_reft(&idx).to_ty()));
         }
 
@@ -2027,7 +2028,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         else {
             return Ok(None);
         };
-        if self.genv.constant_info(uneval.def)?.sort().is_none() {
+        if self.genv.constant_info(uneval.def)?.is_none() {
             return Ok(None);
         }
         let args: flux_rustc_bridge::ty::GenericArgs = uneval

@@ -821,7 +821,8 @@ fn normalize_assoc_const<'tcx>(
     if let Ok(Some(ImplSource::UserDefined(impl_data))) = selcx.select(&trait_pred) {
         let impl_def_id = impl_data.impl_def_id;
         if let Some(impl_item) = tcx.impl_item_implementor_ids(impl_def_id).get(&assoc_id)
-            && let Some(value) = genv.constant_info(*impl_item)?.value()
+            && let Some(info) = genv.constant_info(*impl_item)?
+            && let Some(value) = info.value
         {
             let impl_args = Refiner::default_for_item(genv, def_id)?.refine_generic_args(
                 impl_def_id,
@@ -830,7 +831,7 @@ fn normalize_assoc_const<'tcx>(
                     .lower(tcx)
                     .map_err(|reason| query_bug!("{reason:?}"))?,
             )?;
-            return Ok((true, value.clone().instantiate(tcx, &impl_args, &[])));
+            return Ok((true, value.instantiate(tcx, &impl_args, &[])));
         }
     }
 

@@ -201,10 +201,11 @@ fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
     Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, invariants, is_opaque))
 }
 
-fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::ConstantInfo> {
+fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Option<rty::ConstantInfo>> {
     let node = genv.fhir_node(def_id.local_id())?;
+    // A constant whose type has no sort has no refinement-level view at all.
     let Some(sort) = genv.sort_of_def_id(def_id.resolved_id()).emit(&genv)? else {
-        return Ok(rty::ConstantInfo::unsupported());
+        return Ok(None);
     };
     let tcx = genv.tcx();
     match node {
@@ -215,7 +216,7 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
             let expr = AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_constant_expr(expr)?;
-            Ok(rty::ConstantInfo::interpreted(rty::EarlyBinder(expr), sort))
+            Ok(Some(rty::ConstantInfo { sort, value: Some(rty::EarlyBinder(expr)) }))
         }
         fhir::Node::ImplItem(fhir::ImplItem {
             kind: fhir::ImplItemKind::Const(Some(expr)),
@@ -228,7 +229,7 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
             let expr = AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_constant_expr(expr)?;
-            Ok(rty::ConstantInfo::interpreted(rty::EarlyBinder(expr), sort))
+            Ok(Some(rty::ConstantInfo { sort, value: Some(rty::EarlyBinder(expr)) }))
         }
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(None), .. })
         | fhir::Node::AnonConst
@@ -243,18 +244,18 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
             {
                 // FIXME(nilehmann) we should probably report an error in case const evaluation
                 // fails instead of silently ignore it.
-                Ok(rty::ConstantInfo::interpreted(
-                    rty::EarlyBinder(rty::Expr::constant(constant_)),
+                Ok(Some(rty::ConstantInfo {
                     sort,
-                ))
+                    value: Some(rty::EarlyBinder(rty::Expr::constant(constant_))),
+                }))
             } else {
-                Ok(rty::ConstantInfo::opaque(sort))
+                Ok(Some(rty::ConstantInfo { sort, value: None }))
             }
         }
         fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. }) => {
             // The value of a constant declared in a trait depends on the impl, so all we know
             // here is its sort. It is resolved to a value, if there is one, during normalization.
-            Ok(rty::ConstantInfo::opaque(sort))
+            Ok(Some(rty::ConstantInfo { sort, value: None }))
         }
         _ => Err(query_bug!(def_id.local_id(), "expected const item"))?,
     }
