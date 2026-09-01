@@ -53,13 +53,18 @@
 <a href=#53 id=53 data-nosnippet>53</a>#[assoc(
 <a href=#54 id=54 data-nosnippet>54</a>    <span class="kw">fn </span>size(x: Windows) -&gt; int { <span class="kw">if </span>x.window_size &gt; x.remaining { <span class="number">0 </span>} <span class="kw">else </span>{ x.remaining - x.window_size + <span class="number">1 </span>} }
 <a href=#55 id=55 data-nosnippet>55</a>    <span class="kw">fn </span>done(x: Windows) -&gt; bool { x.remaining &lt; x.window_size }
-<a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">fn </span>step(x: Windows, y: Windows) -&gt; bool { y.remaining == x.remaining - <span class="number">1 </span>&amp;&amp; y.window_size == x.window_size }
-<a href=#57 id=57 data-nosnippet>57</a>)]
-<a href=#58 id=58 data-nosnippet>58</a></span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; Iterator <span class="kw">for </span>Windows&lt;<span class="lifetime">'a</span>, T&gt; {
-<a href=#59 id=59 data-nosnippet>59</a>    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/iter.rs#L1356
-<a href=#60 id=60 data-nosnippet>60</a>    </span><span class="attr">#[no_panic]
-<a href=#61 id=61 data-nosnippet>61</a>    #[spec(<span class="kw">fn</span>(<span class="self">self</span>: <span class="kw-2">&amp;mut </span>Windows&lt;T&gt;[@curr_s]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[T][curr_s.window_size]&gt;[curr_s.remaining &gt;= curr_s.window_size]
-<a href=#62 id=62 data-nosnippet>62</a>           ensures <span class="self">self</span>: Windows&lt;T&gt;{next_s: next_s.remaining == curr_s.remaining - <span class="number">1 </span>&amp;&amp; next_s.window_size == curr_s.window_size})]
-<a href=#63 id=63 data-nosnippet>63</a>    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[T]&gt;;
-<a href=#64 id=64 data-nosnippet>64</a>}
+<a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">fn </span>step(x: Windows, y: Windows) -&gt; bool {
+<a href=#57 id=57 data-nosnippet>57</a>        y.remaining == <span class="kw">if </span>x.remaining &gt;= x.window_size { x.remaining - <span class="number">1 </span>} <span class="kw">else </span>{ x.remaining }
+<a href=#58 id=58 data-nosnippet>58</a>        &amp;&amp; y.window_size == x.window_size
+<a href=#59 id=59 data-nosnippet>59</a>    }
+<a href=#60 id=60 data-nosnippet>60</a>)]
+<a href=#61 id=61 data-nosnippet>61</a></span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; Iterator <span class="kw">for </span>Windows&lt;<span class="lifetime">'a</span>, T&gt; {
+<a href=#62 id=62 data-nosnippet>62</a>    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/iter.rs#L1356
+<a href=#63 id=63 data-nosnippet>63</a>    </span><span class="attr">#[no_panic]
+<a href=#64 id=64 data-nosnippet>64</a>    #[spec(<span class="kw">fn</span>(<span class="self">self</span>: <span class="kw-2">&amp;mut </span>Windows&lt;T&gt;[@curr_s]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[T][curr_s.window_size]&gt;[curr_s.remaining &gt;= curr_s.window_size]
+<a href=#65 id=65 data-nosnippet>65</a>           ensures <span class="self">self</span>: Windows&lt;T&gt;{next_s:
+<a href=#66 id=66 data-nosnippet>66</a>               next_s.remaining == <span class="kw">if </span>curr_s.remaining &gt;= curr_s.window_size { curr_s.remaining - <span class="number">1 </span>} <span class="kw">else </span>{ curr_s.remaining }
+<a href=#67 id=67 data-nosnippet>67</a>               &amp;&amp; next_s.window_size == curr_s.window_size})]
+<a href=#68 id=68 data-nosnippet>68</a>    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[T]&gt;;
+<a href=#69 id=69 data-nosnippet>69</a>}
 </code></pre></div></section></main></body></html>
