@@ -239,7 +239,13 @@ impl Mode for Elaboration<'_> {
     }
 
     fn ret(analysis: &mut FoldUnfoldAnalysis<Self>, env: &Env) {
-        env.collect_folds_at_ret(analysis.body, &mut analysis.mode.stmts.at(analysis.point));
+        let Point::BeforeLocation(location) = analysis.point else {
+            tracked_span_bug!("unexpected point for `return` terminator {:?}", analysis.point)
+        };
+        env.collect_folds_at_ret(
+            analysis.body,
+            &mut analysis.mode.stmts.at(Point::AtReturn(location)),
+        );
     }
 }
 

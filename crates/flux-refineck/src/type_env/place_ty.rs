@@ -9,9 +9,14 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        AdtDef, BaseTy, Binder, EarlyBinder, Expr, FIRST_VARIANT, GenericArg, GenericArgsExt, List,
-        Loc, Mutability, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
+        AdtDef, BaseTy, Binder, BoundReftKind, BoundVariableKinds, EarlyBinder, Expr, ExprKind,
+        FIRST_VARIANT, GenericArg, GenericArgsExt, List, Loc, Mutability, Name, Path, PtrKind, Ref,
+        Sort, Ty, TyCtor, TyKind, Var, VariantIdx, VariantSig,
+        canonicalize::{Hoister, HoisterDelegate},
+        fold::{
+            FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable,
+            TypeVisitor,
+        },
     },
 };
 use flux_rustc_bridge::mir::{FieldIdx, Place, PlaceElem};
@@ -19,6 +24,8 @@ use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hir::def_id::DefId;
 use rustc_span::Span;
+use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
+
 #[derive(Clone, Default)]
 pub(crate) struct PlacesTree {
     map: FxIndexMap<Loc, Binding>,
@@ -867,6 +874,131 @@ fn downcast_enum(
     Ok(variant_sig.fields.to_vec())
 }
 
+/// Opens the *guards* of blocked fields, recording enough information to close them back into a
+/// binder. See [`fold_guarded`].
+struct GuardOpener<'a, 'infcx, 'genv, 'tcx> {
+    infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
+    /// The names the guards were opened with, in the order they were created. These become the
+    /// variables of the binder, so the order has to match `sorts`.
+    names: Vec<Name>,
+    sorts: Vec<Sort>,
+    /// The guards, in terms of `names`.
+    preds: Vec<Expr>,
+}
+
+impl HoisterDelegate for &mut GuardOpener<'_, '_, '_, '_> {
+    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
+        let ty = ty_ctor.replace_bound_refts_with(|sort, _, kind| {
+            let name = self.infcx.define_bound_reft_var(sort, kind);
+            self.names.push(name);
+            self.sorts.push(sort.clone());
+            Expr::fvar(name)
+        });
+        self.infcx.assume_invariants(&ty);
+        ty
+    }
+
+    fn hoist_constr(&mut self, pred: Expr) {
+        // Assumed *locally* so the aggregate's invariants can be discharged against it, and
+        // recorded so it travels in the type instead of in the enclosing refinement context.
+        self.infcx.assume_pred(pred.clone());
+        self.preds.push(pred);
+    }
+}
+
+/// Abstracts `names` into the variables of a binder wrapping `t`, i.e. replaces each
+/// `Var::Free(names[i])` with `Var::Bound(<the new binder>, i)`.
+fn close_over<T: TypeFoldable>(names: &[Name], t: &T) -> T {
+    struct Closer<'a> {
+        names: &'a [Name],
+        current_index: DebruijnIndex,
+    }
+
+    impl TypeFolder for Closer<'_> {
+        fn enter_binder(&mut self, _: &BoundVariableKinds) {
+            self.current_index.shift_in(1);
+        }
+
+        fn exit_binder(&mut self) {
+            self.current_index.shift_out(1);
+        }
+
+        fn fold_expr(&mut self, expr: &Expr) -> Expr {
+            if let ExprKind::Var(Var::Free(name)) = expr.kind()
+                && let Some(idx) = self.names.iter().position(|n| n == name)
+            {
+                Expr::bvar(self.current_index, BoundVar::from_usize(idx), BoundReftKind::Anon)
+            } else {
+                expr.super_fold_with(self)
+            }
+        }
+    }
+    t.fold_with(&mut Closer { names, current_index: INNERMOST })
+}
+
+/// A field of an aggregate can be *blocked* if there's a live mutable borrow into it, e.g., after
+/// `let r = &mut s.f`. To fold `s` back we use the *guard* of the borrow, i.e., the bound `r` is
+/// allowed to write back, as the type of the field.
+///
+/// The guards are *not* unpacked into the enclosing refinement context, which would leave both the
+/// fresh names and the guards themselves in scope for everything checked after the fold. Instead
+/// they are opened in a branch of the refinement tree, used to build the aggregate, and then closed
+/// back into a binder on the resulting type. So folding
+/// ```text
+/// Foo { foo: usize[a], bar: †usize{v: a <= v} }
+/// ```
+/// checks `Foo`'s invariants under a local `∀b. a <= b ⇒ …` and yields
+/// ```text
+/// †∃b. { Foo[a, b] | a <= b }
+/// ```
+/// The result stays blocked because the borrow is still live.
+///
+/// `mk` builds the aggregate from the opened fields; it is where field subtyping and the
+/// aggregate's invariants get checked. At least one of `fields` must be blocked, see
+/// [`has_blocked_field`].
+fn fold_guarded(
+    infcx: &mut InferCtxtAt,
+    fields: &[Ty],
+    mk: impl FnOnce(&mut InferCtxtAt, &[Ty]) -> QueryResult<Ty>,
+) -> QueryResult<Ty> {
+    let span = infcx.span;
+    let mut branch = infcx.branch();
+    let mut opener =
+        GuardOpener { infcx: &mut branch, names: vec![], sorts: vec![], preds: vec![] };
+    let fields = fields
+        .iter()
+        .map(|ty| {
+            if let TyKind::Blocked(bound) = ty.kind() {
+                Hoister::with_delegate(&mut opener)
+                    .transparent()
+                    .hoist(bound)
+            } else {
+                ty.clone()
+            }
+        })
+        .collect_vec();
+    let GuardOpener { names, sorts, preds, .. } = opener;
+
+    let ty = mk(&mut branch.at(span), &fields)?;
+
+    let pred = Expr::and_from_iter(preds);
+    let ty = if sorts.is_empty() {
+        // The guards had no existentials, so there is nothing to bind and the predicates are
+        // already in terms of variables of the enclosing scope.
+        Ty::constr(pred, ty)
+    } else {
+        let ty = Ty::constr(pred, ty).shift_in_escaping(1);
+        Ty::exists(Binder::bind_with_sorts(close_over(&names, &ty), &sorts))
+    };
+    Ok(Ty::blocked(ty))
+}
+
+fn has_blocked_field(fields: &[Ty]) -> bool {
+    fields
+        .iter()
+        .any(|ty| matches!(ty.kind(), TyKind::Blocked(_)))
+}
+
 fn fold(
     bindings: &mut PlacesTree,
     infcx: &mut InferCtxtAt,
@@ -899,13 +1031,19 @@ fn fold(
                     .map(|ty| fold(bindings, infcx, ty, is_strg))
                     .try_collect_vec()?;
 
+                let mk = |infcx: &mut InferCtxtAt, fields: &[Ty]| {
+                    Ok(infcx
+                        .check_constructor(variant_sig, args, fields, ConstrReason::Fold)
+                        .unwrap_or_else(|err| tracked_span_bug!("{err:?}")))
+                };
+
                 let partially_moved = fields.iter().any(Ty::is_uninit);
                 let ty = if partially_moved {
                     Ty::uninit()
+                } else if has_blocked_field(&fields) {
+                    fold_guarded(infcx, &fields, mk)?
                 } else {
-                    infcx
-                        .check_constructor(variant_sig, args, &fields, ConstrReason::Fold)
-                        .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
+                    mk(infcx, &fields)?
                 };
 
                 Ok(ty)
@@ -921,8 +1059,16 @@ fn fold(
                 .map(|ty| fold(bindings, infcx, ty, is_strg))
                 .try_collect_vec()?;
 
+            let mk = |_: &mut InferCtxtAt, fields: &[Ty]| Ok(Ty::tuple(fields.to_vec()));
+
             let partially_moved = fields.iter().any(Ty::is_uninit);
-            let ty = if partially_moved { Ty::uninit() } else { Ty::tuple(fields) };
+            let ty = if partially_moved {
+                Ty::uninit()
+            } else if has_blocked_field(&fields) {
+                fold_guarded(infcx, &fields, mk)?
+            } else {
+                mk(infcx, &fields)?
+            };
             Ok(ty)
         }
         _ => Ok(ty.clone()),
