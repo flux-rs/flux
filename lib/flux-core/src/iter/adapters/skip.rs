@@ -13,7 +13,9 @@ struct Skip<I>;
 #[extern_spec(core::iter)]
 #[assoc(
     fn size(r: Skip) -> int { r.size }
-    fn step(self: Skip, other: Skip) -> bool { other.size == self.size - 1 }
+    fn step(self: Skip, other: Skip) -> bool {
+        other.size == if self.size > 0 { self.size - 1 } else { self.size }
+    }
 )]
 impl<I: Iterator> Iterator for Skip<I> {
     #[spec(
