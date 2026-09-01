@@ -556,8 +556,7 @@ type ConstMap<'tcx> = FxIndexMap<ConstKey<'tcx>, fixpoint::ConstDecl>;
 #[derive(Eq, Hash, PartialEq, Clone)]
 pub(crate) enum ConstKey<'tcx> {
     RustConst(DefId),
-    /// An instantiation of an associated constant. Keyed on the generic arguments so that
-    /// different instantiations get different fixpoint constants.
+    /// An instantiation of an assoc-constant: uses GenericArgs (generic arguments) to get per-instance fixpoint constants.
     AssocConst(DefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Lambda(Lambda),
@@ -2454,8 +2453,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     match info.and_then(|info| info.value) {
                         None => {}
                         Some(val) => {
-                            // A `RustConst` key is a constant referred to without generic
-                            // arguments, so identity instantiation is the right one here.
+                            // A `RustConst` key is a `ConstDefId` with no generic args, i.e. a
+                            // free constant or one in a non-generic inherent impl (`i32::MAX`),
+                            // so no generics are in scope in `val` and there is nothing to
+                            // instantiate.
                             let val = val.instantiate_identity();
                             let const_name = const_.name;
                             let const_sort = const_.sort.clone();
@@ -2494,8 +2495,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         Box::new(constraint),
                     );
                 }
-                // The value of an associated constant, if known, is supplied during
-                // normalization rather than assumed here.
                 ConstKey::AssocConst(..)
                 | ConstKey::Alias(..)
                 | ConstKey::Cast(..)

@@ -222,7 +222,7 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Option<r
             kind: fhir::ImplItemKind::Const(Some(expr)),
             ..
         }) => {
-            // As above, but the value may mention the generics of the impl, so we bind it under
+            // The value may mention the generics of the impl, so we bind it under
             // them and let normalization instantiate it at the impl's arguments.
             let owner = def_id.map(|def_id| rustc_hir::OwnerId { def_id });
             let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
@@ -234,8 +234,7 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Option<r
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(None), .. })
         | fhir::Node::AnonConst
         | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const(None), .. }) => {
-            // For other constants, we try to evaluate them if they are of a scalar type we can
-            // represent in the refinement logic.
+            // For other constants, we try to evaluate them if they are of a scalar type
             if let Some(ty) = tcx.type_of(def_id).no_bound_vars()
                 && (ty.is_integral() || ty.is_bool() || ty.is_char())
                 && let Ok(val) = tcx.const_eval_poly(def_id.resolved_id())
@@ -253,8 +252,7 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Option<r
             }
         }
         fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. }) => {
-            // The value of a constant declared in a trait depends on the impl, so all we know
-            // here is its sort. It is resolved to a value, if there is one, during normalization.
+            // The value depends on the impl, so  is resolved, if possible, during normalization.
             Ok(Some(rty::ConstantInfo { sort, value: None }))
         }
         _ => Err(query_bug!(def_id.local_id(), "expected const item"))?,
@@ -479,7 +477,8 @@ fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Gener
         | DefKind::TraitAlias
         | DefKind::Ctor(..)
         // A constant has no generics of its own, but a `#[flux::constant]` annotation on an
-        // associated constant may mention the generics of the impl it is defined in.
+        // associated constant may mention the generics of the impl it is defined in
+        // e.g. tests/pos/surface/assoc_const01.rs
         | DefKind::Const
         | DefKind::AssocConst
         | DefKind::Static { .. } => refining::refine_generics(&genv.lower_generics_of(def_id)),
