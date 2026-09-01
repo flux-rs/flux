@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["IntoIteratorForTSliceSpec_eb2e9353d945de34","IterSpec_e4d905a7a51726f0","IteratorForIterSpec_6ef5afba9537bb84","IteratorForWindowsSpec_09f18ae65bd67387"],"struct":["IterSpec_81b83cabd6101265","WindowsSpec_255ed2e27ed09fae"]};
+window.SIDEBAR_ITEMS = {"mod":["IntoIteratorForTSliceSpec_eb2e9353d945de34","IterSpec_ad46eefc5741d0b9","IteratorForIterSpec_6ef5afba9537bb84","IteratorForWindowsSpec_09f18ae65bd67387"],"struct":["IterSpec_81b83cabd6101265","WindowsSpec_255ed2e27ed09fae"]};
