@@ -343,7 +343,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn constant_info(
         self,
         def_id: impl IntoQueryParam<DefId>,
-    ) -> QueryResult<rty::ConstantInfo> {
+    ) -> QueryResult<Option<rty::ConstantInfo>> {
         self.inner
             .queries
             .constant_info(self, def_id.into_query_param())

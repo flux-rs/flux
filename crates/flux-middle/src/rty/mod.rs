@@ -1284,12 +1284,18 @@ pub enum SortArg {
     BvSize(BvSize),
 }
 
+/// The refinement-level view of a constant. A constant whose type has no sort has no
+/// [`ConstantInfo`] at all: [`crate::global_env::GlobalEnv::constant_info`] returns `None` for it
+/// and it cannot appear in a refinement.
+///
+/// A constant with a sort but no `value` is "opaque", i.e. uninterpreted (e.g. a constant declared
+/// in a trait, whose value is only known once we pick an impl).
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
-pub enum ConstantInfo {
-    /// An uninterpreted constant
-    Uninterpreted,
-    /// A non-integral constant whose value is specified by the user
-    Interpreted(Expr, Sort),
+pub struct ConstantInfo {
+    pub sort: Sort,
+    /// The value is early bound over the generics of the item the constant is declared in, so that
+    /// the value of an associated constant may mention the generics of its impl.
+    pub value: Option<EarlyBinder<Expr>>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]

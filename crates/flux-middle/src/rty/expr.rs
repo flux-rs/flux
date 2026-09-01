@@ -237,8 +237,8 @@ impl Expr {
         ExprKind::Constant(c).intern()
     }
 
-    pub fn const_def_id(c: DefId) -> Expr {
-        ExprKind::ConstDefId(c).intern()
+    pub fn const_def_id(c: DefId, args: GenericArgs) -> Expr {
+        ExprKind::ConstDefId(c, args).intern()
     }
 
     pub fn const_generic(param: ParamConst) -> Expr {
@@ -955,8 +955,16 @@ pub enum ExprKind {
     Var(Var),
     Local(Local),
     Constant(Constant),
-    /// A rust constant. This can be either `DefKind::Const` or `DefKind::AssocConst`
-    ConstDefId(DefId),
+    /// A rust constant. This can be either `DefKind::Const` or `DefKind::AssocConst`.
+    ///
+    /// The generic arguments are those of the item the constant is declared in, so that two
+    /// instantiations of the same associated constant, e.g. `<A as Tr>::C` and `<B as Tr>::C`,
+    /// are distinct symbols. For a constant declared in a trait these are the arguments of the
+    /// trait reference, matching what rustc records in [`UnevaluatedConst`]. They are empty for
+    /// a free constant or a constant in an inherent impl.
+    ///
+    /// [`UnevaluatedConst`]: rustc_middle::mir::UnevaluatedConst
+    ConstDefId(DefId, GenericArgs),
     BinaryOp(BinOp, Expr, Expr),
     GlobalFunc(SpecFuncKind),
     InternalFunc(InternalFuncKind),
@@ -1789,7 +1797,13 @@ pub(crate) mod pretty {
             match e.kind() {
                 ExprKind::Var(var) => w!(cx, f, "{:?}", var),
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
-                ExprKind::ConstDefId(did) => w!(cx, f, "{}", ^def_id_to_string(*did)),
+                ExprKind::ConstDefId(did, args) => {
+                    w!(cx, f, "{}", ^def_id_to_string(*did))?;
+                    if !args.is_empty() {
+                        w!(cx, f, "<{:?}>", join!(", ", args))?;
+                    }
+                    Ok(())
+                }
                 ExprKind::Constant(c) => w!(cx, f, "{:?}", c),
 
                 ExprKind::BinaryOp(op, e1, e2) => {

@@ -169,10 +169,27 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn desugar_impl_item(
         &mut self,
-        item: &surface::ImplItemFn,
+        item: &surface::ImplItem,
     ) -> Result<fhir::ImplItem<'genv>> {
-        let (generics, fn_sig) = self.desugar_fn_sig(item.sig.as_ref())?;
-        Ok(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Fn(fn_sig), owner_id: self.owner })
+        match &item.kind {
+            surface::ImplItemKind::Fn(sig) => {
+                let (generics, fn_sig) = self.desugar_fn_sig(sig.as_ref())?;
+                Ok(fhir::ImplItem {
+                    generics,
+                    kind: fhir::ImplItemKind::Fn(fn_sig),
+                    owner_id: self.owner,
+                })
+            }
+            surface::ImplItemKind::Const(const_info) => {
+                let expr = const_info.expr.as_ref().map(|e| self.desugar_expr(e));
+                let generics = self.lift_generics();
+                Ok(fhir::ImplItem {
+                    generics,
+                    kind: fhir::ImplItemKind::Const(expr),
+                    owner_id: self.owner,
+                })
+            }
+        }
     }
 
     fn desugar_trait(&mut self, trait_: &surface::Trait) -> Result<fhir::Item<'genv>> {
