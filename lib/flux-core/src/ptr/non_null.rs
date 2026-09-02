@@ -32,6 +32,13 @@ use flux_attrs::*;
 struct NonNull<T>;
 
 #[extern_spec(core::ptr)]
+impl<T: Sized> NonNull<T> {
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L131
+    #[spec(fn() -> NonNull<T>{p: p.size == 0 && p.addr != 0 && nn_aligned_to(p.addr, T::align_of())})]
+    fn dangling() -> Self;
+}
+
+#[extern_spec(core::ptr)]
 impl<T> NonNull<T> {
     /// Need to enforce that the pointer value is non-null, because as the name suggests, this function does not check.
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L234

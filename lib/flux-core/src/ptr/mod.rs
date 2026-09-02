@@ -190,6 +190,18 @@ fn null<T>() -> *const T;
 fn null_mut<T>() -> *mut T;
 
 #[extern_spec(core::ptr)]
+// See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L917
+#[no_panic]
+#[spec(fn() -> *const{p: p.size == 0 && p.addr != 0 && aligned_to(p, T::align_of())} T)]
+fn dangling<T>() -> *const T;
+
+#[extern_spec(core::ptr)]
+// See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L962
+#[no_panic]
+#[spec(fn() -> *mut{p: p.size == 0 && p.addr != 0 && aligned_to(p, T::align_of())} T)]
+fn dangling_mut<T>() -> *mut T;
+
+#[extern_spec(core::ptr)]
 // - `src` must be valid for reads or `T` must be a ZST.
 // - `src` must be properly aligned. Use `read_unaligned` if this is not the case.
 // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L1591-L1596
