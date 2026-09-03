@@ -17,7 +17,14 @@ defs! {
 trait Iterator {
     #[spec(
         fn(self: &mut Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)]
-        ensures self: Self{next_s: <Self as Iterator>::step(curr_s, next_s)}
+        ensures self: Self[#next_s],
+                <Self as Iterator>::step(curr_s, next_s),
+                if <Self as Iterator>::done(curr_s) {
+                    <Self as Iterator>::size(curr_s) == 0
+                } else {
+                    <Self as Iterator>::size(curr_s) > 0
+                        && <Self as Iterator>::size(next_s) == <Self as Iterator>::size(curr_s) - 1
+                }
     )]
     fn next(&mut self) -> Option<Self::Item>;
 
