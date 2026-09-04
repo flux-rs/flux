@@ -23,6 +23,11 @@ pub fn test_ptr_eq_sym(p: *const i32) {
 }
 
 #[flux::spec(fn(p1: *const[@base, @addr, @size] i32, p2: *const[base, addr, size] i32))]
-pub fn test_ptr_id(p1: *const i32, p2: *const i32) {
+pub fn test_ptr_id_sym(p1: *const i32, p2: *const i32) {
     assert(p1 == p2)
+}
+
+#[flux::spec(fn(p1: *const[@base, @addr, @size] i32, p2: *const[base, addr, size] i32))]
+pub fn test_ptr_id(p1: *const i32, p2: *const i32) {
+    assert(p1.eq(&p2))
 }

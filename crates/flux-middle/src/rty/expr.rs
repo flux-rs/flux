@@ -613,7 +613,7 @@ impl Expr {
         }
     }
 
-    /// Reduce a pointer to it's address, for comparisons
+    /// Reduce a pointer to its address, for relational operators
     pub fn reduce_ptr_addr(&self) -> Expr {
         self.proj_and_reduce(FieldProj::RawPtr { field: RawPtrField::Addr })
     }
