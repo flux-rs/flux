@@ -14,8 +14,8 @@ pub fn test_ptr_eq(p: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn (ptr: {NonNull<i32>[@base, @addr, @size] | addr >= base && size == 8}))]
-pub fn test_ptr_eq_sym(p: NonNull<i32>) {
+#[flux::spec(fn (ptr: {NonNull<u64>[@base, @addr, @size] | addr >= base && size == 16}))]
+pub fn test_ptr_eq_sym(p: NonNull<u64>) {
     unsafe {
         let p1 = p.add(1);
         let p0 = p1.sub(1);
@@ -23,8 +23,8 @@ pub fn test_ptr_eq_sym(p: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn(p1: NonNull<i32>[@base, @addr, @size], p2: NonNull<i32>[base, addr, size]))]
-pub fn test_ptr_id_sym(p1: NonNull<i32>, p2: NonNull<i32>) {
+#[flux::spec(fn(p1: NonNull<f32>[@base, @addr, @size], p2: NonNull<f32>[base, addr, size]))]
+pub fn test_ptr_id_sym(p1: NonNull<f32>, p2: NonNull<f32>) {
     assert(p1 == p2)
 }
 
