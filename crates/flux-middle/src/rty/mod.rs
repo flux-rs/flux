@@ -1720,6 +1720,12 @@ impl Ty {
             .unwrap_or_default()
     }
 
+    pub fn is_raw_ptr(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_raw_ptr)
+            .unwrap_or_default()
+    }
+
     pub fn is_array(&self) -> bool {
         self.as_bty_skipping_existentials()
             .map(BaseTy::is_array)
@@ -1991,6 +1997,10 @@ impl BaseTy {
 
     pub fn is_str(&self) -> bool {
         matches!(self, BaseTy::Str)
+    }
+
+    pub fn is_raw_ptr(&self) -> bool {
+        matches!(self, BaseTy::RawPtr(..))
     }
 
     pub fn invariants(
