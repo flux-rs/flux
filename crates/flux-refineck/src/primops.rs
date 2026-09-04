@@ -484,7 +484,7 @@ fn mk_eq_rules() -> RuleMatcher<2> {
 fn mk_ne_rules() -> RuleMatcher<2> {
     primop_rules! {
         fn(a: T, b: T) -> bool[E::ne(a, b)]
-        if T.is_integral() || T.is_bool() || T.is_raw_ptr()
+        if T.is_integral() || T.is_bool()
 
         fn(a: T, b: S) -> bool[E::ne(a.reduce_ptr_addr(), b.reduce_ptr_addr())]
         if T.is_raw_ptr() && S.is_raw_ptr()
