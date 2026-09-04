@@ -23,7 +23,6 @@ use rustc_data_structures::{
 };
 use rustc_hash::FxHashSet;
 use rustc_index::newtype_index;
-use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
 
 use crate::{
@@ -172,16 +171,16 @@ impl Cursor<'_> {
 
     pub(crate) fn assume_invariants(
         &mut self,
-        tcx: TyCtxt,
+        genv: GlobalEnv,
         ty: &Ty,
         overflow_checking: OverflowMode,
     ) {
-        struct Visitor<'a, 'b, 'tcx> {
-            tcx: TyCtxt<'tcx>,
-            cursor: &'a mut Cursor<'b>,
+        struct Visitor<'cursor, 'tree, 'genv, 'tcx> {
+            genv: GlobalEnv<'genv, 'tcx>,
+            cursor: &'cursor mut Cursor<'tree>,
             overflow_mode: OverflowMode,
         }
-        impl TypeVisitor for Visitor<'_, '_, '_> {
+        impl TypeVisitor for Visitor<'_, '_, '_, '_> {
             fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!> {
                 match bty {
                     BaseTy::Adt(adt_def, substs) if adt_def.is_box() => substs.visit_with(self),
@@ -195,7 +194,7 @@ impl Cursor<'_> {
                 if let TyKind::Indexed(bty, idx) = ty.kind()
                     && !idx.has_escaping_bvars()
                 {
-                    for invariant in bty.invariants(self.tcx, self.overflow_mode) {
+                    for invariant in bty.invariants(self.genv, self.overflow_mode) {
                         let invariant = invariant.apply(idx);
                         self.cursor.assume_pred(&invariant);
                     }
@@ -203,7 +202,8 @@ impl Cursor<'_> {
                 ty.super_visit_with(self)
             }
         }
-        let _ = ty.visit_with(&mut Visitor { tcx, cursor: self, overflow_mode: overflow_checking });
+        let _ =
+            ty.visit_with(&mut Visitor { genv, cursor: self, overflow_mode: overflow_checking });
     }
 }
 
