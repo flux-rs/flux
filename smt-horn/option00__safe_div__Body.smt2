@@ -5,10 +5,10 @@
 ;; Tag 2: Ret at 47:27: 47:31 (ESpan { span: tests/with_deps/pos/enums/option00.rs:45:86: 45:102 (#0), base: None })
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int Int Int) Bool)
 
 (assert (forall ((reftgen$numerator$0 Int)(reftgen$denominator$1 Int)(_$ Int)(_$ Int)(_$ Int)) (=> (and (>= reftgen$numerator$0 0) (>= reftgen$denominator$1 0) (not (= reftgen$denominator$1 0)) (not (not (= reftgen$denominator$1 0)))) false)))

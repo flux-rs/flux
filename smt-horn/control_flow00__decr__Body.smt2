@@ -5,10 +5,10 @@
 ;; Tag 2: Ret at 138:16: 138:27
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int Int) Bool)
 
 (assert (forall ((reftgen$n$0 Int)(_$ Int)(_$ Int)) (=> (and (>= reftgen$n$0 0) (not (> reftgen$n$0 0)) (not (= false (> reftgen$n$0 0)))) false)))

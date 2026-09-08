@@ -3,10 +3,10 @@
 ;; Tag 0: Ret at 26:1: 26:2 (ESpan { span: tests/pos/surface/box01.rs:21:30: 21:33 (#0), base: None })
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int Int) Bool)
 
 (assert (forall ((reftgen$n$0 Int)) (=> true (k0 reftgen$n$0 reftgen$n$0))))

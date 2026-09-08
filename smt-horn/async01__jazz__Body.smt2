@@ -4,10 +4,10 @@
 ;; Tag 1: Ret at 21:5: 21:11 (ESpan { span: tests/pos/surface/async01.rs:17:39: 17:43 (#0), base: None })
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int Int Int Int) Bool)
 (declare-fun k1 (Int Int Int Int Int Int Int Int Int) Bool)
 

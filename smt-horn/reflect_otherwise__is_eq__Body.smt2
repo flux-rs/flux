@@ -7,10 +7,10 @@
 
 (declare-type-var T0)
 (declare-datatypes ((Adt0 0)) (((mkadt0$0) (mkadt0$1) (mkadt0$2))))
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Adt0 Adt0) Bool)
 
 (assert (forall ((reftgen$b1$0 Adt0)(reftgen$b2$1 Adt0)(_$ Int)(_$ Int)) (=> (and (= reftgen$b1$0 mkadt0$0) (= reftgen$b2$1 mkadt0$0) (not (= true (= reftgen$b1$0 reftgen$b2$1)))) false)))

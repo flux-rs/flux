@@ -3,10 +3,10 @@
 ;; Tag 0: Ret at 13:5: 13:15 (ESpan { span: tests/pos/abstract_refinements/test00.rs:11:28: 11:38 (#0), base: None })
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int) Bool)
 
 (assert (=> true (k0 4)))

@@ -3,10 +3,10 @@
 ;; Tag 0: Subtype(Output) at 10:5: 10:19 (ESpan { span: tests/pos/surface/closure04.rs:1:81: 1:87 (#0), base: None })
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int) Bool)
 (declare-fun k1 (Int Int) Bool)
 

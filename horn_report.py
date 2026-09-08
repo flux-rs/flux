@@ -15,19 +15,26 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import re
 import subprocess
 import sys
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 # Result classes, in report order. `unsat` first: for a passing test it means something is wrong.
-CLASSES = ["unsat", "error", "sat", "unknown", "timeout", "crash"]
+CLASSES = ["unsat", "error", "skipped", "sat", "unknown", "timeout", "crash"]
+
+# Written by `-Fdump-smt-horn` for every query the formatter refused to encode.
+SKIPPED_LOG = "_skipped.log"
 
 LINE_COL = re.compile(r"line \d+ column \d+")
+
+COMMENT = re.compile(r"^\s*;")
 
 
 @dataclass
@@ -36,11 +43,79 @@ class Result:
     status: str
     seconds: float
     detail: str = ""
+    # Other files carrying this same constraint, collapsed by --dedup.
+    aliases: list[str] = field(default_factory=list)
 
     @property
     def normalized_detail(self) -> str:
         """Error text with line/column stripped, so the same bug groups across files."""
         return LINE_COL.sub("line L column C", self.detail)
+
+    @property
+    def message(self) -> str:
+        """The error text alone, without the `(error "line N column M: ...")` wrapper."""
+        text = self.detail.strip()
+        if text.startswith('(error "'):
+            text = text[len('(error "'):].removesuffix('")').removesuffix('"')
+        return LINE_COL.sub("", text).lstrip(": ").strip()
+
+    @property
+    def label(self) -> str:
+        return f"{self.file} (+{len(self.aliases)} dup)" if self.aliases else self.file
+
+
+def constraint_key(path: Path) -> str:
+    """Hash of a file's constraint, ignoring comments.
+
+    Every dump carries a `;; Tag ... ESpan { span: <this test's source location> }` header, so two
+    files holding the identical constraint are never byte-identical. Comparing the non-comment
+    lines is what actually detects a repeated constraint.
+    """
+    body = "\n".join(
+        line for line in path.read_text().splitlines() if not COMMENT.match(line)
+    )
+    return hashlib.md5(body.encode()).hexdigest()
+
+
+def read_skipped(directory: Path) -> list[Result]:
+    """Reads the queries the formatter declined to encode, from `_skipped.log`.
+
+    These never became files, so they are invisible to the solver run -- but they are part of what
+    the dump was asked to cover, and leaving them out silently overstates coverage.
+    """
+    log = directory / SKIPPED_LOG
+    if not log.exists():
+        return []
+    seen, out = set(), []
+    for line in log.read_text().splitlines():
+        if not line.strip():
+            continue
+        # The log is appended to, so repeated dumps into one directory repeat entries.
+        name, _, reason = line.partition("\t")
+        if (name, reason) in seen:
+            continue
+        seen.add((name, reason))
+        # A later run may have succeeded where an earlier one bailed out; trust the file.
+        if (directory / f"{name}.smt2").exists():
+            continue
+        out.append(Result(f"{name}.smt2", "skipped", 0.0, reason or "no reason recorded"))
+    return out
+
+
+def dedup(files: list[Path]) -> tuple[list[Path], dict[str, list[str]]]:
+    """Keeps the first file of each group of identical constraints.
+
+    Returns the representatives and, for each, the names it stands in for.
+    """
+    groups: dict[str, list[Path]] = defaultdict(list)
+    for path in files:
+        groups[constraint_key(path)].append(path)
+    keep, aliases = [], {}
+    for group in groups.values():
+        rep, *rest = sorted(group)
+        keep.append(rep)
+        aliases[rep.name] = [p.name for p in rest]
+    return sorted(keep), aliases
 
 
 def run_one(path: Path, solver: str, timeout: int, extra: list[str]) -> Result:
@@ -84,7 +159,7 @@ def distribution(title: str, results: list[Result], note: str = "") -> None:
     for r in results:
         counts[r.status] = counts.get(r.status, 0) + 1
 
-    print(f"\n{title} ({total} files){note}")
+    print(f"\n{title} ({total} queries){note}")
     print("-" * 58)
     if not total:
         print("  nothing to report")
@@ -98,25 +173,52 @@ def distribution(title: str, results: list[Result], note: str = "") -> None:
         print(f"  {cls:<9} {count:>5}  {pct:>5.1f}%  {bar(count, total)}")
 
 
-def report(results: list[Result], timeout: int, elapsed: float, top: int) -> None:
+def report(
+    results: list[Result], timeout: int, elapsed: float, top: int, deduped: bool = False
+) -> None:
     total = len(results)
     by_class: dict[str, list[Result]] = {c: [] for c in CLASSES}
     for r in results:
         by_class.setdefault(r.status, []).append(r)
 
-    print(f"\n{total} files, {elapsed:.1f}s wall clock, {timeout}s per-file timeout")
+    collapsed = sum(len(r.aliases) for r in results)
+    n_skipped = sum(1 for r in results if r.status == "skipped")
+    scope = f"{total - n_skipped} constraint files"
+    if collapsed:
+        scope = f"{total - n_skipped} distinct constraints ({collapsed} duplicates collapsed)"
+    if n_skipped:
+        scope += f" + {n_skipped} not encoded"
+    print(f"\n{scope}, {elapsed:.1f}s wall clock, {timeout}s per-file timeout")
 
     malformed = by_class.get("error") or []
     if malformed:
         groups: dict[str, list[Result]] = {}
         for r in malformed:
             groups.setdefault(r.normalized_detail, []).append(r)
-        print(f"\nmalformed files, grouped by error ({len(malformed)} files, {len(groups)} distinct)")
+        print(f"\nmalformed files ({len(malformed)} files, {len(groups)} distinct errors)")
         print("-" * 58)
-        for detail, items in sorted(groups.items(), key=lambda kv: -len(kv[1])):
-            print(f"  [{len(items)}] {detail}")
-            for r in sorted(items, key=lambda r: r.file):
-                print(f"        {r.file}")
+        width = max(len(r.label) for r in malformed)
+        for r in sorted(malformed, key=lambda r: (r.normalized_detail, r.file)):
+            print(f"  {r.label:<{width}}  {r.message}")
+        if len(groups) > 1:
+            print("\n  distinct errors:")
+            for detail, items in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+                print(f"    [{len(items)}] {items[0].message}")
+
+    skipped = by_class.get("skipped") or []
+    if skipped:
+        by_reason: dict[str, list[Result]] = {}
+        for r in skipped:
+            by_reason.setdefault(r.detail, []).append(r)
+        note = " -- no file, so --dedup cannot collapse these" if deduped else ""
+        print(
+            f"\nnot encoded, skipped by the formatter "
+            f"({len(skipped)} queries, {len(by_reason)} distinct{note})"
+        )
+        print("-" * 58)
+        width = max(len(r.file) - 5 for r in skipped)
+        for r in sorted(skipped, key=lambda r: (r.detail, r.file)):
+            print(f"  {r.file[:-5]:<{width}}  {r.detail}")
 
     for cls in ("unsat", "crash"):
         items = by_class.get(cls) or []
@@ -125,7 +227,7 @@ def report(results: list[Result], timeout: int, elapsed: float, top: int) -> Non
             print("-" * 58)
             for r in sorted(items, key=lambda r: r.file):
                 suffix = f"  {r.detail}" if r.detail else ""
-                print(f"  {r.file}{suffix}")
+                print(f"  {r.label}{suffix}")
 
     hard = sorted(
         (by_class.get("timeout") or []) + (by_class.get("unknown") or []),
@@ -135,7 +237,7 @@ def report(results: list[Result], timeout: int, elapsed: float, top: int) -> Non
         print(f"\nnot solved ({len(hard)})")
         print("-" * 58)
         for r in hard:
-            print(f"  {r.status:<8} {r.file}")
+            print(f"  {r.status:<8} {r.label}")
 
     solved = sorted(
         (by_class.get("sat") or []) + (by_class.get("unsat") or []),
@@ -145,32 +247,36 @@ def report(results: list[Result], timeout: int, elapsed: float, top: int) -> Non
         print(f"\nslowest solved (top {min(top, len(solved))} of {len(solved)})")
         print("-" * 58)
         for r in solved[:top]:
-            print(f"  {r.seconds:>7.2f}s  {r.status:<5} {r.file}")
+            print(f"  {r.seconds:>7.2f}s  {r.status:<5} {r.label}")
         times = [r.seconds for r in solved]
         times.sort()
         median = times[len(times) // 2]
         print(f"\n  median {median:.2f}s   total {sum(times):.1f}s over {len(times)} solved")
 
-    # Stats last, so they are on screen at the end of a long run. Two universes: everything that
-    # was dumped, and only the files the solver actually understood. The second is the one that
-    # says how the solver does on the constraints -- a malformed file measures the formatter, not
-    # spacer, so leaving it in drags every percentage down for an unrelated reason.
+    # Stats last, so they are on screen at the end of a long run. Two universes: every query the
+    # dump covered, and only those the solver actually got to work on. The second is the one that
+    # says how spacer does -- a malformed or skipped query measures the formatter, not the solver,
+    # so leaving those in drags every percentage down for an unrelated reason.
     print()
     print("=" * 58)
     print("STATS")
     print("=" * 58)
-    distribution("all files", results)
-    well_formed = [r for r in results if r.status != "error"]
-    note = f", excluding {len(malformed)} malformed" if malformed else ", none malformed"
-    distribution("well-formed only", well_formed, note)
+    distribution("all queries", results)
+    reached = [r for r in results if r.status not in ("error", "skipped")]
+    excluded = []
+    if malformed:
+        excluded.append(f"{len(malformed)} malformed")
+    if skipped:
+        excluded.append(f"{len(skipped)} not encoded")
+    note = f", excluding {' and '.join(excluded)}" if excluded else ", nothing excluded"
+    distribution("reached the solver", reached, note)
 
-    if well_formed:
-        solved_wf = sum(1 for r in well_formed if r.status in ("sat", "unsat"))
+    if reached:
+        n = sum(1 for r in reached if r.status in ("sat", "unsat"))
         print(
-            f"\n  solved {solved_wf}/{len(well_formed)} well-formed "
-            f"({100 * solved_wf / len(well_formed):.1f}%)"
-            f"   |   {solved_wf}/{total} of all dumped "
-            f"({100 * solved_wf / total:.1f}%)"
+            f"\n  solved {n}/{len(reached)} of those reaching the solver "
+            f"({100 * n / len(reached):.1f}%)"
+            f"   |   {n}/{total} of all queries ({100 * n / total:.1f}%)"
         )
 
 
@@ -184,6 +290,12 @@ def main() -> int:
     p.add_argument("--json", type=Path, help="also write per-file results as JSON")
     p.add_argument("--csv", type=Path, help="also write per-file results as CSV")
     p.add_argument("--only", help="only files whose name contains this substring")
+    p.add_argument(
+        "--dedup",
+        action="store_true",
+        help="solve each distinct constraint once. Files are compared ignoring comments, since "
+        "the per-test span header makes otherwise identical dumps byte-distinct",
+    )
     p.add_argument("--top", type=int, default=10, help="how many slowest files to list (0 to skip)")
     p.add_argument("-q", "--quiet", action="store_true", help="no per-file progress")
     args = p.parse_args()
@@ -191,8 +303,16 @@ def main() -> int:
     if not args.dir.is_dir():
         sys.exit(f"not a directory: {args.dir}")
     files = sorted(f for f in args.dir.glob("*.smt2") if not args.only or args.only in f.name)
-    if not files:
+    if not files and not skipped:
         sys.exit(f"no matching .smt2 files in {args.dir}")
+
+    skipped = [r for r in read_skipped(args.dir) if not args.only or args.only in r.file]
+
+    aliases: dict[str, list[str]] = {}
+    if args.dedup:
+        before = len(files)
+        files, aliases = dedup(files)
+        print(f"dedup: {before} files -> {len(files)} distinct constraints")
 
     jobs = args.jobs or None
     results: list[Result] = []
@@ -203,25 +323,30 @@ def main() -> int:
         ]
         for i, fut in enumerate(futures, 1):
             r = fut.result()
+            r.aliases = aliases.get(r.file, [])
             results.append(r)
             if not args.quiet:
-                print(f"[{i:>4}/{len(files)}] {r.status:<8} {r.seconds:>6.2f}s  {r.file}")
+                print(f"[{i:>4}/{len(files)}] {r.status:<8} {r.seconds:>6.2f}s  {r.label}")
 
     elapsed = time.monotonic() - start
-    report(results, args.timeout, elapsed, args.top)
+    report(results + skipped, args.timeout, elapsed, args.top, args.dedup)
 
-    rows = [asdict(r) for r in sorted(results, key=lambda r: r.file)]
+    rows = [asdict(r) for r in sorted(results + skipped, key=lambda r: r.file)]
+    for row in rows:
+        row["duplicates"] = len(row["aliases"])
     if args.json:
         args.json.write_text(json.dumps(rows, indent=2))
         print(f"\nwrote {args.json}")
     if args.csv:
         with args.csv.open("w", newline="") as fh:
-            w = csv.DictWriter(fh, fieldnames=["file", "status", "seconds", "detail"])
+            fields = ["file", "status", "seconds", "duplicates", "detail"]
+            w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
             w.writeheader()
             w.writerows(rows)
         print(f"wrote {args.csv}")
 
     # Non-zero if anything is actually broken; timeouts and unknown are not failures.
+    # A skipped query is a known limitation, not a failure, so it does not affect the exit code.
     bad = sum(1 for r in results if r.status in ("unsat", "error", "crash"))
     return 1 if bad else 0
 

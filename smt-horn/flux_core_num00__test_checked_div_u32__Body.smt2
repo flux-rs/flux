@@ -3,10 +3,10 @@
 ;; Tag 0: Call at 168:5: 168:47 (ESpan { span: lib/flux-rs/src/lib.rs:9:15: 9:19 (#0), base: None })
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int) Bool)
 
 (assert (forall ((a0 Int)(_$ Int)) (=> (= a0 (div 10 2)) (k0 a0))))

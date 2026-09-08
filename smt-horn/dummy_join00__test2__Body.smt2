@@ -4,10 +4,10 @@
 ;; Tag 1: Ret at 27:5: 27:12 (ESpan { span: tests/pos/surface/dummy_join00.rs:16:46: 16:52 (#0), base: None })
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int Int) Bool)
 
 (assert (forall ((a0 Int)(_$ Int)(_$ Int)(_$ Int)) (=> (and (not (= a0 0)) (not (= a0 1)) (not (= a0 2))) (k0 4 a0))))

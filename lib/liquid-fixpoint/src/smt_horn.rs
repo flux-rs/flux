@@ -291,6 +291,10 @@ pub fn fmt_smt_horn<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt
         // A definition may mention another constant, so only use it once everything it refers to
         // has been emitted; otherwise it would be a forward reference.
         let definable = const_defs.get(&cinfo.name).filter(|def| {
+            // A function-sorted constant is declared with an arity, not defined as a value.
+            if uncurry_func_sort(&cinfo.sort).is_some() {
+                return false;
+            }
             let mut vars = Vec::new();
             collect_vars(def, &mut vars);
             vars.iter()
@@ -573,14 +577,15 @@ fn fmt_sort_smt_with<T: Types>(
         }
         Sort::BvSize(size) => write!(f, "{size}"),
         Sort::Var(i) => write!(f, "{prefix}{i}"),
-        Sort::Func(fsort) => {
-            // Function sorts mapped to (Array input output) as an approximation
-            let [input, output] = &**fsort;
-            write!(f, "(Array ")?;
-            fmt_sort_smt_with(input, prefix, f)?;
-            write!(f, " ")?;
-            fmt_sort_smt_with(output, prefix, f)?;
-            write!(f, ")")
+        // SMT-LIB has no function values: a function is a symbol with an arity, never something a
+        // variable, field or predicate argument can hold. A function sort reaching here is used as
+        // a value, and approximating it as `(Array input output)` would silently change what the
+        // constraint means, so bail out and let the caller skip the task.
+        //
+        // A function sort in *declaration* position never reaches here; `fmt_const_decl` uncurries
+        // it into a `declare-fun` with an arity instead.
+        Sort::Func(_) => {
+            panic!("Function sorts used as values are not supported in SMT/Horn format")
         }
         Sort::Abs(_, sort) => fmt_sort_smt_with(sort, prefix, f),
         Sort::App(ctor, args) => {
@@ -867,7 +872,41 @@ fn fmt_data_ctor_smt<T: Types>(ctor: &DataCtor<T>, f: &mut fmt::Formatter<'_>) -
     write!(f, ")")
 }
 
+/// Splits a (possibly polymorphic, curried) function sort into its argument sorts and its result,
+/// e.g. `∀a. a -> a -> bool` becomes `([a, a], bool)`. Returns `None` for a non-function sort.
+fn uncurry_func_sort<T: Types>(sort: &Sort<T>) -> Option<(Vec<&Sort<T>>, &Sort<T>)> {
+    let mut sort = sort;
+    // Sort variables bound here are declared globally with `declare-type-var`.
+    while let Sort::Abs(_, inner) = sort {
+        sort = inner;
+    }
+    let mut inputs = Vec::new();
+    while let Sort::Func(fsort) = sort {
+        let [input, output] = &**fsort;
+        inputs.push(input);
+        sort = output;
+    }
+    (!inputs.is_empty()).then_some((inputs, sort))
+}
+
 fn fmt_const_decl<T: Types>(decl: &ConstDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    // A constant of function sort is an uninterpreted function, so declare it with an arity rather
+    // than as a value of some approximated sort. Spacer accepts the declaration and only rejects a
+    // rule that actually applies it, which is the honest outcome: an unused declaration (the
+    // polymorphic `gt`/`ge`/`lt`/`le` relations every task carries) costs nothing, and a used one
+    // is reported as unsupported instead of being silently reinterpreted.
+    if let Some((inputs, output)) = uncurry_func_sort(&decl.sort) {
+        write!(f, "(declare-fun {} (", decl.name.display())?;
+        for (i, input) in inputs.iter().enumerate() {
+            if i > 0 {
+                write!(f, " ")?;
+            }
+            fmt_sort_smt(input, f)?;
+        }
+        write!(f, ") ")?;
+        fmt_sort_smt(output, f)?;
+        return writeln!(f, ")");
+    }
     write!(f, "(declare-const {} ", decl.name.display())?;
     fmt_sort_smt(&decl.sort, f)?;
     writeln!(f, ")")

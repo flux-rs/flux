@@ -3,10 +3,10 @@
 ;; Tag 0: Ret at 12:5: 12:8 (ESpan { span: tests/pos/surface/loop01.rs:4:22: 4:26 (#0), base: None })
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int Int) Bool)
 (declare-fun k1 (Int) Bool)
 

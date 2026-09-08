@@ -4,10 +4,10 @@
 
 (declare-type-var T0)
 (declare-datatypes ((Adt0 0)) (((mkadt0$0 (fld0$0 (_ BitVec 32))))))
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 ((_ BitVec 32) (_ BitVec 32)) Bool)
 
 (assert (forall ((reftgen$x$0 Adt0)(reftgen$y$1 Adt0)(_$ Int)) (=> (not (bvule (fld0$0 reftgen$x$0) ((_ int2bv 32) 10))) (k0 (fld0$0 reftgen$x$0) (fld0$0 reftgen$y$1)))))

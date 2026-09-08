@@ -7,10 +7,10 @@
 
 (declare-type-var T0)
 (define-fun c0 () Int 4294967295)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int) Bool)
 
 (assert (forall ((_$ Int)) (=> (and (= c0 4294967295) (not (= (<= 1000 c0) true))) false)))

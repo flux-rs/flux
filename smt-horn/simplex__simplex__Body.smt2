@@ -16,10 +16,10 @@
 ;; Tag 13: Call at 157:13: 157:37 (ESpan { span: tests/pos/surface/simplex.rs:117:102: 117:107 (#0), base: None })
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int Int) Bool)
 
 (assert (forall ((reftgen$m$0 Int)(reftgen$n$1 Int)(_$ Int)(_$ Int)(_$ Int)(_$ Int)) (=> (and (< 1 reftgen$m$0) (>= reftgen$m$0 0) (< 2 reftgen$n$1) (>= reftgen$n$1 0)) (k0 reftgen$m$0 reftgen$n$1))))

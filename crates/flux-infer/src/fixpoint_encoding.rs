@@ -2844,7 +2844,8 @@ fn dump_smt_horn(
                 .map(|s| (*s).to_string())
                 .or_else(|| payload.downcast_ref::<String>().cloned())
                 .unwrap_or_else(|| "unknown panic".to_string());
-            eprintln!("dump-smt-horn: skipped {name}: {reason}");
+            // Reported only in `_skipped.log`: the compiletest suites compare stderr exactly, so
+            // an extra line here fails every test whose query can't be encoded.
             if let Ok(mut file) = fs::OpenOptions::new()
                 .create(true)
                 .append(true)

@@ -4,10 +4,10 @@
 ;; Tag 1: Call at 50:29: 50:54 (ESpan { span: tests/pos/surface/date.rs:8:58: 8:84 (#0), base: Some(tests/pos/surface/date.rs:20:32: 20:48 (#0)) })
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int Int Int) Bool)
 (declare-fun k1 (Int Int Int) Bool)
 

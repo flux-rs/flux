@@ -4,10 +4,10 @@
 
 (declare-type-var T0)
 (declare-datatypes ((Adt0 0)) (((mkadt0$0 (fld0$0 Bool)))))
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Bool) Bool)
 
 (assert (forall ((a0 Int)) (=> true (k0 true))))

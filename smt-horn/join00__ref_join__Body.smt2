@@ -3,10 +3,10 @@
 ;; Tag 0: Call at 16:5: 16:19 (ESpan { span: tests/pos/surface/join00.rs:1:21: 1:25 (#0), base: None })
 
 (declare-type-var T0)
-(declare-const gt (Array T0 (Array T0 Bool)))
-(declare-const ge (Array T0 (Array T0 Bool)))
-(declare-const lt (Array T0 (Array T0 Bool)))
-(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
 (declare-fun k0 (Int Bool) Bool)
 
 (assert (forall ((a0 Bool)(_$ Int)) (=> (not a0) (k0 2 a0))))
