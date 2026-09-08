@@ -302,6 +302,10 @@ pub fn fmt_smt_horn<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt
         });
         match definable {
             Some(def) => {
+                // This path bypasses `fmt_const_decl`, so carry the comment over too.
+                if let Some(comment) = &cinfo.comment {
+                    fmt_decl_comment(comment, f)?;
+                }
                 write!(f, "(define-fun {} () ", cinfo.name.display())?;
                 fmt_sort_smt(&cinfo.sort, f)?;
                 write!(f, " ")?;
@@ -335,6 +339,7 @@ pub fn fmt_smt_horn<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt
 }
 
 fn fmt_kvar_as_fun<T: Types>(kvar: &KVarDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fmt_decl_comment(&kvar.comment, f)?;
     write!(f, "(declare-fun {} (", kvar.kvid.display())?;
     for (i, sort) in kvar.sorts.iter().enumerate() {
         if i > 0 {
@@ -606,8 +611,11 @@ fn fmt_sort_smt_with<T: Types>(
 
 fn fmt_sort_ctor_smt<T: Types>(ctor: &SortCtor<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match ctor {
+        // z3 defines `(Set T)` as sugar for `(Array T Bool)`, so fixpoint's name works as is. There
+        // is no such alias for `Map`: SMT-LIB calls the theory `Array`, which is what the map
+        // operations already compile to (`MapSelect` -> `select`, `MapStore` -> `store`).
         SortCtor::Set => write!(f, "Set"),
-        SortCtor::Map => write!(f, "Map"),
+        SortCtor::Map => write!(f, "Array"),
         SortCtor::Data(name) => write!(f, "{}", name.display()),
     }
 }
@@ -618,7 +626,14 @@ fn fmt_expr_smt<T: Types>(expr: &Expr<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
     match expr {
         Expr::Constant(c) => fmt_constant_smt(c, f),
         Expr::Var(x) => write!(f, "{}", x.display()),
-        Expr::App(func, _sort_args, args, _out_sort) => {
+        Expr::App(func, sort_args, args, _out_sort) => {
+            // Some theory operators can't be printed as a plain symbol applied to its arguments:
+            // they need the sort they are used at, or a different argument order.
+            if let Expr::ThyFunc(thy_func) = &**func
+                && let Some(app) = fmt_thy_func_app_smt(*thy_func, sort_args.as_deref(), args, f)
+            {
+                return app;
+            }
             // A nullary application must be printed as a bare symbol: `(f)` is not valid SMT-LIB.
             if args.is_empty() {
                 return fmt_expr_smt(func, f);
@@ -781,6 +796,78 @@ fn fmt_binrel_smt<T: Types>(
     }
 }
 
+/// Formats the theory operators that can't be printed as a symbol applied to its arguments,
+/// returning `None` for the ones that can (which the caller then prints the plain way).
+///
+/// Sets are arrays to `Bool` in z3, and the operators that build one out of nothing need the
+/// element sort spelled out at the use site, which a bare symbol can't carry. `union`,
+/// `intersection`, `setminus` and `subset` are real z3 symbols and are left alone.
+fn fmt_thy_func_app_smt<T: Types>(
+    thy_func: ThyFunc,
+    sort_args: Option<&[Sort<T>]>,
+    args: &[Expr<T>],
+    f: &mut fmt::Formatter<'_>,
+) -> Option<fmt::Result> {
+    /// `((as const (Set E)) false)`, i.e. the set that contains nothing.
+    fn empty_set<T: Types>(elem: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "((as const (Set ")?;
+        fmt_sort_smt(elem, f)?;
+        write!(f, ")) false)")
+    }
+
+    // The element sort is only carried by applications encoded from `rty::ExprKind::App`. Without
+    // it there is nothing to fill the `as` annotation with, so bail out and skip the task rather
+    // than guess a sort that then fails to typecheck somewhere else.
+    let elem_sort = || {
+        let Some([sort, ..]) = sort_args else {
+            panic!("Set operations without a sort argument are not supported in SMT/Horn format")
+        };
+        sort
+    };
+
+    match thy_func {
+        // Fixpoint's `Set_empty` takes a dummy argument, which has no counterpart here.
+        ThyFunc::SetEmpty => Some(empty_set(elem_sort(), f)),
+        // z3 has no `singleton`: build it by storing the element into the empty set.
+        ThyFunc::SetSng if args.len() == 1 => {
+            Some((|| {
+                write!(f, "(store ")?;
+                empty_set(elem_sort(), f)?;
+                write!(f, " ")?;
+                fmt_expr_smt(&args[0], f)?;
+                write!(f, " true)")
+            })())
+        }
+        // z3 has no `member` either, and a set is just an array, so membership is a lookup. Note
+        // the argument order flips: fixpoint's `member(x, s)` is `(select s x)`.
+        ThyFunc::SetMem if args.len() == 2 => {
+            Some((|| {
+                write!(f, "(select ")?;
+                fmt_expr_smt(&args[1], f)?;
+                write!(f, " ")?;
+                fmt_expr_smt(&args[0], f)?;
+                write!(f, ")")
+            })())
+        }
+        // `(const v)` is the constant map, which needs its sort the same way the empty set does.
+        ThyFunc::MapDefault if args.len() == 1 => {
+            Some((|| {
+                let Some([key, value, ..]) = sort_args else {
+                    panic!("Map default without sort arguments is not supported in SMT/Horn format")
+                };
+                write!(f, "((as const (Array ")?;
+                fmt_sort_smt(key, f)?;
+                write!(f, " ")?;
+                fmt_sort_smt(value, f)?;
+                write!(f, ")) ")?;
+                fmt_expr_smt(&args[0], f)?;
+                write!(f, ")")
+            })())
+        }
+        _ => None,
+    }
+}
+
 fn fmt_thy_func_smt(thy_func: &ThyFunc, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match thy_func {
         ThyFunc::StrLen => write!(f, "str.len"),
@@ -819,14 +906,16 @@ fn fmt_thy_func_smt(thy_func: &ThyFunc, f: &mut fmt::Formatter<'_>) -> fmt::Resu
         ThyFunc::BvSgt => write!(f, "bvsgt"),
         ThyFunc::BvUlt => write!(f, "bvult"),
         ThyFunc::BvSlt => write!(f, "bvslt"),
-        ThyFunc::SetEmpty => write!(f, "as emptyset"),
-        ThyFunc::SetSng => write!(f, "singleton"),
+        // These have no symbol of their own in z3; `fmt_thy_func_app_smt` rewrites them where they
+        // are applied. Reaching here means one appeared outside an application, where there is no
+        // sort to build it from.
+        ThyFunc::SetEmpty | ThyFunc::SetSng | ThyFunc::SetMem | ThyFunc::MapDefault => {
+            panic!("`{thy_func:?}` outside an application is not supported in SMT/Horn format")
+        }
         ThyFunc::SetCup => write!(f, "union"),
         ThyFunc::SetCap => write!(f, "intersection"),
         ThyFunc::SetDif => write!(f, "setminus"),
-        ThyFunc::SetMem => write!(f, "member"),
         ThyFunc::SetSub => write!(f, "subset"),
-        ThyFunc::MapDefault => write!(f, "const"),
         ThyFunc::MapSelect => write!(f, "select"),
         ThyFunc::MapStore => write!(f, "store"),
     }
@@ -889,7 +978,24 @@ fn uncurry_func_sort<T: Types>(sort: &Sort<T>) -> Option<(Vec<&Sort<T>>, &Sort<T
     (!inputs.is_empty()).then_some((inputs, sort))
 }
 
+/// Writes a declaration's comment as an SMT-LIB line comment.
+///
+/// These say what a generated name actually is -- `prim op uif: Shl`, `alias reft: ...`,
+/// `rust const: ...` -- which is otherwise unrecoverable from the `c0`/`k3` names alone. The text
+/// comes from `{:?}` of flux internals, so it can span lines; a comment ends at the newline, so
+/// the whole thing is flattened onto one.
+fn fmt_decl_comment(comment: &str, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let comment = comment.trim();
+    if comment.is_empty() {
+        return Ok(());
+    }
+    writeln!(f, ";; {}", comment.split_whitespace().collect::<Vec<_>>().join(" "))
+}
+
 fn fmt_const_decl<T: Types>(decl: &ConstDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if let Some(comment) = &decl.comment {
+        fmt_decl_comment(comment, f)?;
+    }
     // A constant of function sort is an uninterpreted function, so declare it with an arity rather
     // than as a value of some approximated sort. Spacer accepts the declaration and only rejects a
     // rule that actually applies it, which is the honest outcome: an unused declaration (the
@@ -913,6 +1019,9 @@ fn fmt_const_decl<T: Types>(decl: &ConstDecl<T>, f: &mut fmt::Formatter<'_>) -> 
 }
 
 fn fmt_fun_def<T: Types>(fun: &FunDef<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if let Some(comment) = &fun.comment {
+        fmt_decl_comment(comment, f)?;
+    }
     if let Some(body) = &fun.body {
         write!(f, "(define-fun {} (", fun.name.display())?;
         for (i, (name, sort)) in body.args.iter().zip(&fun.sort.inputs).enumerate() {

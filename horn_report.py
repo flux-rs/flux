@@ -34,6 +34,8 @@ SKIPPED_LOG = "_skipped.log"
 
 LINE_COL = re.compile(r"line \d+ column \d+")
 
+REASON = re.compile(r':reason-unknown\s+"(.*?)"', re.DOTALL)
+
 COMMENT = re.compile(r"^\s*;")
 
 
@@ -58,6 +60,15 @@ class Result:
         if text.startswith('(error "'):
             text = text[len('(error "'):].removesuffix('")').removesuffix('"')
         return LINE_COL.sub("", text).lstrip(": ").strip()
+
+    @property
+    def summary(self) -> str:
+        """One-line form of `detail` for the terminal; the full text stays in --json/--csv."""
+        text = self.detail.split(" in <null>")[0].strip()
+        head = text.split(" (")[0].strip().rstrip(":")
+        if not head:
+            head = text
+        return head if len(head) <= 110 else head[:107] + "..."
 
     @property
     def label(self) -> str:
@@ -118,6 +129,30 @@ def dedup(files: list[Path]) -> tuple[list[Path], dict[str, list[str]]]:
     return sorted(keep), aliases
 
 
+def reason_unknown(path: Path, solver: str, timeout: int, extra: list[str]) -> str:
+    """Asks the solver why it answered `unknown`.
+
+    Worth the extra call: spacer's reason names the exact symbol it refused (`Uninterpreted 'c0'`,
+    `Uninterpreted 'div'`), which distinguishes "outside the supported fragment" -- an encoding
+    matter -- from "searched and gave up". The query is fed on stdin so the file is left alone.
+    """
+    text = path.read_text() + "\n(get-info :reason-unknown)\n"
+    try:
+        proc = subprocess.run(
+            [solver, f"-T:{timeout}", *extra, "-in"],
+            input=text, capture_output=True, text=True, timeout=timeout + 30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return ""
+    m = REASON.search(proc.stdout + proc.stderr)
+    if not m:
+        return ""
+    # Kept in full: for "formula is not in Horn fragment: <clause>" the text after the colon is
+    # the offending clause, which is the whole point of asking. `Result.summary` trims it for
+    # display; --json/--csv keep all of it.
+    return " ".join(m.group(1).split())
+
+
 def run_one(path: Path, solver: str, timeout: int, extra: list[str]) -> Result:
     cmd = [solver, f"-T:{timeout}", *extra, str(path)]
     start = time.monotonic()
@@ -142,7 +177,9 @@ def run_one(path: Path, solver: str, timeout: int, extra: list[str]) -> Result:
     errors = [line for line in lines if line.startswith('(error')]
     if errors:
         return Result(path.name, "error", elapsed, errors[0])
-    if first in ("sat", "unsat", "unknown", "timeout"):
+    if first == "unknown":
+        return Result(path.name, first, elapsed, reason_unknown(path, solver, timeout, extra))
+    if first in ("sat", "unsat", "timeout"):
         return Result(path.name, first, elapsed)
     return Result(path.name, "crash", elapsed, first or f"no output (exit {proc.returncode})")
 
@@ -236,8 +273,10 @@ def report(
     if hard:
         print(f"\nnot solved ({len(hard)})")
         print("-" * 58)
+        width = max(len(r.label) for r in hard)
         for r in hard:
-            print(f"  {r.status:<8} {r.label}")
+            reason = f"  {r.summary}" if r.detail else ""
+            print(f"  {r.status:<8} {r.label:<{width}}{reason}".rstrip())
 
     solved = sorted(
         (by_class.get("sat") or []) + (by_class.get("unsat") or []),

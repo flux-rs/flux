@@ -1,0 +1,20 @@
+(set-logic HORN)
+
+;; Tag 0: Ret at 13:22: 19:2
+
+(declare-type-var T0)
+(declare-datatypes ((Adt0 0)) (((mkadt0$0 (fld0$0 Int)))))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
+;; orig: $k1
+(declare-fun k0 (Int Int) Bool)
+;; orig: $k0
+(declare-fun k1 (Int Int Int) Bool)
+
+(assert (forall ((a0 Int)) (=> true (k0 a0 a0))))
+(assert (forall ((a0 Int)(a1 Int)(_$ Int)) (=> (= a1 a0) (k1 a1 a0 a0))))
+(assert (forall ((a0 Int)(a2 Adt0)(_$ Int)(a3 Int)(_$ Int)) (=> (and (k0 (fld0$0 a2) a0) (k1 a3 (fld0$0 a2) a0) (not (= a3 (fld0$0 a2)))) false)))
+
+(check-sat)

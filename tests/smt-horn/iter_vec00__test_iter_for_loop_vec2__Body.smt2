@@ -1,0 +1,36 @@
+(set-logic HORN)
+
+;; Tag 0: Ret at 36:5: 36:8
+
+(declare-type-var T0)
+(declare-datatypes ((Adt0 0)(Adt1 0)(Adt2 0)) (((mkadt0$0 (fld0$0 Int)))((mkadt1$0 (fld1$0 Int) (fld1$1 Int)))((mkadt2$0 (fld2$0 Bool)))))
+(declare-fun gt (T0 T0) Bool)
+(declare-fun ge (T0 T0) Bool)
+(declare-fun lt (T0 T0) Bool)
+(declare-fun le (T0 T0) Bool)
+;; orig: $k5
+(declare-fun k0 (Int Int) Bool)
+;; orig: $k0
+(declare-fun k1 (Int Int Int Int) Bool)
+;; orig: $k0
+(declare-fun k2 (Int Int Int) Bool)
+;; orig: $k0
+(declare-fun k3 (Int Int) Bool)
+;; orig: $k2
+(declare-fun k4 (Int Int Int Int Int) Bool)
+;; orig: $k6
+(declare-fun k5 (Int Int Int Int Int) Bool)
+
+(assert (forall ((reftgen$n$0 Adt0)(_$ Int)(_$ Int)(_$ Int)(a0 Int)) (=> (and (<= 0 (fld0$0 reftgen$n$0)) (>= (fld0$0 reftgen$n$0) 0)) (k0 a0 (fld0$0 reftgen$n$0)))))
+(assert (forall ((reftgen$n$0 Adt0)(_$ Int)(_$ Int)(_$ Int)) (=> (and (<= 0 (fld0$0 reftgen$n$0)) (>= (fld0$0 reftgen$n$0) 0)) (k1 0 0 (fld0$0 reftgen$n$0) (fld0$0 reftgen$n$0)))))
+(assert (forall ((reftgen$n$0 Adt0)(_$ Int)(_$ Int)(_$ Int)) (=> (and (<= 0 (fld0$0 reftgen$n$0)) (>= (fld0$0 reftgen$n$0) 0)) (k2 0 (fld0$0 reftgen$n$0) (fld0$0 reftgen$n$0)))))
+(assert (forall ((reftgen$n$0 Adt0)(_$ Int)(_$ Int)(_$ Int)) (=> (and (<= 0 (fld0$0 reftgen$n$0)) (>= (fld0$0 reftgen$n$0) 0)) (k3 (fld0$0 reftgen$n$0) (fld0$0 reftgen$n$0)))))
+(assert (forall ((reftgen$n$0 Adt0)(_$ Int)(_$ Int)(_$ Int)(a1 Int)(_$ Int)) (=> (and (<= 0 (fld0$0 reftgen$n$0)) (>= (fld0$0 reftgen$n$0) 0) (k0 a1 (fld0$0 reftgen$n$0))) (k4 a1 0 0 (fld0$0 reftgen$n$0) (fld0$0 reftgen$n$0)))))
+(assert (forall ((reftgen$n$0 Adt0)(_$ Int)(_$ Int)(_$ Int)(a2 Int)(a3 Adt1)(_$ Int)(a4 Int)(_$ Int)) (=> (and (<= 0 (fld0$0 reftgen$n$0)) (>= (fld0$0 reftgen$n$0) 0) (k1 a2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k3 (fld1$1 a3) (fld0$0 reftgen$n$0)) (k4 a4 a2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0))) (k5 a4 (fld0$0 reftgen$n$0) a2 (fld1$0 a3) (fld1$1 a3)))))
+(assert (forall ((reftgen$n$0 Adt0)(_$ Int)(_$ Int)(_$ Int)(a2 Int)(a3 Adt1)(_$ Int)(a5 Adt1)(_$ Int)(_$ Int)) (=> (and (<= 0 (fld0$0 reftgen$n$0)) (>= (fld0$0 reftgen$n$0) 0) (k1 a2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k3 (fld1$1 a3) (fld0$0 reftgen$n$0)) (= (fld1$1 a3) (fld1$1 a5)) (=> (< (fld1$0 a3) (fld1$1 a3)) (= (fld1$0 a5) (+ (fld1$0 a3) 1))) (=> (>= (fld1$0 a3) (fld1$1 a3)) (= (fld1$0 a5) (fld1$0 a3))) (= (mkadt2$0 (< (fld1$0 a3) (fld1$1 a3))) (mkadt2$0 false)) (not (= a2 (fld0$0 reftgen$n$0)))) false)))
+(assert (forall ((reftgen$n$0 Adt0)(_$ Int)(_$ Int)(_$ Int)(a2 Int)(a3 Adt1)(_$ Int)(a5 Adt1)(_$ Int)(_$ Int)(a6 Int)(_$ Int)(_$ Int)(_$ Int)) (=> (and (<= 0 (fld0$0 reftgen$n$0)) (>= (fld0$0 reftgen$n$0) 0) (k1 a2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k3 (fld1$1 a3) (fld0$0 reftgen$n$0)) (= (fld1$1 a3) (fld1$1 a5)) (=> (< (fld1$0 a3) (fld1$1 a3)) (= (fld1$0 a5) (+ (fld1$0 a3) 1))) (=> (>= (fld1$0 a3) (fld1$1 a3)) (= (fld1$0 a5) (fld1$0 a3))) (= (mkadt2$0 (< (fld1$0 a3) (fld1$1 a3))) (mkadt2$0 true)) (k5 a6 (fld0$0 reftgen$n$0) a2 (fld1$0 a3) (fld1$1 a3)) (>= a6 0) (<= 0 (+ a2 1))) (k1 (+ a2 1) (fld1$0 a5) (fld1$1 a5) (fld0$0 reftgen$n$0)))))
+(assert (forall ((reftgen$n$0 Adt0)(_$ Int)(_$ Int)(_$ Int)(a2 Int)(a3 Adt1)(_$ Int)(a5 Adt1)(_$ Int)(_$ Int)(a6 Int)(_$ Int)(_$ Int)(_$ Int)) (=> (and (<= 0 (fld0$0 reftgen$n$0)) (>= (fld0$0 reftgen$n$0) 0) (k1 a2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k3 (fld1$1 a3) (fld0$0 reftgen$n$0)) (= (fld1$1 a3) (fld1$1 a5)) (=> (< (fld1$0 a3) (fld1$1 a3)) (= (fld1$0 a5) (+ (fld1$0 a3) 1))) (=> (>= (fld1$0 a3) (fld1$1 a3)) (= (fld1$0 a5) (fld1$0 a3))) (= (mkadt2$0 (< (fld1$0 a3) (fld1$1 a3))) (mkadt2$0 true)) (k5 a6 (fld0$0 reftgen$n$0) a2 (fld1$0 a3) (fld1$1 a3)) (>= a6 0) (<= 0 (+ a2 1))) (k2 (fld1$0 a5) (fld1$1 a5) (fld0$0 reftgen$n$0)))))
+(assert (forall ((reftgen$n$0 Adt0)(_$ Int)(_$ Int)(_$ Int)(a2 Int)(a3 Adt1)(_$ Int)(a5 Adt1)(_$ Int)(_$ Int)(a6 Int)(_$ Int)(_$ Int)(_$ Int)) (=> (and (<= 0 (fld0$0 reftgen$n$0)) (>= (fld0$0 reftgen$n$0) 0) (k1 a2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k3 (fld1$1 a3) (fld0$0 reftgen$n$0)) (= (fld1$1 a3) (fld1$1 a5)) (=> (< (fld1$0 a3) (fld1$1 a3)) (= (fld1$0 a5) (+ (fld1$0 a3) 1))) (=> (>= (fld1$0 a3) (fld1$1 a3)) (= (fld1$0 a5) (fld1$0 a3))) (= (mkadt2$0 (< (fld1$0 a3) (fld1$1 a3))) (mkadt2$0 true)) (k5 a6 (fld0$0 reftgen$n$0) a2 (fld1$0 a3) (fld1$1 a3)) (>= a6 0) (<= 0 (+ a2 1))) (k3 (fld1$1 a5) (fld0$0 reftgen$n$0)))))
+(assert (forall ((reftgen$n$0 Adt0)(_$ Int)(_$ Int)(_$ Int)(a2 Int)(a3 Adt1)(_$ Int)(a5 Adt1)(_$ Int)(_$ Int)(a6 Int)(_$ Int)(_$ Int)(_$ Int)(a7 Int)(_$ Int)) (=> (and (<= 0 (fld0$0 reftgen$n$0)) (>= (fld0$0 reftgen$n$0) 0) (k1 a2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k2 (fld1$0 a3) (fld1$1 a3) (fld0$0 reftgen$n$0)) (k3 (fld1$1 a3) (fld0$0 reftgen$n$0)) (= (fld1$1 a3) (fld1$1 a5)) (=> (< (fld1$0 a3) (fld1$1 a3)) (= (fld1$0 a5) (+ (fld1$0 a3) 1))) (=> (>= (fld1$0 a3) (fld1$1 a3)) (= (fld1$0 a5) (fld1$0 a3))) (= (mkadt2$0 (< (fld1$0 a3) (fld1$1 a3))) (mkadt2$0 true)) (k5 a6 (fld0$0 reftgen$n$0) a2 (fld1$0 a3) (fld1$1 a3)) (>= a6 0) (<= 0 (+ a2 1)) (k5 a7 (fld0$0 reftgen$n$0) a2 (fld1$0 a3) (fld1$1 a3))) (k4 a7 (+ a2 1) (fld1$0 a5) (fld1$1 a5) (fld0$0 reftgen$n$0)))))
+
+(check-sat)
