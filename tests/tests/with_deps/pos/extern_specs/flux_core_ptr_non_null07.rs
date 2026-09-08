@@ -32,3 +32,15 @@ pub fn test_ptr_id_sym(p1: NonNull<f32>, p2: NonNull<f32>) {
 pub fn test_ptr_id(p1: NonNull<i32>, p2: NonNull<i32>) {
     assert(p1.eq(&p2))
 }
+
+#[flux::spec(fn(p1: NonNull<f32>[@base, @addr, @size],
+                p2: {NonNull<f32>[@base1, addr, @size1] | base != base1 && size != size1}))]
+pub fn test_ptr_id_sym_addr_only(p1: NonNull<f32>, p2: NonNull<f32>) {
+    assert(p1 == p2)
+}
+
+#[flux::spec(fn(p1: NonNull<i32>[@base, @addr, @size],
+                p2: {NonNull<i32>[@base1, addr, @size1] | base != base1 && size != size1}))]
+pub fn test_ptr_id_addr_only(p1: NonNull<i32>, p2: NonNull<i32>) {
+    assert(p1.eq(&p2))
+}
