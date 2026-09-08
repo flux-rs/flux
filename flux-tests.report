@@ -1,0 +1,343 @@
+dedup: 300 files -> 261 distinct constraints
+[   1/261] sat        0.02s  abstract_refinement_in_composite_sort__direct__Body.smt2 (+1 dup)
+[   2/261] sat        0.02s  array00__array00__Body.smt2
+[   3/261] sat        0.02s  array00__write__Body.smt2
+[   4/261] sat        0.02s  array02__test00__Body.smt2
+[   5/261] sat        0.02s  array02__test01__Body.smt2
+[   6/261] sat        0.02s  array02__test02__Body.smt2
+[   7/261] sat        0.02s  array04__test_repeat_array_index_read__Body.smt2
+[   8/261] sat        0.02s  array04__test_repeat_return_geq_zero__Body.smt2 (+1 dup)
+[   9/261] sat        0.02s  array04__test_repeat_return_pos__Body.smt2 (+3 dup)
+[  10/261] sat        0.02s  array04__test_repeat_write_then_read__Body.smt2
+[  11/261] sat        0.02s  associated_type02__test__Body.smt2
+[  12/261] sat        0.02s  assume_parametric00__test__Body.smt2
+[  13/261] sat        0.02s  async01__bar__Body.smt2
+[  14/261] sat        0.02s  async01__jazz__Body.smt2
+[  15/261] sat        0.02s  bitvec_const01__test2__Body.smt2
+[  16/261] sat        0.02s  bounded_quant00__test_exi_r__Body.smt2
+[  17/261] sat        0.02s  box01__inc_box__Body.smt2
+[  18/261] sat        0.03s  box01__inc_test__Body.smt2
+[  19/261] sat        0.02s  box01__update__Body.smt2 (+1 dup)
+[  20/261] sat        0.02s  box02__close_at_join__Body.smt2
+[  21/261] sat        0.05s  box02__close_on_move__Body.smt2
+[  22/261] sat        0.02s  box02__move_out_of_box__Body.smt2
+[  23/261] sat        0.02s  box02__no_close_join__Body.smt2
+[  24/261] timeout   15.02s  bsearch1__binary_search__Body.smt2
+[  25/261] sat        0.28s  bsearch__binary_search__Body.smt2
+[  26/261] sat        0.03s  bv_ord__real_example__Body.smt2
+[  27/261] sat        0.03s  closure02__bob__Body.smt2
+[  28/261] sat        0.03s  closure02__test1__Body.smt2
+[  29/261] sat        0.02s  closure02__test1_old__Body.smt2
+[  30/261] sat        0.03s  closure02__test2__Body.smt2
+[  31/261] sat        0.02s  closure02__test2_old__Body.smt2
+[  32/261] sat        0.03s  closure04__test001__Body.smt2 (+1 dup)
+[  33/261] sat        0.02s  closure04__test001_client__Body.smt2 (+1 dup)
+[  34/261] sat        0.04s  closure05__test002__Body.smt2
+[  35/261] sat        0.04s  closure05__test002_client__Body.smt2
+[  36/261] sat        0.05s  closure06__test001__Body.smt2
+[  37/261] sat        0.03s  closure06__test001_client__Body.smt2
+[  38/261] sat        0.02s  closure07__test0__Body.smt2 (+3 dup)
+[  39/261] sat        0.03s  closure09__client0__Body.smt2
+[  40/261] sat        0.03s  closure09_exi__client0__Body.smt2
+[  41/261] sat        0.02s  closure09_exi__test0__Body.smt2
+[  42/261] sat        0.08s  closure11___std__ops__Range_usize__as_Bob___foreach__Body.smt2
+[  43/261] sat        0.03s  closure11___std__vec__Vec_i32__as_Bob___foreach__Body.smt2
+[  44/261] sat        0.03s  closure11__dot2__Body.smt2 (+1 dup)
+[  45/261] sat        0.03s  closure11__dot__Body.smt2
+[  46/261] sat        0.04s  closure12__add__Body.smt2
+[  47/261] sat        0.03s  closure12__fill_vec_index__Body.smt2 (+1 dup)
+[  48/261] sat        0.36s  closure12__fill_vec_index_loop__Body.smt2
+[  49/261] sat        0.30s  closure12__fill_vec_loop__Body.smt2
+[  50/261] sat        0.03s  closure12__test_foreach__Body.smt2
+[  51/261] sat        0.04s  closure12__test_map__Body.smt2
+[  52/261] sat        0.03s  closure12__test_vec_of_nat__Body.smt2
+[  53/261] sat        0.03s  closure14__test02__Body.smt2
+[  54/261] sat        0.03s  control_flow00__decr__Body.smt2
+[  55/261] sat        0.03s  control_flow00__qm_converts_error_err__Body.smt2 (+2 dup)
+[  56/261] sat        0.03s  control_flow00__qm_ok_two__Body.smt2 (+1 dup)
+[  57/261] sat        0.03s  control_flow00__qm_preserves_refinement__Body.smt2 (+1 dup)
+[  58/261] sat        0.03s  control_flow00__test_decr__Body.smt2
+[  59/261] sat        0.04s  date__is_month30__Body.smt2
+[  60/261] sat        0.07s  date__mk_date__Body.smt2
+[  61/261] sat        0.03s  default_option__test2__Body.smt2
+[  62/261] sat        0.03s  detach_enum00__succ__Body.smt2 (+3 dup)
+[  63/261] sat        0.04s  detach_enum01__cons__Body.smt2
+[  64/261] sat        0.03s  detach_impl01___Usize_as_std__convert__From_Nat____from__Body.smt2 (+1 dup)
+[  65/261] sat        0.03s  detach_static00__bob__ARR__Body.smt2
+[  66/261] sat        0.10s  dot01__mk_pairs_with_bound__Body.smt2
+[  67/261] sat        0.09s  dot02__mk_pairs_with_bound__Body.smt2 (+1 dup)
+[  68/261] sat        0.04s  dummy_join00__test2__Body.smt2
+[  69/261] sat        0.03s  enum_join__test1__Body.smt2
+[  70/261] sat        0.03s  enum_join__test2__Body.smt2
+[  71/261] sat        0.02s  enum_match_02__test1__Body.smt2
+[  72/261] sat        0.15s  ex2_min_index_loop__min_index__Body.smt2
+[  73/261] sat        0.04s  fft__doit__Body.smt2
+[  74/261] sat        0.06s  fft__fft_test__Body.smt2
+[  75/261] timeout   15.01s  fft__loop_a__Body.smt2
+[  76/261] sat        0.17s  fft__loop_b__Body.smt2
+[  77/261] sat        0.05s  fft__loop_c__Body.smt2
+[  78/261] sat        0.05s  fib_loop__fib_loop__Body.smt2
+[  79/261] sat        0.03s  flux_alloc_vec00__test__Body.smt2
+[  80/261] sat        0.05s  flux_core_alloc00__test_array_unwrap__Body.smt2
+[  81/261] sat        0.53s  flux_core_alloc00__test_from_valid_unwrap__Body.smt2
+[  82/261] sat        0.03s  flux_core_iter00__test_exhausted_range_is_unchanged__Body.smt2
+[  83/261] unknown    0.02s  flux_core_iter00__test_take_easy__Body.smt2
+[  84/261] unknown    0.02s  flux_core_iter00__test_take_loop__Body.smt2
+[  85/261] sat        0.03s  flux_core_iter01__test_exhausted_skip_preserves_size__Body.smt2
+[  86/261] sat        0.02s  flux_core_num00__test_checked_div_i32__Body.smt2
+[  87/261] sat        0.02s  flux_core_num00__test_checked_div_isize__Body.smt2
+[  88/261] sat        0.02s  flux_core_num00__test_checked_div_u32__Body.smt2 (+1 dup)
+[  89/261] sat        0.02s  flux_core_num00__test_checked_i32__Body.smt2
+[  90/261] sat        0.02s  flux_core_num00__test_checked_isize__Body.smt2
+[  91/261] sat        0.02s  flux_core_num00__test_checked_mul_i32__Body.smt2
+[  92/261] sat        0.02s  flux_core_num00__test_checked_mul_isize__Body.smt2
+[  93/261] sat        0.02s  flux_core_num00__test_checked_mul_u32__Body.smt2
+[  94/261] sat        0.02s  flux_core_num00__test_checked_mul_usize__Body.smt2
+[  95/261] sat        0.02s  flux_core_num00__test_checked_neg_i32__Body.smt2
+[  96/261] sat        0.01s  flux_core_num00__test_checked_neg_isize__Body.smt2
+[  97/261] sat        0.02s  flux_core_num00__test_checked_u32__Body.smt2
+[  98/261] sat        0.02s  flux_core_num00__test_checked_usize__Body.smt2
+[  99/261] sat        0.02s  flux_core_num01__test_both_bounded_concrete__Body.smt2
+[ 100/261] sat        0.02s  flux_core_num01__test_into_both_bounded_concrete__Body.smt2
+[ 101/261] sat        0.02s  flux_core_num01__test_lower_bounded_concrete__Body.smt2
+[ 102/261] sat        0.02s  flux_core_num01__test_upper_bounded_u_concrete__Body.smt2
+[ 103/261] sat        0.03s  flux_core_ord00__test_min_is_selective__Body.smt2
+[ 104/261] sat        0.03s  flux_core_ptr01__test_add_ex__Body.smt2
+[ 105/261] sat        0.03s  flux_core_ptr01__test_add_ix__Body.smt2
+[ 106/261] sat        0.04s  flux_core_ptr01__test_offset_forward__Body.smt2
+[ 107/261] unknown    0.02s  flux_core_ptr09__Vec___T___push__Body.smt2
+[ 108/261] unknown    0.03s  flux_core_ptr09__Vec___T___push_new__Body.smt2
+[ 109/261] sat        0.03s  flux_core_ptr_non_null01__test_add_ex__Body.smt2
+[ 110/261] sat        0.03s  flux_core_ptr_non_null01__test_add_ix__Body.smt2
+[ 111/261] sat        0.04s  flux_core_ptr_non_null01__test_offset_forward__Body.smt2
+[ 112/261] sat        0.02s  flux_core_slice00__test_exhausted_iter_next_preserves_position__Body.smt2
+[ 113/261] sat        0.02s  flux_core_slice00__test_split_first_tail_len__Body.smt2 (+1 dup)
+[ 114/261] sat        0.02s  fndef00__test_ok__Body.smt2
+[ 115/261] sat        0.02s  fndef01__test_also_ok__Body.smt2 (+1 dup)
+[ 116/261] unknown    0.02s  fndef02__test__Body.smt2
+[ 117/261] sat        0.05s  fold00__min_index_fold__Body.smt2
+[ 118/261] sat        0.03s  for_range00__donald__Body.smt2
+[ 119/261] sat        4.96s  for_range00__goofy__Body.smt2
+[ 120/261] sat        0.55s  for_range00__mickey__Body.smt2
+[ 121/261] sat        0.11s  for_range00__test__Body.smt2
+[ 122/261] unknown    0.02s  gcd__gcd__Body.smt2
+[ 123/261] timeout   15.01s  generalized_join__generalized_join__Body.smt2
+[ 124/261] sat        0.05s  ghostcell00__test__Body.smt2
+[ 125/261] sat        0.05s  heapsort__heap_sort__Body.smt2
+[ 126/261] sat        0.06s  heapsort__shift_down__Body.smt2
+[ 127/261] sat        0.02s  impl_trait00__test2__Body.smt2 (+1 dup)
+[ 128/261] sat        0.02s  impl_trait01__lib__Body.smt2
+[ 129/261] sat        0.29s  invariant_macro00__test__Body.smt2
+[ 130/261] timeout   15.01s  invariant_macro00__test_with_qualifier__Body.smt2
+[ 131/261] sat        0.02s  invariant_subtyping__test00__Body.smt2
+[ 132/261] timeout   15.01s  issue_1148__fill__Body.smt2
+[ 133/261] sat        0.03s  issue_1505__test__Body.smt2
+[ 134/261] sat        0.08s  issue_1583__blah__Body.smt2
+[ 135/261] sat        0.02s  issue_158__test__Body.smt2
+[ 136/261] timeout   15.01s  issue_234__List__len_const_memory__Body.smt2
+[ 137/261] sat        0.02s  issue_258__test01__Body.smt2
+[ 138/261] sat        0.02s  issue_258__test02__Body.smt2
+[ 139/261] sat        0.02s  issue_258__test03__Body.smt2
+[ 140/261] sat        0.02s  issue_271__test01__Body.smt2 (+1 dup)
+[ 141/261] sat        0.02s  issue_299__test03__Body.smt2
+[ 142/261] sat        0.02s  issue_332__List__append__Body.smt2
+[ 143/261] sat        0.05s  issue_431__normal__Body.smt2
+[ 144/261] sat        0.16s  issue_431__update_centers__Body.smt2
+[ 145/261] sat        0.01s  issue_578__test__Body.smt2
+[ 146/261] sat        0.01s  issue_687__test00__Body.smt2
+[ 147/261] sat        0.02s  issue_809__add_colorcode__Body.smt2
+[ 148/261] sat        0.02s  iter00___range__RngIter_as_std__iter__Iterator___next__Body.smt2 (+1 dup)
+[ 149/261] sat        0.01s  iter00__test_for__Body.smt2
+[ 150/261] sat        0.01s  iter00__test_next__Body.smt2
+[ 151/261] sat        0.01s  iter01__test_iter__Body.smt2
+[ 152/261] sat        0.02s  iter01__test_loop__Body.smt2
+[ 153/261] sat        0.03s  iter02__test_enumer3__Body.smt2 (+1 dup)
+[ 154/261] sat        0.02s  iter02__test_enumerate1__Body.smt2
+[ 155/261] timeout   15.01s  iter_slice00__test_iter2__Body.smt2
+[ 156/261] sat        0.10s  iter_slice00__test_iter_for_loop_slice__Body.smt2
+[ 157/261] sat        0.07s  iter_vec00__test_iter_for_loop_vec2__Body.smt2
+[ 158/261] sat        0.08s  iter_vec00__test_iter_for_loop_vec__Body.smt2
+[ 159/261] sat        0.01s  join00__ref_join__Body.smt2
+[ 160/261] sat        0.01s  join01__foo__Body.smt2
+[ 161/261] sat        0.01s  join02__test00__Body.smt2
+[ 162/261] sat        0.01s  join03__test00__Body.smt2
+[ 163/261] sat        0.15s  join03__test01__Body.smt2
+[ 164/261] sat        0.02s  join04__join_arr__Body.smt2
+[ 165/261] timeout   15.01s  kmeans__init_centers__Body.smt2
+[ 166/261] sat        0.02s  kmeans__kmeans__Body.smt2
+[ 167/261] sat        0.04s  kmeans__kmeans_step__Body.smt2
+[ 168/261] sat        0.06s  kmeans__nearest__Body.smt2
+[ 169/261] sat        0.02s  kmeans__normalize_centers__Body.smt2
+[ 170/261] sat        0.19s  kmp__kmp_search__Body.smt2
+[ 171/261] timeout   15.01s  kmp__kmp_table__Body.smt2
+[ 172/261] sat        0.34s  kmp_overflow__kmp_search__Body.smt2
+[ 173/261] timeout   15.01s  kmp_overflow__kmp_table__Body.smt2
+[ 174/261] sat        0.02s  knuth_shuffle__knuth_shuffle__Body.smt2
+[ 175/261] sat        0.01s  list00__append__Body.smt2
+[ 176/261] sat        0.01s  list00__clone__Body.smt2
+[ 177/261] sat        0.01s  list00__mappend__Body.smt2
+[ 178/261] sat        0.01s  list01__append__Body.smt2 (+1 dup)
+[ 179/261] sat        0.01s  list01__mem__Body.smt2 (+1 dup)
+[ 180/261] sat        0.01s  list_mut_ref__test__Body.smt2
+[ 181/261] sat        0.02s  loop00__test__Body.smt2
+[ 182/261] sat        0.02s  loop01__test__Body.smt2
+[ 183/261] sat        0.10s  loop_abstract_refinement__foo__Body.smt2
+[ 184/261] sat        0.01s  nested_binders_kvar__test01__Body.smt2
+[ 185/261] sat        0.01s  opaque_struct01__opaque_struct01__Body.smt2
+[ 186/261] sat        0.01s  opt01__is_some__Body.smt2 (+1 dup)
+[ 187/261] sat        0.01s  opt_blowup__blah2__Body.smt2
+[ 188/261] sat        0.01s  opt_blowup__blah3__Body.smt2
+[ 189/261] sat        0.01s  opt_blowup__burpi__Body.smt2
+[ 190/261] sat        0.01s  opt_blowup__let2__Body.smt2
+[ 191/261] sat        0.01s  opt_blowup__let3__Body.smt2
+[ 192/261] unknown    0.01s  option00__safe_div__Body.smt2
+[ 193/261] sat        0.01s  option00__test1__Body.smt2 (+2 dup)
+[ 194/261] sat        0.01s  option00__test_safe_div__Body.smt2
+[ 195/261] sat        0.01s  output_exists01__test01__Body.smt2
+[ 196/261] sat        0.02s  output_exists01__test02__Body.smt2
+[ 197/261] sat        0.08s  pred00__Pred__into_nnf__Body.smt2
+[ 198/261] sat        0.11s  pred00__Pred__simplify__Body.smt2
+[ 199/261] unknown    0.01s  primops00__test7__Body.smt2
+[ 200/261] sat        0.01s  promotion00__bad__Body.smt2
+[ 201/261] sat        0.01s  promotion01__test_bar_eq__Body.smt2
+[ 202/261] sat        0.01s  promotion01__test_foo_eq__Body.smt2
+[ 203/261] sat        0.01s  promotion01__test_neg__Body.smt2
+[ 204/261] sat        0.02s  ptr_cast_1700__new__Body.smt2
+[ 205/261] sat        0.04s  ptr_to_ref_join__field_and_local__Body.smt2
+[ 206/261] sat        0.04s  ptr_to_ref_join__two_fields__Body.smt2
+[ 207/261] timeout   15.01s  qualifier_macro00__test__Body.smt2 (+4 dup)
+[ 208/261] error      0.01s  rc_spec__test_rc__Body.smt2
+[ 209/261] sat        0.01s  read_loop__ref_join__Body.smt2
+[ 210/261] sat        0.01s  ref_cell00__test__Body.smt2
+[ 211/261] sat        0.01s  refined_fn_in_trait_01__test__Body.smt2
+[ 212/261] sat        0.01s  refined_fn_in_trait_02__test__Body.smt2
+[ 213/261] sat        0.01s  refined_type_var00__choose__Body.smt2
+[ 214/261] sat        0.01s  reflect_otherwise__is_eq__Body.smt2
+[ 215/261] sat        0.01s  result00__baz__Body.smt2
+[ 216/261] sat        0.01s  result00__baz_call__Body.smt2
+[ 217/261] sat        0.01s  rmat__RMat__get__Body.smt2
+[ 218/261] sat        0.01s  rmat__RMat__get_mut__Body.smt2
+[ 219/261] timeout   15.01s  rmat__RMat__new__Body.smt2
+[ 220/261] sat        0.01s  rset01__test1__Body.smt2
+[ 221/261] sat        0.01s  rvec00__test3__Body.smt2
+[ 222/261] timeout   15.01s  scrape00__test_ex__Body.smt2 (+1 dup)
+[ 223/261] timeout   15.01s  scrape01__range__Body.smt2
+[ 224/261] sat        0.06s  simplex__depart_var__Body.smt2
+[ 225/261] sat        0.07s  simplex__enter_var__Body.smt2
+[ 226/261] sat        0.02s  simplex__init_ratio_i__Body.smt2
+[ 227/261] sat        0.01s  simplex__is_neg__Body.smt2
+[ 228/261] sat        0.02s  simplex__simplex__Body.smt2
+[ 229/261] sat        0.02s  simplex__unb1__Body.smt2
+[ 230/261] sat        0.01s  slice00__first__Body.smt2
+[ 231/261] sat        0.01s  slice00__first_half__Body.smt2
+[ 232/261] sat        0.01s  slice00__inc_fst__Body.smt2
+[ 233/261] sat        0.02s  slice_loop__test_for_index__Body.smt2
+[ 234/261] sat        0.01s  static_spec00__FROG__Body.smt2
+[ 235/261] sat        0.01s  static_spec00__HOG__Body.smt2
+[ 236/261] sat        0.01s  static_spec01__goober__IDXS__Body.smt2
+[ 237/261] sat        0.02s  strg_to_mut__test00__Body.smt2
+[ 238/261] sat        0.02s  strg_to_mut__test01__Body.smt2
+[ 239/261] sat        0.01s  struct03__test00__Body.smt2
+[ 240/261] sat        0.01s  struct_join__test1__Body.smt2
+[ 241/261] sat        0.01s  struct_join__test2__Body.smt2
+[ 242/261] sat        0.01s  struct_join__test3__Body.smt2
+[ 243/261] sat        0.01s  test00__test00__Body.smt2
+[ 244/261] sat        0.01s  test00__test01__Body.smt2
+[ 245/261] sat        0.01s  test01__test02__Body.smt2
+[ 246/261] sat        0.01s  test01__test04__Body.smt2
+[ 247/261] sat        0.03s  test01__test0__Body.smt2
+[ 248/261] sat        0.03s  test01__test2__Body.smt2
+[ 249/261] sat        0.03s  test01__test3__Body.smt2
+[ 250/261] sat        0.01s  test02__vec_push__Body.smt2
+[ 251/261] sat        0.01s  test03__gt__Body.smt2
+[ 252/261] sat        0.01s  test03__lt__Body.smt2
+[ 253/261] sat        0.01s  test04__test01__Body.smt2
+[ 254/261] sat        0.02s  too_many_linked_lists__List___T___pop__Body.smt2
+[ 255/261] sat        0.01s  too_many_linked_lists__List___T___push__Body.smt2
+[ 256/261] sat        0.01s  try_from00___MyNumber_as_std__convert__TryFrom_i32____try_from__Body.smt2
+[ 257/261] sat        0.01s  try_from00__test_try_from_concrete__Body.smt2
+[ 258/261] sat        0.01s  try_into00___MyNumber_as_std__convert__TryInto_i32____try_into__Body.smt2
+[ 259/261] sat        0.02s  vec00__pop2__Body.smt2
+[ 260/261] sat        0.01s  vec00__test_push__Body.smt2
+[ 261/261] sat        0.01s  wildcard00__count_to_ten__Body.smt2
+
+261 distinct constraints (39 duplicates collapsed) + 10 not encoded, 15.3s wall clock, 15s per-file timeout
+
+malformed files (1 files, 1 distinct errors)
+----------------------------------------------------------
+  rc_spec__test_rc__Body.smt2  invalid datatype declaration, unknown sort 'String'
+
+not encoded, skipped by the formatter (10 queries, 2 distinct -- no file, so --dedup cannot collapse these)
+----------------------------------------------------------
+  polymorphic_qualifier__maximum__Body                  Function sorts used as values are not supported in SMT/Horn format
+  refined_fn_in_trait_01___i32_as_MyTrait___foo1__Impl  Function sorts used as values are not supported in SMT/Horn format
+  refined_fn_in_trait_01__bar1__Body                    Function sorts used as values are not supported in SMT/Horn format
+  refined_type_var01__baz__Body                         Function sorts used as values are not supported in SMT/Horn format
+  test03__or__Body                                      Function sorts used as values are not supported in SMT/Horn format
+  trait_subtyping02___i32_as_MyTrait___foo1__Impl       Function sorts used as values are not supported in SMT/Horn format
+  restrictable_variants__Expr__dup__Body                Set operations without a sort argument are not supported in SMT/Horn format
+  restrictable_variants__Expr__fasteval__Body           Set operations without a sort argument are not supported in SMT/Horn format
+  restrictable_variants__Expr__simplify__Body           Set operations without a sort argument are not supported in SMT/Horn format
+  restrictable_variants__Expr__subst__Body              Set operations without a sort argument are not supported in SMT/Horn format
+
+not solved (22)
+----------------------------------------------------------
+  timeout  bsearch1__binary_search__Body.smt2
+  timeout  fft__loop_a__Body.smt2
+  unknown  flux_core_iter00__test_take_easy__Body.smt2        recursive predicate
+  unknown  flux_core_iter00__test_take_loop__Body.smt2        recursive predicate
+  unknown  flux_core_ptr09__Vec___T___push__Body.smt2         Uninterpreted 'c1'
+  unknown  flux_core_ptr09__Vec___T___push_new__Body.smt2     Uninterpreted 'c1'
+  unknown  fndef02__test__Body.smt2                           Uninterpreted 'div'
+  unknown  gcd__gcd__Body.smt2                                Uninterpreted 'mod'
+  timeout  generalized_join__generalized_join__Body.smt2
+  timeout  invariant_macro00__test_with_qualifier__Body.smt2
+  timeout  issue_1148__fill__Body.smt2
+  timeout  issue_234__List__len_const_memory__Body.smt2
+  timeout  iter_slice00__test_iter2__Body.smt2
+  timeout  kmeans__init_centers__Body.smt2
+  timeout  kmp__kmp_table__Body.smt2
+  timeout  kmp_overflow__kmp_table__Body.smt2
+  unknown  option00__safe_div__Body.smt2                      Uninterpreted 'div'
+  unknown  primops00__test7__Body.smt2                        Uninterpreted 'c0'
+  timeout  qualifier_macro00__test__Body.smt2 (+4 dup)
+  timeout  rmat__RMat__new__Body.smt2
+  timeout  scrape00__test_ex__Body.smt2 (+1 dup)
+  timeout  scrape01__range__Body.smt2
+
+slowest solved (top 10 of 238)
+----------------------------------------------------------
+     4.96s  sat   for_range00__goofy__Body.smt2
+     0.55s  sat   for_range00__mickey__Body.smt2
+     0.53s  sat   flux_core_alloc00__test_from_valid_unwrap__Body.smt2
+     0.36s  sat   closure12__fill_vec_index_loop__Body.smt2
+     0.34s  sat   kmp_overflow__kmp_search__Body.smt2
+     0.30s  sat   closure12__fill_vec_loop__Body.smt2
+     0.29s  sat   invariant_macro00__test__Body.smt2
+     0.28s  sat   bsearch__binary_search__Body.smt2
+     0.19s  sat   kmp__kmp_search__Body.smt2
+     0.17s  sat   fft__loop_b__Body.smt2
+
+  median 0.02s   total 14.3s over 238 solved
+
+==========================================================
+STATS
+==========================================================
+
+all queries (271 queries)
+----------------------------------------------------------
+  status    count       %  distribution
+  error         1    0.4%  ............................
+  skipped      10    3.7%  #...........................
+  sat         238   87.8%  #########################...
+  unknown       8    3.0%  #...........................
+  timeout      14    5.2%  #...........................
+
+reached the solver (260 queries), excluding 1 malformed and 10 not encoded
+----------------------------------------------------------
+  status    count       %  distribution
+  sat         238   91.5%  ##########################..
+  unknown       8    3.1%  #...........................
+  timeout      14    5.4%  ##..........................
+
+  solved 238/260 of those reaching the solver (91.5%)   |   238/271 of all queries (87.8%)

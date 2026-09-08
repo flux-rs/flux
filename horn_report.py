@@ -342,10 +342,10 @@ def main() -> int:
     if not args.dir.is_dir():
         sys.exit(f"not a directory: {args.dir}")
     files = sorted(f for f in args.dir.glob("*.smt2") if not args.only or args.only in f.name)
+    # Read before the guard below: a directory can legitimately hold only skipped queries.
+    skipped = [r for r in read_skipped(args.dir) if not args.only or args.only in r.file]
     if not files and not skipped:
         sys.exit(f"no matching .smt2 files in {args.dir}")
-
-    skipped = [r for r in read_skipped(args.dir) if not args.only or args.only in r.file]
 
     aliases: dict[str, list[str]] = {}
     if args.dedup:

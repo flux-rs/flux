@@ -1,0 +1,143 @@
+dedup: 70 files -> 68 distinct constraints
+[   1/68] unknown    0.14s  cortexm___mpu__CortexMRegion_as_kernel__platform__mpu__RegionDescriptor___allocate_regions__Body.smt2
+[   2/68] unknown    0.05s  cortexm___mpu__CortexMRegion_as_kernel__platform__mpu__RegionDescriptor___create_exact_region__Body.smt2
+[   3/68] unknown    0.02s  cortexm___mpu__CortexMRegion_as_kernel__platform__mpu__RegionDescriptor___size__Body.smt2
+[   4/68] unknown    0.02s  cortexm___mpu__CortexMRegion_as_kernel__platform__mpu__RegionDescriptor___start__Body.smt2
+[   5/68] unknown    0.15s  cortexm___mpu__CortexMRegion_as_kernel__platform__mpu__RegionDescriptor___update_regions__Body.smt2
+[   6/68] timeout   15.01s  cortexm___mpu__MPU_NUM_REGIONS__MIN_REGION_SIZE__as_kernel__platform__mpu__MPU___configure_mpu__Body.smt2
+[   7/68] sat        0.02s  cortexm__mpu__CortexMRegion__accessible_size__Body.smt2
+[   8/68] sat        0.03s  cortexm__mpu__CortexMRegion__accessible_start__Body.smt2
+[   9/68] sat        0.02s  cortexm__mpu__CortexMRegion__attributes_register_no_srd__Body.smt2
+[  10/68] unknown    0.04s  cortexm__mpu__CortexMRegion__new_no_srd__Body.smt2
+[  11/68] unknown    0.04s  cortexm__mpu__CortexMRegion__new_with_srd__Body.smt2
+[  12/68] sat        0.03s  cortexm__mpu__CortexMRegion__region_overlaps__Body.smt2
+[  13/68] sat        0.02s  cortexm__mpu__CortexMRegion__region_size__Body.smt2
+[  14/68] sat        0.02s  cortexm__mpu__MPU___NUM_REGIONS__MIN_REGION_SIZE___new__Body.smt2
+[  15/68] unknown    0.02s  cortexm__mpu__next_aligned_power_of_two__Body.smt2
+[  16/68] unknown    0.06s  kernel___T_as_hil__can__StandardBitTiming___bit_timing_for_bitrate__Body.smt2
+[  17/68] sat        0.04s  kernel___T_as_hil__can__StandardBitTiming___bit_timing_for_bitrate__calc_sample_point_err__Body.smt2
+[  18/68] unknown    0.02s  kernel___allocator__AppMemoryAllocator_R__as_core__fmt__Display___fmt__Body.smt2
+[  19/68] unknown    0.02s  kernel___collections__ring_buffer__RingBuffer_____T__as_collections__queue__Queue_T____push__Body.smt2
+[  20/68] unknown    0.04s  kernel___collections__ring_buffer__RingBuffer_____T__as_collections__queue__Queue_T____remove_first_matching__Body.smt2
+[  21/68] unknown    0.02s  kernel___collections__ring_buffer__RingBuffer_____T__as_collections__queue__Queue_T____retain__Body.smt2
+[  22/68] sat        0.17s  kernel___platform__mpu__MpuRegionDefault_as_platform__mpu__RegionDescriptor___allocate_regions__Body.smt2
+[  23/68] sat        0.05s  kernel___platform__mpu__MpuRegionDefault_as_platform__mpu__RegionDescriptor___create_exact_region__Body.smt2
+[  24/68] sat        0.05s  kernel___platform__mpu__MpuRegionDefault_as_platform__mpu__RegionDescriptor___size__Body.smt2
+[  25/68] sat        0.16s  kernel___platform__mpu__MpuRegionDefault_as_platform__mpu__RegionDescriptor___update_regions__Body.smt2
+[  26/68] sat        0.03s  kernel___processbuffer__ReadOnlyProcessBuffer_as_processbuffer__ReadableProcessBuffer___enter__Body.smt2
+[  27/68] sat        0.03s  kernel___processbuffer__ReadWriteProcessBuffer_as_processbuffer__ReadableProcessBuffer___enter__Body.smt2 (+1 dup)
+[  28/68] sat        0.06s  kernel___processbuffer__ReadWriteProcessBuffer_as_processbuffer__ReadableProcessBuffer___len__Body.smt2
+[  29/68] sat        0.03s  kernel___scheduler__mlfq__MLFQSched__a__A__as_scheduler__Scheduler_C____next__Body.smt2
+[  30/68] sat        0.04s  kernel___scheduler__mlfq__MLFQSched__a__A__as_scheduler__Scheduler_C____result__Body.smt2
+[  31/68] unknown    0.09s  kernel__allocator__AppMemoryAllocator___R___allocate_app_memory__Body.smt2
+[  32/68] unknown    0.04s  kernel__allocator__AppMemoryAllocator___R___allocate_in_grant_region_internal__Body.smt2
+[  33/68] unknown    0.04s  kernel__allocator__AppMemoryAllocator___R___allocate_ipc_region__Body.smt2
+[  34/68] unknown    0.04s  kernel__allocator__AppMemoryAllocator___R___any_overlaps__Body.smt2
+[  35/68] unknown    0.03s  kernel__allocator__AppMemoryAllocator___R___get_app_breaks__Body.smt2
+[  36/68] unknown    0.02s  kernel__allocator__AppMemoryAllocator___R___get_flash_region__Body.smt2
+[  37/68] unknown    0.02s  kernel__allocator__AppMemoryAllocator___R___get_ram_regions__Body.smt2
+[  38/68] unknown    0.03s  kernel__allocator__AppMemoryAllocator___R___in_app_flash_memory__Body.smt2
+[  39/68] unknown    0.02s  kernel__allocator__AppMemoryAllocator___R___in_app_ram_memory__Body.smt2
+[  40/68] unknown    0.02s  kernel__allocator__AppMemoryAllocator___R___next_available_ipc_idx__Body.smt2
+[  41/68] unknown    0.04s  kernel__allocator__AppMemoryAllocator___R___update_app_memory__Body.smt2
+[  42/68] sat        0.02s  kernel__debug__panic_begin__Body.smt2
+[  43/68] unsat      0.08s  kernel__debug__panic_blink_forever__Body.smt2
+[  44/68] sat        0.02s  kernel__deferred_call__DeferredCall__service_next_pending__Body.smt2
+[  45/68] sat        0.02s  kernel__grant__CustomGrant___T___enter__Body.smt2
+[  46/68] sat        0.04s  kernel__grant__GrantRegionAllocator__alloc_n_with__Body.smt2
+[  47/68] sat        0.01s  kernel__grant__GrantRegionAllocator__alloc_with__Body.smt2
+[  48/68] sat        0.02s  kernel__grant__Grant___T__Upcalls__AllowROs__AllowRWs___each__Body.smt2
+[  49/68] sat        0.01s  kernel__grant__ProcessGrant____a__T__Upcalls__AllowROs__AllowRWs___access_grant__Body.smt2
+[  50/68] sat        0.03s  kernel__grant__ProcessGrant____a__T__Upcalls__AllowROs__AllowRWs___access_grant_with_allocator__Body.smt2
+[  51/68] sat        0.02s  kernel__grant__ProcessGrant____a__T__Upcalls__AllowROs__AllowRWs___new__new_inner__Body.smt2
+[  52/68] sat        0.05s  kernel__ipc__IPC___NUM_PROCS___schedule_upcall__Body.smt2
+[  53/68] sat        0.03s  kernel__kernel__Kernel__process_each__Body.smt2 (+1 dup)
+[  54/68] sat        0.03s  kernel__kernel__Kernel__process_until__Body.smt2
+[  55/68] unknown    0.05s  kernel__process_standard__ProcessStandard_______C___create__Body.smt2
+[  56/68] unknown    0.03s  kernel__process_standard__ProcessStandard_______C___reset__Body.smt2
+[  57/68] sat        0.02s  kernel__scheduler__mlfq__MLFQSched____a__A___new__Body.smt2
+[  58/68] timeout   15.01s  rv32i___pmp__PMPUserRegion_MPU_REGIONS__as_kernel__platform__mpu__RegionDescriptor___allocate_regions__Body.smt2
+[  59/68] sat        0.08s  rv32i___pmp__PMPUserRegion_MPU_REGIONS__as_kernel__platform__mpu__RegionDescriptor___create_exact_region__Body.smt2
+[  60/68] sat        0.04s  rv32i___pmp__PMPUserRegion_MPU_REGIONS__as_kernel__platform__mpu__RegionDescriptor___size__Body.smt2
+[  61/68] sat        2.67s  rv32i___pmp__PMPUserRegion_MPU_REGIONS__as_kernel__platform__mpu__RegionDescriptor___update_regions__Body.smt2
+[  62/68] sat        0.03s  rv32i___pmp__simple__SimplePMP_AVAILABLE_ENTRIES__as_pmp__TORUserPMP_MPU_REGIONS____configure_pmp__configure_all_regions_tail__Body.smt2
+[  63/68] sat        0.02s  rv32i___pmp__simple__SimplePMP_AVAILABLE_ENTRIES__as_pmp__TORUserPMP_MPU_REGIONS____configure_pmp__configure_region__Body.smt2
+[  64/68] sat        0.03s  rv32i___pmp__simple__SimplePMP_AVAILABLE_ENTRIES__as_pmp__TORUserPMP_MPU_REGIONS____configure_pmp__configure_region_pair__Body.smt2
+[  65/68] sat        0.02s  rv32i__pmp__PMPUserRegion___MPU_REGIONS___new__Body.smt2
+[  66/68] sat        1.99s  rv32i__pmp__permissions_to_pmpcfg__Body.smt2
+[  67/68] sat        0.13s  rv32i__pmp__region_overlaps__Body.smt2
+[  68/68] sat        0.01s  rv32i__pmp__simple__SimplePMP___AVAILABLE_ENTRIES___new__configure_initial_pmp_tail__Body.smt2
+
+68 distinct constraints (2 duplicates collapsed), 15.1s wall clock, 15s per-file timeout
+
+unsat files (1)
+----------------------------------------------------------
+  kernel__debug__panic_blink_forever__Body.smt2
+
+not solved (28)
+----------------------------------------------------------
+  unknown  cortexm___mpu__CortexMRegion_as_kernel__platform__mpu__RegionDescriptor___allocate_regions__Body.smt2                    Uninterpreted 'div'
+  unknown  cortexm___mpu__CortexMRegion_as_kernel__platform__mpu__RegionDescriptor___create_exact_region__Body.smt2                 formula is not in Horn fragment
+  unknown  cortexm___mpu__CortexMRegion_as_kernel__platform__mpu__RegionDescriptor___size__Body.smt2                                Uninterpreted 'f$first_subregion_from_logical$0'
+  unknown  cortexm___mpu__CortexMRegion_as_kernel__platform__mpu__RegionDescriptor___start__Body.smt2                               Uninterpreted 'f$first_subregion_from_logical$0'
+  unknown  cortexm___mpu__CortexMRegion_as_kernel__platform__mpu__RegionDescriptor___update_regions__Body.smt2                      Uninterpreted 'div'
+  timeout  cortexm___mpu__MPU_NUM_REGIONS__MIN_REGION_SIZE__as_kernel__platform__mpu__MPU___configure_mpu__Body.smt2
+  unknown  cortexm__mpu__CortexMRegion__new_no_srd__Body.smt2                                                                       Rule contains negative predicate <null>: P!!1(#0,#1,#2,#3,#4) :- not f$subregions_disabled_bit_set$5(#5,#6,...
+  unknown  cortexm__mpu__CortexMRegion__new_with_srd__Body.smt2                                                                     Uninterpreted 'div'
+  unknown  cortexm__mpu__next_aligned_power_of_two__Body.smt2                                                                       Uninterpreted 'f$to_pow2$2'
+  unknown  kernel___T_as_hil__can__StandardBitTiming___bit_timing_for_bitrate__Body.smt2                                            Uninterpreted 'div'
+  unknown  kernel___allocator__AppMemoryAllocator_R__as_core__fmt__Display___fmt__Body.smt2                                         formula is not in Horn fragment
+  unknown  kernel___collections__ring_buffer__RingBuffer_____T__as_collections__queue__Queue_T____push__Body.smt2                   Uninterpreted 'mod'
+  unknown  kernel___collections__ring_buffer__RingBuffer_____T__as_collections__queue__Queue_T____remove_first_matching__Body.smt2  Uninterpreted 'mod'
+  unknown  kernel___collections__ring_buffer__RingBuffer_____T__as_collections__queue__Queue_T____retain__Body.smt2                 Uninterpreted 'mod'
+  unknown  kernel__allocator__AppMemoryAllocator___R___allocate_app_memory__Body.smt2                                               formula is not in Horn fragment
+  unknown  kernel__allocator__AppMemoryAllocator___R___allocate_in_grant_region_internal__Body.smt2                                 formula is not in Horn fragment
+  unknown  kernel__allocator__AppMemoryAllocator___R___allocate_ipc_region__Body.smt2                                               formula is not in Horn fragment
+  unknown  kernel__allocator__AppMemoryAllocator___R___any_overlaps__Body.smt2                                                      formula is not in Horn fragment
+  unknown  kernel__allocator__AppMemoryAllocator___R___get_app_breaks__Body.smt2                                                    recursive predicate
+  unknown  kernel__allocator__AppMemoryAllocator___R___get_flash_region__Body.smt2                                                  Uninterpreted 'c2'
+  unknown  kernel__allocator__AppMemoryAllocator___R___get_ram_regions__Body.smt2                                                   Rule contains negative predicate <null>: P!!3(#0) :- not c2(#1),
+  unknown  kernel__allocator__AppMemoryAllocator___R___in_app_flash_memory__Body.smt2                                               formula is not in Horn fragment
+  unknown  kernel__allocator__AppMemoryAllocator___R___in_app_ram_memory__Body.smt2                                                 formula is not in Horn fragment
+  unknown  kernel__allocator__AppMemoryAllocator___R___next_available_ipc_idx__Body.smt2                                            formula is not in Horn fragment
+  unknown  kernel__allocator__AppMemoryAllocator___R___update_app_memory__Body.smt2                                                 formula is not in Horn fragment
+  unknown  kernel__process_standard__ProcessStandard_______C___create__Body.smt2                                                    formula is not in Horn fragment
+  unknown  kernel__process_standard__ProcessStandard_______C___reset__Body.smt2                                                     formula is not in Horn fragment
+  timeout  rv32i___pmp__PMPUserRegion_MPU_REGIONS__as_kernel__platform__mpu__RegionDescriptor___allocate_regions__Body.smt2
+
+slowest solved (top 10 of 40)
+----------------------------------------------------------
+     2.67s  sat   rv32i___pmp__PMPUserRegion_MPU_REGIONS__as_kernel__platform__mpu__RegionDescriptor___update_regions__Body.smt2
+     1.99s  sat   rv32i__pmp__permissions_to_pmpcfg__Body.smt2
+     0.17s  sat   kernel___platform__mpu__MpuRegionDefault_as_platform__mpu__RegionDescriptor___allocate_regions__Body.smt2
+     0.16s  sat   kernel___platform__mpu__MpuRegionDefault_as_platform__mpu__RegionDescriptor___update_regions__Body.smt2
+     0.13s  sat   rv32i__pmp__region_overlaps__Body.smt2
+     0.08s  unsat kernel__debug__panic_blink_forever__Body.smt2
+     0.08s  sat   rv32i___pmp__PMPUserRegion_MPU_REGIONS__as_kernel__platform__mpu__RegionDescriptor___create_exact_region__Body.smt2
+     0.06s  sat   kernel___processbuffer__ReadWriteProcessBuffer_as_processbuffer__ReadableProcessBuffer___len__Body.smt2
+     0.05s  sat   kernel___platform__mpu__MpuRegionDefault_as_platform__mpu__RegionDescriptor___create_exact_region__Body.smt2
+     0.05s  sat   kernel___platform__mpu__MpuRegionDefault_as_platform__mpu__RegionDescriptor___size__Body.smt2
+
+  median 0.03s   total 6.3s over 40 solved
+
+==========================================================
+STATS
+==========================================================
+
+all queries (68 queries)
+----------------------------------------------------------
+  status    count       %  distribution
+  unsat         1    1.5%  ............................
+  sat          39   57.4%  ################............
+  unknown      26   38.2%  ###########.................
+  timeout       2    2.9%  #...........................
+
+reached the solver (68 queries), nothing excluded
+----------------------------------------------------------
+  status    count       %  distribution
+  unsat         1    1.5%  ............................
+  sat          39   57.4%  ################............
+  unknown      26   38.2%  ###########.................
+  timeout       2    2.9%  #...........................
+
+  solved 40/68 of those reaching the solver (58.8%)   |   40/68 of all queries (58.8%)
