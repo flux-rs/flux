@@ -140,4 +140,11 @@
 <a href=#140 id=140 data-nosnippet>140</a>        requires nn_valid(base, addr, size, len * T::size_of()) &amp;&amp; nn_aligned_to(addr, T::align_of()))]
 <a href=#141 id=141 data-nosnippet>141</a>    <span class="kw">fn </span>slice_from_raw_parts(data: NonNull&lt;T&gt;, len: usize) -&gt; <span class="self">Self</span>;
 <a href=#142 id=142 data-nosnippet>142</a>}
+<a href=#143 id=143 data-nosnippet>143</a>
+<a href=#144 id=144 data-nosnippet>144</a><span class="attr">#[extern_spec(core::ptr)]
+<a href=#145 id=145 data-nosnippet>145</a></span><span class="kw">impl</span>&lt;T&gt; PartialEq <span class="kw">for </span>NonNull&lt;T&gt; {
+<a href=#146 id=146 data-nosnippet>146</a>    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1691
+<a href=#147 id=147 data-nosnippet>147</a>    </span><span class="attr">#[spec(<span class="kw">fn </span>(me: <span class="kw-2">&amp;</span>NonNull&lt;T&gt;[@m]</span>, other: <span class="kw-2">&amp;</span>NonNull&lt;T&gt;[@o]) -&gt; bool[m.addr == o.addr])]
+<a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>NonNull&lt;T&gt;) -&gt; bool;
+<a href=#149 id=149 data-nosnippet>149</a>}
 </code></pre></div></section></main></body></html>
