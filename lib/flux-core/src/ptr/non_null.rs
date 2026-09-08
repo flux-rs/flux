@@ -140,3 +140,10 @@ impl<T> NonNull<[T]> {
         requires nn_valid(base, addr, size, len * T::size_of()) && nn_aligned_to(addr, T::align_of()))]
     fn slice_from_raw_parts(data: NonNull<T>, len: usize) -> Self;
 }
+
+#[extern_spec(core::ptr)]
+impl<T> PartialEq for NonNull<T> {
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1691
+    #[spec(fn (me: &NonNull<T>[@m], other: &NonNull<T>[@o]) -> bool[m.addr == o.addr])]
+    fn eq(&self, other: &NonNull<T>) -> bool;
+}

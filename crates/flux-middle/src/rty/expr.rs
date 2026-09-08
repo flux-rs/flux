@@ -613,6 +613,11 @@ impl Expr {
         }
     }
 
+    /// Reduce a pointer to its address, for relational operators
+    pub fn reduce_ptr_addr(&self) -> Expr {
+        self.proj_and_reduce(FieldProj::RawPtr { field: RawPtrField::Addr })
+    }
+
     pub fn visit_conj<'a>(&'a self, mut f: impl FnMut(&'a Expr)) {
         fn go<'a>(e: &'a Expr, f: &mut impl FnMut(&'a Expr)) {
             if let ExprKind::BinaryOp(BinOp::And, e1, e2) = e.kind() {

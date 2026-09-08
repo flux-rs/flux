@@ -139,11 +139,18 @@ macro_rules! ptr_specs {
             unsafe fn read(self) -> T
             where T: Sized;
 
-            // Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L48
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L48
             #[spec(fn(me: *$mutable[@p] T) -> *$mutable[p.base, p.addr, p.size] U)]
             fn cast<U>(self) -> *$mutable U;
 
             $($($extra)*)?
+        }
+
+        #[extern_spec(core::ptr)]
+        impl<T> PartialEq for *$mutable T {
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1614
+            #[spec(fn (me: &*$mutable[@m] T, other: &*$mutable[@o] T) -> bool[m.addr == o.addr])]
+            fn eq(&self, other: &*$mutable T) -> bool;
         }
     };
 }
