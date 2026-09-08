@@ -30,6 +30,10 @@ pub fn dump_constraint() -> bool {
     FLAGS.dump_constraint
 }
 
+pub fn dump_smt_horn() -> Option<&'static PathBuf> {
+    FLAGS.dump_smt_horn.as_ref()
+}
+
 pub fn dump_fhir() -> bool {
     FLAGS.dump_fhir
 }

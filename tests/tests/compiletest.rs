@@ -81,6 +81,12 @@ fn test_runner(_: &[&()]) {
     // Pass `-Fsummary=off` to disable printing the summary at the end of each test
     flags.extend(["-Fsummary=off".to_string()]);
 
+    // Quick-and-dirty escape hatch so one-off debugging flags (e.g. `-Fdump-smt-horn=DIR`) can be
+    // passed to every test invocation.
+    if let Ok(extra) = env::var("FLUXFLAGS") {
+        flags.extend(extra.split_whitespace().map(str::to_string));
+    }
+
     config.target_rustcflags = Some(flags.join(" "));
 
     config.clean_rmeta();
@@ -92,6 +98,11 @@ fn test_runner(_: &[&()]) {
         config.mode = Mode::Ui;
         config.src_base = path;
         compiletest_rs::run_tests(&config);
+    }
+
+    // Quick-and-dirty escape hatch to run only the pos suite (e.g. when dumping constraints).
+    if env::var_os("FLUX_POS_ONLY").is_some() {
+        return;
     }
 
     let path = args.suite.neg_tests();

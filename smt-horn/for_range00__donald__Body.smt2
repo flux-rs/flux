@@ -1,0 +1,28 @@
+(set-logic HORN)
+
+;; Tag 0: Call at 13:5: 13:19 (ESpan { span: tests/with_deps/pos/surface/for_range00.rs:6:25: 6:29 (#0), base: None })
+;; Tag 1: Call at 14:13: 14:34 (ESpan { span: lib/flux-core/src/option.rs:46:24: 46:28 (#0), base: None })
+;; Tag 2: Call at 15:5: 15:19 (ESpan { span: tests/with_deps/pos/surface/for_range00.rs:6:25: 6:29 (#0), base: None })
+;; Tag 3: Call at 16:13: 16:34 (ESpan { span: lib/flux-core/src/option.rs:46:24: 46:28 (#0), base: None })
+;; Tag 4: Call at 17:5: 17:19 (ESpan { span: tests/with_deps/pos/surface/for_range00.rs:6:25: 6:29 (#0), base: None })
+
+(declare-type-var T0)
+(declare-datatypes ((Adt0 1)) ((par (Par0) ((mkadt0$0 (fld0$0 Par0) (fld0$1 Par0))))))
+(declare-const gt (Array T0 (Array T0 Bool)))
+(declare-const ge (Array T0 (Array T0 Bool)))
+(declare-const lt (Array T0 (Array T0 Bool)))
+(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun k0 (Int Int Int) Bool)
+(declare-fun k1 (Int Int Int Int Int Int) Bool)
+(declare-fun k2 (Int Int Int Int Int Int Int Int Int) Bool)
+
+(assert (forall ((a0 (Adt0 Int))(_$ Int)(a1 Int)(_$ Int)) (=> (and (=> true (= (fld0$0 a0) (+ 0 1))) (=> false (= (fld0$0 a0) 0)) (= (fld0$1 a0) 10) (= a1 0)) (k0 a1 (fld0$0 a0) (fld0$1 a0)))))
+(assert (forall ((a0 (Adt0 Int))(_$ Int)(a2 Int)(_$ Int)) (=> (and (=> true (= (fld0$0 a0) (+ 0 1))) (=> false (= (fld0$0 a0) 0)) (= (fld0$1 a0) 10) (k0 a2 (fld0$0 a0) (fld0$1 a0)) (not (= (= a2 0) true))) false)))
+(assert (forall ((a0 (Adt0 Int))(_$ Int)(a2 Int)(_$ Int)(a3 (Adt0 Int))(_$ Int)(a4 Int)(_$ Int)) (=> (and (=> true (= (fld0$0 a0) (+ 0 1))) (=> false (= (fld0$0 a0) 0)) (= (fld0$1 a0) 10) (k0 a2 (fld0$0 a0) (fld0$1 a0)) (=> (< (fld0$0 a0) (fld0$1 a0)) (= (fld0$0 a3) (+ (fld0$0 a0) 1))) (=> (not (< (fld0$0 a0) (fld0$1 a0))) (= (fld0$0 a3) (fld0$0 a0))) (= (fld0$1 a3) (fld0$1 a0)) (= a4 (fld0$0 a0))) (k1 a4 (fld0$0 a0) (fld0$1 a0) a2 (fld0$0 a3) (fld0$1 a3)))))
+(assert (forall ((a0 (Adt0 Int))(_$ Int)(a2 Int)(_$ Int)(a3 (Adt0 Int))(_$ Int)) (=> (and (=> true (= (fld0$0 a0) (+ 0 1))) (=> false (= (fld0$0 a0) 0)) (= (fld0$1 a0) 10) (k0 a2 (fld0$0 a0) (fld0$1 a0)) (=> (< (fld0$0 a0) (fld0$1 a0)) (= (fld0$0 a3) (+ (fld0$0 a0) 1))) (=> (not (< (fld0$0 a0) (fld0$1 a0))) (= (fld0$0 a3) (fld0$0 a0))) (= (fld0$1 a3) (fld0$1 a0)) (not (= (< (fld0$0 a0) (fld0$1 a0)) true))) false)))
+(assert (forall ((a0 (Adt0 Int))(_$ Int)(a2 Int)(_$ Int)(a3 (Adt0 Int))(_$ Int)(a5 Int)(_$ Int)) (=> (and (=> true (= (fld0$0 a0) (+ 0 1))) (=> false (= (fld0$0 a0) 0)) (= (fld0$1 a0) 10) (k0 a2 (fld0$0 a0) (fld0$1 a0)) (=> (< (fld0$0 a0) (fld0$1 a0)) (= (fld0$0 a3) (+ (fld0$0 a0) 1))) (=> (not (< (fld0$0 a0) (fld0$1 a0))) (= (fld0$0 a3) (fld0$0 a0))) (= (fld0$1 a3) (fld0$1 a0)) (k1 a5 (fld0$0 a0) (fld0$1 a0) a2 (fld0$0 a3) (fld0$1 a3)) (not (= (= a5 1) true))) false)))
+(assert (forall ((a0 (Adt0 Int))(_$ Int)(a2 Int)(_$ Int)(a3 (Adt0 Int))(_$ Int)(a5 Int)(_$ Int)(a6 (Adt0 Int))(_$ Int)(a7 Int)(_$ Int)) (=> (and (=> true (= (fld0$0 a0) (+ 0 1))) (=> false (= (fld0$0 a0) 0)) (= (fld0$1 a0) 10) (k0 a2 (fld0$0 a0) (fld0$1 a0)) (=> (< (fld0$0 a0) (fld0$1 a0)) (= (fld0$0 a3) (+ (fld0$0 a0) 1))) (=> (not (< (fld0$0 a0) (fld0$1 a0))) (= (fld0$0 a3) (fld0$0 a0))) (= (fld0$1 a3) (fld0$1 a0)) (k1 a5 (fld0$0 a0) (fld0$1 a0) a2 (fld0$0 a3) (fld0$1 a3)) (=> (< (fld0$0 a3) (fld0$1 a3)) (= (fld0$0 a6) (+ (fld0$0 a3) 1))) (=> (not (< (fld0$0 a3) (fld0$1 a3))) (= (fld0$0 a6) (fld0$0 a3))) (= (fld0$1 a6) (fld0$1 a3)) (= a7 (fld0$0 a3))) (k2 a7 (fld0$0 a0) (fld0$1 a0) a2 (fld0$0 a3) (fld0$1 a3) a5 (fld0$0 a6) (fld0$1 a6)))))
+(assert (forall ((a0 (Adt0 Int))(_$ Int)(a2 Int)(_$ Int)(a3 (Adt0 Int))(_$ Int)(a5 Int)(_$ Int)(a6 (Adt0 Int))(_$ Int)) (=> (and (=> true (= (fld0$0 a0) (+ 0 1))) (=> false (= (fld0$0 a0) 0)) (= (fld0$1 a0) 10) (k0 a2 (fld0$0 a0) (fld0$1 a0)) (=> (< (fld0$0 a0) (fld0$1 a0)) (= (fld0$0 a3) (+ (fld0$0 a0) 1))) (=> (not (< (fld0$0 a0) (fld0$1 a0))) (= (fld0$0 a3) (fld0$0 a0))) (= (fld0$1 a3) (fld0$1 a0)) (k1 a5 (fld0$0 a0) (fld0$1 a0) a2 (fld0$0 a3) (fld0$1 a3)) (=> (< (fld0$0 a3) (fld0$1 a3)) (= (fld0$0 a6) (+ (fld0$0 a3) 1))) (=> (not (< (fld0$0 a3) (fld0$1 a3))) (= (fld0$0 a6) (fld0$0 a3))) (= (fld0$1 a6) (fld0$1 a3)) (not (= (< (fld0$0 a3) (fld0$1 a3)) true))) false)))
+(assert (forall ((a0 (Adt0 Int))(_$ Int)(a2 Int)(_$ Int)(a3 (Adt0 Int))(_$ Int)(a5 Int)(_$ Int)(a6 (Adt0 Int))(_$ Int)(a8 Int)(_$ Int)) (=> (and (=> true (= (fld0$0 a0) (+ 0 1))) (=> false (= (fld0$0 a0) 0)) (= (fld0$1 a0) 10) (k0 a2 (fld0$0 a0) (fld0$1 a0)) (=> (< (fld0$0 a0) (fld0$1 a0)) (= (fld0$0 a3) (+ (fld0$0 a0) 1))) (=> (not (< (fld0$0 a0) (fld0$1 a0))) (= (fld0$0 a3) (fld0$0 a0))) (= (fld0$1 a3) (fld0$1 a0)) (k1 a5 (fld0$0 a0) (fld0$1 a0) a2 (fld0$0 a3) (fld0$1 a3)) (=> (< (fld0$0 a3) (fld0$1 a3)) (= (fld0$0 a6) (+ (fld0$0 a3) 1))) (=> (not (< (fld0$0 a3) (fld0$1 a3))) (= (fld0$0 a6) (fld0$0 a3))) (= (fld0$1 a6) (fld0$1 a3)) (k2 a8 (fld0$0 a0) (fld0$1 a0) a2 (fld0$0 a3) (fld0$1 a3) a5 (fld0$0 a6) (fld0$1 a6)) (not (= (= a8 2) true))) false)))
+
+(check-sat)

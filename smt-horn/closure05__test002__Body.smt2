@@ -1,0 +1,32 @@
+(set-logic HORN)
+
+;; Tag 0: Predicate at 8:5: 8:15 (ESpan { span: tests/pos/surface/closure05.rs:2:35: 2:41 (#0), base: None })
+;; Tag 1: Predicate at 8:5: 8:15 (ESpan { span: tests/pos/surface/closure05.rs:2:50: 2:54 (#0), base: None })
+;; Tag 2: Predicate at 8:5: 8:15 (ESpan { span: tests/pos/surface/closure05.rs:2:35: 2:41 (#0), base: None })
+;; Tag 3: Predicate at 8:5: 8:15 (ESpan { span: tests/pos/surface/closure05.rs:2:50: 2:54 (#0), base: None })
+;; Tag 4: NoPanic(DefId(2:4252 ~ core[9471]::ops::function::FnOnce::call_once), MightPanic(NotInCallGraph)) at 8:5: 8:15
+;; Tag 5: Ret at 9:1: 9:2 (ESpan { span: tests/pos/surface/closure05.rs:1:32: 1:36 (#0), base: None })
+
+(declare-type-var T0)
+(declare-const c0 Bool)
+(declare-const gt (Array T0 (Array T0 Bool)))
+(declare-const ge (Array T0 (Array T0 Bool)))
+(declare-const lt (Array T0 (Array T0 Bool)))
+(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun k0 (Int Int) Bool)
+(declare-fun k1 (Int Int) Bool)
+(declare-fun k2 (Int Int) Bool)
+(declare-fun k3 (Int Int) Bool)
+
+(assert (forall ((a0 Int)(a1 Int)(_$ Int)(a2 Int)(_$ Int)(a3 Int)(_$ Int)) (=> (and (k0 a1 a0) (k1 a2 a0) (k2 a3 a0) (not (<= 0 a2))) false)))
+(assert (forall ((a0 Int)(a1 Int)(_$ Int)(a2 Int)(_$ Int)(a3 Int)(_$ Int)) (=> (and (k0 a1 a0) (k1 a2 a0) (k2 a3 a0) (not (<= 0 a3))) false)))
+(assert (forall ((a0 Int)(a1 Int)(_$ Int)(a2 Int)(_$ Int)(a3 Int)(_$ Int)(a4 Int)(_$ Int)(a5 Int)(_$ Int)(a6 Int)(_$ Int)) (=> (and (k0 a1 a0) (k1 a2 a0) (k2 a3 a0) (k0 a4 a0) (k1 a5 a0) (k2 a6 a0) (not (<= 0 a5))) false)))
+(assert (forall ((a0 Int)(a1 Int)(_$ Int)(a2 Int)(_$ Int)(a3 Int)(_$ Int)(a4 Int)(_$ Int)(a5 Int)(_$ Int)(a6 Int)(_$ Int)) (=> (and (k0 a1 a0) (k1 a2 a0) (k2 a3 a0) (k0 a4 a0) (k1 a5 a0) (k2 a6 a0) (not (<= 0 a6))) false)))
+(assert (forall ((a0 Int)(a1 Int)(_$ Int)(a2 Int)(_$ Int)(a3 Int)(_$ Int)(a4 Int)(_$ Int)(a5 Int)(_$ Int)(a6 Int)(_$ Int)(a7 Int)(_$ Int)) (=> (and (k0 a1 a0) (k1 a2 a0) (k2 a3 a0) (k0 a4 a0) (k1 a5 a0) (k2 a6 a0) (<= 10 a7)) (k3 a7 a0))))
+(assert (forall ((a0 Int)) (=> (not (=> false (or c0 false))) false)))
+(assert (forall ((a0 Int)) (=> true (k0 a0 a0))))
+(assert (forall ((a0 Int)) (=> true (k1 99 a0))))
+(assert (forall ((a0 Int)) (=> true (k2 100 a0))))
+(assert (forall ((a0 Int)(a8 Int)(_$ Int)) (=> (and (k3 a8 a0) (not (<= 0 a8))) false)))
+
+(check-sat)

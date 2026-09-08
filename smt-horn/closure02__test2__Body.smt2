@@ -1,0 +1,27 @@
+(set-logic HORN)
+
+;; Tag 0: Call at 45:22: 45:31 (ESpan { span: tests/pos/surface/closure02.rs:38:46: 38:51 (#0), base: None })
+;; Tag 1: Call at 45:22: 45:31 (ESpan { span: tests/pos/surface/closure02.rs:38:33: 38:40 (#0), base: None })
+
+(declare-type-var T0)
+(declare-const gt (Array T0 (Array T0 Bool)))
+(declare-const ge (Array T0 (Array T0 Bool)))
+(declare-const lt (Array T0 (Array T0 Bool)))
+(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun k0 (Int) Bool)
+(declare-fun k1 (Int) Bool)
+(declare-fun k2 (Int) Bool)
+(declare-fun k3 (Bool) Bool)
+(declare-fun k4 (Bool) Bool)
+
+(assert (forall ((_$ Int)) (=> true (k0 100))))
+(assert (forall ((_$ Int)(_$ Int)(a0 Int)(_$ Int)) (=> (and (<= 0 (+ 0 1)) (k0 a0)) (k1 a0))))
+(assert (forall ((_$ Int)(_$ Int)) (=> (<= 0 (+ 0 1)) (k1 200))))
+(assert (forall ((_$ Int)(_$ Int)(_$ Int)(a1 Int)(_$ Int)) (=> (and (<= 0 (+ 0 1)) (<= 0 (+ (+ 0 1) 1)) (k1 a1)) (k2 a1))))
+(assert (forall ((_$ Int)(_$ Int)(_$ Int)) (=> (and (<= 0 (+ 0 1)) (<= 0 (+ (+ 0 1) 1))) (k2 300))))
+(assert (forall ((_$ Int)(_$ Int)(_$ Int)(_$ Int)(a2 Bool)(_$ Int)(_$ Int)) (=> (and (<= 0 (+ 0 1)) (<= 0 (+ (+ 0 1) 1)) (<= 0 (+ (+ (+ 0 1) 1) 1)) (k3 a2) a2 (not (< 0 (+ (+ (+ 0 1) 1) 1)))) false)))
+(assert (forall ((_$ Int)(_$ Int)(_$ Int)(_$ Int)(a2 Bool)(_$ Int)(_$ Int)(a3 Int)(_$ Int)) (=> (and (<= 0 (+ 0 1)) (<= 0 (+ (+ 0 1) 1)) (<= 0 (+ (+ (+ 0 1) 1) 1)) (k3 a2) a2 (k2 a3) (not (<= 10 a3))) false)))
+(assert (forall ((_$ Int)(_$ Int)(_$ Int)(_$ Int)(a4 Bool)(_$ Int)) (=> (and (<= 0 (+ 0 1)) (<= 0 (+ (+ 0 1) 1)) (<= 0 (+ (+ (+ 0 1) 1) 1)) (k4 a4)) (k3 a4))))
+(assert (forall ((_$ Int)(_$ Int)(_$ Int)(_$ Int)(a5 Bool)) (=> (and (<= 0 (+ 0 1)) (<= 0 (+ (+ 0 1) 1)) (<= 0 (+ (+ (+ 0 1) 1) 1))) (k4 a5))))
+
+(check-sat)

@@ -1,0 +1,25 @@
+(set-logic HORN)
+
+;; Tag 0: Ret at 18:1: 18:2 (ESpan { span: tests/pos/surface/closure02.rs:14:51: 14:55 (#0), base: None })
+
+(declare-type-var T0)
+(declare-const gt (Array T0 (Array T0 Bool)))
+(declare-const ge (Array T0 (Array T0 Bool)))
+(declare-const lt (Array T0 (Array T0 Bool)))
+(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun k0 (Int Int) Bool)
+(declare-fun k1 (Int) Bool)
+(declare-fun k2 (Int Int Int) Bool)
+(declare-fun k3 (Int) Bool)
+(declare-fun k4 (Int) Bool)
+(declare-fun k5 (Int) Bool)
+
+(assert (forall ((a0 Int)(a1 Int)(_$ Int)) (=> (and (k0 a0 a1) (k1 a1)) (k2 (+ a0 a1) a0 a1))))
+(assert (forall ((a2 Int)(_$ Int)(a3 Int)(_$ Int)) (=> (and (k3 a2) (k4 a3)) (k0 a2 a3))))
+(assert (forall ((a2 Int)(_$ Int)(a3 Int)(_$ Int)) (=> (and (k3 a2) (k4 a3)) (k1 a3))))
+(assert (forall ((a2 Int)(_$ Int)(a3 Int)(_$ Int)(a4 Int)(_$ Int)) (=> (and (k3 a2) (k4 a3) (k2 a4 a2 a3)) (k5 a4))))
+(assert (=> true (k3 3)))
+(assert (forall ((a5 Int)(_$ Int)) (=> (<= 0 a5) (k4 a5))))
+(assert (forall ((a6 Int)(_$ Int)) (=> (and (k5 a6) (not (<= 3 a6))) false)))
+
+(check-sat)

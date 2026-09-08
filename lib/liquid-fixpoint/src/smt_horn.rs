@@ -10,7 +10,10 @@
 /// (assert (forall ((x Int)) (=> (and (P1 x x) (not (>= x 0))) false)))
 /// (check-sat)
 /// ```
-use std::fmt;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, Expr, FixpointFmt, FunDef,
@@ -38,7 +41,7 @@ fn flatten_constraint<'a, T: Types>(
         Constraint::ForAll(bind, body) => {
             vars.push((&bind.name, &bind.sort));
             let guard_len = guards.len();
-            guards.extend(bind.preds.iter().filter(|a| a.is_trivially_true()));
+            guards.extend(bind.preds.iter().filter(|a| !a.is_trivially_true()));
             flatten_constraint(body, vars, guards, clauses);
             guards.truncate(guard_len);
             vars.pop();
@@ -57,6 +60,121 @@ fn flatten_constraint<'a, T: Types>(
     }
 }
 
+/// Walks the top-level conjuncts of `expr`.
+fn for_each_conjunct<'a, T: Types>(expr: &'a Expr<T>, f: &mut impl FnMut(&'a Expr<T>)) {
+    match expr {
+        Expr::And(exprs) => {
+            for expr in exprs {
+                for_each_conjunct(expr, f);
+            }
+        }
+        _ => f(expr),
+    }
+}
+
+/// Collects every variable occurring in `expr`. Variables bound inside `expr` (by a `let` or a
+/// quantifier) are collected too, which only makes the callers more conservative.
+fn collect_vars<'a, T: Types>(expr: &'a Expr<T>, out: &mut Vec<&'a T::Var>) {
+    match expr {
+        Expr::Var(var) => out.push(var),
+        Expr::Constant(_) | Expr::ThyFunc(_) => {}
+        Expr::Neg(expr) | Expr::Not(expr) | Expr::IsCtor(_, expr) => collect_vars(expr, out),
+        Expr::BinaryOp(_, exprs) | Expr::Atom(_, exprs) => {
+            for expr in exprs.iter() {
+                collect_vars(expr, out);
+            }
+        }
+        Expr::Imp(exprs) | Expr::Iff(exprs) => {
+            for expr in exprs.iter() {
+                collect_vars(expr, out);
+            }
+        }
+        Expr::IfThenElse(exprs) => {
+            for expr in exprs.iter() {
+                collect_vars(expr, out);
+            }
+        }
+        Expr::And(exprs) | Expr::Or(exprs) => {
+            for expr in exprs {
+                collect_vars(expr, out);
+            }
+        }
+        Expr::Let(name, exprs) => {
+            out.push(name);
+            for expr in exprs.iter() {
+                collect_vars(expr, out);
+            }
+        }
+        Expr::App(func, _, args, _) => {
+            collect_vars(func, out);
+            for arg in args {
+                collect_vars(arg, out);
+            }
+        }
+        // Both make the formatter bail out on the whole task, so there is nothing to collect.
+        Expr::Quantifier(..) | Expr::WKVar(..) => {}
+    }
+}
+
+/// Finds constants whose value is pinned by a `(= c <term>)` guard, so they can be emitted as an
+/// interpreted `define-fun` rather than an uninterpreted `declare-const`.
+///
+/// This is not cosmetic: spacer's rule language admits only applications of the predicates being
+/// solved for plus interpreted constraints, so a rule mentioning an uninterpreted non-`Bool`
+/// symbol is rejected outright with `Uninterpreted 'c0'` and the whole query comes back `unknown`.
+/// Flux declares Rust constants (`i32::MAX` and friends) this way and pins them with a guard, so
+/// the value is known and the symbol need not be uninterpreted at all.
+///
+/// A definition is only used when the term is closed -- it mentions no variable bound by the
+/// clause the guard was found in -- and when every clause that pins the constant pins it to the
+/// same term. Constants failing either test stay uninterpreted.
+fn find_const_definitions<'a, T: Types>(
+    constants: &'a [ConstDecl<T>],
+    clauses: &[HornClause<'a, T>],
+) -> HashMap<&'a T::Var, &'a Expr<T>> {
+    let declared: HashSet<&T::Var> = constants.iter().map(|c| &c.name).collect();
+    if declared.is_empty() {
+        return HashMap::new();
+    }
+
+    // `None` marks a constant seen with two different definitions.
+    let mut defs: HashMap<&T::Var, Option<&Expr<T>>> = HashMap::new();
+    for clause in clauses {
+        let bound: HashSet<&T::Var> = clause.vars.iter().map(|(var, _)| *var).collect();
+        for guard in &clause.guards {
+            let Pred::Expr(expr) = guard else { continue };
+            let mut conjuncts = Vec::new();
+            for_each_conjunct(expr, &mut |conj| conjuncts.push(conj));
+            for conj in conjuncts {
+                let Expr::Atom(BinRel::Eq, exprs) = conj else { continue };
+                let [lhs, rhs] = &**exprs;
+                // An equation defines a constant read in either direction.
+                for (var, term) in [(lhs, rhs), (rhs, lhs)] {
+                    let Expr::Var(name) = var else { continue };
+                    if !declared.contains(&name) {
+                        continue;
+                    }
+                    let mut vars = Vec::new();
+                    collect_vars(term, &mut vars);
+                    if vars.iter().any(|var| bound.contains(var) || *var == name) {
+                        continue;
+                    }
+                    defs.entry(name)
+                        .and_modify(|slot| {
+                            if *slot != Some(term) {
+                                *slot = None;
+                            }
+                        })
+                        .or_insert(Some(term));
+                }
+            }
+        }
+    }
+    defs.into_iter()
+        .filter_map(|(name, def)| def.map(|def| (name, def)))
+        .collect()
+}
+
 // ---- SMT-LIB HORN CHC task formatting ----
 
 /// Format a task in the SMT-LIB HORN CHC format
@@ -73,14 +191,122 @@ pub fn fmt_smt_horn<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt
         writeln!(f)?;
     }
 
-    // Data type declarations
-    for data_decl in &task.data_decls {
-        fmt_data_decl_smt(data_decl, f)?;
+    // Flatten constraints into Horn clauses up front: the clause binders are needed to know which
+    // sort variables have to be declared.
+    let mut clauses = Vec::new();
+    let mut vars = Vec::new();
+    let mut guards = Vec::new();
+    flatten_constraint(&task.constraint, &mut vars, &mut guards, &mut clauses);
+
+    // Sort variables occurring outside a datatype declaration are declared with z3's
+    // `declare-type-var` extension, which makes the declarations genuinely polymorphic: the same
+    // symbol can then be used at several instances (e.g. the `gt`/`le` uninterpreted relations
+    // applied at both `Int` and `Bool`), which skolemizing them into a single uninterpreted sort
+    // would reject.
+    let mut max_sort_var = None;
+    for sort in task
+        .constants
+        .iter()
+        .map(|c| &c.sort)
+        .chain(task.kvars.iter().flat_map(|k| &k.sorts))
+        .chain(
+            task.define_funs
+                .iter()
+                .flat_map(|d| d.sort.inputs.iter().chain(std::iter::once(&d.sort.output))),
+        )
+        .chain(
+            clauses
+                .iter()
+                .flat_map(|c| c.vars.iter().map(|(_, sort)| *sort)),
+        )
+    {
+        max_sort_var_of(sort, &mut max_sort_var);
+    }
+    if let Some(max) = max_sort_var {
+        for i in 0..=max {
+            writeln!(f, "(declare-type-var {SORT_VAR_PREFIX}{i})")?;
+        }
     }
 
-    // Constant declarations
+    // Data type declarations. Sorts without constructors are opaque and must come first, since
+    // datatype bodies may refer to them.
+    let (opaque, datatypes): (Vec<_>, Vec<_>) = task
+        .data_decls
+        .iter()
+        .partition(|decl| decl.ctors.is_empty());
+    let mut declared: HashSet<String> = HashSet::new();
+    for decl in opaque {
+        writeln!(f, "(declare-sort {} {})", decl.name.display(), decl.vars)?;
+        declared.insert(decl.name.display().to_string());
+    }
+
+    // Sorts referenced but never declared (e.g. opaque sorts introduced by the encoding) are
+    // declared as uninterpreted sorts of the right arity.
+    let declared_names: HashSet<String> = task
+        .data_decls
+        .iter()
+        .map(|decl| decl.name.display().to_string())
+        .collect();
+    let mut undeclared = Vec::new();
+    for sort in datatypes
+        .iter()
+        .flat_map(|decl| &decl.ctors)
+        .flat_map(|ctor| &ctor.fields)
+        .map(|field| &field.sort)
+        .chain(task.constants.iter().map(|c| &c.sort))
+        .chain(task.kvars.iter().flat_map(|k| &k.sorts))
+        .chain(
+            task.define_funs
+                .iter()
+                .flat_map(|d| d.sort.inputs.iter().chain(std::iter::once(&d.sort.output))),
+        )
+    {
+        collect_undeclared_sorts(sort, &declared_names, &mut declared, &mut undeclared);
+    }
+    for (name, arity) in undeclared {
+        writeln!(f, "(declare-sort {name} {arity})")?;
+    }
+
+    // Datatypes must be declared after the datatypes they refer to (z3 rejects a mutual block
+    // whose bodies use e.g. `Set` over a sibling), so emit them in dependency order. Any cycle
+    // left over goes into one mutual block.
+    for group in order_data_decls(&datatypes) {
+        write!(f, "(declare-datatypes (")?;
+        for decl in &group {
+            write!(f, "({} {})", decl.name.display(), decl.vars)?;
+        }
+        write!(f, ") (")?;
+        for decl in &group {
+            fmt_data_decl_body_smt(decl, f)?;
+        }
+        writeln!(f, "))")?;
+    }
+
+    // Constant declarations. A constant pinned to a ground term by a guard is emitted as an
+    // interpreted `define-fun`; see `find_const_definitions`.
+    let const_defs = find_const_definitions(&task.constants, &clauses);
+    let const_names: HashSet<&T::Var> = task.constants.iter().map(|c| &c.name).collect();
+    let mut emitted: HashSet<&T::Var> = HashSet::new();
     for cinfo in &task.constants {
-        fmt_const_decl(cinfo, f)?;
+        // A definition may mention another constant, so only use it once everything it refers to
+        // has been emitted; otherwise it would be a forward reference.
+        let definable = const_defs.get(&cinfo.name).filter(|def| {
+            let mut vars = Vec::new();
+            collect_vars(def, &mut vars);
+            vars.iter()
+                .all(|var| !const_names.contains(var) || emitted.contains(var))
+        });
+        match definable {
+            Some(def) => {
+                write!(f, "(define-fun {} () ", cinfo.name.display())?;
+                fmt_sort_smt(&cinfo.sort, f)?;
+                write!(f, " ")?;
+                fmt_expr_smt(def, f)?;
+                writeln!(f, ")")?;
+            }
+            None => fmt_const_decl(cinfo, f)?,
+        }
+        emitted.insert(&cinfo.name);
     }
 
     // Function definitions
@@ -94,12 +320,6 @@ pub fn fmt_smt_horn<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt
     }
 
     writeln!(f)?;
-
-    // Flatten constraints into Horn clauses
-    let mut clauses = Vec::new();
-    let mut vars = Vec::new();
-    let mut guards = Vec::new();
-    flatten_constraint(&task.constraint, &mut vars, &mut guards, &mut clauses);
 
     // Write assertions
     for clause in &clauses {
@@ -216,7 +436,131 @@ impl<T: Types> fmt::Display for SmtFormatter<'_, T> {
 
 // ---- SMT-LIB sort formatting ----
 
+/// Names of the data sorts `sort` refers to.
+fn data_sorts_of<T: Types>(sort: &Sort<T>, out: &mut Vec<String>) {
+    match sort {
+        Sort::Int | Sort::Bool | Sort::Real | Sort::Str | Sort::BvSize(_) | Sort::Var(_) => {}
+        Sort::BitVec(sort) | Sort::Abs(_, sort) => data_sorts_of(sort, out),
+        Sort::Func(sorts) => sorts.iter().for_each(|s| data_sorts_of(s, out)),
+        Sort::App(ctor, sorts) => {
+            if let SortCtor::Data(name) = ctor {
+                out.push(name.display().to_string());
+            }
+            sorts.iter().for_each(|s| data_sorts_of(s, out));
+        }
+    }
+}
+
+/// Collects data sorts referenced by `sort` that have no declaration in the task, together with
+/// the arity they are used at.
+fn collect_undeclared_sorts<T: Types>(
+    sort: &Sort<T>,
+    declared_in_task: &HashSet<String>,
+    seen: &mut HashSet<String>,
+    out: &mut Vec<(String, usize)>,
+) {
+    match sort {
+        Sort::Int | Sort::Bool | Sort::Real | Sort::Str | Sort::BvSize(_) | Sort::Var(_) => {}
+        Sort::BitVec(sort) | Sort::Abs(_, sort) => {
+            collect_undeclared_sorts(sort, declared_in_task, seen, out);
+        }
+        Sort::Func(sorts) => {
+            for sort in sorts.iter() {
+                collect_undeclared_sorts(sort, declared_in_task, seen, out);
+            }
+        }
+        Sort::App(ctor, sorts) => {
+            if let SortCtor::Data(name) = ctor {
+                let name = name.display().to_string();
+                if !declared_in_task.contains(&name) && seen.insert(name.clone()) {
+                    out.push((name, sorts.len()));
+                }
+            }
+            for sort in sorts {
+                collect_undeclared_sorts(sort, declared_in_task, seen, out);
+            }
+        }
+    }
+}
+
+/// Groups data declarations so that a group only refers to sorts declared by itself or an earlier
+/// group. Mutually recursive declarations end up in the same group.
+fn order_data_decls<'a, T: Types>(decls: &[&'a DataDecl<T>]) -> Vec<Vec<&'a DataDecl<T>>> {
+    let index: HashMap<String, usize> = decls
+        .iter()
+        .enumerate()
+        .map(|(i, decl)| (decl.name.display().to_string(), i))
+        .collect();
+    let deps: Vec<Vec<usize>> = decls
+        .iter()
+        .map(|decl| {
+            let mut names = Vec::new();
+            for field in decl.ctors.iter().flat_map(|ctor| &ctor.fields) {
+                data_sorts_of(&field.sort, &mut names);
+            }
+            names
+                .iter()
+                .filter_map(|name| index.get(name).copied())
+                .collect()
+        })
+        .collect();
+
+    let mut groups = Vec::new();
+    let mut emitted = vec![false; decls.len()];
+    loop {
+        let ready: Vec<usize> = (0..decls.len())
+            .filter(|&i| !emitted[i] && deps[i].iter().all(|&j| j == i || emitted[j]))
+            .collect();
+        if ready.is_empty() {
+            break;
+        }
+        for &i in &ready {
+            emitted[i] = true;
+        }
+        groups.push(ready.iter().map(|&i| decls[i]).collect());
+    }
+    // Whatever is left is part of a cycle; emit it as a single mutual block.
+    let rest: Vec<_> = (0..decls.len())
+        .filter(|&i| !emitted[i])
+        .map(|i| decls[i])
+        .collect();
+    if !rest.is_empty() {
+        groups.push(rest);
+    }
+    groups
+}
+
+/// Records the largest sort variable index occurring in `sort`.
+fn max_sort_var_of<T: Types>(sort: &Sort<T>, max: &mut Option<usize>) {
+    match sort {
+        Sort::Var(i) => *max = Some(max.map_or(*i, |m: usize| m.max(*i))),
+        Sort::Int | Sort::Bool | Sort::Real | Sort::Str | Sort::BvSize(_) => {}
+        Sort::BitVec(sort) | Sort::Abs(_, sort) => max_sort_var_of(sort, max),
+        Sort::Func(sorts) => sorts.iter().for_each(|s| max_sort_var_of(s, max)),
+        Sort::App(_, sorts) => sorts.iter().for_each(|s| max_sort_var_of(s, max)),
+    }
+}
+
+/// Name used for a sort variable declared with `declare-type-var`.
+const SORT_VAR_PREFIX: &str = "T";
+
+/// Name used for a sort variable bound by the `par` binder of a parametric datatype. It must
+/// differ from [`SORT_VAR_PREFIX`]: a `declare-type-var` of the same name takes precedence over
+/// the `par` binder, and the datatype's parameter then never gets instantiated.
+const DATA_SORT_VAR_PREFIX: &str = "Par";
+
 fn fmt_sort_smt<T: Types>(sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fmt_sort_smt_with(sort, SORT_VAR_PREFIX, f)
+}
+
+/// Formats `sort`, naming sort variables `{prefix}{i}`. Sort variables mean different things
+/// depending on where the sort appears: inside a datatype declaration they refer to that
+/// datatype's own parameters, everywhere else to a `declare-type-var`.
+fn fmt_sort_smt_with<T: Types>(
+    sort: &Sort<T>,
+    prefix: &str,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
     match sort {
         Sort::Int => write!(f, "Int"),
         Sort::Bool => write!(f, "Bool"),
@@ -224,21 +568,21 @@ fn fmt_sort_smt<T: Types>(sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
         Sort::Str => write!(f, "String"),
         Sort::BitVec(size) => {
             write!(f, "(_ BitVec ")?;
-            fmt_sort_smt(size, f)?;
+            fmt_sort_smt_with(size, prefix, f)?;
             write!(f, ")")
         }
         Sort::BvSize(size) => write!(f, "{size}"),
-        Sort::Var(i) => write!(f, "T{i}"),
+        Sort::Var(i) => write!(f, "{prefix}{i}"),
         Sort::Func(fsort) => {
             // Function sorts mapped to (Array input output) as an approximation
             let [input, output] = &**fsort;
             write!(f, "(Array ")?;
-            fmt_sort_smt(input, f)?;
+            fmt_sort_smt_with(input, prefix, f)?;
             write!(f, " ")?;
-            fmt_sort_smt(output, f)?;
+            fmt_sort_smt_with(output, prefix, f)?;
             write!(f, ")")
         }
-        Sort::Abs(_, sort) => fmt_sort_smt(sort, f),
+        Sort::Abs(_, sort) => fmt_sort_smt_with(sort, prefix, f),
         Sort::App(ctor, args) => {
             if args.is_empty() {
                 fmt_sort_ctor_smt(ctor, f)
@@ -247,7 +591,7 @@ fn fmt_sort_smt<T: Types>(sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
                 fmt_sort_ctor_smt(ctor, f)?;
                 for arg in args {
                     write!(f, " ")?;
-                    fmt_sort_smt(arg, f)?;
+                    fmt_sort_smt_with(arg, prefix, f)?;
                 }
                 write!(f, ")")
             }
@@ -270,6 +614,10 @@ fn fmt_expr_smt<T: Types>(expr: &Expr<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
         Expr::Constant(c) => fmt_constant_smt(c, f),
         Expr::Var(x) => write!(f, "{}", x.display()),
         Expr::App(func, _sort_args, args, _out_sort) => {
+            // A nullary application must be printed as a bare symbol: `(f)` is not valid SMT-LIB.
+            if args.is_empty() {
+                return fmt_expr_smt(func, f);
+            }
             write!(f, "(")?;
             fmt_expr_smt(func, f)?;
             for arg in args {
@@ -481,29 +829,39 @@ fn fmt_thy_func_smt(thy_func: &ThyFunc, f: &mut fmt::Formatter<'_>) -> fmt::Resu
 
 // ---- Data type / constant / function declaration formatting ----
 
-fn fmt_data_decl_smt<T: Types>(decl: &DataDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    if decl.ctors.is_empty() {
-        write!(f, "(declare-sort {} {})", decl.name.display(), decl.vars)?;
-        writeln!(f)
-    } else {
-        write!(f, "(declare-datatypes (")?;
-        write!(f, "({} {})", decl.name.display(), decl.vars)?;
-        write!(f, ") ((")?;
-        for (i, ctor) in decl.ctors.iter().enumerate() {
+/// Formats the constructor list of a datatype, i.e. the part that goes in the second argument of
+/// `declare-datatypes`.
+fn fmt_data_decl_body_smt<T: Types>(decl: &DataDecl<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    // A parametric datatype must bind its type variables with `par`.
+    if decl.vars > 0 {
+        write!(f, "(par (")?;
+        for i in 0..decl.vars {
             if i > 0 {
                 write!(f, " ")?;
             }
-            fmt_data_ctor_smt(ctor, f)?;
+            write!(f, "{DATA_SORT_VAR_PREFIX}{i}")?;
         }
-        writeln!(f, ")))")
+        write!(f, ") (")?;
+    } else {
+        write!(f, "(")?;
     }
+    for (i, ctor) in decl.ctors.iter().enumerate() {
+        if i > 0 {
+            write!(f, " ")?;
+        }
+        fmt_data_ctor_smt(ctor, f)?;
+    }
+    // Two opens to close on the parametric path: `(par` and the constructor list. The `par`
+    // binder list is balanced above.
+    if decl.vars > 0 { write!(f, "))") } else { write!(f, ")") }
 }
 
 fn fmt_data_ctor_smt<T: Types>(ctor: &DataCtor<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "({}", ctor.name.display())?;
     for field in &ctor.fields {
         write!(f, " ({} ", field.name.display())?;
-        fmt_sort_smt(&field.sort, f)?;
+        // A sort variable in a field refers to the enclosing datatype's `par` binder.
+        fmt_sort_smt_with(&field.sort, DATA_SORT_VAR_PREFIX, f)?;
         write!(f, ")")?;
     }
     write!(f, ")")

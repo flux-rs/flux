@@ -740,6 +740,8 @@ where
         kind: FixpointQueryKind,
         task: &fixpoint::Task,
     ) -> QueryResult<ParsedResult> {
+        dump_smt_horn(self.genv, def_id.resolved_id(), kind, task);
+
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
 
         if config::dump_checker_trace_info()
@@ -2777,6 +2779,78 @@ fn parse_wkvars(expr: &mut fixpoint::Expr) {
         Expr::WKVar(fixpoint::WKVar { wkvid: _, args }) => {
             for e in args {
                 parse_wkvars(e);
+            }
+        }
+    }
+}
+
+/// Quick-and-dirty dump of a fixpoint query in the SMT-LIB HORN CHC format, enabled with
+/// `-Fdump-smt-horn=DIR`. Only queries with at least one kvar are dumped (a query without kvars
+/// has nothing for a CHC solver to infer). Queries that the Horn formatter can't encode
+/// (quantifiers, weak kvars, sort variables, ...) are skipped and reported in `DIR/_skipped.log`.
+fn dump_smt_horn(
+    genv: GlobalEnv,
+    def_id: rustc_span::def_id::DefId,
+    kind: FixpointQueryKind,
+    task: &fixpoint::Task,
+) {
+    use std::{
+        fs,
+        io::Write as _,
+        panic::{self, AssertUnwindSafe},
+    };
+
+    let Some(dir) = config::dump_smt_horn() else { return };
+    if task.kvars.is_empty() {
+        return;
+    }
+    if let Err(err) = fs::create_dir_all(dir) {
+        eprintln!("dump-smt-horn: cannot create {}: {err}", dir.display());
+        return;
+    }
+
+    let tcx = genv.tcx();
+    let sanitize = |s: String| {
+        s.chars()
+            .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' })
+            .collect::<String>()
+    };
+    let name = format!(
+        "{}__{}__{:?}",
+        sanitize(tcx.crate_name(def_id.krate).to_string()),
+        sanitize(tcx.def_path_str(def_id)),
+        kind
+    );
+
+    // The formatter panics on constructs it doesn't support. Silence the hook so we don't dump an
+    // ICE report for each one.
+    let prev_hook = panic::take_hook();
+    panic::set_hook(Box::new(|_| {}));
+    let formatted = panic::catch_unwind(AssertUnwindSafe(|| {
+        liquid_fixpoint::smt_horn::SmtFormatter(task).to_string()
+    }));
+    panic::set_hook(prev_hook);
+
+    match formatted {
+        Ok(out) => {
+            let path = dir.join(format!("{name}.smt2"));
+            if let Err(err) = fs::write(&path, out) {
+                eprintln!("dump-smt-horn: cannot write {}: {err}", path.display());
+            }
+        }
+        Err(payload) => {
+            let reason = payload
+                .downcast_ref::<&str>()
+                .map(|s| (*s).to_string())
+                .or_else(|| payload.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "unknown panic".to_string());
+            eprintln!("dump-smt-horn: skipped {name}: {reason}");
+            if let Ok(mut file) = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(dir.join("_skipped.log"))
+            {
+                let _ = writeln!(file, "{name}\t{reason}");
             }
         }
     }

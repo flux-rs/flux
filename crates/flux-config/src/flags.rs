@@ -143,6 +143,10 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub dump_constraint: bool,
+    /// Dump each fixpoint query in SMT-LIB HORN CHC format into the given directory (debugging).
+    /// Only queries containing at least one kvar are dumped.
+    #[arg(long = flux_arg!("dump-smt-horn"), value_name = "DIR", value_parser = panicking_parser)]
+    pub dump_smt_horn: Option<PathBuf>,
     /// Saves the checker's trace (debugging)
     #[arg(long = flux_arg!("dump-checker-trace"), value_name = "LEVEL", value_parser = panicking_parser)]
     pub dump_checker_trace: Option<tracing::Level>,
@@ -254,6 +258,7 @@ impl Default for Flags {
             lean_dir: PathBuf::from("./"),
             lean_project: "lean_proofs".to_string(),
             dump_constraint: false,
+            dump_smt_horn: None,
             dump_checker_trace: None,
             dump_fhir: false,
             dump_rty: false,
@@ -300,6 +305,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "lean-dir" => parse_path_buf(&mut flags.lean_dir, value),
             "lean-project" => parse_string(&mut flags.lean_project, value),
             "dump-constraint" => parse_bool(&mut flags.dump_constraint, value),
+            "dump-smt-horn" => parse_opt_path_buf(&mut flags.dump_smt_horn, value),
             "dump-checker-trace" => parse_opt_level(&mut flags.dump_checker_trace, value),
             "dump-fhir" => parse_bool(&mut flags.dump_fhir, value),
             "dump-rty" => parse_bool(&mut flags.dump_rty, value),

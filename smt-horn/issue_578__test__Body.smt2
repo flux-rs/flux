@@ -1,0 +1,27 @@
+(set-logic HORN)
+
+;; Tag 0: Call at 9:9: 9:24 (ESpan { span: tests/pos/structs/issue-578.rs:1:21: 1:25 (#0), base: None })
+
+(declare-type-var T0)
+(declare-const gt (Array T0 (Array T0 Bool)))
+(declare-const ge (Array T0 (Array T0 Bool)))
+(declare-const lt (Array T0 (Array T0 Bool)))
+(declare-const le (Array T0 (Array T0 Bool)))
+(declare-fun k0 (Int) Bool)
+(declare-fun k1 (Int) Bool)
+(declare-fun k2 (Int) Bool)
+(declare-fun k3 (Int) Bool)
+(declare-fun k4 (Int) Bool)
+(declare-fun k5 (Int) Bool)
+
+(assert (=> true (k0 0)))
+(assert (forall ((a0 Int)(_$ Int)) (=> (k0 a0) (k1 a0))))
+(assert (=> true (k1 1)))
+(assert (forall ((a1 Int)(_$ Int)) (=> (k1 a1) (k2 a1))))
+(assert (forall ((a2 Int)) (=> (= a2 0) (k3 a2))))
+(assert (forall ((a3 Int)(_$ Int)) (=> (k2 a3) (k4 a3))))
+(assert (forall ((a4 Int)(_$ Int)(a5 Int)(_$ Int)) (=> (and (= a4 0) (k3 a4) (k4 a5)) (k5 a5))))
+(assert (forall ((a4 Int)(_$ Int)(a6 Int)(_$ Int)) (=> (and (= a4 0) (k3 a4) (k5 a6) (not (= (>= a6 0) true))) false)))
+(assert (forall ((a4 Int)(_$ Int)(a6 Int)(_$ Int)(a7 Int)(_$ Int)) (=> (and (= a4 0) (k3 a4) (k5 a6) (k5 a7)) (k4 a7))))
+
+(check-sat)
