@@ -92,6 +92,13 @@ pub fn test_ptr_cmp_ne_bool(p1: NonNull<i32>, p2: NonNull<i32>) -> bool {
     p1.cmp(&p2) != Ordering::Less
 }
 
+#[flux::spec(fn(p1: NonNull<T>[@base, @addr, @size],
+                p2: {NonNull<T>[@base1, @addr1, @size1]
+                        | base != base1 && size != size1 && addr <= addr1}))]
+pub fn test_ptr_le<T>(p1: NonNull<T>, p2: NonNull<T>) {
+    assert(p1.cmp(&p2) == Ordering::Less || p1.cmp(&p2) == Ordering::Equal)
+}
+
 // -- partial_cmp --
 
 #[flux::spec(fn(p1: NonNull<i32>[@base, @addr, @size],
