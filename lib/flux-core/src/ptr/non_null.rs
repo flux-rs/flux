@@ -25,6 +25,7 @@
 })]
 
 use flux_attrs::*;
+use core::cmp::Ordering;
 
 #[extern_spec(core::ptr)]
 #[refined_by(base: int, addr: int, size: int)]
@@ -146,4 +147,20 @@ impl<T> PartialEq for NonNull<T> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1691
     #[spec(fn (me: &NonNull<T>[@m], other: &NonNull<T>[@o]) -> bool[m.addr == o.addr])]
     fn eq(&self, other: &NonNull<T>) -> bool;
+}
+
+#[extern_spec(core::ptr)]
+impl<T> Ord for NonNull<T> {
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1700
+    #[spec(fn (me: &NonNull<T>[@m], other: &NonNull<T>[@o]) ->
+        Ordering[if m == o {0} else if m < o {-1} else {1}])]
+    fn cmp(&self, other: &NonNull<T>) -> Ordering;
+}
+
+#[extern_spec(core::ptr)]
+impl<T> PartialOrd for NonNull<T> {
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1709
+    #[spec(fn (me: &NonNull<T>[@m], other: &NonNull<T>[@o]) ->
+        Option<Ordering[if m == o {0} else if m < o {-1} else {1}]>[true])]
+    fn partial_cmp(&self, other: &NonNull<T>) -> Option<Ordering>;
 }

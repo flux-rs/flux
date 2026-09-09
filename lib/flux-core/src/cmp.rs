@@ -42,3 +42,14 @@ trait Ord {
     fn max_res(a: int, b: int, res: int) -> bool { res == max(a, b) }
 )]
 impl Ord for usize {}
+
+#[extern_spec(core::cmp)]
+#[refined_by(res: int)]
+enum Ordering {
+    #[variant(Ordering[-1])]
+    Less,
+    #[variant(Ordering[0])]
+    Equal,
+    #[variant(Ordering[1])]
+    Greater
+}

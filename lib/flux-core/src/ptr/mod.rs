@@ -57,6 +57,7 @@
 mod non_null;
 
 use flux_attrs::*;
+use core::cmp::Ordering;
 
 macro_rules! ptr_specs {
     ($mutable:tt $(, $($extra:tt)*)?) => {
@@ -151,6 +152,38 @@ macro_rules! ptr_specs {
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1614
             #[spec(fn (me: &*$mutable[@m] T, other: &*$mutable[@o] T) -> bool[m.addr == o.addr])]
             fn eq(&self, other: &*$mutable T) -> bool;
+        }
+
+        #[extern_spec(core::ptr)]
+        impl<T> Ord for *$mutable T {
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1633
+            #[spec(fn (me: &*$mutable[@m] T, other: &*$mutable[@o] T) ->
+                Ordering[if m == o {0} else if m < o {-1} else {1}])]
+            fn cmp(&self, other: &*$mutable T) -> Ordering;
+        }
+
+        #[extern_spec(core::ptr)]
+        impl<T> PartialOrd for *$mutable T {
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1653
+            #[spec(fn (me: &*$mutable[@m] T, other: &*$mutable[@o] T) ->
+                Option<Ordering[if m == o {0} else if m < o {-1} else {1}]>[true])]
+            fn partial_cmp(&self, other: &*$mutable T) -> Option<Ordering>;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1662
+            #[spec(fn (me: &*$mutable[@m] T, other: &*$mutable[@o] T) -> bool[m.addr < o.addr])]
+            fn lt(&self, other: &*$mutable T) -> bool;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1668
+            #[spec(fn (me: &*$mutable[@m] T, other: &*$mutable[@o] T) -> bool[m.addr <= o.addr])]
+            fn le(&self, other: &*$mutable T) -> bool;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1674
+            #[spec(fn (me: &*$mutable[@m] T, other: &*$mutable[@o] T) -> bool[m.addr > o.addr])]
+            fn gt(&self, other: &*$mutable T) -> bool;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1680
+            #[spec(fn (me: &*$mutable[@m] T, other: &*$mutable[@o] T) -> bool[m.addr >= o.addr])]
+            fn ge(&self, other: &*$mutable T) -> bool;
         }
     };
 }
