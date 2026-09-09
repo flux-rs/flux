@@ -165,3 +165,29 @@ pub fn test_ptr_cmp_eq(p1: *const i32, p2: *const i32) -> Ordering {
 }
 
 // -- partial_cmp --
+
+#[flux::spec(fn(p1: *const[@base, @addr, @size] i32,
+                p2: {*const[@base1, @addr1, @size1] i32
+                        | base != base1 && size != size1 && addr == addr1}) -> Option<Ordering[0]>[true])]
+pub fn test_ptr_partial_cmp_eq(p1: *const i32, p2: *const i32) -> Option<Ordering> {
+    p1.partial_cmp(&p2)
+}
+
+#[flux::spec(fn(p1: *const[@base, @addr, @size] i32,
+                p2: {*const[@base1, @addr1, @size1] i32
+                        | base != base1 && size != size1 && addr < addr1}) -> Option<Ordering[-1]>[true])]
+pub fn test_ptr_partial_cmp_lt(p1: *const i32, p2: *const i32) -> Option<Ordering> {
+    p1.partial_cmp(&p2)
+}
+
+#[flux::spec(fn(p1: *const[@base, @addr, @size] i32,
+                p2: {*const[@base1, @addr1, @size1] i32
+                        | base != base1 && size != size1 && addr > addr1}) -> Option<Ordering[1]>[true])]
+pub fn test_ptr_partial_cmp_gt(p1: *const i32, p2: *const i32) -> Option<Ordering> {
+    p1.partial_cmp(&p2)
+}
+
+#[flux::spec(fn(p1: *const i32, p2: *const i32) -> Option<Ordering>[true])]
+pub fn test_ptr_partial_cmp_opt(p1: *const i32, p2: *const i32) -> Option<Ordering> {
+    p1.partial_cmp(&p2)
+}
