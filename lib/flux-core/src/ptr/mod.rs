@@ -56,8 +56,9 @@
 /// which is currently out of scope.
 mod non_null;
 
-use flux_attrs::*;
 use core::cmp::Ordering;
+
+use flux_attrs::*;
 
 macro_rules! ptr_specs {
     ($mutable:tt $(, $($extra:tt)*)?) => {

@@ -24,8 +24,9 @@
     }
 })]
 
-use flux_attrs::*;
 use core::cmp::Ordering;
+
+use flux_attrs::*;
 
 #[extern_spec(core::ptr)]
 #[refined_by(base: int, addr: int, size: int)]

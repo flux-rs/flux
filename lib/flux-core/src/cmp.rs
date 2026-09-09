@@ -51,7 +51,7 @@ enum Ordering {
     #[variant(Ordering[0])]
     Equal,
     #[variant(Ordering[1])]
-    Greater
+    Greater,
 }
 
 #[extern_spec(core::cmp)]
