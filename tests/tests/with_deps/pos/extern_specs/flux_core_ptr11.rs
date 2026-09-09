@@ -1,7 +1,7 @@
 extern crate flux_core;
 
 use flux_rs::assert;
-use core::cmp::Ordering;
+use std::cmp::Ordering;
 
 // --- eq ---
 
@@ -176,10 +176,10 @@ pub fn test_ptr_cmp_eq_bool(p1: *const i32, p2: *const i32) -> bool {
     p1.cmp(&p2) == Ordering::Equal
 }
 
-#[flux::spec(fn(p1: *const[@base, @addr, @size] i32,
-                p2: {*const[@base1, @addr1, @size1] i32
+#[flux::spec(fn(p1: *mut[@base, @addr, @size] f64,
+                p2: {*mut[@base1, @addr1, @size1] f64
                         | base != base1 && size != size1 && addr > addr1}) -> bool[true])]
-pub fn test_ptr_cmp_ne_bool(p1: *const i32, p2: *const i32) -> bool {
+pub fn test_ptr_cmp_ne_bool(p1: *mut f64, p2: *mut f64) -> bool {
     p1.cmp(&p2) != Ordering::Less
 }
 
@@ -192,17 +192,17 @@ pub fn test_ptr_partial_cmp_eq(p1: *const i32, p2: *const i32) -> Option<Orderin
     p1.partial_cmp(&p2)
 }
 
-#[flux::spec(fn(p1: *const[@base, @addr, @size] i32,
-                p2: {*const[@base1, @addr1, @size1] i32
+#[flux::spec(fn(p1: *mut[@base, @addr, @size] i32,
+                p2: {*mut[@base1, @addr1, @size1] i32
                         | base != base1 && size != size1 && addr < addr1}) -> Option<Ordering[-1]>[true])]
-pub fn test_ptr_partial_cmp_lt(p1: *const i32, p2: *const i32) -> Option<Ordering> {
+pub fn test_ptr_partial_cmp_lt(p1: *mut i32, p2: *mut i32) -> Option<Ordering> {
     p1.partial_cmp(&p2)
 }
 
-#[flux::spec(fn(p1: *const[@base, @addr, @size] i32,
-                p2: {*const[@base1, @addr1, @size1] i32
+#[flux::spec(fn(p1: *const[@base, @addr, @size] u64,
+                p2: {*const[@base1, @addr1, @size1] u64
                         | base != base1 && size != size1 && addr > addr1}) -> Option<Ordering[1]>[true])]
-pub fn test_ptr_partial_cmp_gt(p1: *const i32, p2: *const i32) -> Option<Ordering> {
+pub fn test_ptr_partial_cmp_gt(p1: *const u64, p2: *const u64) -> Option<Ordering> {
     p1.partial_cmp(&p2)
 }
 
