@@ -41,6 +41,11 @@ pub fn test_ptr_id_sym(p1: *const i32, p2: *const i32) {
 }
 
 #[flux::spec(fn(p1: *const[@base, @addr, @size] i32, p2: *const[base, addr, size] i32))]
+pub fn test_ptr_id_sym_ne(p1: *const i32, p2: *const i32) {
+    assert(!(p1 != p2))
+}
+
+#[flux::spec(fn(p1: *const[@base, @addr, @size] i32, p2: *const[base, addr, size] i32))]
 pub fn test_ptr_id(p1: *const i32, p2: *const i32) {
     assert(p1.eq(&p2))
 }
@@ -162,6 +167,20 @@ pub fn test_ptr_cmp_lt(p1: *const i32, p2: *const i32) -> Ordering {
                         | base != base1 && size != size1 && addr == addr1}) -> Ordering[0])]
 pub fn test_ptr_cmp_eq(p1: *const i32, p2: *const i32) -> Ordering {
     p1.cmp(&p2)
+}
+
+#[flux::spec(fn(p1: *const[@base, @addr, @size] i32,
+                p2: {*const[@base1, @addr1, @size1] i32
+                        | base != base1 && size != size1 && addr == addr1}) -> bool[true])]
+pub fn test_ptr_cmp_eq_bool(p1: *const i32, p2: *const i32) -> bool {
+    p1.cmp(&p2) == Ordering::Equal
+}
+
+#[flux::spec(fn(p1: *const[@base, @addr, @size] i32,
+                p2: {*const[@base1, @addr1, @size1] i32
+                        | base != base1 && size != size1 && addr > addr1}) -> bool[true])]
+pub fn test_ptr_cmp_ne_bool(p1: *const i32, p2: *const i32) -> bool {
+    p1.cmp(&p2) != Ordering::Less
 }
 
 // -- partial_cmp --

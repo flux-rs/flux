@@ -23,6 +23,15 @@ pub fn test_ptr_eq_sym(p: NonNull<u64>) {
     }
 }
 
+#[flux::spec(fn (ptr: {NonNull<u64>[@base, @addr, @size] | addr >= base && size == 16}))]
+pub fn test_ptr_ne_sym(p: NonNull<u64>) {
+    unsafe {
+        let p1 = p.add(1);
+        let p0 = p1.sub(1);
+        assert(!(p != p0))
+    }
+}
+
 #[flux::spec(fn(p1: NonNull<f32>[@base, @addr, @size], p2: NonNull<f32>[base, addr, size]))]
 pub fn test_ptr_id_sym(p1: NonNull<f32>, p2: NonNull<f32>) {
     assert(p1 == p2)

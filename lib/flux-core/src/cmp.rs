@@ -53,3 +53,13 @@ enum Ordering {
     #[variant(Ordering[1])]
     Greater
 }
+
+#[extern_spec(core::cmp)]
+#[assoc(
+    fn is_eq(m: Ordering, o: Ordering, res: bool) -> bool { res <=> (m.res == o.res) }
+    fn is_ne(m: Ordering, o: Ordering, res: bool) -> bool { res <=> (m.res != o.res) }
+)]
+impl PartialEq for Ordering {
+    #[spec(fn(me: &Ordering[@m], other: &Ordering[@o]) -> bool[m == o])]
+    fn eq(self: &Ordering, other: &Ordering) -> bool;
+}

@@ -143,6 +143,10 @@ impl<T> NonNull<[T]> {
 }
 
 #[extern_spec(core::ptr)]
+#[assoc(
+    fn is_eq(m: NonNull, o: NonNull, res: bool) -> bool { res <=> (m.addr == o.addr) }
+    fn is_ne(m: NonNull, o: NonNull, res: bool) -> bool { res <=> (m.addr != o.addr) }
+)]
 impl<T> PartialEq for NonNull<T> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1691
     #[spec(fn (me: &NonNull<T>[@m], other: &NonNull<T>[@o]) -> bool[m.addr == o.addr])]
