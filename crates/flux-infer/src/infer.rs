@@ -1031,10 +1031,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 }
                 Ok(())
             }
-            (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) => {
-                tracked_span_assert_eq!(sig_a.erase_regions(), sig_b.erase_regions());
-                Ok(())
-            }
+            (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) => self.fn_sigs(infcx, sig_a, sig_b),
             (BaseTy::Never, BaseTy::Never) => Ok(()),
             (
                 BaseTy::Coroutine(did1, resume_ty_a, tys_a, _),
@@ -1053,6 +1050,74 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             (BaseTy::Foreign(did_a), BaseTy::Foreign(did_b)) if did_a == did_b => Ok(()),
             _ => Err(query_bug!("incompatible base types: `{a:#?}` - `{b:#?}`"))?,
         }
+    }
+
+    fn fn_sigs(
+        &mut self,
+        infcx: &mut InferCtxt,
+        sub_sig: &rty::PolyFnSig,
+        super_sig: &rty::PolyFnSig,
+    ) -> InferResult {
+        // Mirror `check_fn_subtyping`: universally instantiate the super signature and
+        // existentially instantiate the sub signature, then relate inputs contravariantly and
+        // the output covariantly.
+        let mut infcx = infcx.branch();
+
+        let super_sig = super_sig
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, _, kind| Expr::fvar(infcx.define_bound_reft_var(sort, kind)),
+            )
+            .deeply_normalize(&mut infcx.at(self.span))?;
+
+        let output = infcx.ensure_resolved_evars(|infcx| {
+            let sub_sig = sub_sig
+                .replace_bound_vars(
+                    |_| rty::ReErased,
+                    |sort, mode, _| infcx.fresh_infer_var(sort, mode),
+                )
+                .deeply_normalize(&mut infcx.at(self.span))?;
+
+            tracked_span_dbg_assert_eq!(sub_sig.safety, super_sig.safety);
+            tracked_span_dbg_assert_eq!(sub_sig.abi, super_sig.abi);
+            tracked_span_dbg_assert_eq!(sub_sig.inputs().len(), super_sig.inputs().len());
+
+            for pred in super_sig.requires() {
+                infcx.assume_pred(pred);
+            }
+            infcx.check_pred(Expr::implies(super_sig.no_panic(), sub_sig.no_panic()), self.tag());
+            for (actual, formal) in iter::zip(super_sig.inputs(), sub_sig.inputs()) {
+                self.tys(infcx, actual, formal)?;
+            }
+            for pred in sub_sig.requires() {
+                infcx.check_pred(pred, self.tag());
+            }
+
+            Ok(sub_sig.output())
+        })?;
+
+        let output =
+            infcx
+                .fully_resolve_evars(&output)
+                .replace_bound_refts_with(|sort, _, kind| {
+                    Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+                });
+        infcx.ensure_resolved_evars(|infcx| {
+            let super_output = super_sig
+                .output()
+                .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+
+            // Function pointer signatures are currently lifted from rustc without refinements.
+            // Keep this guard explicit so future support for refined function pointers cannot
+            // silently drop their stateful postconditions. Named functions handle those in
+            // `check_fn_subtyping` in refineck.
+            if !output.ensures.is_empty() || !super_output.ensures.is_empty() {
+                return Err(
+                    query_bug!("function pointer subtyping with ensures is unsupported").into()
+                );
+            }
+            self.tys(infcx, &output.ret, &super_output.ret)
+        })
     }
 
     fn generic_args(
