@@ -2,7 +2,7 @@ extern crate flux_core;
 
 use flux_rs::assert;
 use std::ptr::NonNull;
-use core::cmp::Ordering;
+use std::cmp::Ordering;
 
 // --- eq ---
 
