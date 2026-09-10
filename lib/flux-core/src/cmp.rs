@@ -36,9 +36,51 @@ trait Ord {
         Self: Sized;
 }
 
+#[extern_spec]
+#[assoc(
+    fn is_lt(x: Self, y: Rhs, res: bool) -> bool { true }
+    fn is_le(x: Self, y: Rhs, res: bool) -> bool { true }
+    fn is_gt(x: Self, y: Rhs, res: bool) -> bool { true }
+    fn is_ge(x: Self, y: Rhs, res: bool) -> bool { true }
+)]
+trait PartialOrd<Rhs: PointeeSized = Self>: PointeeSized {
+    #[spec(fn(&Self[@x], &Rhs[@y]) -> bool{v: <Self as PartialOrd<Rhs>>::is_lt(x, y, v)})]
+    fn lt(&self, other: &Rhs) -> bool;
+
+    #[spec(fn(&Self[@x], &Rhs[@y]) -> bool{v: <Self as PartialOrd<Rhs>>::is_le(x, y, v)})]
+    fn le(&self, other: &Rhs) -> bool;
+
+    #[spec(fn(&Self[@x], &Rhs[@y]) -> bool{v: <Self as PartialOrd<Rhs>>::is_gt(x, y, v)})]
+    fn gt(&self, other: &Rhs) -> bool;
+
+    #[spec(fn(&Self[@x], &Rhs[@y]) -> bool{v: <Self as PartialOrd<Rhs>>::is_ge(x, y, v)})]
+    fn ge(&self, other: &Rhs) -> bool;
+}
+
 #[extern_spec(core::cmp)]
 #[assoc(
     fn min_res(a: int, b: int, res: int) -> bool { res == min(a, b) }
     fn max_res(a: int, b: int, res: int) -> bool { res == max(a, b) }
 )]
 impl Ord for usize {}
+
+#[extern_spec(core::cmp)]
+#[refined_by(res: int)]
+enum Ordering {
+    #[variant(Ordering[-1])]
+    Less,
+    #[variant(Ordering[0])]
+    Equal,
+    #[variant(Ordering[1])]
+    Greater,
+}
+
+#[extern_spec(core::cmp)]
+#[assoc(
+    fn is_eq(m: Ordering, o: Ordering, res: bool) -> bool { res <=> (m.res == o.res) }
+    fn is_ne(m: Ordering, o: Ordering, res: bool) -> bool { res <=> (m.res != o.res) }
+)]
+impl PartialEq for Ordering {
+    #[spec(fn(me: &Ordering[@m], other: &Ordering[@o]) -> bool[m == o])]
+    fn eq(self: &Ordering, other: &Ordering) -> bool;
+}
