@@ -95,7 +95,7 @@ pub fn test_ptr_cmp_ne_bool(p1: NonNull<i32>, p2: NonNull<i32>) -> bool {
 #[flux::spec(fn(p1: NonNull<T>[@base, @addr, @size],
                 p2: {NonNull<T>[@base1, @addr1, @size1]
                         | base != base1 && size != size1 && addr <= addr1}))]
-pub fn test_ptr_le<T>(p1: NonNull<T>, p2: NonNull<T>) {
+pub fn test_ptr_le_contrived<T>(p1: NonNull<T>, p2: NonNull<T>) {
     assert(p1.cmp(&p2) == Ordering::Less || p1.cmp(&p2) == Ordering::Equal)
 }
 
@@ -125,4 +125,68 @@ pub fn test_ptr_partial_cmp_gt(p1: NonNull<i32>, p2: NonNull<i32>) -> Option<Ord
 #[flux::spec(fn(p1: NonNull<i32>, p2: NonNull<i32>) -> Option<Ordering>[true])]
 pub fn test_ptr_partial_cmp_opt(p1: NonNull<i32>, p2: NonNull<i32>) -> Option<Ordering> {
     p1.partial_cmp(&p2)
+}
+
+// -- lt --
+
+#[flux::spec(fn(p1: NonNull<T>[@base, @addr, @size],
+                p2: {NonNull<T>[@base1, @addr1, @size1]
+                        | base != base1 && size != size1 && addr < addr1}))]
+pub fn test_ptr_lt_fn<T>(p1: NonNull<T>, p2: NonNull<T>) {
+    assert(p1.lt(&p2))
+}
+
+#[flux::spec(fn(p1: NonNull<T>[@base, @addr, @size],
+                p2: {NonNull<T>[@base1, @addr1, @size1]
+                        | base != base1 && size != size1 && addr < addr1}))]
+pub fn test_ptr_lt<T>(p1: NonNull<T>, p2: NonNull<T>) {
+    assert(p1 < p2)
+}
+
+// -- le --
+
+#[flux::spec(fn(p1: NonNull<T>[@base, @addr, @size],
+                p2: {NonNull<T>[@base1, @addr1, @size1]
+                        | base != base1 && size != size1 && addr <= addr1}))]
+pub fn test_ptr_le_fn<T>(p1: NonNull<T>, p2: NonNull<T>) {
+    assert(p1.le(&p2))
+}
+
+#[flux::spec(fn(p1: NonNull<T>[@base, @addr, @size],
+                p2: {NonNull<T>[@base1, @addr1, @size1]
+                        | base != base1 && size != size1 && addr <= addr1}))]
+pub fn test_ptr_le<T>(p1: NonNull<T>, p2: NonNull<T>) {
+    assert(p1 <= p2)
+}
+
+// -- gt --
+
+#[flux::spec(fn(p1: NonNull<T>[@base, @addr, @size],
+                p2: {NonNull<T>[@base1, @addr1, @size1]
+                        | base != base1 && size != size1 && addr > addr1}))]
+pub fn test_ptr_gt_fn<T>(p1: NonNull<T>, p2: NonNull<T>) {
+    assert(p1.gt(&p2))
+}
+
+#[flux::spec(fn(p1: NonNull<T>[@base, @addr, @size],
+                p2: {NonNull<T>[@base1, @addr1, @size1]
+                        | base != base1 && size != size1 && addr > addr1}))]
+pub fn test_ptr_gt<T>(p1: NonNull<T>, p2: NonNull<T>) {
+    assert(p1 > p2)
+}
+
+// -- ge --
+
+#[flux::spec(fn(p1: NonNull<T>[@base, @addr, @size],
+                p2: {NonNull<T>[@base1, @addr1, @size1]
+                        | base != base1 && size != size1 && addr >= addr1}))]
+pub fn test_ptr_ge_fn<T>(p1: NonNull<T>, p2: NonNull<T>) {
+    assert(p1.ge(&p2))
+}
+
+#[flux::spec(fn(p1: NonNull<T>[@base, @addr, @size],
+                p2: {NonNull<T>[@base1, @addr1, @size1]
+                        | base != base1 && size != size1 && addr >= addr1}))]
+pub fn test_ptr_ge<T>(p1: NonNull<T>, p2: NonNull<T>) {
+    assert(p1 >= p2)
 }

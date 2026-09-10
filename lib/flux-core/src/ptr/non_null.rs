@@ -163,6 +163,12 @@ impl<T> Ord for NonNull<T> {
 }
 
 #[extern_spec(core::ptr)]
+#[assoc(
+    fn is_lt(m: NonNull, o: NonNull, res: bool) -> bool { res <=> (m.addr < o.addr) }
+    fn is_le(m: NonNull, o: NonNull, res: bool) -> bool { res <=> (m.addr <= o.addr) }
+    fn is_gt(m: NonNull, o: NonNull, res: bool) -> bool { res <=> (m.addr > o.addr) }
+    fn is_ge(m: NonNull, o: NonNull, res: bool) -> bool { res <=> (m.addr >= o.addr) }
+)]
 impl<T> PartialOrd for NonNull<T> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1709
     #[spec(fn (me: &NonNull<T>[@m], other: &NonNull<T>[@o]) ->

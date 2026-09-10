@@ -36,6 +36,27 @@ trait Ord {
         Self: Sized;
 }
 
+#[extern_spec]
+#[assoc(
+    fn is_lt(x: Self, y: Rhs, res: bool) -> bool { true }
+    fn is_le(x: Self, y: Rhs, res: bool) -> bool { true }
+    fn is_gt(x: Self, y: Rhs, res: bool) -> bool { true }
+    fn is_ge(x: Self, y: Rhs, res: bool) -> bool { true }
+)]
+trait PartialOrd<Rhs: PointeeSized = Self>: PointeeSized {
+    #[spec(fn(&Self[@x], &Rhs[@y]) -> bool{v: <Self as PartialOrd<Rhs>>::is_lt(x, y, v)})]
+    fn lt(&self, other: &Rhs) -> bool;
+
+    #[spec(fn(&Self[@x], &Rhs[@y]) -> bool{v: <Self as PartialOrd<Rhs>>::is_le(x, y, v)})]
+    fn le(&self, other: &Rhs) -> bool;
+
+    #[spec(fn(&Self[@x], &Rhs[@y]) -> bool{v: <Self as PartialOrd<Rhs>>::is_gt(x, y, v)})]
+    fn gt(&self, other: &Rhs) -> bool;
+
+    #[spec(fn(&Self[@x], &Rhs[@y]) -> bool{v: <Self as PartialOrd<Rhs>>::is_ge(x, y, v)})]
+    fn ge(&self, other: &Rhs) -> bool;
+}
+
 #[extern_spec(core::cmp)]
 #[assoc(
     fn min_res(a: int, b: int, res: int) -> bool { res == min(a, b) }
