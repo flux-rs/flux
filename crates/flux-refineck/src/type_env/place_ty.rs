@@ -10,7 +10,7 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, FIRST_VARIANT, GenericArg, GenericArgsExt, List,
-        Loc, Mutability, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig,
+        Loc, Mutability, Path, PtrKind, Ref, Region, Sort, Ty, TyKind, VariantIdx, VariantSig,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
     },
 };
@@ -34,8 +34,10 @@ pub(crate) struct Binding {
 pub(crate) enum LocKind {
     Local,
     Box(GenericArg),
-    // An &mut T unfolded "locally" at a call-site; with the super-type T
-    LocalPtr(Ty),
+    // An &mut T unfolded "locally" at a call-site; with the super-type T.
+    // Optionally stores the source region and path so that `fold_local_ptrs`
+    // can write the updated pointee type back into the original reference.
+    LocalPtr(Ty, Option<(Region, Path)>),
     Universal,
 }
 
@@ -292,12 +294,12 @@ impl PlacesTree {
         self.map.shift_remove(loc);
     }
 
-    pub(crate) fn local_ptrs(&self) -> Vec<(Loc, Ty, Ty)> {
+    pub(crate) fn local_ptrs(&self) -> Vec<(Loc, Ty, Ty, Option<(Region, Path)>)> {
         self.map
             .iter()
             .filter_map(|(loc, binding)| {
-                if let LocKind::LocalPtr(bound) = &binding.kind {
-                    Some((*loc, bound.clone(), binding.ty.clone()))
+                if let LocKind::LocalPtr(bound, source) = &binding.kind {
+                    Some((*loc, bound.clone(), binding.ty.clone(), source.clone()))
                 } else {
                     None
                 }
@@ -961,7 +963,7 @@ mod pretty {
             match self {
                 LocKind::Local | LocKind::Universal => Ok(()),
                 LocKind::Box(_) => w!(cx, f, "[box]"),
-                LocKind::LocalPtr(ty) => w!(cx, f, "[local-ptr({:?})]", ty),
+                LocKind::LocalPtr(ty, _) => w!(cx, f, "[local-ptr({:?})]", ty),
             }
         }
     }
