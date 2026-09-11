@@ -194,6 +194,8 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     let mut hornspec_timeout: u32 = 0;
     let mut hornspec_total_errors: usize = 0;
     let mut hornspec_solved_errors: usize = 0;
+    let mut hornspec_wick_no_hornspec_errors: usize = 0;
+    let mut hornspec_hornspec_no_wick_errors: usize = 0;
     let mut wick_solved_errors: usize = 0;
     for timing in timings {
         match timing.kind {
@@ -211,7 +213,18 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
             TimingKind::RefinementHint(_) => {
                 total_reft_hint += timing.duration;
             }
-            TimingKind::FailedCHCStats { outcome, error_count, wick_solved, hornspec_solved, .. } => {
+            TimingKind::FailedCHCStats {
+                outcome,
+                error_count,
+                wick_solved,
+                hornspec_solved,
+                ..
+            } => {
+                if hornspec_solved > wick_solved {
+                    hornspec_hornspec_no_wick_errors += hornspec_solved - wick_solved;
+                } else {
+                    hornspec_wick_no_hornspec_errors += wick_solved - hornspec_solved;
+                }
                 hornspec_durations.push(timing.duration);
                 hornspec_total_errors += error_count;
                 wick_solved_errors += wick_solved;
@@ -230,7 +243,19 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     queries.sort_by_key(snd);
     queries.reverse();
 
-    print_report(&functions, total, total_reft_hint, &hornspec_durations, hornspec_safe, hornspec_timeout, hornspec_total_errors, hornspec_solved_errors, wick_solved_errors);
+    print_report(
+        &functions,
+        total,
+        total_reft_hint,
+        &hornspec_durations,
+        hornspec_safe,
+        hornspec_timeout,
+        hornspec_total_errors,
+        hornspec_solved_errors,
+        wick_solved_errors,
+        hornspec_hornspec_no_wick_errors,
+        hornspec_wick_no_hornspec_errors,
+    );
     dump_timings(
         tcx,
         TimingsDump {
@@ -256,6 +281,8 @@ fn print_report(
     hornspec_timeout: u32,
     hornspec_total_errors: usize,
     hornspec_solved_errors: usize,
+    hornspec_no_wick_errors: usize,
+    wick_no_hornspec_errors: usize,
     wick_solved_errors: usize,
 ) {
     let stats = stats(&functions.iter().map(snd).collect_vec());
@@ -273,7 +300,10 @@ fn print_report(
         let total_hornspec: Duration = hornspec_durations.iter().sum();
         let mean_hornspec = total_hornspec / hornspec_durations.len() as u32;
         eprintln!("────────────────────────────────────────────────────────────");
-        eprintln!("Hornspec safe:      {:>40}", format!("{hornspec_safe}/{}", hornspec_durations.len()));
+        eprintln!(
+            "Hornspec safe:      {:>40}",
+            format!("{hornspec_safe}/{}", hornspec_durations.len())
+        );
         if hornspec_timeout > 0 {
             eprintln!("Hornspec timeouts:  {:>40}", hornspec_timeout);
         }
@@ -282,10 +312,12 @@ fn print_report(
             "Hornspec solved:    {:>40}",
             format!("{hornspec_solved_errors}/{hornspec_total_errors}"),
         );
+        eprintln!("Hornspec solved (NO Wick):    {:>40}", format!("{hornspec_no_wick_errors}"),);
         eprintln!(
             "Wick solved:        {:>40}",
             format!("{wick_solved_errors}/{hornspec_total_errors}"),
         );
+        eprintln!("Wick solved (NO Hornspec):    {:>40}", format!("{wick_no_hornspec_errors}"),);
         eprintln!("Hornspec total:     {:>40}", fmt_duration(total_hornspec));
         eprintln!("Hornspec mean:      {:>40}", fmt_duration(mean_hornspec));
     }
