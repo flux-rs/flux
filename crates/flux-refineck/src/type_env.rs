@@ -9,7 +9,7 @@ use flux_common::{
 };
 use flux_infer::{
     fixpoint_encoding::KVarEncoding,
-    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, InferResult},
+    infer::{Blocking, ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, InferResult},
     refine_tree::Scope,
 };
 use flux_macros::DebugAsJson;
@@ -161,8 +161,14 @@ impl<'a> TypeEnv<'a> {
             tracked_span_bug!("ptr_to_borrow called on non mutable pointer type")
         };
 
-        let ref_ty =
-            self.ptr_to_ref(infcx, ConstrReason::Other, *re, path, PtrToRefBound::Infer)?;
+        let ref_ty = self.ptr_to_ref(
+            infcx,
+            ConstrReason::Other,
+            *re,
+            path,
+            PtrToRefBound::Infer,
+            Blocking::Block,
+        )?;
 
         self.bindings.lookup(place, infcx.span).update(ref_ty);
 
@@ -199,6 +205,7 @@ impl<'a> TypeEnv<'a> {
         re: Region,
         path: &Path,
         bound: PtrToRefBound,
+        blocking: Blocking,
     ) -> InferResult<Ty> {
         // ℓ: t1
         let t1 = self.bindings.lookup(path, infcx.span).fold(infcx)?;
@@ -207,7 +214,7 @@ impl<'a> TypeEnv<'a> {
         let t2 = match bound {
             PtrToRefBound::Ty(t2) => {
                 let t2 = rty_match_regions(&t2, &t1);
-                infcx.subtyping(&t1, &t2, reason)?;
+                infcx.subtyping_with_env(self, &t1, &t2, reason)?;
                 t2
             }
             PtrToRefBound::Infer => {
@@ -215,16 +222,19 @@ impl<'a> TypeEnv<'a> {
                     debug_assert_eq!(kind, HoleKind::Pred);
                     infcx.fresh_kvar(sorts, KVarEncoding::Conj)
                 });
-                infcx.subtyping(&t1, &t2, reason)?;
+                infcx.subtyping_with_env(self, &t1, &t2, reason)?;
                 t2
             }
             PtrToRefBound::Identity => t1.clone(),
         };
 
-        // ℓ: †t2
-        self.bindings
-            .lookup(path, infcx.span)
-            .block_with(t2.clone());
+        // ℓ: †t2, unless the `&mut` is going underneath a shared reference, in which case `ℓ`
+        // keeps its current (more precise) type. See [`Blocking::NoBlock`].
+        if blocking == Blocking::Block {
+            self.bindings
+                .lookup(path, infcx.span)
+                .block_with(t2.clone());
+        }
 
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
     }
@@ -434,8 +444,9 @@ impl flux_infer::infer::LocEnv for TypeEnv<'_> {
         re: Region,
         path: &Path,
         bound: Ty,
+        blocking: Blocking,
     ) -> InferResult<Ty> {
-        self.ptr_to_ref(infcx, reason, re, path, PtrToRefBound::Ty(bound))
+        self.ptr_to_ref(infcx, reason, re, path, PtrToRefBound::Ty(bound), blocking)
     }
 
     fn get(&self, path: &Path) -> Ty {
