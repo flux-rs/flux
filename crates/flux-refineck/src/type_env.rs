@@ -40,6 +40,7 @@ use rustc_span::{Span, Symbol};
 use rustc_type_ir::BoundVar;
 use serde::Serialize;
 
+pub(crate) use self::place_ty::downcast_struct;
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
 
@@ -117,6 +118,20 @@ impl<'a> TypeEnv<'a> {
         let span = infcx.span;
         let result = self.bindings.lookup_unfolding(infcx, place, span)?;
         Ok(result.ty)
+    }
+
+    /// Folds `place` if it holds a struct left unfolded by `unfold_returned_refs`. Reading such a
+    /// struct as a whole has to fold it, because the fold/unfold analysis runs on the mir and so
+    /// doesn't know it was unfolded, i.e. it never inserts a ghost statement to fold it back.
+    pub(crate) fn fold_if_unfolded(
+        &mut self,
+        infcx: &mut InferCtxtAt,
+        place: &Place,
+    ) -> InferResult<Ty> {
+        let span = infcx.span;
+        self.bindings
+            .lookup_unfolding(infcx, place, span)?
+            .fold_if_unfolded(infcx)
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {
@@ -203,6 +218,17 @@ impl<'a> TypeEnv<'a> {
         // ℓ: t1
         let t1 = self.bindings.lookup(path, infcx.span).fold(infcx)?;
 
+        // The reference takes over from the pointer, so for a local pointer location this is where
+        // the strong window closes: the bound recorded for it is checked here, and the location is
+        // no longer one [`TypeEnv::fold_local_ptrs`] folds back. Without this, folding it back at
+        // the end of the block would find it blocked.
+        if path.projection().is_empty()
+            && let Some(local_bound) = self.bindings.local_ptr_bound(&path.loc)
+        {
+            infcx.subtyping(&t1, &local_bound, ConstrReason::FoldLocal)?;
+            self.bindings.demote_local_ptr(&path.loc);
+        }
+
         // t1 <: t2
         let t2 = match bound {
             PtrToRefBound::Ty(t2) => {
@@ -230,9 +256,11 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult {
-        for (loc, bound, ty) in self.bindings.local_ptrs() {
-            infcx.subtyping(&ty, &bound, ConstrReason::FoldLocal)?;
-            self.bindings.remove_local(&loc);
+        for loc in self.bindings.local_ptrs() {
+            // Folding a location may fold a pointer stored in it, so one we collected may be gone
+            // by the time we get to it.
+            let Some(bound) = self.bindings.local_ptr_bound(&loc) else { continue };
+            self.bindings.fold_local_ptr(infcx, &loc, &bound)?;
         }
         Ok(())
     }
@@ -268,6 +296,7 @@ impl<'a> TypeEnv<'a> {
 
     pub(crate) fn move_place(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> InferResult<Ty> {
         let span = infcx.span;
+        self.fold_if_unfolded(infcx, place)?;
         let result = self.bindings.lookup_unfolding(infcx, place, span)?;
         if result.is_strg {
             let uninit = Ty::uninit();
