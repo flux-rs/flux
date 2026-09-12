@@ -411,7 +411,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_impl_item(
         &mut self,
-        item: &surface::ImplItemFn,
+        item: &surface::ImplItem,
         item_id: MaybeExternId<OwnerId>,
     ) -> Result {
         ItemResolver::run(self, item_id, |item_resolver| item_resolver.visit_impl_item(item))?;
@@ -1387,7 +1387,7 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
         surface::visit::walk_trait_item(self, item);
     }
 
-    fn visit_impl_item(&mut self, item: &surface::ImplItemFn) {
+    fn visit_impl_item(&mut self, item: &surface::ImplItem) {
         self.resolve_attrs(item.node_id, &item.attrs);
         surface::visit::walk_impl_item(self, item);
     }

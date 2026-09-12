@@ -390,7 +390,7 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
 pub struct Specs {
     items: UnordMap<OwnerId, surface::Item>,
     trait_items: UnordMap<OwnerId, surface::TraitItemFn>,
-    impl_items: UnordMap<OwnerId, surface::ImplItemFn>,
+    impl_items: UnordMap<OwnerId, surface::ImplItem>,
     pub flux_items_by_parent: FxIndexMap<OwnerId, Vec<surface::FluxItem>>,
     /// Maps function DefIds to their #[sig(...)] attribute spans (if they have one)
     spec_attr_spans: UnordMap<DefId, Span>,
@@ -465,15 +465,15 @@ impl Specs {
         None
     }
 
-    pub fn get_impl_item(&self, owner_id: OwnerId) -> Option<&surface::ImplItemFn> {
+    pub fn get_impl_item(&self, owner_id: OwnerId) -> Option<&surface::ImplItem> {
         self.impl_items.get(&owner_id)
     }
 
     pub fn insert_impl_item(
         &mut self,
         owner_id: OwnerId,
-        impl_item: surface::ImplItemFn,
-    ) -> Option<surface::ImplItemFn> {
+        impl_item: surface::ImplItem,
+    ) -> Option<surface::ImplItem> {
         if let Some(old) = self.impl_items.insert(owner_id, impl_item) {
             return Some(old);
         }
