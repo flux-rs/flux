@@ -20,11 +20,12 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AdtDef, AliasReft, BaseTy, BinOp, Binder, Bool, Clause, Constant,
-        CoroutineObligPredicate, EarlyBinder, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg,
-        GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, RefineArgs,
-        RefineArgsExt,
+        CoroutineObligPredicate, EarlyBinder, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate,
+        GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind,
+        RefineArgs, RefineArgsExt,
         Region::ReErased,
         Sort, SubsetTyCtor, Ty, TyKind, Uint, UintTy, VariantIdx,
+        canonicalize::{Hoister, LocalHoister},
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine, Refiner},
     },
@@ -1696,6 +1697,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         arr_ty: Ty,
     ) -> InferResult<Ty> {
         let arr_ty = infcx.ensure_resolved_evars(|infcx| {
+            // Hoist all element indices so a single kvar can relate them.
+            let mut delegate = LocalHoister::default();
+            let arr_ty = Hoister::with_delegate(&mut delegate)
+                .transparent()
+                .hoist(&arr_ty);
+            let arr_ty = delegate
+                .bind(|_, preds| {
+                    let preds = preds
+                        .into_iter()
+                        .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(rty::HoleKind::Pred)))
+                        .chain(std::iter::once(Expr::hole(rty::HoleKind::Pred)));
+                    Ty::constr(Expr::and_from_iter(preds), arr_ty)
+                })
+                .to_ty();
             let arr_ty =
                 arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
