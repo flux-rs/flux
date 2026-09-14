@@ -1,7 +1,7 @@
 use std::{collections::hash_map::Entry, iter, vec};
 
 use flux_common::{
-    bug, dbg, dbg::SpanTrace, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug,
+    bug, dbg, dbg::SpanTrace, index::IndexVec, span_bug, tracked_span_bug,
     tracked_span_dbg_assert_eq,
 };
 use flux_config::{self as config, InferOpts};
@@ -1389,25 +1389,36 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         args: &flux_rustc_bridge::ty::GenericArgs,
         operands: &[Operand<'tcx>],
     ) -> InferResult<(Vec<Ty>, PolyFnSig)> {
-        let upvar_tys = self
-            .check_operands(infcx, env, stmt_span, operands)?
-            .into_iter()
-            .map(|ty| {
-                if let TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
-                    env.ptr_to_ref(
-                        &mut infcx.at(stmt_span),
-                        ConstrReason::Other,
-                        *re,
-                        path,
-                        PtrToRefBound::Infer,
-                    )
-                } else {
-                    Ok(ty.clone())
-                }
-            })
-            .try_collect_vec()?;
-
         let closure_args = args.as_closure();
+
+        // Relate each upvar against the *declared* (rustc) upvar type refined with holes.
+        // That target is location-free by construction, so subtyping converts every `Ptr`
+        // that lines up with a `&mut` in it -- at any depth, through tuples and references
+        // alike -- exactly as it does when checking a call against a function's formals.
+        let actuals = self.check_operands(infcx, env, stmt_span, operands)?;
+        let upvar_tys = self
+            .refine_with_holes(closure_args.upvar_tys())?
+            .iter()
+            .map(|ty| {
+                let ty =
+                    ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+
+                // The `ty.unconstr()` strips out the top level `Constr` that is attached to reference
+                // types which prevents `place_ty` from deref-ing e.g. in tests/tests/pos/surface/ptr02.rs
+                // We defensively add the `check_pred` to "consume" the pred, even though currently, the only
+                // preds getting stripped out are trivial, and hence skipping the check_pred doesn't break any
+                // existing tests.
+                let (ty, pred) = ty.unconstr();
+                infcx.at(stmt_span).check_pred(&pred, ConstrReason::Other);
+                ty
+            })
+            .collect_vec();
+        for (actual, formal) in iter::zip(&actuals, &upvar_tys) {
+            infcx
+                .at(stmt_span)
+                .subtyping_with_env(env, actual, formal, ConstrReason::Other)?;
+        }
+
         let ty = closure_args.sig_as_fn_ptr_ty();
 
         if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {

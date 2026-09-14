@@ -207,7 +207,7 @@ impl<'a> TypeEnv<'a> {
         let t2 = match bound {
             PtrToRefBound::Ty(t2) => {
                 let t2 = rty_match_regions(&t2, &t1);
-                infcx.subtyping(&t1, &t2, reason)?;
+                infcx.subtyping_with_env(self, &t1, &t2, reason)?;
                 t2
             }
             PtrToRefBound::Infer => {
@@ -215,7 +215,7 @@ impl<'a> TypeEnv<'a> {
                     debug_assert_eq!(kind, HoleKind::Pred);
                     infcx.fresh_kvar(sorts, KVarEncoding::Conj)
                 });
-                infcx.subtyping(&t1, &t2, reason)?;
+                infcx.subtyping_with_env(self, &t1, &t2, reason)?;
                 t2
             }
             PtrToRefBound::Identity => t1.clone(),
