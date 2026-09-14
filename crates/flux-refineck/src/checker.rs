@@ -1406,10 +1406,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Refining wraps a unit-sorted type (a reference) in a top-level `Constr`, and
                 // `place_ty` cannot deref through that wrapper, so strip it. An indexed type is
                 // wrapped in `Exists` instead, with the `Constr` inside, so this is a no-op there.
-                //
-                // Stripping a `Constr` off a *formal* drops an obligation: `Sub::tys` would have
-                // checked it in its `(_, Constr(..))` arm. Discharge it here so the strip stays
-                // meaning-preserving, rather than relying on the predicate being a trivial kvar.
+                // But we defensively do the check here, just in case (even though it should be a no-op).
                 let (ty, pred) = ty.unconstr();
                 infcx.at(stmt_span).check_pred(&pred, ConstrReason::Other);
                 ty
