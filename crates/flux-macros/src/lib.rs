@@ -1,4 +1,4 @@
-#![feature(proc_macro_diagnostic, never_type, proc_macro_span, proc_macro_tracked_path)]
+#![feature(proc_macro_diagnostic, never_type, proc_macro_tracked_path)]
 
 mod diagnostics;
 mod fold;

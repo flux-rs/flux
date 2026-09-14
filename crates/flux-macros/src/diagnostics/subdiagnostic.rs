@@ -530,7 +530,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
         for (kind, slug, no_span) in kind_slugs {
             let message = format_ident!("__message");
             calls.extend(
-                quote! { let #message = #diag.eagerly_translate(crate::fluent_generated::#slug); },
+                quote! { let #message = #diag.eagerly_format(crate::fluent_generated::#slug); },
             );
 
             let name = format_ident!(

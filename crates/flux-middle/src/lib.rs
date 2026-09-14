@@ -1,14 +1,12 @@
 //! This crate contains common type definitions that are used by other crates.
 #![feature(
     associated_type_defaults,
-    box_patterns,
     closure_track_caller,
     map_try_insert,
     min_specialization,
     never_type,
     rustc_private,
-    unwrap_infallible,
-    new_range_api
+    unwrap_infallible
 )]
 
 extern crate rustc_abi;
