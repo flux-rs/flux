@@ -1592,7 +1592,7 @@ mod errors {
         #[primary_span]
         #[label]
         pub span: Span,
-        #[label(desugar_previous_definition)]
+        #[label(desugar_duplicate_definition_previous_definition)]
         pub previous_definition: Span,
         pub name: Symbol,
     }
@@ -1607,9 +1607,9 @@ mod errors {
         #[label]
         span: Span,
         name: Symbol,
-        #[label(desugar_first_candidate)]
+        #[label(desugar_ambiguous_name_first_candidate)]
         first: Span,
-        #[label(desugar_second_candidate)]
+        #[label(desugar_ambiguous_name_second_candidate)]
         second: Option<Span>,
     }
 
@@ -1630,7 +1630,7 @@ mod errors {
         #[label]
         pub span: Span,
         pub name: Symbol,
-        #[label(desugar_first_use)]
+        #[label(desugar_duplicate_param_first_use)]
         pub first_use: Span,
     }
 }

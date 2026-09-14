@@ -1291,7 +1291,10 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                             dcx.struct_span_err(cx_span, fluent::middle_query_unsupported_at);
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
-                            diag.span_note(def_ident_span, fluent::_subdiag::note);
+                            diag.span_note(
+                                def_ident_span,
+                                fluent::middle_query_unsupported_at_note,
+                            );
                         }
                         diag.note(err.descr);
                         diag
@@ -1301,7 +1304,7 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                             dcx.struct_span_err(cx_span, fluent::middle_query_ignored_at);
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
-                        diag.span_label(cx_span, fluent::_subdiag::label);
+                        diag.span_label(cx_span, fluent::middle_query_ignored_at_label);
                         diag
                     }
                     QueryErr::NotIncluded { def_id } => {
@@ -1312,7 +1315,7 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                         let span = tcx
                             .def_ident_span(def_id)
                             .unwrap_or_else(|| tcx.def_span(def_id));
-                        diag.span_help(span, fluent::_subdiag::help);
+                        diag.span_help(span, fluent::middle_query_not_included_at_help);
                         diag
                     }
                     QueryErr::MissingAssocReft { name, .. } => {
@@ -1326,7 +1329,7 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                         let mut diag =
                             dcx.struct_span_err(cx_span, fluent::middle_query_opaque_struct);
                         diag.arg("struct", tcx.def_path_str(struct_id));
-                        diag.span_label(cx_span, fluent::_subdiag::label);
+                        diag.span_label(cx_span, fluent::middle_query_opaque_struct_label);
                         if let ErrCtxt::FnCheck(_, fn_def_id) = self.cx {
                             let fn_span = tcx.def_span(fn_def_id);
                             if fn_span.in_derive_expansion() {

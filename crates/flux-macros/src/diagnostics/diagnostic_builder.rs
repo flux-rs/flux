@@ -155,16 +155,31 @@ impl DiagnosticDeriveVariantBuilder {
                 .help("consider creating a `Subdiagnostic` instead"));
         }
 
-        let slug = subdiag.slug.unwrap_or_else(|| match subdiag.kind {
-            SubdiagnosticKind::Label => parse_quote! { _subdiag::label },
-            SubdiagnosticKind::Note => parse_quote! { _subdiag::note },
-            SubdiagnosticKind::NoteOnce => parse_quote! { _subdiag::note_once },
-            SubdiagnosticKind::Help => parse_quote! { _subdiag::help },
-            SubdiagnosticKind::HelpOnce => parse_quote! { _subdiag::help_once },
-            SubdiagnosticKind::Warn => parse_quote! { _subdiag::warn },
-            SubdiagnosticKind::Suggestion { .. } => parse_quote! { _subdiag::suggestion },
-            SubdiagnosticKind::MultipartSuggestion { .. } => unreachable!(),
-        });
+        // Without an explicit slug, the message is the attribute of the diagnostic's own slug,
+        // e.g. `#[label]` on `#[diag(driver_attr_on_opaque)]` refers to
+        // `driver_attr_on_opaque_label`.
+        let slug = match subdiag.slug {
+            Some(slug) => slug,
+            None => {
+                let Some((parent, _)) = &self.slug else {
+                    throw_invalid_attr!(attr, |diag| diag
+                        .help("specify a slug, or place `#[diag(..)]` before this attribute"));
+                };
+                let parent = &parent.segments.last().unwrap().ident;
+                let attr_name = match subdiag.kind {
+                    SubdiagnosticKind::Label => "label",
+                    SubdiagnosticKind::Note => "note",
+                    SubdiagnosticKind::NoteOnce => "note_once",
+                    SubdiagnosticKind::Help => "help",
+                    SubdiagnosticKind::HelpOnce => "help_once",
+                    SubdiagnosticKind::Warn => "warn",
+                    SubdiagnosticKind::Suggestion { .. } => "suggestion",
+                    SubdiagnosticKind::MultipartSuggestion { .. } => unreachable!(),
+                };
+                let ident = format_ident!("{parent}_{attr_name}");
+                parse_quote! { #ident }
+            }
+        };
 
         Ok(Some((subdiag.kind, slug, subdiag.no_span)))
     }

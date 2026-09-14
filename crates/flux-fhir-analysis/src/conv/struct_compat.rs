@@ -657,7 +657,7 @@ mod errors {
         #[primary_span]
         #[label]
         span: Span,
-        #[label(fhir_analysis_expected_label)]
+        #[label(fhir_analysis_incompatible_refinement_expected_label)]
         expected_span: Option<Span>,
         expected_ty: rustc_middle::ty::Ty<'tcx>,
         def_descr: &'static str,
@@ -812,7 +812,7 @@ mod errors {
         #[label]
         span: Span,
         found: usize,
-        #[label(fhir_analysis_expected_label)]
+        #[label(fhir_analysis_incompatible_param_count_expected_label)]
         expected_span: Span,
         expected: usize,
         def_descr: &'static str,
@@ -860,7 +860,7 @@ mod errors {
         #[label]
         span: Span,
         fields: usize,
-        #[label(fhir_analysis_expected_label)]
+        #[label(fhir_analysis_field_count_mismatch_expected_label)]
         expected_span: Span,
         expected_fields: usize,
     }
