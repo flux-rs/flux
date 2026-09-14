@@ -10,9 +10,35 @@ use flux_config::{
 };
 use flux_driver::callbacks::FluxCallbacks;
 use flux_middle::metrics;
-use rustc_driver::{EXIT_SUCCESS, catch_with_exit_code, run_compiler};
+use rustc_driver::{catch_with_exit_code, run_compiler};
 
 mod logger;
+
+trait FluxExitCodeExt {
+    fn is_success(self) -> bool;
+
+    fn into_exit_code(self) -> ExitCode;
+}
+
+impl FluxExitCodeExt for i32 {
+    fn is_success(self) -> bool {
+        self == 0
+    }
+
+    fn into_exit_code(self) -> ExitCode {
+        if self == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+    }
+}
+
+impl FluxExitCodeExt for ExitCode {
+    fn is_success(self) -> bool {
+        self == ExitCode::SUCCESS
+    }
+
+    fn into_exit_code(self) -> ExitCode {
+        self
+    }
+}
 
 fn main() -> io::Result<ExitCode> {
     if !config::verify() {
@@ -49,8 +75,8 @@ fn main() -> io::Result<ExitCode> {
     let exit_code = catch_with_exit_code(move || {
         run_compiler(&args, &mut FluxCallbacks);
     });
-    if config::summary() && exit_code == EXIT_SUCCESS {
+    if config::summary() && exit_code.is_success() {
         metrics::print_summary(start.elapsed())?;
     };
-    Ok(exit_code)
+    Ok(exit_code.into_exit_code())
 }
