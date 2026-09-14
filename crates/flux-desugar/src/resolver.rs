@@ -279,7 +279,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 ItemKind::Union(..) => DefKind::Union,
                 ItemKind::Trait(..) => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
-                ItemKind::Const(..) => DefKind::Const,
+                ItemKind::Const(.., rhs) => {
+                    DefKind::Const {
+                        is_type_const: matches!(rhs, hir::ConstItemRhs::TypeConst(..)),
+                    }
+                }
                 ItemKind::ForeignMod { items, .. } => {
                     self.define_foreign_items(items);
                     continue;

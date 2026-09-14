@@ -2256,7 +2256,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let espan = ESpan::new(path.span);
         let (expr, sort) = match path.res {
             fhir::Res::Param(_, id) => (env.lookup(&path).to_expr(), self.results().param_sort(id)),
-            fhir::Res::Def(DefKind::Const, def_id) => {
+            fhir::Res::Def(DefKind::Const { .. }, def_id) => {
                 self.hyperlink(path.span, tcx.def_ident_span(def_id));
                 let (expr, sort) = self.conv_const(path.span, def_id)?;
                 (expr.at(espan), sort)
