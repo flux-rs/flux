@@ -1173,9 +1173,10 @@ fn visible_module_children(
 
 /// Return true if the item has a `#[prelude_import]` annotation
 fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
-    tcx.hir_attrs(item.hir_id())
-        .iter()
-        .any(|attr| attr.path_matches(&[sym::prelude_import]))
+    tcx.hir_attrs(item.hir_id()).iter().any(|attr| {
+        attr.path_matches(&[sym::prelude_import])
+            || matches!(attr, hir::Attribute::Parsed(hir::attrs::AttributeKind::PreludeImport))
+    })
 }
 
 /// Abstraction over a "segment" so we can use [`CrateResolver::resolve_path_with_ribs`] with paths
