@@ -1110,7 +1110,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
-                let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
+                let sub_sig = self.genv.fn_sig(*def_id).with_span(span)?;
                 check_fn_subtyping(
                     infcx,
                     SubFn::Poly(*def_id, sub_sig, args.clone()),

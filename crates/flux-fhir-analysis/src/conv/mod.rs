@@ -1578,7 +1578,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 .incoherent_impls(simplified_type)
                 .iter()
                 .filter_map(|impl_id| {
-                    tcx.associated_items(impl_id).find_by_ident_and_kind(
+                    tcx.associated_items(*impl_id).find_by_ident_and_kind(
                         tcx,
                         assoc,
                         AssocTag::Const,

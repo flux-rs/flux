@@ -129,7 +129,7 @@ pub fn resolve_call_query<'tcx>(
     let trait_ref = rustc_ty::TraitRef::from_assoc(tcx, trait_id, args);
     let (impl_def_id, impl_args) = trait_ref_impl_id(tcx, selcx, param_env, trait_ref)?;
     let impl_args = args.rebase_onto(tcx, trait_id, impl_args);
-    let assoc_id = tcx.impl_item_implementor_ids(impl_def_id).get(&callee_id)?;
+    let assoc_id = *tcx.impl_item_implementor_ids(impl_def_id).get(&callee_id)?;
     let assoc_item = tcx.associated_item(assoc_id);
     Some((assoc_item.def_id, impl_args))
 }

@@ -271,7 +271,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                 let assoc_items = tcx
                     .inherent_impls(def_id)
                     .iter()
-                    .flat_map(|impl_id| tcx.associated_items(impl_id).in_definition_order());
+                    .flat_map(|impl_id| tcx.associated_items(*impl_id).in_definition_order());
                 self.collect_assoc_methods(
                     inherent_impl.items,
                     assoc_items,

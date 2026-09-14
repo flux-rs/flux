@@ -453,7 +453,7 @@ impl SortEncodingCtxt {
             .iter()
             .enumerate()
             .map(|(idx, sort)| {
-                let param_count = genv.sort_decl_param_count(sort);
+                let param_count = genv.sort_decl_param_count(*sort);
                 let sort_decl = fixpoint::SortDecl {
                     name: fixpoint::DataSort::User(OpaqueId::from_usize(idx)),
                     vars: param_count,
@@ -473,7 +473,7 @@ impl SortEncodingCtxt {
         let mut idx = 0;
         while let Some(adt_def_id) = self.adt_sorts.get_index(idx) {
             let adt_id = AdtId::from_usize(idx);
-            let adt_sort_def = genv.adt_sort_def_of(adt_def_id)?;
+            let adt_sort_def = genv.adt_sort_def_of(*adt_def_id)?;
             decls.push(fixpoint::DataDecl {
                 name: fixpoint::DataSort::Adt(adt_id),
                 vars: adt_sort_def.param_count(),
@@ -2405,7 +2405,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
             match key {
                 ConstKey::RustConst(def_id) => {
-                    let info = self.genv.constant_info(def_id)?;
+                    let info = self.genv.constant_info(*def_id)?;
                     match info {
                         rty::ConstantInfo::Uninterpreted => {}
                         rty::ConstantInfo::Interpreted(val, _) => {
