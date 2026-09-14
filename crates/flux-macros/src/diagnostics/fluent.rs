@@ -9,9 +9,10 @@ use fluent_bundle::{FluentBundle, FluentError, FluentResource};
 use fluent_syntax::{
     ast::{
         Attribute, Entry, Expression, Identifier, InlineExpression, Message, Pattern,
-        PatternElement,
+        PatternElement, Resource,
     },
     parser::ParserError,
+    serializer::serialize,
 };
 use proc_macro::{Diagnostic, Level, Span, tracked::path};
 use proc_macro2::TokenStream;
@@ -50,29 +51,30 @@ fn finish(body: TokenStream, resource: TokenStream) -> proc_macro::TokenStream {
         /// Auto-generated constants for type-checked references to Fluent messages.
         pub(crate) mod fluent_generated {
             #body
-
-            /// Constants expected to exist by the diagnostic derive macros to use as default Fluent
-            /// identifiers for different subdiagnostic kinds.
-            pub mod _subdiag {
-                /// Default for `#[help]`
-                pub const help: rustc_errors::SubdiagMessage =
-                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("help"));
-                /// Default for `#[note]`
-                pub const note: rustc_errors::SubdiagMessage =
-                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("note"));
-                /// Default for `#[warn]`
-                pub const warn: rustc_errors::SubdiagMessage =
-                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("warn"));
-                /// Default for `#[label]`
-                pub const label: rustc_errors::SubdiagMessage =
-                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("label"));
-                /// Default for `#[suggestion]`
-                pub const suggestion: rustc_errors::SubdiagMessage =
-                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("suggestion"));
-            }
         }
     }
     .into()
+}
+
+/// Renders a Fluent pattern back into its source form so that it can be embedded in a
+/// [`rustc_errors::DiagMessage::Inline`], which is parsed as a single Fluent message when the
+/// diagnostic is emitted.
+///
+/// A multi-line pattern comes back indented, which is exactly what `Inline` expects since rustc
+/// wraps the source as `generated_msg = {source}`.
+fn pattern_source(name: &str, pattern: &Pattern<&str>) -> String {
+    let resource = Resource {
+        body: vec![Entry::Message(Message {
+            id: Identifier { name },
+            value: Some(pattern.clone()),
+            attributes: vec![],
+            comment: None,
+        })],
+    };
+    let serialized = serialize(&resource);
+    // Drop the `name =` the serializer emits, keeping the (possibly multi-line) pattern body.
+    let (_, source) = serialized.split_once('=').unwrap();
+    source.trim_end_matches('\n').to_string()
 }
 
 /// Tokens to be returned when the macro cannot proceed.
@@ -215,21 +217,34 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
 
             let docstr =
                 format!("Constant referring to Fluent message `{name}` from `{crate_name}`");
-            constants.extend(quote! {
-                #[doc = #docstr]
-                pub const #snake_name: rustc_errors::DiagMessage =
-                    rustc_errors::DiagMessage::FluentIdentifier(
-                        std::borrow::Cow::Borrowed(#name),
-                        None
-                    );
-            });
+            match value {
+                Some(pattern) => {
+                    let source = pattern_source(name, pattern);
+                    constants.extend(quote! {
+                        #[doc = #docstr]
+                        pub const #snake_name: rustc_errors::DiagMessage =
+                            rustc_errors::DiagMessage::Inline(std::borrow::Cow::Borrowed(#source));
+                    });
+                }
+                None => {
+                    Diagnostic::spanned(
+                        resource_span,
+                        Level::Error,
+                        format!("message `{name}` has no value"),
+                    )
+                    .emit();
+                }
+            }
 
-            for Attribute { id: Identifier { name: attr_name }, .. } in attributes {
-                let snake_name = Ident::new(
-                    &format!("{crate_prefix}{}", attr_name.replace('-', "_")),
+            for Attribute { id: Identifier { name: attr_name }, value: attr_value } in attributes {
+                // Attributes are qualified by the message they belong to: their text is inlined in
+                // the generated constant, so unlike a Fluent attribute reference it cannot be
+                // shared by every message with an attribute of the same name.
+                let attr_ident = Ident::new(
+                    &format!("{snake_name}_{}", attr_name.replace('-', "_")),
                     resource_str.span(),
                 );
-                if !previous_attrs.insert(snake_name.clone()) {
+                if !previous_attrs.insert(attr_ident.clone()) {
                     continue;
                 }
 
@@ -246,10 +261,11 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
                 let msg = format!(
                     "Constant referring to Fluent message `{name}.{attr_name}` from `{crate_name}`"
                 );
+                let source = pattern_source(attr_name, attr_value);
                 constants.extend(quote! {
                     #[doc = #msg]
-                    pub const #snake_name: rustc_errors::SubdiagMessage =
-                        rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed(#attr_name));
+                    pub const #attr_ident: rustc_errors::DiagMessage =
+                        rustc_errors::DiagMessage::Inline(std::borrow::Cow::Borrowed(#source));
                 });
             }
 
