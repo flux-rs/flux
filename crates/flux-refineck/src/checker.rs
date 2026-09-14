@@ -1403,10 +1403,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let ty =
                     ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
-                // Refining wraps a unit-sorted type (a reference) in a top-level `Constr`, and
-                // `place_ty` cannot deref through that wrapper, so strip it. An indexed type is
-                // wrapped in `Exists` instead, with the `Constr` inside, so this is a no-op there.
-                // But we defensively do the check here, just in case (even though it should be a no-op).
+                // The `ty.unconstr()` strips out the top level `Constr` that is attached to reference
+                // types which prevents `place_ty` from deref-ing e.g. in tests/tests/pos/surface/ptr02.rs
+                // We defensively add the `check_pred` to "consume" the pred, even though currently, the only
+                // preds getting stripped out are trivial, and hence skipping the check_pred doesn't break any
+                // existing tests.
                 let (ty, pred) = ty.unconstr();
                 infcx.at(stmt_span).check_pred(&pred, ConstrReason::Other);
                 ty
