@@ -20,7 +20,7 @@ use rustc_hir::{
     def_id::{CrateNum, DefId, LocalDefId},
 };
 use rustc_middle::{
-    query::IntoQueryParam,
+    query::IntoQueryKey,
     ty::{TyCtxt, Variance},
 };
 use rustc_span::{FileName, Span};
@@ -173,8 +173,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.arena.alloc_slice_fill_iter(it)
     }
 
-    pub fn def_kind(&self, def_id: impl IntoQueryParam<DefId>) -> DefKind {
-        self.tcx().def_kind(def_id.into_query_param())
+    pub fn def_kind(&self, def_id: impl IntoQueryKey<DefId>) -> DefKind {
+        self.tcx().def_kind(def_id.into_query_key())
     }
 
     /// Allocates space to store `cap` elements of type `T`.
@@ -280,16 +280,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fhir_attr_map(did).reveals
     }
 
-    pub fn func_sort(self, def_id: impl IntoQueryParam<FluxDefId>) -> rty::PolyFuncSort {
+    pub fn func_sort(self, def_id: impl IntoQueryKey<FluxDefId>) -> rty::PolyFuncSort {
         self.inner
             .queries
-            .func_sort(self, def_id.into_query_param())
+            .func_sort(self, def_id.into_query_key())
     }
 
-    pub fn func_span(self, def_id: impl IntoQueryParam<FluxDefId>) -> Span {
+    pub fn func_span(self, def_id: impl IntoQueryKey<FluxDefId>) -> Span {
         self.inner
             .queries
-            .func_span(self, def_id.into_query_param())
+            .func_span(self, def_id.into_query_key())
     }
 
     pub fn should_inline_fun(self, def_id: FluxDefId) -> bool {
@@ -305,28 +305,28 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.mir(self, def_id)
     }
 
-    pub fn lower_generics_of(self, def_id: impl IntoQueryParam<DefId>) -> ty::Generics<'tcx> {
+    pub fn lower_generics_of(self, def_id: impl IntoQueryKey<DefId>) -> ty::Generics<'tcx> {
         self.inner
             .queries
-            .lower_generics_of(self, def_id.into_query_param())
+            .lower_generics_of(self, def_id.into_query_key())
     }
 
     pub fn lower_predicates_of(
         self,
-        def_id: impl IntoQueryParam<DefId>,
+        def_id: impl IntoQueryKey<DefId>,
     ) -> QueryResult<ty::GenericPredicates> {
         self.inner
             .queries
-            .lower_predicates_of(self, def_id.into_query_param())
+            .lower_predicates_of(self, def_id.into_query_key())
     }
 
     pub fn lower_type_of(
         self,
-        def_id: impl IntoQueryParam<DefId>,
+        def_id: impl IntoQueryKey<DefId>,
     ) -> QueryResult<ty::EarlyBinder<ty::Ty>> {
         self.inner
             .queries
-            .lower_type_of(self, def_id.into_query_param())
+            .lower_type_of(self, def_id.into_query_key())
     }
 
     pub fn lower_fn_sig(
@@ -336,38 +336,38 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.lower_fn_sig(self, def_id.into())
     }
 
-    pub fn adt_def(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::AdtDef> {
-        self.inner.queries.adt_def(self, def_id.into_query_param())
+    pub fn adt_def(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::AdtDef> {
+        self.inner.queries.adt_def(self, def_id.into_query_key())
     }
 
     pub fn constant_info(
         self,
-        def_id: impl IntoQueryParam<DefId>,
+        def_id: impl IntoQueryKey<DefId>,
     ) -> QueryResult<rty::ConstantInfo> {
         self.inner
             .queries
-            .constant_info(self, def_id.into_query_param())
+            .constant_info(self, def_id.into_query_key())
     }
 
-    pub fn static_info(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::StaticInfo> {
+    pub fn static_info(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::StaticInfo> {
         self.inner
             .queries
-            .static_info(self, def_id.into_query_param())
+            .static_info(self, def_id.into_query_key())
     }
 
     pub fn adt_sort_def_of(
         self,
-        def_id: impl IntoQueryParam<DefId>,
+        def_id: impl IntoQueryKey<DefId>,
     ) -> QueryResult<rty::AdtSortDef> {
         self.inner
             .queries
-            .adt_sort_def_of(self, def_id.into_query_param())
+            .adt_sort_def_of(self, def_id.into_query_key())
     }
 
-    pub fn sort_decl_param_count(self, def_id: impl IntoQueryParam<FluxDefId>) -> usize {
+    pub fn sort_decl_param_count(self, def_id: impl IntoQueryKey<FluxDefId>) -> usize {
         self.inner
             .queries
-            .sort_decl_param_count(self, def_id.into_query_param())
+            .sort_decl_param_count(self, def_id.into_query_key())
     }
 
     pub fn check_wf(self, def_id: LocalDefId) -> QueryResult<Rc<rty::WfckResults>> {
@@ -384,37 +384,37 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         Ok(rty::EarlyBinder(trait_ref))
     }
 
-    pub fn generics_of(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::Generics> {
+    pub fn generics_of(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::Generics> {
         self.inner
             .queries
-            .generics_of(self, def_id.into_query_param())
+            .generics_of(self, def_id.into_query_key())
     }
 
     pub fn refinement_generics_of(
         self,
-        def_id: impl IntoQueryParam<DefId>,
+        def_id: impl IntoQueryKey<DefId>,
     ) -> QueryResult<rty::EarlyBinder<rty::RefinementGenerics>> {
         self.inner
             .queries
-            .refinement_generics_of(self, def_id.into_query_param())
+            .refinement_generics_of(self, def_id.into_query_key())
     }
 
     pub fn predicates_of(
         self,
-        def_id: impl IntoQueryParam<DefId>,
+        def_id: impl IntoQueryKey<DefId>,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
         self.inner
             .queries
-            .predicates_of(self, def_id.into_query_param())
+            .predicates_of(self, def_id.into_query_key())
     }
 
     pub fn assoc_refinements_of(
         self,
-        def_id: impl IntoQueryParam<DefId>,
+        def_id: impl IntoQueryKey<DefId>,
     ) -> QueryResult<rty::AssocRefinements> {
         self.inner
             .queries
-            .assoc_refinements_of(self, def_id.into_query_param())
+            .assoc_refinements_of(self, def_id.into_query_key())
     }
 
     pub fn assoc_refinement(self, assoc_id: FluxDefId) -> QueryResult<rty::AssocReft> {
@@ -479,25 +479,25 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn item_bounds(
         self,
-        def_id: impl IntoQueryParam<DefId>,
+        def_id: impl IntoQueryKey<DefId>,
     ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         self.inner
             .queries
-            .item_bounds(self, def_id.into_query_param())
+            .item_bounds(self, def_id.into_query_key())
     }
 
     pub fn type_of(
         self,
-        def_id: impl IntoQueryParam<DefId>,
+        def_id: impl IntoQueryKey<DefId>,
     ) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>> {
-        self.inner.queries.type_of(self, def_id.into_query_param())
+        self.inner.queries.type_of(self, def_id.into_query_key())
     }
 
     pub fn fn_sig(
         self,
-        def_id: impl IntoQueryParam<DefId>,
+        def_id: impl IntoQueryKey<DefId>,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-        self.inner.queries.fn_sig(self, def_id.into_query_param())
+        self.inner.queries.fn_sig(self, def_id.into_query_key())
     }
 
     pub fn feed_weak_kvars(self, def_id: DefId, wk: WeakKvarMap) {
@@ -513,11 +513,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn variants_of(
         self,
-        def_id: impl IntoQueryParam<DefId>,
+        def_id: impl IntoQueryKey<DefId>,
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
         self.inner
             .queries
-            .variants_of(self, def_id.into_query_param())
+            .variants_of(self, def_id.into_query_key())
     }
 
     pub fn variant_sig(
@@ -536,14 +536,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Whether the function is marked with `#[flux::no_panic]`
-    pub fn no_panic(self, def_id: impl IntoQueryParam<DefId>) -> bool {
-        self.inner.queries.no_panic(self, def_id.into_query_param())
+    pub fn no_panic(self, def_id: impl IntoQueryKey<DefId>) -> bool {
+        self.inner.queries.no_panic(self, def_id.into_query_key())
     }
 
-    pub fn assume_parametric_params(self, def_id: impl IntoQueryParam<DefId>) -> UnordSet<u32> {
+    pub fn assume_parametric_params(self, def_id: impl IntoQueryKey<DefId>) -> UnordSet<u32> {
         self.inner
             .queries
-            .assume_parametric_params(self, def_id.into_query_param())
+            .assume_parametric_params(self, def_id.into_query_key())
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {

@@ -51,7 +51,7 @@ pub use rustc_middle::{
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
 use rustc_middle::{
-    query::IntoQueryParam,
+    query::IntoQueryKey,
     ty::{TyCtxt, fast_reject::SimplifiedType},
 };
 use rustc_span::{DUMMY_SP, Span, Symbol, sym, symbol::kw};
@@ -3196,7 +3196,7 @@ fn can_auto_strong(fn_sig: &PolyFnSig) -> bool {
 ///     forall<l0: Loc>. fn (x: &strg<l0:InnerTy>) -> bool ensures l0:InnerTy
 pub fn auto_strong(
     genv: GlobalEnv,
-    def_id: impl IntoQueryParam<DefId>,
+    def_id: impl IntoQueryKey<DefId>,
     fn_sig: PolyFnSig,
 ) -> PolyFnSig {
     // TODO(auto-strong): we only *really* need the first check `can_auto_strong` here.
