@@ -1605,11 +1605,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)?;
                 Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into(), args.clone()))
             }
-            Rvalue::ShallowInitBox(operand, _) => {
-                self.check_operand(infcx, env, stmt_span, operand)
-                    .with_span(stmt_span)?;
-                Ty::mk_box_with_default_alloc(self.genv, Ty::uninit()).with_span(stmt_span)
-            }
         }
     }
 

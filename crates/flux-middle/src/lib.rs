@@ -3,7 +3,6 @@
     associated_type_defaults,
     box_patterns,
     closure_track_caller,
-    if_let_guard,
     map_try_insert,
     min_specialization,
     never_type,

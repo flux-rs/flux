@@ -3,7 +3,6 @@
 #![feature(
     associated_type_defaults,
     box_patterns,
-    if_let_guard,
     min_specialization,
     never_type,
     rustc_private,

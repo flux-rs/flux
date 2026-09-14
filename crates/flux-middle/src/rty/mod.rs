@@ -40,7 +40,6 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 pub use normalize::{FuncInfo, NormalizedDefns, local_deps};
-use refining::Refiner;
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
 use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};
@@ -1613,22 +1612,6 @@ impl Ty {
         let bty = BaseTy::adt(adt_def, args);
         Ok(Ty::indexed(bty, Expr::unit_struct(def_id)))
     }
-
-    pub fn mk_box_with_default_alloc(genv: GlobalEnv, deref_ty: Ty) -> QueryResult<Ty> {
-        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
-
-        let generics = genv.generics_of(def_id)?;
-        let alloc_ty = genv
-            .lower_type_of(generics.own_params[1].def_id)?
-            .skip_binder();
-        let alloc_ty = Refiner::default_for_item(genv, def_id)?.refine_generic_arg(
-            &generics.own_params[1],
-            &flux_rustc_bridge::ty::GenericArg::Ty(alloc_ty),
-        )?;
-
-        Ty::mk_box(genv, deref_ty, alloc_ty)
-    }
-
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
         BaseTy::Tuple(tys.into()).to_ty()
     }

@@ -1,5 +1,5 @@
 #![allow(incomplete_features)]
-#![feature(rustc_private, specialization, if_let_guard)]
+#![feature(rustc_private, specialization)]
 
 extern crate rustc_ast;
 extern crate rustc_data_structures;

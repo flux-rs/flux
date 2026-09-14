@@ -272,7 +272,6 @@ pub enum Rvalue<'tcx> {
     UnaryOp(UnOp, Operand<'tcx>),
     Discriminant(Place),
     Aggregate(AggregateKind, Vec<Operand<'tcx>>),
-    ShallowInitBox(Operand<'tcx>, Ty),
 }
 
 #[derive(Copy, Clone)]
@@ -766,7 +765,6 @@ impl fmt::Debug for Rvalue<'_> {
             }
             Rvalue::Cast(kind, op, ty) => write!(f, "{op:?} as {ty:?} [{kind:?}]"),
             Rvalue::Repeat(op, c) => write!(f, "[{op:?}; {c:?}]"),
-            Rvalue::ShallowInitBox(op, ty) => write!(f, "ShallowInitBox({op:?}, {ty:?})"),
         }
     }
 }

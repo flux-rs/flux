@@ -515,9 +515,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 let args = args.iter().map(|op| self.lower_operand(op)).try_collect()?;
                 Ok(Rvalue::Aggregate(aggregate_kind, args))
             }
-            rustc_mir::Rvalue::ShallowInitBox(op, ty) => {
-                Ok(Rvalue::ShallowInitBox(self.lower_operand(op)?, ty.lower(self.tcx)?))
-            }
             rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::WrapUnsafeBinder(..) => {

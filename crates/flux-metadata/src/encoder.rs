@@ -19,7 +19,6 @@ use rustc_span::{
 use crate::{
     AbsoluteBytePos, CrateMetadata, EncodedSourceFileId, Footer, METADATA_HEADER, SYMBOL_OFFSET,
     SYMBOL_PREDEFINED, SYMBOL_STR, SourceFileIndex, TAG_FULL_SPAN, TAG_PARTIAL_SPAN,
-    rustc_middle::dep_graph::DepContext,
 };
 
 struct EncodeContext<'a, 'tcx> {
@@ -223,7 +222,7 @@ impl SpanEncoder for EncodeContext<'_, '_> {
             return TAG_PARTIAL_SPAN.encode(self);
         }
 
-        let source_file = self.tcx.sess().source_map().lookup_source_file(span.lo);
+        let source_file = self.tcx.sess.source_map().lookup_source_file(span.lo);
         if !source_file.contains(span.hi) {
             // Unfortunately, macro expansion still sometimes generates Spans
             // that malformed in this way.
