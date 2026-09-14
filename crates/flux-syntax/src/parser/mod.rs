@@ -4,6 +4,7 @@ use std::{collections::HashSet, str::FromStr, vec};
 
 use lookahead::{AnyLit, LAngle, NonReserved, RAngle};
 use rustc_ast::token::Lit;
+use rustc_data_structures::unord::UnordSet;
 use rustc_span::{Symbol, sym::Output};
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
@@ -518,19 +519,23 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let hi = cx.hi();
 
     if let QualifierKind::Hint = kind {
-        let mut fvars = expr.free_vars();
-        for param in &params {
-            fvars.remove(&param.ident);
-        }
-        params.extend(fvars.into_iter().map(|ident| {
-            RefineParam {
-                ident,
-                sort: Sort::Infer,
-                mode: None,
-                span: ident.span,
-                node_id: cx.next_node_id(),
-            }
-        }));
+        // Append the body's free variables that weren't given an explicit sort, keeping the
+        // order in which they appear in the body.
+        let explicit: UnordSet<_> = params.iter().map(|param| param.ident).collect();
+        params.extend(
+            expr.free_vars()
+                .into_iter()
+                .filter(|ident| !explicit.contains(ident))
+                .map(|ident| {
+                    RefineParam {
+                        ident,
+                        sort: Sort::Infer,
+                        mode: None,
+                        span: ident.span,
+                        node_id: cx.next_node_id(),
+                    }
+                }),
+        );
         // Params synthesized from the body's free variables are bound to values in the enclosing
         // function, so they are never wildcards.
         wildcards.resize(params.len(), false);
