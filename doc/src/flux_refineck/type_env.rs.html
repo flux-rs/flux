@@ -207,7 +207,7 @@
 <a href=#207 id=207 data-nosnippet>207</a>        </span><span class="kw">let </span>t2 = <span class="kw">match </span>bound {
 <a href=#208 id=208 data-nosnippet>208</a>            PtrToRefBound::Ty(t2) =&gt; {
 <a href=#209 id=209 data-nosnippet>209</a>                <span class="kw">let </span>t2 = rty_match_regions(<span class="kw-2">&amp;</span>t2, <span class="kw-2">&amp;</span>t1);
-<a href=#210 id=210 data-nosnippet>210</a>                infcx.subtyping(<span class="kw-2">&amp;</span>t1, <span class="kw-2">&amp;</span>t2, reason)<span class="question-mark">?</span>;
+<a href=#210 id=210 data-nosnippet>210</a>                infcx.subtyping_with_env(<span class="self">self</span>, <span class="kw-2">&amp;</span>t1, <span class="kw-2">&amp;</span>t2, reason)<span class="question-mark">?</span>;
 <a href=#211 id=211 data-nosnippet>211</a>                t2
 <a href=#212 id=212 data-nosnippet>212</a>            }
 <a href=#213 id=213 data-nosnippet>213</a>            PtrToRefBound::Infer =&gt; {
@@ -215,7 +215,7 @@
 <a href=#215 id=215 data-nosnippet>215</a>                    <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
 <a href=#216 id=216 data-nosnippet>216</a>                    infcx.fresh_kvar(sorts, KVarEncoding::Conj)
 <a href=#217 id=217 data-nosnippet>217</a>                });
-<a href=#218 id=218 data-nosnippet>218</a>                infcx.subtyping(<span class="kw-2">&amp;</span>t1, <span class="kw-2">&amp;</span>t2, reason)<span class="question-mark">?</span>;
+<a href=#218 id=218 data-nosnippet>218</a>                infcx.subtyping_with_env(<span class="self">self</span>, <span class="kw-2">&amp;</span>t1, <span class="kw-2">&amp;</span>t2, reason)<span class="question-mark">?</span>;
 <a href=#219 id=219 data-nosnippet>219</a>                t2
 <a href=#220 id=220 data-nosnippet>220</a>            }
 <a href=#221 id=221 data-nosnippet>221</a>            PtrToRefBound::Identity =&gt; t1.clone(),
