@@ -232,9 +232,9 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
         let ident = format_ident!("{}", ident); // strip `r#` prefix, if present
 
         quote! {
-            #diag.arg(
-                stringify!(#ident),
-                #field_binding
+            sub_args.insert(
+                stringify!(#ident).into(),
+                rustc_errors::IntoDiagArg::into_diag_arg(#field_binding, &mut #diag.long_ty_path)
             );
         }
     }
@@ -523,15 +523,30 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
             }
         };
 
+        let plain_args: TokenStream = self
+            .variant
+            .bindings()
+            .iter()
+            .filter(|binding| should_generate_arg(binding.ast()))
+            .map(|binding| self.generate_field_arg(binding))
+            .collect();
+        let plain_args = quote! {
+            let mut sub_args = rustc_errors::DiagArgMap::default();
+            #plain_args
+        };
+
         let span_field = self.span_field.value_ref();
 
         let diag = &self.parent.diag;
         let mut calls = TokenStream::new();
         for (kind, slug, no_span) in kind_slugs {
             let message = format_ident!("__message");
-            calls.extend(
-                quote! { let #message = #diag.eagerly_format(crate::fluent_generated::#slug); },
-            );
+            calls.extend(quote! {
+                let #message = rustc_errors::format_diag_message(
+                    &crate::fluent_generated::#slug,
+                    &sub_args,
+                );
+            });
 
             let name = format_ident!(
                 "{}{}",
@@ -601,36 +616,20 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
 
             calls.extend(call);
         }
-        let store_args = quote! {
-            #diag.store_args();
-        };
-        let restore_args = quote! {
-            #diag.restore_args();
-        };
-        let plain_args: TokenStream = self
-            .variant
-            .bindings()
-            .iter()
-            .filter(|binding| should_generate_arg(binding.ast()))
-            .map(|binding| self.generate_field_arg(binding))
-            .collect();
-
         let formatting_init = &self.formatting_init;
 
         // For #[derive(Subdiagnostic)]
         //
-        // - Store args of the main diagnostic for later restore.
-        // - Add args of subdiagnostic.
+        // - Collect the args of the subdiagnostic into a local map, leaving the args of the main
+        //   diagnostic untouched so both can share the same fields.
+        // - Eagerly format the messages against that map.
         // - Generate the calls, such as note, label, etc.
-        // - Restore the arguments for allowing main and subdiagnostic share the same fields.
         Ok(quote! {
             #init
             #formatting_init
             #attr_args
-            #store_args
             #plain_args
             #calls
-            #restore_args
         })
     }
 }
