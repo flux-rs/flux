@@ -158,8 +158,24 @@ pub type PolyTraitRef = Binder<TraitRef>;
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct ProjectionPredicate {
-    pub projection_ty: AliasTy,
+    pub projection_term: AliasTerm,
     pub term: Ty,
+}
+
+/// Mirrors [`rustc_middle::ty::AliasTerm`]. Unlike [`AliasTy`], the `DefId` is stored next to the
+/// kind instead of inside it.
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct AliasTerm {
+    pub kind: AliasTermKind,
+    pub def_id: DefId,
+    pub args: GenericArgs,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum AliasTermKind {
+    ProjectionTy,
+    OpaqueTy,
+    FreeTy,
 }
 #[derive(Clone, Hash, PartialEq, Eq, TyEncodable, TyDecodable)]
 pub struct FnSig {
@@ -261,7 +277,7 @@ pub enum TyKind {
     Closure(DefId, GenericArgs),
     Coroutine(DefId, GenericArgs),
     CoroutineWitness(DefId, GenericArgs),
-    Alias(AliasKind, AliasTy),
+    Alias(AliasTy),
     RawPtr(Ty, Mutability),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Foreign(DefId),
@@ -292,26 +308,24 @@ pub struct ExistentialProjection {
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct AliasTy {
+    pub kind: AliasKind,
     pub args: GenericArgs,
-    pub def_id: DefId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum AliasKind {
-    Projection,
-    Opaque,
-    Free,
+    Projection { def_id: DefId },
+    Opaque { def_id: DefId },
+    Free { def_id: DefId },
 }
 
-impl<'tcx> ToRustc<'tcx> for AliasKind {
-    type T = rustc_middle::ty::AliasTyKind;
-
-    fn to_rustc(&self, _tcx: TyCtxt<'tcx>) -> Self::T {
+impl AliasKind {
+    pub fn to_rustc_kind<'tcx>(self) -> rustc_middle::ty::AliasTyKind<'tcx> {
         use rustc_middle::ty;
         match self {
-            AliasKind::Opaque => ty::AliasTyKind::Opaque,
-            AliasKind::Projection => ty::AliasTyKind::Projection,
-            AliasKind::Free => ty::AliasTyKind::Free,
+            AliasKind::Opaque { def_id } => ty::AliasTyKind::Opaque { def_id },
+            AliasKind::Projection { def_id } => ty::AliasTyKind::Projection { def_id },
+            AliasKind::Free { def_id } => ty::AliasTyKind::Free { def_id },
         }
     }
 }
@@ -781,9 +795,8 @@ impl Ty {
         TyKind::CoroutineWitness(def_id, args).intern()
     }
 
-    pub fn mk_alias(kind: AliasKind, def_id: DefId, args: impl Into<GenericArgs>) -> Ty {
-        let alias_ty = AliasTy { args: args.into(), def_id };
-        TyKind::Alias(kind, alias_ty).intern()
+    pub fn mk_alias(kind: AliasKind, args: impl Into<GenericArgs>) -> Ty {
+        TyKind::Alias(AliasTy { kind, args: args.into() }).intern()
     }
 
     pub fn mk_array(ty: Ty, c: Const) -> Ty {
@@ -920,7 +933,11 @@ impl<'tcx> ToRustc<'tcx> for AliasTy {
     type T = rustc_middle::ty::AliasTy<'tcx>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        rustc_middle::ty::AliasTy::new(tcx, self.def_id, self.args.to_rustc(tcx))
+        rustc_middle::ty::AliasTy::new_from_args(
+            tcx,
+            self.kind.to_rustc_kind(),
+            self.args.to_rustc(tcx),
+        )
     }
 }
 
@@ -993,9 +1010,7 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::RawPtr(ty, mutbl) => rustc_ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
             TyKind::Closure(did, args) => rustc_ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
             TyKind::FnPtr(poly_sig) => rustc_ty::Ty::new_fn_ptr(tcx, poly_sig.to_rustc(tcx)),
-            TyKind::Alias(kind, alias_ty) => {
-                rustc_ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
-            }
+            TyKind::Alias(alias_ty) => rustc_ty::Ty::new_alias(tcx, alias_ty.to_rustc(tcx)),
             TyKind::Dynamic(exi_preds, re) => {
                 let preds = exi_preds
                     .iter()
@@ -1144,17 +1159,23 @@ impl fmt::Debug for Ty {
                 }
                 Ok(())
             }
-            TyKind::Alias(AliasKind::Opaque, alias_ty) => {
-                write!(f, "{}", def_id_to_string(alias_ty.def_id))?;
-                if !alias_ty.args.is_empty() {
-                    write!(f, "<{:?}>", alias_ty.args.iter().format(", "))?;
+            TyKind::Alias(AliasTy { kind: AliasKind::Opaque { def_id }, args }) => {
+                write!(f, "{}", def_id_to_string(*def_id))?;
+                if !args.is_empty() {
+                    write!(f, "<{:?}>", args.iter().format(", "))?;
                 }
                 Ok(())
             }
-            TyKind::Alias(kind, alias_ty) => {
-                let def_id = alias_ty.def_id;
-                let args = &alias_ty.args;
-                write!(f, "Alias ({kind:?}, {}, ", def_id_to_string(def_id))?;
+            TyKind::Alias(AliasTy { kind: AliasKind::Projection { def_id }, args }) => {
+                write!(f, "Alias (Projection, {}, ", def_id_to_string(*def_id))?;
+                if !args.is_empty() {
+                    write!(f, "<{:?}>", args.iter().format(", "))?;
+                }
+                write!(f, ")")?;
+                Ok(())
+            }
+            TyKind::Alias(AliasTy { kind: AliasKind::Free { def_id }, args }) => {
+                write!(f, "Alias (Free, {}, ", def_id_to_string(*def_id))?;
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "))?;
                 }

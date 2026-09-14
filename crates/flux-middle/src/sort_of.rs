@@ -62,22 +62,23 @@ impl GlobalEnv<'_, '_> {
         Ok(sort)
     }
 
-    pub fn normalize_free_alias_sort(self, alias_ty: &rty::AliasTy) -> QueryResult<rty::Sort> {
-        match self.def_kind(alias_ty.def_id) {
-            DefKind::Impl { .. } => Ok(self.sort_of_self_ty_alias(alias_ty.def_id)?.unwrap()),
+    pub fn normalize_free_alias_sort(
+        self,
+        def_id: DefId,
+        args: &rty::GenericArgs,
+        refine_args: &rty::RefineArgs,
+    ) -> QueryResult<rty::Sort> {
+        match self.def_kind(def_id) {
+            DefKind::Impl { .. } => Ok(self.sort_of_self_ty_alias(def_id)?.unwrap()),
             DefKind::TyAlias => {
                 Ok(self
-                    .type_of(alias_ty.def_id)?
-                    .instantiate(self.tcx(), &alias_ty.args, &alias_ty.refine_args)
+                    .type_of(def_id)?
+                    .instantiate(self.tcx(), args, refine_args)
                     .expect_ctor()
                     .sort())
             }
-            DefKind::Struct | DefKind::Enum => {
-                Ok(self
-                    .adt_sort_def_of(alias_ty.def_id)?
-                    .to_sort(&alias_ty.args))
-            }
-            _ => Err(query_bug!(alias_ty.def_id, "unexpected weak alias `{:?}`", alias_ty.def_id)),
+            DefKind::Struct | DefKind::Enum => Ok(self.adt_sort_def_of(def_id)?.to_sort(args)),
+            _ => Err(query_bug!(def_id, "unexpected weak alias `{:?}`", def_id)),
         }
     }
 }
@@ -93,14 +94,14 @@ impl rty::BaseTy {
             rty::BaseTy::Adt(adt_def, args) => adt_def.sort(args),
             rty::BaseTy::Param(param_ty) => rty::Sort::Param(*param_ty),
             rty::BaseTy::Str => rty::Sort::Str,
-            rty::BaseTy::Alias(kind, alias_ty) => {
+            rty::BaseTy::Alias(alias_ty) => {
                 // HACK(nilehmann) The refinement arguments in `alias_ty` should not influence the
                 // sort. However, we must explicitly remove them because they can contain expression
                 // holes. If we don't remove them, we would generate inference variables for them
                 // which we won't be able to solve.
                 let alias_ty =
-                    rty::AliasTy::new(alias_ty.def_id, alias_ty.args.clone(), List::empty());
-                rty::Sort::Alias(*kind, alias_ty)
+                    rty::AliasTy::new(alias_ty.kind, alias_ty.args.clone(), List::empty());
+                rty::Sort::Alias(alias_ty)
             }
             rty::BaseTy::Float(_)
             | rty::BaseTy::RawPtrMetadata(..) // TODO(RJ): This should be `int` for slice?

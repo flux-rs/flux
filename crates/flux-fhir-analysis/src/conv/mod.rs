@@ -791,8 +791,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let env = &mut Env::new(refparams);
 
         let args = rty::GenericArg::identity_for_item(self.genv(), def_id.resolved_id())?;
-        let alias_ty = rty::AliasTy::new(def_id.resolved_id(), args, env.to_early_param_args());
-        let self_ty = rty::BaseTy::opaque(alias_ty).to_ty();
+        let alias_ty = rty::AliasTy::new(
+            rty::AliasKind::Opaque { def_id: def_id.resolved_id() },
+            args,
+            env.to_early_param_args(),
+        );
+        let self_ty = rty::BaseTy::Alias(alias_ty).to_ty();
         // FIXME(nilehmann) use a good span here
         Ok(self
             .conv_generic_bounds(env, DUMMY_SP, self_ty, opaque_ty.bounds)?
@@ -921,7 +925,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     fhir::PathSegment { args: &[], constraints: &[], ident, res: fhir::Res::Err };
                 let mut env = Env::empty();
                 let alias_ty = self.conv_type_relative_type_path(&mut env, res, &assoc_segment)?;
-                return Ok(rty::Sort::Alias(rty::AliasKind::Projection, alias_ty));
+                return Ok(rty::Sort::Alias(alias_ty));
             }
             (fhir::Res::PrimSort(fhir::PrimSort::Set), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Set)?;
@@ -1214,10 +1218,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .map(|trait_ref| {
                 // TODO: when we support generic associated types, we need to also attach the associated generics here
                 let args = trait_ref.args;
-                let refine_args = List::empty();
-                let projection_ty = rty::AliasTy { def_id: assoc_item_id, args, refine_args };
+                let projection_term =
+                    rty::AliasTerm::new(rty::AliasTermKind::ProjectionTy, assoc_item_id, args);
 
-                rty::ClauseKind::Projection(rty::ProjectionPredicate { projection_ty, term })
+                rty::ClauseKind::Projection(rty::ProjectionPredicate { projection_term, term })
             })
             .into();
 
@@ -1341,8 +1345,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
             })?;
             let reft_args = rty::RefineArgs::identity_for_item(self.genv(), def_id.resolved_id())?;
-            let alias_ty = rty::AliasTy::new(def_id.resolved_id(), args, reft_args);
-            Ok(rty::BaseTy::opaque(alias_ty).to_ty())
+            let alias_ty = rty::AliasTy::new(
+                rty::AliasKind::Opaque { def_id: def_id.resolved_id() },
+                args,
+                reft_args,
+            );
+            Ok(rty::BaseTy::Alias(alias_ty).to_ty())
         } else {
             // During sortck we need to run conv on the opaque type to collect sorts for base types
             // in the opaque type's bounds. After sortck, we don't need to because opaque types are
@@ -1351,8 +1359,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
             // `RefineArgs::identity_for_item` uses `genv.refinement_generics_of` which in turn
             // requires `genv.check_wf`, so we simply return all empty here to avoid the circularity
-            let alias_ty = rty::AliasTy::new(def_id.resolved_id(), List::empty(), List::empty());
-            Ok(rty::BaseTy::opaque(alias_ty).to_ty())
+            let alias_ty = rty::AliasTy::new(
+                rty::AliasKind::Opaque { def_id: def_id.resolved_id() },
+                List::empty(),
+                List::empty(),
+            );
+            Ok(rty::BaseTy::Alias(alias_ty).to_ty())
         }
     }
 
@@ -1425,9 +1437,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let existential_projections = projection_bounds.into_iter().map(|bound| {
             bound.map(|proj| {
                 // Remove dummy self
-                let args = proj.projection_ty.args.iter().skip(1).cloned().collect();
+                let args = proj.projection_term.args.iter().skip(1).cloned().collect();
                 rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
-                    def_id: proj.projection_ty.def_id,
+                    def_id: proj.projection_term.def_id,
                     args,
                     term: proj.term.clone(),
                 })
@@ -1467,7 +1479,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let alias_ty = self
                     .conv_type_relative_type_path(env, qself_res, segment)?
                     .shift_in_escaping(1);
-                let bty = rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty);
+                let bty = rty::BaseTy::Alias(alias_ty);
                 let sort = bty.sort();
                 let ty = rty::Ty::indexed(bty, rty::Expr::nu());
                 Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
@@ -1560,7 +1572,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let args = List::from_vec(args);
         let refine_args = List::empty();
-        let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
+        let alias_ty = rty::AliasTy {
+            kind: rty::AliasKind::Projection { def_id: assoc_id },
+            args,
+            refine_args,
+        };
         Ok(alias_ty)
     }
 
@@ -1705,14 +1721,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 if P::EXPAND_TYPE_ALIASES {
                     return Ok(self.genv().type_of(alias_to)?.instantiate_identity());
                 } else {
-                    rty::BaseTy::Alias(
-                        rty::AliasKind::Free,
-                        rty::AliasTy {
-                            def_id: alias_to,
-                            args: List::empty(),
-                            refine_args: List::empty(),
-                        },
-                    )
+                    rty::BaseTy::Alias(rty::AliasTy {
+                        kind: rty::AliasKind::Free { def_id: alias_to },
+                        args: List::empty(),
+                        refine_args: List::empty(),
+                    })
                 }
             }
             fhir::Res::Def(DefKind::AssocTy, assoc_id) => {
@@ -1739,8 +1752,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let args = List::from_vec(args);
 
                 let refine_args = List::empty();
-                let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
-                rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty)
+                let alias_ty = rty::AliasTy {
+                    kind: rty::AliasKind::Projection { def_id: assoc_id },
+                    args,
+                    refine_args,
+                };
+                rty::BaseTy::Alias(alias_ty)
             }
             fhir::Res::Def(DefKind::TyAlias, def_id) => {
                 self.check_refinement_generics(path, def_id)?;
@@ -1759,10 +1776,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         .type_of(def_id)?
                         .instantiate(tcx, &args, &refine_args));
                 } else {
-                    rty::BaseTy::Alias(
-                        rty::AliasKind::Free,
-                        rty::AliasTy { def_id, args, refine_args: List::from(refine_args) },
-                    )
+                    rty::BaseTy::Alias(rty::AliasTy {
+                        kind: rty::AliasKind::Free { def_id },
+                        args,
+                        refine_args: List::from(refine_args),
+                    })
                 }
             }
             fhir::Res::Def(DefKind::ForeignTy, def_id) => {

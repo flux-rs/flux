@@ -39,8 +39,8 @@ use super::{
 use crate::{
     mir::{BodyKind, BodyRoot, CallKind, ConstOperand},
     ty::{
-        AliasTy, BoundRegionKind, ExistentialTraitRef, GenericArgs, ProjectionPredicate, Region,
-        RegionOutlivesPredicate,
+        AliasTerm, AliasTermKind, BoundRegionKind, ExistentialTraitRef, GenericArgs,
+        ProjectionPredicate, Region, RegionOutlivesPredicate,
     },
 };
 
@@ -834,10 +834,10 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 Ok(Ty::mk_closure(*did, args))
             }
 
-            rustc_ty::Alias(kind, alias_ty) => {
-                let kind = kind.lower(tcx)?;
+            rustc_ty::Alias(alias_ty) => {
+                let kind = alias_ty.kind.lower(tcx)?;
                 let args = alias_ty.args.lower(tcx)?;
-                Ok(Ty::mk_alias(kind, alias_ty.def_id, args))
+                Ok(Ty::mk_alias(kind, args))
             }
             rustc_ty::Coroutine(did, args) => {
                 let args = args.lower(tcx)?;
@@ -880,13 +880,40 @@ fn fnptr_as_fnsig<'tcx>(
     })
 }
 
-impl<'tcx> Lower<'tcx> for rustc_ty::AliasTyKind {
+impl<'tcx> Lower<'tcx> for rustc_ty::AliasTerm<'tcx> {
+    type R = Result<AliasTerm, UnsupportedReason>;
+
+    fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
+        Ok(AliasTerm {
+            kind: self.kind(tcx).lower(tcx)?,
+            def_id: self.def_id,
+            args: self.args.lower(tcx)?,
+        })
+    }
+}
+
+impl<'tcx> Lower<'tcx> for rustc_ty::AliasTermKind {
+    type R = Result<AliasTermKind, UnsupportedReason>;
+
+    fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
+        match self {
+            rustc_ty::AliasTermKind::ProjectionTy => Ok(AliasTermKind::ProjectionTy),
+            rustc_ty::AliasTermKind::OpaqueTy => Ok(AliasTermKind::OpaqueTy),
+            rustc_ty::AliasTermKind::FreeTy => Ok(AliasTermKind::FreeTy),
+            _ => Err(UnsupportedReason::new(format!("unsupported alias term kind `{self:?}`"))),
+        }
+    }
+}
+
+impl<'tcx> Lower<'tcx> for rustc_ty::AliasTyKind<'tcx> {
     type R = Result<AliasKind, UnsupportedReason>;
 
     fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
         match self {
-            rustc_type_ir::AliasTyKind::Projection => Ok(AliasKind::Projection),
-            rustc_type_ir::AliasTyKind::Opaque => Ok(AliasKind::Opaque),
+            rustc_type_ir::AliasTyKind::Projection { def_id } => {
+                Ok(AliasKind::Projection { def_id })
+            }
+            rustc_type_ir::AliasTyKind::Opaque { def_id } => Ok(AliasKind::Opaque { def_id }),
             _ => Err(UnsupportedReason::new(format!("unsupported alias kind `{self:?}`"))),
         }
     }
@@ -1065,12 +1092,9 @@ impl<'tcx> Lower<'tcx> for rustc_ty::ClauseKind<'tcx> {
                         "unsupported projection predicate `{proj_pred:?}`"
                     )));
                 };
-                let proj_ty = proj_pred.projection_term;
-                let args = proj_ty.args.lower(tcx)?;
-
-                let projection_ty = AliasTy { args, def_id: proj_ty.def_id };
+                let projection_term = proj_pred.projection_term.lower(tcx)?;
                 let term = term.lower(tcx)?;
-                ClauseKind::Projection(ProjectionPredicate { projection_ty, term })
+                ClauseKind::Projection(ProjectionPredicate { projection_term, term })
             }
             rustc_ty::ClauseKind::RegionOutlives(outlives) => {
                 ClauseKind::RegionOutlives(outlives.lower(tcx)?)

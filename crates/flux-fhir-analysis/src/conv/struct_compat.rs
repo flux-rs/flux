@@ -340,9 +340,8 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 }
                 Ok(())
             }
-            (rty::BaseTy::Alias(kind_a, aty_a), rty::BaseTy::Alias(kind_b, aty_b)) => {
-                assert_eq_or_incompatible(kind_a, kind_b)?;
-                assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)?;
+            (rty::BaseTy::Alias(aty_a), rty::BaseTy::Alias(aty_b)) => {
+                assert_eq_or_incompatible(aty_a.kind, aty_b.kind)?;
                 assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())?;
                 for (arg_a, arg_b) in iter::zip(&aty_a.args, &aty_b.args) {
                     self.zip_generic_arg(arg_a, arg_b)?;

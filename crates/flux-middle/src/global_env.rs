@@ -281,15 +281,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn func_sort(self, def_id: impl IntoQueryKey<FluxDefId>) -> rty::PolyFuncSort {
-        self.inner
-            .queries
-            .func_sort(self, def_id.into_query_key())
+        self.inner.queries.func_sort(self, def_id.into_query_key())
     }
 
     pub fn func_span(self, def_id: impl IntoQueryKey<FluxDefId>) -> Span {
-        self.inner
-            .queries
-            .func_span(self, def_id.into_query_key())
+        self.inner.queries.func_span(self, def_id.into_query_key())
     }
 
     pub fn should_inline_fun(self, def_id: FluxDefId) -> bool {
@@ -340,10 +336,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.adt_def(self, def_id.into_query_key())
     }
 
-    pub fn constant_info(
-        self,
-        def_id: impl IntoQueryKey<DefId>,
-    ) -> QueryResult<rty::ConstantInfo> {
+    pub fn constant_info(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::ConstantInfo> {
         self.inner
             .queries
             .constant_info(self, def_id.into_query_key())
@@ -355,10 +348,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .static_info(self, def_id.into_query_key())
     }
 
-    pub fn adt_sort_def_of(
-        self,
-        def_id: impl IntoQueryKey<DefId>,
-    ) -> QueryResult<rty::AdtSortDef> {
+    pub fn adt_sort_def_of(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::AdtSortDef> {
         self.inner
             .queries
             .adt_sort_def_of(self, def_id.into_query_key())

@@ -6,9 +6,9 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind,
-        EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs, Region,
-        Sort, SubsetTy, SubsetTyCtor, Ty, TyKind, TyOrBase,
+        self, AliasKind, AliasReft, AliasTerm, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const,
+        ConstKind, EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs,
+        Region, Sort, SubsetTy, SubsetTyCtor, Ty, TyKind, TyOrBase,
         fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
         refining::Refiner,
         subst::{GenericsSubstDelegate, GenericsSubstFolder},
@@ -85,7 +85,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
     fn normalize_projection_ty(
         &mut self,
-        obligation: &AliasTy,
+        obligation: &AliasTerm,
     ) -> QueryResult<(bool, SubsetTyCtor)> {
         // First we must recursively (i.e., deeply) normalize projection types before proceeding.
         // For example, in `issue-1449.rs` when normalizing `<<MyChoice as Choice>::Session as FromState>::Role`
@@ -126,10 +126,10 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         let mut unresolved = vec![];
         for pred in preds {
             let term = pred.clone().skip_binder().term;
-            let alias_ty = pred.clone().map(|p| p.projection_ty);
-            match subst.instantiate_partial(alias_ty) {
-                Some(projection_ty) => {
-                    let pred = ProjectionPredicate { projection_ty, term };
+            let alias_term = pred.clone().map(|p| p.projection_term);
+            match subst.instantiate_partial(alias_term) {
+                Some(projection_term) => {
+                    let pred = ProjectionPredicate { projection_term, term };
                     resolved.push(pred);
                 }
                 None => unresolved.push(pred.clone()),
@@ -166,8 +166,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 break; // failed: there is some unresolved projection pred!
             }
             for p in resolved {
-                let obligation = &p.projection_ty;
-                let (_, ctor) = self.normalize_projection_ty(obligation)?;
+                let (_, ctor) = self.normalize_projection_ty(&p.projection_term)?;
                 subst.subset_tys(&p.term, &ctor);
             }
             projection_preds = unresolved;
@@ -178,7 +177,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
     fn confirm_candidate(
         &mut self,
         candidate: Candidate,
-        obligation: &AliasTy,
+        obligation: &AliasTerm,
     ) -> QueryResult<SubsetTyCtor> {
         let tcx = self.tcx();
         match candidate {
@@ -241,7 +240,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
     fn fn_subtype_projection_ty(
         &mut self,
         actual: Binder<ProjectionPredicate>,
-        oblig: &AliasTy,
+        oblig: &AliasTerm,
     ) -> InferResult<SubsetTyCtor> {
         // Step 1: bs <- unpack(b1...)
         let obligs: Vec<_> = oblig
@@ -268,7 +267,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 )
                 .deeply_normalize(infcx)?;
 
-            let actuals = actual.projection_ty.args.iter().map(|arg| {
+            let actuals = actual.projection_term.args.iter().map(|arg| {
                 match arg {
                     GenericArg::Base(ctor) => GenericArg::Ty(ctor.to_ty()),
                     _ => arg.clone(),
@@ -309,7 +308,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
     fn assemble_candidates_from_predicates(
         &mut self,
         predicates: &List<Clause>,
-        obligation: &AliasTy,
+        obligation: &AliasTerm,
         ctor: fn(Binder<ProjectionPredicate>) -> Candidate,
         candidates: &mut Vec<Candidate>,
     ) {
@@ -318,7 +317,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
         for predicate in predicates {
             if let Some(pred) = predicate.as_projection_clause()
-                && pred.skip_binder_ref().projection_ty.to_rustc(tcx) == rustc_obligation
+                && pred.skip_binder_ref().projection_term.to_rustc(tcx) == rustc_obligation
             {
                 candidates.push(ctor(pred));
             }
@@ -327,7 +326,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
     fn assemble_candidates_from_param_env(
         &mut self,
-        obligation: &AliasTy,
+        obligation: &AliasTerm,
         candidates: &mut Vec<Candidate>,
     ) {
         let predicates = self.param_env.clone();
@@ -341,14 +340,15 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
     fn assemble_candidates_from_trait_def(
         &mut self,
-        obligation: &AliasTy,
+        obligation: &AliasTerm,
         candidates: &mut Vec<Candidate>,
     ) -> InferResult {
         if let GenericArg::Base(ctor) = &obligation.args[0]
-            && let BaseTy::Alias(AliasKind::Opaque, alias_ty) = ctor.as_bty_skipping_binder()
+            && let BaseTy::Alias(alias_ty @ AliasTy { kind: AliasKind::Opaque { def_id }, .. }) =
+                ctor.as_bty_skipping_binder()
         {
             debug_assert!(!alias_ty.has_escaping_bvars());
-            let bounds = self.genv().item_bounds(alias_ty.def_id)?.instantiate(
+            let bounds = self.genv().item_bounds(*def_id)?.instantiate(
                 self.tcx(),
                 &alias_ty.args,
                 &alias_ty.refine_args,
@@ -365,7 +365,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
     fn assemble_candidates_from_impls(
         &mut self,
-        obligation: &AliasTy,
+        obligation: &AliasTerm,
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult {
         let trait_ref = obligation.to_rustc(self.tcx()).trait_ref(self.tcx());
@@ -413,13 +413,13 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
 
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
         match sort {
-            Sort::Alias(AliasKind::Free, alias_ty) => {
+            Sort::Alias(AliasTy { kind: AliasKind::Free { def_id }, args, refine_args }) => {
                 self.genv()
-                    .normalize_free_alias_sort(alias_ty)?
+                    .normalize_free_alias_sort(*def_id, args, refine_args)?
                     .try_fold_with(self)
             }
-            Sort::Alias(AliasKind::Projection, alias_ty) => {
-                let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
+            Sort::Alias(alias_ty @ AliasTy { kind: AliasKind::Projection { .. }, .. }) => {
+                let (changed, ctor) = self.normalize_projection_ty(&alias_ty.to_alias_term())?;
                 let sort = ctor.sort();
                 if changed { sort.try_fold_with(self) } else { Ok(sort) }
             }
@@ -434,16 +434,22 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
     // is for.
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
         match ty.kind() {
-            TyKind::Indexed(BaseTy::Alias(AliasKind::Free, alias_ty), idx) => {
+            TyKind::Indexed(
+                BaseTy::Alias(AliasTy { kind: AliasKind::Free { def_id }, args, refine_args }),
+                idx,
+            ) => {
                 Ok(self
                     .genv()
-                    .type_of(alias_ty.def_id)?
-                    .instantiate(self.tcx(), &alias_ty.args, &alias_ty.refine_args)
+                    .type_of(*def_id)?
+                    .instantiate(self.tcx(), args, refine_args)
                     .expect_ctor()
                     .replace_bound_reft(idx))
             }
-            TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), idx) => {
-                let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
+            TyKind::Indexed(
+                BaseTy::Alias(alias_ty @ AliasTy { kind: AliasKind::Projection { .. }, .. }),
+                idx,
+            ) => {
+                let (changed, ctor) = self.normalize_projection_ty(&alias_ty.to_alias_term())?;
                 let ty = ctor.replace_bound_reft(idx).to_ty();
                 if changed { ty.try_fold_with(self) } else { Ok(ty) }
             }
@@ -453,15 +459,15 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
 
     fn try_fold_subset_ty(&mut self, sty: &SubsetTy) -> Result<SubsetTy, Self::Error> {
         match &sty.bty {
-            BaseTy::Alias(AliasKind::Free, _alias_ty) => {
+            BaseTy::Alias(AliasTy { kind: AliasKind::Free { .. }, .. }) => {
                 // Weak aliases are always expanded during conversion. We could in theory normalize
                 // them here but we don't guaranatee that type aliases expand to a subset ty. If we
                 // ever stop expanding aliases during conv we would need to guarantee that aliases
                 // used as a generic base expand to a subset type.
                 tracked_span_bug!()
             }
-            BaseTy::Alias(AliasKind::Projection, alias_ty) => {
-                let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
+            BaseTy::Alias(alias_ty @ AliasTy { kind: AliasKind::Projection { .. }, .. }) => {
+                let (changed, ctor) = self.normalize_projection_ty(&alias_ty.to_alias_term())?;
                 let ty = ctor.replace_bound_reft(&sty.idx).strengthen(&sty.pred);
                 if changed { ty.try_fold_with(self) } else { Ok(ty) }
             }
@@ -574,17 +580,17 @@ impl FallibleTypeFolder for SortNormalizer<'_, '_, '_> {
     type Error = QueryErr;
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
         match sort {
-            Sort::Alias(AliasKind::Free, alias_ty) => {
+            Sort::Alias(AliasTy { kind: AliasKind::Free { def_id }, args, refine_args }) => {
                 self.genv
-                    .normalize_free_alias_sort(alias_ty)?
+                    .normalize_free_alias_sort(*def_id, args, refine_args)?
                     .try_fold_with(self)
             }
-            Sort::Alias(AliasKind::Projection, alias_ty) => {
+            Sort::Alias(alias_ty @ AliasTy { kind: AliasKind::Projection { .. }, .. }) => {
                 let (changed, ctor) = normalize_projection_ty_with_rustc(
                     self.genv,
                     self.def_id,
                     self.infcx,
-                    alias_ty,
+                    &alias_ty.to_alias_term(),
                 )?;
                 let sort = ctor.sort();
                 if changed { sort.try_fold_with(self) } else { Ok(sort) }
@@ -734,10 +740,10 @@ fn normalize_projection_ty_with_rustc<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     def_id: DefId,
     infcx: &rustc_infer::infer::InferCtxt<'tcx>,
-    obligation: &AliasTy,
+    obligation: &AliasTerm,
 ) -> QueryResult<(bool, SubsetTyCtor)> {
     let tcx = genv.tcx();
-    let projection_ty = obligation.to_rustc(tcx);
+    let projection_ty = obligation.to_rustc(tcx).expect_ty(tcx);
     let projection_ty = tcx.erase_and_anonymize_regions(projection_ty);
     let cause = ObligationCause::dummy();
     let param_env = tcx.param_env(def_id);

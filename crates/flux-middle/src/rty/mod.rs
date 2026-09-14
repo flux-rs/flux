@@ -28,8 +28,8 @@ use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use flux_config::OverflowMode;
 use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
-    AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
-    EarlyParamRegion, LateParamRegion, LateParamRegionKind,
+    AliasKind, AliasTermKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid,
+    DebruijnIndex, EarlyParamRegion, LateParamRegion, LateParamRegionKind,
     Region::{self, *},
     RegionVid,
 };
@@ -622,7 +622,7 @@ pub struct ExistentialProjection {
     PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
 )]
 pub struct ProjectionPredicate {
-    pub projection_ty: AliasTy,
+    pub projection_term: AliasTerm,
     pub term: SubsetTyCtor,
 }
 
@@ -630,15 +630,15 @@ impl Pretty for ProjectionPredicate {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "ProjectionPredicate << projection_ty = {:?}, term = {:?} >>",
-            self.projection_ty, self.term
+            "ProjectionPredicate << projection_term = {:?}, term = {:?} >>",
+            self.projection_term, self.term
         )
     }
 }
 
 impl ProjectionPredicate {
     pub fn self_ty(&self) -> SubsetTyCtor {
-        self.projection_ty.self_ty().clone()
+        self.projection_term.self_ty().clone()
     }
 }
 
@@ -647,11 +647,7 @@ impl<'tcx> ToRustc<'tcx> for ProjectionPredicate {
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         rustc_middle::ty::ProjectionPredicate {
-            projection_term: rustc_middle::ty::AliasTerm::new_from_args(
-                tcx,
-                self.projection_ty.def_id,
-                self.projection_ty.args.to_rustc(tcx),
-            ),
+            projection_term: self.projection_term.to_rustc(tcx),
             term: self.term.as_bty_skipping_binder().to_rustc(tcx).into(),
         }
     }
@@ -661,7 +657,7 @@ pub type PolyProjectionPredicate = Binder<ProjectionPredicate>;
 
 impl PolyProjectionPredicate {
     pub fn projection_def_id(&self) -> DefId {
-        self.skip_binder_ref().projection_ty.def_id
+        self.skip_binder_ref().projection_term.def_id
     }
 
     pub fn self_ty(&self) -> Binder<SubsetTyCtor> {
@@ -1040,7 +1036,7 @@ pub enum Sort {
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
-    Alias(AliasKind, AliasTy),
+    Alias(AliasTy),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
     Var(ParamSort),
@@ -1841,7 +1837,7 @@ pub enum BaseTy {
     FnPtr(PolyFnSig),
     FnDef(DefId, GenericArgs),
     Tuple(List<Ty>),
-    Alias(AliasKind, AliasTy),
+    Alias(AliasTy),
     Array(Ty, Const),
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs, bool),
@@ -1859,14 +1855,6 @@ pub enum BaseTy {
 }
 
 impl BaseTy {
-    pub fn opaque(alias_ty: AliasTy) -> BaseTy {
-        BaseTy::Alias(AliasKind::Opaque, alias_ty)
-    }
-
-    pub fn projection(alias_ty: AliasTy) -> BaseTy {
-        BaseTy::Alias(AliasKind::Projection, alias_ty)
-    }
-
     pub fn adt(adt_def: AdtDef, args: GenericArgs) -> BaseTy {
         BaseTy::Adt(adt_def, args)
     }
@@ -2128,9 +2116,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
                 ty::Ty::new_tup(tcx, &ts)
             }
-            BaseTy::Alias(kind, alias_ty) => {
-                ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
-            }
+            BaseTy::Alias(alias_ty) => ty::Ty::new_alias(tcx, alias_ty.to_rustc(tcx)),
             BaseTy::Array(ty, n) => {
                 let ty = ty.to_rustc(tcx);
                 let n = n.to_rustc(tcx);
@@ -2167,15 +2153,65 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
     Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
 )]
 pub struct AliasTy {
-    pub def_id: DefId,
+    pub kind: AliasKind,
     pub args: GenericArgs,
     /// Holds the refinement-arguments for opaque-types; empty for projections
     pub refine_args: RefineArgs,
 }
 
 impl AliasTy {
-    pub fn new(def_id: DefId, args: GenericArgs, refine_args: RefineArgs) -> Self {
-        AliasTy { args, refine_args, def_id }
+    pub fn new(kind: AliasKind, args: GenericArgs, refine_args: RefineArgs) -> Self {
+        AliasTy { kind, args, refine_args }
+    }
+
+    pub fn to_alias_term(&self) -> AliasTerm {
+        let (kind, def_id) = match self.kind {
+            AliasKind::Projection { def_id } => (AliasTermKind::ProjectionTy, def_id),
+            AliasKind::Opaque { def_id } => (AliasTermKind::OpaqueTy, def_id),
+            AliasKind::Free { def_id } => (AliasTermKind::FreeTy, def_id),
+        };
+        AliasTerm::new(kind, def_id, self.args.clone())
+    }
+}
+
+/// Mirrors [`flux_rustc_bridge::ty::AliasTerm`]: the `DefId` sits next to the kind rather than
+/// inside it.
+#[derive(
+    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
+pub struct AliasTerm {
+    pub kind: AliasTermKind,
+    pub def_id: DefId,
+    pub args: GenericArgs,
+}
+
+impl AliasTerm {
+    pub fn new(kind: AliasTermKind, def_id: DefId, args: GenericArgs) -> Self {
+        AliasTerm { kind, def_id, args }
+    }
+
+    pub fn to_alias_ty(&self) -> AliasTy {
+        let kind = match self.kind {
+            AliasTermKind::ProjectionTy => AliasKind::Projection { def_id: self.def_id },
+            AliasTermKind::OpaqueTy => AliasKind::Opaque { def_id: self.def_id },
+            AliasTermKind::FreeTy => AliasKind::Free { def_id: self.def_id },
+        };
+        AliasTy::new(kind, self.args.clone(), List::empty())
+    }
+
+    pub fn self_ty(&self) -> SubsetTyCtor {
+        self.args[0].expect_base().clone()
+    }
+
+    pub fn with_self_ty(&self, self_ty: SubsetTyCtor) -> Self {
+        Self {
+            kind: self.kind,
+            def_id: self.def_id,
+            args: [GenericArg::Base(self_ty)]
+                .into_iter()
+                .chain(self.args.iter().skip(1).cloned())
+                .collect(),
+        }
     }
 }
 
@@ -2187,7 +2223,7 @@ impl AliasTy {
 
     pub fn with_self_ty(&self, self_ty: SubsetTyCtor) -> Self {
         Self {
-            def_id: self.def_id,
+            kind: self.kind,
             args: [GenericArg::Base(self_ty)]
                 .into_iter()
                 .chain(self.args.iter().skip(1).cloned())
@@ -2197,11 +2233,23 @@ impl AliasTy {
     }
 }
 
+impl<'tcx> ToRustc<'tcx> for AliasTerm {
+    type T = rustc_middle::ty::AliasTerm<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        rustc_middle::ty::AliasTerm::new_from_args(tcx, self.def_id, self.args.to_rustc(tcx))
+    }
+}
+
 impl<'tcx> ToRustc<'tcx> for AliasTy {
     type T = rustc_middle::ty::AliasTy<'tcx>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        rustc_middle::ty::AliasTy::new(tcx, self.def_id, self.args.to_rustc(tcx))
+        rustc_middle::ty::AliasTy::new_from_args(
+            tcx,
+            self.kind.to_rustc_kind(),
+            self.args.to_rustc(tcx),
+        )
     }
 }
 

@@ -347,9 +347,10 @@ impl SortEncodingCtxt {
             // Well-formedness should ensure values of these sorts are used "opaquely", i.e.
             // the only values of these sorts are variables.
             rty::Sort::Param(_)
-            | rty::Sort::Alias(rty::AliasKind::Opaque | rty::AliasKind::Projection, ..) => {
-                fixpoint::Sort::Int
-            }
+            | rty::Sort::Alias(rty::AliasTy {
+                kind: rty::AliasKind::Opaque { .. } | rty::AliasKind::Projection { .. },
+                ..
+            }) => fixpoint::Sort::Int,
             rty::Sort::App(rty::SortCtor::Set, args) => {
                 let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
                 fixpoint::Sort::App(fixpoint::SortCtor::Set, args)
@@ -400,7 +401,7 @@ impl SortEncodingCtxt {
             rty::Sort::Err
             | rty::Sort::Infer(_)
             | rty::Sort::Loc
-            | rty::Sort::Alias(rty::AliasKind::Free, _) => {
+            | rty::Sort::Alias(rty::AliasTy { kind: rty::AliasKind::Free { .. }, .. }) => {
                 tracked_span_bug!("unexpected sort `{sort:?}`")
             }
         }
