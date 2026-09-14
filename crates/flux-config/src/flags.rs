@@ -17,41 +17,31 @@ macro_rules! flux_arg {
 /// Exit status code used for invalid flags.
 pub const EXIT_FAILURE: i32 = 2;
 
-#[derive(Args)]
-#[command(next_help_heading = "Flux-Specific Flags (Not Yet Supported)")]
+/// Flux specific flags. Note that all of these are options, since we don't want to make defaults here override
+/// other flags from per-crate config files.
+#[derive(Args, Default)]
+#[command(next_help_heading = "Flux-Specific Flags")]
 pub struct Flags {
     /// Sets the directory to dump data. Defaults to `./log/`.
-    #[arg(
-        long = flux_arg!("log-dir"),
-        value_name = "PATH",
-        default_value = "./log/",
-    )]
-    pub log_dir: PathBuf,
+    #[arg(long = flux_arg!("log-dir"), value_name = "PATH")]
+    pub log_dir: Option<PathBuf>,
     /// Sets the directory to put all the emitted lean definitions and verification conditions. Defaults to `./`.
-    #[arg(
-        long = flux_arg!("lean-dir"),
-        value_name = "PATH",
-        default_value = "./"
-    )]
-    pub lean_dir: PathBuf,
+    #[arg(long = flux_arg!("lean-dir"), value_name = "PATH")]
+    pub lean_dir: Option<PathBuf>,
     /// Name of the lean project. Defaults to `lean_proofs`.
-    #[arg(
-        long = flux_arg!("lean-project"),
-        value_name = "NAME",
-        default_value = "lean_proofs"
-    )]
-    pub lean_project: String,
+    #[arg(long = flux_arg!("lean-project"), value_name = "NAME")]
+    pub lean_project: Option<String>,
     /// If present, only check files matching the [`IncludePattern`] a glob pattern.
-    #[arg(long = flux_arg!("include"), value_name = "PATTERN", value_parser = panicking_parser)]
+    #[arg(long = flux_arg!("include"), value_name = "PATTERN", value_parser = parse_include_value)]
     pub include: Option<IncludePattern>,
     /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
-    #[arg(long = flux_arg!("include-trusted"), value_name = "PATTERN", value_parser = panicking_parser)]
+    #[arg(long = flux_arg!("include-trusted"), value_name = "PATTERN", value_parser = parse_include_value)]
     pub include_trusted: Option<IncludePattern>,
     /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
     #[arg(
         long = flux_arg!("include-trusted-impl"),
         value_name = "PATTERN",
-        value_parser = panicking_parser
+        value_parser = parse_include_value
     )]
     pub include_trusted_impl: Option<IncludePattern>,
     /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
@@ -59,231 +49,268 @@ pub struct Flags {
     #[arg(
         long = flux_arg!("pointer-width"),
         value_name = "WIDTH",
-        default_value = "64",
-        value_parser = default_pointerwidth
+        value_parser = parse_pointer_width_value
     )]
-    pub pointer_width: PointerWidth,
+    pub pointer_width: Option<PointerWidth>,
     /// If present switches on query caching and saves the cache in the provided path
-    #[arg(long = flux_arg!("cache"), value_name = "PATH", value_parser = panicking_parser)]
+    #[arg(long = flux_arg!("cache"), value_name = "PATH")]
     pub cache: Option<PathBuf>,
     /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`]
     #[arg(
         long = flux_arg!("annots"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub annots: bool,
+    pub annots: Option<bool>,
     /// Print statistics about time taken to analyze each fuction. Also dumps a file with the raw
     /// times for each function.
     #[arg(
         long = flux_arg!("timings"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub timings: bool,
+    pub timings: Option<bool>,
     /// Print statistics about number of functions checked, trusted, etc.
     #[arg(
         long = flux_arg!("summary"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub summary: bool,
+    pub summary: Option<bool>,
     /// Default solver. Either `z3` or `cvc5`.
     #[arg(
         long = flux_arg!("solver"),
         value_name = "SOLVER",
-        default_value = "z3",
-        value_parser = default_smtsolver
+        value_parser = parse_solver_value
     )]
-    pub solver: SmtSolver,
+    pub solver: Option<SmtSolver>,
     /// Enables qualifier scrapping in fixpoint
     #[arg(
         long = flux_arg!("scrape-quals"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub scrape_quals: bool,
+    pub scrape_quals: Option<bool>,
     /// Enables uninterpreted casts
     #[arg(
         long = flux_arg!("allow-uninterpreted-cast"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub allow_uninterpreted_cast: bool,
+    pub allow_uninterpreted_cast: Option<bool>,
     /// Translates _monomorphic_ `defs` functions into SMT `define-fun` instead of inlining them
     /// away inside `flux`.
     #[arg(
         long = flux_arg!("smt-define-fun"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub smt_define_fun: bool,
+    pub smt_define_fun: Option<bool>,
     /// If `strict` checks for over and underflow on arithmetic integer operations,
     /// If `lazy` checks for underflow and loses information if possible overflow,
     /// If `none` (default), it still checks for underflow on unsigned integer subtraction.
     #[arg(
         long = flux_arg!("check-overflow"),
         value_name = "MODE",
-        default_value = "none",
-        value_parser = default_overflowmode
+        value_parser = parse_overflow_value
     )]
-    pub check_overflow: OverflowMode,
+    pub check_overflow: Option<OverflowMode>,
     /// Whether to allow raw pointer dereferences during refinement checking.
     #[arg(
         long = flux_arg!("allow-raw-deref"),
         value_name = "MODE",
-        default_value = "default",
-        value_parser = default_rawderefmode
+        value_parser = parse_raw_deref_value
     )]
-    pub allow_raw_deref: RawDerefMode,
+    pub allow_raw_deref: Option<RawDerefMode>,
     /// Dump constraints generated for each function (debugging)
     #[arg(
         long = flux_arg!("dump-constraint"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub dump_constraint: bool,
+    pub dump_constraint: Option<bool>,
     /// Saves the checker's trace (debugging)
-    #[arg(long = flux_arg!("dump-checker-trace"), value_name = "LEVEL", value_parser = panicking_parser)]
+    #[arg(long = flux_arg!("dump-checker-trace"), value_name = "LEVEL", value_parser = parse_level_value)]
     pub dump_checker_trace: Option<tracing::Level>,
     /// Saves the `fhir` for each item (debugging)
     #[arg(
         long = flux_arg!("dump-fhir"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub dump_fhir: bool,
+    pub dump_fhir: Option<bool>,
     /// Saves the the `fhir` (debugging)
     #[arg(
         long = flux_arg!("dump-rty"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub dump_rty: bool,
+    pub dump_rty: Option<bool>,
     /// Optimistically keeps running flux even after errors are found to get as many errors as possible
     #[arg(
         long = flux_arg!("catch-bugs"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub catch_bugs: bool,
+    pub catch_bugs: Option<bool>,
     /// Whether verification for the current crate is enabled. If false (the default), `flux-driver`
     /// will behave exactly like `rustc`. This flag is managed by the `cargo flux` and `flux` binaries,
     /// so you don't need to mess with it.
     #[arg(
         long = flux_arg!("verify"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub verify: bool,
+    pub verify: Option<bool>,
     /// If `true`, produce artifacts after analysis. This flag is managed by `cargo flux`, so you
     /// don't typically have to set it manually.
     #[arg(
         long = flux_arg!("full-compilation"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub full_compilation: bool,
+    pub full_compilation: Option<bool>,
     /// Path to the Flux sysroot directory. If not set, the driver infers it from its own binary location.
-    #[arg(long = flux_arg!("sysroot"), value_name = "PATH", value_parser = panicking_parser)]
+    #[arg(long = flux_arg!("sysroot"), value_name = "PATH")]
     pub sysroot: Option<PathBuf>,
     /// If `true`, all code is trusted by default. You can selectively untrust items by marking them with `#[trusted(no)]`. The default value of this flag is `false`, i.e., all code is untrusted by default.
     #[arg(
         long = flux_arg!("trusted"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub trusted_default: bool,
+    pub trusted_default: Option<bool>,
     /// If `true`, all code will be ignored by default. You can selectively unignore items by marking them with `#[ignore(no)]`. The default value of this flag is `false`, i.e., all code is unignored by default.
     #[arg(
         long = flux_arg!("ignore"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub ignore_default: bool,
-    #[arg(
-        long = flux_arg!("lean"),
-        value_name = "MODE",
-        default_value = "default",
-        value_parser = default_leanmode
-    )]
-    pub lean: LeanMode,
+    pub ignore_default: Option<bool>,
+    #[arg(long = flux_arg!("lean"), value_name = "MODE", value_parser = parse_lean_value)]
+    pub lean: Option<LeanMode>,
     /// If `true`, every function is implicitly labeled with a `no_panic` by default.
     #[arg(
         long = flux_arg!("no-panic"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub no_panic: bool,
+    pub no_panic: Option<bool>,
     /// If `true`, automatically inject `flux_core` and `flux_alloc` as force externs using paths
     /// from `sysroot.toml`. Off by default.
     #[arg(
         long = flux_arg!("std-extern-specs"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub std_extern_specs: bool,
+    pub std_extern_specs: Option<bool>,
     /// If `true`, produce more detailed error messages (e.g. condition spans for fold errors).
     #[arg(
         long = flux_arg!("flux-verbose"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub flux_verbose: bool,
+    pub flux_verbose: Option<bool>,
     /// If `true`, all code will have suggestions disabled.
     #[arg(
         long = flux_arg!("no-suggestions"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub no_suggestions_default: bool,
+    pub no_suggestions_default: Option<bool>,
     /// If `true` (the default), attach a note to each failing item with a copy-pasteable command to
     /// re-run the check on just that item. Only applies when running under `cargo flux`.
     #[arg(
         long = flux_arg!("rerun-hint"),
         num_args = 0..=1,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_parser = parse_bool_value
     )]
-    pub rerun_hint: bool,
+    pub rerun_hint: Option<bool>,
 }
 
-impl Default for Flags {
-    fn default() -> Self {
-        Self {
-            log_dir: PathBuf::from("./log/"),
-            lean_dir: PathBuf::from("./"),
-            lean_project: "lean_proofs".to_string(),
-            dump_constraint: false,
-            dump_checker_trace: None,
-            dump_fhir: false,
-            dump_rty: false,
-            catch_bugs: false,
-            pointer_width: PointerWidth::default(),
-            include: None,
-            include_trusted: None,
-            include_trusted_impl: None,
-            cache: None,
-            check_overflow: OverflowMode::default(),
-            allow_raw_deref: RawDerefMode::default(),
-            scrape_quals: false,
-            allow_uninterpreted_cast: false,
-            solver: SmtSolver::default(),
-            smt_define_fun: false,
-            annots: false,
-            timings: false,
-            summary: true,
-            verify: false,
-            full_compilation: false,
-            sysroot: None,
-            trusted_default: false,
-            ignore_default: false,
-            lean: LeanMode::default(),
-            no_panic: false,
-            std_extern_specs: false,
-            flux_verbose: false,
-            no_suggestions_default: false,
-            rerun_hint: true,
+macro_rules! flag {
+    ($flags:ident, $name:literal, $value:expr) => {
+        if let Some(v) = $value {
+            $flags.push(format!("-F{}={v}", $name));
         }
+    };
+}
+
+macro_rules! flag_map {
+    ($flags:ident, $name:literal, $value:expr, |$v:ident| $render:expr) => {
+        if let Some($v) = $value {
+            $flags.push(format!("-F{}={}", $name, $render));
+        }
+    };
+}
+
+macro_rules! flag_each {
+    ($flags:ident, $name:literal, $value:expr) => {
+        if let Some(pat) = $value {
+            $flags.extend(pat.raw.iter().map(|raw| format!("-F{}={raw}", $name)));
+        }
+    };
+}
+
+impl Flags {
+    // Convert this struct into what we'd need to pass in through the environment var
+    pub fn rustflags(&self) -> Vec<String> {
+        let mut flags = vec![];
+        flag_map!(flags, "log-dir", &self.log_dir, |v| v.display());
+        flag_map!(flags, "lean-dir", &self.lean_dir, |v| v.display());
+        flag!(flags, "lean-project", &self.lean_project);
+        flag_each!(flags, "include", &self.include);
+        flag_each!(flags, "include-trusted", &self.include_trusted);
+        flag_each!(flags, "include-trusted-impl", &self.include_trusted_impl);
+        flag_map!(flags, "pointer-width", self.pointer_width, |v| v.bits());
+        flag_map!(flags, "cache", &self.cache, |v| v.display());
+        flag!(flags, "annots", self.annots);
+        flag!(flags, "timings", self.timings);
+        flag!(flags, "summary", self.summary);
+        flag!(flags, "solver", self.solver);
+        flag!(flags, "scrape-quals", self.scrape_quals);
+        flag!(flags, "allow-uninterpreted-cast", self.allow_uninterpreted_cast);
+        flag!(flags, "smt-define-fun", self.smt_define_fun);
+        flag!(flags, "check-overflow", self.check_overflow);
+        flag!(flags, "allow-raw-deref", self.allow_raw_deref);
+        flag!(flags, "dump-constraint", self.dump_constraint);
+        flag_map!(flags, "dump-checker-trace", self.dump_checker_trace, |v| {
+            v.as_str().to_lowercase()
+        });
+        flag!(flags, "dump-fhir", self.dump_fhir);
+        flag!(flags, "dump-rty", self.dump_rty);
+        flag!(flags, "catch-bugs", self.catch_bugs);
+        flag!(flags, "verify", self.verify);
+        flag!(flags, "full-compilation", self.full_compilation);
+        flag_map!(flags, "sysroot", &self.sysroot, |v| v.display());
+        flag!(flags, "trusted", self.trusted_default);
+        flag!(flags, "ignore", self.ignore_default);
+        flag!(flags, "lean", self.lean);
+        flag!(flags, "no-panic", self.no_panic);
+        flag!(flags, "std-extern-specs", self.std_extern_specs);
+        flag!(flags, "flux-verbose", self.flux_verbose);
+        flag!(flags, "no-suggestions", self.no_suggestions_default);
+        flag!(flags, "rerun-hint", self.rerun_hint);
+        flags
     }
 }
 
@@ -296,11 +323,11 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
         let Some((key, value)) = parse_flux_arg(&arg) else { continue };
 
         let result = match key {
-            "log-dir" => parse_path_buf(&mut flags.log_dir, value),
-            "lean-dir" => parse_path_buf(&mut flags.lean_dir, value),
+            "log-dir" => parse_path(&mut flags.log_dir, value),
+            "lean-dir" => parse_path(&mut flags.lean_dir, value),
             "lean-project" => parse_string(&mut flags.lean_project, value),
             "dump-constraint" => parse_bool(&mut flags.dump_constraint, value),
-            "dump-checker-trace" => parse_opt_level(&mut flags.dump_checker_trace, value),
+            "dump-checker-trace" => parse_level(&mut flags.dump_checker_trace, value),
             "dump-fhir" => parse_bool(&mut flags.dump_fhir, value),
             "dump-rty" => parse_bool(&mut flags.dump_rty, value),
             "catch-bugs" => parse_bool(&mut flags.catch_bugs, value),
@@ -314,13 +341,13 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
             "summary" => parse_bool(&mut flags.summary, value),
-            "cache" => parse_opt_path_buf(&mut flags.cache, value),
-            "include" => parse_opt_include(&mut includes, value),
-            "include-trusted" => parse_opt_include(&mut trusteds, value),
-            "include-trusted-impl" => parse_opt_include(&mut trusted_impls, value),
+            "cache" => parse_path(&mut flags.cache, value),
+            "include" => parse_include(&mut includes, value),
+            "include-trusted" => parse_include(&mut trusteds, value),
+            "include-trusted-impl" => parse_include(&mut trusted_impls, value),
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
-            "sysroot" => parse_opt_path_buf(&mut flags.sysroot, value),
+            "sysroot" => parse_path(&mut flags.sysroot, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
             "ignore" => parse_bool(&mut flags.ignore_default, value),
             "lean" => parse_lean_mode(&mut flags.lean, value),
@@ -375,16 +402,10 @@ fn parse_flux_arg(arg: &str) -> Option<(&str, Option<&str>)> {
     if let Some((k, v)) = arg.split_once('=') { Some((k, Some(v))) } else { Some((arg, None)) }
 }
 
-fn parse_bool(slot: &mut bool, v: Option<&str>) -> Result<(), &'static str> {
+fn decode_bool(v: Option<&str>) -> Result<bool, &'static str> {
     match v {
-        Some("y") | Some("yes") | Some("on") | Some("true") | None => {
-            *slot = true;
-            Ok(())
-        }
-        Some("n") | Some("no") | Some("off") | Some("false") => {
-            *slot = false;
-            Ok(())
-        }
+        Some("y") | Some("yes") | Some("on") | Some("true") | None => Ok(true),
+        Some("n") | Some("no") | Some("off") | Some("false") => Ok(false),
         _ => {
             Err(
                 "expected no value or one of `y`, `yes`, `on`, `true`, `n`, `no`, `off`, or `false`",
@@ -393,77 +414,74 @@ fn parse_bool(slot: &mut bool, v: Option<&str>) -> Result<(), &'static str> {
     }
 }
 
-fn parse_string(slot: &mut String, v: Option<&str>) -> Result<(), &'static str> {
+fn parse_bool(slot: &mut Option<bool>, v: Option<&str>) -> Result<(), &'static str> {
+    decode_bool(v).map(|b| *slot = Some(b))
+}
+
+fn parse_string(slot: &mut Option<String>, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
-            *slot = s.to_string();
+            *slot = Some(s.to_string());
             Ok(())
         }
         None => Err("expected a string"),
     }
 }
 
-fn parse_path_buf(slot: &mut PathBuf, v: Option<&str>) -> Result<(), &'static str> {
+fn parse_pointer_width(
+    slot: &mut Option<PointerWidth>,
+    v: Option<&str>,
+) -> Result<(), &'static str> {
     match v {
         Some(s) => {
-            *slot = PathBuf::from(s);
-            Ok(())
-        }
-        None => Err("expected a path"),
-    }
-}
-
-fn parse_pointer_width(slot: &mut PointerWidth, v: Option<&str>) -> Result<(), &'static str> {
-    match v {
-        Some(s) => {
-            *slot = s.parse()?;
+            *slot = Some(s.parse()?);
             Ok(())
         }
         _ => Err(PointerWidth::ERROR),
     }
 }
 
-fn parse_lean_mode(slot: &mut LeanMode, v: Option<&str>) -> Result<(), &'static str> {
+fn parse_lean_mode(slot: &mut Option<LeanMode>, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
-            *slot = s.parse()?;
+            *slot = Some(s.parse()?);
             Ok(())
         }
         _ => Err(LeanMode::ERROR),
     }
 }
 
-fn parse_overflow(slot: &mut OverflowMode, v: Option<&str>) -> Result<(), &'static str> {
+fn parse_overflow(slot: &mut Option<OverflowMode>, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
-            *slot = s.parse()?;
+            *slot = Some(s.parse()?);
             Ok(())
         }
         _ => Err(OverflowMode::ERROR),
     }
 }
 
-fn parse_raw_deref(slot: &mut RawDerefMode, v: Option<&str>) -> Result<(), &'static str> {
+fn parse_raw_deref(slot: &mut Option<RawDerefMode>, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
-            *slot = s.parse()?;
+            *slot = Some(s.parse()?);
             Ok(())
         }
         _ => Err(RawDerefMode::ERROR),
     }
 }
 
-fn parse_solver(slot: &mut SmtSolver, v: Option<&str>) -> Result<(), &'static str> {
+fn parse_solver(slot: &mut Option<SmtSolver>, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
-            *slot = s.parse()?;
+            *slot = Some(s.parse()?);
             Ok(())
         }
         _ => Err(SmtSolver::ERROR),
     }
 }
 
-fn parse_opt_path_buf(slot: &mut Option<PathBuf>, v: Option<&str>) -> Result<(), &'static str> {
+fn parse_path(slot: &mut Option<PathBuf>, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
             *slot = Some(PathBuf::from(s));
@@ -473,7 +491,7 @@ fn parse_opt_path_buf(slot: &mut Option<PathBuf>, v: Option<&str>) -> Result<(),
     }
 }
 
-fn parse_opt_level(slot: &mut Option<Level>, v: Option<&str>) -> Result<(), &'static str> {
+fn parse_level(slot: &mut Option<Level>, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
             *slot = Some(Level::from_str(s).map_err(|_| "invalid level")?);
@@ -483,33 +501,43 @@ fn parse_opt_level(slot: &mut Option<Level>, v: Option<&str>) -> Result<(), &'st
     }
 }
 
-fn parse_opt_include(slot: &mut Vec<String>, v: Option<&str>) -> Result<(), &'static str> {
+fn parse_include(slot: &mut Vec<String>, v: Option<&str>) -> Result<(), &'static str> {
     if let Some(include) = v {
         slot.push(include.to_string());
     }
     Ok(())
 }
 
-fn panicking_parser(_s: &str) -> Result<(), String> {
-    panic!("Parsing flux args from cli is not yet supported.");
+fn parse_bool_value(s: &str) -> Result<bool, String> {
+    decode_bool(Some(s)).map_err(|e| e.to_string())
 }
 
-fn default_pointerwidth(_s: &str) -> Result<PointerWidth, String> {
-    Ok(PointerWidth::default())
+fn parse_pointer_width_value(s: &str) -> Result<PointerWidth, String> {
+    s.parse().map_err(|e: &'static str| e.to_string())
 }
 
-fn default_overflowmode(_s: &str) -> Result<OverflowMode, String> {
-    Ok(OverflowMode::default())
+fn parse_overflow_value(s: &str) -> Result<OverflowMode, String> {
+    s.parse().map_err(|e: &'static str| e.to_string())
 }
 
-fn default_rawderefmode(_s: &str) -> Result<RawDerefMode, String> {
-    Ok(RawDerefMode::default())
+fn parse_raw_deref_value(s: &str) -> Result<RawDerefMode, String> {
+    s.parse().map_err(|e: &'static str| e.to_string())
 }
 
-fn default_smtsolver(_s: &str) -> Result<SmtSolver, String> {
-    Ok(SmtSolver::default())
+fn parse_solver_value(s: &str) -> Result<SmtSolver, String> {
+    s.parse().map_err(|e: &'static str| e.to_string())
 }
 
-fn default_leanmode(_s: &str) -> Result<LeanMode, String> {
-    Ok(LeanMode::default())
+fn parse_lean_value(s: &str) -> Result<LeanMode, String> {
+    s.parse().map_err(|e: &'static str| e.to_string())
+}
+
+fn parse_level_value(s: &str) -> Result<Level, String> {
+    Level::from_str(s).map_err(|_| {
+        "invalid level, expected one of `trace`, `debug`, `info`, `warn`, or `error`".to_string()
+    })
+}
+
+fn parse_include_value(s: &str) -> Result<IncludePattern, String> {
+    IncludePattern::new(vec![s.to_string()])
 }

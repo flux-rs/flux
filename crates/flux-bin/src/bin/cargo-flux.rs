@@ -81,6 +81,7 @@ fn write_cargo_config(
         return Err(anyhow!("`enabled` cannot be set in `flux.toml`"));
     }
     let targeted_package_ids = cargo_flux_cmd.targeted_package_ids(&metadata);
+    let cli_flags = cargo_flux_cmd.rustflags();
 
     let mut file = NamedTempFile::new()?;
     {
@@ -139,6 +140,7 @@ rustflags = [{:?}]
                         )
                         .iter()
                         .chain(flux_flags.iter().flatten())
+                        .chain(cli_flags.iter())
                         .map(|s| s.as_str())
                         .chain(["-Fverify=on", "-Ffull-compilation=on", sysroot_flag.as_str()])
                         .format(", ")

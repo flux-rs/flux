@@ -27,31 +27,31 @@ pub fn dump_checker_trace() -> Option<Level> {
 }
 
 pub fn dump_constraint() -> bool {
-    FLAGS.dump_constraint
+    FLAGS.dump_constraint.unwrap_or(false)
 }
 
 pub fn dump_fhir() -> bool {
-    FLAGS.dump_fhir
+    FLAGS.dump_fhir.unwrap_or(false)
 }
 
 pub fn dump_rty() -> bool {
-    FLAGS.dump_rty
+    FLAGS.dump_rty.unwrap_or(false)
 }
 
 pub fn pointer_width() -> PointerWidth {
-    FLAGS.pointer_width
+    FLAGS.pointer_width.unwrap_or_default()
 }
 
-pub fn log_dir() -> &'static PathBuf {
-    &FLAGS.log_dir
+pub fn log_dir() -> &'static Path {
+    FLAGS.log_dir.as_deref().unwrap_or(Path::new("./log/"))
 }
 
-pub fn lean_dir() -> &'static PathBuf {
-    &FLAGS.lean_dir
+pub fn lean_dir() -> &'static Path {
+    FLAGS.lean_dir.as_deref().unwrap_or(Path::new("./"))
 }
 
 pub fn lean_project() -> &'static str {
-    &FLAGS.lean_project
+    FLAGS.lean_project.as_deref().unwrap_or("lean_proofs")
 }
 
 pub fn is_cache_enabled() -> bool {
@@ -59,15 +59,15 @@ pub fn is_cache_enabled() -> bool {
 }
 
 pub fn trusted_default() -> bool {
-    FLAGS.trusted_default
+    FLAGS.trusted_default.unwrap_or(false)
 }
 
 pub fn ignore_default() -> bool {
-    FLAGS.ignore_default
+    FLAGS.ignore_default.unwrap_or(false)
 }
 
 pub fn lean() -> LeanMode {
-    FLAGS.lean
+    FLAGS.lean.unwrap_or_default()
 }
 
 pub fn cache_path() -> Option<&'static Path> {
@@ -87,23 +87,23 @@ pub fn trusted_impl_pattern() -> Option<&'static IncludePattern> {
 }
 
 fn check_overflow() -> OverflowMode {
-    FLAGS.check_overflow
+    FLAGS.check_overflow.unwrap_or_default()
 }
 
 fn allow_raw_deref() -> RawDerefMode {
-    FLAGS.allow_raw_deref
+    FLAGS.allow_raw_deref.unwrap_or_default()
 }
 
 pub fn allow_uninterpreted_cast() -> bool {
-    FLAGS.allow_uninterpreted_cast
+    FLAGS.allow_uninterpreted_cast.unwrap_or(false)
 }
 
 fn scrape_quals() -> bool {
-    FLAGS.scrape_quals
+    FLAGS.scrape_quals.unwrap_or(false)
 }
 
 pub fn no_panic() -> bool {
-    FLAGS.no_panic
+    FLAGS.no_panic.unwrap_or(false)
 }
 
 pub fn sysroot() -> Option<PathBuf> {
@@ -116,51 +116,51 @@ pub fn sysroot() -> Option<PathBuf> {
 }
 
 pub fn smt_define_fun() -> bool {
-    FLAGS.smt_define_fun
+    FLAGS.smt_define_fun.unwrap_or(false)
 }
 
 fn solver() -> SmtSolver {
-    FLAGS.solver
+    FLAGS.solver.unwrap_or_default()
 }
 
 pub fn catch_bugs() -> bool {
-    FLAGS.catch_bugs
+    FLAGS.catch_bugs.unwrap_or(false)
 }
 
 pub fn annots() -> bool {
-    FLAGS.annots
+    FLAGS.annots.unwrap_or(false)
 }
 
 pub fn timings() -> bool {
-    FLAGS.timings
+    FLAGS.timings.unwrap_or(false)
 }
 
 pub fn verify() -> bool {
-    FLAGS.verify
+    FLAGS.verify.unwrap_or(false)
 }
 
 pub fn summary() -> bool {
-    FLAGS.summary
+    FLAGS.summary.unwrap_or(true)
 }
 
 pub fn full_compilation() -> bool {
-    FLAGS.full_compilation
+    FLAGS.full_compilation.unwrap_or(false)
 }
 
 pub fn std_extern_specs() -> bool {
-    FLAGS.std_extern_specs
+    FLAGS.std_extern_specs.unwrap_or(false)
 }
 
 pub fn verbose() -> bool {
-    FLAGS.flux_verbose
+    FLAGS.flux_verbose.unwrap_or(false)
 }
 
 pub fn no_suggestions_default() -> bool {
-    FLAGS.no_suggestions_default
+    FLAGS.no_suggestions_default.unwrap_or(false)
 }
 
 pub fn rerun_hint() -> bool {
-    FLAGS.rerun_hint
+    FLAGS.rerun_hint.unwrap_or(true)
 }
 
 /// Whether the driver is running under `cargo flux` (which sets `FLUX_CARGO=1`), as opposed to a
@@ -230,26 +230,28 @@ pub struct IncludePattern {
     pub defs: Vec<String>,
     /// fn whose implementation overlaps the file, line, e.g. `span:tests/tests/pos/detached/detach00.rs:13:3`
     pub spans: Vec<Pos>,
+    /// needed to convert back to strings, for passing to drivers
+    pub(crate) raw: Vec<String>,
 }
 
 impl IncludePattern {
-    fn new(includes: Vec<String>) -> Result<Self, String> {
+    pub(crate) fn new(includes: Vec<String>) -> Result<Self, String> {
         let mut defs = Vec::new();
         let mut spans = Vec::new();
         let mut glob = GlobSetBuilder::new();
-        for include in includes {
+        for include in &includes {
             if let Some(suffix) = include.strip_prefix("def:") {
                 defs.push(suffix.to_string());
             } else if let Some(suffix) = include.strip_prefix("span:") {
                 spans.push(Pos::from_str(suffix)?);
             } else {
-                let suffix = include.strip_prefix("glob:").unwrap_or(&include);
+                let suffix = include.strip_prefix("glob:").unwrap_or(include);
                 let glob_pattern = Glob::new(suffix.trim()).map_err(|_| "invalid glob pattern")?;
                 glob.add(glob_pattern);
             }
         }
         let glob = glob.build().map_err(|_| "failed to build glob set")?;
-        Ok(IncludePattern { glob, defs, spans })
+        Ok(IncludePattern { glob, defs, spans, raw: includes })
     }
 }
 

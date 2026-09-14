@@ -105,6 +105,15 @@ impl CargoFluxCommand {
             CargoFluxCommand::Clean(_) => None,
         }
     }
+
+    pub fn rustflags(&self) -> Vec<String> {
+        match self {
+            CargoFluxCommand::Check(opts) | CargoFluxCommand::Build(opts) => {
+                opts.flux_flags.rustflags()
+            }
+            CargoFluxCommand::Clean(_) => vec![],
+        }
+    }
 }
 
 #[derive(clap::Args)]
@@ -122,7 +131,7 @@ pub struct CompileOpts {
     #[command(flatten)]
     manifest: ManifestOptions,
     #[command(flatten)]
-    flux_flags: Flags,
+    pub flux_flags: Flags,
 
     /// Only check items matching PATTERN (overrides include patterns from cargo.toml or flux.toml).
     ///
