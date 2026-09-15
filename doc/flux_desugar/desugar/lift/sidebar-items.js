@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["errors"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"fn":["hir_ty_to_string"],"mod":["errors"],"type":["Result"]};

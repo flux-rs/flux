@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ParseErrorKind"],"macro":["walk_list"],"mod":["lexer","parser","surface","symbols","token"],"struct":["ParseCtxt","ParseError","ParseSess"],"type":["ParseResult"]};
+window.SIDEBAR_ITEMS = {"enum":["ParseErrorKind"],"macro":[["walk_list",1]],"mod":["lexer","parser","surface","symbols","token"],"struct":["ParseCtxt","ParseError","ParseSess"],"type":["ParseResult"]};

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/expr.rs`."><title>expr.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (db3e99bba 2026-02-04)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_middle/rty/</div>expr.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::{fmt, hash::Hash, iter, ops::ControlFlow, sync::OnceLock};
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/expr.rs`."><title>expr.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (8925ea358 2026-08-20)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_middle/rty/</div>expr.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::{fmt, hash::Hash, iter, ops::ControlFlow, sync::OnceLock};
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>flux_arc_interner::{Interned, List, impl_internable, impl_slice_internable};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>flux_common::{bug, dbg::as_subscript};
@@ -23,11 +23,11 @@
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>rustc_span::{Span, Symbol};
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 <a href=#25 id=25 data-nosnippet>25</a>
-<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>super::{
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use super</span>::{
 <a href=#27 id=27 data-nosnippet>27</a>    BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArgs, GenericArgsExt <span class="kw">as _</span>,
 <a href=#28 id=28 data-nosnippet>28</a>    IntTy, Sort, UintTy,
 <a href=#29 id=29 data-nosnippet>29</a>};
-<a href=#30 id=30 data-nosnippet>30</a><span class="kw">use </span>crate::{
+<a href=#30 id=30 data-nosnippet>30</a><span class="kw">use crate</span>::{
 <a href=#31 id=31 data-nosnippet>31</a>    big_int::BigInt,
 <a href=#32 id=32 data-nosnippet>32</a>    def_id::FluxDefId,
 <a href=#33 id=33 data-nosnippet>33</a>    fhir::{<span class="self">self</span>},
@@ -277,7 +277,7 @@
 <a href=#277 id=277 data-nosnippet>277</a>                ExprKind::Constant(Constant::from(bits)).intern()
 <a href=#278 id=278 data-nosnippet>278</a>            }
 <a href=#279 id=279 data-nosnippet>279</a>            BaseTy::Uint(<span class="kw">_</span>) =&gt; ExprKind::Constant(Constant::from(bits)).intern(),
-<a href=#280 id=280 data-nosnippet>280</a>            BaseTy::Bool =&gt; ExprKind::Constant(Constant::Bool(<span class="macro">bits !</span>= <span class="number">0</span>)).intern(),
+<a href=#280 id=280 data-nosnippet>280</a>            BaseTy::Bool =&gt; ExprKind::Constant(Constant::Bool(bits != <span class="number">0</span>)).intern(),
 <a href=#281 id=281 data-nosnippet>281</a>            BaseTy::Char =&gt; {
 <a href=#282 id=282 data-nosnippet>282</a>                <span class="kw">let </span>c = char::from_u32(bits.try_into().unwrap()).unwrap();
 <a href=#283 id=283 data-nosnippet>283</a>                ExprKind::Constant(Constant::Char(c)).intern()
@@ -479,7 +479,7 @@
 <a href=#479 id=479 data-nosnippet>479</a>                <span class="macro">bug!</span>(<span class="string">"todo: ValTree::Branch {c:?}"</span>)
 <a href=#480 id=480 data-nosnippet>480</a>            }
 <a href=#481 id=481 data-nosnippet>481</a>            <span class="comment">// We should have normalized away the unevaluated constants
-<a href=#482 id=482 data-nosnippet>482</a>            </span>ConstKind::Unevaluated(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected `ConstKind::Unevaluated`"</span>),
+<a href=#482 id=482 data-nosnippet>482</a>            </span>ConstKind::Alias(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected `ConstKind::Alias`"</span>),
 <a href=#483 id=483 data-nosnippet>483</a>
 <a href=#484 id=484 data-nosnippet>484</a>            ConstKind::Infer(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected `ConstKind::Infer`"</span>),
 <a href=#485 id=485 data-nosnippet>485</a>        }
@@ -1588,11 +1588,11 @@
 <a href=#1588 id=1588 data-nosnippet>1588</a>            TyKind::Int(int_ty) =&gt; <span class="prelude-val">Some</span>(Constant::from(scalar_to_int(tcx, scalar, <span class="kw-2">*</span>int_ty))),
 <a href=#1589 id=1589 data-nosnippet>1589</a>            TyKind::Uint(uint_ty) =&gt; <span class="prelude-val">Some</span>(Constant::from(scalar_to_uint(tcx, scalar, <span class="kw-2">*</span>uint_ty))),
 <a href=#1590 id=1590 data-nosnippet>1590</a>            TyKind::Bool =&gt; {
-<a href=#1591 id=1591 data-nosnippet>1591</a>                <span class="kw">let </span>b = scalar_to_bits(tcx, scalar, ty)<span class="question-mark">?</span>;
-<a href=#1592 id=1592 data-nosnippet>1592</a>                <span class="prelude-val">Some</span>(Constant::Bool(<span class="macro">b !</span>= <span class="number">0</span>))
+<a href=#1591 id=1591 data-nosnippet>1591</a>                <span class="kw">let </span>b = scalar_to_bits(tcx, scalar, ty);
+<a href=#1592 id=1592 data-nosnippet>1592</a>                <span class="prelude-val">Some</span>(Constant::Bool(b != <span class="number">0</span>))
 <a href=#1593 id=1593 data-nosnippet>1593</a>            }
 <a href=#1594 id=1594 data-nosnippet>1594</a>            TyKind::Char =&gt; {
-<a href=#1595 id=1595 data-nosnippet>1595</a>                <span class="kw">let </span>b = scalar_to_bits(tcx, scalar, ty)<span class="question-mark">?</span>;
+<a href=#1595 id=1595 data-nosnippet>1595</a>                <span class="kw">let </span>b = scalar_to_bits(tcx, scalar, ty);
 <a href=#1596 id=1596 data-nosnippet>1596</a>                <span class="prelude-val">Some</span>(Constant::Char(char::from_u32(b <span class="kw">as </span>u32)<span class="question-mark">?</span>))
 <a href=#1597 id=1597 data-nosnippet>1597</a>            }
 <a href=#1598 id=1598 data-nosnippet>1598</a>            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(),
@@ -1688,7 +1688,7 @@
 <a href=#1688 id=1688 data-nosnippet>1688</a>
 <a href=#1689 id=1689 data-nosnippet>1689</a>    <span class="kw">use </span>flux_rustc_bridge::def_id_to_string;
 <a href=#1690 id=1690 data-nosnippet>1690</a>
-<a href=#1691 id=1691 data-nosnippet>1691</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
+<a href=#1691 id=1691 data-nosnippet>1691</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#1692 id=1692 data-nosnippet>1692</a>    <span class="kw">use </span><span class="kw">crate</span>::name_of_thy_func;
 <a href=#1693 id=1693 data-nosnippet>1693</a>
 <a href=#1694 id=1694 data-nosnippet>1694</a>    <span class="attr">#[derive(PartialEq, Eq, PartialOrd, Ord)]

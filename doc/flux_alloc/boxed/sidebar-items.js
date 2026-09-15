@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["box_assume_init_into_vec_unsafeSpec_a63b270c42f749ca"]};

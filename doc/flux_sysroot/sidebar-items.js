@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["FLUX_SYSROOT"],"fn":["default_flux_sysroot_dir","flux_sysroot_dir"],"struct":["SysrootManifest"]};
+window.SIDEBAR_ITEMS = {"constant":["FLUX_SYSROOT","SYSROOT_MANIFEST"],"fn":["default_flux_sysroot_dir","flux_sysroot_dir"],"struct":["SysrootCrate","SysrootManifest"]};

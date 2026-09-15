@@ -7987,7 +7987,7 @@ fn test00() {
 <li><em>globally</em> <a href="http://localhost:3000/guide/run.html?highlight=cache#flux-flags">with a flag</a> or</li>
 <li><em>locally</em> with an attribute as shown below</li>
 </ul>
-<pre><code class="language-rust noplayground">const MAX: u32 = std::u32::MAX;
+<pre><code class="language-rust noplayground">const MAX: u32 = u32::MAX;
 
 // Error on this as it may overflow
 #[flux::opts(check_overflow = "strict")]
@@ -7997,7 +7997,7 @@ fn add_three(x: u32, y: u32, z: u32) -&gt; u32 {
 }</code></pre>
 <pre><code class="language-rust noplayground">#[flux::opts(check_overflow = "strict")]
 mod my_mod {
-    const MAX: u32 = std::u32::MAX;
+    const MAX: u32 = u32::MAX;
 
     #[flux::sig(fn(u32[@x], u32[@y]) -&gt; u32[x + y] requires x + y &lt;= MAX)]
     fn add(x: u32, y: u32) -&gt; u32 {
@@ -8009,7 +8009,7 @@ mod my_mod {
         x + 2
     }
 }</code></pre>
-<pre><code class="language-rust noplayground">const MAX: u32 = std::u32::MAX;
+<pre><code class="language-rust noplayground">const MAX: u32 = u32::MAX;
 
 #[flux_rs::refined_by(inner: int)]
 struct MyStruct {
@@ -8029,7 +8029,7 @@ impl MyStruct {
         self.inner + 2
     }
 }</code></pre>
-<pre><code class="language-rust noplayground">const MAX: u32 = std::u32::MAX;
+<pre><code class="language-rust noplayground">const MAX: u32 = u32::MAX;
 
 struct MyStruct {
     inner: u32,

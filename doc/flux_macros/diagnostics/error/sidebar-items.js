@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["DiagnosticDeriveError"],"fn":["_throw_err","invalid_attr","path_to_string","span_err"],"macro":["throw_invalid_attr","throw_span_err"]};
+window.SIDEBAR_ITEMS = {"enum":["DiagnosticDeriveError"],"fn":["_throw_err","invalid_attr","path_to_string","span_err"],"macro":[["throw_invalid_attr",1],["throw_span_err",1]]};

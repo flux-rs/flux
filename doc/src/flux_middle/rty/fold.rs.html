@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/fold.rs`."><title>fold.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (db3e99bba 2026-02-04)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_middle/rty/</div>fold.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/fold.rs`."><title>fold.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (8925ea358 2026-08-20)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_middle/rty/</div>fold.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 <a href=#2 id=2 data-nosnippet>2</a>//! documentation in `rustc_type_ir::fold`.
 <a href=#3 id=3 data-nosnippet>3</a>
 <a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">use </span>std::ops::ControlFlow;
@@ -10,12 +10,12 @@
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>rustc_hash::FxHashSet;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 <a href=#12 id=12 data-nosnippet>12</a>
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>super::{
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use super</span>::{
 <a href=#14 id=14 data-nosnippet>14</a>    BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind,
 <a href=#15 id=15 data-nosnippet>15</a>    GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort,
 <a href=#16 id=16 data-nosnippet>16</a>    SubsetTy, Ty, TyKind, TyOrBase, normalize::Normalizer,
 <a href=#17 id=17 data-nosnippet>17</a>};
-<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>crate::{
+<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use crate</span>::{
 <a href=#19 id=19 data-nosnippet>19</a>    global_env::GlobalEnv,
 <a href=#20 id=20 data-nosnippet>20</a>    rty::{BoundReft, BoundRegion, Var, VariantSig, expr::HoleKind},
 <a href=#21 id=21 data-nosnippet>21</a>};
@@ -591,7 +591,7 @@
 <a href=#591 id=591 data-nosnippet>591</a>            Sort::Tuple(sorts) =&gt; sorts.visit_with(visitor),
 <a href=#592 id=592 data-nosnippet>592</a>            Sort::App(<span class="kw">_</span>, args) =&gt; args.visit_with(visitor),
 <a href=#593 id=593 data-nosnippet>593</a>            Sort::Func(fsort) =&gt; fsort.visit_with(visitor),
-<a href=#594 id=594 data-nosnippet>594</a>            Sort::Alias(<span class="kw">_</span>, alias_ty) =&gt; alias_ty.visit_with(visitor),
+<a href=#594 id=594 data-nosnippet>594</a>            Sort::Alias(alias_ty) =&gt; alias_ty.visit_with(visitor),
 <a href=#595 id=595 data-nosnippet>595</a>            Sort::Int
 <a href=#596 id=596 data-nosnippet>596</a>            | Sort::Bool
 <a href=#597 id=597 data-nosnippet>597</a>            | Sort::Real
@@ -620,7 +620,7 @@
 <a href=#620 id=620 data-nosnippet>620</a>            Sort::Tuple(sorts) =&gt; Sort::tuple(sorts.try_fold_with(folder)<span class="question-mark">?</span>),
 <a href=#621 id=621 data-nosnippet>621</a>            Sort::App(ctor, sorts) =&gt; Sort::app(ctor.clone(), sorts.try_fold_with(folder)<span class="question-mark">?</span>),
 <a href=#622 id=622 data-nosnippet>622</a>            Sort::Func(fsort) =&gt; Sort::Func(fsort.try_fold_with(folder)<span class="question-mark">?</span>),
-<a href=#623 id=623 data-nosnippet>623</a>            Sort::Alias(kind, alias_ty) =&gt; Sort::Alias(<span class="kw-2">*</span>kind, alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
+<a href=#623 id=623 data-nosnippet>623</a>            Sort::Alias(alias_ty) =&gt; Sort::Alias(alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
 <a href=#624 id=624 data-nosnippet>624</a>            Sort::Int
 <a href=#625 id=625 data-nosnippet>625</a>            | Sort::Bool
 <a href=#626 id=626 data-nosnippet>626</a>            | Sort::Real
@@ -890,7 +890,7 @@
 <a href=#890 id=890 data-nosnippet>890</a>            BaseTy::Ref(<span class="kw">_</span>, ty, <span class="kw">_</span>) =&gt; ty.visit_with(visitor),
 <a href=#891 id=891 data-nosnippet>891</a>            BaseTy::FnPtr(poly_fn_sig) =&gt; poly_fn_sig.visit_with(visitor),
 <a href=#892 id=892 data-nosnippet>892</a>            BaseTy::Tuple(tys) =&gt; tys.visit_with(visitor),
-<a href=#893 id=893 data-nosnippet>893</a>            BaseTy::Alias(<span class="kw">_</span>, alias_ty) =&gt; alias_ty.visit_with(visitor),
+<a href=#893 id=893 data-nosnippet>893</a>            BaseTy::Alias(alias_ty) =&gt; alias_ty.visit_with(visitor),
 <a href=#894 id=894 data-nosnippet>894</a>            BaseTy::Array(ty, <span class="kw">_</span>) =&gt; ty.visit_with(visitor),
 <a href=#895 id=895 data-nosnippet>895</a>            BaseTy::Coroutine(<span class="kw">_</span>, resume_ty, upvars, <span class="kw">_</span>) =&gt; {
 <a href=#896 id=896 data-nosnippet>896</a>                resume_ty.visit_with(visitor)<span class="question-mark">?</span>;
@@ -933,7 +933,7 @@
 <a href=#933 id=933 data-nosnippet>933</a>            }
 <a href=#934 id=934 data-nosnippet>934</a>            BaseTy::FnPtr(decl) =&gt; BaseTy::FnPtr(decl.try_fold_with(folder)<span class="question-mark">?</span>),
 <a href=#935 id=935 data-nosnippet>935</a>            BaseTy::Tuple(tys) =&gt; BaseTy::Tuple(tys.try_fold_with(folder)<span class="question-mark">?</span>),
-<a href=#936 id=936 data-nosnippet>936</a>            BaseTy::Alias(kind, alias_ty) =&gt; BaseTy::Alias(<span class="kw-2">*</span>kind, alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
+<a href=#936 id=936 data-nosnippet>936</a>            BaseTy::Alias(alias_ty) =&gt; BaseTy::Alias(alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
 <a href=#937 id=937 data-nosnippet>937</a>            BaseTy::Array(ty, c) =&gt; {
 <a href=#938 id=938 data-nosnippet>938</a>                BaseTy::Array(ty.try_fold_with(folder)<span class="question-mark">?</span>, c.try_fold_with(folder)<span class="question-mark">?</span>)
 <a href=#939 id=939 data-nosnippet>939</a>            }
@@ -1233,5 +1233,7 @@
 <a href=#1233 id=1233 data-nosnippet>1233</a>    rustc_abi::ExternAbi,
 <a href=#1234 id=1234 data-nosnippet>1234</a>    rustc_type_ir::ClosureKind,
 <a href=#1235 id=1235 data-nosnippet>1235</a>    flux_rustc_bridge::ty::BoundRegionKind,
-<a href=#1236 id=1236 data-nosnippet>1236</a>}
+<a href=#1236 id=1236 data-nosnippet>1236</a>    flux_rustc_bridge::ty::AliasKind,
+<a href=#1237 id=1237 data-nosnippet>1237</a>    flux_rustc_bridge::ty::AliasTermKind,
+<a href=#1238 id=1238 data-nosnippet>1238</a>}
 </code></pre></div></section></main></body></html>

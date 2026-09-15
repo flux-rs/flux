@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-macros/src/diagnostics/subdiagnostic.rs`."><title>subdiagnostic.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_macros" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (db3e99bba 2026-02-04)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-f9617a14.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_macros/diagnostics/</div>subdiagnostic.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="attr">#![allow(clippy::all)]
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-macros/src/diagnostics/subdiagnostic.rs`."><title>subdiagnostic.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_macros" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (8925ea358 2026-08-20)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_macros/diagnostics/</div>subdiagnostic.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="attr">#![allow(clippy::all)]
 <a href=#2 id=2 data-nosnippet>2</a>#![deny(unused_must_use)]
 <a href=#3 id=3 data-nosnippet>3</a>
 <a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">use </span>proc_macro2::TokenStream;
@@ -232,9 +232,9 @@
 <a href=#232 id=232 data-nosnippet>232</a>        <span class="kw">let </span>ident = <span class="macro">format_ident!</span>(<span class="string">"{}"</span>, ident); <span class="comment">// strip `r#` prefix, if present
 <a href=#233 id=233 data-nosnippet>233</a>
 <a href=#234 id=234 data-nosnippet>234</a>        </span><span class="macro">quote!</span> {
-<a href=#235 id=235 data-nosnippet>235</a>            #diag.arg(
-<a href=#236 id=236 data-nosnippet>236</a>                <span class="macro">stringify!</span>(#ident),
-<a href=#237 id=237 data-nosnippet>237</a>                #field_binding
+<a href=#235 id=235 data-nosnippet>235</a>            sub_args.insert(
+<a href=#236 id=236 data-nosnippet>236</a>                <span class="macro">stringify!</span>(#ident).into(),
+<a href=#237 id=237 data-nosnippet>237</a>                rustc_errors::IntoDiagArg::into_diag_arg(#field_binding, <span class="kw-2">&amp;mut </span>#diag.long_ty_path)
 <a href=#238 id=238 data-nosnippet>238</a>            );
 <a href=#239 id=239 data-nosnippet>239</a>        }
 <a href=#240 id=240 data-nosnippet>240</a>    }
@@ -523,115 +523,114 @@
 <a href=#523 id=523 data-nosnippet>523</a>            }
 <a href=#524 id=524 data-nosnippet>524</a>        };
 <a href=#525 id=525 data-nosnippet>525</a>
-<a href=#526 id=526 data-nosnippet>526</a>        <span class="kw">let </span>span_field = <span class="self">self</span>.span_field.value_ref();
-<a href=#527 id=527 data-nosnippet>527</a>
-<a href=#528 id=528 data-nosnippet>528</a>        <span class="kw">let </span>diag = <span class="kw-2">&amp;</span><span class="self">self</span>.parent.diag;
-<a href=#529 id=529 data-nosnippet>529</a>        <span class="kw">let </span><span class="kw-2">mut </span>calls = TokenStream::new();
-<a href=#530 id=530 data-nosnippet>530</a>        <span class="kw">for </span>(kind, slug, no_span) <span class="kw">in </span>kind_slugs {
-<a href=#531 id=531 data-nosnippet>531</a>            <span class="kw">let </span>message = <span class="macro">format_ident!</span>(<span class="string">"__message"</span>);
-<a href=#532 id=532 data-nosnippet>532</a>            calls.extend(
-<a href=#533 id=533 data-nosnippet>533</a>                <span class="macro">quote!</span> { <span class="kw">let </span>#message = #diag.eagerly_translate(<span class="kw">crate</span>::fluent_generated::#slug); },
-<a href=#534 id=534 data-nosnippet>534</a>            );
-<a href=#535 id=535 data-nosnippet>535</a>
-<a href=#536 id=536 data-nosnippet>536</a>            <span class="kw">let </span>name = <span class="macro">format_ident!</span>(
-<a href=#537 id=537 data-nosnippet>537</a>                <span class="string">"{}{}"</span>,
-<a href=#538 id=538 data-nosnippet>538</a>                <span class="kw">if </span>span_field.is_some() &amp;&amp; !no_span { <span class="string">"span_" </span>} <span class="kw">else </span>{ <span class="string">"" </span>},
-<a href=#539 id=539 data-nosnippet>539</a>                kind
-<a href=#540 id=540 data-nosnippet>540</a>            );
-<a href=#541 id=541 data-nosnippet>541</a>            <span class="kw">let </span>call = <span class="kw">match </span>kind {
-<a href=#542 id=542 data-nosnippet>542</a>                SubdiagnosticKind::Suggestion {
-<a href=#543 id=543 data-nosnippet>543</a>                    suggestion_kind,
-<a href=#544 id=544 data-nosnippet>544</a>                    applicability,
-<a href=#545 id=545 data-nosnippet>545</a>                    code_init,
-<a href=#546 id=546 data-nosnippet>546</a>                    code_field,
-<a href=#547 id=547 data-nosnippet>547</a>                } =&gt; {
-<a href=#548 id=548 data-nosnippet>548</a>                    <span class="self">self</span>.formatting_init.extend(code_init);
-<a href=#549 id=549 data-nosnippet>549</a>
-<a href=#550 id=550 data-nosnippet>550</a>                    <span class="kw">let </span>applicability = applicability
-<a href=#551 id=551 data-nosnippet>551</a>                        .value()
-<a href=#552 id=552 data-nosnippet>552</a>                        .map(|a| <span class="macro">quote!</span> { #a })
-<a href=#553 id=553 data-nosnippet>553</a>                        .or_else(|| <span class="self">self</span>.applicability.take().value())
-<a href=#554 id=554 data-nosnippet>554</a>                        .unwrap_or_else(|| <span class="macro">quote!</span> { rustc_errors::Applicability::Unspecified });
-<a href=#555 id=555 data-nosnippet>555</a>
-<a href=#556 id=556 data-nosnippet>556</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span_field {
-<a href=#557 id=557 data-nosnippet>557</a>                        <span class="kw">let </span>style = suggestion_kind.to_suggestion_style();
-<a href=#558 id=558 data-nosnippet>558</a>                        <span class="macro">quote!</span> { #diag.#name(#span, #message, #code_field, #applicability, #style); }
-<a href=#559 id=559 data-nosnippet>559</a>                    } <span class="kw">else </span>{
-<a href=#560 id=560 data-nosnippet>560</a>                        span_err(<span class="self">self</span>.span, <span class="string">"suggestion without `#[primary_span]` field"</span>).emit();
-<a href=#561 id=561 data-nosnippet>561</a>                        <span class="macro">quote!</span> { <span class="macro">unreachable!</span>(); }
-<a href=#562 id=562 data-nosnippet>562</a>                    }
-<a href=#563 id=563 data-nosnippet>563</a>                }
-<a href=#564 id=564 data-nosnippet>564</a>                SubdiagnosticKind::MultipartSuggestion { suggestion_kind, applicability } =&gt; {
+<a href=#526 id=526 data-nosnippet>526</a>        <span class="kw">let </span>plain_args: TokenStream = <span class="self">self
+<a href=#527 id=527 data-nosnippet>527</a>            </span>.variant
+<a href=#528 id=528 data-nosnippet>528</a>            .bindings()
+<a href=#529 id=529 data-nosnippet>529</a>            .iter()
+<a href=#530 id=530 data-nosnippet>530</a>            .filter(|binding| should_generate_arg(binding.ast()))
+<a href=#531 id=531 data-nosnippet>531</a>            .map(|binding| <span class="self">self</span>.generate_field_arg(binding))
+<a href=#532 id=532 data-nosnippet>532</a>            .collect();
+<a href=#533 id=533 data-nosnippet>533</a>        <span class="kw">let </span>plain_args = <span class="macro">quote!</span> {
+<a href=#534 id=534 data-nosnippet>534</a>            <span class="kw">let </span><span class="kw-2">mut </span>sub_args = rustc_errors::DiagArgMap::default();
+<a href=#535 id=535 data-nosnippet>535</a>            #plain_args
+<a href=#536 id=536 data-nosnippet>536</a>        };
+<a href=#537 id=537 data-nosnippet>537</a>
+<a href=#538 id=538 data-nosnippet>538</a>        <span class="kw">let </span>span_field = <span class="self">self</span>.span_field.value_ref();
+<a href=#539 id=539 data-nosnippet>539</a>
+<a href=#540 id=540 data-nosnippet>540</a>        <span class="kw">let </span>diag = <span class="kw-2">&amp;</span><span class="self">self</span>.parent.diag;
+<a href=#541 id=541 data-nosnippet>541</a>        <span class="kw">let </span><span class="kw-2">mut </span>calls = TokenStream::new();
+<a href=#542 id=542 data-nosnippet>542</a>        <span class="kw">for </span>(kind, slug, no_span) <span class="kw">in </span>kind_slugs {
+<a href=#543 id=543 data-nosnippet>543</a>            <span class="kw">let </span>message = <span class="macro">format_ident!</span>(<span class="string">"__message"</span>);
+<a href=#544 id=544 data-nosnippet>544</a>            calls.extend(<span class="macro">quote!</span> {
+<a href=#545 id=545 data-nosnippet>545</a>                <span class="kw">let </span>#message = rustc_errors::format_diag_message(
+<a href=#546 id=546 data-nosnippet>546</a>                    <span class="kw-2">&amp;</span><span class="kw">crate</span>::fluent_generated::#slug,
+<a href=#547 id=547 data-nosnippet>547</a>                    <span class="kw-2">&amp;</span>sub_args,
+<a href=#548 id=548 data-nosnippet>548</a>                );
+<a href=#549 id=549 data-nosnippet>549</a>            });
+<a href=#550 id=550 data-nosnippet>550</a>
+<a href=#551 id=551 data-nosnippet>551</a>            <span class="kw">let </span>name = <span class="macro">format_ident!</span>(
+<a href=#552 id=552 data-nosnippet>552</a>                <span class="string">"{}{}"</span>,
+<a href=#553 id=553 data-nosnippet>553</a>                <span class="kw">if </span>span_field.is_some() &amp;&amp; !no_span { <span class="string">"span_" </span>} <span class="kw">else </span>{ <span class="string">"" </span>},
+<a href=#554 id=554 data-nosnippet>554</a>                kind
+<a href=#555 id=555 data-nosnippet>555</a>            );
+<a href=#556 id=556 data-nosnippet>556</a>            <span class="kw">let </span>call = <span class="kw">match </span>kind {
+<a href=#557 id=557 data-nosnippet>557</a>                SubdiagnosticKind::Suggestion {
+<a href=#558 id=558 data-nosnippet>558</a>                    suggestion_kind,
+<a href=#559 id=559 data-nosnippet>559</a>                    applicability,
+<a href=#560 id=560 data-nosnippet>560</a>                    code_init,
+<a href=#561 id=561 data-nosnippet>561</a>                    code_field,
+<a href=#562 id=562 data-nosnippet>562</a>                } =&gt; {
+<a href=#563 id=563 data-nosnippet>563</a>                    <span class="self">self</span>.formatting_init.extend(code_init);
+<a href=#564 id=564 data-nosnippet>564</a>
 <a href=#565 id=565 data-nosnippet>565</a>                    <span class="kw">let </span>applicability = applicability
 <a href=#566 id=566 data-nosnippet>566</a>                        .value()
 <a href=#567 id=567 data-nosnippet>567</a>                        .map(|a| <span class="macro">quote!</span> { #a })
 <a href=#568 id=568 data-nosnippet>568</a>                        .or_else(|| <span class="self">self</span>.applicability.take().value())
 <a href=#569 id=569 data-nosnippet>569</a>                        .unwrap_or_else(|| <span class="macro">quote!</span> { rustc_errors::Applicability::Unspecified });
 <a href=#570 id=570 data-nosnippet>570</a>
-<a href=#571 id=571 data-nosnippet>571</a>                    <span class="kw">if </span>!<span class="self">self</span>.has_suggestion_parts {
-<a href=#572 id=572 data-nosnippet>572</a>                        span_err(
-<a href=#573 id=573 data-nosnippet>573</a>                            <span class="self">self</span>.span,
-<a href=#574 id=574 data-nosnippet>574</a>                            <span class="string">"multipart suggestion without any `#[suggestion_part(...)]` fields"</span>,
-<a href=#575 id=575 data-nosnippet>575</a>                        )
-<a href=#576 id=576 data-nosnippet>576</a>                        .emit();
+<a href=#571 id=571 data-nosnippet>571</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span_field {
+<a href=#572 id=572 data-nosnippet>572</a>                        <span class="kw">let </span>style = suggestion_kind.to_suggestion_style();
+<a href=#573 id=573 data-nosnippet>573</a>                        <span class="macro">quote!</span> { #diag.#name(#span, #message, #code_field, #applicability, #style); }
+<a href=#574 id=574 data-nosnippet>574</a>                    } <span class="kw">else </span>{
+<a href=#575 id=575 data-nosnippet>575</a>                        span_err(<span class="self">self</span>.span, <span class="string">"suggestion without `#[primary_span]` field"</span>).emit();
+<a href=#576 id=576 data-nosnippet>576</a>                        <span class="macro">quote!</span> { <span class="macro">unreachable!</span>(); }
 <a href=#577 id=577 data-nosnippet>577</a>                    }
-<a href=#578 id=578 data-nosnippet>578</a>
-<a href=#579 id=579 data-nosnippet>579</a>                    <span class="kw">let </span>style = suggestion_kind.to_suggestion_style();
-<a href=#580 id=580 data-nosnippet>580</a>
-<a href=#581 id=581 data-nosnippet>581</a>                    <span class="macro">quote!</span> { #diag.#name(#message, suggestions, #applicability, #style); }
-<a href=#582 id=582 data-nosnippet>582</a>                }
-<a href=#583 id=583 data-nosnippet>583</a>                SubdiagnosticKind::Label =&gt; {
-<a href=#584 id=584 data-nosnippet>584</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span_field {
-<a href=#585 id=585 data-nosnippet>585</a>                        <span class="macro">quote!</span> { #diag.#name(#span, #message); }
-<a href=#586 id=586 data-nosnippet>586</a>                    } <span class="kw">else </span>{
-<a href=#587 id=587 data-nosnippet>587</a>                        span_err(<span class="self">self</span>.span, <span class="string">"label without `#[primary_span]` field"</span>).emit();
-<a href=#588 id=588 data-nosnippet>588</a>                        <span class="macro">quote!</span> { <span class="macro">unreachable!</span>(); }
-<a href=#589 id=589 data-nosnippet>589</a>                    }
-<a href=#590 id=590 data-nosnippet>590</a>                }
-<a href=#591 id=591 data-nosnippet>591</a>                <span class="kw">_ </span>=&gt; {
-<a href=#592 id=592 data-nosnippet>592</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span_field
-<a href=#593 id=593 data-nosnippet>593</a>                        &amp;&amp; !no_span
-<a href=#594 id=594 data-nosnippet>594</a>                    {
-<a href=#595 id=595 data-nosnippet>595</a>                        <span class="macro">quote!</span> { #diag.#name(#span, #message); }
-<a href=#596 id=596 data-nosnippet>596</a>                    } <span class="kw">else </span>{
-<a href=#597 id=597 data-nosnippet>597</a>                        <span class="macro">quote!</span> { #diag.#name(#message); }
-<a href=#598 id=598 data-nosnippet>598</a>                    }
-<a href=#599 id=599 data-nosnippet>599</a>                }
-<a href=#600 id=600 data-nosnippet>600</a>            };
-<a href=#601 id=601 data-nosnippet>601</a>
-<a href=#602 id=602 data-nosnippet>602</a>            calls.extend(call);
-<a href=#603 id=603 data-nosnippet>603</a>        }
-<a href=#604 id=604 data-nosnippet>604</a>        <span class="kw">let </span>store_args = <span class="macro">quote!</span> {
-<a href=#605 id=605 data-nosnippet>605</a>            #diag.store_args();
-<a href=#606 id=606 data-nosnippet>606</a>        };
-<a href=#607 id=607 data-nosnippet>607</a>        <span class="kw">let </span>restore_args = <span class="macro">quote!</span> {
-<a href=#608 id=608 data-nosnippet>608</a>            #diag.restore_args();
-<a href=#609 id=609 data-nosnippet>609</a>        };
-<a href=#610 id=610 data-nosnippet>610</a>        <span class="kw">let </span>plain_args: TokenStream = <span class="self">self
-<a href=#611 id=611 data-nosnippet>611</a>            </span>.variant
-<a href=#612 id=612 data-nosnippet>612</a>            .bindings()
-<a href=#613 id=613 data-nosnippet>613</a>            .iter()
-<a href=#614 id=614 data-nosnippet>614</a>            .filter(|binding| should_generate_arg(binding.ast()))
-<a href=#615 id=615 data-nosnippet>615</a>            .map(|binding| <span class="self">self</span>.generate_field_arg(binding))
-<a href=#616 id=616 data-nosnippet>616</a>            .collect();
-<a href=#617 id=617 data-nosnippet>617</a>
-<a href=#618 id=618 data-nosnippet>618</a>        <span class="kw">let </span>formatting_init = <span class="kw-2">&amp;</span><span class="self">self</span>.formatting_init;
-<a href=#619 id=619 data-nosnippet>619</a>
-<a href=#620 id=620 data-nosnippet>620</a>        <span class="comment">// For #[derive(Subdiagnostic)]
-<a href=#621 id=621 data-nosnippet>621</a>        //
-<a href=#622 id=622 data-nosnippet>622</a>        // - Store args of the main diagnostic for later restore.
-<a href=#623 id=623 data-nosnippet>623</a>        // - Add args of subdiagnostic.
-<a href=#624 id=624 data-nosnippet>624</a>        // - Generate the calls, such as note, label, etc.
-<a href=#625 id=625 data-nosnippet>625</a>        // - Restore the arguments for allowing main and subdiagnostic share the same fields.
-<a href=#626 id=626 data-nosnippet>626</a>        </span><span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {
-<a href=#627 id=627 data-nosnippet>627</a>            #init
-<a href=#628 id=628 data-nosnippet>628</a>            #formatting_init
-<a href=#629 id=629 data-nosnippet>629</a>            #attr_args
-<a href=#630 id=630 data-nosnippet>630</a>            #store_args
+<a href=#578 id=578 data-nosnippet>578</a>                }
+<a href=#579 id=579 data-nosnippet>579</a>                SubdiagnosticKind::MultipartSuggestion { suggestion_kind, applicability } =&gt; {
+<a href=#580 id=580 data-nosnippet>580</a>                    <span class="kw">let </span>applicability = applicability
+<a href=#581 id=581 data-nosnippet>581</a>                        .value()
+<a href=#582 id=582 data-nosnippet>582</a>                        .map(|a| <span class="macro">quote!</span> { #a })
+<a href=#583 id=583 data-nosnippet>583</a>                        .or_else(|| <span class="self">self</span>.applicability.take().value())
+<a href=#584 id=584 data-nosnippet>584</a>                        .unwrap_or_else(|| <span class="macro">quote!</span> { rustc_errors::Applicability::Unspecified });
+<a href=#585 id=585 data-nosnippet>585</a>
+<a href=#586 id=586 data-nosnippet>586</a>                    <span class="kw">if </span>!<span class="self">self</span>.has_suggestion_parts {
+<a href=#587 id=587 data-nosnippet>587</a>                        span_err(
+<a href=#588 id=588 data-nosnippet>588</a>                            <span class="self">self</span>.span,
+<a href=#589 id=589 data-nosnippet>589</a>                            <span class="string">"multipart suggestion without any `#[suggestion_part(...)]` fields"</span>,
+<a href=#590 id=590 data-nosnippet>590</a>                        )
+<a href=#591 id=591 data-nosnippet>591</a>                        .emit();
+<a href=#592 id=592 data-nosnippet>592</a>                    }
+<a href=#593 id=593 data-nosnippet>593</a>
+<a href=#594 id=594 data-nosnippet>594</a>                    <span class="kw">let </span>style = suggestion_kind.to_suggestion_style();
+<a href=#595 id=595 data-nosnippet>595</a>
+<a href=#596 id=596 data-nosnippet>596</a>                    <span class="macro">quote!</span> { #diag.#name(#message, suggestions, #applicability, #style); }
+<a href=#597 id=597 data-nosnippet>597</a>                }
+<a href=#598 id=598 data-nosnippet>598</a>                SubdiagnosticKind::Label =&gt; {
+<a href=#599 id=599 data-nosnippet>599</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span_field {
+<a href=#600 id=600 data-nosnippet>600</a>                        <span class="macro">quote!</span> { #diag.#name(#span, #message); }
+<a href=#601 id=601 data-nosnippet>601</a>                    } <span class="kw">else </span>{
+<a href=#602 id=602 data-nosnippet>602</a>                        span_err(<span class="self">self</span>.span, <span class="string">"label without `#[primary_span]` field"</span>).emit();
+<a href=#603 id=603 data-nosnippet>603</a>                        <span class="macro">quote!</span> { <span class="macro">unreachable!</span>(); }
+<a href=#604 id=604 data-nosnippet>604</a>                    }
+<a href=#605 id=605 data-nosnippet>605</a>                }
+<a href=#606 id=606 data-nosnippet>606</a>                <span class="kw">_ </span>=&gt; {
+<a href=#607 id=607 data-nosnippet>607</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span_field
+<a href=#608 id=608 data-nosnippet>608</a>                        &amp;&amp; !no_span
+<a href=#609 id=609 data-nosnippet>609</a>                    {
+<a href=#610 id=610 data-nosnippet>610</a>                        <span class="macro">quote!</span> { #diag.#name(#span, #message); }
+<a href=#611 id=611 data-nosnippet>611</a>                    } <span class="kw">else </span>{
+<a href=#612 id=612 data-nosnippet>612</a>                        <span class="macro">quote!</span> { #diag.#name(#message); }
+<a href=#613 id=613 data-nosnippet>613</a>                    }
+<a href=#614 id=614 data-nosnippet>614</a>                }
+<a href=#615 id=615 data-nosnippet>615</a>            };
+<a href=#616 id=616 data-nosnippet>616</a>
+<a href=#617 id=617 data-nosnippet>617</a>            calls.extend(call);
+<a href=#618 id=618 data-nosnippet>618</a>        }
+<a href=#619 id=619 data-nosnippet>619</a>        <span class="kw">let </span>formatting_init = <span class="kw-2">&amp;</span><span class="self">self</span>.formatting_init;
+<a href=#620 id=620 data-nosnippet>620</a>
+<a href=#621 id=621 data-nosnippet>621</a>        <span class="comment">// For #[derive(Subdiagnostic)]
+<a href=#622 id=622 data-nosnippet>622</a>        //
+<a href=#623 id=623 data-nosnippet>623</a>        // - Collect the args of the subdiagnostic into a local map, leaving the args of the main
+<a href=#624 id=624 data-nosnippet>624</a>        //   diagnostic untouched so both can share the same fields.
+<a href=#625 id=625 data-nosnippet>625</a>        // - Eagerly format the messages against that map.
+<a href=#626 id=626 data-nosnippet>626</a>        // - Generate the calls, such as note, label, etc.
+<a href=#627 id=627 data-nosnippet>627</a>        </span><span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {
+<a href=#628 id=628 data-nosnippet>628</a>            #init
+<a href=#629 id=629 data-nosnippet>629</a>            #formatting_init
+<a href=#630 id=630 data-nosnippet>630</a>            #attr_args
 <a href=#631 id=631 data-nosnippet>631</a>            #plain_args
 <a href=#632 id=632 data-nosnippet>632</a>            #calls
-<a href=#633 id=633 data-nosnippet>633</a>            #restore_args
-<a href=#634 id=634 data-nosnippet>634</a>        })
-<a href=#635 id=635 data-nosnippet>635</a>    }
-<a href=#636 id=636 data-nosnippet>636</a>}
+<a href=#633 id=633 data-nosnippet>633</a>        })
+<a href=#634 id=634 data-nosnippet>634</a>    }
+<a href=#635 id=635 data-nosnippet>635</a>}
 </code></pre></div></section></main></body></html>

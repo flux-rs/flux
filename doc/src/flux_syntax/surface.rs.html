@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-syntax/src/surface.rs`."><title>surface.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_syntax" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (db3e99bba 2026-02-04)" data-channel="nightly" data-search-js="search-fb33671b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-f9617a14.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-12f88f4f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_syntax/</div>surface.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">pub mod </span>visit;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-syntax/src/surface.rs`."><title>surface.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_syntax" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (8925ea358 2026-08-20)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">flux_syntax/</div>surface.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">pub mod </span>visit;
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>std::{borrow::Cow, fmt, ops::Range};
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -7,7 +7,7 @@
 <a href=#7 id=7 data-nosnippet>7</a>    Mutability,
 <a href=#8 id=8 data-nosnippet>8</a>    token::{Lit, LitKind},
 <a href=#9 id=9 data-nosnippet>9</a>};
-<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>rustc_hash::FxHashSet;
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>rustc_data_structures::fx::FxIndexSet;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">pub use </span>rustc_span::{Span, symbol::Ident};
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>rustc_span::{Symbol, symbol::sym};
 <a href=#13 id=13 data-nosnippet>13</a>
@@ -923,40 +923,42 @@
 <a href=#923 id=923 data-nosnippet>923</a><span class="kw">impl </span>Expr {
 <a href=#924 id=924 data-nosnippet>924</a>    <span class="doccomment">/// Collects all free variables in an expression.
 <a href=#925 id=925 data-nosnippet>925</a>    /// A free variable is an `ExprKind::Path` with a single identifier segment.
-<a href=#926 id=926 data-nosnippet>926</a>    </span><span class="kw">pub fn </span>free_vars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FxHashSet&lt;Ident&gt; {
-<a href=#927 id=927 data-nosnippet>927</a>        <span class="kw">struct </span>FreeVarsVisitor {
-<a href=#928 id=928 data-nosnippet>928</a>            vars: FxHashSet&lt;Ident&gt;,
-<a href=#929 id=929 data-nosnippet>929</a>        }
-<a href=#930 id=930 data-nosnippet>930</a>
-<a href=#931 id=931 data-nosnippet>931</a>        <span class="kw">impl </span>visit::Visitor <span class="kw">for </span>FreeVarsVisitor {
-<a href=#932 id=932 data-nosnippet>932</a>            <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) {
-<a href=#933 id=933 data-nosnippet>933</a>                <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
-<a href=#934 id=934 data-nosnippet>934</a>                    ExprKind::Path(path) =&gt; {
-<a href=#935 id=935 data-nosnippet>935</a>                        <span class="comment">// Only collect paths with a single segment
-<a href=#936 id=936 data-nosnippet>936</a>                        </span><span class="kw">if let </span>[segment] = path.segments.as_slice() {
-<a href=#937 id=937 data-nosnippet>937</a>                            <span class="self">self</span>.vars.insert(segment.ident);
-<a href=#938 id=938 data-nosnippet>938</a>                        }
-<a href=#939 id=939 data-nosnippet>939</a>                    }
-<a href=#940 id=940 data-nosnippet>940</a>                    ExprKind::Call(callee, args) =&gt; {
-<a href=#941 id=941 data-nosnippet>941</a>                        <span class="comment">// The callee of a call is a refinement function, not a variable, so
-<a href=#942 id=942 data-nosnippet>942</a>                        // don't collect it. Anything that's not a path may contain free
-<a href=#943 id=943 data-nosnippet>943</a>                        // variables, so visit it normally.
-<a href=#944 id=944 data-nosnippet>944</a>                        </span><span class="kw">if </span>!<span class="macro">matches!</span>(<span class="kw-2">&amp;</span>callee.kind, ExprKind::Path(<span class="kw">_</span>)) {
-<a href=#945 id=945 data-nosnippet>945</a>                            <span class="self">self</span>.visit_expr(callee);
-<a href=#946 id=946 data-nosnippet>946</a>                        }
-<a href=#947 id=947 data-nosnippet>947</a>                        <span class="kw">for </span>arg <span class="kw">in </span>args {
-<a href=#948 id=948 data-nosnippet>948</a>                            <span class="self">self</span>.visit_expr(arg);
-<a href=#949 id=949 data-nosnippet>949</a>                        }
-<a href=#950 id=950 data-nosnippet>950</a>                    }
-<a href=#951 id=951 data-nosnippet>951</a>                    <span class="comment">// Continue visiting child expressions
-<a href=#952 id=952 data-nosnippet>952</a>                    </span><span class="kw">_ </span>=&gt; visit::walk_expr(<span class="self">self</span>, expr),
-<a href=#953 id=953 data-nosnippet>953</a>                }
-<a href=#954 id=954 data-nosnippet>954</a>            }
-<a href=#955 id=955 data-nosnippet>955</a>        }
-<a href=#956 id=956 data-nosnippet>956</a>
-<a href=#957 id=957 data-nosnippet>957</a>        <span class="kw">let </span><span class="kw-2">mut </span>visitor = FreeVarsVisitor { vars: FxHashSet::default() };
-<a href=#958 id=958 data-nosnippet>958</a>        visitor.visit_expr(<span class="self">self</span>);
-<a href=#959 id=959 data-nosnippet>959</a>        visitor.vars
-<a href=#960 id=960 data-nosnippet>960</a>    }
-<a href=#961 id=961 data-nosnippet>961</a>}
+<a href=#926 id=926 data-nosnippet>926</a>    ///
+<a href=#927 id=927 data-nosnippet>927</a>    /// Variables are returned in the order they first appear in the expression.
+<a href=#928 id=928 data-nosnippet>928</a>    </span><span class="kw">pub fn </span>free_vars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FxIndexSet&lt;Ident&gt; {
+<a href=#929 id=929 data-nosnippet>929</a>        <span class="kw">struct </span>FreeVarsVisitor {
+<a href=#930 id=930 data-nosnippet>930</a>            vars: FxIndexSet&lt;Ident&gt;,
+<a href=#931 id=931 data-nosnippet>931</a>        }
+<a href=#932 id=932 data-nosnippet>932</a>
+<a href=#933 id=933 data-nosnippet>933</a>        <span class="kw">impl </span>visit::Visitor <span class="kw">for </span>FreeVarsVisitor {
+<a href=#934 id=934 data-nosnippet>934</a>            <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) {
+<a href=#935 id=935 data-nosnippet>935</a>                <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
+<a href=#936 id=936 data-nosnippet>936</a>                    ExprKind::Path(path) =&gt; {
+<a href=#937 id=937 data-nosnippet>937</a>                        <span class="comment">// Only collect paths with a single segment
+<a href=#938 id=938 data-nosnippet>938</a>                        </span><span class="kw">if let </span>[segment] = path.segments.as_slice() {
+<a href=#939 id=939 data-nosnippet>939</a>                            <span class="self">self</span>.vars.insert(segment.ident);
+<a href=#940 id=940 data-nosnippet>940</a>                        }
+<a href=#941 id=941 data-nosnippet>941</a>                    }
+<a href=#942 id=942 data-nosnippet>942</a>                    ExprKind::Call(callee, args) =&gt; {
+<a href=#943 id=943 data-nosnippet>943</a>                        <span class="comment">// The callee of a call is a refinement function, not a variable, so
+<a href=#944 id=944 data-nosnippet>944</a>                        // don't collect it. Anything that's not a path may contain free
+<a href=#945 id=945 data-nosnippet>945</a>                        // variables, so visit it normally.
+<a href=#946 id=946 data-nosnippet>946</a>                        </span><span class="kw">if </span>!<span class="macro">matches!</span>(<span class="kw-2">&amp;</span>callee.kind, ExprKind::Path(<span class="kw">_</span>)) {
+<a href=#947 id=947 data-nosnippet>947</a>                            <span class="self">self</span>.visit_expr(callee);
+<a href=#948 id=948 data-nosnippet>948</a>                        }
+<a href=#949 id=949 data-nosnippet>949</a>                        <span class="kw">for </span>arg <span class="kw">in </span>args {
+<a href=#950 id=950 data-nosnippet>950</a>                            <span class="self">self</span>.visit_expr(arg);
+<a href=#951 id=951 data-nosnippet>951</a>                        }
+<a href=#952 id=952 data-nosnippet>952</a>                    }
+<a href=#953 id=953 data-nosnippet>953</a>                    <span class="comment">// Continue visiting child expressions
+<a href=#954 id=954 data-nosnippet>954</a>                    </span><span class="kw">_ </span>=&gt; visit::walk_expr(<span class="self">self</span>, expr),
+<a href=#955 id=955 data-nosnippet>955</a>                }
+<a href=#956 id=956 data-nosnippet>956</a>            }
+<a href=#957 id=957 data-nosnippet>957</a>        }
+<a href=#958 id=958 data-nosnippet>958</a>
+<a href=#959 id=959 data-nosnippet>959</a>        <span class="kw">let </span><span class="kw-2">mut </span>visitor = FreeVarsVisitor { vars: FxIndexSet::default() };
+<a href=#960 id=960 data-nosnippet>960</a>        visitor.visit_expr(<span class="self">self</span>);
+<a href=#961 id=961 data-nosnippet>961</a>        visitor.vars
+<a href=#962 id=962 data-nosnippet>962</a>    }
+<a href=#963 id=963 data-nosnippet>963</a>}
 </code></pre></div></section></main></body></html>

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["rc","slice","string","vec"]};
+window.SIDEBAR_ITEMS = {"mod":["boxed","rc","slice","string","vec"]};
