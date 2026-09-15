@@ -1520,7 +1520,7 @@ fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::Diagnostic;
+    use flux_macros::InlineDiagnostic as Diagnostic;
     use rustc_span::{Span, Symbol};
 
     /// A name that could not be resolved. `kind` is the user-facing description of what was being
@@ -1528,10 +1528,10 @@ mod errors {
     /// because it no longer matches the resolution [`Namespace`](flux_middle::fhir::Namespace)
     /// (e.g. sorts are resolved in the type namespace).
     #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_name, code = E0999)]
+    #[diag("cannot find {$kind} `{$name}` in this scope", code = E0999)]
     pub(crate) struct UnresolvedName {
         #[primary_span]
-        #[label]
+        #[label("not found in this scope")]
         pub span: Span,
         pub kind: &'static str,
         pub name: String,
@@ -1542,17 +1542,17 @@ mod errors {
     /// explains, via `reason`, what specifically went wrong at the failing segment (not found,
     /// or found but not a module).
     #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_import, code = E0999)]
+    #[diag("unresolved import `{$name}`", code = E0999)]
     pub(crate) struct UnresolvedImport {
         #[primary_span]
-        #[label]
+        #[label("{$reason}")]
         pub span: Span,
         pub name: String,
         pub reason: String,
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_unknown_qualifier, code = E0999)]
+    #[diag("unknown qualifier", code = E0999)]
     pub(super) struct UnknownQualifier {
         #[primary_span]
         span: Span,
@@ -1565,7 +1565,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_unknown_reveal_definition, code = E0999)]
+    #[diag("unknown function definition", code = E0999)]
     pub(super) struct UnknownRevealDefinition {
         #[primary_span]
         span: Span,
@@ -1578,7 +1578,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_unknown_parametric_param, code = E0999)]
+    #[diag("unknown type parameter", code = E0999)]
     pub(super) struct UnknownParametricParam {
         #[primary_span]
         span: Span,
@@ -1591,12 +1591,12 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_duplicate_definition, code = E0999)]
+    #[diag("the name `{$name}` is defined multiple times", code = E0999)]
     pub(super) struct DuplicateDefinition {
         #[primary_span]
-        #[label]
+        #[label("`{$name}` redefined here")]
         pub span: Span,
-        #[label(desugar_duplicate_definition_previous_definition)]
+        #[label("previous definition of `{$name}`")]
         pub previous_definition: Span,
         pub name: Symbol,
     }
@@ -1604,16 +1604,16 @@ mod errors {
     /// A name bound to two different items by two competing glob imports, reported at the first
     /// use of the name (imports themselves are never an error). Mirrors rustc's `E0659`.
     #[derive(Diagnostic)]
-    #[diag(desugar_ambiguous_name, code = E0999)]
-    #[note]
+    #[diag("the name `{$name}` is ambiguous", code = E0999)]
+    #[note("two different items named `{$name}` are in scope through glob imports")]
     pub(super) struct AmbiguousName {
         #[primary_span]
-        #[label]
+        #[label("ambiguous name")]
         span: Span,
         name: Symbol,
-        #[label(desugar_ambiguous_name_first_candidate)]
+        #[label("`{$name}` could refer to the item imported here")]
         first: Span,
-        #[label(desugar_ambiguous_name_second_candidate)]
+        #[label("`{$name}` could also refer to the item imported here")]
         second: Option<Span>,
     }
 
@@ -1628,13 +1628,13 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_duplicate_param, code = E0999)]
+    #[diag("identifier `{$name}` is bound more than once in this parameter list", code = E0999)]
     pub(super) struct DuplicateParam {
         #[primary_span]
-        #[label]
+        #[label("used as a parameter more than once")]
         pub span: Span,
         pub name: Symbol,
-        #[label(desugar_duplicate_param_first_use)]
+        #[label("first use of `{$name}`")]
         pub first_use: Span,
     }
 }

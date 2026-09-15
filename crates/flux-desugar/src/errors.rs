@@ -1,41 +1,43 @@
 use flux_errors::E0999;
-use flux_macros::Diagnostic;
+use flux_macros::InlineDiagnostic as Diagnostic;
 use flux_syntax::surface;
 use rustc_span::{Span, Symbol};
 
 #[derive(Diagnostic)]
-#[diag(desugar_int_too_large, code = E0999)]
+#[diag("integer literal is too large", code = E0999)]
 pub(super) struct IntTooLarge {
     #[primary_span]
     pub(super) span: Span,
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_unexpected_literal, code = E0999)]
+#[diag("unexpected literal", code = E0999)]
 pub(super) struct UnexpectedLiteral {
     #[primary_span]
     pub(super) span: Span,
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_constructor_path, code = E0999)]
+#[diag("invalid use of path in constructor", code = E0999)]
 pub(super) struct InvalidConstructorPath {
     #[primary_span]
     pub(super) span: Span,
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_loc, code = E0999)]
+#[diag("expected an `&strg` parameter", code = E0999)]
 pub(super) struct InvalidLoc {
     #[primary_span]
     pub(super) span: Span,
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_numeric_suffix, code = E0999)]
+#[diag("invalid suffix `{$suffix}` for number literal", code = E0999)]
 pub(super) struct InvalidNumericSuffix {
     #[primary_span]
-    #[label]
+    #[label(
+        "the suffix must be the numeric sort `int`; use a float literal (e.g. `1.0`) for `real`"
+    )]
     span: Span,
     suffix: Symbol,
 }
@@ -47,10 +49,10 @@ impl InvalidNumericSuffix {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_alias_reft, code = E0999)]
+#[diag("invalid alias refinement", code = E0999)]
 pub(super) struct InvalidAliasReft {
     #[primary_span]
-    #[label]
+    #[label("this must be a trait")]
     pub(super) span: Span,
 }
 
@@ -61,7 +63,7 @@ impl InvalidAliasReft {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_variant_ret, code = E0999)]
+#[diag("invalid variant return type", code = E0999)]
 pub(super) struct InvalidVariantRet {
     #[primary_span]
     pub(super) span: Span,
@@ -74,7 +76,7 @@ impl InvalidVariantRet {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_reflected_variant, code = E0999)]
+#[diag("reflected types cannot have refinement annotations", code = E0999)]
 pub(super) struct InvalidReflectedVariant {
     #[primary_span]
     pub(super) span: Span,
@@ -87,11 +89,11 @@ impl InvalidReflectedVariant {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_multiple_spreads_in_constructor, code = E0999)]
+#[diag("multiple spreads found in constructor", code = E0999)]
 pub(super) struct MultipleSpreadsInConstructor {
     #[primary_span]
     pub(super) span: Span,
-    #[help]
+    #[help("previous spread found here. consider removing it")]
     pub(super) prev_span: Span,
 }
 
@@ -102,7 +104,7 @@ impl MultipleSpreadsInConstructor {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_unsupported_position, code = E0999)]
+#[diag("expression not allowed in this position", code = E0999)]
 pub(super) struct UnsupportedPosition {
     #[primary_span]
     span: Span,
@@ -115,10 +117,10 @@ impl UnsupportedPosition {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_unsupported_hole, code = E0999)]
+#[diag("invalid use of `_`", code = E0999)]
 pub(super) struct UnsupportedHole {
     #[primary_span]
-    #[label]
+    #[label("holes cannot be filled in this position")]
     span: Span,
 }
 
@@ -129,7 +131,7 @@ impl UnsupportedHole {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_final_assoc_without_body, code = E0999)]
+#[diag("final associated refinements must have a body", code = E0999)]
 pub(super) struct FinalAssocReftWithoutBody {
     #[primary_span]
     span: Span,
@@ -142,10 +144,10 @@ impl FinalAssocReftWithoutBody {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_unsupported_const_generic_arg, code = E0999)]
+#[diag("`{$res_descr}` not supported in this position", code = E0999)]
 pub(super) struct UnsupportedConstGenericArg {
     #[primary_span]
-    #[label]
+    #[label("help: try using `_` instead")]
     span: Span,
     res_descr: &'static str,
 }
@@ -157,8 +159,8 @@ impl UnsupportedConstGenericArg {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_unsupported_signature, code = E0999)]
-#[note]
+#[diag("unsupported function signature", code = E0999)]
+#[note("{$note}")]
 pub(super) struct UnsupportedSignature<'a> {
     #[primary_span]
     pub span: Span,

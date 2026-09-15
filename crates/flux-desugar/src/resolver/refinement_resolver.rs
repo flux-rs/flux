@@ -759,15 +759,15 @@ impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::Diagnostic;
+    use flux_macros::InlineDiagnostic as Diagnostic;
     use flux_syntax::surface;
     use rustc_span::{Span, symbol::Ident};
 
     #[derive(Diagnostic)]
-    #[diag(desugar_invalid_unrefined_param, code = E0999)]
+    #[diag("invalid use of refinement parameter", code = E0999)]
     pub(super) struct InvalidUnrefinedParam {
         #[primary_span]
-        #[label]
+        #[label("parameter `{$var}` refers to a type with no indices")]
         span: Span,
         var: Ident,
     }
@@ -779,10 +779,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_illegal_binder, code = E0999)]
+    #[diag("illegal binder", code = E0999)]
     pub(super) struct IllegalBinder {
         #[primary_span]
-        #[label]
+        #[label("`{$kind}` binder not allowed in this position")]
         span: Span,
         kind: &'static str,
     }

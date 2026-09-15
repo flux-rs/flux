@@ -605,15 +605,15 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
 
 pub mod errors {
     use flux_errors::E0999;
-    use flux_macros::Diagnostic;
+    use flux_macros::InlineDiagnostic as Diagnostic;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(desugar_unsupported_hir, code = E0999)]
-    #[note]
+    #[diag("refinement of unsupported {$def_kind}", code = E0999)]
+    #[note("{$note}")]
     pub(super) struct UnsupportedHir<'a> {
         #[primary_span]
-        #[label]
+        #[label("this {$def_kind} contains unsupported features")]
         pub span: Span,
         pub def_kind: &'static str,
         pub note: &'a str,
