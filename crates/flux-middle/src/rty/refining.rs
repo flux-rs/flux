@@ -197,8 +197,8 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     }
 
     fn refine_alias_term(&self, alias_term: &ty::AliasTerm) -> QueryResult<rty::AliasTerm> {
-        let args = self.refine_generic_args(alias_term.def_id, &alias_term.args)?;
-        Ok(rty::AliasTerm::new(alias_term.kind, alias_term.def_id, args))
+        let args = self.refine_generic_args(alias_term.def_id(), &alias_term.args)?;
+        Ok(rty::AliasTerm::new(alias_term.kind, args))
     }
 
     fn refine_alias_ty(&self, alias_ty: &ty::AliasTy) -> QueryResult<rty::AliasTy> {

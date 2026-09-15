@@ -657,7 +657,7 @@ pub type PolyProjectionPredicate = Binder<ProjectionPredicate>;
 
 impl PolyProjectionPredicate {
     pub fn projection_def_id(&self) -> DefId {
-        self.skip_binder_ref().projection_term.def_id
+        self.skip_binder_ref().projection_term.def_id()
     }
 
     pub fn self_ty(&self) -> Binder<SubsetTyCtor> {
@@ -2165,36 +2165,38 @@ impl AliasTy {
     }
 
     pub fn to_alias_term(&self) -> AliasTerm {
-        let (kind, def_id) = match self.kind {
-            AliasKind::Projection { def_id } => (AliasTermKind::ProjectionTy, def_id),
-            AliasKind::Opaque { def_id } => (AliasTermKind::OpaqueTy, def_id),
-            AliasKind::Free { def_id } => (AliasTermKind::FreeTy, def_id),
+        let kind = match self.kind {
+            AliasKind::Projection { def_id } => AliasTermKind::ProjectionTy { def_id },
+            AliasKind::Opaque { def_id } => AliasTermKind::OpaqueTy { def_id },
+            AliasKind::Free { def_id } => AliasTermKind::FreeTy { def_id },
         };
-        AliasTerm::new(kind, def_id, self.args.clone())
+        AliasTerm::new(kind, self.args.clone())
     }
 }
 
-/// Mirrors [`flux_rustc_bridge::ty::AliasTerm`]: the `DefId` sits next to the kind rather than
-/// inside it.
+/// Mirrors [`flux_rustc_bridge::ty::AliasTerm`].
 #[derive(
     Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
 )]
 pub struct AliasTerm {
     pub kind: AliasTermKind,
-    pub def_id: DefId,
     pub args: GenericArgs,
 }
 
 impl AliasTerm {
-    pub fn new(kind: AliasTermKind, def_id: DefId, args: GenericArgs) -> Self {
-        AliasTerm { kind, def_id, args }
+    pub fn new(kind: AliasTermKind, args: GenericArgs) -> Self {
+        AliasTerm { kind, args }
+    }
+
+    pub fn def_id(&self) -> DefId {
+        self.kind.def_id()
     }
 
     pub fn to_alias_ty(&self) -> AliasTy {
         let kind = match self.kind {
-            AliasTermKind::ProjectionTy => AliasKind::Projection { def_id: self.def_id },
-            AliasTermKind::OpaqueTy => AliasKind::Opaque { def_id: self.def_id },
-            AliasTermKind::FreeTy => AliasKind::Free { def_id: self.def_id },
+            AliasTermKind::ProjectionTy { def_id } => AliasKind::Projection { def_id },
+            AliasTermKind::OpaqueTy { def_id } => AliasKind::Opaque { def_id },
+            AliasTermKind::FreeTy { def_id } => AliasKind::Free { def_id },
         };
         AliasTy::new(kind, self.args.clone(), List::empty())
     }
@@ -2206,7 +2208,6 @@ impl AliasTerm {
     pub fn with_self_ty(&self, self_ty: SubsetTyCtor) -> Self {
         Self {
             kind: self.kind,
-            def_id: self.def_id,
             args: [GenericArg::Base(self_ty)]
                 .into_iter()
                 .chain(self.args.iter().skip(1).cloned())
@@ -2237,7 +2238,11 @@ impl<'tcx> ToRustc<'tcx> for AliasTerm {
     type T = rustc_middle::ty::AliasTerm<'tcx>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        rustc_middle::ty::AliasTerm::new_from_args(tcx, self.def_id, self.args.to_rustc(tcx))
+        rustc_middle::ty::AliasTerm::new_from_args(
+            tcx,
+            self.kind.to_rustc_kind(),
+            self.args.to_rustc(tcx),
+        )
     }
 }
 

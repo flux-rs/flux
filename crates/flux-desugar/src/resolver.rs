@@ -277,7 +277,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 ItemKind::Enum(..) => DefKind::Enum,
                 ItemKind::Struct(..) => DefKind::Struct,
                 ItemKind::Union(..) => DefKind::Union,
-                ItemKind::Trait(..) => DefKind::Trait,
+                ItemKind::Trait { .. } => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
                 ItemKind::Const(.., rhs) => {
                     DefKind::Const {
@@ -880,7 +880,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(ValueNS, RibKind::Misc);
 
         match item.kind {
-            ItemKind::Trait(..) => {
+            ItemKind::Trait { .. } => {
                 self.define_generics(def_id);
                 self.define_res_in(
                     fhir::Res::SelfTyParam { trait_: def_id.resolved_id() },

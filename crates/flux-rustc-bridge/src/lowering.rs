@@ -882,22 +882,20 @@ impl<'tcx> Lower<'tcx> for rustc_ty::AliasTerm<'tcx> {
     type R = Result<AliasTerm, UnsupportedReason>;
 
     fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
-        Ok(AliasTerm {
-            kind: self.kind(tcx).lower(tcx)?,
-            def_id: self.def_id,
-            args: self.args.lower(tcx)?,
-        })
+        Ok(AliasTerm { kind: self.kind.lower(tcx)?, args: self.args.lower(tcx)? })
     }
 }
 
-impl<'tcx> Lower<'tcx> for rustc_ty::AliasTermKind {
+impl<'tcx> Lower<'tcx> for rustc_ty::AliasTermKind<'tcx> {
     type R = Result<AliasTermKind, UnsupportedReason>;
 
     fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
         match self {
-            rustc_ty::AliasTermKind::ProjectionTy => Ok(AliasTermKind::ProjectionTy),
-            rustc_ty::AliasTermKind::OpaqueTy => Ok(AliasTermKind::OpaqueTy),
-            rustc_ty::AliasTermKind::FreeTy => Ok(AliasTermKind::FreeTy),
+            rustc_ty::AliasTermKind::ProjectionTy { def_id } => {
+                Ok(AliasTermKind::ProjectionTy { def_id })
+            }
+            rustc_ty::AliasTermKind::OpaqueTy { def_id } => Ok(AliasTermKind::OpaqueTy { def_id }),
+            rustc_ty::AliasTermKind::FreeTy { def_id } => Ok(AliasTermKind::FreeTy { def_id }),
             _ => Err(UnsupportedReason::new(format!("unsupported alias term kind `{self:?}`"))),
         }
     }

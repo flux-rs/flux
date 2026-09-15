@@ -162,20 +162,42 @@ pub struct ProjectionPredicate {
     pub term: Ty,
 }
 
-/// Mirrors [`rustc_middle::ty::AliasTerm`]. Unlike [`AliasTy`], the `DefId` is stored next to the
-/// kind instead of inside it.
+/// Mirrors [`rustc_middle::ty::AliasTerm`].
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct AliasTerm {
     pub kind: AliasTermKind,
-    pub def_id: DefId,
     pub args: GenericArgs,
+}
+
+impl AliasTerm {
+    pub fn def_id(&self) -> DefId {
+        self.kind.def_id()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum AliasTermKind {
-    ProjectionTy,
-    OpaqueTy,
-    FreeTy,
+    ProjectionTy { def_id: DefId },
+    OpaqueTy { def_id: DefId },
+    FreeTy { def_id: DefId },
+}
+
+impl AliasTermKind {
+    pub fn def_id(self) -> DefId {
+        let (AliasTermKind::ProjectionTy { def_id }
+        | AliasTermKind::OpaqueTy { def_id }
+        | AliasTermKind::FreeTy { def_id }) = self;
+        def_id
+    }
+
+    pub fn to_rustc_kind<'tcx>(self) -> rustc_middle::ty::AliasTermKind<'tcx> {
+        use rustc_middle::ty;
+        match self {
+            AliasTermKind::ProjectionTy { def_id } => ty::AliasTermKind::ProjectionTy { def_id },
+            AliasTermKind::OpaqueTy { def_id } => ty::AliasTermKind::OpaqueTy { def_id },
+            AliasTermKind::FreeTy { def_id } => ty::AliasTermKind::FreeTy { def_id },
+        }
+    }
 }
 #[derive(Clone, Hash, PartialEq, Eq, TyEncodable, TyDecodable)]
 pub struct FnSig {
