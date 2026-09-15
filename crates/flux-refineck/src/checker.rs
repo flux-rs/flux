@@ -2165,10 +2165,7 @@ fn raw_ptr_with_size<'genv, 'tcx>(
     // For slices and other fat pointer types, we don't know the alignment and size
     // and so must drop those assertions.
     if !has_sized {
-        let pred = Expr::and_from_iter([
-            Expr::eq(base, addr.clone()),
-            Expr::ne(addr.clone(), Expr::zero()),
-        ]);
+        let pred = Expr::and(Expr::eq(base, &addr), Expr::ne(&addr, Expr::zero()));
 
         let ty = Ty::exists_with_constr(bty, pred);
         return Ok(ty);
@@ -2189,8 +2186,8 @@ fn raw_ptr_with_size<'genv, 'tcx>(
     );
 
     let pred = Expr::and_from_iter([
-        Expr::eq(base, addr.clone()),
-        Expr::ne(addr.clone(), Expr::zero()),
+        Expr::eq(base, &addr),
+        Expr::ne(&addr, Expr::zero()),
         Expr::eq(size, size_of_expr),
         Expr::eq(Expr::binary_op(BinOp::Mod(Sort::Int), addr, align_of_expr), Expr::zero()),
     ]);

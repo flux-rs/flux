@@ -1,3 +1,6 @@
+// Fix for this issue:
+// https://github.com/flux-rs/flux/issues/1761
+
 extern crate flux_core;
 
 pub fn test_slice_cast_is_null() {
