@@ -2161,11 +2161,11 @@ fn raw_ptr_with_size<'genv, 'tcx>(
     let base = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
     let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
     let size = Expr::field_proj(nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
-    
+
     // For slices and other fat pointer types, we don't know the alignment and size
     // and so must drop those assertions.
     if !has_sized {
-         let pred = Expr::and_from_iter([
+        let pred = Expr::and_from_iter([
             Expr::eq(base, addr.clone()),
             Expr::ne(addr.clone(), Expr::zero()),
         ]);
