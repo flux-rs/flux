@@ -1174,17 +1174,17 @@ mod errors {
     use std::path::PathBuf;
 
     use flux_errors::E0999;
-    use flux_macros::Diagnostic;
+    use flux_macros::InlineDiagnostic as Diagnostic;
     use rustc_middle::mir as rustc_mir;
     use rustc_span::Span;
 
     use super::UnsupportedReason;
 
     #[derive(Diagnostic)]
-    #[diag(rustc_bridge_unsupported_local_decl, code = E0999)]
+    #[diag("unsupported local declaration", code = E0999)]
     pub(super) struct UnsupportedLocalDecl<'tcx> {
         #[primary_span]
-        #[label]
+        #[label("this declaration has type `{$ty}` which is not currently supported")]
         span: Span,
         ty: rustc_middle::ty::Ty<'tcx>,
     }
@@ -1199,8 +1199,8 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(rustc_bridge_unsupported_mir, code = E0999)]
-    #[note]
+    #[diag("unsupported {$kind}", code = E0999)]
+    #[note("{$reason}")]
     pub(super) struct UnsupportedMir {
         #[primary_span]
         span: Span,

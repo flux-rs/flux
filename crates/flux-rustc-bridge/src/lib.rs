@@ -18,11 +18,8 @@ extern crate rustc_span;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
-use flux_macros::fluent_messages;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 pub mod const_eval;
 pub mod lowering;
