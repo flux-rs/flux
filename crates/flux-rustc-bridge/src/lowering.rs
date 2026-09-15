@@ -30,11 +30,11 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
-        Const, ConstKind, ExistentialPredicate, ExistentialProjection, FieldDef, FnSig, GenericArg,
-        GenericParamDef, GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate,
-        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst,
-        UnevaluatedConstKind, VariantDef,
+        AdtDef, AdtDefData, AliasConst, AliasConstKind, AliasKind, Binder, BoundRegion,
+        BoundVariableKind, Clause, ClauseKind, Const, ConstKind, ExistentialPredicate,
+        ExistentialProjection, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
+        GenericPredicates, Generics, OutlivesPredicate, TraitPredicate, TraitRef, Ty,
+        TypeOutlivesPredicate, VariantDef,
     },
 };
 use crate::{
@@ -769,11 +769,11 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
             rustc_type_ir::ConstKind::Value(value) => {
                 ConstKind::Value(value.ty.lower(tcx)?, value.valtree.lower(tcx)?)
             }
-            rustc_type_ir::ConstKind::Unevaluated(c) => {
+            rustc_type_ir::ConstKind::Alias(_, c) => {
                 // TODO: raise unsupported if c.args is not empty?
                 let args = c.args.lower(tcx)?;
                 let kind = c.kind.lower(tcx)?;
-                ConstKind::Unevaluated(UnevaluatedConst { kind, args, promoted: None })
+                ConstKind::Alias(AliasConst { kind, args, promoted: None })
             }
             _ => return Err(UnsupportedReason::new(format!("unsupported const {self:?}"))),
         };
@@ -836,7 +836,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 Ok(Ty::mk_closure(*did, args))
             }
 
-            rustc_ty::Alias(alias_ty) => {
+            rustc_ty::Alias(_, alias_ty) => {
                 let kind = alias_ty.kind.lower(tcx)?;
                 let args = alias_ty.args.lower(tcx)?;
                 Ok(Ty::mk_alias(kind, args))
@@ -888,23 +888,17 @@ impl<'tcx> Lower<'tcx> for rustc_ty::AliasTerm<'tcx> {
     }
 }
 
-impl<'tcx> Lower<'tcx> for rustc_ty::UnevaluatedConstKind<'tcx> {
-    type R = Result<UnevaluatedConstKind, UnsupportedReason>;
+impl<'tcx> Lower<'tcx> for rustc_ty::AliasConstKind<'tcx> {
+    type R = Result<AliasConstKind, UnsupportedReason>;
 
     fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
         Ok(match self {
-            rustc_ty::UnevaluatedConstKind::Projection { def_id } => {
-                UnevaluatedConstKind::Projection { def_id }
+            rustc_ty::AliasConstKind::Projection { def_id } => {
+                AliasConstKind::Projection { def_id }
             }
-            rustc_ty::UnevaluatedConstKind::Inherent { def_id } => {
-                UnevaluatedConstKind::Inherent { def_id }
-            }
-            rustc_ty::UnevaluatedConstKind::Free { def_id } => {
-                UnevaluatedConstKind::Free { def_id }
-            }
-            rustc_ty::UnevaluatedConstKind::Anon { def_id } => {
-                UnevaluatedConstKind::Anon { def_id }
-            }
+            rustc_ty::AliasConstKind::Inherent { def_id } => AliasConstKind::Inherent { def_id },
+            rustc_ty::AliasConstKind::Free { def_id } => AliasConstKind::Free { def_id },
+            rustc_ty::AliasConstKind::Anon { def_id } => AliasConstKind::Anon { def_id },
         })
     }
 }

@@ -7,7 +7,7 @@ use expr::{FieldBind, pretty::aggregate_nested};
 use flux_rustc_bridge::ToRustc;
 use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_type_ir::DebruijnIndex;
-use ty::{UnevaluatedConst, UnevaluatedConstKind, ValTree, region_to_string};
+use ty::{AliasConst, AliasConstKind, ValTree, region_to_string};
 
 use super::{fold::TypeVisitable, *};
 use crate::pretty::*;
@@ -750,15 +750,15 @@ impl Pretty for ValTree {
         }
     }
 }
-impl Pretty for UnevaluatedConst {
+impl Pretty for AliasConst {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (descr, def_id) = match self.kind {
-            UnevaluatedConstKind::Projection { def_id } => ("projection", def_id),
-            UnevaluatedConstKind::Inherent { def_id } => ("inherent", def_id),
-            UnevaluatedConstKind::Free { def_id } => ("free", def_id),
-            UnevaluatedConstKind::Anon { def_id } => ("anon", def_id),
+            AliasConstKind::Projection { def_id } => ("projection", def_id),
+            AliasConstKind::Inherent { def_id } => ("inherent", def_id),
+            AliasConstKind::Free { def_id } => ("free", def_id),
+            AliasConstKind::Anon { def_id } => ("anon", def_id),
         };
-        w!(cx, f, "UnevaluatedConst({} {:?}[...])", ^descr, def_id)
+        w!(cx, f, "AliasConst({} {:?}[...])", ^descr, def_id)
     }
 }
 
@@ -768,7 +768,7 @@ impl Pretty for Const {
             ConstKind::Param(p) => w!(cx, f, "{}", ^p.name.as_str()),
             ConstKind::Value(_, v) => w!(cx, f, "{v:?}"),
             ConstKind::Infer(infer_const) => w!(cx, f, "{:?}", ^infer_const),
-            ConstKind::Unevaluated(uneval_const) => w!(cx, f, "{:?}", uneval_const),
+            ConstKind::Alias(uneval_const) => w!(cx, f, "{:?}", uneval_const),
         }
     }
 }

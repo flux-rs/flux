@@ -357,12 +357,12 @@ pub struct Const {
     pub kind: ConstKind,
 }
 
-impl<'tcx> ToRustc<'tcx> for UnevaluatedConst {
-    type T = rustc_middle::ty::UnevaluatedConst<'tcx>;
+impl<'tcx> ToRustc<'tcx> for AliasConst {
+    type T = rustc_middle::ty::AliasConst<'tcx>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         let args = tcx.mk_args_from_iter(self.args.iter().map(|arg| arg.to_rustc(tcx)));
-        rustc_ty::UnevaluatedConst::new(tcx, self.kind.to_rustc_kind(), args)
+        rustc_ty::AliasConst::new(tcx, self.kind.to_rustc_kind(), args)
     }
 }
 
@@ -402,8 +402,8 @@ impl<'tcx> ToRustc<'tcx> for Const {
                 rustc_ty::ConstKind::Value(val)
             }
             ConstKind::Infer(infer_const) => rustc_ty::ConstKind::Infer(*infer_const),
-            ConstKind::Unevaluated(uneval_const) => {
-                rustc_ty::ConstKind::Unevaluated(uneval_const.to_rustc(tcx))
+            ConstKind::Alias(uneval_const) => {
+                rustc_ty::ConstKind::Alias(rustc_ty::IsRigid::No, uneval_const.to_rustc(tcx))
             }
         };
         rustc_ty::Const::new(tcx, kind)
@@ -411,33 +411,29 @@ impl<'tcx> ToRustc<'tcx> for Const {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct UnevaluatedConst {
-    pub kind: UnevaluatedConstKind,
+pub struct AliasConst {
+    pub kind: AliasConstKind,
     pub args: GenericArgs,
     pub promoted: Option<Promoted>,
 }
 
-/// Mirrors [`rustc_middle::ty::UnevaluatedConstKind`].
+/// Mirrors [`rustc_middle::ty::AliasConstKind`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub enum UnevaluatedConstKind {
+pub enum AliasConstKind {
     Projection { def_id: DefId },
     Inherent { def_id: DefId },
     Free { def_id: DefId },
     Anon { def_id: DefId },
 }
 
-impl UnevaluatedConstKind {
-    pub fn to_rustc_kind<'tcx>(self) -> rustc_middle::ty::UnevaluatedConstKind<'tcx> {
+impl AliasConstKind {
+    pub fn to_rustc_kind<'tcx>(self) -> rustc_middle::ty::AliasConstKind<'tcx> {
         use rustc_middle::ty;
         match self {
-            UnevaluatedConstKind::Projection { def_id } => {
-                ty::UnevaluatedConstKind::Projection { def_id }
-            }
-            UnevaluatedConstKind::Inherent { def_id } => {
-                ty::UnevaluatedConstKind::Inherent { def_id }
-            }
-            UnevaluatedConstKind::Free { def_id } => ty::UnevaluatedConstKind::Free { def_id },
-            UnevaluatedConstKind::Anon { def_id } => ty::UnevaluatedConstKind::Anon { def_id },
+            AliasConstKind::Projection { def_id } => ty::AliasConstKind::Projection { def_id },
+            AliasConstKind::Inherent { def_id } => ty::AliasConstKind::Inherent { def_id },
+            AliasConstKind::Free { def_id } => ty::AliasConstKind::Free { def_id },
+            AliasConstKind::Anon { def_id } => ty::AliasConstKind::Anon { def_id },
         }
     }
 }
@@ -453,7 +449,7 @@ pub enum ConstKind {
     Param(ParamConst),
     Value(Ty, ValTree),
     Infer(InferConst),
-    Unevaluated(UnevaluatedConst),
+    Alias(AliasConst),
 }
 
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1058,7 +1054,9 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::RawPtr(ty, mutbl) => rustc_ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
             TyKind::Closure(did, args) => rustc_ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
             TyKind::FnPtr(poly_sig) => rustc_ty::Ty::new_fn_ptr(tcx, poly_sig.to_rustc(tcx)),
-            TyKind::Alias(alias_ty) => rustc_ty::Ty::new_alias(tcx, alias_ty.to_rustc(tcx)),
+            TyKind::Alias(alias_ty) => {
+                rustc_ty::Ty::new_alias(tcx, rustc_ty::IsRigid::No, alias_ty.to_rustc(tcx))
+            }
             TyKind::Dynamic(exi_preds, re) => {
                 let preds = exi_preds
                     .iter()
@@ -1256,7 +1254,7 @@ impl fmt::Debug for Const {
             ConstKind::Param(p) => write!(f, "{}", p.name.as_str()),
             ConstKind::Value(_, v) => write!(f, "{v:?}"),
             ConstKind::Infer(infer_const) => write!(f, "{infer_const:?}"),
-            ConstKind::Unevaluated(uneval_const) => write!(f, "{uneval_const:?}"),
+            ConstKind::Alias(uneval_const) => write!(f, "{uneval_const:?}"),
         }
     }
 }

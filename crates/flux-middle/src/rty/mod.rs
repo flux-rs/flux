@@ -2116,7 +2116,9 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
                 ty::Ty::new_tup(tcx, &ts)
             }
-            BaseTy::Alias(alias_ty) => ty::Ty::new_alias(tcx, alias_ty.to_rustc(tcx)),
+            BaseTy::Alias(alias_ty) => {
+                ty::Ty::new_alias(tcx, ty::IsRigid::No, alias_ty.to_rustc(tcx))
+            }
             BaseTy::Array(ty, n) => {
                 let ty = ty.to_rustc(tcx);
                 let n = n.to_rustc(tcx);

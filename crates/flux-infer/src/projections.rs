@@ -748,7 +748,7 @@ fn normalize_projection_ty_with_rustc<'tcx>(
     let cause = ObligationCause::dummy();
     let param_env = tcx.param_env(def_id);
 
-    let pre_ty = projection_ty.to_ty(tcx);
+    let pre_ty = projection_ty.to_ty(tcx, rustc_middle::ty::IsRigid::No);
     let at = infcx.at(&cause, param_env);
     let ty = deeply_normalize::<rustc_middle::ty::Ty<'tcx>, FulfillmentError>(
         at,
@@ -756,7 +756,11 @@ fn normalize_projection_ty_with_rustc<'tcx>(
     )
     .map_err(|err| query_bug!("{err:?}"))?;
 
-    let changed = pre_ty != ty;
+    // `deeply_normalize` marks aliases it couldn't reduce as `IsRigid::Yes`. Since `IsRigid` is
+    // part of `TyKind::Alias`, comparing the types directly would always report a change for rigid
+    // projections, so reset the flag on both sides before comparing.
+    let changed = rustc_middle::ty::set_aliases_to_non_rigid(tcx, ty).skip_normalization()
+        != rustc_middle::ty::set_aliases_to_non_rigid(tcx, pre_ty).skip_normalization();
     let rustc_ty = ty.lower(tcx).map_err(|reason| query_bug!("{reason:?}"))?;
 
     Ok((

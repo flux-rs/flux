@@ -479,7 +479,7 @@ impl Expr {
                 bug!("todo: ValTree::Branch {c:?}")
             }
             // We should have normalized away the unevaluated constants
-            ConstKind::Unevaluated(_) => bug!("unexpected `ConstKind::Unevaluated`"),
+            ConstKind::Alias(_) => bug!("unexpected `ConstKind::Alias`"),
 
             ConstKind::Infer(_) => bug!("unexpected `ConstKind::Infer`"),
         }

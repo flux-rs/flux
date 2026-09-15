@@ -138,7 +138,7 @@ fn callees_in_body<'tcx>(
                 let ty = caller.instantiate_mir_and_normalize_erasing_regions(
                     tcx,
                     typing_env,
-                    EarlyBinder::bind(ty),
+                    EarlyBinder::bind(tcx, ty),
                 );
 
                 match ty.kind() {
