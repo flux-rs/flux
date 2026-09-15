@@ -1,5 +1,6 @@
-#![feature(proc_macro_diagnostic, never_type, proc_macro_tracked_path)]
+#![feature(proc_macro_diagnostic, never_type)]
 
+#[allow(clippy::all, clippy::semicolon_if_nothing_returned)] // copied from upstream, kept as is
 mod diagnostics;
 mod fold;
 mod primops;
@@ -10,13 +11,14 @@ use synstructure::decl_derive;
 
 decl_derive!(
     [Diagnostic, attributes(
-        // struct attributes
+        // struct and field attributes
         diag,
         help,
+        help_once,
         note,
+        note_once,
         warning,
         // field attributes
-        skip_arg,
         primary_span,
         label,
         subdiagnostic,
@@ -31,8 +33,11 @@ decl_derive!(
         // struct/variant attributes
         label,
         help,
+        help_once,
         note,
+        note_once,
         warning,
+        subdiagnostic,
         suggestion,
         suggestion_short,
         suggestion_hidden,
@@ -40,13 +45,18 @@ decl_derive!(
         multipart_suggestion,
         multipart_suggestion_short,
         multipart_suggestion_hidden,
-        multipart_suggestion_verbose,
         // field attributes
-        skip_arg,
         primary_span,
         suggestion_part,
         applicability)] => diagnostics::subdiagnostic_derive
 );
+
+/// Creates a `DiagMessage` from an inline Fluent pattern. The pattern is checked to be valid
+/// Fluent, but variables are not checked against the arguments set on the diagnostic.
+#[proc_macro]
+pub fn msg(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    diagnostics::msg_macro(input)
+}
 
 decl_derive!(
     [TypeFoldable] => fold::type_foldable_derive
@@ -55,11 +65,6 @@ decl_derive!(
 decl_derive!(
     [TypeVisitable] => fold::type_visitable_derive
 );
-
-#[proc_macro]
-pub fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    diagnostics::fluent_messages(input)
-}
 
 #[proc_macro]
 pub fn primop_rules(input: proc_macro::TokenStream) -> proc_macro::TokenStream {

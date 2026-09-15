@@ -24,7 +24,6 @@ use std::{hash::Hash, path::PathBuf, rc::Rc};
 use decoder::decode_crate_metadata;
 use derive_where::derive_where;
 use flux_errors::FluxSession;
-use flux_macros::fluent_messages;
 use flux_middle::{
     PanicSpec,
     call_graph::NodeKey,
@@ -52,8 +51,6 @@ use rustc_span::{
 };
 
 pub use crate::encoder::encode_metadata;
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 const METADATA_VERSION: u8 = 0;
 const METADATA_HEADER: &[u8] = &[b'f', b'l', b'u', b'x', 0, 0, 0, METADATA_VERSION];
@@ -659,7 +656,7 @@ mod errors {
     use crate::Key;
 
     #[derive(Diagnostic)]
-    #[diag(metadata_duplicate_spec, code = E0999)]
+    #[diag("duplicate spec for {$def_name}", code = E0999)]
     pub(super) struct DuplicateSpec {
         def_name: String,
     }

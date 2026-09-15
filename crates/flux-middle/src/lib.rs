@@ -39,7 +39,6 @@ mod sort_of;
 use std::sync::LazyLock;
 
 use flux_arc_interner::List;
-use flux_macros::fluent_messages;
 pub use flux_rustc_bridge::def_id_to_string;
 use flux_rustc_bridge::{
     mir::{LocalDecls, PlaceElem},
@@ -63,8 +62,6 @@ use rustc_span::{
     def_id::{DefId, LocalDefId},
     symbol::Ident,
 };
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub enum PanicSpec {

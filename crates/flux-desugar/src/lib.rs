@@ -13,12 +13,9 @@ extern crate rustc_span;
 
 use desugar::RustItemCtxt;
 use flux_common::result::{ErrorCollector, ResultExt};
-use flux_macros::fluent_messages;
 use flux_syntax::surface;
 use itertools::Itertools as _;
 use rustc_data_structures::unord::UnordMap;
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 mod desugar;
 mod errors;

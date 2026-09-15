@@ -1181,10 +1181,10 @@ mod errors {
     use super::UnsupportedReason;
 
     #[derive(Diagnostic)]
-    #[diag(rustc_bridge_unsupported_local_decl, code = E0999)]
+    #[diag("unsupported local declaration", code = E0999)]
     pub(super) struct UnsupportedLocalDecl<'tcx> {
         #[primary_span]
-        #[label]
+        #[label("this declaration has type `{$ty}` which is not currently supported")]
         span: Span,
         ty: rustc_middle::ty::Ty<'tcx>,
     }
@@ -1199,8 +1199,8 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(rustc_bridge_unsupported_mir, code = E0999)]
-    #[note]
+    #[diag("unsupported {$kind}", code = E0999)]
+    #[note("{$reason}")]
     pub(super) struct UnsupportedMir {
         #[primary_span]
         span: Span,

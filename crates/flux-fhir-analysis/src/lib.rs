@@ -20,7 +20,6 @@ use conv::{AfterSortck, ConvPhase, struct_compat};
 use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
-use flux_macros::fluent_messages;
 use flux_middle::{
     def_id::{FluxDefId, FluxId, MaybeExternId},
     fhir::{
@@ -47,8 +46,6 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
 };
 use rustc_span::Span;
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn provide(providers: &mut Providers) {
     providers.normalized_defns = normalized_defns;
@@ -677,10 +674,10 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_definition_cycle, code = E0999)]
+    #[diag("cycle in definitions", code = E0999)]
     pub struct DefinitionCycle {
         #[primary_span]
-        #[label]
+        #[label("{$msg}")]
         span: Span,
         msg: String,
     }

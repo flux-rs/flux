@@ -271,7 +271,7 @@ mod errors {
     use flux_macros::Diagnostic;
 
     #[derive(Diagnostic)]
-    #[diag(metadata_decode_file_error, code = E0999)]
+    #[diag("error when decoding flux metadata file {$path}: {$err}", code = E0999)]
     pub(super) struct DecodeFileError<'a> {
         path: &'a Path,
         err: io::Error,
@@ -284,7 +284,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(metadata_incompatible_metadata, code = E0999)]
+    #[diag("failed to decode flux metadata file `{$path}`; this is likely because it was produced by an incompatible version of flux. Run `cargo clean` to remove stale metadata and try again", code = E0999)]
     pub(super) struct IncompatibleMetadata<'a> {
         path: &'a Path,
     }

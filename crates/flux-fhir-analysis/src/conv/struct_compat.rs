@@ -650,17 +650,17 @@ mod errors {
     use rustc_span::{DUMMY_SP, Span};
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_incompatible_refinement, code = E0999)]
-    #[note]
+    #[diag("{$def_descr} has an incompatible refinement annotation", code = E0999)]
+    #[note("a refinement annotation must match the unrefined definition structurally")]
     pub(super) struct IncompatibleRefinement<'tcx> {
         #[primary_span]
-        #[label]
+        #[label("expected a refinement of `{$expected_ty}`")]
         span: Span,
-        #[label(fhir_analysis_incompatible_refinement_expected_label)]
+        #[label("unrefined {$def_descr} found here")]
         expected_span: Option<Span>,
         expected_ty: rustc_middle::ty::Ty<'tcx>,
         def_descr: &'static str,
-        #[help(fhir_analysis_async_hint)]
+        #[help("mark the flux signature as `async fn`")]
         async_hint: Option<()>,
     }
 
@@ -805,13 +805,23 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_incompatible_param_count, code = E0999)]
+    #[diag("{$def_descr} has an incompatible refinement annotation", code = E0999)]
     pub(super) struct IncompatibleParamCount {
         #[primary_span]
-        #[label]
+        #[label(
+            "refined signature has {$found} {$found ->
+                [one] parameter
+                *[other] parameters
+            }"
+        )]
         span: Span,
         found: usize,
-        #[label(fhir_analysis_incompatible_param_count_expected_label)]
+        #[label(
+            "unrefined signature has {$expected} {$expected ->
+                [one] parameter
+                *[other] parameters
+            }"
+        )]
         expected_span: Span,
         expected: usize,
         def_descr: &'static str,
@@ -853,13 +863,18 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_field_count_mismatch, code = E0999)]
+    #[diag("variant has an incompatible refinement annotation", code = E0999)]
     pub(super) struct FieldCountMismatch {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected {$expected_fields} {$expected_fields ->
+                [one] field
+                *[other] fields
+            }, found {$fields}"
+        )]
         span: Span,
         fields: usize,
-        #[label(fhir_analysis_field_count_mismatch_expected_label)]
+        #[label("unrefined variant defined here")]
         expected_span: Span,
         expected_fields: usize,
     }

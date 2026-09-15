@@ -14,7 +14,3 @@ extern crate rustc_span;
 
 pub mod callbacks;
 mod collector;
-
-use flux_macros::fluent_messages;
-
-fluent_messages! { "../locales/en-US.ftl" }
