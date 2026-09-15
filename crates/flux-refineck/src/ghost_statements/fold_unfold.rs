@@ -211,8 +211,10 @@ impl Mode for Elaboration<'_> {
                     .mode
                     .insert_at(analysis.point, GhostStatement::Fold(place));
             }
+            // `place_ref` is the longest prefix of `place` that `ensure_unfolded` could walk
+            // through. It is a strict prefix when `place` indexes into an array or slice, in
+            // which case we unfold up to the array/slice itself.
             ProjResult::Unfold(place_ref) => {
-                tracked_span_assert_eq!(place_ref, place.as_ref());
                 match place_ref.last_projection() {
                     Some((base, PlaceElem::Deref | PlaceElem::Field(..))) => {
                         analysis
