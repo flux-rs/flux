@@ -1159,7 +1159,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             AssertKind::BoundsCheck => "possible out-of-bounds access",
             AssertKind::RemainderByZero => "possible remainder with a divisor of zero",
             AssertKind::Overflow(mir::BinOp::Div) => "possible division with overflow",
-            AssertKind::Overflow(mir::BinOp::Rem) => "possible reminder with overflow",
+            AssertKind::Overflow(mir::BinOp::Rem) => "possible remainder with overflow",
             AssertKind::Overflow(_) => return Ok(Guard::Pred(pred)),
         };
         infcx
