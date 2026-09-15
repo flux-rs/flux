@@ -1532,7 +1532,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .refine_ty_or_base(ty)
                     .with_span(stmt_span)?
                     .expect_base();
-                raw_ptr_with_size(genv, kind, ctor)
+                raw_ptr_with_size(genv, kind, ctor, infcx, self.checker_id.root_id())
             }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
@@ -2134,12 +2134,47 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
 /// Converts a reference into a raw-ptr, tracking size etc.
 ///
-///     &mut T => *mut{p: p.size == T::size_of() && p.base == p.addr && p.addr % T::align_of() == 0 } T
+/// For types that do implement Sized:
+///     &mut T => *mut{p: p.size == T::size_of() && p.base == p.addr &&
+///                       p.addr % T::align_of() == 0 && p.addr != 0} T
+///
+/// For types that do not implement Sized:
+///     &mut T => *mut{p.base == p.addr && p.addr != 0} T
 ///
 /// see test `fn ref_to_ptr_read` in `crates/flux/tests/tests/with_deps/pos/extern_specs/flux_core_ptr01.rs`
-fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ctor: SubsetTyCtor) -> Result<Ty> {
-    let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
-    let bty = BaseTy::RawPtr(ctor.to_ty(), kind.to_mutbl_lossy());
+fn raw_ptr_with_size<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
+    kind: &RawPtrKind,
+    ctor: SubsetTyCtor,
+    infcx: &InferCtxt<'_, 'genv, 'tcx>,
+    def_id: LocalDefId,
+) -> Result<Ty> {
+    let tcx = genv.tcx();
+    let param_env = tcx.param_env(def_id);
+    let typing_env = infcx.region_infcx.typing_env(param_env);
+
+    let pointee_ty = ctor.to_ty();
+    let bty = BaseTy::RawPtr(pointee_ty.clone(), kind.to_mutbl_lossy());
+
+    let has_sized = pointee_ty.to_rustc(tcx).is_sized(tcx, typing_env);
+    let nu = Expr::nu();
+    let base = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
+    let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
+    let size = Expr::field_proj(nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
+    
+    // For slices and other fat pointer types, we don't know the alignment and size
+    // and so must drop those assertions.
+    if !has_sized {
+         let pred = Expr::and_from_iter([
+            Expr::eq(base, addr.clone()),
+            Expr::ne(addr.clone(), Expr::zero()),
+        ]);
+
+        let ty = Ty::exists_with_constr(bty, pred);
+        return Ok(ty);
+    }
+
+    let sized_id = tcx.require_lang_item(LangItem::Sized, DUMMY_SP);
     let args = rty::List::from_arr([GenericArg::Base(ctor)]);
     let size_of_expr = Expr::alias(
         AliasReft {
@@ -2152,11 +2187,6 @@ fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ctor: SubsetTyCtor) -> 
         AliasReft { assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::align_of), args },
         rty::List::empty(),
     );
-
-    let nu = Expr::nu();
-    let base = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
-    let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
-    let size = Expr::field_proj(nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
 
     let pred = Expr::and_from_iter([
         Expr::eq(base, addr.clone()),
