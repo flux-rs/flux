@@ -1517,7 +1517,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     || {
                         traits::supertraits(
                             tcx,
-                            ty::Binder::dummy(trait_ref.instantiate_identity()),
+                            ty::Binder::dummy(trait_ref.instantiate_identity().skip_norm_wip()),
                         )
                     },
                     assoc_ident,
@@ -2904,6 +2904,7 @@ fn type_param_predicates<'tcx>(
     predicates.into_iter().filter_map(move |(clause, _)| {
         clause
             .as_trait_clause()
+            .map(|trait_pred| trait_pred.skip_norm_wip())
             .filter(|trait_pred| trait_pred.self_ty().skip_binder().is_param(param_index))
     })
 }
@@ -2931,6 +2932,7 @@ fn transitive_bounds<'tcx>(
             stack.extend(
                 tcx.explicit_super_predicates_of(trait_ref.def_id())
                     .iter_identity_copied()
+                    .map(|clause| clause.skip_norm_wip())
                     .map(|(clause, _)| clause.instantiate_supertrait(tcx, trait_ref))
                     .filter_map(|clause| clause.as_trait_clause())
                     .filter(|clause| clause.polarity() == ty::PredicatePolarity::Positive)

@@ -922,9 +922,10 @@ impl<'tcx> ToRustc<'tcx> for FnSig {
         tcx.mk_fn_sig(
             self.inputs().iter().map(|ty| ty.to_rustc(tcx)),
             self.output().to_rustc(tcx),
-            false,
-            self.safety,
-            self.abi,
+            rustc_middle::ty::FnSigKind::default()
+                .set_abi(self.abi)
+                .set_safe(self.safety.is_safe())
+                .set_c_variadic(false),
         )
     }
 }

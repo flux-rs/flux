@@ -7,7 +7,11 @@ use crate::{global_env::GlobalEnv, queries::QueryResult, query_bug, rty};
 
 impl GlobalEnv<'_, '_> {
     pub fn sort_of_self_ty_alias(self, alias_to: DefId) -> QueryResult<Option<rty::Sort>> {
-        let self_ty = self.tcx().type_of(alias_to).instantiate_identity();
+        let self_ty = self
+            .tcx()
+            .type_of(alias_to)
+            .instantiate_identity()
+            .skip_norm_wip();
         self.sort_of_rust_ty(alias_to, self_ty)
     }
 

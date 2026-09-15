@@ -703,7 +703,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::FnSig<'tcx> {
                 .map(|ty| ty.lower(tcx))
                 .try_collect()?,
         );
-        Ok(FnSig { safety: self.safety, abi: self.abi, inputs_and_output })
+        Ok(FnSig { safety: self.safety(), abi: self.abi(), inputs_and_output })
     }
 }
 
@@ -873,9 +873,7 @@ fn fnptr_as_fnsig<'tcx>(
     fn_sig_tys.map_bound(|fn_sig_tys| {
         rustc_ty::FnSig {
             inputs_and_output: fn_sig_tys.inputs_and_output,
-            c_variadic: header.c_variadic,
-            safety: header.safety,
-            abi: header.abi,
+            fn_sig_kind: header.fn_sig_kind,
         }
     })
 }

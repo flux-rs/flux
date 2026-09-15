@@ -787,6 +787,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let adt_def_id = tcx
             .type_of(impl_id)
             .instantiate_identity()
+            .skip_norm_wip()
             .ty_adt_def()?
             .did();
         match self.resolve_id(adt_def_id) {

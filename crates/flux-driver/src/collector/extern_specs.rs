@@ -58,7 +58,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             hir::ItemKind::Struct(_, _, variant) => {
                 self.collect_extern_struct(item.owner_id, variant, attrs)
             }
-            hir::ItemKind::Trait(_, _, _, _, _, bounds, items) => {
+            hir::ItemKind::Trait(_, _, _, _, _, _, bounds, items) => {
                 self.collect_extern_trait(item.owner_id, bounds, items, attrs)
             }
             hir::ItemKind::Impl(impl_) => self.collect_extern_impl(item.owner_id, impl_, attrs),
@@ -523,7 +523,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         let tcx = self.tcx();
 
         // Get the self type from the external impl
-        let extern_self_ty = tcx.type_of(extern_impl_id).instantiate_identity();
+        let extern_self_ty = tcx
+            .type_of(extern_impl_id)
+            .instantiate_identity()
+            .skip_norm_wip();
 
         // Compare self types. `local_self_ty` is the user-written self type from the extern
         // spec's trait_ref (not the `__FluxExternImplStruct` wrapper that the macro retargets

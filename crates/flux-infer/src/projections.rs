@@ -750,8 +750,11 @@ fn normalize_projection_ty_with_rustc<'tcx>(
 
     let pre_ty = projection_ty.to_ty(tcx);
     let at = infcx.at(&cause, param_env);
-    let ty = deeply_normalize::<rustc_middle::ty::Ty<'tcx>, FulfillmentError>(at, pre_ty)
-        .map_err(|err| query_bug!("{err:?}"))?;
+    let ty = deeply_normalize::<rustc_middle::ty::Ty<'tcx>, FulfillmentError>(
+        at,
+        rustc_middle::ty::Unnormalized::new(pre_ty),
+    )
+    .map_err(|err| query_bug!("{err:?}"))?;
 
     let changed = pre_ty != ty;
     let rustc_ty = ty.lower(tcx).map_err(|reason| query_bug!("{reason:?}"))?;

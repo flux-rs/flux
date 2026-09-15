@@ -1,12 +1,11 @@
 #![allow(incomplete_features)]
-#![feature(rustc_private, specialization)]
+#![feature(rustc_private)]
 
 extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_macros;
-extern crate rustc_metadata;
 extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_session;

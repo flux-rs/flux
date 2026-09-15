@@ -627,7 +627,10 @@ impl Pretty for BaseTy {
                         }
                         let earlier_args =
                             tcx.mk_args_from_iter(args[..arg_idx].iter().map(|a| a.to_rustc(tcx)));
-                        let default_ty = tcx.type_of(param.def_id).instantiate(tcx, earlier_args);
+                        let default_ty = tcx
+                            .type_of(param.def_id)
+                            .instantiate(tcx, earlier_args)
+                            .skip_norm_wip();
                         if arg.to_rustc(tcx) != rustc_middle::ty::GenericArg::from(default_ty) {
                             break;
                         }

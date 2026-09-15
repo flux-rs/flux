@@ -46,7 +46,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             hir::ItemKind::Union(_, generics, variant_data) => {
                 (generics, fhir::ItemKind::Struct(self.lift_struct_def(variant_data)))
             }
-            hir::ItemKind::Trait(_, _, _, _, generics, ..) => {
+            hir::ItemKind::Trait(_, _, _, _, _, generics, ..) => {
                 (generics, fhir::ItemKind::Trait(fhir::Trait { assoc_refinements: &[] }))
             }
             hir::ItemKind::Impl(impl_) => {

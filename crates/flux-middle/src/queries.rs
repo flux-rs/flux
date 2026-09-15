@@ -500,7 +500,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<ty::EarlyBinder<ty::Ty>> {
         run_with_cache(&self.lower_type_of, def_id, || {
-            let ty = genv.tcx().type_of(def_id).instantiate_identity();
+            let ty = genv
+                .tcx()
+                .type_of(def_id)
+                .instantiate_identity()
+                .skip_norm_wip();
             Ok(ty::EarlyBinder(
                 ty.lower(genv.tcx())
                     .map_err(|err| QueryErr::unsupported(def_id, err.into_err()))?,
@@ -514,7 +518,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
         run_with_cache(&self.lower_fn_sig, def_id, || {
-            let fn_sig = genv.tcx().fn_sig(def_id).instantiate_identity();
+            let fn_sig = genv
+                .tcx()
+                .fn_sig(def_id)
+                .instantiate_identity()
+                .skip_norm_wip();
             Ok(ty::EarlyBinder(
                 fn_sig
                     .lower(genv.tcx())

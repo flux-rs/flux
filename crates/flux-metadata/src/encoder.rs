@@ -3,7 +3,6 @@ use std::{collections::hash_map::Entry, sync::Arc};
 use flux_middle::global_env::GlobalEnv;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::def_id::{DefId, LOCAL_CRATE};
-use rustc_metadata::errors::FailCreateFileEncoder;
 use rustc_middle::{
     bug,
     ty::{self, TyCtxt, codec::TyEncoder},
@@ -122,7 +121,7 @@ pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
         genv.tcx()
             .sess
             .dcx()
-            .emit_fatal(FailCreateFileEncoder { err })
+            .fatal(format!("failed to create file encoder: {err}"))
     });
 
     encoder.emit_raw_bytes(METADATA_HEADER);
