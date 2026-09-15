@@ -650,17 +650,17 @@
 <a href=#650 id=650 data-nosnippet>650</a>    <span class="kw">use </span>rustc_span::{DUMMY_SP, Span};
 <a href=#651 id=651 data-nosnippet>651</a>
 <a href=#652 id=652 data-nosnippet>652</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#653 id=653 data-nosnippet>653</a>    #[diag(fhir_analysis_incompatible_refinement, code = E0999)]
-<a href=#654 id=654 data-nosnippet>654</a>    #[note]
+<a href=#653 id=653 data-nosnippet>653</a>    #[diag(<span class="string">"{$def_descr} has an incompatible refinement annotation"</span>, code = E0999)]
+<a href=#654 id=654 data-nosnippet>654</a>    #[note(<span class="string">"a refinement annotation must match the unrefined definition structurally"</span>)]
 <a href=#655 id=655 data-nosnippet>655</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatibleRefinement&lt;<span class="lifetime">'tcx</span>&gt; {
 <a href=#656 id=656 data-nosnippet>656</a>        <span class="attr">#[primary_span]
-<a href=#657 id=657 data-nosnippet>657</a>        #[label]
+<a href=#657 id=657 data-nosnippet>657</a>        #[label(<span class="string">"expected a refinement of `{$expected_ty}`"</span>)]
 <a href=#658 id=658 data-nosnippet>658</a>        </span>span: Span,
-<a href=#659 id=659 data-nosnippet>659</a>        <span class="attr">#[label(fhir_analysis_incompatible_refinement_expected_label)]
+<a href=#659 id=659 data-nosnippet>659</a>        <span class="attr">#[label(<span class="string">"unrefined {$def_descr} found here"</span>)]
 <a href=#660 id=660 data-nosnippet>660</a>        </span>expected_span: <span class="prelude-ty">Option</span>&lt;Span&gt;,
 <a href=#661 id=661 data-nosnippet>661</a>        expected_ty: rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
 <a href=#662 id=662 data-nosnippet>662</a>        def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-<a href=#663 id=663 data-nosnippet>663</a>        <span class="attr">#[help(fhir_analysis_async_hint)]
+<a href=#663 id=663 data-nosnippet>663</a>        <span class="attr">#[help(<span class="string">"mark the flux signature as `async fn`"</span>)]
 <a href=#664 id=664 data-nosnippet>664</a>        </span>async_hint: <span class="prelude-ty">Option</span>&lt;()&gt;,
 <a href=#665 id=665 data-nosnippet>665</a>    }
 <a href=#666 id=666 data-nosnippet>666</a>
@@ -805,93 +805,108 @@
 <a href=#805 id=805 data-nosnippet>805</a>    }
 <a href=#806 id=806 data-nosnippet>806</a>
 <a href=#807 id=807 data-nosnippet>807</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#808 id=808 data-nosnippet>808</a>    #[diag(fhir_analysis_incompatible_param_count, code = E0999)]
+<a href=#808 id=808 data-nosnippet>808</a>    #[diag(<span class="string">"{$def_descr} has an incompatible refinement annotation"</span>, code = E0999)]
 <a href=#809 id=809 data-nosnippet>809</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatibleParamCount {
 <a href=#810 id=810 data-nosnippet>810</a>        <span class="attr">#[primary_span]
-<a href=#811 id=811 data-nosnippet>811</a>        #[label]
-<a href=#812 id=812 data-nosnippet>812</a>        </span>span: Span,
-<a href=#813 id=813 data-nosnippet>813</a>        found: usize,
-<a href=#814 id=814 data-nosnippet>814</a>        <span class="attr">#[label(fhir_analysis_incompatible_param_count_expected_label)]
-<a href=#815 id=815 data-nosnippet>815</a>        </span>expected_span: Span,
-<a href=#816 id=816 data-nosnippet>816</a>        expected: usize,
-<a href=#817 id=817 data-nosnippet>817</a>        def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-<a href=#818 id=818 data-nosnippet>818</a>    }
-<a href=#819 id=819 data-nosnippet>819</a>
-<a href=#820 id=820 data-nosnippet>820</a>    <span class="kw">impl </span>IncompatibleParamCount {
-<a href=#821 id=821 data-nosnippet>821</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(genv: GlobalEnv, decl: <span class="kw-2">&amp;</span>fhir::FnDecl, def_id: MaybeExternId) -&gt; <span class="self">Self </span>{
-<a href=#822 id=822 data-nosnippet>822</a>            <span class="kw">let </span>def_descr = genv.tcx().def_descr(def_id.resolved_id());
-<a href=#823 id=823 data-nosnippet>823</a>
-<a href=#824 id=824 data-nosnippet>824</a>            <span class="kw">let </span>span = <span class="kw">if </span>!decl.inputs.is_empty() {
-<a href=#825 id=825 data-nosnippet>825</a>                decl.inputs[decl.inputs.len() - <span class="number">1</span>]
-<a href=#826 id=826 data-nosnippet>826</a>                    .span
-<a href=#827 id=827 data-nosnippet>827</a>                    .with_lo(decl.inputs[<span class="number">0</span>].span.lo())
-<a href=#828 id=828 data-nosnippet>828</a>            } <span class="kw">else </span>{
-<a href=#829 id=829 data-nosnippet>829</a>                decl.span
-<a href=#830 id=830 data-nosnippet>830</a>            };
-<a href=#831 id=831 data-nosnippet>831</a>
-<a href=#832 id=832 data-nosnippet>832</a>            <span class="kw">let </span>expected_span = <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local()
-<a href=#833 id=833 data-nosnippet>833</a>                &amp;&amp; <span class="kw">let </span>expected_decl = genv.tcx().hir_node_by_def_id(local_id).fn_decl().unwrap()
-<a href=#834 id=834 data-nosnippet>834</a>                &amp;&amp; !expected_decl.inputs.is_empty()
-<a href=#835 id=835 data-nosnippet>835</a>            {
-<a href=#836 id=836 data-nosnippet>836</a>                expected_decl.inputs[expected_decl.inputs.len() - <span class="number">1</span>]
-<a href=#837 id=837 data-nosnippet>837</a>                    .span
-<a href=#838 id=838 data-nosnippet>838</a>                    .with_lo(expected_decl.inputs[<span class="number">0</span>].span.lo())
-<a href=#839 id=839 data-nosnippet>839</a>            } <span class="kw">else </span>{
-<a href=#840 id=840 data-nosnippet>840</a>                genv.tcx().def_span(def_id)
-<a href=#841 id=841 data-nosnippet>841</a>            };
-<a href=#842 id=842 data-nosnippet>842</a>
-<a href=#843 id=843 data-nosnippet>843</a>            <span class="kw">let </span>expected = genv
-<a href=#844 id=844 data-nosnippet>844</a>                .tcx()
-<a href=#845 id=845 data-nosnippet>845</a>                .fn_sig(def_id)
-<a href=#846 id=846 data-nosnippet>846</a>                .skip_binder()
-<a href=#847 id=847 data-nosnippet>847</a>                .skip_binder()
-<a href=#848 id=848 data-nosnippet>848</a>                .inputs()
-<a href=#849 id=849 data-nosnippet>849</a>                .len();
-<a href=#850 id=850 data-nosnippet>850</a>
-<a href=#851 id=851 data-nosnippet>851</a>            <span class="self">Self </span>{ span, found: decl.inputs.len(), expected_span, expected, def_descr }
-<a href=#852 id=852 data-nosnippet>852</a>        }
-<a href=#853 id=853 data-nosnippet>853</a>    }
-<a href=#854 id=854 data-nosnippet>854</a>
-<a href=#855 id=855 data-nosnippet>855</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#856 id=856 data-nosnippet>856</a>    #[diag(fhir_analysis_field_count_mismatch, code = E0999)]
-<a href=#857 id=857 data-nosnippet>857</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>FieldCountMismatch {
-<a href=#858 id=858 data-nosnippet>858</a>        <span class="attr">#[primary_span]
-<a href=#859 id=859 data-nosnippet>859</a>        #[label]
-<a href=#860 id=860 data-nosnippet>860</a>        </span>span: Span,
-<a href=#861 id=861 data-nosnippet>861</a>        fields: usize,
-<a href=#862 id=862 data-nosnippet>862</a>        <span class="attr">#[label(fhir_analysis_field_count_mismatch_expected_label)]
-<a href=#863 id=863 data-nosnippet>863</a>        </span>expected_span: Span,
-<a href=#864 id=864 data-nosnippet>864</a>        expected_fields: usize,
-<a href=#865 id=865 data-nosnippet>865</a>    }
-<a href=#866 id=866 data-nosnippet>866</a>
-<a href=#867 id=867 data-nosnippet>867</a>    <span class="kw">impl </span>FieldCountMismatch {
-<a href=#868 id=868 data-nosnippet>868</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(
-<a href=#869 id=869 data-nosnippet>869</a>            genv: GlobalEnv,
-<a href=#870 id=870 data-nosnippet>870</a>            found: usize,
-<a href=#871 id=871 data-nosnippet>871</a>            adt_def_id: MaybeExternId,
-<a href=#872 id=872 data-nosnippet>872</a>            variant_idx: VariantIdx,
-<a href=#873 id=873 data-nosnippet>873</a>        ) -&gt; <span class="self">Self </span>{
-<a href=#874 id=874 data-nosnippet>874</a>            <span class="kw">let </span>adt_def = genv.tcx().adt_def(adt_def_id);
-<a href=#875 id=875 data-nosnippet>875</a>            <span class="kw">let </span>expected_variant = adt_def.variant(variant_idx);
-<a href=#876 id=876 data-nosnippet>876</a>
-<a href=#877 id=877 data-nosnippet>877</a>            <span class="comment">// Get the span of the variant if this is an enum. Structs cannot have produce a field
-<a href=#878 id=878 data-nosnippet>878</a>            // count mismatch.
-<a href=#879 id=879 data-nosnippet>879</a>            </span><span class="kw">let </span>span = <span class="kw">if let </span><span class="prelude-val">Ok</span>(fhir::Node::Item(item)) = genv.fhir_node(adt_def_id.local_id())
-<a href=#880 id=880 data-nosnippet>880</a>                &amp;&amp; <span class="kw">let </span>fhir::ItemKind::Enum(enum_def) = <span class="kw-2">&amp;</span>item.kind
-<a href=#881 id=881 data-nosnippet>881</a>                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(variant) = enum_def.variants.get(variant_idx.as_usize())
-<a href=#882 id=882 data-nosnippet>882</a>            {
-<a href=#883 id=883 data-nosnippet>883</a>                variant.span
-<a href=#884 id=884 data-nosnippet>884</a>            } <span class="kw">else </span>{
-<a href=#885 id=885 data-nosnippet>885</a>                DUMMY_SP
-<a href=#886 id=886 data-nosnippet>886</a>            };
-<a href=#887 id=887 data-nosnippet>887</a>
-<a href=#888 id=888 data-nosnippet>888</a>            <span class="self">Self </span>{
-<a href=#889 id=889 data-nosnippet>889</a>                span,
-<a href=#890 id=890 data-nosnippet>890</a>                fields: found,
-<a href=#891 id=891 data-nosnippet>891</a>                expected_span: genv.tcx().def_span(expected_variant.def_id),
-<a href=#892 id=892 data-nosnippet>892</a>                expected_fields: expected_variant.fields.len(),
-<a href=#893 id=893 data-nosnippet>893</a>            }
-<a href=#894 id=894 data-nosnippet>894</a>        }
-<a href=#895 id=895 data-nosnippet>895</a>    }
-<a href=#896 id=896 data-nosnippet>896</a>}
+<a href=#811 id=811 data-nosnippet>811</a>        #[label(
+<a href=#812 id=812 data-nosnippet>812</a>            <span class="string">"refined signature has {$found} {$found -&gt;
+<a href=#813 id=813 data-nosnippet>813</a>                [one] parameter
+<a href=#814 id=814 data-nosnippet>814</a>                *[other] parameters
+<a href=#815 id=815 data-nosnippet>815</a>            }"
+<a href=#816 id=816 data-nosnippet>816</a>        </span>)]
+<a href=#817 id=817 data-nosnippet>817</a>        </span>span: Span,
+<a href=#818 id=818 data-nosnippet>818</a>        found: usize,
+<a href=#819 id=819 data-nosnippet>819</a>        <span class="attr">#[label(
+<a href=#820 id=820 data-nosnippet>820</a>            <span class="string">"unrefined signature has {$expected} {$expected -&gt;
+<a href=#821 id=821 data-nosnippet>821</a>                [one] parameter
+<a href=#822 id=822 data-nosnippet>822</a>                *[other] parameters
+<a href=#823 id=823 data-nosnippet>823</a>            }"
+<a href=#824 id=824 data-nosnippet>824</a>        </span>)]
+<a href=#825 id=825 data-nosnippet>825</a>        </span>expected_span: Span,
+<a href=#826 id=826 data-nosnippet>826</a>        expected: usize,
+<a href=#827 id=827 data-nosnippet>827</a>        def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+<a href=#828 id=828 data-nosnippet>828</a>    }
+<a href=#829 id=829 data-nosnippet>829</a>
+<a href=#830 id=830 data-nosnippet>830</a>    <span class="kw">impl </span>IncompatibleParamCount {
+<a href=#831 id=831 data-nosnippet>831</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(genv: GlobalEnv, decl: <span class="kw-2">&amp;</span>fhir::FnDecl, def_id: MaybeExternId) -&gt; <span class="self">Self </span>{
+<a href=#832 id=832 data-nosnippet>832</a>            <span class="kw">let </span>def_descr = genv.tcx().def_descr(def_id.resolved_id());
+<a href=#833 id=833 data-nosnippet>833</a>
+<a href=#834 id=834 data-nosnippet>834</a>            <span class="kw">let </span>span = <span class="kw">if </span>!decl.inputs.is_empty() {
+<a href=#835 id=835 data-nosnippet>835</a>                decl.inputs[decl.inputs.len() - <span class="number">1</span>]
+<a href=#836 id=836 data-nosnippet>836</a>                    .span
+<a href=#837 id=837 data-nosnippet>837</a>                    .with_lo(decl.inputs[<span class="number">0</span>].span.lo())
+<a href=#838 id=838 data-nosnippet>838</a>            } <span class="kw">else </span>{
+<a href=#839 id=839 data-nosnippet>839</a>                decl.span
+<a href=#840 id=840 data-nosnippet>840</a>            };
+<a href=#841 id=841 data-nosnippet>841</a>
+<a href=#842 id=842 data-nosnippet>842</a>            <span class="kw">let </span>expected_span = <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local()
+<a href=#843 id=843 data-nosnippet>843</a>                &amp;&amp; <span class="kw">let </span>expected_decl = genv.tcx().hir_node_by_def_id(local_id).fn_decl().unwrap()
+<a href=#844 id=844 data-nosnippet>844</a>                &amp;&amp; !expected_decl.inputs.is_empty()
+<a href=#845 id=845 data-nosnippet>845</a>            {
+<a href=#846 id=846 data-nosnippet>846</a>                expected_decl.inputs[expected_decl.inputs.len() - <span class="number">1</span>]
+<a href=#847 id=847 data-nosnippet>847</a>                    .span
+<a href=#848 id=848 data-nosnippet>848</a>                    .with_lo(expected_decl.inputs[<span class="number">0</span>].span.lo())
+<a href=#849 id=849 data-nosnippet>849</a>            } <span class="kw">else </span>{
+<a href=#850 id=850 data-nosnippet>850</a>                genv.tcx().def_span(def_id)
+<a href=#851 id=851 data-nosnippet>851</a>            };
+<a href=#852 id=852 data-nosnippet>852</a>
+<a href=#853 id=853 data-nosnippet>853</a>            <span class="kw">let </span>expected = genv
+<a href=#854 id=854 data-nosnippet>854</a>                .tcx()
+<a href=#855 id=855 data-nosnippet>855</a>                .fn_sig(def_id)
+<a href=#856 id=856 data-nosnippet>856</a>                .skip_binder()
+<a href=#857 id=857 data-nosnippet>857</a>                .skip_binder()
+<a href=#858 id=858 data-nosnippet>858</a>                .inputs()
+<a href=#859 id=859 data-nosnippet>859</a>                .len();
+<a href=#860 id=860 data-nosnippet>860</a>
+<a href=#861 id=861 data-nosnippet>861</a>            <span class="self">Self </span>{ span, found: decl.inputs.len(), expected_span, expected, def_descr }
+<a href=#862 id=862 data-nosnippet>862</a>        }
+<a href=#863 id=863 data-nosnippet>863</a>    }
+<a href=#864 id=864 data-nosnippet>864</a>
+<a href=#865 id=865 data-nosnippet>865</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#866 id=866 data-nosnippet>866</a>    #[diag(<span class="string">"variant has an incompatible refinement annotation"</span>, code = E0999)]
+<a href=#867 id=867 data-nosnippet>867</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>FieldCountMismatch {
+<a href=#868 id=868 data-nosnippet>868</a>        <span class="attr">#[primary_span]
+<a href=#869 id=869 data-nosnippet>869</a>        #[label(
+<a href=#870 id=870 data-nosnippet>870</a>            <span class="string">"expected {$expected_fields} {$expected_fields -&gt;
+<a href=#871 id=871 data-nosnippet>871</a>                [one] field
+<a href=#872 id=872 data-nosnippet>872</a>                *[other] fields
+<a href=#873 id=873 data-nosnippet>873</a>            }, found {$fields}"
+<a href=#874 id=874 data-nosnippet>874</a>        </span>)]
+<a href=#875 id=875 data-nosnippet>875</a>        </span>span: Span,
+<a href=#876 id=876 data-nosnippet>876</a>        fields: usize,
+<a href=#877 id=877 data-nosnippet>877</a>        <span class="attr">#[label(<span class="string">"unrefined variant defined here"</span>)]
+<a href=#878 id=878 data-nosnippet>878</a>        </span>expected_span: Span,
+<a href=#879 id=879 data-nosnippet>879</a>        expected_fields: usize,
+<a href=#880 id=880 data-nosnippet>880</a>    }
+<a href=#881 id=881 data-nosnippet>881</a>
+<a href=#882 id=882 data-nosnippet>882</a>    <span class="kw">impl </span>FieldCountMismatch {
+<a href=#883 id=883 data-nosnippet>883</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(
+<a href=#884 id=884 data-nosnippet>884</a>            genv: GlobalEnv,
+<a href=#885 id=885 data-nosnippet>885</a>            found: usize,
+<a href=#886 id=886 data-nosnippet>886</a>            adt_def_id: MaybeExternId,
+<a href=#887 id=887 data-nosnippet>887</a>            variant_idx: VariantIdx,
+<a href=#888 id=888 data-nosnippet>888</a>        ) -&gt; <span class="self">Self </span>{
+<a href=#889 id=889 data-nosnippet>889</a>            <span class="kw">let </span>adt_def = genv.tcx().adt_def(adt_def_id);
+<a href=#890 id=890 data-nosnippet>890</a>            <span class="kw">let </span>expected_variant = adt_def.variant(variant_idx);
+<a href=#891 id=891 data-nosnippet>891</a>
+<a href=#892 id=892 data-nosnippet>892</a>            <span class="comment">// Get the span of the variant if this is an enum. Structs cannot have produce a field
+<a href=#893 id=893 data-nosnippet>893</a>            // count mismatch.
+<a href=#894 id=894 data-nosnippet>894</a>            </span><span class="kw">let </span>span = <span class="kw">if let </span><span class="prelude-val">Ok</span>(fhir::Node::Item(item)) = genv.fhir_node(adt_def_id.local_id())
+<a href=#895 id=895 data-nosnippet>895</a>                &amp;&amp; <span class="kw">let </span>fhir::ItemKind::Enum(enum_def) = <span class="kw-2">&amp;</span>item.kind
+<a href=#896 id=896 data-nosnippet>896</a>                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(variant) = enum_def.variants.get(variant_idx.as_usize())
+<a href=#897 id=897 data-nosnippet>897</a>            {
+<a href=#898 id=898 data-nosnippet>898</a>                variant.span
+<a href=#899 id=899 data-nosnippet>899</a>            } <span class="kw">else </span>{
+<a href=#900 id=900 data-nosnippet>900</a>                DUMMY_SP
+<a href=#901 id=901 data-nosnippet>901</a>            };
+<a href=#902 id=902 data-nosnippet>902</a>
+<a href=#903 id=903 data-nosnippet>903</a>            <span class="self">Self </span>{
+<a href=#904 id=904 data-nosnippet>904</a>                span,
+<a href=#905 id=905 data-nosnippet>905</a>                fields: found,
+<a href=#906 id=906 data-nosnippet>906</a>                expected_span: genv.tcx().def_span(expected_variant.def_id),
+<a href=#907 id=907 data-nosnippet>907</a>                expected_fields: expected_variant.fields.len(),
+<a href=#908 id=908 data-nosnippet>908</a>            }
+<a href=#909 id=909 data-nosnippet>909</a>        }
+<a href=#910 id=910 data-nosnippet>910</a>    }
+<a href=#911 id=911 data-nosnippet>911</a>}
 </code></pre></div></section></main></body></html>

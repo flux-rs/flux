@@ -271,7 +271,7 @@
 <a href=#271 id=271 data-nosnippet>271</a>    <span class="kw">use </span>flux_macros::Diagnostic;
 <a href=#272 id=272 data-nosnippet>272</a>
 <a href=#273 id=273 data-nosnippet>273</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#274 id=274 data-nosnippet>274</a>    #[diag(metadata_decode_file_error, code = E0999)]
+<a href=#274 id=274 data-nosnippet>274</a>    #[diag(<span class="string">"error when decoding flux metadata file {$path}: {$err}"</span>, code = E0999)]
 <a href=#275 id=275 data-nosnippet>275</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DecodeFileError&lt;<span class="lifetime">'a</span>&gt; {
 <a href=#276 id=276 data-nosnippet>276</a>        path: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Path,
 <a href=#277 id=277 data-nosnippet>277</a>        err: io::Error,
@@ -284,7 +284,7 @@
 <a href=#284 id=284 data-nosnippet>284</a>    }
 <a href=#285 id=285 data-nosnippet>285</a>
 <a href=#286 id=286 data-nosnippet>286</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#287 id=287 data-nosnippet>287</a>    #[diag(metadata_incompatible_metadata, code = E0999)]
+<a href=#287 id=287 data-nosnippet>287</a>    #[diag(<span class="string">"failed to decode flux metadata file `{$path}`; this is likely because it was produced by an incompatible version of flux. Run `cargo clean` to remove stale metadata and try again"</span>, code = E0999)]
 <a href=#288 id=288 data-nosnippet>288</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatibleMetadata&lt;<span class="lifetime">'a</span>&gt; {
 <a href=#289 id=289 data-nosnippet>289</a>        path: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Path,
 <a href=#290 id=290 data-nosnippet>290</a>    }

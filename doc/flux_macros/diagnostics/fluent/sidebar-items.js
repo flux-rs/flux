@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["failed","finish","fluent_messages","invocation_relative_path_to_absolute","pattern_source","variable_references"]};

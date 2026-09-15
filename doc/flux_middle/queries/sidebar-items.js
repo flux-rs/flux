@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ErrCtxt","QueryErr"],"fn":["run_with_cache","try_query"],"macro":[["empty_query",1]],"struct":["Providers","Queries","QueryErrAt"],"trait":["DispatchKey"],"type":["Cache","QueryResult"]};
+window.SIDEBAR_ITEMS = {"constant":["MISSING_ASSOC_REFT","OPAQUE_STRUCT"],"enum":["ErrCtxt","QueryErr"],"fn":["run_with_cache","try_query"],"macro":[["empty_query",1]],"struct":["Providers","Queries","QueryErrAt"],"trait":["DispatchKey"],"type":["Cache","QueryResult"]};

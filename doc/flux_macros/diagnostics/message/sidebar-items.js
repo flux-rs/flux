@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ALLOWED_CAPITALIZED_WORDS"],"fn":["variable_references","verify_message_formatting","verify_message_style"],"struct":["Message"]};

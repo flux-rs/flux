@@ -1528,10 +1528,10 @@
 <a href=#1528 id=1528 data-nosnippet>1528</a>    /// because it no longer matches the resolution [`Namespace`](flux_middle::fhir::Namespace)
 <a href=#1529 id=1529 data-nosnippet>1529</a>    /// (e.g. sorts are resolved in the type namespace).
 <a href=#1530 id=1530 data-nosnippet>1530</a>    </span><span class="attr">#[derive(Diagnostic)]
-<a href=#1531 id=1531 data-nosnippet>1531</a>    #[diag(desugar_unresolved_name, code = E0999)]
+<a href=#1531 id=1531 data-nosnippet>1531</a>    #[diag(<span class="string">"cannot find {$kind} `{$name}` in this scope"</span>, code = E0999)]
 <a href=#1532 id=1532 data-nosnippet>1532</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>UnresolvedName {
 <a href=#1533 id=1533 data-nosnippet>1533</a>        <span class="attr">#[primary_span]
-<a href=#1534 id=1534 data-nosnippet>1534</a>        #[label]
+<a href=#1534 id=1534 data-nosnippet>1534</a>        #[label(<span class="string">"not found in this scope"</span>)]
 <a href=#1535 id=1535 data-nosnippet>1535</a>        </span><span class="kw">pub </span>span: Span,
 <a href=#1536 id=1536 data-nosnippet>1536</a>        <span class="kw">pub </span>kind: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
 <a href=#1537 id=1537 data-nosnippet>1537</a>        <span class="kw">pub </span>name: String,
@@ -1542,17 +1542,17 @@
 <a href=#1542 id=1542 data-nosnippet>1542</a>    /// explains, via `reason`, what specifically went wrong at the failing segment (not found,
 <a href=#1543 id=1543 data-nosnippet>1543</a>    /// or found but not a module).
 <a href=#1544 id=1544 data-nosnippet>1544</a>    </span><span class="attr">#[derive(Diagnostic)]
-<a href=#1545 id=1545 data-nosnippet>1545</a>    #[diag(desugar_unresolved_import, code = E0999)]
+<a href=#1545 id=1545 data-nosnippet>1545</a>    #[diag(<span class="string">"unresolved import `{$name}`"</span>, code = E0999)]
 <a href=#1546 id=1546 data-nosnippet>1546</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>UnresolvedImport {
 <a href=#1547 id=1547 data-nosnippet>1547</a>        <span class="attr">#[primary_span]
-<a href=#1548 id=1548 data-nosnippet>1548</a>        #[label]
+<a href=#1548 id=1548 data-nosnippet>1548</a>        #[label(<span class="string">"{$reason}"</span>)]
 <a href=#1549 id=1549 data-nosnippet>1549</a>        </span><span class="kw">pub </span>span: Span,
 <a href=#1550 id=1550 data-nosnippet>1550</a>        <span class="kw">pub </span>name: String,
 <a href=#1551 id=1551 data-nosnippet>1551</a>        <span class="kw">pub </span>reason: String,
 <a href=#1552 id=1552 data-nosnippet>1552</a>    }
 <a href=#1553 id=1553 data-nosnippet>1553</a>
 <a href=#1554 id=1554 data-nosnippet>1554</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#1555 id=1555 data-nosnippet>1555</a>    #[diag(desugar_unknown_qualifier, code = E0999)]
+<a href=#1555 id=1555 data-nosnippet>1555</a>    #[diag(<span class="string">"unknown qualifier"</span>, code = E0999)]
 <a href=#1556 id=1556 data-nosnippet>1556</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownQualifier {
 <a href=#1557 id=1557 data-nosnippet>1557</a>        <span class="attr">#[primary_span]
 <a href=#1558 id=1558 data-nosnippet>1558</a>        </span>span: Span,
@@ -1565,7 +1565,7 @@
 <a href=#1565 id=1565 data-nosnippet>1565</a>    }
 <a href=#1566 id=1566 data-nosnippet>1566</a>
 <a href=#1567 id=1567 data-nosnippet>1567</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#1568 id=1568 data-nosnippet>1568</a>    #[diag(desugar_unknown_reveal_definition, code = E0999)]
+<a href=#1568 id=1568 data-nosnippet>1568</a>    #[diag(<span class="string">"unknown function definition"</span>, code = E0999)]
 <a href=#1569 id=1569 data-nosnippet>1569</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownRevealDefinition {
 <a href=#1570 id=1570 data-nosnippet>1570</a>        <span class="attr">#[primary_span]
 <a href=#1571 id=1571 data-nosnippet>1571</a>        </span>span: Span,
@@ -1578,7 +1578,7 @@
 <a href=#1578 id=1578 data-nosnippet>1578</a>    }
 <a href=#1579 id=1579 data-nosnippet>1579</a>
 <a href=#1580 id=1580 data-nosnippet>1580</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#1581 id=1581 data-nosnippet>1581</a>    #[diag(desugar_unknown_parametric_param, code = E0999)]
+<a href=#1581 id=1581 data-nosnippet>1581</a>    #[diag(<span class="string">"unknown type parameter"</span>, code = E0999)]
 <a href=#1582 id=1582 data-nosnippet>1582</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownParametricParam {
 <a href=#1583 id=1583 data-nosnippet>1583</a>        <span class="attr">#[primary_span]
 <a href=#1584 id=1584 data-nosnippet>1584</a>        </span>span: Span,
@@ -1591,12 +1591,12 @@
 <a href=#1591 id=1591 data-nosnippet>1591</a>    }
 <a href=#1592 id=1592 data-nosnippet>1592</a>
 <a href=#1593 id=1593 data-nosnippet>1593</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#1594 id=1594 data-nosnippet>1594</a>    #[diag(desugar_duplicate_definition, code = E0999)]
+<a href=#1594 id=1594 data-nosnippet>1594</a>    #[diag(<span class="string">"the name `{$name}` is defined multiple times"</span>, code = E0999)]
 <a href=#1595 id=1595 data-nosnippet>1595</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DuplicateDefinition {
 <a href=#1596 id=1596 data-nosnippet>1596</a>        <span class="attr">#[primary_span]
-<a href=#1597 id=1597 data-nosnippet>1597</a>        #[label]
+<a href=#1597 id=1597 data-nosnippet>1597</a>        #[label(<span class="string">"`{$name}` redefined here"</span>)]
 <a href=#1598 id=1598 data-nosnippet>1598</a>        </span><span class="kw">pub </span>span: Span,
-<a href=#1599 id=1599 data-nosnippet>1599</a>        <span class="attr">#[label(desugar_duplicate_definition_previous_definition)]
+<a href=#1599 id=1599 data-nosnippet>1599</a>        <span class="attr">#[label(<span class="string">"previous definition of `{$name}`"</span>)]
 <a href=#1600 id=1600 data-nosnippet>1600</a>        </span><span class="kw">pub </span>previous_definition: Span,
 <a href=#1601 id=1601 data-nosnippet>1601</a>        <span class="kw">pub </span>name: Symbol,
 <a href=#1602 id=1602 data-nosnippet>1602</a>    }
@@ -1604,16 +1604,16 @@
 <a href=#1604 id=1604 data-nosnippet>1604</a>    <span class="doccomment">/// A name bound to two different items by two competing glob imports, reported at the first
 <a href=#1605 id=1605 data-nosnippet>1605</a>    /// use of the name (imports themselves are never an error). Mirrors rustc's `E0659`.
 <a href=#1606 id=1606 data-nosnippet>1606</a>    </span><span class="attr">#[derive(Diagnostic)]
-<a href=#1607 id=1607 data-nosnippet>1607</a>    #[diag(desugar_ambiguous_name, code = E0999)]
-<a href=#1608 id=1608 data-nosnippet>1608</a>    #[note]
+<a href=#1607 id=1607 data-nosnippet>1607</a>    #[diag(<span class="string">"the name `{$name}` is ambiguous"</span>, code = E0999)]
+<a href=#1608 id=1608 data-nosnippet>1608</a>    #[note(<span class="string">"two different items named `{$name}` are in scope through glob imports"</span>)]
 <a href=#1609 id=1609 data-nosnippet>1609</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>AmbiguousName {
 <a href=#1610 id=1610 data-nosnippet>1610</a>        <span class="attr">#[primary_span]
-<a href=#1611 id=1611 data-nosnippet>1611</a>        #[label]
+<a href=#1611 id=1611 data-nosnippet>1611</a>        #[label(<span class="string">"ambiguous name"</span>)]
 <a href=#1612 id=1612 data-nosnippet>1612</a>        </span>span: Span,
 <a href=#1613 id=1613 data-nosnippet>1613</a>        name: Symbol,
-<a href=#1614 id=1614 data-nosnippet>1614</a>        <span class="attr">#[label(desugar_ambiguous_name_first_candidate)]
+<a href=#1614 id=1614 data-nosnippet>1614</a>        <span class="attr">#[label(<span class="string">"`{$name}` could refer to the item imported here"</span>)]
 <a href=#1615 id=1615 data-nosnippet>1615</a>        </span>first: Span,
-<a href=#1616 id=1616 data-nosnippet>1616</a>        <span class="attr">#[label(desugar_ambiguous_name_second_candidate)]
+<a href=#1616 id=1616 data-nosnippet>1616</a>        <span class="attr">#[label(<span class="string">"`{$name}` could also refer to the item imported here"</span>)]
 <a href=#1617 id=1617 data-nosnippet>1617</a>        </span>second: <span class="prelude-ty">Option</span>&lt;Span&gt;,
 <a href=#1618 id=1618 data-nosnippet>1618</a>    }
 <a href=#1619 id=1619 data-nosnippet>1619</a>
@@ -1628,13 +1628,13 @@
 <a href=#1628 id=1628 data-nosnippet>1628</a>    }
 <a href=#1629 id=1629 data-nosnippet>1629</a>
 <a href=#1630 id=1630 data-nosnippet>1630</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#1631 id=1631 data-nosnippet>1631</a>    #[diag(desugar_duplicate_param, code = E0999)]
+<a href=#1631 id=1631 data-nosnippet>1631</a>    #[diag(<span class="string">"identifier `{$name}` is bound more than once in this parameter list"</span>, code = E0999)]
 <a href=#1632 id=1632 data-nosnippet>1632</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DuplicateParam {
 <a href=#1633 id=1633 data-nosnippet>1633</a>        <span class="attr">#[primary_span]
-<a href=#1634 id=1634 data-nosnippet>1634</a>        #[label]
+<a href=#1634 id=1634 data-nosnippet>1634</a>        #[label(<span class="string">"used as a parameter more than once"</span>)]
 <a href=#1635 id=1635 data-nosnippet>1635</a>        </span><span class="kw">pub </span>span: Span,
 <a href=#1636 id=1636 data-nosnippet>1636</a>        <span class="kw">pub </span>name: Symbol,
-<a href=#1637 id=1637 data-nosnippet>1637</a>        <span class="attr">#[label(desugar_duplicate_param_first_use)]
+<a href=#1637 id=1637 data-nosnippet>1637</a>        <span class="attr">#[label(<span class="string">"first use of `{$name}`"</span>)]
 <a href=#1638 id=1638 data-nosnippet>1638</a>        </span><span class="kw">pub </span>first_use: Span,
 <a href=#1639 id=1639 data-nosnippet>1639</a>    }
 <a href=#1640 id=1640 data-nosnippet>1640</a>}

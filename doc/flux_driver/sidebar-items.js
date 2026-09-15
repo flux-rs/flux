@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["callbacks","collector"],"static":["DEFAULT_LOCALE_RESOURCE"]};
+window.SIDEBAR_ITEMS = {"mod":["callbacks","collector"]};

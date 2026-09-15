@@ -1159,7 +1159,7 @@
 <a href=#1159 id=1159 data-nosnippet>1159</a>            AssertKind::BoundsCheck =&gt; <span class="string">"possible out-of-bounds access"</span>,
 <a href=#1160 id=1160 data-nosnippet>1160</a>            AssertKind::RemainderByZero =&gt; <span class="string">"possible remainder with a divisor of zero"</span>,
 <a href=#1161 id=1161 data-nosnippet>1161</a>            AssertKind::Overflow(mir::BinOp::Div) =&gt; <span class="string">"possible division with overflow"</span>,
-<a href=#1162 id=1162 data-nosnippet>1162</a>            AssertKind::Overflow(mir::BinOp::Rem) =&gt; <span class="string">"possible reminder with overflow"</span>,
+<a href=#1162 id=1162 data-nosnippet>1162</a>            AssertKind::Overflow(mir::BinOp::Rem) =&gt; <span class="string">"possible remainder with overflow"</span>,
 <a href=#1163 id=1163 data-nosnippet>1163</a>            AssertKind::Overflow(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Guard::Pred(pred)),
 <a href=#1164 id=1164 data-nosnippet>1164</a>        };
 <a href=#1165 id=1165 data-nosnippet>1165</a>        infcx
@@ -2578,50 +2578,51 @@
 <a href=#2578 id=2578 data-nosnippet>2578</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {
 <a href=#2579 id=2579 data-nosnippet>2579</a>    <span class="kw">use </span>flux_errors::{E0999, ErrorGuaranteed};
 <a href=#2580 id=2580 data-nosnippet>2580</a>    <span class="kw">use </span>flux_infer::infer::InferErr;
-<a href=#2581 id=2581 data-nosnippet>2581</a>    <span class="kw">use </span>flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
-<a href=#2582 id=2582 data-nosnippet>2582</a>    <span class="kw">use </span>rustc_errors::Diagnostic;
-<a href=#2583 id=2583 data-nosnippet>2583</a>    <span class="kw">use </span>rustc_hir::def_id::LocalDefId;
-<a href=#2584 id=2584 data-nosnippet>2584</a>    <span class="kw">use </span>rustc_span::Span;
-<a href=#2585 id=2585 data-nosnippet>2585</a>
-<a href=#2586 id=2586 data-nosnippet>2586</a>    <span class="kw">use </span><span class="kw">crate</span>::fluent_generated <span class="kw">as </span>fluent;
-<a href=#2587 id=2587 data-nosnippet>2587</a>
-<a href=#2588 id=2588 data-nosnippet>2588</a>    <span class="attr">#[derive(Debug)]
-<a href=#2589 id=2589 data-nosnippet>2589</a>    </span><span class="kw">pub struct </span>CheckerError {
-<a href=#2590 id=2590 data-nosnippet>2590</a>        kind: InferErr,
-<a href=#2591 id=2591 data-nosnippet>2591</a>        span: Span,
-<a href=#2592 id=2592 data-nosnippet>2592</a>    }
-<a href=#2593 id=2593 data-nosnippet>2593</a>
-<a href=#2594 id=2594 data-nosnippet>2594</a>    <span class="kw">impl </span>CheckerError {
-<a href=#2595 id=2595 data-nosnippet>2595</a>        <span class="kw">pub fn </span>emit(<span class="self">self</span>, genv: GlobalEnv, fn_def_id: LocalDefId) -&gt; ErrorGuaranteed {
-<a href=#2596 id=2596 data-nosnippet>2596</a>            <span class="kw">let </span>dcx = genv.sess().dcx().handle();
-<a href=#2597 id=2597 data-nosnippet>2597</a>            <span class="kw">match </span><span class="self">self</span>.kind {
-<a href=#2598 id=2598 data-nosnippet>2598</a>                InferErr::UnsolvedEvar(<span class="kw">_</span>) =&gt; {
-<a href=#2599 id=2599 data-nosnippet>2599</a>                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
-<a href=#2600 id=2600 data-nosnippet>2600</a>                        dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_param_inference_error);
-<a href=#2601 id=2601 data-nosnippet>2601</a>                    diag.code(E0999);
-<a href=#2602 id=2602 data-nosnippet>2602</a>                    diag.emit()
-<a href=#2603 id=2603 data-nosnippet>2603</a>                }
-<a href=#2604 id=2604 data-nosnippet>2604</a>                InferErr::Query(err) =&gt; {
-<a href=#2605 id=2605 data-nosnippet>2605</a>                    <span class="kw">let </span>level = rustc_errors::Level::Error;
-<a href=#2606 id=2606 data-nosnippet>2606</a>                    err.at(ErrCtxt::FnCheck(<span class="self">self</span>.span, fn_def_id))
-<a href=#2607 id=2607 data-nosnippet>2607</a>                        .into_diag(dcx, level)
-<a href=#2608 id=2608 data-nosnippet>2608</a>                        .emit()
-<a href=#2609 id=2609 data-nosnippet>2609</a>                }
-<a href=#2610 id=2610 data-nosnippet>2610</a>            }
-<a href=#2611 id=2611 data-nosnippet>2611</a>        }
-<a href=#2612 id=2612 data-nosnippet>2612</a>    }
-<a href=#2613 id=2613 data-nosnippet>2613</a>
-<a href=#2614 id=2614 data-nosnippet>2614</a>    <span class="kw">pub trait </span>ResultExt&lt;T&gt; {
-<a href=#2615 id=2615 data-nosnippet>2615</a>        <span class="kw">fn </span>with_span(<span class="self">self</span>, span: Span) -&gt; <span class="prelude-ty">Result</span>&lt;T, CheckerError&gt;;
-<a href=#2616 id=2616 data-nosnippet>2616</a>    }
-<a href=#2617 id=2617 data-nosnippet>2617</a>
-<a href=#2618 id=2618 data-nosnippet>2618</a>    <span class="kw">impl</span>&lt;T, E&gt; ResultExt&lt;T&gt; <span class="kw">for </span><span class="prelude-ty">Result</span>&lt;T, E&gt;
-<a href=#2619 id=2619 data-nosnippet>2619</a>    <span class="kw">where
-<a href=#2620 id=2620 data-nosnippet>2620</a>        </span>E: Into&lt;InferErr&gt;,
-<a href=#2621 id=2621 data-nosnippet>2621</a>    {
-<a href=#2622 id=2622 data-nosnippet>2622</a>        <span class="kw">fn </span>with_span(<span class="self">self</span>, span: Span) -&gt; <span class="prelude-ty">Result</span>&lt;T, CheckerError&gt; {
-<a href=#2623 id=2623 data-nosnippet>2623</a>            <span class="self">self</span>.map_err(|err| CheckerError { kind: err.into(), span })
-<a href=#2624 id=2624 data-nosnippet>2624</a>        }
-<a href=#2625 id=2625 data-nosnippet>2625</a>    }
-<a href=#2626 id=2626 data-nosnippet>2626</a>}
+<a href=#2581 id=2581 data-nosnippet>2581</a>    <span class="kw">use </span>flux_macros::msg;
+<a href=#2582 id=2582 data-nosnippet>2582</a>    <span class="kw">use </span>flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
+<a href=#2583 id=2583 data-nosnippet>2583</a>    <span class="kw">use </span>rustc_errors::Diagnostic;
+<a href=#2584 id=2584 data-nosnippet>2584</a>    <span class="kw">use </span>rustc_hir::def_id::LocalDefId;
+<a href=#2585 id=2585 data-nosnippet>2585</a>    <span class="kw">use </span>rustc_span::Span;
+<a href=#2586 id=2586 data-nosnippet>2586</a>
+<a href=#2587 id=2587 data-nosnippet>2587</a>    <span class="attr">#[derive(Debug)]
+<a href=#2588 id=2588 data-nosnippet>2588</a>    </span><span class="kw">pub struct </span>CheckerError {
+<a href=#2589 id=2589 data-nosnippet>2589</a>        kind: InferErr,
+<a href=#2590 id=2590 data-nosnippet>2590</a>        span: Span,
+<a href=#2591 id=2591 data-nosnippet>2591</a>    }
+<a href=#2592 id=2592 data-nosnippet>2592</a>
+<a href=#2593 id=2593 data-nosnippet>2593</a>    <span class="kw">impl </span>CheckerError {
+<a href=#2594 id=2594 data-nosnippet>2594</a>        <span class="kw">pub fn </span>emit(<span class="self">self</span>, genv: GlobalEnv, fn_def_id: LocalDefId) -&gt; ErrorGuaranteed {
+<a href=#2595 id=2595 data-nosnippet>2595</a>            <span class="kw">let </span>dcx = genv.sess().dcx().handle();
+<a href=#2596 id=2596 data-nosnippet>2596</a>            <span class="kw">match </span><span class="self">self</span>.kind {
+<a href=#2597 id=2597 data-nosnippet>2597</a>                InferErr::UnsolvedEvar(<span class="kw">_</span>) =&gt; {
+<a href=#2598 id=2598 data-nosnippet>2598</a>                    <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_span_err(
+<a href=#2599 id=2599 data-nosnippet>2599</a>                        <span class="self">self</span>.span,
+<a href=#2600 id=2600 data-nosnippet>2600</a>                        <span class="macro">msg!</span>(<span class="string">"parameter inference error at function call"</span>),
+<a href=#2601 id=2601 data-nosnippet>2601</a>                    );
+<a href=#2602 id=2602 data-nosnippet>2602</a>                    diag.code(E0999);
+<a href=#2603 id=2603 data-nosnippet>2603</a>                    diag.emit()
+<a href=#2604 id=2604 data-nosnippet>2604</a>                }
+<a href=#2605 id=2605 data-nosnippet>2605</a>                InferErr::Query(err) =&gt; {
+<a href=#2606 id=2606 data-nosnippet>2606</a>                    <span class="kw">let </span>level = rustc_errors::Level::Error;
+<a href=#2607 id=2607 data-nosnippet>2607</a>                    err.at(ErrCtxt::FnCheck(<span class="self">self</span>.span, fn_def_id))
+<a href=#2608 id=2608 data-nosnippet>2608</a>                        .into_diag(dcx, level)
+<a href=#2609 id=2609 data-nosnippet>2609</a>                        .emit()
+<a href=#2610 id=2610 data-nosnippet>2610</a>                }
+<a href=#2611 id=2611 data-nosnippet>2611</a>            }
+<a href=#2612 id=2612 data-nosnippet>2612</a>        }
+<a href=#2613 id=2613 data-nosnippet>2613</a>    }
+<a href=#2614 id=2614 data-nosnippet>2614</a>
+<a href=#2615 id=2615 data-nosnippet>2615</a>    <span class="kw">pub trait </span>ResultExt&lt;T&gt; {
+<a href=#2616 id=2616 data-nosnippet>2616</a>        <span class="kw">fn </span>with_span(<span class="self">self</span>, span: Span) -&gt; <span class="prelude-ty">Result</span>&lt;T, CheckerError&gt;;
+<a href=#2617 id=2617 data-nosnippet>2617</a>    }
+<a href=#2618 id=2618 data-nosnippet>2618</a>
+<a href=#2619 id=2619 data-nosnippet>2619</a>    <span class="kw">impl</span>&lt;T, E&gt; ResultExt&lt;T&gt; <span class="kw">for </span><span class="prelude-ty">Result</span>&lt;T, E&gt;
+<a href=#2620 id=2620 data-nosnippet>2620</a>    <span class="kw">where
+<a href=#2621 id=2621 data-nosnippet>2621</a>        </span>E: Into&lt;InferErr&gt;,
+<a href=#2622 id=2622 data-nosnippet>2622</a>    {
+<a href=#2623 id=2623 data-nosnippet>2623</a>        <span class="kw">fn </span>with_span(<span class="self">self</span>, span: Span) -&gt; <span class="prelude-ty">Result</span>&lt;T, CheckerError&gt; {
+<a href=#2624 id=2624 data-nosnippet>2624</a>            <span class="self">self</span>.map_err(|err| CheckerError { kind: err.into(), span })
+<a href=#2625 id=2625 data-nosnippet>2625</a>        }
+<a href=#2626 id=2626 data-nosnippet>2626</a>    }
+<a href=#2627 id=2627 data-nosnippet>2627</a>}
 </code></pre></div></section></main></body></html>

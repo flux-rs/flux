@@ -764,10 +764,10 @@
 <a href=#764 id=764 data-nosnippet>764</a>    <span class="kw">use </span>rustc_span::{Span, symbol::Ident};
 <a href=#765 id=765 data-nosnippet>765</a>
 <a href=#766 id=766 data-nosnippet>766</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#767 id=767 data-nosnippet>767</a>    #[diag(desugar_invalid_unrefined_param, code = E0999)]
+<a href=#767 id=767 data-nosnippet>767</a>    #[diag(<span class="string">"invalid use of refinement parameter"</span>, code = E0999)]
 <a href=#768 id=768 data-nosnippet>768</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidUnrefinedParam {
 <a href=#769 id=769 data-nosnippet>769</a>        <span class="attr">#[primary_span]
-<a href=#770 id=770 data-nosnippet>770</a>        #[label]
+<a href=#770 id=770 data-nosnippet>770</a>        #[label(<span class="string">"parameter `{$var}` refers to a type with no indices"</span>)]
 <a href=#771 id=771 data-nosnippet>771</a>        </span>span: Span,
 <a href=#772 id=772 data-nosnippet>772</a>        var: Ident,
 <a href=#773 id=773 data-nosnippet>773</a>    }
@@ -779,10 +779,10 @@
 <a href=#779 id=779 data-nosnippet>779</a>    }
 <a href=#780 id=780 data-nosnippet>780</a>
 <a href=#781 id=781 data-nosnippet>781</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#782 id=782 data-nosnippet>782</a>    #[diag(desugar_illegal_binder, code = E0999)]
+<a href=#782 id=782 data-nosnippet>782</a>    #[diag(<span class="string">"illegal binder"</span>, code = E0999)]
 <a href=#783 id=783 data-nosnippet>783</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IllegalBinder {
 <a href=#784 id=784 data-nosnippet>784</a>        <span class="attr">#[primary_span]
-<a href=#785 id=785 data-nosnippet>785</a>        #[label]
+<a href=#785 id=785 data-nosnippet>785</a>        #[label(<span class="string">"`{$kind}` binder not allowed in this position"</span>)]
 <a href=#786 id=786 data-nosnippet>786</a>        </span>span: Span,
 <a href=#787 id=787 data-nosnippet>787</a>        kind: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
 <a href=#788 id=788 data-nosnippet>788</a>    }

@@ -1181,10 +1181,10 @@
 <a href=#1181 id=1181 data-nosnippet>1181</a>    <span class="kw">use </span><span class="kw">super</span>::UnsupportedReason;
 <a href=#1182 id=1182 data-nosnippet>1182</a>
 <a href=#1183 id=1183 data-nosnippet>1183</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#1184 id=1184 data-nosnippet>1184</a>    #[diag(rustc_bridge_unsupported_local_decl, code = E0999)]
+<a href=#1184 id=1184 data-nosnippet>1184</a>    #[diag(<span class="string">"unsupported local declaration"</span>, code = E0999)]
 <a href=#1185 id=1185 data-nosnippet>1185</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnsupportedLocalDecl&lt;<span class="lifetime">'tcx</span>&gt; {
 <a href=#1186 id=1186 data-nosnippet>1186</a>        <span class="attr">#[primary_span]
-<a href=#1187 id=1187 data-nosnippet>1187</a>        #[label]
+<a href=#1187 id=1187 data-nosnippet>1187</a>        #[label(<span class="string">"this declaration has type `{$ty}` which is not currently supported"</span>)]
 <a href=#1188 id=1188 data-nosnippet>1188</a>        </span>span: Span,
 <a href=#1189 id=1189 data-nosnippet>1189</a>        ty: rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
 <a href=#1190 id=1190 data-nosnippet>1190</a>    }
@@ -1199,8 +1199,8 @@
 <a href=#1199 id=1199 data-nosnippet>1199</a>    }
 <a href=#1200 id=1200 data-nosnippet>1200</a>
 <a href=#1201 id=1201 data-nosnippet>1201</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#1202 id=1202 data-nosnippet>1202</a>    #[diag(rustc_bridge_unsupported_mir, code = E0999)]
-<a href=#1203 id=1203 data-nosnippet>1203</a>    #[note]
+<a href=#1202 id=1202 data-nosnippet>1202</a>    #[diag(<span class="string">"unsupported {$kind}"</span>, code = E0999)]
+<a href=#1203 id=1203 data-nosnippet>1203</a>    #[note(<span class="string">"{$reason}"</span>)]
 <a href=#1204 id=1204 data-nosnippet>1204</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnsupportedMir {
 <a href=#1205 id=1205 data-nosnippet>1205</a>        <span class="attr">#[primary_span]
 <a href=#1206 id=1206 data-nosnippet>1206</a>        </span>span: Span,

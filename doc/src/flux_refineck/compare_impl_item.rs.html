@@ -123,10 +123,10 @@
 <a href=#123 id=123 data-nosnippet>123</a>    <span class="kw">use </span>rustc_span::{Span, Symbol};
 <a href=#124 id=124 data-nosnippet>124</a>
 <a href=#125 id=125 data-nosnippet>125</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#126 id=126 data-nosnippet>126</a>    #[diag(refineck_incompatible_sort, code = E0999)]
+<a href=#126 id=126 data-nosnippet>126</a>    #[diag(<span class="string">"implemented associated refinement `{$name}` has an incompatible sort for trait"</span>, code = E0999)]
 <a href=#127 id=127 data-nosnippet>127</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatibleSort {
 <a href=#128 id=128 data-nosnippet>128</a>        <span class="attr">#[primary_span]
-<a href=#129 id=129 data-nosnippet>129</a>        #[label]
+<a href=#129 id=129 data-nosnippet>129</a>        #[label(<span class="string">"expected `{$expected}`, found `{$found}`"</span>)]
 <a href=#130 id=130 data-nosnippet>130</a>        </span>span: Span,
 <a href=#131 id=131 data-nosnippet>131</a>        name: Symbol,
 <a href=#132 id=132 data-nosnippet>132</a>        expected: rty::FuncSort,
@@ -145,7 +145,7 @@
 <a href=#145 id=145 data-nosnippet>145</a>    }
 <a href=#146 id=146 data-nosnippet>146</a>
 <a href=#147 id=147 data-nosnippet>147</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#148 id=148 data-nosnippet>148</a>    #[diag(refineck_missing_assoc_reft, code = E0999)]
+<a href=#148 id=148 data-nosnippet>148</a>    #[diag(<span class="string">"associated refinement `{$name}` is missing from implementation"</span>, code = E0999)]
 <a href=#149 id=149 data-nosnippet>149</a>    </span><span class="kw">pub struct </span>MissingAssocReft {
 <a href=#150 id=150 data-nosnippet>150</a>        <span class="attr">#[primary_span]
 <a href=#151 id=151 data-nosnippet>151</a>        </span>span: Span,
@@ -159,7 +159,7 @@
 <a href=#159 id=159 data-nosnippet>159</a>    }
 <a href=#160 id=160 data-nosnippet>160</a>
 <a href=#161 id=161 data-nosnippet>161</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#162 id=162 data-nosnippet>162</a>    #[diag(refineck_impl_assoc_reft_final, code = E0999)]
+<a href=#162 id=162 data-nosnippet>162</a>    #[diag(<span class="string">"associated refinement `{$name}` is final and should not be implemented anywhere other than the trait definition"</span>, code = E0999)]
 <a href=#163 id=163 data-nosnippet>163</a>    </span><span class="kw">pub struct </span>ImplAssocReftOnFinal {
 <a href=#164 id=164 data-nosnippet>164</a>        <span class="attr">#[primary_span]
 <a href=#165 id=165 data-nosnippet>165</a>        </span>span: Span,
@@ -173,7 +173,7 @@
 <a href=#173 id=173 data-nosnippet>173</a>    }
 <a href=#174 id=174 data-nosnippet>174</a>
 <a href=#175 id=175 data-nosnippet>175</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#176 id=176 data-nosnippet>176</a>    #[diag(refineck_invalid_assoc_reft, code = E0999)]
+<a href=#176 id=176 data-nosnippet>176</a>    #[diag(<span class="string">"associated refinement `{$name}` is not a member of trait `{$trait_}`"</span>, code = E0999)]
 <a href=#177 id=177 data-nosnippet>177</a>    </span><span class="kw">pub struct </span>InvalidAssocReft {
 <a href=#178 id=178 data-nosnippet>178</a>        <span class="attr">#[primary_span]
 <a href=#179 id=179 data-nosnippet>179</a>        </span>span: Span,
