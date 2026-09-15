@@ -26,8 +26,8 @@ use flux_syntax::{
     walk_list,
 };
 use hir::{ItemKind, def::DefKind};
-use rustc_ast::ast;
 use itertools::{Either, Itertools};
+use rustc_ast::ast;
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordSet};
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hir::{self as hir, OwnerId};
