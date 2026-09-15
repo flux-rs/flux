@@ -1478,7 +1478,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<Ty> {
         let genv = self.genv;
         match rvalue {
-            Rvalue::Use(operand) => {
+            Rvalue::Use(operand, _retag) => {
                 self.check_operand(infcx, env, stmt_span, operand)
                     .with_span(stmt_span)
             }

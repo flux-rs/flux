@@ -2808,7 +2808,7 @@ impl<'tcx> ToRustc<'tcx> for FnSig {
             self.output().as_ref().skip_binder().to_rustc(tcx),
             rustc_middle::ty::FnSigKind::default()
                 .set_abi(self.abi)
-                .set_safe(self.safety.is_safe())
+                .set_safety(self.safety)
                 .set_c_variadic(false),
         )
     }

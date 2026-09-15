@@ -82,8 +82,7 @@ impl<'a> PointsToAnalysis<'a> {
                 // StorageDead makes it UB to access the local afterwards.
                 state.flood_with(mir::Place::from(*local).as_ref(), self.map, FlatSet::BOTTOM);
             }
-            mir::StatementKind::Retag(..)
-            | mir::StatementKind::Intrinsic(..)
+            mir::StatementKind::Intrinsic(..)
             | mir::StatementKind::SetDiscriminant { .. }
             | mir::StatementKind::ConstEvalCounter
             | mir::StatementKind::Nop
@@ -97,7 +96,7 @@ impl<'a> PointsToAnalysis<'a> {
 
     fn handle_assign(&self, target: mir::Place, rvalue: &mir::Rvalue, state: &mut State) {
         match rvalue {
-            mir::Rvalue::Use(operand) => {
+            mir::Rvalue::Use(operand, _) => {
                 let result = self
                     .handle_operand(operand)
                     .map_or(PlaceOrValue::TOP, PlaceOrValue::Place);

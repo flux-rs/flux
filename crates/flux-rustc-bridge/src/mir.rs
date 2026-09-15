@@ -15,7 +15,7 @@ use rustc_data_structures::{
 use rustc_hir::{self as hir, def_id::DefId};
 use rustc_index::IndexSlice;
 use rustc_macros::{TyDecodable, TyEncodable};
-use rustc_middle::mir::{Promoted, VarDebugInfoContents};
+use rustc_middle::mir::{Promoted, VarDebugInfoContents, WithRetag};
 pub use rustc_middle::{
     mir::{
         BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
@@ -263,7 +263,7 @@ pub enum StatementKind<'tcx> {
 
 /// Corresponds to <https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.Rvalue.html>
 pub enum Rvalue<'tcx> {
-    Use(Operand<'tcx>),
+    Use(Operand<'tcx>, WithRetag),
     Repeat(Operand<'tcx>, Const),
     Ref(Region, BorrowKind, Place),
     RawPtr(RawPtrKind, Place),
@@ -709,7 +709,7 @@ impl fmt::Debug for PlaceRef<'_> {
 impl fmt::Debug for Rvalue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Rvalue::Use(op) => write!(f, "{op:?}"),
+            Rvalue::Use(op, _) => write!(f, "{op:?}"),
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
                 write!(f, "&{} mut {place:?}", region_to_string(*r))
             }

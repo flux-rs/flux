@@ -305,8 +305,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 }
             }
 
-            rustc_mir::StatementKind::Retag(_, _)
-            | rustc_mir::StatementKind::AscribeUserType(..)
+            rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(_)
             | rustc_mir::StatementKind::ConstEvalCounter
             | rustc_mir::StatementKind::BackwardIncompatibleDropHint { .. } => {
@@ -477,7 +476,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         rvalue: &rustc_mir::Rvalue<'tcx>,
     ) -> Result<Rvalue<'tcx>, UnsupportedReason> {
         match rvalue {
-            rustc_mir::Rvalue::Use(op) => Ok(Rvalue::Use(self.lower_operand(op)?)),
+            rustc_mir::Rvalue::Use(op, retag) => Ok(Rvalue::Use(self.lower_operand(op)?, *retag)),
             rustc_mir::Rvalue::Repeat(op, c) => {
                 let op = self.lower_operand(op)?;
                 let c = c.lower(self.tcx)?;
@@ -517,6 +516,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             }
             rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::CopyForDeref(_)
+            | rustc_mir::Rvalue::Reborrow { .. }
             | rustc_mir::Rvalue::WrapUnsafeBinder(..) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
             }
