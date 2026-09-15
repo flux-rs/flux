@@ -1174,7 +1174,7 @@ mod errors {
     use std::path::PathBuf;
 
     use flux_errors::E0999;
-    use flux_macros::InlineDiagnostic as Diagnostic;
+    use flux_macros::Diagnostic;
     use rustc_middle::mir as rustc_mir;
     use rustc_span::Span;
 

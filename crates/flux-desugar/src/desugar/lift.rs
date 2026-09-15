@@ -605,7 +605,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
 
 pub mod errors {
     use flux_errors::E0999;
-    use flux_macros::InlineDiagnostic as Diagnostic;
+    use flux_macros::Diagnostic;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]

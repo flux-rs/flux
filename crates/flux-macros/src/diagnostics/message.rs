@@ -7,8 +7,8 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::ext::IdentExt;
 
-use crate::diagnostics::inline::error::span_err;
-use crate::diagnostics::inline::utils::FieldMap;
+use crate::diagnostics::error::span_err;
+use crate::diagnostics::utils::FieldMap;
 
 #[derive(Clone)]
 pub(crate) struct Message {

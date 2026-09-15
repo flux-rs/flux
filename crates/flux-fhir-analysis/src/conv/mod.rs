@@ -2950,7 +2950,7 @@ fn transitive_bounds<'tcx>(
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::InlineDiagnostic as Diagnostic;
+    use flux_macros::Diagnostic;
     use flux_middle::{fhir, global_env::GlobalEnv, rty::Sort};
     use rustc_hir::def_id::DefId;
     use rustc_span::{Span, Symbol, symbol::Ident};

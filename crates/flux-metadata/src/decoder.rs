@@ -268,7 +268,7 @@ mod errors {
     use std::{io, path::Path};
 
     use flux_errors::E0999;
-    use flux_macros::InlineDiagnostic as Diagnostic;
+    use flux_macros::Diagnostic;
 
     #[derive(Diagnostic)]
     #[diag("error when decoding flux metadata file {$path}: {$err}", code = E0999)]

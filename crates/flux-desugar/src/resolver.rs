@@ -1520,7 +1520,7 @@ fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::InlineDiagnostic as Diagnostic;
+    use flux_macros::Diagnostic;
     use rustc_span::{Span, Symbol};
 
     /// A name that could not be resolved. `kind` is the user-facing description of what was being

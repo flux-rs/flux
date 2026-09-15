@@ -1,6 +1,6 @@
-#![feature(proc_macro_diagnostic, never_type, proc_macro_tracked_path)]
+#![feature(proc_macro_diagnostic, never_type)]
 
-#[allow(clippy::semicolon_if_nothing_returned)] // upstream code in `diagnostics::inline`
+#[allow(clippy::all, clippy::semicolon_if_nothing_returned)] // copied from upstream, kept as is
 mod diagnostics;
 mod fold;
 mod primops;
@@ -11,46 +11,6 @@ use synstructure::decl_derive;
 
 decl_derive!(
     [Diagnostic, attributes(
-        // struct attributes
-        diag,
-        help,
-        note,
-        warning,
-        // field attributes
-        skip_arg,
-        primary_span,
-        label,
-        subdiagnostic,
-        suggestion,
-        suggestion_short,
-        suggestion_hidden,
-        suggestion_verbose)] => diagnostics::diagnostic_derive
-);
-
-decl_derive!(
-    [Subdiagnostic, attributes(
-        // struct/variant attributes
-        label,
-        help,
-        note,
-        warning,
-        suggestion,
-        suggestion_short,
-        suggestion_hidden,
-        suggestion_verbose,
-        multipart_suggestion,
-        multipart_suggestion_short,
-        multipart_suggestion_hidden,
-        multipart_suggestion_verbose,
-        // field attributes
-        skip_arg,
-        primary_span,
-        suggestion_part,
-        applicability)] => diagnostics::subdiagnostic_derive
-);
-
-decl_derive!(
-    [InlineDiagnostic, attributes(
         // struct and field attributes
         diag,
         help,
@@ -65,11 +25,11 @@ decl_derive!(
         suggestion,
         suggestion_short,
         suggestion_hidden,
-        suggestion_verbose)] => diagnostics::inline_diagnostic_derive
+        suggestion_verbose)] => diagnostics::diagnostic_derive
 );
 
 decl_derive!(
-    [InlineSubdiagnostic, attributes(
+    [Subdiagnostic, attributes(
         // struct/variant attributes
         label,
         help,
@@ -88,7 +48,7 @@ decl_derive!(
         // field attributes
         primary_span,
         suggestion_part,
-        applicability)] => diagnostics::inline_subdiagnostic_derive
+        applicability)] => diagnostics::subdiagnostic_derive
 );
 
 /// Creates a `DiagMessage` from an inline Fluent pattern. The pattern is checked to be valid
@@ -105,11 +65,6 @@ decl_derive!(
 decl_derive!(
     [TypeVisitable] => fold::type_visitable_derive
 );
-
-#[proc_macro]
-pub fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    diagnostics::fluent_messages(input)
-}
 
 #[proc_macro]
 pub fn primop_rules(input: proc_macro::TokenStream) -> proc_macro::TokenStream {

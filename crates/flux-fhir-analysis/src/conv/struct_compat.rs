@@ -641,7 +641,7 @@ enum FnSigErr {
 mod errors {
     use flux_common::span_bug;
     use flux_errors::E0999;
-    use flux_macros::InlineDiagnostic as Diagnostic;
+    use flux_macros::Diagnostic;
     use flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, rty};
     use flux_rustc_bridge::{
         ToRustc,

@@ -415,7 +415,7 @@ fn shell_quote_arg(arg: &str) -> String {
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::{InlineDiagnostic as Diagnostic, InlineSubdiagnostic as Subdiagnostic};
+    use flux_macros::{Diagnostic, Subdiagnostic};
     use flux_middle::rty::ESpan;
     use rustc_span::Span;
 

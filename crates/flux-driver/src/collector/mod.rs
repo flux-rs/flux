@@ -1130,7 +1130,7 @@ fn attr_args_span(attr_args: &hir::AttrArgs) -> Option<Span> {
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::{InlineDiagnostic as Diagnostic, msg};
+    use flux_macros::{Diagnostic, msg};
     use flux_syntax::surface::ExprPath;
     use itertools::Itertools;
     use rustc_errors::{Diag, DiagCtxtHandle, Diagnostic, Level};

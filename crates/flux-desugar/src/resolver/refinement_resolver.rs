@@ -759,7 +759,7 @@ impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::InlineDiagnostic as Diagnostic;
+    use flux_macros::Diagnostic;
     use flux_syntax::surface;
     use rustc_span::{Span, symbol::Ident};
 

@@ -669,7 +669,7 @@ fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>>
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::InlineDiagnostic as Diagnostic;
+    use flux_macros::Diagnostic;
     use flux_middle::def_id::FluxLocalDefId;
     use rustc_span::Span;
 

@@ -1,5 +1,5 @@
 use flux_errors::E0999;
-use flux_macros::InlineDiagnostic as Diagnostic;
+use flux_macros::Diagnostic;
 use flux_middle::{fhir, rty};
 use rustc_span::{Span, Symbol, symbol::Ident};
 

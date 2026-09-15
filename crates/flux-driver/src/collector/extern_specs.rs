@@ -645,7 +645,7 @@ fn ident_or_def_span(tcx: TyCtxt, def_id: impl Into<DefId>) -> Span {
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::InlineDiagnostic as Diagnostic;
+    use flux_macros::Diagnostic;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]

@@ -650,7 +650,7 @@ const SYMBOL_PREDEFINED: u8 = 2;
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::InlineDiagnostic as Diagnostic;
+    use flux_macros::Diagnostic;
     use rustc_middle::ty::TyCtxt;
 
     use crate::Key;
