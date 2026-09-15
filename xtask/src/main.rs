@@ -1,7 +1,7 @@
 #![feature(variant_count)]
 
 use std::{
-    fs, io,
+    env, fs, io,
     mem::variant_count,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
@@ -566,7 +566,10 @@ fn record_artifact(entry: &mut SysrootCrate, name: &str) {
         Some("rlib") => &mut entry.rlib,
         Some("rmeta") => &mut entry.rmeta,
         Some("fluxmeta") => &mut entry.fluxmeta,
-        _ => &mut entry.dylib,
+        // Proc macros are always built for the host. Anything else cargo reports, like `.pdb`
+        // debug symbols on Windows, is not a crate.
+        Some(extension) if extension == env::consts::DLL_EXTENSION => &mut entry.dylib,
+        _ => return,
     };
     *slot = Some(name.to_string());
 }
