@@ -1,5 +1,6 @@
 #![feature(proc_macro_diagnostic, never_type, proc_macro_tracked_path)]
 
+#[allow(clippy::semicolon_if_nothing_returned)] // upstream code in `diagnostics::inline`
 mod diagnostics;
 mod fold;
 mod primops;
@@ -47,6 +48,55 @@ decl_derive!(
         suggestion_part,
         applicability)] => diagnostics::subdiagnostic_derive
 );
+
+decl_derive!(
+    [InlineDiagnostic, attributes(
+        // struct and field attributes
+        diag,
+        help,
+        help_once,
+        note,
+        note_once,
+        warning,
+        // field attributes
+        primary_span,
+        label,
+        subdiagnostic,
+        suggestion,
+        suggestion_short,
+        suggestion_hidden,
+        suggestion_verbose)] => diagnostics::inline_diagnostic_derive
+);
+
+decl_derive!(
+    [InlineSubdiagnostic, attributes(
+        // struct/variant attributes
+        label,
+        help,
+        help_once,
+        note,
+        note_once,
+        warning,
+        subdiagnostic,
+        suggestion,
+        suggestion_short,
+        suggestion_hidden,
+        suggestion_verbose,
+        multipart_suggestion,
+        multipart_suggestion_short,
+        multipart_suggestion_hidden,
+        // field attributes
+        primary_span,
+        suggestion_part,
+        applicability)] => diagnostics::inline_subdiagnostic_derive
+);
+
+/// Creates a `DiagMessage` from an inline Fluent pattern. The pattern is checked to be valid
+/// Fluent, but variables are not checked against the arguments set on the diagnostic.
+#[proc_macro]
+pub fn msg(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    diagnostics::msg_macro(input)
+}
 
 decl_derive!(
     [TypeFoldable] => fold::type_foldable_derive
