@@ -2950,23 +2950,23 @@ fn transitive_bounds<'tcx>(
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::Diagnostic;
+    use flux_macros::InlineDiagnostic as Diagnostic;
     use flux_middle::{fhir, global_env::GlobalEnv, rty::Sort};
     use rustc_hir::def_id::DefId;
     use rustc_span::{Span, Symbol, symbol::Ident};
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_assoc_item_not_found, code = E0999)]
-    #[note]
+    #[diag("associated {$tag} not found", code = E0999)]
+    #[note("Flux cannot resolve associated {$tag}s if they are defined in a super trait")]
     pub(super) struct AssocItemNotFound {
         #[primary_span]
-        #[label]
+        #[label("cannot resolve this associated {$tag}")]
         pub span: Span,
         pub tag: &'static str,
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_ambiguous_assoc_item, code = E0999)]
+    #[diag("ambiguous associated {$tag} `{$name}`", code = E0999)]
     pub(super) struct AmbiguousAssocItem {
         #[primary_span]
         pub span: Span,
@@ -2975,7 +2975,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_base_instance, code = E0999)]
+    #[diag("values of this type cannot be used as base sorted instances", code = E0999)]
     pub(super) struct InvalidBaseInstance {
         #[primary_span]
         span: Span,
@@ -2988,10 +2988,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generic_argument_count_mismatch, code = E0999)]
+    #[diag("this {$def_descr} takes {$expected} generic {$expected ->
+            [one] argument
+            *[other] arguments
+        } but {$found} generic {$found ->
+            [one] argument was
+            *[other] arguments were
+        } supplied", code = E0999)]
     pub(super) struct GenericArgCountMismatch {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected {$expected} generic {$expected ->
+                [one] argument
+                *[other] arguments
+            }"
+        )]
         span: Span,
         found: usize,
         expected: usize,
@@ -3015,10 +3026,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_too_few_generic_args, code = E0999)]
+    #[diag("this {$def_descr} takes at least {$min} generic {$min ->
+            [one] argument
+            *[other] arguments
+        } but {$found} generic {$found ->
+            [one] argument was
+            *[other] arguments were
+        } supplied", code = E0999)]
     pub(super) struct TooFewGenericArgs {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected at least {$min} generic {$min ->
+                [one] argument
+                *[other] arguments
+            }"
+        )]
         span: Span,
         found: usize,
         min: usize,
@@ -3042,10 +3064,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_too_many_generic_args, code = E0999)]
+    #[diag("this {$def_descr} takes at most {$max} generic {$max ->
+            [one] argument
+            *[other] arguments
+        } but {$found} generic {$found ->
+            [one] argument was
+            *[other] arguments were
+        } supplied", code = E0999)]
     pub(super) struct TooManyGenericArgs {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected at most {$max} generic {$max ->
+                [one] argument
+                *[other] arguments
+            }"
+        )]
         span: Span,
         found: usize,
         max: usize,
@@ -3069,7 +3102,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_refined_unrefinable_type, code = E0999)]
+    #[diag("type cannot be refined", code = E0999)]
     pub(super) struct RefinedUnrefinableType {
         #[primary_span]
         span: Span,
@@ -3082,10 +3115,14 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_primitive_sort, code = E0999)]
+    #[diag("primitive sort {$name} expects {$expected ->
+            [0] no generics
+            [one] exactly one generic argument
+            *[other] exactly {$expected} generic arguments
+        } but found {$found}", code = E0999)]
     pub(super) struct GenericsOnPrimitiveSort {
         #[primary_span]
-        #[label]
+        #[label("incorrect generics on primitive sort")]
         span: Span,
         name: &'static str,
         found: usize,
@@ -3099,10 +3136,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_expected_sort, code = E0999)]
+    #[diag("expected a sort, found {$found}", code = E0999)]
     pub(super) struct ExpectedSort {
         #[primary_span]
-        #[label]
+        #[label("not a sort")]
         span: Span,
         found: &'static str,
     }
@@ -3114,10 +3151,23 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_incorrect_generics_on_sort, code = E0999)]
+    #[diag("sorts associated with this {$def_descr} should have {$expected ->
+            [0] no generic arguments
+            [one] one generic argument
+            *[other] {$expected} generic arguments
+        } but {$found} generic {$found ->
+            [one] argument was
+            *[other] arguments were
+        } supplied", code = E0999)]
     pub(super) struct IncorrectGenericsOnSort {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected {$expected ->
+                [0] no generic arguments
+                [one] one generic argument
+                *[other] {$expected} generic arguments
+            } on sort"
+        )]
         span: Span,
         found: usize,
         expected: usize,
@@ -3137,10 +3187,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_sort_ty_param, code = E0999)]
+    #[diag("type parameter expects no generics but found {$found}", code = E0999)]
     pub(super) struct GenericsOnSortTyParam {
         #[primary_span]
-        #[label]
+        #[label("found generics on sort type parameter")]
         span: Span,
         found: usize,
     }
@@ -3152,10 +3202,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_self_alias, code = E0999)]
+    #[diag("type alias Self expects no generics but found {$found}", code = E0999)]
     pub(super) struct GenericsOnSelf {
         #[primary_span]
-        #[label]
+        #[label("found generics on type `Self`")]
         span: Span,
         found: usize,
     }
@@ -3167,10 +3217,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_fields_on_reflected_enum_variant, code = E0999)]
+    #[diag("reflected enum variants cannot have any fields", code = E0999)]
     pub(super) struct FieldsOnReflectedEnumVariant {
         #[primary_span]
-        #[label]
+        #[label("found fields on reflected enum variant")]
         span: Span,
     }
 
@@ -3181,10 +3231,14 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_incorrect_generics_on_opaque_sort, code = E0999)]
+    #[diag("opaque sort {$name} expects {$expected ->
+            [0] no generics
+            [one] exactly one generic argument
+            *[other] exactly {$expected} generic arguments
+        } but found {$found}", code = E0999)]
     pub(super) struct IncorrectGenericsOnUserDefinedOpaqueSort {
         #[primary_span]
-        #[label]
+        #[label("incorrect generics on user defined opaque sort")]
         span: Span,
         name: Symbol,
         expected: usize,
@@ -3198,7 +3252,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_prim_ty, code = E0999)]
+    #[diag("generic arguments are not allowed on builtin type `{$name}`", code = E0999)]
     pub(super) struct GenericsOnPrimTy {
         #[primary_span]
         pub span: Span,
@@ -3206,7 +3260,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_ty_param, code = E0999)]
+    #[diag("generic arguments are not allowed on type parameter `{$name}`", code = E0999)]
     pub(super) struct GenericsOnTyParam {
         #[primary_span]
         pub span: Span,
@@ -3214,24 +3268,24 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_self_ty, code = E0999)]
+    #[diag("generic arguments are not allowed on self type", code = E0999)]
     pub(super) struct GenericsOnSelfTy {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_foreign_ty, code = E0999)]
+    #[diag("generic arguments are not allowed on foreign types", code = E0999)]
     pub(super) struct GenericsOnForeignTy {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_int_literal_in_real_context, code = E0999)]
+    #[diag("integer literal used in real-sorted context", code = E0999)]
     pub struct IntLiteralInRealContext {
         #[primary_span]
-        #[label]
+        #[label("use a float literal instead, e.g. `{$n}.0`")]
         span: Span,
         n: u128,
     }
@@ -3243,10 +3297,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_bitvector_constant, code = E0999)]
+    #[diag("invalid bit vector literal", code = E0999)]
     pub struct InvalidBitVectorConstant {
         #[primary_span]
-        #[label]
+        #[label("not a valid `{$sort}` literal")]
         span: Span,
         sort: Sort,
     }
@@ -3258,7 +3312,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_assoc_reft, code = E0999)]
+    #[diag("associated refinement `{$name}` is not a member of trait `{$trait_}`", code = E0999)]
     pub struct InvalidAssocReft {
         #[primary_span]
         span: Span,
@@ -3273,10 +3327,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_refine_arg_mismatch, code = E0999)]
+    #[diag("{$kind} takes {$expected} generic refinement {$expected ->
+            [one] argument
+            *[other] arguments
+        }, but {$found} {$found ->
+            [one] argument was
+            *[other] arguments were
+        } provided", code = E0999)]
     pub(super) struct RefineArgMismatch {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected {$expected} generic refinement {$expected ->
+                [one] argument
+                *[other] arguments
+            }"
+        )]
         pub span: Span,
         pub expected: usize,
         pub found: usize,
@@ -3284,7 +3349,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_expected_type, code = E0999)]
+    #[diag("expected a type, found {$def_descr} `{$name}`", code = E0999)]
     pub(super) struct ExpectedType {
         #[primary_span]
         pub span: Span,
@@ -3293,14 +3358,14 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_fail_to_match_predicates, code = E0999)]
+    #[diag("cannot determine corresponding unrefined predicate", code = E0999)]
     pub(super) struct FailToMatchPredicates {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_res, code = E0999)]
+    #[diag("{$res_descr} not allowed in this position", code = E0999)]
     pub(super) struct InvalidRes {
         #[primary_span]
         pub span: Span,
@@ -3308,10 +3373,12 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_constant_annotation_needed, code = E0999)]
+    #[diag("constant annotation required", code = E0999)]
     pub(super) struct ConstantAnnotationNeeded {
         #[primary_span]
-        #[label]
+        #[label(
+            "help: non-integral constants need a `constant` annotation that specifies their refinement value"
+        )]
         span: Span,
     }
     impl ConstantAnnotationNeeded {
