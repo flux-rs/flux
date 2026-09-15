@@ -328,6 +328,14 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                     let func_ty = func.ty(self.rustc_mir, self.tcx);
                     match func_ty.kind() {
                         rustc_middle::ty::TyKind::FnDef(fn_def, args) => {
+                            let args = args
+                                .no_bound_vars()
+                                .ok_or_else(|| {
+                                    let reason =
+                                        UnsupportedReason::new("late-bound args in `FnDef`");
+                                    errors::UnsupportedMir::terminator(span, reason)
+                                })
+                                .emit(self.sess)?;
                             let lowered = args
                                 .lower(self.tcx)
                                 .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
@@ -811,7 +819,10 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 Ok(Ty::mk_adt(adt_def.lower(tcx), args))
             }
             rustc_ty::FnDef(def_id, args) => {
-                let args = args.lower(tcx)?;
+                let args = args
+                    .no_bound_vars()
+                    .ok_or_else(|| UnsupportedReason::new("late-bound args in `FnDef`"))?
+                    .lower(tcx)?;
                 Ok(Ty::mk_fn_def(*def_id, args))
             }
             rustc_ty::Never => Ok(Ty::mk_never()),
@@ -1064,12 +1075,12 @@ impl<'tcx> Lower<'tcx> for &rustc_middle::ty::GenericParamDef {
     }
 }
 
-impl<'tcx> Lower<'tcx> for rustc_ty::GenericPredicates<'tcx> {
+impl<'tcx> Lower<'tcx> for rustc_ty::GenericClauses<'tcx> {
     type R = Result<GenericPredicates, UnsupportedErr>;
 
     fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
         let predicates = self
-            .predicates
+            .clauses
             .iter()
             .map(|(clause, span)| {
                 clause

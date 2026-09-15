@@ -299,7 +299,7 @@ fn predicates_of(
         }
         DefKind::OpaqueTy | DefKind::Closure | DefKind::Static { .. } => {
             Ok(rty::EarlyBinder(rty::GenericPredicates {
-                parent: genv.tcx().predicates_of(def_id).parent,
+                parent: genv.tcx().clauses_of(def_id).parent,
                 predicates: rty::List::empty(),
             }))
         }

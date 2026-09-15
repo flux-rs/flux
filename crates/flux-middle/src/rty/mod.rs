@@ -2104,7 +2104,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
             }
             BaseTy::FnDef(def_id, args) => {
                 let args = args.to_rustc(tcx);
-                ty::Ty::new_fn_def(tcx, *def_id, args)
+                tcx.type_of(*def_id).instantiate(tcx, args).skip_norm_wip()
             }
             BaseTy::Float(f) => ty::Ty::new_float(tcx, *f),
             BaseTy::RawPtr(ty, mutbl) => ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),

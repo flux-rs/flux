@@ -730,8 +730,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         refined_clauses: &[rty::Clause],
     ) -> QueryResult<rty::GenericPredicates> {
         let tcx = self.genv().tcx();
-        let predicates = tcx.predicates_of(def_id);
-        let unrefined_clauses = predicates.predicates;
+        let predicates = tcx.clauses_of(def_id);
+        let unrefined_clauses = predicates.clauses;
 
         // For each *refined clause* at index `j` find a corresponding *unrefined clause* at index
         // `i` and save a mapping `i -> j`.
@@ -2902,7 +2902,7 @@ fn type_param_predicates<'tcx>(
         .generics_of(item_def_id)
         .param_def_id_to_index(tcx, param_id)
         .unwrap();
-    let predicates = tcx.predicates_of(item_def_id).instantiate_identity(tcx);
+    let predicates = tcx.clauses_of(item_def_id).instantiate_identity(tcx);
     predicates.into_iter().filter_map(move |(clause, _)| {
         clause
             .as_trait_clause()
@@ -2917,7 +2917,7 @@ fn type_param_predicates<'tcx>(
 ///
 /// NOTE: [`traits::transitive_bounds_that_define_assoc_item`] is defined specifically to avoid cycles
 /// which is not a problem for us. So instead of using `explicit_supertraits_containing_assoc_item` we
-/// can simply use `explicit_super_predicates_of`.
+/// can simply use `explicit_super_clauses_of`.
 fn transitive_bounds<'tcx>(
     tcx: TyCtxt<'tcx>,
     trait_refs: impl Iterator<Item = ty::PolyTraitRef<'tcx>>,
@@ -2932,7 +2932,7 @@ fn transitive_bounds<'tcx>(
             }
 
             stack.extend(
-                tcx.explicit_super_predicates_of(trait_ref.def_id())
+                tcx.explicit_super_clauses_of(trait_ref.def_id())
                     .iter_identity_copied()
                     .map(|clause| clause.skip_norm_wip())
                     .map(|(clause, _)| clause.instantiate_supertrait(tcx, trait_ref))

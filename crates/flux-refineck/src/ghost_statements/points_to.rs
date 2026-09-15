@@ -30,14 +30,14 @@ use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
 use rustc_index::{IndexSlice, IndexVec, bit_set::DenseBitSet};
 use rustc_middle::{
-    mir::{self, BasicBlock, TerminatorEdges, visit::Visitor},
+    mir::{self, BasicBlock, TerminatorEdges, traversal, visit::Visitor},
     ty,
 };
 use rustc_mir_dataflow::{
     Analysis, JoinSemiLattice, ResultsVisitor,
     fmt::DebugWithContext,
     lattice::{FlatSet, HasBottom, HasTop},
-    visit_reachable_results,
+    visit_results,
 };
 
 use super::GhostStatements;
@@ -53,7 +53,10 @@ pub(crate) fn add_ghost_statements<'tcx>(
     let points_to = PointsToAnalysis::new(&map, fn_sig);
     let results = points_to.iterate_to_fixpoint(genv.tcx(), body, None);
     let mut visitor = CollectPointerToBorrows::new(&map, stmts, &results.entry_states);
-    visit_reachable_results(body, &results, &mut visitor);
+    for (bb, _) in traversal::reachable(body) {
+        visitor.visit_block_start(&results.entry_states[bb]);
+        visit_results(body, [bb], &results, &mut visitor);
+    }
 
     Ok(())
 }
@@ -288,7 +291,7 @@ impl<'a> CollectPointerToBorrows<'a> {
     }
 }
 
-impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBorrows<'_> {
+impl CollectPointerToBorrows<'_> {
     fn visit_block_start(&mut self, state: &State) {
         self.before_state.clear();
         for place_idx in self.tracked_places.keys() {
@@ -296,7 +299,9 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBo
             self.before_state.push((*place_idx, value));
         }
     }
+}
 
+impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBorrows<'_> {
     fn visit_after_primary_statement_effect(
         &mut self,
         _analysis: &PointsToAnalysis<'a>,

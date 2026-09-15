@@ -90,12 +90,7 @@ impl<'tcx> BodyRoot<'tcx> {
     }
 
     pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
-        self.facts
-            .borrow_set
-            .location_map()
-            .get_index(idx.as_usize())
-            .unwrap()
-            .1
+        &self.facts.borrow_set[idx]
     }
 }
 

@@ -2278,9 +2278,9 @@ fn all_predicates_of(
     let mut next_id = Some(id);
     iter::from_fn(move || {
         next_id.take().map(|id| {
-            let preds = tcx.predicates_of(id);
+            let preds = tcx.clauses_of(id);
             next_id = preds.parent;
-            preds.predicates.iter()
+            preds.clauses.iter()
         })
     })
     .flatten()

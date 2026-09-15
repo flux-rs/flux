@@ -403,8 +403,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             && let hir::ImplItemKind::Fn { .. } = self.tcx().hir_impl_item(*item_id).kind
             && let Some((clause, _)) = self
                 .tcx()
-                .predicates_of(item_id.owner_id.def_id)
-                .predicates
+                .clauses_of(item_id.owner_id.def_id)
+                .clauses
                 .first()
             && let Some(poly_trait_pred) = clause.as_trait_clause()
             && let Some(trait_pred) = poly_trait_pred.no_bound_vars()

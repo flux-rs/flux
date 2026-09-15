@@ -22,7 +22,7 @@ pub use rustc_middle::{
 };
 use rustc_middle::{
     mir::Promoted,
-    ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt},
+    ty::{self as rustc_ty, AdtFlags, ParamConst, RegionExt, TyCtxt},
 };
 use rustc_span::Symbol;
 pub use rustc_type_ir::InferConst;
@@ -1035,7 +1035,7 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             }
             TyKind::FnDef(def_id, args) => {
                 let args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
-                rustc_ty::Ty::new_fn_def(tcx, *def_id, args)
+                tcx.type_of(*def_id).instantiate(tcx, args).skip_norm_wip()
             }
             TyKind::Array(ty, len) => {
                 let ty = ty.to_rustc(tcx);

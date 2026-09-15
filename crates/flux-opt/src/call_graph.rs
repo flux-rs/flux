@@ -143,6 +143,7 @@ fn callees_in_body<'tcx>(
 
                 match ty.kind() {
                     rustc_middle::ty::TyKind::FnDef(callee_def_id, callee_args) => {
+                        let callee_args = callee_args.no_bound_vars().unwrap();
                         match Instance::try_resolve(tcx, typing_env, *callee_def_id, callee_args) {
                             Ok(Some(instance)) => {
                                 CallSiteKind::Resolved { callee: NodeKey::from_instance(instance) }

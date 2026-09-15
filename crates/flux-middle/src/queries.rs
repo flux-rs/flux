@@ -488,7 +488,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     ) -> QueryResult<ty::GenericPredicates> {
         run_with_cache(&self.lower_predicates_of, def_id, || {
             genv.tcx()
-                .predicates_of(def_id)
+                .clauses_of(def_id)
                 .lower(genv.tcx())
                 .map_err(|err| QueryErr::unsupported(def_id, err))
         })
