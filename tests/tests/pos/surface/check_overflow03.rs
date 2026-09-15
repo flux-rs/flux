@@ -1,4 +1,4 @@
-const MAX: u32 = std::u32::MAX;
+const MAX: u32 = u32::MAX;
 
 struct MyStruct {
     inner: u32,

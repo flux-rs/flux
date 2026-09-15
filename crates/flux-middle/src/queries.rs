@@ -18,7 +18,7 @@ use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_errors::Diagnostic;
 use rustc_hir::{
-    LangItem,
+    attrs::lang_items::LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };

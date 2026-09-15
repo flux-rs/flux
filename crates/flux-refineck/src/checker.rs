@@ -45,7 +45,7 @@ use rustc_data_structures::{
 };
 use rustc_hash::FxHashMap;
 use rustc_hir::{
-    LangItem,
+    attrs::lang_items::LangItem,
     def_id::{DefId, LocalDefId},
 };
 use rustc_index::{IndexSlice, bit_set::DenseBitSet};

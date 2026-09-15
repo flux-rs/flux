@@ -15,7 +15,7 @@ use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::{
-    LangItem,
+    attrs::lang_items::LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LocalDefId},
 };

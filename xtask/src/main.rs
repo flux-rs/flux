@@ -13,7 +13,9 @@ use cargo_metadata::{
     Artifact, Message, TargetKind,
 };
 use flux_dev::Suite;
-use flux_sysroot::{default_flux_sysroot_dir, FLUX_SYSROOT};
+use flux_sysroot::{
+    default_flux_sysroot_dir, SysrootCrate, SysrootManifest, FLUX_SYSROOT, SYSROOT_MANIFEST,
+};
 
 xflags::xflags! {
     cmd xtask {
@@ -250,7 +252,8 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         }
 
         // Build rustc flags
-        let mut rustc_flags = flux_dev::default_flags(&config.dst);
+        let mut rustc_flags =
+            flux_dev::default_flags(&config.dst, SysrootManifest::extern_args(&config.dst));
         rustc_flags.push("-Flean=emit".to_string());
         rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
 
@@ -346,7 +349,8 @@ fn run_inner(
 
     let flux_driver = install_sysroot(&config)?;
 
-    let mut rustc_flags = flux_dev::default_flags(&config.dst);
+    let mut rustc_flags =
+        flux_dev::default_flags(&config.dst, SysrootManifest::extern_args(&config.dst));
     rustc_flags.extend(flags);
 
     Command::new(flux_driver)
@@ -467,10 +471,19 @@ impl FluxLib {
         }
     }
 
-    fn is_flux_lib(artifact: &Artifact) -> bool {
+    /// Whether this lib's specs are injected as force externs under `-Fstd-extern-specs`.
+    const fn is_std_extern_spec(self) -> bool {
+        match self {
+            FluxLib::FluxCore | FluxLib::FluxAlloc => true,
+            FluxLib::FluxAttrs | FluxLib::FluxRs => false,
+        }
+    }
+
+    fn from_artifact(artifact: &Artifact) -> Option<FluxLib> {
         Self::ALL
             .iter()
-            .any(|lib| artifact.target.name == lib.target_name())
+            .copied()
+            .find(|lib| artifact.target.name == lib.target_name())
     }
 }
 
@@ -502,78 +515,96 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
         )
         .env(FLUX_SYSROOT, &config.dst)
         .run_with_cargo_metadata()?;
-    copy_artifacts(&artifacts, &config.dst)?;
-    write_sysroot_toml(&artifacts, &config.dst)?;
+    let manifest = copy_artifacts(&artifacts, &config.dst)?;
+    write_sysroot_toml(&manifest, &config.dst)?;
     Ok(flux_driver)
 }
 
-fn copy_artifacts(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<()> {
-    for artifact in artifacts {
-        if !FluxLib::is_flux_lib(artifact) {
-            continue;
-        }
-
-        for filename in &artifact.filenames {
-            // For proc-macro crates, cargo emits two separate artifacts: a `.so` (the
-            // proc-macro binary compiled for the host) and a `.rmeta` (a metadata-only
-            // build for dependency tracking). These two artifacts have *different* hashes
-            // because they come from distinct compilations.
-            //
-            // The `flux` binary resolves extern crates by name via `-L <sysroot>` rather
-            // than by explicit path. With both files present, rustc reports E0464
-            // "multiple candidates for `rmeta` dependency". Keeping only the `.so`
-            // avoids the ambiguity: rustc finds exactly one candidate and correctly
-            // identifies it as a proc-macro crate.
-            if artifact.target.is_kind(TargetKind::ProcMacro)
-                && filename.extension() == Some("rmeta")
-            {
-                continue;
-            }
-            copy_artifact(filename, sysroot)?;
-        }
-    }
-    Ok(())
-}
-
-fn copy_artifact(filename: &Utf8Path, dst: &Path) -> anyhow::Result<()> {
-    copy_file(filename, dst)?;
-    if filename.extension() == Some("rmeta") {
-        let fluxmeta = filename.with_extension("fluxmeta");
-        if fluxmeta.exists() {
-            copy_file(&fluxmeta, dst)?;
-        }
-    }
-    Ok(())
-}
-
-fn write_sysroot_toml(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<()> {
-    use flux_sysroot::SysrootManifest;
-
+fn copy_artifacts(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<SysrootManifest> {
     let mut manifest = SysrootManifest::default();
     for artifact in artifacts {
-        let Some(lib) = [FluxLib::FluxCore, FluxLib::FluxAlloc]
-            .iter()
-            .find(|lib| artifact.target.name == lib.target_name())
-        else {
-            continue;
-        };
+        let Some(lib) = FluxLib::from_artifact(artifact) else { continue };
+
+        let entry = manifest
+            .crates
+            .entry(lib.target_name().to_string())
+            .or_default();
+        entry.extern_spec = lib.is_std_extern_spec();
+
         for filename in &artifact.filenames {
-            if filename.extension() == Some("rmeta") {
-                manifest.extern_specs.insert(
-                    lib.target_name().to_string(),
-                    filename.file_name().unwrap().to_string(),
-                );
-                break;
-            }
+            copy_artifact(artifact, filename, sysroot, entry)?;
         }
     }
+    Ok(manifest)
+}
 
-    if manifest.extern_specs.is_empty() {
+fn copy_artifact(
+    artifact: &Artifact,
+    filename: &Utf8Path,
+    dst: &Path,
+    entry: &mut SysrootCrate,
+) -> anyhow::Result<()> {
+    let name = sysroot_file_name(artifact, filename)?;
+    copy_file(filename, dst.join(&name))?;
+    record_artifact(entry, &name);
+
+    if filename.extension() == Some("rmeta") {
+        // Flux finds its own metadata by swapping the extension on the resolved `.rmeta` path,
+        // so the two must travel together.
+        let fluxmeta = filename.with_extension("fluxmeta");
+        if fluxmeta.exists() {
+            let name = sysroot_file_name(artifact, &fluxmeta)?;
+            copy_file(&fluxmeta, dst.join(&name))?;
+            record_artifact(entry, &name);
+        }
+    }
+    Ok(())
+}
+
+fn record_artifact(entry: &mut SysrootCrate, name: &str) {
+    let slot = match Utf8Path::new(name).extension() {
+        Some("rlib") => &mut entry.rlib,
+        Some("rmeta") => &mut entry.rmeta,
+        Some("fluxmeta") => &mut entry.fluxmeta,
+        _ => &mut entry.dylib,
+    };
+    *slot = Some(name.to_string());
+}
+
+/// Name an artifact gets inside the sysroot.
+///
+/// Cargo reports an uplifted, hash-free `.rlib` for these crates but a hashed `.rmeta`, and rustc
+/// pairs the two by the infix between `lib<crate>` and the extension, so we cannot reuse cargo's
+/// names. Naming by crate keeps the pairing intact.
+fn sysroot_file_name(artifact: &Artifact, filename: &Utf8Path) -> anyhow::Result<String> {
+    let krate = &artifact.target.name;
+    let name = filename
+        .file_name()
+        .ok_or_else(|| anyhow!("artifact `{filename}` has no file name"))?;
+    let extension = filename
+        .extension()
+        .ok_or_else(|| anyhow!("artifact `{filename}` has no extension"))?;
+    match extension {
+        // rustc hardcodes the `lib` prefix for its own formats on every target.
+        "rlib" | "rmeta" | "fluxmeta" => Ok(format!("lib{krate}.{extension}")),
+        // A dylib's prefix is target-dependent (empty on Windows), so recover it from the name
+        // cargo produced.
+        _ => {
+            let prefix = name
+                .find(krate.as_str())
+                .map(|idx| &name[..idx])
+                .ok_or_else(|| anyhow!("artifact `{name}` does not mention crate `{krate}`"))?;
+            Ok(format!("{prefix}{krate}.{extension}"))
+        }
+    }
+}
+
+fn write_sysroot_toml(manifest: &SysrootManifest, sysroot: &Path) -> anyhow::Result<()> {
+    if manifest.crates.is_empty() {
         return Ok(());
     }
-
-    let content = toml::to_string(&manifest)?;
-    let path = sysroot.join("sysroot.toml");
+    let content = toml::to_string(manifest)?;
+    let path = sysroot.join(SYSROOT_MANIFEST);
     eprintln!("$ write {}", path.display());
     fs::write(&path, &content).map_err(|e| anyhow!("failed to write `{}`: {e}", path.display()))
 }

@@ -5,10 +5,10 @@ pub fn scalar_to_bits<'tcx>(
     tcx: TyCtxt<'tcx>,
     scalar: rustc_ty::ScalarInt,
     ty: rustc_middle::ty::Ty<'tcx>,
-) -> Option<u128> {
+) -> u128 {
     let typing_env = TypingEnv::fully_monomorphized();
     let size = tcx.layout_of(typing_env.as_query_input(ty)).unwrap().size;
-    scalar.try_to_bits(size).ok()
+    scalar.to_bits(size)
 }
 
 pub fn scalar_to_int(tcx: TyCtxt, scalar: rustc_ty::ScalarInt, int_ty: IntTy) -> i128 {

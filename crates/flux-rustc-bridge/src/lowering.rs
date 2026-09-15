@@ -1154,7 +1154,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::TraitRef<'tcx> {
     }
 }
 
-impl<'tcx> Lower<'tcx> for rustc_ty::TypeOutlivesPredicate<'tcx> {
+impl<'tcx> Lower<'tcx> for rustc_ty::TypeOutlivesClause<'tcx> {
     type R = Result<TypeOutlivesPredicate, UnsupportedReason>;
 
     fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
@@ -1162,7 +1162,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::TypeOutlivesPredicate<'tcx> {
     }
 }
 
-impl<'tcx> Lower<'tcx> for rustc_ty::RegionOutlivesPredicate<'tcx> {
+impl<'tcx> Lower<'tcx> for rustc_ty::RegionOutlivesClause<'tcx> {
     type R = Result<RegionOutlivesPredicate, UnsupportedReason>;
 
     fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {

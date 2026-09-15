@@ -2897,7 +2897,7 @@ fn type_param_predicates<'tcx>(
     tcx: TyCtxt<'tcx>,
     item_def_id: DefId,
     param_id: DefId,
-) -> impl Iterator<Item = ty::PolyTraitPredicate<'tcx>> {
+) -> impl Iterator<Item = ty::PolyTraitClause<'tcx>> {
     let param_index = tcx
         .generics_of(item_def_id)
         .param_def_id_to_index(tcx, param_id)
@@ -2937,7 +2937,7 @@ fn transitive_bounds<'tcx>(
                     .map(|clause| clause.skip_norm_wip())
                     .map(|(clause, _)| clause.instantiate_supertrait(tcx, trait_ref))
                     .filter_map(|clause| clause.as_trait_clause())
-                    .filter(|clause| clause.polarity() == ty::PredicatePolarity::Positive)
+                    .filter(|clause| clause.polarity() == ty::ClausePolarity::Positive)
                     .map(|clause| clause.map_bound(|clause| clause.trait_ref)),
             );
 

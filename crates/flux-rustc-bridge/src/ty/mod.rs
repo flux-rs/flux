@@ -16,8 +16,8 @@ use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy, LateParamRegion,
-        LateParamRegionKind, ParamTy, RegionVid, ScalarInt, UintTy,
+        BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy, LateParamRegionKind,
+        ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
 use rustc_middle::{
@@ -504,6 +504,13 @@ pub struct CoroutineArgsParts<'a> {
     pub yield_ty: &'a Ty,
     pub return_ty: &'a Ty,
     pub tupled_upvars_ty: &'a Ty,
+}
+
+/// Mirrors [`rustc_middle::ty::LateParamRegion`].
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub struct LateParamRegion {
+    pub scope: DefId,
+    pub kind: LateParamRegionKind,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

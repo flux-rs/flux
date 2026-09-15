@@ -43,7 +43,7 @@ pub use normalize::{FuncInfo, NormalizedDefns, local_deps};
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
 use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};
-use rustc_hir::{LangItem, Safety, def_id::DefId};
+use rustc_hir::{Safety, attrs::lang_items::LangItem, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 pub use rustc_middle::{
@@ -459,10 +459,10 @@ pub type TypeOutlivesPredicate = OutlivesPredicate<Ty>;
 pub type RegionOutlivesPredicate = OutlivesPredicate<Region>;
 
 impl<'tcx, V: ToRustc<'tcx>> ToRustc<'tcx> for OutlivesPredicate<V> {
-    type T = rustc_middle::ty::OutlivesPredicate<'tcx, V::T>;
+    type T = rustc_middle::ty::OutlivesClause<'tcx, V::T>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        rustc_middle::ty::OutlivesPredicate(self.0.to_rustc(tcx), self.1.to_rustc(tcx))
+        rustc_middle::ty::OutlivesClause(self.0.to_rustc(tcx), self.1.to_rustc(tcx))
     }
 }
 
@@ -480,11 +480,11 @@ impl TraitPredicate {
 }
 
 impl<'tcx> ToRustc<'tcx> for TraitPredicate {
-    type T = rustc_middle::ty::TraitPredicate<'tcx>;
+    type T = rustc_middle::ty::TraitClause<'tcx>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        rustc_middle::ty::TraitPredicate {
-            polarity: rustc_middle::ty::PredicatePolarity::Positive,
+        rustc_middle::ty::TraitClause {
+            polarity: rustc_middle::ty::ClausePolarity::Positive,
             trait_ref: self.trait_ref.to_rustc(tcx),
         }
     }
@@ -643,10 +643,10 @@ impl ProjectionPredicate {
 }
 
 impl<'tcx> ToRustc<'tcx> for ProjectionPredicate {
-    type T = rustc_middle::ty::ProjectionPredicate<'tcx>;
+    type T = rustc_middle::ty::ProjectionClause<'tcx>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        rustc_middle::ty::ProjectionPredicate {
+        rustc_middle::ty::ProjectionClause {
             projection_term: self.projection_term.to_rustc(tcx),
             term: self.term.as_bty_skipping_binder().to_rustc(tcx).into(),
         }
