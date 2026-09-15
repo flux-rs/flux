@@ -691,10 +691,9 @@ impl BasicBlockEnvShape {
                     .collect();
                 BaseTy::Tuple(fields)
             }
-            (BaseTy::Alias(kind1, alias_ty1), BaseTy::Alias(kind2, alias_ty2)) => {
-                tracked_span_dbg_assert_eq!(kind1, kind2);
+            (BaseTy::Alias(alias_ty1), BaseTy::Alias(alias_ty2)) => {
                 tracked_span_dbg_assert_eq!(alias_ty1, alias_ty2);
-                BaseTy::Alias(*kind1, alias_ty1.clone())
+                BaseTy::Alias(alias_ty1.clone())
             }
             (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) => {
                 tracked_span_dbg_assert_eq!(r1, r2);

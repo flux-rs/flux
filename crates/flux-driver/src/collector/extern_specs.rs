@@ -58,7 +58,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             hir::ItemKind::Struct(_, _, variant) => {
                 self.collect_extern_struct(item.owner_id, variant, attrs)
             }
-            hir::ItemKind::Trait(_, _, _, _, _, bounds, items) => {
+            hir::ItemKind::Trait { bounds, items, .. } => {
                 self.collect_extern_trait(item.owner_id, bounds, items, attrs)
             }
             hir::ItemKind::Impl(impl_) => self.collect_extern_impl(item.owner_id, impl_, attrs),
@@ -403,8 +403,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             && let hir::ImplItemKind::Fn { .. } = self.tcx().hir_impl_item(*item_id).kind
             && let Some((clause, _)) = self
                 .tcx()
-                .predicates_of(item_id.owner_id.def_id)
-                .predicates
+                .clauses_of(item_id.owner_id.def_id)
+                .clauses
                 .first()
             && let Some(poly_trait_pred) = clause.as_trait_clause()
             && let Some(trait_pred) = poly_trait_pred.no_bound_vars()
@@ -523,7 +523,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         let tcx = self.tcx();
 
         // Get the self type from the external impl
-        let extern_self_ty = tcx.type_of(extern_impl_id).instantiate_identity();
+        let extern_self_ty = tcx
+            .type_of(extern_impl_id)
+            .instantiate_identity()
+            .skip_norm_wip();
 
         // Compare self types. `local_self_ty` is the user-written self type from the extern
         // spec's trait_ref (not the `__FluxExternImplStruct` wrapper that the macro retargets
@@ -749,7 +752,7 @@ mod errors {
         #[primary_span]
         #[label]
         pub span: Span,
-        #[label(driver_extern_def_label)]
+        #[label(driver_mismatched_generics_extern_def_label)]
         pub extern_def: Span,
         pub def_descr: &'static str,
     }
@@ -763,7 +766,7 @@ mod errors {
         pub span: Span,
         pub local_self_ty: String,
         pub extern_self_ty: String,
-        #[label(driver_extern_impl_label)]
+        #[label(driver_mismatched_impl_self_ty_extern_impl_label)]
         pub extern_impl_span: Span,
     }
 }

@@ -5,19 +5,18 @@ use std::{
     str::FromStr,
 };
 
-pub fn default_flags(sysroot: &Path) -> Vec<String> {
-    vec![
+pub fn default_flags(sysroot: &Path, extern_args: Vec<String>) -> Vec<String> {
+    let mut flags = vec![
         "--crate-type=rlib".to_string(),
         "--edition=2021".to_string(),
+        // Transitive deps ignore `--extern`, so they still need a search path.
         "-L".to_string(),
         sysroot.display().to_string(),
-        "--extern".to_string(),
-        "flux_rs".to_string(),
-        "--extern".to_string(),
-        "flux_attrs".to_string(),
-        "-Fverify=on".to_string(),
-        format!("-Fsysroot={}", sysroot.display()),
-    ]
+    ];
+    flags.extend(extern_args);
+    flags.push("-Fverify=on".to_string());
+    flags.push(format!("-Fsysroot={}", sysroot.display()));
+    flags
 }
 
 #[derive(Clone, Copy, Debug)]

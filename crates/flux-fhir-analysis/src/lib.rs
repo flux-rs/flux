@@ -1,4 +1,4 @@
-#![feature(rustc_private, box_patterns, if_let_guard, once_cell_try, never_type)]
+#![feature(rustc_private, never_type)]
 
 extern crate rustc_abi;
 extern crate rustc_ast;
@@ -299,7 +299,7 @@ fn predicates_of(
         }
         DefKind::OpaqueTy | DefKind::Closure | DefKind::Static { .. } => {
             Ok(rty::EarlyBinder(rty::GenericPredicates {
-                parent: genv.tcx().predicates_of(def_id).parent,
+                parent: genv.tcx().clauses_of(def_id).parent,
                 predicates: rty::List::empty(),
             }))
         }

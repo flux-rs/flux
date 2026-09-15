@@ -594,7 +594,7 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
     ) -> InferResult {
         for clause in clauses {
             if let rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
-                let impl_elem = BaseTy::projection(projection_pred.projection_ty)
+                let impl_elem = BaseTy::Alias(projection_pred.projection_term.to_alias_ty())
                     .to_ty()
                     .deeply_normalize(self)?;
                 let term = projection_pred.term.to_ty().deeply_normalize(self)?;
@@ -978,30 +978,41 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (
-                BaseTy::Alias(AliasKind::Opaque, alias_ty_a),
-                BaseTy::Alias(AliasKind::Opaque, alias_ty_b),
+                BaseTy::Alias(AliasTy {
+                    kind: AliasKind::Opaque { def_id: def_id_a },
+                    args: args_a,
+                    refine_args: refine_args_a,
+                }),
+                BaseTy::Alias(AliasTy {
+                    kind: AliasKind::Opaque { def_id: def_id_b },
+                    args: args_b,
+                    refine_args: refine_args_b,
+                }),
             ) => {
-                debug_assert_eq!(alias_ty_a.def_id, alias_ty_b.def_id);
+                debug_assert_eq!(def_id_a, def_id_b);
 
                 // handle type-args
-                for (ty_a, ty_b) in izip!(alias_ty_a.args.iter(), alias_ty_b.args.iter()) {
+                for (ty_a, ty_b) in izip!(args_a.iter(), args_b.iter()) {
                     self.generic_args(infcx, Invariant, ty_a, ty_b)?;
                 }
 
                 // handle refine-args
-                debug_assert_eq!(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
-                iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
+                debug_assert_eq!(refine_args_a.len(), refine_args_b.len());
+                iter::zip(refine_args_a.iter(), refine_args_b.iter())
                     .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
 
                 Ok(())
             }
-            (_, BaseTy::Alias(AliasKind::Opaque, alias_ty_b)) => {
+            (
+                _,
+                BaseTy::Alias(AliasTy { kind: AliasKind::Opaque { def_id }, args, refine_args }),
+            ) => {
                 // only for when concrete type on LHS and impl-with-bounds on RHS
-                self.handle_opaque_type(infcx, a, alias_ty_b)
+                self.handle_opaque_type(infcx, a, *def_id, args, refine_args)
             }
             (
-                BaseTy::Alias(AliasKind::Projection, alias_ty_a),
-                BaseTy::Alias(AliasKind::Projection, alias_ty_b),
+                BaseTy::Alias(alias_ty_a @ AliasTy { kind: AliasKind::Projection { .. }, .. }),
+                BaseTy::Alias(alias_ty_b @ AliasTy { kind: AliasKind::Projection { .. }, .. }),
             ) => {
                 tracked_span_dbg_assert_eq!(alias_ty_a.erase_regions(), alias_ty_b.erase_regions());
                 Ok(())
@@ -1201,7 +1212,9 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         &mut self,
         infcx: &mut InferCtxt,
         bty: &BaseTy,
-        alias_ty: &AliasTy,
+        opaque_def_id: DefId,
+        opaque_args: &rty::GenericArgs,
+        opaque_refine_args: &rty::RefineArgs,
     ) -> InferResult {
         if let BaseTy::Coroutine(def_id, resume_ty, upvar_tys, args) = bty {
             let obligs = mk_coroutine_obligations(
@@ -1209,23 +1222,26 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 def_id,
                 resume_ty,
                 upvar_tys,
-                &alias_ty.def_id,
+                &opaque_def_id,
                 args.clone(),
             )?;
             self.obligations.extend(obligs);
         } else {
-            let bounds = infcx.genv.item_bounds(alias_ty.def_id)?.instantiate(
+            let bounds = infcx.genv.item_bounds(opaque_def_id)?.instantiate(
                 infcx.tcx(),
-                &alias_ty.args,
-                &alias_ty.refine_args,
+                opaque_args,
+                opaque_refine_args,
             );
             for clause in &bounds {
                 if !clause.kind().vars().is_empty() {
                     Err(query_bug!("handle_opaque_types: clause with bound vars: `{clause:?}`"))?;
                 }
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                    let alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
-                    let ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
+                    let alias_ty = pred
+                        .projection_term
+                        .with_self_ty(bty.to_subset_ty_ctor())
+                        .to_alias_ty();
+                    let ty1 = BaseTy::Alias(alias_ty)
                         .to_ty()
                         .deeply_normalize(&mut infcx.at(self.span))?;
                     let ty2 = pred.term.to_ty();

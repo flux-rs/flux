@@ -14,6 +14,7 @@ use flux_middle::{
 use rustc_hir::{
     self as hir, FnHeader,
     def_id::{DefId, LocalDefId},
+    intravisit::HirTyCtxt,
 };
 use rustc_span::Span;
 
@@ -46,7 +47,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             hir::ItemKind::Union(_, generics, variant_data) => {
                 (generics, fhir::ItemKind::Struct(self.lift_struct_def(variant_data)))
             }
-            hir::ItemKind::Trait(_, _, _, _, generics, ..) => {
+            hir::ItemKind::Trait { generics, .. } => {
                 (generics, fhir::ItemKind::Trait(fhir::Trait { assoc_refinements: &[] }))
             }
             hir::ItemKind::Impl(impl_) => {
@@ -369,7 +370,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
                     if poly_trait.modifiers != hir::TraitBoundModifiers::NONE {
                         return Err(self.emit_unsupported(&format!(
                             "unsupported type: `{}`",
-                            rustc_hir_pretty::ty_to_string(&self.genv.tcx(), ty)
+                            hir_ty_to_string(self.genv.tcx(), ty)
                         )));
                     }
                     self.lift_poly_trait_ref(*poly_trait)
@@ -385,7 +386,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             _ => {
                 fhir::TyKind::Err(self.emit_unsupported(&format!(
                     "unsupported type: `{}`",
-                    rustc_hir_pretty::ty_to_string(&self.genv.tcx(), ty)
+                    hir_ty_to_string(self.genv.tcx(), ty)
                 )))
             }
         };
@@ -617,4 +618,8 @@ pub mod errors {
         pub def_kind: &'static str,
         pub note: &'a str,
     }
+}
+
+fn hir_ty_to_string(tcx: rustc_middle::ty::TyCtxt<'_>, ty: &hir::Ty<'_>) -> String {
+    rustc_hir_pretty::ty_to_string(&(&tcx as &dyn HirTyCtxt<'_>), ty)
 }

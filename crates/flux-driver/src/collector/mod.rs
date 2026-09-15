@@ -147,7 +147,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::Mod(..) => self.collect_mod(owner_id, attrs)?,
             ItemKind::TyAlias(..) => self.collect_type_alias(owner_id, attrs)?,
             ItemKind::Impl(..) => self.collect_impl(owner_id, attrs)?,
-            ItemKind::Trait(..) => self.collect_trait(owner_id, attrs)?,
+            ItemKind::Trait { .. } => self.collect_trait(owner_id, attrs)?,
             ItemKind::Const(.., rhs) => {
                 // The flux-rs macro puts defs as an outer attribute on a `const _: () = { }`. We
                 // consider these defs to be defined in the parent of the const.
@@ -1311,7 +1311,7 @@ mod errors {
         #[primary_span]
         #[label]
         span: Span,
-        #[label(driver_item_def_ident)]
+        #[label(driver_mismatched_spec_name_item_def_ident)]
         item_ident_span: Span,
         item_ident: Ident,
         def_descr: &'static str,

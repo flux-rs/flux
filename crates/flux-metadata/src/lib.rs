@@ -1,16 +1,16 @@
 #![allow(incomplete_features)]
-#![feature(rustc_private, specialization, if_let_guard)]
+#![feature(rustc_private)]
 
 extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_macros;
-extern crate rustc_metadata;
 extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
+extern crate rustc_type_ir;
 
 mod decoder;
 mod encoder;

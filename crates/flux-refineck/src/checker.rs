@@ -45,7 +45,7 @@ use rustc_data_structures::{
 };
 use rustc_hash::FxHashMap;
 use rustc_hir::{
-    LangItem,
+    attrs::lang_items::LangItem,
     def_id::{DefId, LocalDefId},
 };
 use rustc_index::{IndexSlice, bit_set::DenseBitSet};
@@ -1110,7 +1110,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
-                let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
+                let sub_sig = self.genv.fn_sig(*def_id).with_span(span)?;
                 check_fn_subtyping(
                     infcx,
                     SubFn::Poly(*def_id, sub_sig, args.clone()),
@@ -1489,7 +1489,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<Ty> {
         let genv = self.genv;
         match rvalue {
-            Rvalue::Use(operand) => {
+            Rvalue::Use(operand, _retag) => {
                 self.check_operand(infcx, env, stmt_span, operand)
                     .with_span(stmt_span)
             }
@@ -1615,11 +1615,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .check_operands(infcx, env, stmt_span, ops)
                     .with_span(stmt_span)?;
                 Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into(), args.clone()))
-            }
-            Rvalue::ShallowInitBox(operand, _) => {
-                self.check_operand(infcx, env, stmt_span, operand)
-                    .with_span(stmt_span)?;
-                Ty::mk_box_with_default_alloc(self.genv, Ty::uninit()).with_span(stmt_span)
             }
         }
     }
@@ -2294,9 +2289,9 @@ fn all_predicates_of(
     let mut next_id = Some(id);
     iter::from_fn(move || {
         next_id.take().map(|id| {
-            let preds = tcx.predicates_of(id);
+            let preds = tcx.clauses_of(id);
             next_id = preds.parent;
-            preds.predicates.iter()
+            preds.clauses.iter()
         })
     })
     .flatten()

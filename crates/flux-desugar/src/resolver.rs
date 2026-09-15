@@ -277,9 +277,13 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 ItemKind::Enum(..) => DefKind::Enum,
                 ItemKind::Struct(..) => DefKind::Struct,
                 ItemKind::Union(..) => DefKind::Union,
-                ItemKind::Trait(..) => DefKind::Trait,
+                ItemKind::Trait { .. } => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
-                ItemKind::Const(..) => DefKind::Const,
+                ItemKind::Const(.., rhs) => {
+                    DefKind::Const {
+                        is_type_const: matches!(rhs, hir::ConstItemRhs::TypeConst(..)),
+                    }
+                }
                 ItemKind::ForeignMod { items, .. } => {
                     self.define_foreign_items(items);
                     continue;
@@ -876,7 +880,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(ValueNS, RibKind::Misc);
 
         match item.kind {
-            ItemKind::Trait(..) => {
+            ItemKind::Trait { .. } => {
                 self.define_generics(def_id);
                 self.define_res_in(
                     fhir::Res::SelfTyParam { trait_: def_id.resolved_id() },
@@ -1173,9 +1177,9 @@ fn visible_module_children(
 
 /// Return true if the item has a `#[prelude_import]` annotation
 fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
-    tcx.hir_attrs(item.hir_id())
-        .iter()
-        .any(|attr| attr.path_matches(&[sym::prelude_import]))
+    tcx.hir_attrs(item.hir_id()).iter().any(|attr| {
+        matches!(attr, hir::Attribute::Parsed(hir::attrs::AttributeKind::PreludeImport))
+    })
 }
 
 /// Abstraction over a "segment" so we can use [`CrateResolver::resolve_path_with_ribs`] with paths
@@ -1592,7 +1596,7 @@ mod errors {
         #[primary_span]
         #[label]
         pub span: Span,
-        #[label(desugar_previous_definition)]
+        #[label(desugar_duplicate_definition_previous_definition)]
         pub previous_definition: Span,
         pub name: Symbol,
     }
@@ -1607,9 +1611,9 @@ mod errors {
         #[label]
         span: Span,
         name: Symbol,
-        #[label(desugar_first_candidate)]
+        #[label(desugar_ambiguous_name_first_candidate)]
         first: Span,
-        #[label(desugar_second_candidate)]
+        #[label(desugar_ambiguous_name_second_candidate)]
         second: Option<Span>,
     }
 
@@ -1630,7 +1634,7 @@ mod errors {
         #[label]
         pub span: Span,
         pub name: Symbol,
-        #[label(desugar_first_use)]
+        #[label(desugar_duplicate_param_first_use)]
         pub first_use: Span,
     }
 }

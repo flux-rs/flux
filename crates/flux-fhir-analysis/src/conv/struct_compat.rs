@@ -340,9 +340,8 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 }
                 Ok(())
             }
-            (rty::BaseTy::Alias(kind_a, aty_a), rty::BaseTy::Alias(kind_b, aty_b)) => {
-                assert_eq_or_incompatible(kind_a, kind_b)?;
-                assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)?;
+            (rty::BaseTy::Alias(aty_a), rty::BaseTy::Alias(aty_b)) => {
+                assert_eq_or_incompatible(aty_a.kind, aty_b.kind)?;
                 assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())?;
                 for (arg_a, arg_b) in iter::zip(&aty_a.args, &aty_b.args) {
                     self.zip_generic_arg(arg_a, arg_b)?;
@@ -430,7 +429,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 assert_eq_or_incompatible(ty_a, ty_b)?;
                 assert_eq_or_incompatible(val_a, val_b)
             }
-            (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) => {
+            (rty::ConstKind::Alias(c1), ty::ConstKind::Alias(c2)) => {
                 assert_eq_or_incompatible(c1, c2)
             }
             _ => Err(Mismatch::new(a, b)),
@@ -657,7 +656,7 @@ mod errors {
         #[primary_span]
         #[label]
         span: Span,
-        #[label(fhir_analysis_expected_label)]
+        #[label(fhir_analysis_incompatible_refinement_expected_label)]
         expected_span: Option<Span>,
         expected_ty: rustc_middle::ty::Ty<'tcx>,
         def_descr: &'static str,
@@ -812,7 +811,7 @@ mod errors {
         #[label]
         span: Span,
         found: usize,
-        #[label(fhir_analysis_expected_label)]
+        #[label(fhir_analysis_incompatible_param_count_expected_label)]
         expected_span: Span,
         expected: usize,
         def_descr: &'static str,
@@ -860,7 +859,7 @@ mod errors {
         #[label]
         span: Span,
         fields: usize,
-        #[label(fhir_analysis_expected_label)]
+        #[label(fhir_analysis_field_count_mismatch_expected_label)]
         expected_span: Span,
         expected_fields: usize,
     }

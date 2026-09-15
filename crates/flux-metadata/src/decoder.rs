@@ -219,12 +219,16 @@ impl SpanDecoder for DecodeContext<'_, '_> {
     }
 }
 
-impl<'tcx> TyDecoder<'tcx> for DecodeContext<'_, 'tcx> {
-    const CLEAR_CROSS_CRATE: bool = true;
+impl<'tcx> rustc_type_ir::InternerDecoder for DecodeContext<'_, 'tcx> {
+    type Interner = TyCtxt<'tcx>;
 
     fn interner(&self) -> TyCtxt<'tcx> {
         self.tcx
     }
+}
+
+impl<'tcx> TyDecoder<'tcx> for DecodeContext<'_, 'tcx> {
+    const CLEAR_CROSS_CRATE: bool = true;
 
     fn cached_ty_for_shorthand<F>(&mut self, shorthand: usize, or_insert_with: F) -> ty::Ty<'tcx>
     where
@@ -234,13 +238,13 @@ impl<'tcx> TyDecoder<'tcx> for DecodeContext<'_, 'tcx> {
 
         let cache_key = ty::CReaderCacheKey { cnum: None, pos: shorthand };
 
-        if let Some(&ty) = tcx.ty_rcache.borrow().get(&cache_key) {
+        if let Some(&ty) = tcx.caches.ty_rcache.borrow().get(&cache_key) {
             return ty;
         }
 
         let ty = or_insert_with(self);
         // This may overwrite the entry, but it should overwrite with the same value.
-        tcx.ty_rcache.borrow_mut().insert_same(cache_key, ty);
+        tcx.caches.ty_rcache.borrow_mut().insert_same(cache_key, ty);
         ty
     }
 
