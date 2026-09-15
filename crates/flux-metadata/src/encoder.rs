@@ -22,7 +22,7 @@ use crate::{
 
 struct EncodeContext<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
-    opaque: opaque::FileEncoder,
+    opaque: opaque::FileEncoder<'a>,
     type_shorthands: FxHashMap<ty::Ty<'tcx>, usize>,
     predicate_shorthands: FxHashMap<ty::PredicateKind<'tcx>, usize>,
     file_to_file_index: FxHashMap<*const SourceFile, SourceFileIndex>,
