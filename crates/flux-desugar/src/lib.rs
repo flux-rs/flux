@@ -2,6 +2,7 @@
 
 #![feature(rustc_private, min_specialization, box_patterns)]
 
+extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 

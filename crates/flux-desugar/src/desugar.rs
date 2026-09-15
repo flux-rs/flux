@@ -26,6 +26,7 @@ use flux_syntax::{
     walk_list,
 };
 use hir::{ItemKind, def::DefKind};
+use rustc_ast::ast;
 use itertools::{Either, Itertools};
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordSet};
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
@@ -1772,7 +1773,13 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
             surface::LitKind::Bool => fhir::Lit::Bool(lit.symbol == kw::True),
             surface::LitKind::Str => fhir::Lit::Str(lit.symbol),
-            surface::LitKind::Char => fhir::Lit::Char(lit.symbol.as_str().parse::<char>().unwrap()),
+            surface::LitKind::Char => {
+                // Use rustc's literal parsing to correctly handle escape sequences, e.g., `'\n'`
+                match ast::LitKind::from_token_lit(lit) {
+                    Ok(ast::LitKind::Char(c)) => fhir::Lit::Char(c),
+                    _ => return fhir::ExprKind::Err(self.emit(errors::UnexpectedLiteral { span })),
+                }
+            }
             _ => return fhir::ExprKind::Err(self.emit(errors::UnexpectedLiteral { span })),
         };
         fhir::ExprKind::Literal(lit)
