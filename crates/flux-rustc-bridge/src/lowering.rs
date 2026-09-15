@@ -33,7 +33,8 @@ use super::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
         Const, ConstKind, ExistentialPredicate, ExistentialProjection, FieldDef, FnSig, GenericArg,
         GenericParamDef, GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate,
-        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst, VariantDef,
+        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst,
+        UnevaluatedConstKind, VariantDef,
     },
 };
 use crate::{
@@ -771,7 +772,8 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
             rustc_type_ir::ConstKind::Unevaluated(c) => {
                 // TODO: raise unsupported if c.args is not empty?
                 let args = c.args.lower(tcx)?;
-                ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args, promoted: None })
+                let kind = c.kind.lower(tcx)?;
+                ConstKind::Unevaluated(UnevaluatedConst { kind, args, promoted: None })
             }
             _ => return Err(UnsupportedReason::new(format!("unsupported const {self:?}"))),
         };
@@ -883,6 +885,27 @@ impl<'tcx> Lower<'tcx> for rustc_ty::AliasTerm<'tcx> {
 
     fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
         Ok(AliasTerm { kind: self.kind.lower(tcx)?, args: self.args.lower(tcx)? })
+    }
+}
+
+impl<'tcx> Lower<'tcx> for rustc_ty::UnevaluatedConstKind<'tcx> {
+    type R = Result<UnevaluatedConstKind, UnsupportedReason>;
+
+    fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
+        Ok(match self {
+            rustc_ty::UnevaluatedConstKind::Projection { def_id } => {
+                UnevaluatedConstKind::Projection { def_id }
+            }
+            rustc_ty::UnevaluatedConstKind::Inherent { def_id } => {
+                UnevaluatedConstKind::Inherent { def_id }
+            }
+            rustc_ty::UnevaluatedConstKind::Free { def_id } => {
+                UnevaluatedConstKind::Free { def_id }
+            }
+            rustc_ty::UnevaluatedConstKind::Anon { def_id } => {
+                UnevaluatedConstKind::Anon { def_id }
+            }
+        })
     }
 }
 

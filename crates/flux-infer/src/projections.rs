@@ -743,7 +743,7 @@ fn normalize_projection_ty_with_rustc<'tcx>(
     obligation: &AliasTerm,
 ) -> QueryResult<(bool, SubsetTyCtor)> {
     let tcx = genv.tcx();
-    let projection_ty = obligation.to_rustc(tcx).expect_ty(tcx);
+    let projection_ty = obligation.to_rustc(tcx).expect_ty();
     let projection_ty = tcx.erase_and_anonymize_regions(projection_ty);
     let cause = ObligationCause::dummy();
     let param_env = tcx.param_env(def_id);

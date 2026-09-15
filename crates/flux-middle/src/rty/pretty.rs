@@ -7,7 +7,7 @@ use expr::{FieldBind, pretty::aggregate_nested};
 use flux_rustc_bridge::ToRustc;
 use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_type_ir::DebruijnIndex;
-use ty::{UnevaluatedConst, ValTree, region_to_string};
+use ty::{UnevaluatedConst, UnevaluatedConstKind, ValTree, region_to_string};
 
 use super::{fold::TypeVisitable, *};
 use crate::pretty::*;
@@ -752,7 +752,13 @@ impl Pretty for ValTree {
 }
 impl Pretty for UnevaluatedConst {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        w!(cx, f, "UnevaluatedConst({:?}[...])", self.def)
+        let (descr, def_id) = match self.kind {
+            UnevaluatedConstKind::Projection { def_id } => ("projection", def_id),
+            UnevaluatedConstKind::Inherent { def_id } => ("inherent", def_id),
+            UnevaluatedConstKind::Free { def_id } => ("free", def_id),
+            UnevaluatedConstKind::Anon { def_id } => ("anon", def_id),
+        };
+        w!(cx, f, "UnevaluatedConst({} {:?}[...])", ^descr, def_id)
     }
 }
 

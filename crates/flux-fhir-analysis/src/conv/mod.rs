@@ -1218,11 +1218,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .map(|trait_ref| {
                 // TODO: when we support generic associated types, we need to also attach the associated generics here
                 let args = trait_ref.args;
-                let projection_term =
-                    rty::AliasTerm::new(
-                        rty::AliasTermKind::ProjectionTy { def_id: assoc_item_id },
-                        args,
-                    );
+                let projection_term = rty::AliasTerm::new(
+                    rty::AliasTermKind::ProjectionTy { def_id: assoc_item_id },
+                    args,
+                );
 
                 rty::ClauseKind::Projection(rty::ProjectionPredicate { projection_term, term })
             })

@@ -362,7 +362,7 @@ impl<'tcx> ToRustc<'tcx> for UnevaluatedConst {
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         let args = tcx.mk_args_from_iter(self.args.iter().map(|arg| arg.to_rustc(tcx)));
-        rustc_ty::UnevaluatedConst::new(self.def, args)
+        rustc_ty::UnevaluatedConst::new(tcx, self.kind.to_rustc_kind(), args)
     }
 }
 
@@ -412,9 +412,34 @@ impl<'tcx> ToRustc<'tcx> for Const {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct UnevaluatedConst {
-    pub def: DefId,
+    pub kind: UnevaluatedConstKind,
     pub args: GenericArgs,
     pub promoted: Option<Promoted>,
+}
+
+/// Mirrors [`rustc_middle::ty::UnevaluatedConstKind`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum UnevaluatedConstKind {
+    Projection { def_id: DefId },
+    Inherent { def_id: DefId },
+    Free { def_id: DefId },
+    Anon { def_id: DefId },
+}
+
+impl UnevaluatedConstKind {
+    pub fn to_rustc_kind<'tcx>(self) -> rustc_middle::ty::UnevaluatedConstKind<'tcx> {
+        use rustc_middle::ty;
+        match self {
+            UnevaluatedConstKind::Projection { def_id } => {
+                ty::UnevaluatedConstKind::Projection { def_id }
+            }
+            UnevaluatedConstKind::Inherent { def_id } => {
+                ty::UnevaluatedConstKind::Inherent { def_id }
+            }
+            UnevaluatedConstKind::Free { def_id } => ty::UnevaluatedConstKind::Free { def_id },
+            UnevaluatedConstKind::Anon { def_id } => ty::UnevaluatedConstKind::Anon { def_id },
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
