@@ -2551,12 +2551,11 @@ fn marker_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{E0999, ErrorGuaranteed};
     use flux_infer::infer::InferErr;
+    use flux_macros::msg;
     use flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::LocalDefId;
     use rustc_span::Span;
-
-    use crate::fluent_generated as fluent;
 
     #[derive(Debug)]
     pub struct CheckerError {
@@ -2569,8 +2568,10 @@ pub(crate) mod errors {
             let dcx = genv.sess().dcx().handle();
             match self.kind {
                 InferErr::UnsolvedEvar(_) => {
-                    let mut diag =
-                        dcx.struct_span_err(self.span, fluent::refineck_param_inference_error);
+                    let mut diag = dcx.struct_span_err(
+                        self.span,
+                        msg!("parameter inference error at function call"),
+                    );
                     diag.code(E0999);
                     diag.emit()
                 }

@@ -99,11 +99,11 @@ fn check_invariant(
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::Diagnostic;
+    use flux_macros::InlineDiagnostic as Diagnostic;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(refineck_invalid_invariant, code = E0999)]
+    #[diag("invariant cannot be proven", code = E0999)]
     pub struct Invalid {
         #[primary_span]
         pub span: Span,

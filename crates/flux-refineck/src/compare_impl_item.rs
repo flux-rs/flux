@@ -118,15 +118,15 @@ fn check_assoc_reft(
 
 pub(crate) mod errors {
     use flux_errors::E0999;
-    use flux_macros::Diagnostic;
+    use flux_macros::InlineDiagnostic as Diagnostic;
     use flux_middle::rty;
     use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
-    #[diag(refineck_incompatible_sort, code = E0999)]
+    #[diag("implemented associated refinement `{$name}` has an incompatible sort for trait", code = E0999)]
     pub(super) struct IncompatibleSort {
         #[primary_span]
-        #[label]
+        #[label("expected `{$expected}`, found `{$found}`")]
         span: Span,
         name: Symbol,
         expected: rty::FuncSort,
@@ -145,7 +145,7 @@ pub(crate) mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_missing_assoc_reft, code = E0999)]
+    #[diag("associated refinement `{$name}` is missing from implementation", code = E0999)]
     pub struct MissingAssocReft {
         #[primary_span]
         span: Span,
@@ -159,7 +159,7 @@ pub(crate) mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_impl_assoc_reft_final, code = E0999)]
+    #[diag("associated refinement `{$name}` is final and should not be implemented anywhere other than the trait definition", code = E0999)]
     pub struct ImplAssocReftOnFinal {
         #[primary_span]
         span: Span,
@@ -173,7 +173,7 @@ pub(crate) mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_invalid_assoc_reft, code = E0999)]
+    #[diag("associated refinement `{$name}` is not a member of trait `{$trait_}`", code = E0999)]
     pub struct InvalidAssocReft {
         #[primary_span]
         span: Span,
