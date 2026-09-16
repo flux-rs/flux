@@ -730,8 +730,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         refined_clauses: &[rty::Clause],
     ) -> QueryResult<rty::GenericPredicates> {
         let tcx = self.genv().tcx();
-        let predicates = tcx.predicates_of(def_id);
-        let unrefined_clauses = predicates.predicates;
+        let predicates = tcx.clauses_of(def_id);
+        let unrefined_clauses = predicates.clauses;
 
         // For each *refined clause* at index `j` find a corresponding *unrefined clause* at index
         // `i` and save a mapping `i -> j`.
@@ -791,8 +791,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let env = &mut Env::new(refparams);
 
         let args = rty::GenericArg::identity_for_item(self.genv(), def_id.resolved_id())?;
-        let alias_ty = rty::AliasTy::new(def_id.resolved_id(), args, env.to_early_param_args());
-        let self_ty = rty::BaseTy::opaque(alias_ty).to_ty();
+        let alias_ty = rty::AliasTy::new(
+            rty::AliasKind::Opaque { def_id: def_id.resolved_id() },
+            args,
+            env.to_early_param_args(),
+        );
+        let self_ty = rty::BaseTy::Alias(alias_ty).to_ty();
         // FIXME(nilehmann) use a good span here
         Ok(self
             .conv_generic_bounds(env, DUMMY_SP, self_ty, opaque_ty.bounds)?
@@ -921,7 +925,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     fhir::PathSegment { args: &[], constraints: &[], ident, res: fhir::Res::Err };
                 let mut env = Env::empty();
                 let alias_ty = self.conv_type_relative_type_path(&mut env, res, &assoc_segment)?;
-                return Ok(rty::Sort::Alias(rty::AliasKind::Projection, alias_ty));
+                return Ok(rty::Sort::Alias(alias_ty));
             }
             (fhir::Res::PrimSort(fhir::PrimSort::Set), 0) => {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Set)?;
@@ -1214,10 +1218,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .map(|trait_ref| {
                 // TODO: when we support generic associated types, we need to also attach the associated generics here
                 let args = trait_ref.args;
-                let refine_args = List::empty();
-                let projection_ty = rty::AliasTy { def_id: assoc_item_id, args, refine_args };
+                let projection_term = rty::AliasTerm::new(
+                    rty::AliasTermKind::ProjectionTy { def_id: assoc_item_id },
+                    args,
+                );
 
-                rty::ClauseKind::Projection(rty::ProjectionPredicate { projection_ty, term })
+                rty::ClauseKind::Projection(rty::ProjectionPredicate { projection_term, term })
             })
             .into();
 
@@ -1341,8 +1347,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
             })?;
             let reft_args = rty::RefineArgs::identity_for_item(self.genv(), def_id.resolved_id())?;
-            let alias_ty = rty::AliasTy::new(def_id.resolved_id(), args, reft_args);
-            Ok(rty::BaseTy::opaque(alias_ty).to_ty())
+            let alias_ty = rty::AliasTy::new(
+                rty::AliasKind::Opaque { def_id: def_id.resolved_id() },
+                args,
+                reft_args,
+            );
+            Ok(rty::BaseTy::Alias(alias_ty).to_ty())
         } else {
             // During sortck we need to run conv on the opaque type to collect sorts for base types
             // in the opaque type's bounds. After sortck, we don't need to because opaque types are
@@ -1351,8 +1361,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
             // `RefineArgs::identity_for_item` uses `genv.refinement_generics_of` which in turn
             // requires `genv.check_wf`, so we simply return all empty here to avoid the circularity
-            let alias_ty = rty::AliasTy::new(def_id.resolved_id(), List::empty(), List::empty());
-            Ok(rty::BaseTy::opaque(alias_ty).to_ty())
+            let alias_ty = rty::AliasTy::new(
+                rty::AliasKind::Opaque { def_id: def_id.resolved_id() },
+                List::empty(),
+                List::empty(),
+            );
+            Ok(rty::BaseTy::Alias(alias_ty).to_ty())
         }
     }
 
@@ -1425,9 +1439,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let existential_projections = projection_bounds.into_iter().map(|bound| {
             bound.map(|proj| {
                 // Remove dummy self
-                let args = proj.projection_ty.args.iter().skip(1).cloned().collect();
+                let args = proj.projection_term.args.iter().skip(1).cloned().collect();
                 rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
-                    def_id: proj.projection_ty.def_id,
+                    def_id: proj.projection_term.def_id(),
                     args,
                     term: proj.term.clone(),
                 })
@@ -1467,7 +1481,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let alias_ty = self
                     .conv_type_relative_type_path(env, qself_res, segment)?
                     .shift_in_escaping(1);
-                let bty = rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty);
+                let bty = rty::BaseTy::Alias(alias_ty);
                 let sort = bty.sort();
                 let ty = rty::Ty::indexed(bty, rty::Expr::nu());
                 Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
@@ -1505,7 +1519,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     || {
                         traits::supertraits(
                             tcx,
-                            ty::Binder::dummy(trait_ref.instantiate_identity()),
+                            ty::Binder::dummy(trait_ref.instantiate_identity().skip_norm_wip()),
                         )
                     },
                     assoc_ident,
@@ -1560,7 +1574,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let args = List::from_vec(args);
         let refine_args = List::empty();
-        let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
+        let alias_ty = rty::AliasTy {
+            kind: rty::AliasKind::Projection { def_id: assoc_id },
+            args,
+            refine_args,
+        };
         Ok(alias_ty)
     }
 
@@ -1578,7 +1596,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 .incoherent_impls(simplified_type)
                 .iter()
                 .filter_map(|impl_id| {
-                    tcx.associated_items(impl_id).find_by_ident_and_kind(
+                    tcx.associated_items(*impl_id).find_by_ident_and_kind(
                         tcx,
                         assoc,
                         AssocTag::Const,
@@ -1705,14 +1723,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 if P::EXPAND_TYPE_ALIASES {
                     return Ok(self.genv().type_of(alias_to)?.instantiate_identity());
                 } else {
-                    rty::BaseTy::Alias(
-                        rty::AliasKind::Free,
-                        rty::AliasTy {
-                            def_id: alias_to,
-                            args: List::empty(),
-                            refine_args: List::empty(),
-                        },
-                    )
+                    rty::BaseTy::Alias(rty::AliasTy {
+                        kind: rty::AliasKind::Free { def_id: alias_to },
+                        args: List::empty(),
+                        refine_args: List::empty(),
+                    })
                 }
             }
             fhir::Res::Def(DefKind::AssocTy, assoc_id) => {
@@ -1739,8 +1754,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let args = List::from_vec(args);
 
                 let refine_args = List::empty();
-                let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
-                rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty)
+                let alias_ty = rty::AliasTy {
+                    kind: rty::AliasKind::Projection { def_id: assoc_id },
+                    args,
+                    refine_args,
+                };
+                rty::BaseTy::Alias(alias_ty)
             }
             fhir::Res::Def(DefKind::TyAlias, def_id) => {
                 self.check_refinement_generics(path, def_id)?;
@@ -1759,10 +1778,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         .type_of(def_id)?
                         .instantiate(tcx, &args, &refine_args));
                 } else {
-                    rty::BaseTy::Alias(
-                        rty::AliasKind::Free,
-                        rty::AliasTy { def_id, args, refine_args: List::from(refine_args) },
-                    )
+                    rty::BaseTy::Alias(rty::AliasTy {
+                        kind: rty::AliasKind::Free { def_id },
+                        args,
+                        refine_args: List::from(refine_args),
+                    })
                 }
             }
             fhir::Res::Def(DefKind::ForeignTy, def_id) => {
@@ -2256,7 +2276,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let espan = ESpan::new(path.span);
         let (expr, sort) = match path.res {
             fhir::Res::Param(_, id) => (env.lookup(&path).to_expr(), self.results().param_sort(id)),
-            fhir::Res::Def(DefKind::Const, def_id) => {
+            fhir::Res::Def(DefKind::Const { .. }, def_id) => {
                 self.hyperlink(path.span, tcx.def_ident_span(def_id));
                 let (expr, sort) = self.conv_const(path.span, def_id)?;
                 (expr.at(espan), sort)
@@ -2877,15 +2897,16 @@ fn type_param_predicates<'tcx>(
     tcx: TyCtxt<'tcx>,
     item_def_id: DefId,
     param_id: DefId,
-) -> impl Iterator<Item = ty::PolyTraitPredicate<'tcx>> {
+) -> impl Iterator<Item = ty::PolyTraitClause<'tcx>> {
     let param_index = tcx
         .generics_of(item_def_id)
         .param_def_id_to_index(tcx, param_id)
         .unwrap();
-    let predicates = tcx.predicates_of(item_def_id).instantiate_identity(tcx);
+    let predicates = tcx.clauses_of(item_def_id).instantiate_identity(tcx);
     predicates.into_iter().filter_map(move |(clause, _)| {
         clause
             .as_trait_clause()
+            .map(|trait_pred| trait_pred.skip_norm_wip())
             .filter(|trait_pred| trait_pred.self_ty().skip_binder().is_param(param_index))
     })
 }
@@ -2896,7 +2917,7 @@ fn type_param_predicates<'tcx>(
 ///
 /// NOTE: [`traits::transitive_bounds_that_define_assoc_item`] is defined specifically to avoid cycles
 /// which is not a problem for us. So instead of using `explicit_supertraits_containing_assoc_item` we
-/// can simply use `explicit_super_predicates_of`.
+/// can simply use `explicit_super_clauses_of`.
 fn transitive_bounds<'tcx>(
     tcx: TyCtxt<'tcx>,
     trait_refs: impl Iterator<Item = ty::PolyTraitRef<'tcx>>,
@@ -2911,11 +2932,12 @@ fn transitive_bounds<'tcx>(
             }
 
             stack.extend(
-                tcx.explicit_super_predicates_of(trait_ref.def_id())
+                tcx.explicit_super_clauses_of(trait_ref.def_id())
                     .iter_identity_copied()
+                    .map(|clause| clause.skip_norm_wip())
                     .map(|(clause, _)| clause.instantiate_supertrait(tcx, trait_ref))
                     .filter_map(|clause| clause.as_trait_clause())
-                    .filter(|clause| clause.polarity() == ty::PredicatePolarity::Positive)
+                    .filter(|clause| clause.polarity() == ty::ClausePolarity::Positive)
                     .map(|clause| clause.map_bound(|clause| clause.trait_ref)),
             );
 
@@ -2934,17 +2956,17 @@ mod errors {
     use rustc_span::{Span, Symbol, symbol::Ident};
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_assoc_item_not_found, code = E0999)]
-    #[note]
+    #[diag("associated {$tag} not found", code = E0999)]
+    #[note("Flux cannot resolve associated {$tag}s if they are defined in a super trait")]
     pub(super) struct AssocItemNotFound {
         #[primary_span]
-        #[label]
+        #[label("cannot resolve this associated {$tag}")]
         pub span: Span,
         pub tag: &'static str,
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_ambiguous_assoc_item, code = E0999)]
+    #[diag("ambiguous associated {$tag} `{$name}`", code = E0999)]
     pub(super) struct AmbiguousAssocItem {
         #[primary_span]
         pub span: Span,
@@ -2953,7 +2975,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_base_instance, code = E0999)]
+    #[diag("values of this type cannot be used as base sorted instances", code = E0999)]
     pub(super) struct InvalidBaseInstance {
         #[primary_span]
         span: Span,
@@ -2966,10 +2988,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generic_argument_count_mismatch, code = E0999)]
+    #[diag("this {$def_descr} takes {$expected} generic {$expected ->
+            [one] argument
+            *[other] arguments
+        } but {$found} generic {$found ->
+            [one] argument was
+            *[other] arguments were
+        } supplied", code = E0999)]
     pub(super) struct GenericArgCountMismatch {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected {$expected} generic {$expected ->
+                [one] argument
+                *[other] arguments
+            }"
+        )]
         span: Span,
         found: usize,
         expected: usize,
@@ -2993,10 +3026,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_too_few_generic_args, code = E0999)]
+    #[diag("this {$def_descr} takes at least {$min} generic {$min ->
+            [one] argument
+            *[other] arguments
+        } but {$found} generic {$found ->
+            [one] argument was
+            *[other] arguments were
+        } supplied", code = E0999)]
     pub(super) struct TooFewGenericArgs {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected at least {$min} generic {$min ->
+                [one] argument
+                *[other] arguments
+            }"
+        )]
         span: Span,
         found: usize,
         min: usize,
@@ -3020,10 +3064,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_too_many_generic_args, code = E0999)]
+    #[diag("this {$def_descr} takes at most {$max} generic {$max ->
+            [one] argument
+            *[other] arguments
+        } but {$found} generic {$found ->
+            [one] argument was
+            *[other] arguments were
+        } supplied", code = E0999)]
     pub(super) struct TooManyGenericArgs {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected at most {$max} generic {$max ->
+                [one] argument
+                *[other] arguments
+            }"
+        )]
         span: Span,
         found: usize,
         max: usize,
@@ -3047,7 +3102,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_refined_unrefinable_type, code = E0999)]
+    #[diag("type cannot be refined", code = E0999)]
     pub(super) struct RefinedUnrefinableType {
         #[primary_span]
         span: Span,
@@ -3060,10 +3115,14 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_primitive_sort, code = E0999)]
+    #[diag("primitive sort {$name} expects {$expected ->
+            [0] no generics
+            [one] exactly one generic argument
+            *[other] exactly {$expected} generic arguments
+        } but found {$found}", code = E0999)]
     pub(super) struct GenericsOnPrimitiveSort {
         #[primary_span]
-        #[label]
+        #[label("incorrect generics on primitive sort")]
         span: Span,
         name: &'static str,
         found: usize,
@@ -3077,10 +3136,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_expected_sort, code = E0999)]
+    #[diag("expected a sort, found {$found}", code = E0999)]
     pub(super) struct ExpectedSort {
         #[primary_span]
-        #[label]
+        #[label("not a sort")]
         span: Span,
         found: &'static str,
     }
@@ -3092,10 +3151,23 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_incorrect_generics_on_sort, code = E0999)]
+    #[diag("sorts associated with this {$def_descr} should have {$expected ->
+            [0] no generic arguments
+            [one] one generic argument
+            *[other] {$expected} generic arguments
+        } but {$found} generic {$found ->
+            [one] argument was
+            *[other] arguments were
+        } supplied", code = E0999)]
     pub(super) struct IncorrectGenericsOnSort {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected {$expected ->
+                [0] no generic arguments
+                [one] one generic argument
+                *[other] {$expected} generic arguments
+            } on sort"
+        )]
         span: Span,
         found: usize,
         expected: usize,
@@ -3115,10 +3187,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_sort_ty_param, code = E0999)]
+    #[diag("type parameter expects no generics but found {$found}", code = E0999)]
     pub(super) struct GenericsOnSortTyParam {
         #[primary_span]
-        #[label]
+        #[label("found generics on sort type parameter")]
         span: Span,
         found: usize,
     }
@@ -3130,10 +3202,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_self_alias, code = E0999)]
+    #[diag("type alias Self expects no generics but found {$found}", code = E0999)]
     pub(super) struct GenericsOnSelf {
         #[primary_span]
-        #[label]
+        #[label("found generics on type `Self`")]
         span: Span,
         found: usize,
     }
@@ -3145,10 +3217,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_fields_on_reflected_enum_variant, code = E0999)]
+    #[diag("reflected enum variants cannot have any fields", code = E0999)]
     pub(super) struct FieldsOnReflectedEnumVariant {
         #[primary_span]
-        #[label]
+        #[label("found fields on reflected enum variant")]
         span: Span,
     }
 
@@ -3159,10 +3231,14 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_incorrect_generics_on_opaque_sort, code = E0999)]
+    #[diag("opaque sort {$name} expects {$expected ->
+            [0] no generics
+            [one] exactly one generic argument
+            *[other] exactly {$expected} generic arguments
+        } but found {$found}", code = E0999)]
     pub(super) struct IncorrectGenericsOnUserDefinedOpaqueSort {
         #[primary_span]
-        #[label]
+        #[label("incorrect generics on user defined opaque sort")]
         span: Span,
         name: Symbol,
         expected: usize,
@@ -3176,7 +3252,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_prim_ty, code = E0999)]
+    #[diag("generic arguments are not allowed on builtin type `{$name}`", code = E0999)]
     pub(super) struct GenericsOnPrimTy {
         #[primary_span]
         pub span: Span,
@@ -3184,7 +3260,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_ty_param, code = E0999)]
+    #[diag("generic arguments are not allowed on type parameter `{$name}`", code = E0999)]
     pub(super) struct GenericsOnTyParam {
         #[primary_span]
         pub span: Span,
@@ -3192,24 +3268,24 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_self_ty, code = E0999)]
+    #[diag("generic arguments are not allowed on self type", code = E0999)]
     pub(super) struct GenericsOnSelfTy {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_foreign_ty, code = E0999)]
+    #[diag("generic arguments are not allowed on foreign types", code = E0999)]
     pub(super) struct GenericsOnForeignTy {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_int_literal_in_real_context, code = E0999)]
+    #[diag("integer literal used in real-sorted context", code = E0999)]
     pub struct IntLiteralInRealContext {
         #[primary_span]
-        #[label]
+        #[label("use a float literal instead, e.g. `{$n}.0`")]
         span: Span,
         n: u128,
     }
@@ -3221,10 +3297,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_bitvector_constant, code = E0999)]
+    #[diag("invalid bit vector literal", code = E0999)]
     pub struct InvalidBitVectorConstant {
         #[primary_span]
-        #[label]
+        #[label("not a valid `{$sort}` literal")]
         span: Span,
         sort: Sort,
     }
@@ -3236,7 +3312,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_assoc_reft, code = E0999)]
+    #[diag("associated refinement `{$name}` is not a member of trait `{$trait_}`", code = E0999)]
     pub struct InvalidAssocReft {
         #[primary_span]
         span: Span,
@@ -3251,10 +3327,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_refine_arg_mismatch, code = E0999)]
+    #[diag("{$kind} takes {$expected} generic refinement {$expected ->
+            [one] argument
+            *[other] arguments
+        }, but {$found} {$found ->
+            [one] argument was
+            *[other] arguments were
+        } provided", code = E0999)]
     pub(super) struct RefineArgMismatch {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected {$expected} generic refinement {$expected ->
+                [one] argument
+                *[other] arguments
+            }"
+        )]
         pub span: Span,
         pub expected: usize,
         pub found: usize,
@@ -3262,7 +3349,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_expected_type, code = E0999)]
+    #[diag("expected a type, found {$def_descr} `{$name}`", code = E0999)]
     pub(super) struct ExpectedType {
         #[primary_span]
         pub span: Span,
@@ -3271,14 +3358,14 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_fail_to_match_predicates, code = E0999)]
+    #[diag("cannot determine corresponding unrefined predicate", code = E0999)]
     pub(super) struct FailToMatchPredicates {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_res, code = E0999)]
+    #[diag("{$res_descr} not allowed in this position", code = E0999)]
     pub(super) struct InvalidRes {
         #[primary_span]
         pub span: Span,
@@ -3286,10 +3373,12 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_constant_annotation_needed, code = E0999)]
+    #[diag("constant annotation required", code = E0999)]
     pub(super) struct ConstantAnnotationNeeded {
         #[primary_span]
-        #[label]
+        #[label(
+            "help: non-integral constants need a `constant` annotation that specifies their refinement value"
+        )]
         span: Span,
     }
     impl ConstantAnnotationNeeded {

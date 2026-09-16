@@ -26,18 +26,17 @@ use flux_middle::{
     rty::{self, Loc, Path},
 };
 use rustc_abi::FieldIdx;
-use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
 use rustc_index::{IndexSlice, IndexVec, bit_set::DenseBitSet};
 use rustc_middle::{
-    mir::{self, BasicBlock, TerminatorEdges, visit::Visitor},
+    mir::{self, BasicBlock, traversal, visit::Visitor},
     ty,
 };
 use rustc_mir_dataflow::{
     Analysis, JoinSemiLattice, ResultsVisitor,
     fmt::DebugWithContext,
     lattice::{FlatSet, HasBottom, HasTop},
-    visit_reachable_results,
+    visit_results,
 };
 
 use super::GhostStatements;
@@ -53,7 +52,10 @@ pub(crate) fn add_ghost_statements<'tcx>(
     let points_to = PointsToAnalysis::new(&map, fn_sig);
     let results = points_to.iterate_to_fixpoint(genv.tcx(), body, None);
     let mut visitor = CollectPointerToBorrows::new(&map, stmts, &results.entry_states);
-    visit_reachable_results(body, &results, &mut visitor);
+    for (bb, _) in traversal::reachable(body) {
+        visitor.visit_block_start(&results.entry_states[bb]);
+        visit_results(body, [bb], &results, &mut visitor);
+    }
 
     Ok(())
 }
@@ -82,8 +84,7 @@ impl<'a> PointsToAnalysis<'a> {
                 // StorageDead makes it UB to access the local afterwards.
                 state.flood_with(mir::Place::from(*local).as_ref(), self.map, FlatSet::BOTTOM);
             }
-            mir::StatementKind::Retag(..)
-            | mir::StatementKind::Intrinsic(..)
+            mir::StatementKind::Intrinsic(..)
             | mir::StatementKind::SetDiscriminant { .. }
             | mir::StatementKind::ConstEvalCounter
             | mir::StatementKind::Nop
@@ -97,7 +98,7 @@ impl<'a> PointsToAnalysis<'a> {
 
     fn handle_assign(&self, target: mir::Place, rvalue: &mir::Rvalue, state: &mut State) {
         match rvalue {
-            mir::Rvalue::Use(operand) => {
+            mir::Rvalue::Use(operand, _) => {
                 let result = self
                     .handle_operand(operand)
                     .map_or(PlaceOrValue::TOP, PlaceOrValue::Place);
@@ -166,11 +167,7 @@ impl<'a> PointsToAnalysis<'a> {
 
     /// The effect of a successful function call return should not be
     /// applied here, see [`Analysis::apply_primary_terminator_effect`].
-    fn handle_terminator<'mir, 'tcx>(
-        &self,
-        terminator: &'mir mir::Terminator<'tcx>,
-        state: &mut State,
-    ) -> TerminatorEdges<'mir, 'tcx> {
+    fn handle_terminator<'tcx>(&self, terminator: &mir::Terminator<'tcx>, state: &mut State) {
         match &terminator.kind {
             mir::TerminatorKind::TailCall { .. }
             | mir::TerminatorKind::Call { .. }
@@ -194,7 +191,6 @@ impl<'a> PointsToAnalysis<'a> {
                 // These terminators have no effect on the analysis.
             }
         }
-        terminator.edges()
     }
 
     fn handle_call_return(&self, return_places: mir::CallReturnPlaces, state: &mut State) {
@@ -243,13 +239,13 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
         self.handle_statement(statement, state);
     }
 
-    fn apply_primary_terminator_effect<'mir>(
+    fn apply_primary_terminator_effect(
         &self,
         state: &mut Self::Domain,
-        terminator: &'mir mir::Terminator<'tcx>,
+        terminator: &mir::Terminator<'tcx>,
         _location: mir::Location,
-    ) -> mir::TerminatorEdges<'mir, 'tcx> {
-        self.handle_terminator(terminator, state)
+    ) {
+        self.handle_terminator(terminator, state);
     }
 
     fn apply_call_return_effect(
@@ -289,7 +285,7 @@ impl<'a> CollectPointerToBorrows<'a> {
     }
 }
 
-impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBorrows<'_> {
+impl CollectPointerToBorrows<'_> {
     fn visit_block_start(&mut self, state: &State) {
         self.before_state.clear();
         for place_idx in self.tracked_places.keys() {
@@ -297,10 +293,11 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBo
             self.before_state.push((*place_idx, value));
         }
     }
+}
 
+impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBorrows<'_> {
     fn visit_after_primary_statement_effect(
         &mut self,
-        _analysis: &PointsToAnalysis<'a>,
         state: &State,
         _statement: &mir::Statement<'tcx>,
         location: mir::Location,
@@ -322,7 +319,6 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBo
 
     fn visit_after_primary_terminator_effect(
         &mut self,
-        _analysis: &PointsToAnalysis<'a>,
         _state: &State,
         terminator: &mir::Terminator<'tcx>,
         location: mir::Location,
@@ -476,7 +472,7 @@ impl Map {
         // We manually iterate instead of using `children` as we need to mutate `self`.
         let mut next_child = self.places[root].first_child;
         while let Some(child) = next_child {
-            ensure_sufficient_stack(|| self.cache_preorder_invoke(child));
+            self.cache_preorder_invoke(child);
             next_child = self.places[child].next_sibling;
         }
 

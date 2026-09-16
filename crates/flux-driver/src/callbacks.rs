@@ -27,7 +27,7 @@ use rustc_interface::interface::Compiler;
 use rustc_middle::{queries, ty::TyCtxt, util};
 use rustc_session::config::OutputType;
 
-use crate::{DEFAULT_LOCALE_RESOURCES, collector::SpecCollector};
+use crate::collector::SpecCollector;
 
 #[derive(Default)]
 pub struct FluxCallbacks;
@@ -61,11 +61,7 @@ impl FluxCallbacks {
             return;
         }
 
-        let sess = FluxSession::new(
-            &tcx.sess.opts,
-            tcx.sess.psess.clone_source_map(),
-            rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false),
-        );
+        let sess = FluxSession::new(&tcx.sess.opts, tcx.sess.psess.clone_source_map());
 
         let mut providers = Providers::default();
         flux_opt::provide(&mut providers);
@@ -90,13 +86,7 @@ impl FluxCallbacks {
 fn load_extern_specs() -> Vec<(String, std::path::PathBuf)> {
     use flux_sysroot::SysrootManifest;
     let Some(sysroot) = config::sysroot() else { return vec![] };
-    let Ok(content) = std::fs::read_to_string(sysroot.join("sysroot.toml")) else { return vec![] };
-    let Ok(manifest) = toml::from_str::<SysrootManifest>(&content) else { return vec![] };
-    manifest
-        .extern_specs
-        .into_iter()
-        .map(|(name, rmeta)| (name, sysroot.join(&rmeta)))
-        .collect()
+    SysrootManifest::extern_specs(&sysroot)
 }
 
 fn inject_std_extern_specs(config: &mut rustc_interface::interface::Config) {

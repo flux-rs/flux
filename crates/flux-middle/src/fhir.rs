@@ -1276,7 +1276,7 @@ impl<Id> Res<Id> {
 
     pub fn is_box(&self, tcx: TyCtxt) -> bool {
         if let Res::Def(DefKind::Struct, def_id) = self {
-            tcx.adt_def(def_id).is_box()
+            tcx.adt_def(*def_id).is_box()
         } else {
             false
         }

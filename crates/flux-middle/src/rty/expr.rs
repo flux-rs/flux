@@ -479,7 +479,7 @@ impl Expr {
                 bug!("todo: ValTree::Branch {c:?}")
             }
             // We should have normalized away the unevaluated constants
-            ConstKind::Unevaluated(_) => bug!("unexpected `ConstKind::Unevaluated`"),
+            ConstKind::Alias(_) => bug!("unexpected `ConstKind::Alias`"),
 
             ConstKind::Infer(_) => bug!("unexpected `ConstKind::Infer`"),
         }
@@ -1588,11 +1588,11 @@ impl Constant {
             TyKind::Int(int_ty) => Some(Constant::from(scalar_to_int(tcx, scalar, *int_ty))),
             TyKind::Uint(uint_ty) => Some(Constant::from(scalar_to_uint(tcx, scalar, *uint_ty))),
             TyKind::Bool => {
-                let b = scalar_to_bits(tcx, scalar, ty)?;
+                let b = scalar_to_bits(tcx, scalar, ty);
                 Some(Constant::Bool(b != 0))
             }
             TyKind::Char => {
-                let b = scalar_to_bits(tcx, scalar, ty)?;
+                let b = scalar_to_bits(tcx, scalar, ty);
                 Some(Constant::Char(char::from_u32(b as u32)?))
             }
             _ => bug!(),
