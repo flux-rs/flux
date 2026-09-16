@@ -245,11 +245,11 @@ impl IncludePattern {
                 spans.push(Pos::from_str(suffix)?);
             } else {
                 let suffix = include.strip_prefix("glob:").unwrap_or(include);
-                let glob_pattern = Glob::new(suffix.trim()).map_err(|_| "invalid glob pattern")?;
+                let glob_pattern = Glob::new(suffix.trim()).map_err(|e| e.to_string())?;
                 glob.add(glob_pattern);
             }
         }
-        let glob = glob.build().map_err(|_| "failed to build glob set")?;
+        let glob = glob.build().map_err(|e| e.to_string())?;
         Ok(IncludePattern { glob, defs, spans, raw: includes })
     }
 }

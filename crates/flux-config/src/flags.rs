@@ -525,9 +525,7 @@ fn parse_lean_value(s: &str) -> Result<LeanMode, String> {
 }
 
 fn parse_level_value(s: &str) -> Result<Level, String> {
-    Level::from_str(s).map_err(|_| {
-        "invalid level, expected one of `trace`, `debug`, `info`, `warn`, or `error`".to_string()
-    })
+    Level::from_str(s).map_err(|e| e.to_string())
 }
 
 fn parse_include_value(s: &str) -> Result<IncludePattern, String> {
