@@ -21,7 +21,6 @@ pub const EXIT_FAILURE: i32 = 2;
 /// other flags from per-crate config files.
 #[derive(Args, Default)]
 #[command(next_help_heading = "Flux-Specific Flags")]
-#[command(verbatim_doc_comment)]
 pub struct Flags {
     /// Sets the directory to dump data. Defaults to `./log/`.
     #[arg(long = flux_arg!("log-dir"), value_name = "PATH")]
@@ -53,7 +52,7 @@ pub struct Flags {
         value_parser = parse_pointer_width_value
     )]
     pub pointer_width: Option<PointerWidth>,
-    /// If present switches on query caching and saves the cache in the provided path
+    /// If present, switches on query caching and saves the cache in the provided path
     #[arg(long = flux_arg!("cache"), value_name = "PATH")]
     pub cache: Option<PathBuf>,
     /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`].
