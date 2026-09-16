@@ -26,15 +26,15 @@ pub fn dump_checker_trace() -> Option<Level> {
 }
 
 pub fn dump_constraint() -> bool {
-    FLAGS.dump_constraint.unwrap_or(false)
+    FLAGS.dump_constraint.unwrap_or(flags::DUMP_CONSTRAINT)
 }
 
 pub fn dump_fhir() -> bool {
-    FLAGS.dump_fhir.unwrap_or(false)
+    FLAGS.dump_fhir.unwrap_or(flags::DUMP_FHIR)
 }
 
 pub fn dump_rty() -> bool {
-    FLAGS.dump_rty.unwrap_or(false)
+    FLAGS.dump_rty.unwrap_or(flags::DUMP_RTY)
 }
 
 pub fn pointer_width() -> PointerWidth {
@@ -42,15 +42,15 @@ pub fn pointer_width() -> PointerWidth {
 }
 
 pub fn log_dir() -> &'static Path {
-    FLAGS.log_dir.as_deref().unwrap_or(Path::new("./log/"))
+    FLAGS.log_dir.as_deref().unwrap_or(Path::new(flags::LOG_DIR))
 }
 
 pub fn lean_dir() -> &'static Path {
-    FLAGS.lean_dir.as_deref().unwrap_or(Path::new("./"))
+    FLAGS.lean_dir.as_deref().unwrap_or(Path::new(flags::LEAN_DIR))
 }
 
 pub fn lean_project() -> &'static str {
-    FLAGS.lean_project.as_deref().unwrap_or("lean_proofs")
+    FLAGS.lean_project.as_deref().unwrap_or(flags::LEAN_PROJECT)
 }
 
 pub fn is_cache_enabled() -> bool {
@@ -58,11 +58,11 @@ pub fn is_cache_enabled() -> bool {
 }
 
 pub fn trusted_default() -> bool {
-    FLAGS.trusted_default.unwrap_or(false)
+    FLAGS.trusted_default.unwrap_or(flags::TRUSTED_DEFAULT)
 }
 
 pub fn ignore_default() -> bool {
-    FLAGS.ignore_default.unwrap_or(false)
+    FLAGS.ignore_default.unwrap_or(flags::IGNORE_DEFAULT)
 }
 
 pub fn lean() -> LeanMode {
@@ -94,15 +94,15 @@ fn allow_raw_deref() -> RawDerefMode {
 }
 
 pub fn allow_uninterpreted_cast() -> bool {
-    FLAGS.allow_uninterpreted_cast.unwrap_or(false)
+    FLAGS.allow_uninterpreted_cast.unwrap_or(flags::ALLOW_UNINTERPRETED_CAST)
 }
 
 fn scrape_quals() -> bool {
-    FLAGS.scrape_quals.unwrap_or(false)
+    FLAGS.scrape_quals.unwrap_or(flags::SCRAPE_QUALS)
 }
 
 pub fn no_panic() -> bool {
-    FLAGS.no_panic.unwrap_or(false)
+    FLAGS.no_panic.unwrap_or(flags::NO_PANIC)
 }
 
 pub fn sysroot() -> Option<PathBuf> {
@@ -115,7 +115,7 @@ pub fn sysroot() -> Option<PathBuf> {
 }
 
 pub fn smt_define_fun() -> bool {
-    FLAGS.smt_define_fun.unwrap_or(false)
+    FLAGS.smt_define_fun.unwrap_or(flags::SMT_DEFINE_FUN)
 }
 
 fn solver() -> SmtSolver {
@@ -123,43 +123,43 @@ fn solver() -> SmtSolver {
 }
 
 pub fn catch_bugs() -> bool {
-    FLAGS.catch_bugs.unwrap_or(false)
+    FLAGS.catch_bugs.unwrap_or(flags::CATCH_BUGS)
 }
 
 pub fn annots() -> bool {
-    FLAGS.annots.unwrap_or(false)
+    FLAGS.annots.unwrap_or(flags::ANNOTS)
 }
 
 pub fn timings() -> bool {
-    FLAGS.timings.unwrap_or(false)
+    FLAGS.timings.unwrap_or(flags::TIMINGS)
 }
 
 pub fn verify() -> bool {
-    FLAGS.verify.unwrap_or(false)
+    FLAGS.verify.unwrap_or(flags::VERIFY)
 }
 
 pub fn summary() -> bool {
-    FLAGS.summary.unwrap_or(true)
+    FLAGS.summary.unwrap_or(flags::SUMMARY)
 }
 
 pub fn full_compilation() -> bool {
-    FLAGS.full_compilation.unwrap_or(false)
+    FLAGS.full_compilation.unwrap_or(flags::FULL_COMPILATION)
 }
 
 pub fn std_extern_specs() -> bool {
-    FLAGS.std_extern_specs.unwrap_or(false)
+    FLAGS.std_extern_specs.unwrap_or(flags::STD_EXTERN_SPECS)
 }
 
 pub fn verbose() -> bool {
-    FLAGS.flux_verbose.unwrap_or(false)
+    FLAGS.flux_verbose.unwrap_or(flags::VERBOSE)
 }
 
 pub fn no_suggestions_default() -> bool {
-    FLAGS.no_suggestions_default.unwrap_or(false)
+    FLAGS.no_suggestions_default.unwrap_or(flags::NO_SUGGESTIONS_DEFAULT)
 }
 
 pub fn rerun_hint() -> bool {
-    FLAGS.rerun_hint.unwrap_or(true)
+    FLAGS.rerun_hint.unwrap_or(flags::RERUN_HINT)
 }
 
 /// Whether the driver is running under `cargo flux` (which sets `FLUX_CARGO=1`), as opposed to a
@@ -229,8 +229,8 @@ pub struct IncludePattern {
     pub defs: Vec<String>,
     /// fn whose implementation overlaps the file, line, e.g. `span:tests/tests/pos/detached/detach00.rs:13:3`
     pub spans: Vec<Pos>,
-    /// needed to convert back to strings, for passing to drivers
-    pub(crate) raw: Vec<String>,
+    /// needed to pass to drivers (this is a bit of a hack, since we can't easily deserialize this struct)
+    pub originals: Vec<String>,
 }
 
 impl IncludePattern {
@@ -250,7 +250,8 @@ impl IncludePattern {
             }
         }
         let glob = glob.build().map_err(|e| e.to_string())?;
-        Ok(IncludePattern { glob, defs, spans, raw: includes })
+        let originals = includes;
+        Ok(IncludePattern { glob, defs, spans, originals })
     }
 }
 

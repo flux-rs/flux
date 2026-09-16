@@ -8,6 +8,30 @@ use crate::{IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, 
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
+/// Defaults for flags.
+pub const DUMP_CONSTRAINT: bool = false;
+pub const DUMP_FHIR: bool = false;
+pub const DUMP_RTY: bool = false;
+pub const LOG_DIR: &str = "./log/";
+pub const LEAN_DIR: &str = "./";
+pub const LEAN_PROJECT: &str = "lean_proofs";
+pub const TRUSTED_DEFAULT: bool = false;
+pub const IGNORE_DEFAULT: bool = false;
+pub const ALLOW_UNINTERPRETED_CAST: bool = false;
+pub const SCRAPE_QUALS: bool = false;
+pub const NO_PANIC: bool = false;
+pub const SMT_DEFINE_FUN: bool = false;
+pub const CATCH_BUGS: bool = false;
+pub const ANNOTS: bool = false;
+pub const TIMINGS: bool = false;
+pub const VERIFY: bool = false;
+pub const SUMMARY: bool = true;
+pub const FULL_COMPILATION: bool = false;
+pub const STD_EXTERN_SPECS: bool = false;
+pub const VERBOSE: bool = false;
+pub const NO_SUGGESTIONS_DEFAULT: bool = false;
+pub const RERUN_HINT: bool = true;
+
 macro_rules! flux_arg {
     ($name:literal) => {
         concat!("F", $name)
@@ -256,7 +280,7 @@ fn flag<T: Display>(flags: &mut Vec<String>, name: &str, value: Option<T>) {
 
 fn flag_include_pat(flags: &mut Vec<String>, name: &str, value: Option<&IncludePattern>) {
     if let Some(pat) = value {
-        flags.extend(pat.raw.iter().map(|raw| format!("-F{name}={raw}")));
+        flags.extend(pat.originals.iter().map(|raw| format!("-F{name}={raw}")));
     }
 }
 

@@ -131,7 +131,7 @@ pub struct CompileOpts {
     #[command(flatten)]
     manifest: ManifestOptions,
     #[command(flatten)]
-    pub flux_flags: Flags,
+    flux_flags: Flags,
 
     /// Only check items matching PATTERN (overrides include patterns from cargo.toml or flux.toml).
     ///
