@@ -42,11 +42,17 @@ pub fn pointer_width() -> PointerWidth {
 }
 
 pub fn log_dir() -> &'static Path {
-    FLAGS.log_dir.as_deref().unwrap_or(Path::new(flags::LOG_DIR))
+    FLAGS
+        .log_dir
+        .as_deref()
+        .unwrap_or(Path::new(flags::LOG_DIR))
 }
 
 pub fn lean_dir() -> &'static Path {
-    FLAGS.lean_dir.as_deref().unwrap_or(Path::new(flags::LEAN_DIR))
+    FLAGS
+        .lean_dir
+        .as_deref()
+        .unwrap_or(Path::new(flags::LEAN_DIR))
 }
 
 pub fn lean_project() -> &'static str {
@@ -94,7 +100,9 @@ fn allow_raw_deref() -> RawDerefMode {
 }
 
 pub fn allow_uninterpreted_cast() -> bool {
-    FLAGS.allow_uninterpreted_cast.unwrap_or(flags::ALLOW_UNINTERPRETED_CAST)
+    FLAGS
+        .allow_uninterpreted_cast
+        .unwrap_or(flags::ALLOW_UNINTERPRETED_CAST)
 }
 
 fn scrape_quals() -> bool {
@@ -155,7 +163,9 @@ pub fn verbose() -> bool {
 }
 
 pub fn no_suggestions_default() -> bool {
-    FLAGS.no_suggestions_default.unwrap_or(flags::NO_SUGGESTIONS_DEFAULT)
+    FLAGS
+        .no_suggestions_default
+        .unwrap_or(flags::NO_SUGGESTIONS_DEFAULT)
 }
 
 pub fn rerun_hint() -> bool {
