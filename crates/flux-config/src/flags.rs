@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf, process, str::FromStr, sync::LazyLock};
+use std::{env, fmt::Display, path::PathBuf, process, str::FromStr, sync::LazyLock};
 
 use clap::Args;
 pub use toml::Value;
@@ -21,6 +21,7 @@ pub const EXIT_FAILURE: i32 = 2;
 /// other flags from per-crate config files.
 #[derive(Args, Default)]
 #[command(next_help_heading = "Flux-Specific Flags")]
+#[command(verbatim_doc_comment)]
 pub struct Flags {
     /// Sets the directory to dump data. Defaults to `./log/`.
     #[arg(long = flux_arg!("log-dir"), value_name = "PATH")]
@@ -31,7 +32,7 @@ pub struct Flags {
     /// Name of the lean project. Defaults to `lean_proofs`.
     #[arg(long = flux_arg!("lean-project"), value_name = "NAME")]
     pub lean_project: Option<String>,
-    /// If present, only check files matching the [`IncludePattern`] a glob pattern.
+    /// If present, only check files matching the [`IncludePattern`] (a glob pattern).
     #[arg(long = flux_arg!("include"), value_name = "PATTERN", value_parser = parse_include_value)]
     pub include: Option<IncludePattern>,
     /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
@@ -55,7 +56,8 @@ pub struct Flags {
     /// If present switches on query caching and saves the cache in the provided path
     #[arg(long = flux_arg!("cache"), value_name = "PATH")]
     pub cache: Option<PathBuf>,
-    /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`]
+    /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`].
+    /// Defaults to `false`.
     #[arg(
         long = flux_arg!("annots"),
         num_args = 0..=1,
@@ -63,8 +65,8 @@ pub struct Flags {
         value_parser = parse_bool_value
     )]
     pub annots: Option<bool>,
-    /// Print statistics about time taken to analyze each fuction. Also dumps a file with the raw
-    /// times for each function.
+    /// Print statistics about time taken to analyze each function. Also dumps a file with the raw
+    /// times for each function. Defaults to `false`.
     #[arg(
         long = flux_arg!("timings"),
         num_args = 0..=1,
@@ -72,7 +74,7 @@ pub struct Flags {
         value_parser = parse_bool_value
     )]
     pub timings: Option<bool>,
-    /// Print statistics about number of functions checked, trusted, etc.
+    /// Print statistics about number of functions checked, trusted, etc. Defaults to `true`.
     #[arg(
         long = flux_arg!("summary"),
         num_args = 0..=1,
@@ -87,7 +89,7 @@ pub struct Flags {
         value_parser = parse_solver_value
     )]
     pub solver: Option<SmtSolver>,
-    /// Enables qualifier scrapping in fixpoint
+    /// Enables qualifier scrapping in fixpoint. Defaults to `false`.
     #[arg(
         long = flux_arg!("scrape-quals"),
         num_args = 0..=1,
@@ -95,7 +97,7 @@ pub struct Flags {
         value_parser = parse_bool_value
     )]
     pub scrape_quals: Option<bool>,
-    /// Enables uninterpreted casts
+    /// Enables uninterpreted casts. Defaults to `false`.
     #[arg(
         long = flux_arg!("allow-uninterpreted-cast"),
         num_args = 0..=1,
@@ -104,7 +106,7 @@ pub struct Flags {
     )]
     pub allow_uninterpreted_cast: Option<bool>,
     /// Translates _monomorphic_ `defs` functions into SMT `define-fun` instead of inlining them
-    /// away inside `flux`.
+    /// away inside `flux`. Defaults to `false`.
     #[arg(
         long = flux_arg!("smt-define-fun"),
         num_args = 0..=1,
@@ -128,7 +130,7 @@ pub struct Flags {
         value_parser = parse_raw_deref_value
     )]
     pub allow_raw_deref: Option<RawDerefMode>,
-    /// Dump constraints generated for each function (debugging)
+    /// Dump constraints generated for each function (debugging). Defaults to `false`.
     #[arg(
         long = flux_arg!("dump-constraint"),
         num_args = 0..=1,
@@ -136,10 +138,10 @@ pub struct Flags {
         value_parser = parse_bool_value
     )]
     pub dump_constraint: Option<bool>,
-    /// Saves the checker's trace (debugging)
+    /// Saves the checker's trace (debugging).
     #[arg(long = flux_arg!("dump-checker-trace"), value_name = "LEVEL", value_parser = parse_level_value)]
     pub dump_checker_trace: Option<tracing::Level>,
-    /// Saves the `fhir` for each item (debugging)
+    /// Saves the `fhir` for each item (debugging). Defaults to `false`.
     #[arg(
         long = flux_arg!("dump-fhir"),
         num_args = 0..=1,
@@ -147,7 +149,7 @@ pub struct Flags {
         value_parser = parse_bool_value
     )]
     pub dump_fhir: Option<bool>,
-    /// Saves the the `fhir` (debugging)
+    /// Saves the the `fhir` (debugging). Defaults to `false`.
     #[arg(
         long = flux_arg!("dump-rty"),
         num_args = 0..=1,
@@ -155,7 +157,8 @@ pub struct Flags {
         value_parser = parse_bool_value
     )]
     pub dump_rty: Option<bool>,
-    /// Optimistically keeps running flux even after errors are found to get as many errors as possible
+    /// Optimistically keeps running flux even after errors are found to get as many errors as possible.
+    /// Defaults to `false`.
     #[arg(
         long = flux_arg!("catch-bugs"),
         num_args = 0..=1,
@@ -203,7 +206,7 @@ pub struct Flags {
     pub ignore_default: Option<bool>,
     #[arg(long = flux_arg!("lean"), value_name = "MODE", value_parser = parse_lean_value)]
     pub lean: Option<LeanMode>,
-    /// If `true`, every function is implicitly labeled with a `no_panic` by default.
+    /// If `true`, every function is implicitly labeled with a `no_panic` by default. Defaults to `false`.
     #[arg(
         long = flux_arg!("no-panic"),
         num_args = 0..=1,
@@ -221,6 +224,7 @@ pub struct Flags {
     )]
     pub std_extern_specs: Option<bool>,
     /// If `true`, produce more detailed error messages (e.g. condition spans for fold errors).
+    /// Defaults to `false`.
     #[arg(
         long = flux_arg!("flux-verbose"),
         num_args = 0..=1,
@@ -228,7 +232,7 @@ pub struct Flags {
         value_parser = parse_bool_value
     )]
     pub flux_verbose: Option<bool>,
-    /// If `true`, all code will have suggestions disabled.
+    /// If `true`, all code will have suggestions disabled. Defaults to `false`.
     #[arg(
         long = flux_arg!("no-suggestions"),
         num_args = 0..=1,
@@ -247,69 +251,57 @@ pub struct Flags {
     pub rerun_hint: Option<bool>,
 }
 
-macro_rules! flag {
-    ($flags:ident, $name:literal, $value:expr) => {
-        if let Some(v) = $value {
-            $flags.push(format!("-F{}={v}", $name));
-        }
-    };
+fn flag<T: Display>(flags: &mut Vec<String>, name: &str, value: Option<T>) {
+    flags.extend(value.map(|v| format!("-F{name}={v}")));
 }
 
-macro_rules! flag_map {
-    ($flags:ident, $name:literal, $value:expr, |$v:ident| $render:expr) => {
-        if let Some($v) = $value {
-            $flags.push(format!("-F{}={}", $name, $render));
-        }
-    };
-}
-
-macro_rules! flag_each {
-    ($flags:ident, $name:literal, $value:expr) => {
-        if let Some(pat) = $value {
-            $flags.extend(pat.raw.iter().map(|raw| format!("-F{}={raw}", $name)));
-        }
-    };
+fn flag_include_pat(flags: &mut Vec<String>, name: &str, value: Option<&IncludePattern>) {
+    if let Some(pat) = value {
+        flags.extend(pat.raw.iter().map(|raw| format!("-F{name}={raw}")));
+    }
 }
 
 impl Flags {
     // Convert this struct into what we'd need to pass in through the environment var
     pub fn rustflags(&self) -> Vec<String> {
-        let mut flags = vec![];
-        flag_map!(flags, "log-dir", &self.log_dir, |v| v.display());
-        flag_map!(flags, "lean-dir", &self.lean_dir, |v| v.display());
-        flag!(flags, "lean-project", &self.lean_project);
-        flag_each!(flags, "include", &self.include);
-        flag_each!(flags, "include-trusted", &self.include_trusted);
-        flag_each!(flags, "include-trusted-impl", &self.include_trusted_impl);
-        flag_map!(flags, "pointer-width", self.pointer_width, |v| v.bits());
-        flag_map!(flags, "cache", &self.cache, |v| v.display());
-        flag!(flags, "annots", self.annots);
-        flag!(flags, "timings", self.timings);
-        flag!(flags, "summary", self.summary);
-        flag!(flags, "solver", self.solver);
-        flag!(flags, "scrape-quals", self.scrape_quals);
-        flag!(flags, "allow-uninterpreted-cast", self.allow_uninterpreted_cast);
-        flag!(flags, "smt-define-fun", self.smt_define_fun);
-        flag!(flags, "check-overflow", self.check_overflow);
-        flag!(flags, "allow-raw-deref", self.allow_raw_deref);
-        flag!(flags, "dump-constraint", self.dump_constraint);
-        flag_map!(flags, "dump-checker-trace", self.dump_checker_trace, |v| {
-            v.as_str().to_lowercase()
-        });
-        flag!(flags, "dump-fhir", self.dump_fhir);
-        flag!(flags, "dump-rty", self.dump_rty);
-        flag!(flags, "catch-bugs", self.catch_bugs);
-        flag!(flags, "verify", self.verify);
-        flag!(flags, "full-compilation", self.full_compilation);
-        flag_map!(flags, "sysroot", &self.sysroot, |v| v.display());
-        flag!(flags, "trusted", self.trusted_default);
-        flag!(flags, "ignore", self.ignore_default);
-        flag!(flags, "lean", self.lean);
-        flag!(flags, "no-panic", self.no_panic);
-        flag!(flags, "std-extern-specs", self.std_extern_specs);
-        flag!(flags, "flux-verbose", self.flux_verbose);
-        flag!(flags, "no-suggestions", self.no_suggestions_default);
-        flag!(flags, "rerun-hint", self.rerun_hint);
+        let mut flags = Vec::new();
+        flag(&mut flags, "log-dir", self.log_dir.as_ref().map(|v| v.display()));
+        flag(&mut flags, "lean-dir", self.lean_dir.as_ref().map(|v| v.display()));
+        flag(&mut flags, "lean-project", self.lean_project.as_ref());
+        flag_include_pat(&mut flags, "include", self.include.as_ref());
+        flag_include_pat(&mut flags, "include-trusted", self.include_trusted.as_ref());
+        flag_include_pat(&mut flags, "include-trusted-impl", self.include_trusted_impl.as_ref());
+        flag(&mut flags, "pointer-width", self.pointer_width.map(|v| v.bits()));
+        flag(&mut flags, "cache", self.cache.as_ref().map(|v| v.display()));
+        flag(&mut flags, "annots", self.annots);
+        flag(&mut flags, "timings", self.timings);
+        flag(&mut flags, "summary", self.summary);
+        flag(&mut flags, "solver", self.solver);
+        flag(&mut flags, "scrape-quals", self.scrape_quals);
+        flag(&mut flags, "allow-uninterpreted-cast", self.allow_uninterpreted_cast);
+        flag(&mut flags, "smt-define-fun", self.smt_define_fun);
+        flag(&mut flags, "check-overflow", self.check_overflow);
+        flag(&mut flags, "allow-raw-deref", self.allow_raw_deref);
+        flag(&mut flags, "dump-constraint", self.dump_constraint);
+        flag(
+            &mut flags,
+            "dump-checker-trace",
+            self.dump_checker_trace.map(|v| v.as_str().to_lowercase()),
+        );
+        flag(&mut flags, "dump-fhir", self.dump_fhir);
+        flag(&mut flags, "dump-rty", self.dump_rty);
+        flag(&mut flags, "catch-bugs", self.catch_bugs);
+        flag(&mut flags, "verify", self.verify);
+        flag(&mut flags, "full-compilation", self.full_compilation);
+        flag(&mut flags, "sysroot", self.sysroot.as_ref().map(|v| v.display()));
+        flag(&mut flags, "trusted", self.trusted_default);
+        flag(&mut flags, "ignore", self.ignore_default);
+        flag(&mut flags, "lean", self.lean);
+        flag(&mut flags, "no-panic", self.no_panic);
+        flag(&mut flags, "std-extern-specs", self.std_extern_specs);
+        flag(&mut flags, "flux-verbose", self.flux_verbose);
+        flag(&mut flags, "no-suggestions", self.no_suggestions_default);
+        flag(&mut flags, "rerun-hint", self.rerun_hint);
         flags
     }
 }
