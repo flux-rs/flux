@@ -103,9 +103,9 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             hir::GenericParamKind::Type { default, .. } => {
                 fhir::GenericParamKind::Type { default: default.map(|ty| self.lift_ty(ty)) }
             }
-            hir::GenericParamKind::Const { ty, .. } => {
+            hir::GenericParamKind::Const { ty, default } => {
                 let ty = self.lift_ty(ty);
-                fhir::GenericParamKind::Const { ty }
+                fhir::GenericParamKind::Const { ty, has_default: default.is_some() }
             }
         };
         fhir::GenericParam {
