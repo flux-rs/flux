@@ -1928,12 +1928,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult {
         let generics = self.genv().generics_of(def_id)?;
         for param in generics.own_params.iter().skip(into.len()) {
-            debug_assert!(matches!(
-                param.kind,
-                rty::GenericParamDefKind::Type { has_default: true }
-                    | rty::GenericParamDefKind::Base { has_default: true }
-                    | rty::GenericParamDefKind::Const { has_default: true }
-            ));
             let span = self.tcx().def_span(param.def_id);
             match param.kind {
                 rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::Base { .. } => {
@@ -1948,10 +1942,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
                 rty::GenericParamDefKind::Const { .. } => {
                     let tcx = self.tcx();
-                    let cst = tcx
-                        .const_param_default(param.def_id)
-                        .instantiate_identity()
-                        .skip_norm_wip();
+                    let cst = tcx.const_param_default(param.def_id).skip_binder();
                     let cst = cst.lower(tcx).map_err(|reason| {
                         let err = UnsupportedErr::new(reason).with_span(span);
                         QueryErr::unsupported(param.def_id, err)
