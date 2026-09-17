@@ -149,7 +149,7 @@
 <a href=#149 id=149 data-nosnippet>149</a></span><span class="kw">pub enum </span>GenericParamKind&lt;<span class="lifetime">'fhir</span>&gt; {
 <a href=#150 id=150 data-nosnippet>150</a>    Type { default: <span class="prelude-ty">Option</span>&lt;Ty&lt;<span class="lifetime">'fhir</span>&gt;&gt; },
 <a href=#151 id=151 data-nosnippet>151</a>    Lifetime,
-<a href=#152 id=152 data-nosnippet>152</a>    Const { ty: Ty&lt;<span class="lifetime">'fhir</span>&gt; },
+<a href=#152 id=152 data-nosnippet>152</a>    Const { ty: Ty&lt;<span class="lifetime">'fhir</span>&gt;, has_default: bool },
 <a href=#153 id=153 data-nosnippet>153</a>}
 <a href=#154 id=154 data-nosnippet>154</a>
 <a href=#155 id=155 data-nosnippet>155</a><span class="attr">#[derive(Debug)]

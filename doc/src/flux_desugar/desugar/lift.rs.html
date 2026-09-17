@@ -103,9 +103,9 @@
 <a href=#103 id=103 data-nosnippet>103</a>            hir::GenericParamKind::Type { default, .. } =&gt; {
 <a href=#104 id=104 data-nosnippet>104</a>                fhir::GenericParamKind::Type { default: default.map(|ty| <span class="self">self</span>.lift_ty(ty)) }
 <a href=#105 id=105 data-nosnippet>105</a>            }
-<a href=#106 id=106 data-nosnippet>106</a>            hir::GenericParamKind::Const { ty, .. } =&gt; {
+<a href=#106 id=106 data-nosnippet>106</a>            hir::GenericParamKind::Const { ty, default } =&gt; {
 <a href=#107 id=107 data-nosnippet>107</a>                <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(ty);
-<a href=#108 id=108 data-nosnippet>108</a>                fhir::GenericParamKind::Const { ty }
+<a href=#108 id=108 data-nosnippet>108</a>                fhir::GenericParamKind::Const { ty, has_default: default.is_some() }
 <a href=#109 id=109 data-nosnippet>109</a>            }
 <a href=#110 id=110 data-nosnippet>110</a>        };
 <a href=#111 id=111 data-nosnippet>111</a>        fhir::GenericParam {
