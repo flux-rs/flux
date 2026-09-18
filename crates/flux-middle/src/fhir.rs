@@ -149,7 +149,7 @@ pub struct GenericParam<'fhir> {
 pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
     Lifetime,
-    Const { ty: Ty<'fhir> },
+    Const { ty: Ty<'fhir>, has_default: bool },
 }
 
 #[derive(Debug)]

@@ -386,8 +386,8 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
             rty::GenericParamDefKind::Base { has_default: default.is_some() }
         }
         fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
-        fhir::GenericParamKind::Const { .. } => {
-            rty::GenericParamDefKind::Const { has_default: false }
+        fhir::GenericParamKind::Const { has_default, .. } => {
+            rty::GenericParamDefKind::Const { has_default: *has_default }
         }
     }
 }
@@ -1928,20 +1928,30 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult {
         let generics = self.genv().generics_of(def_id)?;
         for param in generics.own_params.iter().skip(into.len()) {
-            debug_assert!(matches!(
-                param.kind,
-                rty::GenericParamDefKind::Type { has_default: true }
-                    | rty::GenericParamDefKind::Base { has_default: true }
-            ));
             let span = self.tcx().def_span(param.def_id);
-            // FIXME(nilehmann) we already know whether this is a type or a constructor so we could
-            // directly check if the constructor returns a subset type.
-            let ty = self
-                .genv()
-                .type_of(param.def_id)?
-                .instantiate(self.tcx(), into, &[])
-                .to_ty();
-            into.push(self.try_to_ty_or_base(param.kind, span, &ty)?.into());
+            match param.kind {
+                rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::Base { .. } => {
+                    // FIXME(nilehmann) we already know whether this is a type or a constructor so
+                    // we could directly check if the constructor returns a subset type.
+                    let ty = self
+                        .genv()
+                        .type_of(param.def_id)?
+                        .instantiate(self.tcx(), into, &[])
+                        .to_ty();
+                    into.push(self.try_to_ty_or_base(param.kind, span, &ty)?.into());
+                }
+                rty::GenericParamDefKind::Const { .. } => {
+                    let tcx = self.tcx();
+                    let cst = tcx.const_param_default(param.def_id).skip_binder();
+                    let cst = cst.lower(tcx).map_err(|reason| {
+                        let err = UnsupportedErr::new(reason).with_span(span);
+                        QueryErr::unsupported(param.def_id, err)
+                    })?;
+                    let cst = rty::EarlyBinder(cst).instantiate(tcx, into, &[]);
+                    into.push(rty::GenericArg::Const(cst));
+                }
+                rty::GenericParamDefKind::Lifetime => unreachable!(),
+            }
         }
         Ok(())
     }
