@@ -51,8 +51,8 @@ pub use rustc_middle::{
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
 use rustc_middle::{
-    query::{IntoQueryKey, IntoQueryParam},
-    ty::{ParamEnv, TyCtxt, TypingEnv, TypingMode, fast_reject::SimplifiedType},
+    query::IntoQueryKey,
+    ty::{TyCtxt, fast_reject::SimplifiedType},
 };
 use rustc_span::{DUMMY_SP, Span, Symbol, sym, symbol::kw};
 use rustc_type_ir::Upcast as _;

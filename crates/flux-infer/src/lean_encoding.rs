@@ -540,7 +540,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
         let path = file.path(self.genv, false);
         if let Some(mut file) = create_file_with_dirs(path)? {
-            writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
+            writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
             writeln!(file, "{}", self.post_import_preamble())?;
             namespaced(&mut file, |f| {
                 writeln!(f, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })
@@ -577,7 +577,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         // No need to regenerate if created in this session; but otherwise regenerate as struct may have changed
         if let Some(mut file) = create_file_with_dirs(path)? {
             // import prelude
-            writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
+            writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
             // import sort dependencies
             for dep in self.data_decl_dependencies(data_decl) {
                 writeln!(file, "{}", dep.import(self.genv))?;
@@ -649,7 +649,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = self.lean_file_for_fun(fun_def).path(self.genv, false);
         if let Some(mut file) = create_file_with_dirs(path)? {
             // import prelude
-            writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
+            writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
             // import sort dependencies
             for dep in self.fun_def_dependencies(did, fun_def) {
                 writeln!(file, "{}", dep.import(self.genv))?;
@@ -675,7 +675,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .path(self.genv, false);
         if let Some(mut file) = create_file_with_dirs(path)? {
             // import prelude
-            writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
+            writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
 
             let mut sort_deps = vec![];
             const_decl.sort.deps(&mut sort_deps);
@@ -705,7 +705,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let file = LeanFile::OpaqueConst(stable_name.clone());
         let path = file.path(self.genv, false);
         let mut file = create_or_truncate_file_with_dirs(path)?;
-        writeln!(file, "{}", &LeanFile::Fluxlib.import(self.genv))?;
+        writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
 
         let mut sort_deps = vec![];
         const_decl.sort.deps(&mut sort_deps);

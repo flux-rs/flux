@@ -1120,7 +1120,7 @@ impl fmt::Debug for ExistentialProjection {
         if !self.args.is_empty() {
             write!(f, "<{:?}>", self.args.iter().format(","))?;
         }
-        write!(f, " = {:?}", &self.term)
+        write!(f, " = {:?}", self.term)
     }
 }
 

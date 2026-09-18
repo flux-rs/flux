@@ -401,21 +401,20 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         &items
                             .iter()
                             .filter_map(|item| {
-                                let res;
                                 let ident;
-                                match item {
+                                let res = match item {
                                     surface::FluxItem::FuncDef(func) => {
                                         ident = func.name;
-                                        res = fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
+                                        fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
                                             FluxDefId::new(parent.to_def_id(), ident.name),
-                                        ));
+                                        ))
                                     }
                                     surface::FluxItem::SortDecl(sort) => {
                                         ident = sort.name;
-                                        res = fhir::Res::UserSort(FluxDefId::new(
+                                        fhir::Res::UserSort(FluxDefId::new(
                                             parent.to_def_id(),
                                             ident.name,
-                                        ));
+                                        ))
                                     }
                                     surface::FluxItem::Qualifier(_)
                                     | surface::FluxItem::PrimOpProp(_)
