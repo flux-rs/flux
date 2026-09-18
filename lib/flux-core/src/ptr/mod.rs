@@ -1,4 +1,4 @@
-#![flux::defs {
+#![cfg_attr(flux, flux::defs {
     // The memory range [addr, addr + num_bytes) is entirely contained within
     // the pointer's allocation. In our model this is: addr >= base (not before
     // the start) and num_bytes <= size (num_bytes remaining bytes fit before
@@ -43,7 +43,7 @@
     // starting points for pointer arithmetic but cannot be dereferenced.
     // Required as a precondition for all pointer arithmetic methods.
     fn in_bounds(p: ptr) -> bool { dereferenceable(p, 0) }
-}]
+})]
 /// These specs on `core::ptr` allow flux to enforce 2 safety properties:
 /// 1. Spatial safety: A pointer may only be read or written if pointer is derived from
 /// a valid allocation and the entire access would fall within the bounds of that allocation.
@@ -139,17 +139,29 @@ macro_rules! ptr_specs {
             unsafe fn read(self) -> T
             where T: Sized;
 
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L48
+            #[spec(fn(me: *$mutable[@p] T) -> *$mutable[p.base, p.addr, p.size] U)]
+            fn cast<U>(self) -> *$mutable U;
+
             $($($extra)*)?
+        }
+
+        #[extern_spec(core::ptr)]
+        impl<T> PartialEq for *$mutable T {
+            /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1614
+            #[spec(fn (me: &*$mutable[@m] T, other: &*$mutable[@o] T) -> bool[m.addr == o.addr])]
+            fn eq(&self, other: &*$mutable T) -> bool;
         }
     };
 }
-
-ptr_specs!(const);
 
 // Rustfmt likes inserting a comma in here that breaks compilation, so we disable it for this macro invocation
 #[rustfmt::skip]
 ptr_specs!(
     mut,
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/mut_ptr.rs#L134
+    #[spec(fn(me: *mut[@p] T) -> *const[p.base, p.addr, p.size] T)]
+    fn cast_const(self) -> *const T;
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/mut_ptr.rs#L1413
     #[spec(fn (me: *mut[@p] T, val: T)
         requires valid(p, T::size_of()) && aligned_to(p, T::align_of()))]
@@ -164,6 +176,14 @@ ptr_specs!(
         T: Sized;
 );
 
+#[rustfmt::skip]
+ptr_specs!(
+    const,
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/const_ptr.rs#L145
+    #[spec(fn(me: *const[@p] T) -> *mut[p.base, p.addr, p.size] T)]
+    fn cast_mut(self) -> *mut T;
+);
+
 #[extern_spec(core::ptr)]
 // See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L828
 #[no_panic]
@@ -175,6 +195,18 @@ fn null<T>() -> *const T;
 #[no_panic]
 #[spec(fn() -> *mut[0, 0, 0] T)]
 fn null_mut<T>() -> *mut T;
+
+#[extern_spec(core::ptr)]
+// See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L917
+#[no_panic]
+#[spec(fn() -> *const{p: p.size == 0 && p.addr != 0 && aligned_to(p, T::align_of())} T)]
+fn dangling<T>() -> *const T;
+
+#[extern_spec(core::ptr)]
+// See: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/mod.rs#L962
+#[no_panic]
+#[spec(fn() -> *mut{p: p.size == 0 && p.addr != 0 && aligned_to(p, T::align_of())} T)]
+fn dangling_mut<T>() -> *mut T;
 
 #[extern_spec(core::ptr)]
 // - `src` must be valid for reads or `T` must be a ZST.

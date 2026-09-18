@@ -17,7 +17,11 @@ struct Take<I>;
     fn size(x: Take<I>) -> int { min(x.n, <I as Iterator>::size(x.inner)) }
     fn done(x: Take<I>) -> bool { x.n <= 0 || <I as Iterator>::done(x.inner) }
     fn step(x: Take<I>, y: Take<I>) -> bool {
-        y.n == x.n - 1 && <I as Iterator>::step(x.inner, y.inner)
+        if x.n > 0 {
+            y.n == x.n - 1 && <I as Iterator>::step(x.inner, y.inner)
+        } else {
+            y.n == x.n && y.inner == x.inner
+        }
     }
 )]
 impl<I: Iterator> Iterator for Take<I> {

@@ -4,7 +4,7 @@ use flux_arc_interner::List;
 use flux_common::bug;
 use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hir::{LangItem, def_id::DefId};
+use rustc_hir::{attrs::lang_items::LangItem, def_id::DefId};
 use rustc_span::{DUMMY_SP, Symbol};
 
 use crate::{

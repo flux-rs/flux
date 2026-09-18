@@ -27,6 +27,7 @@ use flux_syntax::{
 };
 use hir::{ItemKind, def::DefKind};
 use itertools::{Either, Itertools};
+use rustc_ast::ast;
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordSet};
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hir::{self as hir, OwnerId};
@@ -706,7 +707,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> fhir::OpaqueTy<'genv> {
         let output = self.desugar_fn_ret_ty(returns);
         let trait_ref = self.make_lang_item_path(
-            hir::LangItem::Future,
+            hir::attrs::lang_items::LangItem::Future,
             DUMMY_SP,
             &[],
             self.genv.alloc_slice(&[fhir::AssocItemConstraint {
@@ -729,7 +730,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn make_lang_item_path(
         &mut self,
-        lang_item: hir::LangItem,
+        lang_item: hir::attrs::lang_items::LangItem,
         span: Span,
         args: &'genv [fhir::GenericArg<'genv>],
         constraints: &'genv [fhir::AssocItemConstraint<'genv>],
@@ -1789,7 +1790,13 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
             surface::LitKind::Bool => fhir::Lit::Bool(lit.symbol == kw::True),
             surface::LitKind::Str => fhir::Lit::Str(lit.symbol),
-            surface::LitKind::Char => fhir::Lit::Char(lit.symbol.as_str().parse::<char>().unwrap()),
+            surface::LitKind::Char => {
+                // Use rustc's literal parsing to correctly handle escape sequences, e.g., `'\n'`
+                match ast::LitKind::from_token_lit(lit) {
+                    Ok(ast::LitKind::Char(c)) => fhir::Lit::Char(c),
+                    _ => return fhir::ExprKind::Err(self.emit(errors::UnexpectedLiteral { span })),
+                }
+            }
             _ => return fhir::ExprKind::Err(self.emit(errors::UnexpectedLiteral { span })),
         };
         fhir::ExprKind::Literal(lit)

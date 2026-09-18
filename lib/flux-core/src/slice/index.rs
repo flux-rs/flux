@@ -1,4 +1,4 @@
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 use core::ops;
 
 use flux_attrs::*;

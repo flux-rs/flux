@@ -1,4 +1,4 @@
-#![feature(rustc_private, box_patterns, if_let_guard, once_cell_try, never_type)]
+#![feature(rustc_private, never_type)]
 
 extern crate rustc_abi;
 extern crate rustc_ast;
@@ -20,7 +20,6 @@ use conv::{AfterSortck, ConvPhase, struct_compat};
 use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
-use flux_macros::fluent_messages;
 use flux_middle::{
     def_id::{FluxDefId, FluxId, MaybeExternId},
     fhir::{
@@ -47,8 +46,6 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
 };
 use rustc_span::Span;
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn provide(providers: &mut Providers) {
     providers.normalized_defns = normalized_defns;
@@ -317,7 +314,7 @@ fn predicates_of(
         }
         DefKind::OpaqueTy | DefKind::Closure | DefKind::Static { .. } => {
             Ok(rty::EarlyBinder(rty::GenericPredicates {
-                parent: genv.tcx().predicates_of(def_id).parent,
+                parent: genv.tcx().clauses_of(def_id).parent,
                 predicates: rty::List::empty(),
             }))
         }
@@ -479,8 +476,8 @@ fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Gener
         // A constant has no generics of its own, but a `#[flux::constant]` annotation on an
         // associated constant may mention the generics of the impl it is defined in
         // e.g. tests/pos/surface/assoc_const01.rs
-        | DefKind::Const
-        | DefKind::AssocConst
+        | DefKind::Const { .. }
+        | DefKind::AssocConst { .. }
         | DefKind::Static { .. } => refining::refine_generics(&genv.lower_generics_of(def_id)),
         kind => {
             Err(query_bug!(
@@ -700,10 +697,10 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_definition_cycle, code = E0999)]
+    #[diag("cycle in definitions", code = E0999)]
     pub struct DefinitionCycle {
         #[primary_span]
-        #[label]
+        #[label("{$msg}")]
         span: Span,
         msg: String,
     }

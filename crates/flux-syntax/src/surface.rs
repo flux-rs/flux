@@ -7,7 +7,7 @@ pub use rustc_ast::{
     Mutability,
     token::{Lit, LitKind},
 };
-use rustc_hash::FxHashSet;
+use rustc_data_structures::fx::FxIndexSet;
 pub use rustc_span::{Span, symbol::Ident};
 use rustc_span::{Symbol, symbol::sym};
 
@@ -928,9 +928,11 @@ impl<T, P> Punctuated<T, P> {
 impl Expr {
     /// Collects all free variables in an expression.
     /// A free variable is an `ExprKind::Path` with a single identifier segment.
-    pub fn free_vars(&self) -> FxHashSet<Ident> {
+    ///
+    /// Variables are returned in the order they first appear in the expression.
+    pub fn free_vars(&self) -> FxIndexSet<Ident> {
         struct FreeVarsVisitor {
-            vars: FxHashSet<Ident>,
+            vars: FxIndexSet<Ident>,
         }
 
         impl visit::Visitor for FreeVarsVisitor {
@@ -959,7 +961,7 @@ impl Expr {
             }
         }
 
-        let mut visitor = FreeVarsVisitor { vars: FxHashSet::default() };
+        let mut visitor = FreeVarsVisitor { vars: FxIndexSet::default() };
         visitor.visit_expr(self);
         visitor.vars
     }

@@ -1,4 +1,4 @@
-#![flux::defs(
+#![cfg_attr(flux, flux::defs(
     fn pow2(x: int) -> bool { pow2bv(bv_int_to_bv64(x)) }
     fn pow2bv(x: bitvec<64>) -> bool {
         bv_and(x, bv_sub(x, bv_int_to_bv64(1))) == bv_int_to_bv64(0)
@@ -17,7 +17,7 @@
     fn is_valid_array_layout(n: int, size: int, align: int) -> bool {
         size == 0 || size * n + align - 1 <= isize::MAX
     }
-)]
+))]
 
 use flux_attrs::*;
 

@@ -2,7 +2,7 @@
 //! in this module can be understood as the current supported subset of rust. As we implement
 //! more features we should be able to work directly on rustc's structures.
 
-#![feature(rustc_private, box_patterns, associated_type_defaults, never_type)]
+#![feature(rustc_private, box_patterns)]
 
 extern crate rustc_abi;
 extern crate rustc_borrowck;
@@ -18,11 +18,8 @@ extern crate rustc_span;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
-use flux_macros::fluent_messages;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 pub mod const_eval;
 pub mod lowering;
