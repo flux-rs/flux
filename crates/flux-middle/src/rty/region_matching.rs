@@ -269,7 +269,7 @@ impl RegionSubst {
                     self.rty_infer_from_ty(ty_a, ty_b);
                 }
             }
-            (rty::BaseTy::Alias(_, aty_a), rty::BaseTy::Alias(_, aty_b)) => {
+            (rty::BaseTy::Alias(aty_a), rty::BaseTy::Alias(aty_b)) => {
                 for (arg_a, arg_b) in iter::zip(&aty_a.args, &aty_b.args) {
                     self.rty_infer_from_generic_arg(arg_a, arg_b);
                 }

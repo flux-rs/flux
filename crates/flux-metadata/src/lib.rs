@@ -1,16 +1,16 @@
 #![allow(incomplete_features)]
-#![feature(rustc_private, specialization, if_let_guard)]
+#![feature(rustc_private)]
 
 extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_macros;
-extern crate rustc_metadata;
 extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
+extern crate rustc_type_ir;
 
 mod decoder;
 mod encoder;
@@ -24,7 +24,6 @@ use std::{hash::Hash, path::PathBuf, rc::Rc};
 use decoder::decode_crate_metadata;
 use derive_where::derive_where;
 use flux_errors::FluxSession;
-use flux_macros::fluent_messages;
 use flux_middle::{
     PanicSpec,
     call_graph::NodeKey,
@@ -52,8 +51,6 @@ use rustc_span::{
 };
 
 pub use crate::encoder::encode_metadata;
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 const METADATA_VERSION: u8 = 0;
 const METADATA_HEADER: &[u8] = &[b'f', b'l', b'u', b'x', 0, 0, 0, METADATA_VERSION];
@@ -176,6 +173,7 @@ pub struct Tables<'tcx, K: Eq + Hash> {
     variants_of: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
     normalized_defns: Rc<rty::NormalizedDefns>,
+    flux_module_children: UnordMap<K, Vec<fhir::FluxModChild>>,
     func_sort: UnordMap<FluxId<K>, rty::PolyFuncSort>,
     func_span: UnordMap<FluxId<K>, Span>,
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
@@ -246,6 +244,19 @@ macro_rules! get {
             tables.$table.get(&key.to_index()).cloned()
         } else {
             this.extern_tables.$table.get(&key).cloned()
+        }
+    }};
+}
+
+/// Same as `get!` but returns a reference into the tables instead of cloning
+macro_rules! get_ref {
+    ($self:expr, $table:ident, $key:expr) => {{
+        let key = $key;
+        let this = $self;
+        if let Some(tables) = this.local_tables.get(&key.crate_num()) {
+            tables.$table.get(&key.to_index())
+        } else {
+            this.extern_tables.$table.get(&key)
         }
     }};
 }
@@ -332,6 +343,10 @@ impl<'tcx> CrateStore<'tcx> for CStore<'tcx> {
         self.local_tables[&krate].normalized_defns.clone()
     }
 
+    fn flux_module_children(&self, def_id: DefId) -> Option<&[fhir::FluxModChild]> {
+        get_ref!(self, flux_module_children, def_id).map(Vec::as_slice)
+    }
+
     fn inferred_no_panic(&self, krate: CrateNum) -> Rc<UnordMap<NodeKey<'tcx>, PanicSpec>> {
         // TODO: Some transitive deps (e.g. `hashbrown`) have no flux metadata. Return
         // an empty map (conservative: MightPanic) until the proper fix is in place.
@@ -407,6 +422,7 @@ impl<'tcx> CrateMetadata<'tcx> {
 fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, DefIndex>) {
     tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
 
+    encode_flux_module_children(genv, tables);
     for (def_id, item) in genv.fhir_iter_flux_items() {
         match item {
             fhir::FluxItem::Func(spec_func) => {
@@ -424,6 +440,20 @@ fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, D
             }
             fhir::FluxItem::PrimOpProp(_) | fhir::FluxItem::Qualifier(_) => {}
         }
+    }
+}
+
+#[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
+fn encode_flux_module_children<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
+    tables: &mut Tables<'tcx, DefIndex>,
+) {
+    let specs = genv.collect_specs();
+    for parent in specs.flux_items_by_parent.keys() {
+        let children = genv.flux_module_children(parent.def_id.to_def_id());
+        tables
+            .flux_module_children
+            .insert(parent.def_id.local_def_index, children.to_vec());
     }
 }
 
@@ -626,7 +656,7 @@ mod errors {
     use crate::Key;
 
     #[derive(Diagnostic)]
-    #[diag(metadata_duplicate_spec, code = E0999)]
+    #[diag("duplicate spec for {$def_name}", code = E0999)]
     pub(super) struct DuplicateSpec {
         def_name: String,
     }

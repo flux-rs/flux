@@ -1,4 +1,5 @@
 pub mod visit;
+
 use std::{borrow::Cow, fmt, ops::Range};
 
 use flux_config::PartialInferOpts;
@@ -6,7 +7,7 @@ pub use rustc_ast::{
     Mutability,
     token::{Lit, LitKind},
 };
-use rustc_hash::FxHashSet;
+use rustc_data_structures::fx::FxIndexSet;
 pub use rustc_span::{Span, symbol::Ident};
 use rustc_span::{Symbol, symbol::sym};
 
@@ -35,23 +36,40 @@ pub enum FluxItem {
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
     PrimOpProp(PrimOpProp),
+    Use(UseTree),
 }
 
 impl FluxItem {
-    pub fn name(&self) -> Ident {
+    pub fn name(&self) -> Option<Ident> {
         match self {
-            FluxItem::Qualifier(qualifier) => qualifier.name,
-            FluxItem::FuncDef(spec_func) => spec_func.name,
-            FluxItem::SortDecl(sort_decl) => sort_decl.name,
-            FluxItem::PrimOpProp(primop_prop) => primop_prop.name,
+            FluxItem::Qualifier(qualifier) => Some(qualifier.name),
+            FluxItem::FuncDef(spec_func) => Some(spec_func.name),
+            FluxItem::SortDecl(sort_decl) => Some(sort_decl.name),
+            FluxItem::PrimOpProp(primop_prop) => Some(primop_prop.name),
+            FluxItem::Use(_) => None,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct UseTree {
+    pub prefix: ExprPath,
+    pub kind: UseTreeKind,
+}
+
+#[derive(Debug)]
+pub enum UseTreeKind {
+    /// `use a::b::c`
+    Simple,
+    /// `use a::b::{...}`
+    Nested(Vec<UseTree>),
 }
 
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: Ident,
     pub params: RefineParams,
+    pub wildcards: Vec<bool>,
     pub expr: Expr,
     pub span: Span,
     pub kind: QualifierKind,
@@ -627,6 +645,8 @@ pub enum Attr {
     Trusted(Trusted),
     /// A `#[trusted_impl(...)]` attribute
     TrustedImpl(Trusted),
+    /// A `#[trusted_derive(...)]` attribute
+    TrustedDerive(Trusted),
     /// A `#[ignore(...)]` attribute
     Ignore(Ignored),
     /// A `#[proven_externally]` attribute
@@ -903,25 +923,40 @@ impl<T, P> Punctuated<T, P> {
 impl Expr {
     /// Collects all free variables in an expression.
     /// A free variable is an `ExprKind::Path` with a single identifier segment.
-    pub fn free_vars(&self) -> FxHashSet<Ident> {
+    ///
+    /// Variables are returned in the order they first appear in the expression.
+    pub fn free_vars(&self) -> FxIndexSet<Ident> {
         struct FreeVarsVisitor {
-            vars: FxHashSet<Ident>,
+            vars: FxIndexSet<Ident>,
         }
 
         impl visit::Visitor for FreeVarsVisitor {
             fn visit_expr(&mut self, expr: &Expr) {
-                if let ExprKind::Path(path) = &expr.kind {
-                    // Only collect paths with a single segment
-                    if let [segment] = path.segments.as_slice() {
-                        self.vars.insert(segment.ident);
+                match &expr.kind {
+                    ExprKind::Path(path) => {
+                        // Only collect paths with a single segment
+                        if let [segment] = path.segments.as_slice() {
+                            self.vars.insert(segment.ident);
+                        }
                     }
+                    ExprKind::Call(callee, args) => {
+                        // The callee of a call is a refinement function, not a variable, so
+                        // don't collect it. Anything that's not a path may contain free
+                        // variables, so visit it normally.
+                        if !matches!(&callee.kind, ExprKind::Path(_)) {
+                            self.visit_expr(callee);
+                        }
+                        for arg in args {
+                            self.visit_expr(arg);
+                        }
+                    }
+                    // Continue visiting child expressions
+                    _ => visit::walk_expr(self, expr),
                 }
-                // Continue visiting child expressions
-                visit::walk_expr(self, expr);
             }
         }
 
-        let mut visitor = FreeVarsVisitor { vars: FxHashSet::default() };
+        let mut visitor = FreeVarsVisitor { vars: FxIndexSet::default() };
         visitor.visit_expr(self);
         visitor.vars
     }

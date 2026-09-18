@@ -1,15 +1,12 @@
 //! This crate contains common type definitions that are used by other crates.
 #![feature(
     associated_type_defaults,
-    box_patterns,
     closure_track_caller,
-    if_let_guard,
     map_try_insert,
     min_specialization,
     never_type,
     rustc_private,
-    unwrap_infallible,
-    new_range_api
+    unwrap_infallible
 )]
 
 extern crate rustc_abi;
@@ -43,7 +40,6 @@ pub mod type_graph;
 use std::sync::LazyLock;
 
 use flux_arc_interner::List;
-use flux_macros::fluent_messages;
 pub use flux_rustc_bridge::def_id_to_string;
 use flux_rustc_bridge::{
     mir::{LocalDecls, PlaceElem},
@@ -67,8 +63,6 @@ use rustc_span::{
     def_id::{DefId, LocalDefId},
     symbol::Ident,
 };
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub enum PanicSpec {

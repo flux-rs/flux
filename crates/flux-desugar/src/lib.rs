@@ -1,7 +1,8 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
-#![feature(rustc_private, min_specialization, box_patterns, never_type, unwrap_infallible)]
+#![feature(rustc_private, min_specialization, box_patterns)]
 
+extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 
@@ -12,12 +13,9 @@ extern crate rustc_span;
 
 use desugar::RustItemCtxt;
 use flux_common::result::{ErrorCollector, ResultExt};
-use flux_macros::fluent_messages;
 use flux_syntax::surface;
 use itertools::Itertools as _;
 use rustc_data_structures::unord::UnordMap;
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 mod desugar;
 mod errors;
@@ -162,7 +160,8 @@ fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::FluxItem
     let mut err: Option<ErrorGuaranteed> = None;
     for (parent, items) in &specs.flux_items_by_parent {
         for item in items {
-            let def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
+            let Some(ident) = item.name() else { continue };
+            let def_id = FluxLocalDefId::new(parent.def_id, ident.name);
             FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
                 fhir.items.insert(def_id, cx.desugar_flux_item(item));
             })
@@ -198,6 +197,9 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
                         surface::Attr::Trusted(trusted) => Some(fhir::Attr::Trusted(trusted)),
                         surface::Attr::TrustedImpl(trusted) => {
                             Some(fhir::Attr::TrustedImpl(trusted))
+                        }
+                        surface::Attr::TrustedDerive(trusted) => {
+                            Some(fhir::Attr::TrustedDerive(trusted))
                         }
                         surface::Attr::Ignore(ignored) => Some(fhir::Attr::Ignore(ignored)),
                         surface::Attr::ProvenExternally(span) => {

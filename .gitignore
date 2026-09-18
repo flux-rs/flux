@@ -8,3 +8,5 @@ fixpoint
 
 .DS_Store
 fixpoint
+*.log
+mir_dump

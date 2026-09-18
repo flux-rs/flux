@@ -1,43 +1,46 @@
 #![no_std]
+#![cfg_attr(doc, deny(rustdoc::broken_intra_doc_links))]
+#![cfg_attr(flux, feature(allocator_api))]
 #![cfg_attr(flux, feature(step_trait))]
 #![cfg_attr(flux, feature(sized_hierarchy))]
+#![cfg_attr(flux, feature(try_trait_v2))]
 #![cfg_attr(flux, flux::no_suggestions)]
 
-mod iter;
-mod ops;
+pub mod iter;
+pub mod ops;
 
-#[cfg(flux)]
-mod mem;
+#[cfg(any(flux, doc))]
+pub mod mem;
 
-#[cfg(flux)]
-mod option;
+#[cfg(any(flux, doc))]
+pub mod option;
 
-#[cfg(flux)]
-mod result;
+#[cfg(any(flux, doc))]
+pub mod result;
 
-#[cfg(flux)]
-mod cmp;
+#[cfg(any(flux, doc))]
+pub mod cmp;
 
-#[cfg(flux)]
-mod clone;
+#[cfg(any(flux, doc))]
+pub mod clone;
 
-#[cfg(flux)]
-mod slice;
+#[cfg(any(flux, doc))]
+pub mod slice;
 
-#[cfg(flux)]
-mod array;
+#[cfg(any(flux, doc))]
+pub mod array;
 
-#[cfg(flux)]
-mod num;
+#[cfg(any(flux, doc))]
+pub mod num;
 
-#[cfg(flux)]
-mod ptr;
+#[cfg(any(flux, doc))]
+pub mod ptr;
 
-#[cfg(flux)]
-mod convert;
+#[cfg(any(flux, doc))]
+pub mod convert;
 
-#[cfg(flux)]
-mod alloc;
+#[cfg(any(flux, doc))]
+pub mod alloc;
 
 // -------------------------------------------------------------------
 

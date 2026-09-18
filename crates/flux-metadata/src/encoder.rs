@@ -3,7 +3,6 @@ use std::{collections::hash_map::Entry, sync::Arc};
 use flux_middle::global_env::GlobalEnv;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::def_id::{DefId, LOCAL_CRATE};
-use rustc_metadata::errors::FailCreateFileEncoder;
 use rustc_middle::{
     bug,
     ty::{self, TyCtxt, codec::TyEncoder},
@@ -19,12 +18,11 @@ use rustc_span::{
 use crate::{
     AbsoluteBytePos, CrateMetadata, EncodedSourceFileId, Footer, METADATA_HEADER, SYMBOL_OFFSET,
     SYMBOL_PREDEFINED, SYMBOL_STR, SourceFileIndex, TAG_FULL_SPAN, TAG_PARTIAL_SPAN,
-    rustc_middle::dep_graph::DepContext,
 };
 
 struct EncodeContext<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
-    opaque: opaque::FileEncoder,
+    opaque: opaque::FileEncoder<'a>,
     type_shorthands: FxHashMap<ty::Ty<'tcx>, usize>,
     predicate_shorthands: FxHashMap<ty::PredicateKind<'tcx>, usize>,
     file_to_file_index: FxHashMap<*const SourceFile, SourceFileIndex>,
@@ -123,7 +121,7 @@ pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
         genv.tcx()
             .sess
             .dcx()
-            .emit_fatal(FailCreateFileEncoder { err })
+            .fatal(format!("failed to create file encoder: {err}"))
     });
 
     encoder.emit_raw_bytes(METADATA_HEADER);
@@ -223,7 +221,7 @@ impl SpanEncoder for EncodeContext<'_, '_> {
             return TAG_PARTIAL_SPAN.encode(self);
         }
 
-        let source_file = self.tcx.sess().source_map().lookup_source_file(span.lo);
+        let source_file = self.tcx.sess.source_map().lookup_source_file(span.lo);
         if !source_file.contains(span.hi) {
             // Unfortunately, macro expansion still sometimes generates Spans
             // that malformed in this way.

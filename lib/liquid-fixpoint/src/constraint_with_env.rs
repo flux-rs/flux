@@ -65,6 +65,11 @@ impl<T: Types> ConstraintWithEnv<T> {
             let kvar_arg_count = decl.sorts.len();
             assignments.insert(decl.kvid.clone(), vec![]);
             for qualifier in &self.qualifiers {
+                // TODO: assignments index into the kvar's arguments, so there's no way to name a
+                // literal here. Skip wildcards rather than silently treat them as ordinary params.
+                if qualifier.args.iter().any(|param| param.is_wildcard) {
+                    continue;
+                }
                 let qualifier_arg_count = qualifier.args.len();
                 for argument_combination in (0..kvar_arg_count).combinations(qualifier_arg_count) {
                     assignments.get_mut(&decl.kvid).unwrap().extend(
@@ -200,7 +205,7 @@ fn type_signature_matches<T: Types>(
         return false;
     }
 
-    for (qs, ks) in qualifier.args.iter().map(|arg| arg.1.clone()).zip(
+    for (qs, ks) in qualifier.args.iter().map(|param| param.sort.clone()).zip(
         argument_permutation
             .iter()
             .map(|arg_idx| kvar_decl.sorts[*arg_idx].clone()),

@@ -207,7 +207,7 @@ impl<'a> TypeEnv<'a> {
         let t2 = match bound {
             PtrToRefBound::Ty(t2) => {
                 let t2 = rty_match_regions(&t2, &t1);
-                infcx.subtyping(&t1, &t2, reason)?;
+                infcx.subtyping_with_env(self, &t1, &t2, reason)?;
                 t2
             }
             PtrToRefBound::Infer => {
@@ -215,7 +215,7 @@ impl<'a> TypeEnv<'a> {
                     debug_assert_eq!(kind, HoleKind::Pred);
                     infcx.fresh_kvar(sorts, KVarEncoding::Conj)
                 });
-                infcx.subtyping(&t1, &t2, reason)?;
+                infcx.subtyping_with_env(self, &t1, &t2, reason)?;
                 t2
             }
             PtrToRefBound::Identity => t1.clone(),
@@ -691,10 +691,9 @@ impl BasicBlockEnvShape {
                     .collect();
                 BaseTy::Tuple(fields)
             }
-            (BaseTy::Alias(kind1, alias_ty1), BaseTy::Alias(kind2, alias_ty2)) => {
-                tracked_span_dbg_assert_eq!(kind1, kind2);
+            (BaseTy::Alias(alias_ty1), BaseTy::Alias(alias_ty2)) => {
                 tracked_span_dbg_assert_eq!(alias_ty1, alias_ty2);
-                BaseTy::Alias(*kind1, alias_ty1.clone())
+                BaseTy::Alias(alias_ty1.clone())
             }
             (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) => {
                 tracked_span_dbg_assert_eq!(r1, r2);

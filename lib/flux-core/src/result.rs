@@ -9,6 +9,34 @@ enum Result<T, E> {
     Err(E),
 }
 
+/// `?` on a `Result` desugars into `Try::branch` followed by `FromResidual::from_residual`,
+/// routed through a [`core::ops::ControlFlow`]. Without specs for these, the `Ok`/`Err`
+/// discriminant is dropped crossing the `?`.
+///
+/// `Ok(x)` continues with `x` and `Err(e)` breaks, so the `ControlFlow`'s arm is exactly the
+/// `Result`'s discriminant.
+#[extern_spec(core::result)]
+impl<T, E> core::ops::Try for Result<T, E> {
+    #[spec(fn(Result<T, E>[@b]) -> core::ops::ControlFlow<<Result<T, E> as core::ops::Try>::Residual, <Result<T, E> as core::ops::Try>::Output>[b])]
+    fn branch(
+        self,
+    ) -> core::ops::ControlFlow<
+        <Result<T, E> as core::ops::Try>::Residual,
+        <Result<T, E> as core::ops::Try>::Output,
+    >;
+}
+
+/// The residual of a `Result` is always the `Err` arm, so a `?` propagating out of a
+/// `Result`-returning function yields `Err`. Note the error is converted via `From`, which is
+/// what lets `?` bridge different error types.
+#[extern_spec(core::result)]
+impl<T, E, F: From<E>> core::ops::FromResidual<Result<core::convert::Infallible, E>>
+    for Result<T, F>
+{
+    #[spec(fn(Result<core::convert::Infallible, E>) -> Result<T, F>[false])]
+    fn from_residual(residual: Result<core::convert::Infallible, E>) -> Result<T, F>;
+}
+
 #[extern_spec]
 impl<T, E> Result<T, E> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L584

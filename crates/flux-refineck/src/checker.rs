@@ -1,7 +1,7 @@
 use std::{collections::hash_map::Entry, iter, vec};
 
 use flux_common::{
-    bug, dbg, dbg::SpanTrace, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug,
+    bug, dbg, dbg::SpanTrace, index::IndexVec, span_bug, tracked_span_bug,
     tracked_span_dbg_assert_eq,
 };
 use flux_config::{self as config, InferOpts};
@@ -45,7 +45,7 @@ use rustc_data_structures::{
 };
 use rustc_hash::FxHashMap;
 use rustc_hir::{
-    LangItem,
+    attrs::lang_items::LangItem,
     def_id::{DefId, LocalDefId},
 };
 use rustc_index::{IndexSlice, bit_set::DenseBitSet};
@@ -1110,7 +1110,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
-                let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
+                let sub_sig = self.genv.fn_sig(*def_id).with_span(span)?;
                 check_fn_subtyping(
                     infcx,
                     SubFn::Poly(*def_id, sub_sig, args.clone()),
@@ -1159,7 +1159,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             AssertKind::BoundsCheck => "possible out-of-bounds access",
             AssertKind::RemainderByZero => "possible remainder with a divisor of zero",
             AssertKind::Overflow(mir::BinOp::Div) => "possible division with overflow",
-            AssertKind::Overflow(mir::BinOp::Rem) => "possible reminder with overflow",
+            AssertKind::Overflow(mir::BinOp::Rem) => "possible remainder with overflow",
             AssertKind::Overflow(_) => return Ok(Guard::Pred(pred)),
         };
         infcx
@@ -1389,25 +1389,36 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         args: &flux_rustc_bridge::ty::GenericArgs,
         operands: &[Operand<'tcx>],
     ) -> InferResult<(Vec<Ty>, PolyFnSig)> {
-        let upvar_tys = self
-            .check_operands(infcx, env, stmt_span, operands)?
-            .into_iter()
-            .map(|ty| {
-                if let TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
-                    env.ptr_to_ref(
-                        &mut infcx.at(stmt_span),
-                        ConstrReason::Other,
-                        *re,
-                        path,
-                        PtrToRefBound::Infer,
-                    )
-                } else {
-                    Ok(ty.clone())
-                }
-            })
-            .try_collect_vec()?;
-
         let closure_args = args.as_closure();
+
+        // Relate each upvar against the *declared* (rustc) upvar type refined with holes.
+        // That target is location-free by construction, so subtyping converts every `Ptr`
+        // that lines up with a `&mut` in it -- at any depth, through tuples and references
+        // alike -- exactly as it does when checking a call against a function's formals.
+        let actuals = self.check_operands(infcx, env, stmt_span, operands)?;
+        let upvar_tys = self
+            .refine_with_holes(closure_args.upvar_tys())?
+            .iter()
+            .map(|ty| {
+                let ty =
+                    ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+
+                // The `ty.unconstr()` strips out the top level `Constr` that is attached to reference
+                // types which prevents `place_ty` from deref-ing e.g. in tests/tests/pos/surface/ptr02.rs
+                // We defensively add the `check_pred` to "consume" the pred, even though currently, the only
+                // preds getting stripped out are trivial, and hence skipping the check_pred doesn't break any
+                // existing tests.
+                let (ty, pred) = ty.unconstr();
+                infcx.at(stmt_span).check_pred(&pred, ConstrReason::Other);
+                ty
+            })
+            .collect_vec();
+        for (actual, formal) in iter::zip(&actuals, &upvar_tys) {
+            infcx
+                .at(stmt_span)
+                .subtyping_with_env(env, actual, formal, ConstrReason::Other)?;
+        }
+
         let ty = closure_args.sig_as_fn_ptr_ty();
 
         if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {
@@ -1478,7 +1489,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<Ty> {
         let genv = self.genv;
         match rvalue {
-            Rvalue::Use(operand) => {
+            Rvalue::Use(operand, _retag) => {
                 self.check_operand(infcx, env, stmt_span, operand)
                     .with_span(stmt_span)
             }
@@ -1521,7 +1532,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .refine_ty_or_base(ty)
                     .with_span(stmt_span)?
                     .expect_base();
-                raw_ptr_with_size(genv, kind, ctor)
+                raw_ptr_with_size(genv, kind, ctor, infcx, self.checker_id.root_id())
             }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
@@ -1604,11 +1615,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .check_operands(infcx, env, stmt_span, ops)
                     .with_span(stmt_span)?;
                 Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into(), args.clone()))
-            }
-            Rvalue::ShallowInitBox(operand, _) => {
-                self.check_operand(infcx, env, stmt_span, operand)
-                    .with_span(stmt_span)?;
-                Ty::mk_box_with_default_alloc(self.genv, Ty::uninit()).with_span(stmt_span)
             }
         }
     }
@@ -1770,10 +1776,26 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     _ => self.refine_default(to)?,
                 }
             }
+            CastKind::PtrToPtr => {
+                // A `*const T` to `*mut U` cast changes how the pointed-to bytes are
+                // interpreted, but preserves the `base`/`addr`/`size` fields indexing a
+                // raw pointer which are independent of the pointee type.
+                // All (pointee) type-dependent obligations re size and alignment will be
+                // re-checked at the point of *use* with the new pointee.
+                match (from.kind(), to.kind()) {
+                    (
+                        TyKind::Indexed(BaseTy::RawPtr(_, _), idx),
+                        RustTy::RawPtr(to_inner_ty, to_mutbl),
+                    ) => {
+                        let inner_ty = self.refine_default(to_inner_ty)?;
+                        Ty::indexed(BaseTy::RawPtr(inner_ty, *to_mutbl), idx.clone())
+                    }
+                    _ => self.refine_default(to)?,
+                }
+            }
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::FloatToFloat
-            | CastKind::PtrToPtr
             | CastKind::PointerCoercion(mir::PointerCast::ClosureFnPointer)
             | CastKind::PointerWithExposedProvenance => self.refine_default(to)?,
             CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer(_)) => {
@@ -2107,12 +2129,44 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
 /// Converts a reference into a raw-ptr, tracking size etc.
 ///
-///     &mut T => *mut{p: p.size == T::size_of() && p.base == p.addr && p.addr % T::align_of() == 0 } T
+/// For types that do implement Sized:
+///     &mut T => *mut{p: p.size == T::size_of() && p.base == p.addr &&
+///                       p.addr % T::align_of() == 0 && p.addr != 0} T
+///
+/// For types that do not implement Sized:
+///     &mut T => *mut{p.base == p.addr && p.addr != 0} T
 ///
 /// see test `fn ref_to_ptr_read` in `crates/flux/tests/tests/with_deps/pos/extern_specs/flux_core_ptr01.rs`
-fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ctor: SubsetTyCtor) -> Result<Ty> {
-    let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
-    let bty = BaseTy::RawPtr(ctor.to_ty(), kind.to_mutbl_lossy());
+fn raw_ptr_with_size<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
+    kind: &RawPtrKind,
+    ctor: SubsetTyCtor,
+    infcx: &InferCtxt<'_, 'genv, 'tcx>,
+    def_id: LocalDefId,
+) -> Result<Ty> {
+    let tcx = genv.tcx();
+    let param_env = tcx.param_env(def_id);
+    let typing_env = infcx.region_infcx.typing_env(param_env);
+
+    let pointee_ty = ctor.to_ty();
+    let bty = BaseTy::RawPtr(pointee_ty.clone(), kind.to_mutbl_lossy());
+
+    let has_sized = pointee_ty.to_rustc(tcx).is_sized(tcx, typing_env);
+    let nu = Expr::nu();
+    let base = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
+    let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
+    let size = Expr::field_proj(nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
+
+    // For slices and other fat pointer types, we don't know the alignment and size
+    // and so must drop those assertions.
+    if !has_sized {
+        let pred = Expr::and(Expr::eq(base, &addr), Expr::ne(&addr, Expr::zero()));
+
+        let ty = Ty::exists_with_constr(bty, pred);
+        return Ok(ty);
+    }
+
+    let sized_id = tcx.require_lang_item(LangItem::Sized, DUMMY_SP);
     let args = rty::List::from_arr([GenericArg::Base(ctor)]);
     let size_of_expr = Expr::alias(
         AliasReft {
@@ -2126,14 +2180,9 @@ fn raw_ptr_with_size(genv: GlobalEnv, kind: &RawPtrKind, ctor: SubsetTyCtor) -> 
         rty::List::empty(),
     );
 
-    let nu = Expr::nu();
-    let base = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
-    let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
-    let size = Expr::field_proj(nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
-
     let pred = Expr::and_from_iter([
-        Expr::eq(base, addr.clone()),
-        Expr::ne(addr.clone(), Expr::zero()),
+        Expr::eq(base, &addr),
+        Expr::ne(&addr, Expr::zero()),
         Expr::eq(size, size_of_expr),
         Expr::eq(Expr::binary_op(BinOp::Mod(Sort::Int), addr, align_of_expr), Expr::zero()),
     ]);
@@ -2267,9 +2316,9 @@ fn all_predicates_of(
     let mut next_id = Some(id);
     iter::from_fn(move || {
         next_id.take().map(|id| {
-            let preds = tcx.predicates_of(id);
+            let preds = tcx.clauses_of(id);
             next_id = preds.parent;
-            preds.predicates.iter()
+            preds.clauses.iter()
         })
     })
     .flatten()
@@ -2529,12 +2578,11 @@ fn marker_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{E0999, ErrorGuaranteed};
     use flux_infer::infer::InferErr;
+    use flux_macros::msg;
     use flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::LocalDefId;
     use rustc_span::Span;
-
-    use crate::fluent_generated as fluent;
 
     #[derive(Debug)]
     pub struct CheckerError {
@@ -2547,8 +2595,10 @@ pub(crate) mod errors {
             let dcx = genv.sess().dcx().handle();
             match self.kind {
                 InferErr::UnsolvedEvar(_) => {
-                    let mut diag =
-                        dcx.struct_span_err(self.span, fluent::refineck_param_inference_error);
+                    let mut diag = dcx.struct_span_err(
+                        self.span,
+                        msg!("parameter inference error at function call"),
+                    );
                     diag.code(E0999);
                     diag.emit()
                 }

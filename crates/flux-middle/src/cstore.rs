@@ -4,7 +4,7 @@ use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::def_id::CrateNum;
 use rustc_span::{Span, def_id::DefId};
 
-use crate::{PanicSpec, call_graph::NodeKey, def_id::FluxDefId, queries::QueryResult, rty};
+use crate::{PanicSpec, call_graph::NodeKey, def_id::FluxDefId, fhir, queries::QueryResult, rty};
 
 pub type OptResult<T> = Option<QueryResult<T>>;
 
@@ -34,6 +34,7 @@ pub trait CrateStore<'tcx> {
     ) -> OptResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>;
     fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyOrCtor>>;
     fn normalized_defns(&self, krate: CrateNum) -> Rc<rty::NormalizedDefns>;
+    fn flux_module_children(&self, def_id: DefId) -> Option<&[fhir::FluxModChild]>;
     fn func_sort(&self, def_id: FluxDefId) -> Option<rty::PolyFuncSort>;
     fn func_span(&self, def_id: FluxDefId) -> Option<rustc_span::Span>;
     fn sort_decl_param_count(&self, def_id: FluxDefId) -> Option<usize>;

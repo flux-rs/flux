@@ -4,6 +4,7 @@ use std::{collections::HashSet, str::FromStr, vec};
 
 use lookahead::{AnyLit, LAngle, NonReserved, RAngle};
 use rustc_ast::token::Lit;
+use rustc_data_structures::unord::UnordSet;
 use rustc_span::{Symbol, sym::Output};
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
@@ -24,7 +25,7 @@ use crate::{
         ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
         RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
         StaticInfo, StructDef, TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp,
-        VariantDef, VariantRet, WhereBoundPredicate,
+        UseTree, UseTreeKind, VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
@@ -164,6 +165,7 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<FluxItem>>
 ///              | ⟨qualifier⟩
 ///              | ⟨sort_decl⟩
 ///              | ⟨primop_prop⟩
+///              | ⟨use_item⟩
 /// ```
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
     let mut lookahead = cx.lookahead1();
@@ -178,6 +180,8 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
         parse_sort_decl(cx).map(FluxItem::SortDecl)
     } else if lookahead.peek(kw::Property) {
         parse_primop_property(cx).map(FluxItem::PrimOpProp)
+    } else if lookahead.peek(kw::Use) {
+        parse_use_item(cx).map(FluxItem::Use)
     } else {
         Err(lookahead.into_error())
     }
@@ -499,7 +503,7 @@ fn parse_qualifier_kind(cx: &mut ParseCtxt) -> ParseResult<QualifierKind> {
 
 /// ```text
 /// ⟨qualifier⟩ :=  ⟨ qualifier_kind ⟩?
-///                 qualifier ⟨ident⟩ ( ⟨refine_param⟩,* )
+///                 qualifier ⟨ident⟩ ( ⟨qualifier_param⟩,* )
 ///                 ⟨block⟩
 /// ```
 fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
@@ -507,31 +511,52 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let kind = parse_qualifier_kind(cx)?;
     cx.expect(kw::Qualifier)?;
     let mut name = parse_ident(cx)?;
-    let mut params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
+    let (mut params, mut wildcards): (RefineParams, Vec<bool>) =
+        parens(cx, Comma, parse_qualifier_param)?
+            .into_iter()
+            .unzip();
     let expr = parse_block(cx)?;
     let hi = cx.hi();
 
     if let QualifierKind::Hint = kind {
-        let mut fvars = expr.free_vars();
-        for param in &params {
-            fvars.remove(&param.ident);
-        }
-        params.extend(fvars.into_iter().map(|ident| {
-            RefineParam {
-                ident,
-                sort: Sort::Infer,
-                mode: None,
-                span: ident.span,
-                node_id: cx.next_node_id(),
-            }
-        }));
+        // Append the body's free variables that weren't given an explicit sort, keeping the
+        // order in which they appear in the body.
+        let explicit: UnordSet<_> = params.iter().map(|param| param.ident).collect();
+        params.extend(
+            expr.free_vars()
+                .into_iter()
+                .filter(|ident| !explicit.contains(ident))
+                .map(|ident| {
+                    RefineParam {
+                        ident,
+                        sort: Sort::Infer,
+                        mode: None,
+                        span: ident.span,
+                        node_id: cx.next_node_id(),
+                    }
+                }),
+        );
+        // Params synthesized from the body's free variables are bound to values in the enclosing
+        // function, so they are never wildcards.
+        wildcards.resize(params.len(), false);
 
+        // Uniquify the name so hints don't collide with each other (qualifier names are
+        // crate-global). The span alone is not enough: every expansion of a macro like
+        // `qualifier!` transcribes the same `name` token, so all of them share a span. The
+        // node id is a session-global counter, so it distinguishes them.
         let span = name.span;
-        let str = format!("{}_{}_{}", name.name.to_ident_string(), span.lo().0, span.hi().0);
+        let str = format!(
+            "{}_{}_{}_{}",
+            name.name.to_ident_string(),
+            span.lo().0,
+            span.hi().0,
+            cx.next_node_id().as_usize()
+        );
         name = Ident { name: Symbol::intern(&str), ..name };
     }
 
-    Ok(Qualifier { name, params, expr, span: cx.mk_span(lo, hi), kind })
+    debug_assert_eq!(params.len(), wildcards.len());
+    Ok(Qualifier { name, params, wildcards, expr, span: cx.mk_span(lo, hi), kind })
 }
 
 /// ```text
@@ -577,6 +602,39 @@ fn parse_primop_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
     let hi = cx.hi();
 
     Ok(PrimOpProp { name, op, params, body, span: cx.mk_span(lo, hi) })
+}
+
+/// ```text
+/// ⟨use_item⟩ := use ⟨use_tree⟩ ;
+/// ```
+fn parse_use_item(cx: &mut ParseCtxt) -> ParseResult<UseTree> {
+    cx.expect(kw::Use)?;
+    let tree = parse_use_tree(cx)?;
+    cx.expect(token::Semi)?;
+    Ok(tree)
+}
+
+/// ```text
+/// ⟨use_tree⟩ := ⟨ident⟩ ( :: ⟨ident⟩ )* ( :: { ⟨use_tree⟩,* } )?
+/// ```
+fn parse_use_tree(cx: &mut ParseCtxt) -> ParseResult<UseTree> {
+    let lo = cx.lo();
+    let mut segments = vec![parse_expr_path_segment(cx)?];
+    let mut hi = cx.hi();
+    let kind = loop {
+        if !cx.advance_if(token::PathSep) {
+            break UseTreeKind::Simple;
+        }
+        if cx.advance_if(token::OpenBrace) {
+            let items = punctuated_until(cx, token::Comma, token::CloseBrace, parse_use_tree)?;
+            cx.expect(token::CloseBrace)?;
+            break UseTreeKind::Nested(items);
+        }
+        segments.push(parse_expr_path_segment(cx)?);
+        hi = cx.hi();
+    };
+    let prefix = ExprPath { segments, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) };
+    Ok(UseTree { prefix, kind })
 }
 
 pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<TraitAssocReft>> {
@@ -1333,6 +1391,18 @@ fn parse_refine_param(cx: &mut ParseCtxt, require_sort: RequireSort) -> ParseRes
     let sort = parse_sort_if_required(cx, require_sort)?;
     let hi = cx.hi();
     Ok(RefineParam { mode, ident, sort, span: cx.mk_span(lo, hi), node_id: cx.next_node_id() })
+}
+
+/// ```text
+/// ⟨qualifier_param⟩ := #? ⟨refine_param⟩
+/// ```
+///
+/// `#a: int` rather than fixpoint's `a#: int` because rustc lexes the enclosing attribute first and
+/// rejects `a#` as a reserved prefix.
+fn parse_qualifier_param(cx: &mut ParseCtxt) -> ParseResult<(RefineParam, bool)> {
+    let is_wildcard = cx.advance_if(token::Pound);
+    let param = parse_refine_param(cx, RequireSort::Yes)?;
+    Ok((param, is_wildcard))
 }
 
 /// ```text

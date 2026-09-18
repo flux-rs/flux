@@ -402,4 +402,4 @@ macro_rules! _impl_slice_internable {
 }
 pub use crate::_impl_slice_internable as impl_slice_internable;
 
-impl_slice_internable!(rustc_abi::FieldIdx);
+impl_slice_internable!(bool, rustc_abi::FieldIdx);

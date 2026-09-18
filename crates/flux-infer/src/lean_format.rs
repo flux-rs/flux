@@ -231,7 +231,7 @@ impl LeanFmt for LeanField {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         let adt_id = self.0;
         if let Some(def_id) = cx.adt_map.get_index(adt_id.as_usize())
-            && let Ok(adt_sort_def) = cx.genv.adt_sort_def_of(def_id)
+            && let Ok(adt_sort_def) = cx.genv.adt_sort_def_of(*def_id)
         {
             write!(
                 f,
