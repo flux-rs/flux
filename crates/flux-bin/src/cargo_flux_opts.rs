@@ -168,7 +168,7 @@ impl CompileOpts {
     }
 
     fn forward_to_metadata(&self, meta: &mut MetadataCommand) {
-        let CompileOpts { features, manifest, fix: _, fix_opts: _, .. } = self;
+        let CompileOpts { features, manifest, .. } = self;
         features.forward_to_metadata(meta);
         manifest.forward_to_metadata(meta);
     }
