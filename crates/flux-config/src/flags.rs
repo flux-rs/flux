@@ -1,6 +1,6 @@
 use std::{env, path::PathBuf, process, str::FromStr, sync::LazyLock};
 
-use clap::{Args, ArgMatches, Command, FromArgMatches, parser::ValueSource};
+use clap::{ArgMatches, Args, Command, FromArgMatches, parser::ValueSource};
 pub use toml::Value;
 use tracing::Level;
 
@@ -286,9 +286,9 @@ impl Flags {
             }
             let Some(long) = arg.get_long() else { continue };
             match matches.get_raw(id) {
-                Some(values) => out.extend(
-                    values.map(|v| format!("-{long}={}", v.to_string_lossy()))
-                ),
+                Some(values) => {
+                    out.extend(values.map(|v| format!("-{long}={}", v.to_string_lossy())))
+                }
                 None => out.push(format!("-{long}")),
             }
         }
@@ -310,8 +310,12 @@ impl FromArgMatches for FluxFlags {
 }
 
 impl Args for FluxFlags {
-    fn augment_args(cmd: Command) -> Command { Flags::augment_args(cmd) }
-    fn augment_args_for_update(cmd: Command) -> Command { Flags::augment_args_for_update(cmd) }
+    fn augment_args(cmd: Command) -> Command {
+        Flags::augment_args(cmd)
+    }
+    fn augment_args_for_update(cmd: Command) -> Command {
+        Flags::augment_args_for_update(cmd)
+    }
 }
 
 pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
