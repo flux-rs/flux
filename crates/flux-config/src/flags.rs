@@ -20,21 +20,21 @@ pub const EXIT_FAILURE: i32 = 2;
 #[derive(Args)]
 #[command(next_help_heading = "Flux-Specific Flags")]
 pub struct Flags {
-    /// Sets the directory to dump data. Defaults to `./log/`.
+    /// Sets the directory to dump data.
     #[arg(
         long = flux_arg!("log-dir"),
         value_name = "PATH",
         default_value = "./log/",
     )]
     pub log_dir: PathBuf,
-    /// Sets the directory to put all the emitted lean definitions and verification conditions. Defaults to `./`.
+    /// Sets the directory to put all the emitted lean definitions and verification conditions.
     #[arg(
         long = flux_arg!("lean-dir"),
         value_name = "PATH",
         default_value = "./"
     )]
     pub lean_dir: PathBuf,
-    /// Name of the lean project. Defaults to `lean_proofs`.
+    /// Name of the lean project.
     #[arg(
         long = flux_arg!("lean-project"),
         value_name = "NAME",
@@ -50,8 +50,7 @@ pub struct Flags {
     /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
     #[arg(long = flux_arg!("include-trusted-impl"), value_name = "PATTERN")]
     pub include_trusted_impl: Option<IncludePattern>,
-    /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
-    /// (default `64`).
+    /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy.
     #[arg(
         long = flux_arg!("pointer-width"),
         value_name = "WIDTH",
