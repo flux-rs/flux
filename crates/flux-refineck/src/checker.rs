@@ -293,7 +293,7 @@ fn check_fn_subtyping(
         .collect_vec();
 
     let mut env = TypeEnv::empty();
-    let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals)?;
+    let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &[], &actuals, span)?;
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
     let output = infcx.ensure_resolved_evars(|infcx| {
@@ -438,18 +438,28 @@ fn unfold_local_ptrs(
     infcx: &mut InferCtxt,
     env: &mut TypeEnv,
     fn_sig: &PolyFnSig,
+    operands: &[Operand],
     actuals: &[Ty],
+    span: Span,
 ) -> InferResult<Vec<Ty>> {
     // We *only* need to know whether each input is a &strg or not
     let fn_sig = fn_sig.skip_binder_ref();
     let mut tys = vec![];
-    for (actual, input) in izip!(actuals, fn_sig.inputs()) {
+    for (i, (actual, input)) in izip!(actuals, fn_sig.inputs()).enumerate() {
         let actual = if let (
             TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), _),
             TyKind::StrgRef(_, _, _),
         ) = (actual.kind(), input.kind())
         {
-            let loc = env.unfold_local_ptr(infcx, bound)?;
+            // Try to find the canonical strong path of the source operand so that
+            // `fold_local_ptrs` can write the updated pointee type back.
+            let source = operands.get(i).and_then(|operand| match operand {
+                Operand::Copy(place) | Operand::Move(place) => {
+                    env.mut_ref_canonical_path(place, span)
+                }
+                Operand::Constant(_) => None,
+            });
+            let loc = env.unfold_local_ptr(infcx, *re, bound, source)?;
             let path1 = Path::new(loc, rty::List::empty());
             Ty::ptr(PtrKind::Mut(*re), path1)
         } else {
