@@ -26,37 +26,31 @@ pub fn dump_checker_trace() -> Option<Level> {
 }
 
 pub fn dump_constraint() -> bool {
-    FLAGS.dump_constraint.unwrap_or(flags::DUMP_CONSTRAINT)
+    FLAGS.dump_constraint
 }
 
 pub fn dump_fhir() -> bool {
-    FLAGS.dump_fhir.unwrap_or(flags::DUMP_FHIR)
+    FLAGS.dump_fhir
 }
 
 pub fn dump_rty() -> bool {
-    FLAGS.dump_rty.unwrap_or(flags::DUMP_RTY)
+    FLAGS.dump_rty
 }
 
 pub fn pointer_width() -> PointerWidth {
-    FLAGS.pointer_width.unwrap_or_default()
+    FLAGS.pointer_width
 }
 
-pub fn log_dir() -> &'static Path {
-    FLAGS
-        .log_dir
-        .as_deref()
-        .unwrap_or(Path::new(flags::LOG_DIR))
+pub fn log_dir() -> &'static PathBuf {
+    &FLAGS.log_dir
 }
 
-pub fn lean_dir() -> &'static Path {
-    FLAGS
-        .lean_dir
-        .as_deref()
-        .unwrap_or(Path::new(flags::LEAN_DIR))
+pub fn lean_dir() -> &'static PathBuf {
+    &FLAGS.lean_dir
 }
 
 pub fn lean_project() -> &'static str {
-    FLAGS.lean_project.as_deref().unwrap_or(flags::LEAN_PROJECT)
+    &FLAGS.lean_project
 }
 
 pub fn is_cache_enabled() -> bool {
@@ -64,15 +58,15 @@ pub fn is_cache_enabled() -> bool {
 }
 
 pub fn trusted_default() -> bool {
-    FLAGS.trusted_default.unwrap_or(flags::TRUSTED_DEFAULT)
+    FLAGS.trusted_default
 }
 
 pub fn ignore_default() -> bool {
-    FLAGS.ignore_default.unwrap_or(flags::IGNORE_DEFAULT)
+    FLAGS.ignore_default
 }
 
 pub fn lean() -> LeanMode {
-    FLAGS.lean.unwrap_or_default()
+    FLAGS.lean
 }
 
 pub fn cache_path() -> Option<&'static Path> {
@@ -92,25 +86,23 @@ pub fn trusted_impl_pattern() -> Option<&'static IncludePattern> {
 }
 
 fn check_overflow() -> OverflowMode {
-    FLAGS.check_overflow.unwrap_or_default()
+    FLAGS.check_overflow
 }
 
 fn allow_raw_deref() -> RawDerefMode {
-    FLAGS.allow_raw_deref.unwrap_or_default()
+    FLAGS.allow_raw_deref
 }
 
 pub fn allow_uninterpreted_cast() -> bool {
-    FLAGS
-        .allow_uninterpreted_cast
-        .unwrap_or(flags::ALLOW_UNINTERPRETED_CAST)
+    FLAGS.allow_uninterpreted_cast
 }
 
 fn scrape_quals() -> bool {
-    FLAGS.scrape_quals.unwrap_or(flags::SCRAPE_QUALS)
+    FLAGS.scrape_quals
 }
 
 pub fn no_panic() -> bool {
-    FLAGS.no_panic.unwrap_or(flags::NO_PANIC)
+    FLAGS.no_panic
 }
 
 pub fn sysroot() -> Option<PathBuf> {
@@ -123,53 +115,51 @@ pub fn sysroot() -> Option<PathBuf> {
 }
 
 pub fn smt_define_fun() -> bool {
-    FLAGS.smt_define_fun.unwrap_or(flags::SMT_DEFINE_FUN)
+    FLAGS.smt_define_fun
 }
 
 fn solver() -> SmtSolver {
-    FLAGS.solver.unwrap_or_default()
+    FLAGS.solver
 }
 
 pub fn catch_bugs() -> bool {
-    FLAGS.catch_bugs.unwrap_or(flags::CATCH_BUGS)
+    FLAGS.catch_bugs
 }
 
 pub fn annots() -> bool {
-    FLAGS.annots.unwrap_or(flags::ANNOTS)
+    FLAGS.annots
 }
 
 pub fn timings() -> bool {
-    FLAGS.timings.unwrap_or(flags::TIMINGS)
+    FLAGS.timings
 }
 
 pub fn verify() -> bool {
-    FLAGS.verify.unwrap_or(flags::VERIFY)
+    FLAGS.verify
 }
 
 pub fn summary() -> bool {
-    FLAGS.summary.unwrap_or(flags::SUMMARY)
+    FLAGS.summary
 }
 
 pub fn full_compilation() -> bool {
-    FLAGS.full_compilation.unwrap_or(flags::FULL_COMPILATION)
+    FLAGS.full_compilation
 }
 
 pub fn std_extern_specs() -> bool {
-    FLAGS.std_extern_specs.unwrap_or(flags::STD_EXTERN_SPECS)
+    FLAGS.std_extern_specs
 }
 
 pub fn verbose() -> bool {
-    FLAGS.flux_verbose.unwrap_or(flags::VERBOSE)
+    FLAGS.flux_verbose
 }
 
 pub fn no_suggestions_default() -> bool {
-    FLAGS
-        .no_suggestions_default
-        .unwrap_or(flags::NO_SUGGESTIONS_DEFAULT)
+    FLAGS.no_suggestions_default
 }
 
 pub fn rerun_hint() -> bool {
-    FLAGS.rerun_hint.unwrap_or(flags::RERUN_HINT)
+    FLAGS.rerun_hint
 }
 
 /// Whether the driver is running under `cargo flux` (which sets `FLUX_CARGO=1`), as opposed to a
@@ -239,29 +229,34 @@ pub struct IncludePattern {
     pub defs: Vec<String>,
     /// fn whose implementation overlaps the file, line, e.g. `span:tests/tests/pos/detached/detach00.rs:13:3`
     pub spans: Vec<Pos>,
-    /// needed to pass to drivers (this is a bit of a hack, since we can't easily deserialize this struct)
-    pub originals: Vec<String>,
 }
 
 impl IncludePattern {
-    pub(crate) fn new(includes: Vec<String>) -> Result<Self, String> {
+    fn new(includes: Vec<String>) -> Result<Self, String> {
         let mut defs = Vec::new();
         let mut spans = Vec::new();
         let mut glob = GlobSetBuilder::new();
-        for include in &includes {
+        for include in includes {
             if let Some(suffix) = include.strip_prefix("def:") {
                 defs.push(suffix.to_string());
             } else if let Some(suffix) = include.strip_prefix("span:") {
                 spans.push(Pos::from_str(suffix)?);
             } else {
-                let suffix = include.strip_prefix("glob:").unwrap_or(include);
+                let suffix = include.strip_prefix("glob:").unwrap_or(&include);
                 let glob_pattern = Glob::new(suffix.trim()).map_err(|_| "invalid glob pattern")?;
                 glob.add(glob_pattern);
             }
         }
         let glob = glob.build().map_err(|_| "failed to build glob set")?;
-        let originals = includes;
-        Ok(IncludePattern { glob, defs, spans, originals })
+        Ok(IncludePattern { glob, defs, spans })
+    }
+}
+
+impl FromStr for IncludePattern {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::new(vec![s.to_string()])
     }
 }
 
