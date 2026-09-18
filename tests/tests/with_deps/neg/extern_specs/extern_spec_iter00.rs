@@ -1,6 +1,8 @@
 #![allow(unused)]
 use std::slice::Iter;
 
+use flux_rs::{assert, macros::qualifier};
+
 extern crate flux_core;
 
 #[flux_rs::extern_spec(std::slice)]
@@ -23,9 +25,6 @@ trait Iterator {
     where
         Self: Sized;
 }
-
-#[flux_rs::sig(fn (bool[true]))]
-fn assert(_b: bool) {}
 
 #[flux_rs::extern_spec]
 #[flux_rs::assoc(fn done(x: Iter) -> bool { x.idx >= x.len })]
@@ -146,3 +145,18 @@ pub fn find_index_of_3(slice: &[usize]) -> Option<usize> {
 }
 
 // TODO: implement IntoIter so I can use these with `for` loops
+
+#[flux_rs::spec(fn(target: &mut [i32][4], iter: I))]
+pub fn test_take_easy<I>(target: &mut [i32], iter: I)
+where
+    I: IntoIterator<Item = i32>,
+{
+    let iter = iter.into_iter();
+    let mut pushed = 0;
+    for element in iter.take(5) {
+        // Relates `pushed` to the `Take`'s remaining count, which the `for` desugaring hides.
+        qualifier!(pushed: int, k: int ; pushed + k == 5);
+        target[pushed] = element; //~ ERROR: assertion might fail
+        pushed += 1;
+    }
+}

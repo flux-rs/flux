@@ -14,6 +14,14 @@ struct Enumerate<I>;
 )]
 impl<I: Iterator> Iterator for Enumerate<I> {
     #[spec(fn(self: &mut Enumerate<I>[@curr_s]) -> Option<(usize[curr_s.idx], _)>[!<I as Iterator>::done(curr_s.inner)]
-           ensures self: Enumerate<I>{next_s: curr_s.idx + 1 == next_s.idx && <I as Iterator>::step(curr_s.inner, next_s.inner)})]
+           ensures self: Enumerate<I>[#next_s],
+                   curr_s.idx + 1 == next_s.idx,
+                   <I as Iterator>::step(curr_s.inner, next_s.inner),
+                   if <I as Iterator>::done(curr_s.inner) {
+                       <I as Iterator>::size(curr_s.inner) == 0
+                   } else {
+                       <I as Iterator>::size(curr_s.inner) > 0
+                           && <I as Iterator>::size(next_s.inner) == <I as Iterator>::size(curr_s.inner) - 1
+                   })]
     fn next(&mut self) -> Option<(usize, <I as Iterator>::Item)>;
 }

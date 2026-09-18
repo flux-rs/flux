@@ -7,7 +7,7 @@ struct Iter<'a, T>;
 #[extern_spec(core::slice)]
 impl<'a, T> Iter<'a, T> {
     #[no_panic]
-    #[spec(fn(&Self[@it]) -> &[T][it.len])]
+    #[spec(fn(&Self[@it]) -> &[T][it.len - it.idx])]
     fn as_slice(&self) -> &'a [T];
 }
 
@@ -15,12 +15,19 @@ impl<'a, T> Iter<'a, T> {
 #[assoc(
     fn size(x: Iter) -> int { x.len - x.idx }
     fn done(x: Iter) -> bool { x.idx >= x.len }
-    fn step(x: Iter, y: Iter) -> bool { x.idx + 1 == y.idx && x.len == y.len}
+    fn step(x: Iter, y: Iter) -> bool {
+        x.len == y.len &&
+        (if x.idx < x.len { y.idx == x.idx + 1 } else { y.idx == x.idx })
+    }
 )]
 impl<'a, T> Iterator for Iter<'a, T> {
     #[no_panic]
     #[spec(fn(self: &mut Iter<T>[@curr_s]) -> Option<_>[curr_s.idx < curr_s.len]
-           ensures self: Iter<T>{next_s: curr_s.idx + 1 == next_s.idx && curr_s.len == next_s.len})]
+           ensures self: Iter<T>{next_s:
+               curr_s.len == next_s.len &&
+               (curr_s.idx < curr_s.len => next_s.idx == curr_s.idx + 1) &&
+               (curr_s.idx >= curr_s.len => next_s.idx == curr_s.idx)
+           })]
     fn next(&mut self) -> Option<&'a T>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/iter/traits/iterator.rs#L3049
@@ -46,12 +53,17 @@ struct Windows<'a, T>;
 #[assoc(
     fn size(x: Windows) -> int { if x.window_size > x.remaining { 0 } else { x.remaining - x.window_size + 1 } }
     fn done(x: Windows) -> bool { x.remaining < x.window_size }
-    fn step(x: Windows, y: Windows) -> bool { y.remaining == x.remaining - 1 && y.window_size == x.window_size }
+    fn step(x: Windows, y: Windows) -> bool {
+        y.remaining == if x.remaining >= x.window_size { x.remaining - 1 } else { x.remaining }
+        && y.window_size == x.window_size
+    }
 )]
 impl<'a, T> Iterator for Windows<'a, T> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/iter.rs#L1356
     #[no_panic]
     #[spec(fn(self: &mut Windows<T>[@curr_s]) -> Option<&[T][curr_s.window_size]>[curr_s.remaining >= curr_s.window_size]
-           ensures self: Windows<T>{next_s: next_s.remaining == curr_s.remaining - 1 && next_s.window_size == curr_s.window_size})]
+           ensures self: Windows<T>{next_s:
+               next_s.remaining == if curr_s.remaining >= curr_s.window_size { curr_s.remaining - 1 } else { curr_s.remaining }
+               && next_s.window_size == curr_s.window_size})]
     fn next(&mut self) -> Option<&'a [T]>;
 }

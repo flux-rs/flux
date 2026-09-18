@@ -53,6 +53,7 @@ use crate::{
 pub enum Attr {
     Trusted(Trusted),
     TrustedImpl(Trusted),
+    TrustedDerive(Trusted),
     Ignore(Ignored),
     ProvenExternally(Span),
     ShouldFail,
@@ -94,6 +95,12 @@ impl AttrMap<'_> {
     pub(crate) fn trusted_impl(&self) -> Option<Trusted> {
         self.attrs.iter().find_map(|attr| {
             if let Attr::TrustedImpl(trusted) = *attr { Some(trusted) } else { None }
+        })
+    }
+
+    pub(crate) fn trusted_derive(&self) -> Option<Trusted> {
+        self.attrs.iter().find_map(|attr| {
+            if let Attr::TrustedDerive(trusted) = *attr { Some(trusted) } else { None }
         })
     }
 
@@ -142,13 +149,14 @@ pub struct GenericParam<'fhir> {
 pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
     Lifetime,
-    Const { ty: Ty<'fhir> },
+    Const { ty: Ty<'fhir>, has_default: bool },
 }
 
 #[derive(Debug)]
 pub struct Qualifier<'fhir> {
     pub def_id: FluxLocalDefId,
     pub args: &'fhir [RefineParam<'fhir>],
+    pub wildcards: &'fhir [bool],
     pub expr: Expr<'fhir>,
     pub kind: QualifierKind,
 }
@@ -1268,7 +1276,7 @@ impl<Id> Res<Id> {
 
     pub fn is_box(&self, tcx: TyCtxt) -> bool {
         if let Res::Def(DefKind::Struct, def_id) = self {
-            tcx.adt_def(def_id).is_box()
+            tcx.adt_def(*def_id).is_box()
         } else {
             false
         }

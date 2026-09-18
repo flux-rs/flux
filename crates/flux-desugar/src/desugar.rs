@@ -27,6 +27,7 @@ use flux_syntax::{
 };
 use hir::{ItemKind, def::DefKind};
 use itertools::{Either, Itertools};
+use rustc_ast::ast;
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordSet};
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hir::{self as hir, OwnerId};
@@ -72,6 +73,32 @@ fn collect_generics_in_params(
             |param| if vis.found.contains(&param.def_id) { Some(param.def_id) } else { None },
         )
         .collect()
+}
+
+/// Collect the spans of every hole (`_`) inside a qualified path `<qself as path>`.
+fn collect_holes(qself: &surface::Ty, path: &surface::Path) -> Vec<Span> {
+    struct HoleCollector {
+        holes: Vec<Span>,
+    }
+    impl surface::visit::Visitor for HoleCollector {
+        fn visit_ty(&mut self, ty: &surface::Ty) {
+            if let surface::TyKind::Hole = ty.kind {
+                self.holes.push(ty.span);
+            }
+            surface::visit::walk_ty(self, ty);
+        }
+
+        fn visit_const_arg(&mut self, const_arg: &surface::ConstArg) {
+            if let surface::ConstArgKind::Infer = const_arg.kind {
+                self.holes.push(const_arg.span);
+            }
+            surface::visit::walk_const_arg(self, const_arg);
+        }
+    }
+    let mut vis = HoleCollector { holes: vec![] };
+    vis.visit_ty(qself);
+    vis.visit_path(path);
+    vis.holes
 }
 
 pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
@@ -663,7 +690,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> fhir::OpaqueTy<'genv> {
         let output = self.desugar_fn_ret_ty(returns);
         let trait_ref = self.make_lang_item_path(
-            hir::LangItem::Future,
+            hir::attrs::lang_items::LangItem::Future,
             DUMMY_SP,
             &[],
             self.genv.alloc_slice(&[fhir::AssocItemConstraint {
@@ -686,7 +713,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn make_lang_item_path(
         &mut self,
-        lang_item: hir::LangItem,
+        lang_item: hir::attrs::lang_items::LangItem,
         span: Span,
         args: &'genv [fhir::GenericArg<'genv>],
         constraints: &'genv [fhir::AssocItemConstraint<'genv>],
@@ -877,6 +904,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         fhir::Qualifier {
             def_id: self.owner,
             args: self.desugar_refine_params(&qualifier.params),
+            wildcards: self.genv().alloc_slice(&qualifier.wildcards),
             kind,
             expr: self.desugar_expr(&qualifier.expr),
         }
@@ -945,6 +973,14 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
 
     fn resolve_implicit_param(&self, node_id: NodeId) -> Option<(fhir::ParamId, fhir::ParamKind)> {
         self.resolver_output().param_res_map.get(&node_id).copied()
+    }
+
+    /// Holes are filled in by zipping the annotation against the corresponding rust type, so
+    /// they cannot appear in a qualified path `<qself as path>`, which has no rust counterpart.
+    fn check_no_holes(&self, qself: &surface::Ty, path: &surface::Path) -> Result {
+        collect_holes(qself, path)
+            .into_iter()
+            .try_for_each_exhaust(|span| Err(self.emit(errors::UnsupportedHole::new(span))))
     }
 
     fn desugar_epath(&self, path: &surface::ExprPath) -> fhir::QPathExpr<'genv> {
@@ -1141,7 +1177,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 fhir::Sort::Path(path)
             }
             surface::BaseSort::SortOf(qself, path) => {
-                fhir::Sort::SortOf(self.desugar_path_to_bty(Some(qself), path))
+                match self.check_no_holes(qself, path) {
+                    Ok(()) => fhir::Sort::SortOf(self.desugar_path_to_bty(Some(qself), path)),
+                    Err(err) => fhir::Sort::Err(err),
+                }
             }
             surface::BaseSort::Tuple(sorts) => {
                 let sorts = genv.alloc_slice_fill_iter(
@@ -1603,6 +1642,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 fhir::ExprKind::PrimApp(*op, &args[0], &args[1])
             }
             surface::ExprKind::AssocReft(qself, path, name) => {
+                if let Err(err) = self.check_no_holes(qself, path) {
+                    return fhir::ExprKind::Err(err);
+                }
                 let qself = self.desugar_ty(qself);
                 let fhir::QPath::Resolved(None, trait_) = self.desugar_qpath(None, path) else {
                     span_bug!(path.span, "desugar_alias_reft: unexpected qpath")
@@ -1731,7 +1773,13 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
             surface::LitKind::Bool => fhir::Lit::Bool(lit.symbol == kw::True),
             surface::LitKind::Str => fhir::Lit::Str(lit.symbol),
-            surface::LitKind::Char => fhir::Lit::Char(lit.symbol.as_str().parse::<char>().unwrap()),
+            surface::LitKind::Char => {
+                // Use rustc's literal parsing to correctly handle escape sequences, e.g., `'\n'`
+                match ast::LitKind::from_token_lit(lit) {
+                    Ok(ast::LitKind::Char(c)) => fhir::Lit::Char(c),
+                    _ => return fhir::ExprKind::Err(self.emit(errors::UnexpectedLiteral { span })),
+                }
+            }
             _ => return fhir::ExprKind::Err(self.emit(errors::UnexpectedLiteral { span })),
         };
         fhir::ExprKind::Literal(lit)

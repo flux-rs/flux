@@ -9,6 +9,7 @@ pub mod wrapper {
     use flux_rs::specs;
 
     #[flux_rs::reflect]
+    #[flux_rs::trusted_derive(reason = "the detached spec below is the trusted contract for the derived `eq`")]
     #[derive(PartialEq)]
     pub enum Role {
         User,

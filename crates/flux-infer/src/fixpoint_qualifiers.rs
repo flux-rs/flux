@@ -4,23 +4,23 @@ use liquid_fixpoint::{BinOp, BinRel, Sort};
 
 use crate::fixpoint_encoding::fixpoint::{
     LocalVar, Var,
-    fixpoint_generated::{Expr, Qualifier},
+    fixpoint_generated::{Expr, QualParam, Qualifier},
 };
 pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new(|| {
     // UNARY
     let eqtrue = Qualifier {
         name: String::from("EqTrue"),
-        args: vec![(Var::Local(LocalVar::from(0u32)), Sort::Bool)],
+        args: vec![QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Bool)],
         body: Expr::Var(Var::Local(LocalVar::from(0u32))),
     };
     let eqfalse = Qualifier {
         name: String::from("EqFalse"),
-        args: vec![(Var::Local(LocalVar::from(0u32)), Sort::Bool)],
+        args: vec![QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Bool)],
         body: Expr::Not(Box::new(Expr::Var(Var::Local(LocalVar::from(0u32))))),
     };
     let eqzero = Qualifier {
         name: String::from("EqZero"),
-        args: vec![(Var::Local(LocalVar::from(0u32)), Sort::Int)],
+        args: vec![QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Int)],
         body: Expr::Atom(
             BinRel::Eq,
             Box::new([Expr::Var(Var::Local(LocalVar::from(0u32))), Expr::int(0)]),
@@ -28,7 +28,7 @@ pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new
     };
     let gtzero = Qualifier {
         name: String::from("GtZero"),
-        args: vec![(Var::Local(LocalVar::from(0u32)), Sort::Int)],
+        args: vec![QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Int)],
         body: Expr::Atom(
             BinRel::Gt,
             Box::new([Expr::Var(Var::Local(LocalVar::from(0u32))), Expr::int(0)]),
@@ -36,7 +36,7 @@ pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new
     };
     let gezero = Qualifier {
         name: String::from("GeZero"),
-        args: vec![(Var::Local(LocalVar::from(0u32)), Sort::Int)],
+        args: vec![QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Int)],
         body: Expr::Atom(
             BinRel::Ge,
             Box::new([Expr::Var(Var::Local(LocalVar::from(0u32))), Expr::int(0)]),
@@ -44,7 +44,7 @@ pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new
     };
     let ltzero = Qualifier {
         name: String::from("LtZero"),
-        args: vec![(Var::Local(LocalVar::from(0u32)), Sort::Int)],
+        args: vec![QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Int)],
         body: Expr::Atom(
             BinRel::Lt,
             Box::new([Expr::Var(Var::Local(LocalVar::from(0u32))), Expr::int(0)]),
@@ -52,7 +52,7 @@ pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new
     };
     let lezero = Qualifier {
         name: String::from("LeZero"),
-        args: vec![(Var::Local(LocalVar::from(0u32)), Sort::Int)],
+        args: vec![QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Int)],
         body: Expr::Atom(
             BinRel::Le,
             Box::new([Expr::Var(Var::Local(LocalVar::from(0u32))), Expr::int(0)]),
@@ -63,8 +63,8 @@ pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new
     let eq = Qualifier {
         name: String::from("Eq"),
         args: vec![
-            (Var::Local(LocalVar::from(0u32)), Sort::Int),
-            (Var::Local(LocalVar::from(1u32)), Sort::Int),
+            QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Int),
+            QualParam::new(Var::Local(LocalVar::from(1u32)), Sort::Int),
         ],
         body: Expr::Atom(
             BinRel::Eq,
@@ -77,8 +77,8 @@ pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new
     let gt = Qualifier {
         name: String::from("Gt"),
         args: vec![
-            (Var::Local(LocalVar::from(0u32)), Sort::Int),
-            (Var::Local(LocalVar::from(1u32)), Sort::Int),
+            QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Int),
+            QualParam::new(Var::Local(LocalVar::from(1u32)), Sort::Int),
         ],
         body: Expr::Atom(
             BinRel::Gt,
@@ -92,8 +92,8 @@ pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new
         Qualifier {
             name: String::from("Ge"),
             args: vec![
-                (Var::Local(LocalVar::from(0u32)), Sort::Int),
-                (Var::Local(LocalVar::from(1u32)), Sort::Int),
+                QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Int),
+                QualParam::new(Var::Local(LocalVar::from(1u32)), Sort::Int),
             ],
             body: Expr::Atom(
                 BinRel::Ge,
@@ -106,8 +106,8 @@ pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new
     let lt = Qualifier {
         name: String::from("Lt"),
         args: vec![
-            (Var::Local(LocalVar::from(0u32)), Sort::Int),
-            (Var::Local(LocalVar::from(1u32)), Sort::Int),
+            QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Int),
+            QualParam::new(Var::Local(LocalVar::from(1u32)), Sort::Int),
         ],
         body: Expr::Atom(
             BinRel::Lt,
@@ -120,8 +120,8 @@ pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new
     let le = Qualifier {
         name: String::from("Le"),
         args: vec![
-            (Var::Local(LocalVar::from(0u32)), Sort::Int),
-            (Var::Local(LocalVar::from(1u32)), Sort::Int),
+            QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Int),
+            QualParam::new(Var::Local(LocalVar::from(1u32)), Sort::Int),
         ],
         body: Expr::Atom(
             BinRel::Le,
@@ -134,8 +134,8 @@ pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new
     let le1 = Qualifier {
         name: String::from("Le1"),
         args: vec![
-            (Var::Local(LocalVar::from(0u32)), Sort::Int),
-            (Var::Local(LocalVar::from(1u32)), Sort::Int),
+            QualParam::new(Var::Local(LocalVar::from(0u32)), Sort::Int),
+            QualParam::new(Var::Local(LocalVar::from(1u32)), Sort::Int),
         ],
         body: Expr::Atom(
             BinRel::Le,

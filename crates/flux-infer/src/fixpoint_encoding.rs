@@ -347,9 +347,10 @@ impl SortEncodingCtxt {
             // Well-formedness should ensure values of these sorts are used "opaquely", i.e.
             // the only values of these sorts are variables.
             rty::Sort::Param(_)
-            | rty::Sort::Alias(rty::AliasKind::Opaque | rty::AliasKind::Projection, ..) => {
-                fixpoint::Sort::Int
-            }
+            | rty::Sort::Alias(rty::AliasTy {
+                kind: rty::AliasKind::Opaque { .. } | rty::AliasKind::Projection { .. },
+                ..
+            }) => fixpoint::Sort::Int,
             rty::Sort::App(rty::SortCtor::Set, args) => {
                 let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
                 fixpoint::Sort::App(fixpoint::SortCtor::Set, args)
@@ -400,7 +401,7 @@ impl SortEncodingCtxt {
             rty::Sort::Err
             | rty::Sort::Infer(_)
             | rty::Sort::Loc
-            | rty::Sort::Alias(rty::AliasKind::Free, _) => {
+            | rty::Sort::Alias(rty::AliasTy { kind: rty::AliasKind::Free { .. }, .. }) => {
                 tracked_span_bug!("unexpected sort `{sort:?}`")
             }
         }
@@ -453,7 +454,7 @@ impl SortEncodingCtxt {
             .iter()
             .enumerate()
             .map(|(idx, sort)| {
-                let param_count = genv.sort_decl_param_count(sort);
+                let param_count = genv.sort_decl_param_count(*sort);
                 let sort_decl = fixpoint::SortDecl {
                     name: fixpoint::DataSort::User(OpaqueId::from_usize(idx)),
                     vars: param_count,
@@ -473,7 +474,7 @@ impl SortEncodingCtxt {
         let mut idx = 0;
         while let Some(adt_def_id) = self.adt_sorts.get_index(idx) {
             let adt_id = AdtId::from_usize(idx);
-            let adt_sort_def = genv.adt_sort_def_of(adt_def_id)?;
+            let adt_sort_def = genv.adt_sort_def_of(*adt_def_id)?;
             decls.push(fixpoint::DataDecl {
                 name: fixpoint::DataSort::Adt(adt_id),
                 vars: adt_sort_def.param_count(),
@@ -2405,7 +2406,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
             match key {
                 ConstKey::RustConst(def_id) => {
-                    let info = self.genv.constant_info(def_id)?;
+                    let info = self.genv.constant_info(*def_id)?;
                     match info {
                         rty::ConstantInfo::Uninterpreted => {}
                         rty::ConstantInfo::Interpreted(val, _) => {
@@ -2559,6 +2560,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Qualifier> {
         let (args, body) = self.body_to_fixpoint(&qualifier.body, scx)?;
         let name = qualifier.def_id.name().to_string();
+        // `body_to_fixpoint` returns args in `body.vars()` order, which is how `wildcards` is indexed.
+        debug_assert_eq!(args.len(), qualifier.wildcards.len());
+        let args = iter::zip(args, &qualifier.wildcards)
+            .map(|((name, sort), &is_wildcard)| fixpoint::QualParam { name, sort, is_wildcard })
+            .collect();
         Ok(fixpoint::Qualifier { name, args, body })
     }
 }

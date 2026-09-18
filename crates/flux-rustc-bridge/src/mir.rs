@@ -15,7 +15,7 @@ use rustc_data_structures::{
 use rustc_hir::{self as hir, def_id::DefId};
 use rustc_index::IndexSlice;
 use rustc_macros::{TyDecodable, TyEncodable};
-use rustc_middle::mir::{Promoted, VarDebugInfoContents};
+use rustc_middle::mir::{Promoted, VarDebugInfoContents, WithRetag};
 pub use rustc_middle::{
     mir::{
         BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
@@ -90,12 +90,7 @@ impl<'tcx> BodyRoot<'tcx> {
     }
 
     pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
-        self.facts
-            .borrow_set
-            .location_map()
-            .get_index(idx.as_usize())
-            .unwrap()
-            .1
+        &self.facts.borrow_set[idx]
     }
 }
 
@@ -263,7 +258,7 @@ pub enum StatementKind<'tcx> {
 
 /// Corresponds to <https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.Rvalue.html>
 pub enum Rvalue<'tcx> {
-    Use(Operand<'tcx>),
+    Use(Operand<'tcx>, WithRetag),
     Repeat(Operand<'tcx>, Const),
     Ref(Region, BorrowKind, Place),
     RawPtr(RawPtrKind, Place),
@@ -272,7 +267,6 @@ pub enum Rvalue<'tcx> {
     UnaryOp(UnOp, Operand<'tcx>),
     Discriminant(Place),
     Aggregate(AggregateKind, Vec<Operand<'tcx>>),
-    ShallowInitBox(Operand<'tcx>, Ty),
 }
 
 #[derive(Copy, Clone)]
@@ -710,7 +704,7 @@ impl fmt::Debug for PlaceRef<'_> {
 impl fmt::Debug for Rvalue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Rvalue::Use(op) => write!(f, "{op:?}"),
+            Rvalue::Use(op, _) => write!(f, "{op:?}"),
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
                 write!(f, "&{} mut {place:?}", region_to_string(*r))
             }
@@ -766,7 +760,6 @@ impl fmt::Debug for Rvalue<'_> {
             }
             Rvalue::Cast(kind, op, ty) => write!(f, "{op:?} as {ty:?} [{kind:?}]"),
             Rvalue::Repeat(op, c) => write!(f, "[{op:?}; {c:?}]"),
-            Rvalue::ShallowInitBox(op, ty) => write!(f, "ShallowInitBox({op:?}, {ty:?})"),
         }
     }
 }

@@ -1,6 +1,6 @@
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 use core::ops::Index;
-#[cfg(flux)]
+#[cfg(any(flux, doc))]
 use core::ops::IndexMut;
 
 use flux_attrs::*;

@@ -5,6 +5,7 @@ use std::{env, path::PathBuf, str::FromStr};
 
 use compiletest_rs::{Config, common::Mode};
 use flux_dev::{Suite, default_flags};
+use flux_sysroot::SysrootManifest;
 use itertools::Itertools;
 
 #[derive(Debug)]
@@ -72,7 +73,7 @@ fn test_runner(_: &[&()]) {
     let mut config =
         Config { rustc_path: args.flux_driver, filters: args.filters, ..Config::default() };
 
-    let mut flags = default_flags(&args.sysroot);
+    let mut flags = default_flags(&args.sysroot, SysrootManifest::extern_args(&args.sysroot));
 
     // Pass `--emit=metadata` and `-Ffull-compilation=on` to make sure we emit `.fluxmeta` and
     // other artifacts for tests using `@aux-build`.

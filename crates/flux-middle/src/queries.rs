@@ -7,6 +7,7 @@ use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
 use flux_config as config;
 use flux_errors::{E0999, ErrorGuaranteed};
+use flux_macros::msg;
 use flux_rustc_bridge::{
     self, def_id_to_string,
     lowering::{self, Lower, UnsupportedErr},
@@ -16,9 +17,9 @@ use flux_rustc_bridge::{
 use flux_syntax::{surface, symbols::sym};
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
-use rustc_errors::Diagnostic;
+use rustc_errors::{DiagMessage, Diagnostic};
 use rustc_hir::{
-    LangItem,
+    attrs::lang_items::LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
@@ -400,21 +401,20 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         &items
                             .iter()
                             .filter_map(|item| {
-                                let res;
                                 let ident;
-                                match item {
+                                let res = match item {
                                     surface::FluxItem::FuncDef(func) => {
                                         ident = func.name;
-                                        res = fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
+                                        fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
                                             FluxDefId::new(parent.to_def_id(), ident.name),
-                                        ));
+                                        ))
                                     }
                                     surface::FluxItem::SortDecl(sort) => {
                                         ident = sort.name;
-                                        res = fhir::Res::UserSort(FluxDefId::new(
+                                        fhir::Res::UserSort(FluxDefId::new(
                                             parent.to_def_id(),
                                             ident.name,
-                                        ));
+                                        ))
                                     }
                                     surface::FluxItem::Qualifier(_)
                                     | surface::FluxItem::PrimOpProp(_)
@@ -488,7 +488,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     ) -> QueryResult<ty::GenericPredicates> {
         run_with_cache(&self.lower_predicates_of, def_id, || {
             genv.tcx()
-                .predicates_of(def_id)
+                .clauses_of(def_id)
                 .lower(genv.tcx())
                 .map_err(|err| QueryErr::unsupported(def_id, err))
         })
@@ -500,7 +500,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<ty::EarlyBinder<ty::Ty>> {
         run_with_cache(&self.lower_type_of, def_id, || {
-            let ty = genv.tcx().type_of(def_id).instantiate_identity();
+            let ty = genv
+                .tcx()
+                .type_of(def_id)
+                .instantiate_identity()
+                .skip_norm_wip();
             Ok(ty::EarlyBinder(
                 ty.lower(genv.tcx())
                     .map_err(|err| QueryErr::unsupported(def_id, err.into_err()))?,
@@ -514,7 +518,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
         run_with_cache(&self.lower_fn_sig, def_id, || {
-            let fn_sig = genv.tcx().fn_sig(def_id).instantiate_identity();
+            let fn_sig = genv
+                .tcx()
+                .fn_sig(def_id)
+                .instantiate_identity()
+                .skip_norm_wip();
             Ok(ty::EarlyBinder(
                 fn_sig
                     .lower(genv.tcx())
@@ -1194,6 +1202,10 @@ where
     v
 }
 
+const OPAQUE_STRUCT: DiagMessage = msg!("invalid use of opaque struct");
+const MISSING_ASSOC_REFT: DiagMessage =
+    msg!("associated refinement `{$name}` is missing from implementation");
+
 impl<'a> Diagnostic<'a> for QueryErr {
     #[track_caller]
     fn into_diag(
@@ -1201,8 +1213,6 @@ impl<'a> Diagnostic<'a> for QueryErr {
         dcx: rustc_errors::DiagCtxtHandle<'a>,
         _level: rustc_errors::Level,
     ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
-        use crate::fluent_generated as fluent;
-
         rustc_middle::ty::tls::with_opt(
             #[track_caller]
             |tcx| {
@@ -1210,42 +1220,44 @@ impl<'a> Diagnostic<'a> for QueryErr {
                 match self {
                     QueryErr::Unsupported { def_id, err } => {
                         let span = err.span.unwrap_or_else(|| tcx.def_span(def_id));
-                        let mut diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
+                        let mut diag = dcx.struct_span_err(span, msg!("unsupported signature"));
                         diag.code(E0999);
                         diag.note(err.descr);
                         diag
                     }
                     QueryErr::Ignored { def_id } => {
                         let def_span = tcx.def_span(def_id);
-                        let mut diag =
-                            dcx.struct_span_err(def_span, fluent::middle_query_ignored_item);
+                        let mut diag = dcx.struct_span_err(def_span, msg!("use of ignored item"));
                         diag.code(E0999);
                         diag
                     }
                     QueryErr::NotIncluded { def_id } => {
                         let def_span = tcx.def_span(def_id);
-                        let mut diag =
-                            dcx.struct_span_err(def_span, fluent::middle_query_not_included_item);
+                        let mut diag = dcx.struct_span_err(
+                            def_span,
+                            msg!("use of item defined in external crate, but was not included when checking that crate"),
+                        );
                         diag.code(E0999);
                         diag
                     }
                     QueryErr::InvalidGenericArg { def_id } => {
                         let def_span = tcx.def_span(def_id);
-                        let mut diag =
-                            dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
+                        let mut diag = dcx.struct_span_err(
+                            def_span,
+                            msg!("cannot instantiate base generic with opaque type or a type parameter of kind type"),
+                        );
                         diag.code(E0999);
                         diag
                     }
                     QueryErr::MissingAssocReft { impl_id, name, .. } => {
                         let def_span = tcx.def_span(impl_id);
-                        let mut diag =
-                            dcx.struct_span_err(def_span, fluent::middle_query_missing_assoc_reft);
+                        let mut diag = dcx.struct_span_err(def_span, MISSING_ASSOC_REFT);
                         diag.arg("name", name);
                         diag.code(E0999);
                         diag
                     }
                     QueryErr::Bug { def_id, location, msg } => {
-                        let mut diag = dcx.struct_err(fluent::middle_query_bug);
+                        let mut diag = dcx.struct_err(msg!("internal flux error: {$location}"));
                         if let Some(def_id) = def_id {
                             diag.span(tcx.def_span(def_id));
                         }
@@ -1260,8 +1272,7 @@ impl<'a> Diagnostic<'a> for QueryErr {
                     }
                     QueryErr::OpaqueStruct { struct_id } => {
                         let struct_span = tcx.def_span(struct_id);
-                        let mut diag =
-                            dcx.struct_span_err(struct_span, fluent::middle_query_opaque_struct);
+                        let mut diag = dcx.struct_span_err(struct_span, OPAQUE_STRUCT);
                         diag.arg("struct", tcx.def_path_str(struct_id));
                         diag
                     }
@@ -1278,8 +1289,6 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
         dcx: rustc_errors::DiagCtxtHandle<'a>,
         level: rustc_errors::Level,
     ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
-        use crate::fluent_generated as fluent;
-
         rustc_middle::ty::tls::with_opt(
             #[track_caller]
             |tcx| {
@@ -1288,50 +1297,72 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                 let mut diag = match self.err {
                     QueryErr::Unsupported { def_id, err, .. } => {
                         let mut diag =
-                            dcx.struct_span_err(cx_span, fluent::middle_query_unsupported_at);
+                            dcx.struct_span_err(cx_span, msg!("use of unsupported {$kind}"));
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
-                            diag.span_note(def_ident_span, fluent::_subdiag::note);
+                            diag.span_note(
+                                def_ident_span,
+                                msg!("this {$kind} has unsupported features"),
+                            );
                         }
                         diag.note(err.descr);
                         diag
                     }
                     QueryErr::Ignored { def_id } => {
                         let mut diag =
-                            dcx.struct_span_err(cx_span, fluent::middle_query_ignored_at);
+                            dcx.struct_span_err(cx_span, msg!("use of ignored {$kind} `{$name}`"));
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
-                        diag.span_label(cx_span, fluent::_subdiag::label);
+                        diag.span_label(cx_span, msg!("help: try ignoring or trusting this code"));
                         diag
                     }
                     QueryErr::NotIncluded { def_id } => {
-                        let mut diag =
-                            dcx.struct_span_err(cx_span, fluent::middle_query_not_included_at);
+                        let mut diag = dcx.struct_span_err(
+                            cx_span,
+                            msg!("use of {$kind} `{$name}` that was not included when checking external crate"),
+                        );
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
                         let span = tcx
                             .def_ident_span(def_id)
                             .unwrap_or_else(|| tcx.def_span(def_id));
-                        diag.span_help(span, fluent::_subdiag::help);
+                        diag.span_help(
+                            span,
+                            msg!("when checking external crate, include the file or module where the excluded item is defined"),
+                        );
                         diag
                     }
                     QueryErr::MissingAssocReft { name, .. } => {
-                        let mut diag = dcx
-                            .struct_span_err(cx_span, fluent::middle_query_missing_assoc_reft_at);
+                        let mut diag = dcx.struct_span_err(cx_span, MISSING_ASSOC_REFT);
                         diag.arg("name", name);
                         diag.code(E0999);
                         diag
                     }
                     QueryErr::OpaqueStruct { struct_id } => {
-                        let mut diag =
-                            dcx.struct_span_err(cx_span, fluent::middle_query_opaque_struct);
+                        let mut diag = dcx.struct_span_err(cx_span, OPAQUE_STRUCT);
                         diag.arg("struct", tcx.def_path_str(struct_id));
-                        diag.span_label(cx_span, fluent::_subdiag::label);
+                        diag.span_label(
+                            cx_span,
+                            msg!("operation accesses the internal representation of `{$struct}`"),
+                        );
                         if let ErrCtxt::FnCheck(_, fn_def_id) = self.cx {
                             let fn_span = tcx.def_span(fn_def_id);
-                            diag.arg("def_kind", tcx.def_descr(fn_def_id.to_def_id()));
-                            diag.span_label(fn_span, fluent::middle_query_opaque_struct_help);
-                            diag.note(fluent::middle_query_opaque_struct_note);
+                            if fn_span.in_derive_expansion() {
+                                // reset message span to use the type definition
+                                diag.span_label(
+                                    tcx.def_span(struct_id),
+                                    msg!("help: this code was generated by a `#[derive(..)]` and cannot be annotated directly; try annotating this type with `#[flux::trusted_derive]`"),
+                                );
+                            } else {
+                                diag.arg("def_kind", tcx.def_descr(fn_def_id.to_def_id()));
+                                diag.span_label(
+                                    fn_span,
+                                    msg!("help: try annotating this {$def_kind} with `#[trusted]`"),
+                                );
+                            }
+                            diag.note(
+                                msg!("opaque structs can only be accessed in trusted code (see <https://flux-rs.github.io/flux/guide/specifications.html#opaque-structs>)"),
+                            );
                         }
                         diag
                     }

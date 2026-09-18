@@ -91,8 +91,8 @@ impl FluxId<MaybeExternId> {
     }
 }
 
-impl rustc_middle::query::IntoQueryParam<FluxDefId> for FluxLocalDefId {
-    fn into_query_param(self) -> FluxDefId {
+impl rustc_middle::query::IntoQueryKey<FluxDefId> for FluxLocalDefId {
+    fn into_query_key(self) -> FluxDefId {
         self.to_def_id()
     }
 }
@@ -180,8 +180,8 @@ impl<Id: Into<DefId>> MaybeExternId<Id> {
     }
 }
 
-impl rustc_middle::query::IntoQueryParam<DefId> for MaybeExternId {
-    fn into_query_param(self) -> DefId {
+impl rustc_middle::query::IntoQueryKey<DefId> for MaybeExternId {
+    fn into_query_key(self) -> DefId {
         self.resolved_id()
     }
 }

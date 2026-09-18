@@ -7,7 +7,7 @@ pub use rustc_ast::{
     Mutability,
     token::{Lit, LitKind},
 };
-use rustc_hash::FxHashSet;
+use rustc_data_structures::fx::FxIndexSet;
 pub use rustc_span::{Span, symbol::Ident};
 use rustc_span::{Symbol, symbol::sym};
 
@@ -69,6 +69,7 @@ pub enum UseTreeKind {
 pub struct Qualifier {
     pub name: Ident,
     pub params: RefineParams,
+    pub wildcards: Vec<bool>,
     pub expr: Expr,
     pub span: Span,
     pub kind: QualifierKind,
@@ -644,6 +645,8 @@ pub enum Attr {
     Trusted(Trusted),
     /// A `#[trusted_impl(...)]` attribute
     TrustedImpl(Trusted),
+    /// A `#[trusted_derive(...)]` attribute
+    TrustedDerive(Trusted),
     /// A `#[ignore(...)]` attribute
     Ignore(Ignored),
     /// A `#[proven_externally]` attribute
@@ -920,9 +923,11 @@ impl<T, P> Punctuated<T, P> {
 impl Expr {
     /// Collects all free variables in an expression.
     /// A free variable is an `ExprKind::Path` with a single identifier segment.
-    pub fn free_vars(&self) -> FxHashSet<Ident> {
+    ///
+    /// Variables are returned in the order they first appear in the expression.
+    pub fn free_vars(&self) -> FxIndexSet<Ident> {
         struct FreeVarsVisitor {
-            vars: FxHashSet<Ident>,
+            vars: FxIndexSet<Ident>,
         }
 
         impl visit::Visitor for FreeVarsVisitor {
@@ -951,7 +956,7 @@ impl Expr {
             }
         }
 
-        let mut visitor = FreeVarsVisitor { vars: FxHashSet::default() };
+        let mut visitor = FreeVarsVisitor { vars: FxIndexSet::default() };
         visitor.visit_expr(self);
         visitor.vars
     }

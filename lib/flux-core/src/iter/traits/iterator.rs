@@ -3,7 +3,8 @@ use flux_attrs::*;
 defs! {
     fn default_iterator_size<T>(self: T) -> int;
     fn default_iterator_done<T>(self: T) -> bool;
-    fn max(a: int, b: int) -> int { if a > b { a } else { b } }
+
+    use crate::num::max;
 }
 
 #[extern_spec(core::iter)]
@@ -16,7 +17,14 @@ defs! {
 trait Iterator {
     #[spec(
         fn(self: &mut Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)]
-        ensures self: Self{next_s: <Self as Iterator>::step(curr_s, next_s)}
+        ensures self: Self[#next_s],
+                <Self as Iterator>::step(curr_s, next_s),
+                if <Self as Iterator>::done(curr_s) {
+                    <Self as Iterator>::size(curr_s) == 0
+                } else {
+                    <Self as Iterator>::size(curr_s) > 0
+                        && <Self as Iterator>::size(next_s) == <Self as Iterator>::size(curr_s) - 1
+                }
     )]
     fn next(&mut self) -> Option<Self::Item>;
 
@@ -37,6 +45,11 @@ trait Iterator {
 
     #[spec(fn(Self[@s], n: usize) -> Skip<Self>[max(0, <Self as Iterator>::size(s) - n)])]
     fn skip(self, n: usize) -> Skip<Self>
+    where
+        Self: Sized;
+
+    #[spec(fn(Self[@s], n: usize) -> Take<Self>[n, s])]
+    fn take(self, n: usize) -> Take<Self>
     where
         Self: Sized;
 

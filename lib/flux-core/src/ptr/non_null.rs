@@ -1,4 +1,4 @@
-#![flux::defs {
+#![cfg_attr(flux, flux::defs {
     // The pointer lies within its allocation: addr >= base (not before the start)
     // and size >= 0. One-past-the-end pointers (size == 0) satisfy this — they
     // are valid starting points for arithmetic but cannot be dereferenced.
@@ -22,7 +22,7 @@
     fn nn_aligned_to(addr: int, alignment: int) -> bool {
         addr % alignment == 0
     }
-}]
+})]
 
 use flux_attrs::*;
 
@@ -30,6 +30,13 @@ use flux_attrs::*;
 #[refined_by(base: int, addr: int, size: int)]
 #[invariant(addr != 0)]
 struct NonNull<T>;
+
+#[extern_spec(core::ptr)]
+impl<T: Sized> NonNull<T> {
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L131
+    #[spec(fn() -> NonNull<T>{p: p.size == 0 && p.addr != 0 && nn_aligned_to(p.addr, T::align_of())})]
+    fn dangling() -> Self;
+}
 
 #[extern_spec(core::ptr)]
 impl<T> NonNull<T> {
@@ -45,6 +52,10 @@ impl<T> NonNull<T> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L402
     #[spec(fn(NonNull<T>[@base, @addr, @size]) -> *mut[base, addr, size] T)]
     fn as_ptr(self) -> *mut T;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/4b7e3a76d8df78960dc7c65cad43f5da1dac8ade/library/core/src/ptr/non_null.rs#L512
+    #[spec(fn(NonNull<T>[@base, @addr, @size]) -> NonNull<U>[base, addr, size])]
+    fn cast<U>(self) -> NonNull<U>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L652
     #[spec(fn(NonNull<T>[@base, @addr, @size], count: usize)
@@ -124,8 +135,20 @@ impl<T> NonNull<T> {
 impl<T> NonNull<[T]> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1420
     /// Safety: https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html#safety
+    /// The indices carry through unchanged: `size` is the extent of the *allocation*, not of
+    /// the slice, and `len` only has to fit inside it. Retracking as `len * size_of::<T>()`
+    /// would be unsound, since `layout_fits` reads `size` as the size a block was allocated
+    /// with — see `test_allocate_then_deallocate_narrowed_slice` in
+    /// `tests/with_deps/neg/extern_specs/flux_core_alloc01.rs`.
     #[no_panic]
     #[spec(fn(data: NonNull<T>[@base, @addr, @size], len: usize) -> NonNull<[T]>[base, addr, size]
         requires nn_valid(base, addr, size, len * T::size_of()) && nn_aligned_to(addr, T::align_of()))]
     fn slice_from_raw_parts(data: NonNull<T>, len: usize) -> Self;
+}
+
+#[extern_spec(core::ptr)]
+impl<T> PartialEq for NonNull<T> {
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1691
+    #[spec(fn (me: &NonNull<T>[@m], other: &NonNull<T>[@o]) -> bool[m.addr == o.addr])]
+    fn eq(&self, other: &NonNull<T>) -> bool;
 }
