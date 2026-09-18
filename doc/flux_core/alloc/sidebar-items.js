@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["layout"]};
+window.SIDEBAR_ITEMS = {"mod":["allocator","layout"]};
