@@ -252,6 +252,14 @@ impl IncludePattern {
     }
 }
 
+impl FromStr for IncludePattern {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::new(vec![s.to_string()])
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
 #[serde(try_from = "String")]
 pub enum LeanMode {
