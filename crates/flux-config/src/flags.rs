@@ -1,6 +1,6 @@
-use std::{env, fmt::Display, path::PathBuf, process, str::FromStr, sync::LazyLock};
+use std::{env, path::PathBuf, process, str::FromStr, sync::LazyLock};
 
-use clap::Args;
+use clap::{Args, ArgMatches, Command, FromArgMatches, parser::ValueSource};
 pub use toml::Value;
 use tracing::Level;
 
@@ -274,59 +274,44 @@ pub struct Flags {
     pub rerun_hint: Option<bool>,
 }
 
-fn flag<T: Display>(flags: &mut Vec<String>, name: &str, value: Option<T>) {
-    flags.extend(value.map(|v| format!("-F{name}={v}")));
-}
-
-fn flag_include_pat(flags: &mut Vec<String>, name: &str, value: Option<&IncludePattern>) {
-    if let Some(pat) = value {
-        flags.extend(pat.originals.iter().map(|raw| format!("-F{name}={raw}")));
-    }
-}
-
 impl Flags {
     // Convert this struct into what we'd need to pass in through the environment var
-    pub fn rustflags(&self) -> Vec<String> {
-        let mut flags = Vec::new();
-        flag(&mut flags, "log-dir", self.log_dir.as_ref().map(|v| v.display()));
-        flag(&mut flags, "lean-dir", self.lean_dir.as_ref().map(|v| v.display()));
-        flag(&mut flags, "lean-project", self.lean_project.as_ref());
-        flag_include_pat(&mut flags, "include", self.include.as_ref());
-        flag_include_pat(&mut flags, "include-trusted", self.include_trusted.as_ref());
-        flag_include_pat(&mut flags, "include-trusted-impl", self.include_trusted_impl.as_ref());
-        flag(&mut flags, "pointer-width", self.pointer_width.map(|v| v.bits()));
-        flag(&mut flags, "cache", self.cache.as_ref().map(|v| v.display()));
-        flag(&mut flags, "annots", self.annots);
-        flag(&mut flags, "timings", self.timings);
-        flag(&mut flags, "summary", self.summary);
-        flag(&mut flags, "solver", self.solver);
-        flag(&mut flags, "scrape-quals", self.scrape_quals);
-        flag(&mut flags, "allow-uninterpreted-cast", self.allow_uninterpreted_cast);
-        flag(&mut flags, "smt-define-fun", self.smt_define_fun);
-        flag(&mut flags, "check-overflow", self.check_overflow);
-        flag(&mut flags, "allow-raw-deref", self.allow_raw_deref);
-        flag(&mut flags, "dump-constraint", self.dump_constraint);
-        flag(
-            &mut flags,
-            "dump-checker-trace",
-            self.dump_checker_trace.map(|v| v.as_str().to_lowercase()),
-        );
-        flag(&mut flags, "dump-fhir", self.dump_fhir);
-        flag(&mut flags, "dump-rty", self.dump_rty);
-        flag(&mut flags, "catch-bugs", self.catch_bugs);
-        flag(&mut flags, "verify", self.verify);
-        flag(&mut flags, "full-compilation", self.full_compilation);
-        flag(&mut flags, "sysroot", self.sysroot.as_ref().map(|v| v.display()));
-        flag(&mut flags, "trusted", self.trusted_default);
-        flag(&mut flags, "ignore", self.ignore_default);
-        flag(&mut flags, "lean", self.lean);
-        flag(&mut flags, "no-panic", self.no_panic);
-        flag(&mut flags, "std-extern-specs", self.std_extern_specs);
-        flag(&mut flags, "flux-verbose", self.flux_verbose);
-        flag(&mut flags, "no-suggestions", self.no_suggestions_default);
-        flag(&mut flags, "rerun-hint", self.rerun_hint);
-        flags
+    pub fn rustflags(matches: &ArgMatches) -> Vec<String> {
+        let spec = Flags::augment_args(Command::new("flux-flags"));
+        let mut out = Vec::new();
+        for arg in spec.get_arguments() {
+            let id = arg.get_id().as_str();
+            if matches.value_source(id) != Some(ValueSource::CommandLine) {
+                continue;
+            }
+            let Some(long) = arg.get_long() else { continue };
+            match matches.get_raw(id) {
+                Some(values) => out.extend(
+                    values.map(|v| format!("-{long}={}", v.to_string_lossy()))
+                ),
+                None => out.push(format!("-{long}")),
+            }
+        }
+        out
     }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct FluxFlags(pub Vec<String>);
+
+impl FromArgMatches for FluxFlags {
+    fn from_arg_matches(m: &ArgMatches) -> Result<Self, clap::Error> {
+        Ok(FluxFlags(Flags::rustflags(m)))
+    }
+    fn update_from_arg_matches(&mut self, m: &ArgMatches) -> Result<(), clap::Error> {
+        self.0 = Flags::rustflags(m);
+        Ok(())
+    }
+}
+
+impl Args for FluxFlags {
+    fn augment_args(cmd: Command) -> Command { Flags::augment_args(cmd) }
+    fn augment_args_for_update(cmd: Command) -> Command { Flags::augment_args_for_update(cmd) }
 }
 
 pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
