@@ -281,9 +281,9 @@ fn print_report(
     hornspec_timeout: u32,
     hornspec_total_errors: usize,
     hornspec_solved_errors: usize,
+    wick_solved_errors: usize,
     hornspec_no_wick_errors: usize,
     wick_no_hornspec_errors: usize,
-    wick_solved_errors: usize,
 ) {
     let stats = stats(&functions.iter().map(snd).collect_vec());
     eprintln!();
@@ -312,12 +312,12 @@ fn print_report(
             "Hornspec solved:    {:>40}",
             format!("{hornspec_solved_errors}/{hornspec_total_errors}"),
         );
-        eprintln!("Hornspec solved (NO Wick):    {:>40}", format!("{hornspec_no_wick_errors}"),);
+        eprintln!("Hornspec solved (NO Wick):{:>40}", format!("{hornspec_no_wick_errors}"),);
         eprintln!(
             "Wick solved:        {:>40}",
             format!("{wick_solved_errors}/{hornspec_total_errors}"),
         );
-        eprintln!("Wick solved (NO Hornspec):    {:>40}", format!("{wick_no_hornspec_errors}"),);
+        eprintln!("Wick solved (NO Hornspec):{:>40}", format!("{wick_no_hornspec_errors}"),);
         eprintln!("Hornspec total:     {:>40}", fmt_duration(total_hornspec));
         eprintln!("Hornspec mean:      {:>40}", fmt_duration(mean_hornspec));
     }

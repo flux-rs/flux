@@ -687,7 +687,13 @@ where
                     dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
                 }
                 liquid_fixpoint::Backend::Hornspec => {
-                    dbg::dump_item_info(self.genv.tcx(), id, "horn", liquid_fixpoint::SmtFormatter(&task)).unwrap();
+                    dbg::dump_item_info(
+                        self.genv.tcx(),
+                        id,
+                        "horn",
+                        liquid_fixpoint::SmtFormatter(&task),
+                    )
+                    .unwrap();
                 }
             }
         }
@@ -752,7 +758,7 @@ where
                         .collect();
                 }
 
-                let errors = match result.status {
+                let errors = match &result.status {
                     FixpointStatus::Safe(_) => vec![],
                     FixpointStatus::Unsafe(_, errors) => {
                         metrics::incr_metric(Metric::CsError, errors.len() as u32);
@@ -891,7 +897,9 @@ where
                         .collect_vec()
                     }
                     FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
-                    FixpointStatus::Timeout => span_bug!(def_span, "timeout (impossible unless running hornspec)"),
+                    FixpointStatus::Timeout => {
+                        span_bug!(def_span, "timeout (impossible unless running hornspec)")
+                    }
                 };
                 Ok(Answer { errors, solution })
             },
@@ -903,26 +911,36 @@ where
             let error_count = errors.len();
             // Count errors for which wick found at least one solution.
             let wick_solved = answer.as_ref().map_or(0, |a| {
-                a.errors.iter().filter(|e| !e.possible_solutions.is_empty()).count()
+                a.errors
+                    .iter()
+                    .filter(|e| !e.possible_solutions.is_empty())
+                    .count()
             });
             if config::dump_constraint() {
-                dbg::dump_item_info(self.genv.tcx(), id, "horn", liquid_fixpoint::SmtFormatter(&hornspec_task)).unwrap();
+                dbg::dump_item_info(
+                    self.genv.tcx(),
+                    id,
+                    "horn",
+                    liquid_fixpoint::SmtFormatter(&hornspec_task),
+                )
+                .unwrap();
             }
             let hs_start = std::time::Instant::now();
             let hs_outcome = match hornspec_task.run() {
-                Ok(r) => match r.status {
-                    liquid_fixpoint::FixpointStatus::Safe(_) => metrics::HornspecOutcome::Safe,
-                    liquid_fixpoint::FixpointStatus::Timeout => metrics::HornspecOutcome::Timeout,
-                    _ => metrics::HornspecOutcome::Unsafe,
-                },
+                Ok(r) => {
+                    match r.status {
+                        liquid_fixpoint::FixpointStatus::Safe(_) => metrics::HornspecOutcome::Safe,
+                        liquid_fixpoint::FixpointStatus::Timeout => {
+                            metrics::HornspecOutcome::Timeout
+                        }
+                        _ => metrics::HornspecOutcome::Unsafe,
+                    }
+                }
                 Err(e) => panic!("hornspec failed: {e}"),
             };
             // Hornspec solved = all errors in this CHC if hornspec says safe, else 0.
-            let hornspec_solved = if matches!(hs_outcome, metrics::HornspecOutcome::Safe) {
-                error_count
-            } else {
-                0
-            };
+            let hornspec_solved =
+                if matches!(hs_outcome, metrics::HornspecOutcome::Safe) { error_count } else { 0 };
             metrics::record(
                 metrics::TimingKind::FailedCHCStats {
                     def_id: id,
@@ -2458,13 +2476,21 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         .collect();
                     let name =
                         fixpoint::Var::WKVar(Symbol::intern(&sanitized_name), wkvid.id.as_u32());
-                    let func_sort = rty::FuncSort::new(arg_sorts.clone(), rty::Sort::Bool).to_poly();
+                    let func_sort =
+                        rty::FuncSort::new(arg_sorts.clone(), rty::Sort::Bool).to_poly();
                     let sort = scx.func_sort_to_fixpoint(&func_sort);
                     self.const_env.wkvar_map_rev.insert(name, key);
                     // Also record as WKVarDecl for hornspec backend
                     self.wkvars.entry(wkvid.clone()).or_insert_with(|| {
-                        let sorts = arg_sorts.iter().map(|s| scx.sort_to_fixpoint(s)).collect_vec();
-                        fixpoint::WKVarDecl { wkvid: name, comment: format!("weak kvar: {:?}", name), sorts }
+                        let sorts = arg_sorts
+                            .iter()
+                            .map(|s| scx.sort_to_fixpoint(s))
+                            .collect_vec();
+                        fixpoint::WKVarDecl {
+                            wkvid: name,
+                            comment: format!("weak kvar: {:?}", name),
+                            sorts,
+                        }
                     });
                     fixpoint::ConstDecl { name, comment, sort }
                 })
@@ -2807,10 +2833,11 @@ fn parse_wkvars(expr: &mut fixpoint::Expr) {
 mod adt_flatten {
     use std::collections::HashMap;
 
-    use super::fixpoint::{self, DataSort, LocalVar, Var};
     use liquid_fixpoint::{
         Bind, Constraint, DataDecl, Expr, KVarDecl, Pred, Sort, SortCtor, WKVarDecl,
     };
+
+    use super::fixpoint::{self, DataSort, LocalVar, Var};
 
     type FixTypes = fixpoint::fixpoint_generated::FixpointTypes;
 
@@ -2986,15 +3013,21 @@ mod adt_flatten {
                             inner_leaves[offset..offset + width].to_vec()
                         }
                         Expr::Var(Var::DataCtor(..)) => {
-                            args.into_iter().flat_map(|a| self.expr_to_leaves(a)).collect()
+                            args.into_iter()
+                                .flat_map(|a| self.expr_to_leaves(a))
+                                .collect()
                         }
                         Expr::Var(Var::TupleCtor { .. }) => {
-                            args.into_iter().flat_map(|a| self.expr_to_leaves(a)).collect()
+                            args.into_iter()
+                                .flat_map(|a| self.expr_to_leaves(a))
+                                .collect()
                         }
                         other_func => {
                             let func = Box::new(self.rewrite_scalar_expr(other_func));
-                            let args =
-                                args.into_iter().map(|a| self.rewrite_scalar_expr(a)).collect();
+                            let args = args
+                                .into_iter()
+                                .map(|a| self.rewrite_scalar_expr(a))
+                                .collect();
                             vec![Expr::App(func, sort_args, args)]
                         }
                     }
@@ -3087,10 +3120,18 @@ mod adt_flatten {
                     ]))
                 }
                 Expr::And(es) => {
-                    Expr::And(es.into_iter().map(|e| self.rewrite_scalar_expr(e)).collect())
+                    Expr::And(
+                        es.into_iter()
+                            .map(|e| self.rewrite_scalar_expr(e))
+                            .collect(),
+                    )
                 }
                 Expr::Or(es) => {
-                    Expr::Or(es.into_iter().map(|e| self.rewrite_scalar_expr(e)).collect())
+                    Expr::Or(
+                        es.into_iter()
+                            .map(|e| self.rewrite_scalar_expr(e))
+                            .collect(),
+                    )
                 }
                 Expr::Let(var, exprs) => {
                     let [init, body] = *exprs;
@@ -3130,7 +3171,11 @@ mod adt_flatten {
                         .into_iter()
                         .flat_map(|v| {
                             if let Some(expansion) = self.var_map.get(&v) {
-                                expansion.leaf_vars.iter().map(|lv| Var::Local(*lv)).collect()
+                                expansion
+                                    .leaf_vars
+                                    .iter()
+                                    .map(|lv| Var::Local(*lv))
+                                    .collect()
                             } else {
                                 vec![v]
                             }
@@ -3146,7 +3191,12 @@ mod adt_flatten {
             match cstr {
                 Constraint::Pred(pred, tag) => Constraint::Pred(self.rewrite_pred(pred), tag),
                 Constraint::Conj(cstrs) => {
-                    Constraint::Conj(cstrs.into_iter().map(|c| self.rewrite_constraint(c)).collect())
+                    Constraint::Conj(
+                        cstrs
+                            .into_iter()
+                            .map(|c| self.rewrite_constraint(c))
+                            .collect(),
+                    )
                 }
                 Constraint::ForAll(bind, inner) => {
                     if self.layout.is_adt_sort(&bind.sort) {
@@ -3277,4 +3327,3 @@ mod adt_flatten {
         task
     }
 }
-
