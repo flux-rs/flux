@@ -534,7 +534,7 @@
 <a href=#534 id=534 data-nosnippet>534</a>
 <a href=#535 id=535 data-nosnippet>535</a>    <span class="kw">pub fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) {
 <a href=#536 id=536 data-nosnippet>536</a>        <span class="self">self</span>.cursor
-<a href=#537 id=537 data-nosnippet>537</a>            .assume_invariants(<span class="self">self</span>.genv.tcx(), ty, <span class="self">self</span>.check_overflow);
+<a href=#537 id=537 data-nosnippet>537</a>            .assume_invariants(<span class="self">self</span>.genv, ty, <span class="self">self</span>.check_overflow);
 <a href=#538 id=538 data-nosnippet>538</a>    }
 <a href=#539 id=539 data-nosnippet>539</a>
 <a href=#540 id=540 data-nosnippet>540</a>    <span class="kw">fn </span>check_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred1: <span class="kw">impl </span>Into&lt;Expr&gt;, pred2: <span class="kw">impl </span>Into&lt;Expr&gt;, tag: Tag) {
