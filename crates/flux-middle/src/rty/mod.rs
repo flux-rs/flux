@@ -1974,6 +1974,10 @@ impl BaseTy {
         matches!(self, BaseTy::RawPtr(..))
     }
 
+    pub fn is_opaque(&self) -> bool {
+        matches!(self, BaseTy::Alias(AliasTy { kind: AliasKind::Opaque { .. }, .. }))
+    }
+
     pub fn invariants(
         &self,
         genv: GlobalEnv,
@@ -2315,6 +2319,18 @@ impl SubsetTyCtor {
 
     pub fn to_ty_ctor(&self) -> TyCtor {
         self.as_ref().map(SubsetTy::to_ty)
+    }
+
+    pub fn with_bty(&self, new_bty: BaseTy) -> Self {
+        let subset = self.skip_binder_ref().clone();
+        let new_sort = new_bty.sort();
+        let (_, mode, kind) = self.vars()[0].expect_refine();
+        let vars = List::from_arr([BoundVariableKind::Refine(new_sort, mode, kind)]);
+        Binder::bind_with_vars(SubsetTy::new(new_bty, subset.idx, subset.pred), vars)
+    }
+
+    pub fn with_other_bty(&self, other: &Self) -> Self {
+        self.with_bty(other.as_bty_skipping_binder().clone())
     }
 }
 

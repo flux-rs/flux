@@ -1076,6 +1076,17 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let (ty_a, ty_b) = match (a, b) {
             (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => (ty_a.clone(), ty_b.clone()),
             (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => {
+                // Somewhat of a hack. When one arg is opaque here, we know rustc has already
+                // type-checked the base types to be the same, but left one opaque. So we
+                // just set the base types to be equal.
+                let (ctor_a, ctor_b) = match (
+                    ctor_a.as_bty_skipping_binder().is_opaque(),
+                    ctor_b.as_bty_skipping_binder().is_opaque(),
+                ) {
+                    (true, false) => (ctor_a.with_other_bty(ctor_b), ctor_b.clone()),
+                    (false, true) => (ctor_a.clone(), ctor_b.with_other_bty(ctor_a)),
+                    _ => (ctor_a.clone(), ctor_b.clone()),
+                };
                 tracked_span_dbg_assert_eq!(
                     ctor_a.sort().erase_regions(),
                     ctor_b.sort().erase_regions()
