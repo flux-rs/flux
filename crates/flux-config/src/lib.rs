@@ -1,4 +1,3 @@
-#![feature(if_let_guard)]
 use globset::{Glob, GlobSet, GlobSetBuilder};
 pub use toml::Value;
 use tracing::Level;
@@ -250,6 +249,14 @@ impl IncludePattern {
         }
         let glob = glob.build().map_err(|_| "failed to build glob set")?;
         Ok(IncludePattern { glob, defs, spans })
+    }
+}
+
+impl FromStr for IncludePattern {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::new(vec![s.to_string()])
     }
 }
 

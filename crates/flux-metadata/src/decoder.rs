@@ -219,12 +219,16 @@ impl SpanDecoder for DecodeContext<'_, '_> {
     }
 }
 
-impl<'tcx> TyDecoder<'tcx> for DecodeContext<'_, 'tcx> {
-    const CLEAR_CROSS_CRATE: bool = true;
+impl<'tcx> rustc_type_ir::InternerDecoder for DecodeContext<'_, 'tcx> {
+    type Interner = TyCtxt<'tcx>;
 
     fn interner(&self) -> TyCtxt<'tcx> {
         self.tcx
     }
+}
+
+impl<'tcx> TyDecoder<'tcx> for DecodeContext<'_, 'tcx> {
+    const CLEAR_CROSS_CRATE: bool = true;
 
     fn cached_ty_for_shorthand<F>(&mut self, shorthand: usize, or_insert_with: F) -> ty::Ty<'tcx>
     where
@@ -234,13 +238,13 @@ impl<'tcx> TyDecoder<'tcx> for DecodeContext<'_, 'tcx> {
 
         let cache_key = ty::CReaderCacheKey { cnum: None, pos: shorthand };
 
-        if let Some(&ty) = tcx.ty_rcache.borrow().get(&cache_key) {
+        if let Some(&ty) = tcx.caches.ty_rcache.borrow().get(&cache_key) {
             return ty;
         }
 
         let ty = or_insert_with(self);
         // This may overwrite the entry, but it should overwrite with the same value.
-        tcx.ty_rcache.borrow_mut().insert_same(cache_key, ty);
+        tcx.caches.ty_rcache.borrow_mut().insert_same(cache_key, ty);
         ty
     }
 
@@ -267,7 +271,7 @@ mod errors {
     use flux_macros::Diagnostic;
 
     #[derive(Diagnostic)]
-    #[diag(metadata_decode_file_error, code = E0999)]
+    #[diag("error when decoding flux metadata file {$path}: {$err}", code = E0999)]
     pub(super) struct DecodeFileError<'a> {
         path: &'a Path,
         err: io::Error,
@@ -280,7 +284,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(metadata_incompatible_metadata, code = E0999)]
+    #[diag("failed to decode flux metadata file `{$path}`; this is likely because it was produced by an incompatible version of flux. Run `cargo clean` to remove stale metadata and try again", code = E0999)]
     pub(super) struct IncompatibleMetadata<'a> {
         path: &'a Path,
     }

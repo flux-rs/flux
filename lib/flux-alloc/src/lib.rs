@@ -1,7 +1,11 @@
 // #![no_std]
 #![cfg_attr(doc, deny(rustdoc::broken_intra_doc_links))]
-#![cfg_attr(flux, feature(allocator_api))]
+#![cfg_attr(flux, allow(internal_features))]
+#![cfg_attr(flux, feature(allocator_api, liballoc_internals))]
 #![cfg_attr(flux, flux::no_suggestions)]
+
+#[cfg(any(flux, doc))]
+pub mod boxed;
 
 #[cfg(any(flux, doc))]
 pub mod slice;

@@ -135,6 +135,11 @@ impl<T> NonNull<T> {
 impl<T> NonNull<[T]> {
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1420
     /// Safety: https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html#safety
+    /// The indices carry through unchanged: `size` is the extent of the *allocation*, not of
+    /// the slice, and `len` only has to fit inside it. Retracking as `len * size_of::<T>()`
+    /// would be unsound, since `layout_fits` reads `size` as the size a block was allocated
+    /// with — see `test_allocate_then_deallocate_narrowed_slice` in
+    /// `tests/with_deps/neg/extern_specs/flux_core_alloc01.rs`.
     #[no_panic]
     #[spec(fn(data: NonNull<T>[@base, @addr, @size], len: usize) -> NonNull<[T]>[base, addr, size]
         requires nn_valid(base, addr, size, len * T::size_of()) && nn_aligned_to(addr, T::align_of()))]

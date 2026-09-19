@@ -43,10 +43,7 @@ impl Subst for Ty {
             TyKind::CoroutineWitness(def_id, args2) => {
                 Ty::mk_generator_witness(*def_id, args2.subst(args))
             }
-            TyKind::Alias(kind, alias_ty) => {
-                let def_id = alias_ty.def_id;
-                Ty::mk_alias(*kind, def_id, alias_ty.args.subst(args))
-            }
+            TyKind::Alias(alias_ty) => Ty::mk_alias(alias_ty.kind, alias_ty.args.subst(args)),
             TyKind::RawPtr(ty, mutbl) => Ty::mk_raw_ptr(ty.subst(args), *mutbl),
             TyKind::Param(param_ty) => args[param_ty.index as usize].expect_type().clone(),
             TyKind::FnPtr(fn_sig) => Ty::mk_fn_ptr(fn_sig.subst(args)),

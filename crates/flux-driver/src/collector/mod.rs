@@ -147,7 +147,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::Mod(..) => self.collect_mod(owner_id, attrs)?,
             ItemKind::TyAlias(..) => self.collect_type_alias(owner_id, attrs)?,
             ItemKind::Impl(..) => self.collect_impl(owner_id, attrs)?,
-            ItemKind::Trait(..) => self.collect_trait(owner_id, attrs)?,
+            ItemKind::Trait { .. } => self.collect_trait(owner_id, attrs)?,
             ItemKind::Const(.., rhs) => {
                 // The flux-rs macro puts defs as an outer attribute on a `const _: () = { }`. We
                 // consider these defs to be defined in the parent of the const.
@@ -1130,7 +1130,7 @@ fn attr_args_span(attr_args: &hir::AttrArgs) -> Option<Span> {
 
 mod errors {
     use flux_errors::E0999;
-    use flux_macros::Diagnostic;
+    use flux_macros::{Diagnostic, msg};
     use flux_syntax::surface::ExprPath;
     use itertools::Itertools;
     use rustc_errors::{Diag, DiagCtxtHandle, Diagnostic, Level};
@@ -1139,14 +1139,14 @@ mod errors {
     use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
     #[derive(Diagnostic)]
-    #[diag(driver_no_panic_if_without_sig, code = E0999)]
+    #[diag("`no_panic_if` attribute requires a `sig` annotation on the same item", code = E0999)]
     pub(super) struct NoPanicIfWithoutSig {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_duplicated_attr, code = E0999)]
+    #[diag("duplicated attribute `{$name}`", code = E0999)]
     pub(super) struct DuplicatedAttr {
         #[primary_span]
         pub span: Span,
@@ -1154,14 +1154,14 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_invalid_attr, code = E0999)]
+    #[diag("invalid flux attribute", code = E0999)]
     pub(super) struct InvalidAttr {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_invalid_attr_map, code = E0999)]
+    #[diag("invalid attribute: {$message}", code = E0999)]
     pub(super) struct AttrMapErr {
         #[primary_span]
         pub span: Span,
@@ -1169,7 +1169,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_unresolved_specification, code = E0999)]
+    #[diag("unresolved {$thing} `{$ident}`", code = E0999)]
     pub(super) struct UnresolvedSpecification {
         #[primary_span]
         pub span: Span,
@@ -1189,7 +1189,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_multiple_specifications, code = E0999)]
+    #[diag("multiple specifications for `{$name}`", code = E0999)]
     pub(super) struct MultipleSpecifications {
         #[primary_span]
         pub span: Span,
@@ -1211,7 +1211,7 @@ mod errors {
             level: Level,
         ) -> Diag<'sess, ErrorGuaranteed> {
             use flux_syntax::ParseErrorKind;
-            let mut diag = Diag::new(dcx, level, crate::fluent_generated::driver_syntax_err);
+            let mut diag = Diag::new(dcx, level, msg!("syntax error"));
             diag.code(E0999).span(self.0.span).span_label(
                 self.0.span,
                 match &self.0.kind {
@@ -1249,7 +1249,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_mutable_static_spec, code = E0999)]
+    #[diag("specifications on mutable statics are not yet supported", code = E0999)]
     pub(super) struct MutableStaticSpec {
         #[primary_span]
         span: Span,
@@ -1262,11 +1262,11 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_attr_on_opaque, code = E0999)]
+    #[diag("opaque struct can't have refined fields", code = E0999)]
     pub(super) struct AttrOnOpaque {
         #[primary_span]
         span: Span,
-        #[label]
+        #[label("this field has a refinement type annotation")]
         field_span: Span,
     }
 
@@ -1278,10 +1278,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_reflected_enum_with_refined_by, code = E0999)]
+    #[diag("reflected enum with `refined_by` annotation", code = E0999)]
     pub(super) struct ReflectedEnumWithRefinedBy {
         #[primary_span]
-        #[label]
+        #[label("this enum can either be `reflected` or have a `refined_by` but not both")]
         span: Span,
     }
     impl ReflectedEnumWithRefinedBy {
@@ -1291,11 +1291,11 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_missing_variant, code = E0999)]
-    #[note]
+    #[diag("missing variant annotation", code = E0999)]
+    #[note("all variants in a refined enum must be annotated")]
     pub(super) struct MissingVariant {
         #[primary_span]
-        #[label]
+        #[label("this variant doesn't have a refinement annotation")]
         span: Span,
     }
 
@@ -1306,12 +1306,12 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_mismatched_spec_name, code = E0999)]
+    #[diag("name in {$def_descr} spec doesn't match item's name", code = E0999)]
     pub(super) struct MismatchedSpecName {
         #[primary_span]
-        #[label]
+        #[label("must be `{$item_ident}`")]
         span: Span,
-        #[label(driver_item_def_ident)]
+        #[label("{$def_descr} defined here")]
         item_ident_span: Span,
         item_ident: Ident,
         def_descr: &'static str,

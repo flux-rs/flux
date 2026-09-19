@@ -7,7 +7,7 @@ use expr::{FieldBind, pretty::aggregate_nested};
 use flux_rustc_bridge::ToRustc;
 use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_type_ir::DebruijnIndex;
-use ty::{UnevaluatedConst, ValTree, region_to_string};
+use ty::{AliasConst, AliasConstKind, ValTree, region_to_string};
 
 use super::{fold::TypeVisitable, *};
 use crate::pretty::*;
@@ -146,8 +146,8 @@ impl Pretty for Sort {
                     w!(cx, f, "({:?})", join!(", ", sorts))
                 }
             }
-            Sort::Alias(kind, alias_ty) => {
-                fmt_alias_ty(cx, f, *kind, alias_ty)?;
+            Sort::Alias(alias_ty) => {
+                fmt_alias_ty(cx, f, alias_ty)?;
                 w!(cx, f, "::sort")
             }
             Sort::App(ctor, sorts) => {
@@ -627,7 +627,10 @@ impl Pretty for BaseTy {
                         }
                         let earlier_args =
                             tcx.mk_args_from_iter(args[..arg_idx].iter().map(|a| a.to_rustc(tcx)));
-                        let default_ty = tcx.type_of(param.def_id).instantiate(tcx, earlier_args);
+                        let default_ty = tcx
+                            .type_of(param.def_id)
+                            .instantiate(tcx, earlier_args)
+                            .skip_norm_wip();
                         if arg.to_rustc(tcx) != rustc_middle::ty::GenericArg::from(default_ty) {
                             break;
                         }
@@ -667,7 +670,7 @@ impl Pretty for BaseTy {
                     w!(cx, f, "({:?})", join!(", ", tys))
                 }
             }
-            BaseTy::Alias(kind, alias_ty) => fmt_alias_ty(cx, f, *kind, alias_ty),
+            BaseTy::Alias(alias_ty) => fmt_alias_ty(cx, f, alias_ty),
             BaseTy::Array(ty, c) => w!(cx, f, "[{:?}; {:?}]", ty, ^c),
             BaseTy::Never => w!(cx, f, "!"),
             BaseTy::Closure(did, args, _, _) => {
@@ -694,22 +697,17 @@ impl Pretty for BaseTy {
     }
 }
 
-fn fmt_alias_ty(
-    cx: &PrettyCx,
-    f: &mut fmt::Formatter<'_>,
-    kind: AliasKind,
-    alias_ty: &AliasTy,
-) -> fmt::Result {
-    match kind {
-        AliasKind::Free => {
-            w!(cx, f, "{:?}", alias_ty.def_id)?;
+fn fmt_alias_ty(cx: &PrettyCx, f: &mut fmt::Formatter<'_>, alias_ty: &AliasTy) -> fmt::Result {
+    match alias_ty.kind {
+        AliasKind::Free { def_id } => {
+            w!(cx, f, "{:?}", def_id)?;
             if !alias_ty.args.is_empty() {
                 w!(cx, f, "<{:?}>", join!(", ", &alias_ty.args))?;
             }
         }
-        AliasKind::Projection => {
-            let assoc_name = cx.tcx().item_name(alias_ty.def_id);
-            let trait_ref = cx.tcx().parent(alias_ty.def_id);
+        AliasKind::Projection { def_id } => {
+            let assoc_name = cx.tcx().item_name(def_id);
+            let trait_ref = cx.tcx().parent(def_id);
             let trait_generic_count = cx.tcx().generics_of(trait_ref).count() - 1;
 
             let [self_ty, args @ ..] = &alias_ty.args[..] else {
@@ -729,8 +727,8 @@ fn fmt_alias_ty(
                 w!(cx, f, "<{:?}>", join!(", ", assoc_generics))?;
             }
         }
-        AliasKind::Opaque => {
-            w!(cx, f, "{:?}", alias_ty.def_id)?;
+        AliasKind::Opaque { def_id } => {
+            w!(cx, f, "{:?}", def_id)?;
             if !alias_ty.args.is_empty() {
                 w!(cx, f, "<{:?}>", join!(", ", &alias_ty.args))?;
             }
@@ -752,9 +750,15 @@ impl Pretty for ValTree {
         }
     }
 }
-impl Pretty for UnevaluatedConst {
+impl Pretty for AliasConst {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        w!(cx, f, "UnevaluatedConst({:?}[...])", self.def)
+        let (descr, def_id) = match self.kind {
+            AliasConstKind::Projection { def_id } => ("projection", def_id),
+            AliasConstKind::Inherent { def_id } => ("inherent", def_id),
+            AliasConstKind::Free { def_id } => ("free", def_id),
+            AliasConstKind::Anon { def_id } => ("anon", def_id),
+        };
+        w!(cx, f, "AliasConst({} {:?}[...])", ^descr, def_id)
     }
 }
 
@@ -764,7 +768,7 @@ impl Pretty for Const {
             ConstKind::Param(p) => w!(cx, f, "{}", ^p.name.as_str()),
             ConstKind::Value(_, v) => w!(cx, f, "{v:?}"),
             ConstKind::Infer(infer_const) => w!(cx, f, "{:?}", ^infer_const),
-            ConstKind::Unevaluated(uneval_const) => w!(cx, f, "{:?}", uneval_const),
+            ConstKind::Alias(uneval_const) => w!(cx, f, "{:?}", uneval_const),
         }
     }
 }
