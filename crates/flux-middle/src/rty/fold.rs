@@ -1070,8 +1070,8 @@ impl TypeSuperVisitable for Expr {
             | ExprKind::Hole(_)
             | ExprKind::Local(_)
             | ExprKind::GlobalFunc(..)
-            | ExprKind::InternalFunc(..)
-            | ExprKind::ConstDefId(_) => ControlFlow::Continue(()),
+            | ExprKind::InternalFunc(..) => ControlFlow::Continue(()),
+            ExprKind::ConstDefId(_, args) => args.visit_with(visitor),
         }
     }
 }
@@ -1089,7 +1089,9 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Var(var) => Expr::var(*var),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
-            ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
+            ExprKind::ConstDefId(did, args) => {
+                Expr::const_def_id(*did, args.try_fold_with(folder)?)
+            }
             ExprKind::BinaryOp(op, e1, e2) => {
                 Expr::binary_op(
                     op.try_fold_with(folder)?,

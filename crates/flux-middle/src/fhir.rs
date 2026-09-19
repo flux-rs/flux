@@ -308,7 +308,8 @@ pub struct ImplItem<'fhir> {
 #[derive(Debug)]
 pub enum ImplItemKind<'fhir> {
     Fn(FnSig<'fhir>),
-    Const,
+    /// The expression is the refinement value given by a `#[flux::constant]` annotation, if any.
+    Const(Option<Expr<'fhir>>),
     Type,
 }
 
