@@ -5,8 +5,9 @@
 //! (no-panic inference) and `flux-refineck` (the checker, which recovers the resolved callee at a
 //! call site by location).
 
-use std::fmt;
+use std::{fmt, fs, io, path::Path};
 
+use flux_common::dbg::SpanTrace;
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_macros::{TyDecodable, TyEncodable};
@@ -14,6 +15,8 @@ use rustc_middle::{
     mir::Location,
     ty::{GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt},
 };
+use serde::Serialize;
+use toposort_scc::IndexGraph;
 
 /// Identity of a call-graph node. Distinguishes an item *as defined in source* from a
 /// *monomorphization* synthesized while building the graph.
@@ -206,5 +209,96 @@ impl<'tcx> fmt::Display for CallGraph<'tcx> {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Serialize)]
+pub struct JsonNode {
+    pub uid: usize,
+    pub path: String,
+    pub span: SpanTrace,
+    pub deps: Vec<usize>,
+}
+
+/// Topologically sort `def_ids` by `adj` (deps before dependents) and emit as JSON to `file_name`
+/// inside `dir`.
+pub fn dump_dep_graph_json(
+    tcx: TyCtxt<'_>,
+    dir: &Path,
+    file_name: &str,
+    def_ids: &[DefId],
+    adj: &[Vec<usize>],
+) -> io::Result<()> {
+    let mut graph = IndexGraph::from_adjacency_list(adj);
+    graph.transpose();
+    let topo_order = graph
+        .toposort_or_scc()
+        .unwrap_or_else(|sccs| sccs.into_iter().flatten().collect());
+
+    let mut uid_of: Vec<usize> = vec![0; def_ids.len()];
+    for (uid, &orig_idx) in topo_order.iter().enumerate() {
+        uid_of[orig_idx] = uid;
+    }
+
+    let json_nodes: Vec<JsonNode> = topo_order
+        .iter()
+        .enumerate()
+        .map(|(uid, &orig_idx)| {
+            let def_id = def_ids[orig_idx];
+            let dep_uids: Vec<usize> = adj[orig_idx].iter().map(|&j| uid_of[j]).collect();
+            JsonNode {
+                uid,
+                path: tcx.def_path_str(def_id),
+                span: SpanTrace::new(tcx, tcx.def_span(def_id)),
+                deps: dep_uids,
+            }
+        })
+        .collect();
+
+    fs::create_dir_all(dir)?;
+    let path = dir.join(file_name);
+    let file = fs::File::create(path)?;
+    serde_json::to_writer_pretty(file, &json_nodes)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+}
+
+impl<'tcx> CallGraph<'tcx> {
+    /// Dump the local portion of the call graph as a JSON array, topologically sorted so that
+    /// callees appear before callers (leaves first).
+    pub fn dump_json(&self, tcx: TyCtxt<'tcx>, dir: &Path) -> io::Result<()> {
+        let local_keys: Vec<NodeKey<'tcx>> = self
+            .nodes
+            .keys()
+            .copied()
+            .filter(|k| k.is_local_item())
+            .collect();
+
+        let key_to_idx: UnordMap<NodeKey<'tcx>, usize> = local_keys
+            .iter()
+            .enumerate()
+            .map(|(i, &k)| (k, i))
+            .collect();
+
+        let def_ids: Vec<DefId> = local_keys.iter().map(|k| k.def_id()).collect();
+
+        let adj: Vec<Vec<usize>> = local_keys
+            .iter()
+            .map(|key| {
+                self.nodes
+                    .get(key)
+                    .map(|node| {
+                        let mut deps: Vec<usize> = node
+                            .resolved_callees()
+                            .filter_map(|callee| key_to_idx.get(&callee).copied())
+                            .collect();
+                        deps.sort_unstable();
+                        deps.dedup();
+                        deps
+                    })
+                    .unwrap_or_default()
+            })
+            .collect();
+
+        dump_dep_graph_json(tcx, dir, "call_graph.json", &def_ids, &adj)
     }
 }

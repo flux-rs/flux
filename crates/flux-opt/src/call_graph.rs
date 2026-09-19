@@ -1,3 +1,4 @@
+use flux_config as config;
 use flux_middle::{
     call_graph::{CallGraph, CallSite, CallSiteKind, Node, NodeKey},
     global_env::GlobalEnv,
@@ -41,7 +42,18 @@ pub fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
         nodes.insert(key, node);
     }
 
-    CallGraph::new(nodes)
+    let graph = CallGraph::new(nodes);
+
+    if config::dump_call_graph() {
+        if let Err(e) = graph.dump_json(genv.tcx(), config::log_dir()) {
+            tracing::warn!("failed to dump call graph: {e}");
+        }
+        if let Err(e) = flux_middle::type_graph::dump_type_graph(genv.tcx(), config::log_dir()) {
+            tracing::warn!("failed to dump type graph: {e}");
+        }
+    }
+
+    graph
 }
 
 /// Classifies the node identified by `key` into a call-graph [`Node`], walking its body for call
