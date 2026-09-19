@@ -50,7 +50,7 @@ pub fn test_ptr_partial_cmp_opt<T>(p1: NonNull<T>, p2: NonNull<T>) -> Option<Ord
 
 #[flux::spec(fn(p1: NonNull<T>[@base, @addr, @size],
                 p2: {NonNull<T>[@base1, @addr1, @size1]
-                        | base != base1 && size != size1 && addr < addr1}) -> Option<Ordering[1]>[true])]
+                        | base != base1 && size != size1 && addr < addr1}) -> Option<Ordering[Ordering::Greater]>[true])]
 pub fn test_ptr_partial_cmp_lt<T>(p1: NonNull<T>, p2: NonNull<T>) -> Option<Ordering> {
     p1.partial_cmp(&p2) //~ ERROR refinement type error
 }

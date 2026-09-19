@@ -159,7 +159,9 @@ macro_rules! ptr_specs {
         impl<T> Ord for *$mutable T {
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1633
             #[spec(fn (me: &*$mutable[@m] T, other: &*$mutable[@o] T) ->
-                Ordering[if m.addr == o.addr {0} else if m.addr < o.addr {-1} else {1}])]
+                Ordering[if m.addr == o.addr {Ordering::Equal}
+                            else if m.addr < o.addr {Ordering::Less}
+                            else {Ordering::Greater}])]
             fn cmp(&self, other: &*$mutable T) -> Ordering;
         }
 
@@ -167,7 +169,9 @@ macro_rules! ptr_specs {
         impl<T> PartialOrd for *$mutable T {
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1653
             #[spec(fn (me: &*$mutable[@m] T, other: &*$mutable[@o] T) ->
-                Option<Ordering[if m.addr == o.addr {0} else if m.addr < o.addr {-1} else {1}]>[true])]
+                Option<Ordering[if m.addr == o.addr {Ordering::Equal}
+                                    else if m.addr < o.addr {Ordering::Less}
+                                    else {Ordering::Greater}]>[true])]
             fn partial_cmp(&self, other: &*$mutable T) -> Option<Ordering>;
 
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1662

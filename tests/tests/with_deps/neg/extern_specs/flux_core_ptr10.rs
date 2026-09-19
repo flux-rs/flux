@@ -123,7 +123,7 @@ pub fn test_ptr_partial_cmp_opt(p1: *const i32, p2: *const i32) -> Option<Orderi
 
 #[flux::spec(fn(p1: *const[@base, @addr, @size] i32,
                 p2: {*const[@base1, @addr1, @size1] i32
-                        | base != base1 && size != size1 && addr < addr1}) -> Option<Ordering[1]>[true])]
+                        | base != base1 && size != size1 && addr < addr1}) -> Option<Ordering[Ordering::Greater]>[true])]
 pub fn test_ptr_partial_cmp_lt(p1: *const i32, p2: *const i32) -> Option<Ordering> {
     p1.partial_cmp(&p2) //~ ERROR refinement type error
 }

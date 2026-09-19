@@ -65,20 +65,17 @@ trait PartialOrd<Rhs: PointeeSized = Self>: PointeeSized {
 impl Ord for usize {}
 
 #[extern_spec(core::cmp)]
-#[refined_by(res: int)]
+#[reflect]
 enum Ordering {
-    #[variant(Ordering[-1])]
     Less,
-    #[variant(Ordering[0])]
     Equal,
-    #[variant(Ordering[1])]
     Greater,
 }
 
 #[extern_spec(core::cmp)]
 #[assoc(
-    fn is_eq(m: Ordering, o: Ordering, res: bool) -> bool { res <=> (m.res == o.res) }
-    fn is_ne(m: Ordering, o: Ordering, res: bool) -> bool { res <=> (m.res != o.res) }
+    fn is_eq(m: Ordering, o: Ordering, res: bool) -> bool { res <=> (m == o) }
+    fn is_ne(m: Ordering, o: Ordering, res: bool) -> bool { res <=> (m != o) }
 )]
 impl PartialEq for Ordering {
     #[spec(fn(me: &Ordering[@m], other: &Ordering[@o]) -> bool[m == o])]
