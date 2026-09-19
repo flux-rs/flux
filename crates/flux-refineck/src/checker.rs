@@ -7,7 +7,8 @@ use flux_common::{
 use flux_config::{self as config, InferOpts};
 use flux_infer::{
     infer::{
-        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
+        Blocking, ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult,
+        SubtypeReason,
     },
     projections::NormalizeExt as _,
     refine_tree::{Marker, RefineCtxtTrace},
@@ -1871,6 +1872,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 *re,
                 path,
                 PtrToRefBound::Identity,
+                Blocking::Block,
             )?
         } else {
             src.clone()
