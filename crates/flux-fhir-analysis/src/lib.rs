@@ -21,7 +21,6 @@ use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
 use flux_infer::fixpoint_encoding::flatten_kvar_args;
-use flux_macros::fluent_messages;
 use flux_middle::{
     def_id::{FluxDefId, FluxId, MaybeExternId},
     fhir::{
