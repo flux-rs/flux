@@ -22,7 +22,7 @@ YELLOW = "\033[33m"
 RESET = "\033[0m"
 
 
-ATTRIBUTE = re.compile(r"#\[\s*flux(?:_rs)?::trusted\b")
+ATTRIBUTE = re.compile(r"#\[\s*flux(?:_rs)?::(trusted|trusted_impl)\b")
 REASON = re.compile(r"\breason\s*=\s*\"")
 
 
