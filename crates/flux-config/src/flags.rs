@@ -616,3 +616,7 @@ fn parse_opt_include(slot: &mut Vec<String>, v: Option<&str>) -> Result<(), &'st
     }
     Ok(())
 }
+
+fn panicking_parser(_s: &str) -> Result<(), String> {
+    panic!("Parsing flux args from cli is not yet supported.");
+}
