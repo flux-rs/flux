@@ -427,6 +427,39 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         segments: &[S],
         ns: Namespace,
     ) -> std::result::Result<fhir::PartialRes<surface::NodeId>, ResolveError> {
+        let result = self.resolve_path_with_ribs_inner(segments, ns);
+        let fallback = match &result {
+            Ok(res) => matches!(res.full_res(), Some(fhir::Res::Def(DefKind::Mod, _))),
+            Err(ResolveError::NotFound) => true,
+            Err(ResolveError::Ambiguous(_)) => false,
+        };
+        // Retry a primitive when ordinary lookup finds a module or fails.
+        // See: https://github.com/rust-lang/rust/blob/12c4d3f34dcb4715784d2fa0e8443853e0592194/compiler/rustc_resolve/src/late.rs#L5069-L5071
+        if fallback
+            && (ns == TypeNS || (ns == ValueNS && segments.len() > 1))
+            && let Some(first) = segments.first()
+        {
+            let name = first.ident().name;
+            let prim = PrimTy::from_name(name).map(fhir::Res::PrimTy).or_else(|| {
+                fhir::PrimSort::ALL
+                    .into_iter()
+                    .find(|sort| sort.name() == name)
+                    .map(fhir::Res::PrimSort)
+            });
+            if let Some(res) = prim {
+                S::record_segment_res(self, first, res);
+                return Ok(fhir::PartialRes::with_unresolved_segments(res, segments.len() - 1));
+            }
+        }
+        result
+    }
+
+    /// Ordinary path lookup, also used for imports where modules must not become primitives.
+    fn resolve_path_with_ribs_inner<S: Segment>(
+        &mut self,
+        segments: &[S],
+        ns: Namespace,
+    ) -> std::result::Result<fhir::PartialRes<surface::NodeId>, ResolveError> {
         let mut module: Option<Module> = None;
         for (segment_idx, segment) in segments.iter().enumerate() {
             let is_last = segment_idx + 1 == segments.len();
@@ -617,7 +650,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         // non-prelude glob imports.
         let tcx = self.genv.tcx();
         let curr_mod = self.current_module.to_def_id();
-        self.resolve_path_with_ribs(path.segments, TypeNS)
+        self.resolve_path_with_ribs_inner(path.segments, TypeNS)
             .ok()
             .and_then(|partial_res| partial_res.full_res())
             .and_then(|res| {
