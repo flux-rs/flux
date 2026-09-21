@@ -181,7 +181,8 @@ impl<'a> fmt::Display for LeanThyFunc<'a> {
             ThyFunc::IntToBv8 => write!(f, "BitVec.ofInt 8"),
             ThyFunc::IntToBv32 => write!(f, "BitVec.ofInt 32"),
             ThyFunc::IntToBv64 => write!(f, "BitVec.ofInt 64"),
-            ThyFunc::Bv8ToInt | ThyFunc::Bv32ToInt | ThyFunc::Bv64ToInt => {
+            ThyFunc::IntToBv128 => write!(f, "BitVec.ofInt 128"),
+            ThyFunc::Bv8ToInt | ThyFunc::Bv32ToInt | ThyFunc::Bv64ToInt | ThyFunc::Bv128ToInt => {
                 write!(f, "BitVec.toNat")
             }
             ThyFunc::BvAdd => write!(f, "BitVec.add"),
