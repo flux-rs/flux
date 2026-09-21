@@ -650,98 +650,100 @@
 <a href=#650 id=650 data-nosnippet>650</a>        <span class="string">"bv32_to_int" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::Bv32ToInt),
 <a href=#651 id=651 data-nosnippet>651</a>        <span class="string">"int_to_bv64" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::IntToBv64),
 <a href=#652 id=652 data-nosnippet>652</a>        <span class="string">"bv64_to_int" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::Bv64ToInt),
-<a href=#653 id=653 data-nosnippet>653</a>
-<a href=#654 id=654 data-nosnippet>654</a>        <span class="comment">// BIT VECTORS - comparisons
-<a href=#655 id=655 data-nosnippet>655</a>        </span><span class="string">"bvule" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUle),
-<a href=#656 id=656 data-nosnippet>656</a>        <span class="string">"bvsle" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSle),
-<a href=#657 id=657 data-nosnippet>657</a>        <span class="string">"bvuge" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUge),
-<a href=#658 id=658 data-nosnippet>658</a>        <span class="string">"bvsge" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSge),
-<a href=#659 id=659 data-nosnippet>659</a>        <span class="string">"bvugt" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUgt),
-<a href=#660 id=660 data-nosnippet>660</a>        <span class="string">"bvsgt" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSgt),
-<a href=#661 id=661 data-nosnippet>661</a>        <span class="string">"bvult" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUlt),
-<a href=#662 id=662 data-nosnippet>662</a>        <span class="string">"bvslt" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSlt),
-<a href=#663 id=663 data-nosnippet>663</a>
-<a href=#664 id=664 data-nosnippet>664</a>        <span class="comment">// BIT VECTORS - arithmetic/logical operations
-<a href=#665 id=665 data-nosnippet>665</a>        </span><span class="string">"bvudiv" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUdiv),
-<a href=#666 id=666 data-nosnippet>666</a>        <span class="string">"bvsdiv" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSdiv),
-<a href=#667 id=667 data-nosnippet>667</a>        <span class="string">"bvurem" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUrem),
-<a href=#668 id=668 data-nosnippet>668</a>        <span class="string">"bvsrem" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSrem),
-<a href=#669 id=669 data-nosnippet>669</a>        <span class="string">"bvlshr" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvLshr),
-<a href=#670 id=670 data-nosnippet>670</a>        <span class="string">"bvashr" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvAshr),
-<a href=#671 id=671 data-nosnippet>671</a>        <span class="string">"bvand" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvAnd),
-<a href=#672 id=672 data-nosnippet>672</a>        <span class="string">"bvor" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvOr),
-<a href=#673 id=673 data-nosnippet>673</a>        <span class="string">"bvxor" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvXor),
-<a href=#674 id=674 data-nosnippet>674</a>        <span class="string">"bvnot" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvNot),
-<a href=#675 id=675 data-nosnippet>675</a>        <span class="string">"bvadd" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvAdd),
-<a href=#676 id=676 data-nosnippet>676</a>        <span class="string">"bvneg" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvNeg),
-<a href=#677 id=677 data-nosnippet>677</a>        <span class="string">"bvsub" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSub),
-<a href=#678 id=678 data-nosnippet>678</a>        <span class="string">"bvmul" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvMul),
-<a href=#679 id=679 data-nosnippet>679</a>        <span class="string">"bvshl" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvShl),
-<a href=#680 id=680 data-nosnippet>680</a>
-<a href=#681 id=681 data-nosnippet>681</a>        <span class="comment">// SETS
-<a href=#682 id=682 data-nosnippet>682</a>        </span><span class="string">"Set_empty" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetEmpty),
-<a href=#683 id=683 data-nosnippet>683</a>        <span class="string">"Set_sng" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetSng),
-<a href=#684 id=684 data-nosnippet>684</a>        <span class="string">"Set_cup" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetCup),
-<a href=#685 id=685 data-nosnippet>685</a>        <span class="string">"Set_cap" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetCap),
-<a href=#686 id=686 data-nosnippet>686</a>        <span class="string">"Set_dif" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetDif),
-<a href=#687 id=687 data-nosnippet>687</a>        <span class="string">"Set_mem" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetMem),
-<a href=#688 id=688 data-nosnippet>688</a>        <span class="string">"Set_sub" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetSub),
-<a href=#689 id=689 data-nosnippet>689</a>
-<a href=#690 id=690 data-nosnippet>690</a>        <span class="comment">// MAPS
-<a href=#691 id=691 data-nosnippet>691</a>        </span><span class="string">"Map_default" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::MapDefault),
-<a href=#692 id=692 data-nosnippet>692</a>        <span class="string">"Map_select" </span>| <span class="string">"arr_select_m" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::MapSelect),
-<a href=#693 id=693 data-nosnippet>693</a>        <span class="string">"Map_store" </span>| <span class="string">"arr_store_m" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::MapStore),
-<a href=#694 id=694 data-nosnippet>694</a>
-<a href=#695 id=695 data-nosnippet>695</a>        <span class="comment">// Note: BvZeroExtend and BvSignExtend have parametric forms like "app (_ zero_extend N)"
-<a href=#696 id=696 data-nosnippet>696</a>        // These would need special parsing in the caller
-<a href=#697 id=697 data-nosnippet>697</a>        </span><span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-<a href=#698 id=698 data-nosnippet>698</a>    }
-<a href=#699 id=699 data-nosnippet>699</a>}
-<a href=#700 id=700 data-nosnippet>700</a>
-<a href=#701 id=701 data-nosnippet>701</a><span class="kw">fn </span>through_nested_list&lt;T, F&gt;(sexp: <span class="kw-2">&amp;</span>Sexp, <span class="kw-2">mut </span>at_bottom: F) -&gt; T
-<a href=#702 id=702 data-nosnippet>702</a><span class="kw">where
-<a href=#703 id=703 data-nosnippet>703</a>    </span>F: FnMut(<span class="kw-2">&amp;</span>Sexp) -&gt; T,
-<a href=#704 id=704 data-nosnippet>704</a>{
-<a href=#705 id=705 data-nosnippet>705</a>    <span class="kw">let </span><span class="kw-2">mut </span>current = sexp;
-<a href=#706 id=706 data-nosnippet>706</a>    <span class="kw">while let </span>Sexp::List(items) = current {
-<a href=#707 id=707 data-nosnippet>707</a>        <span class="kw">if </span>items.len() == <span class="number">1 </span>{
-<a href=#708 id=708 data-nosnippet>708</a>            current = <span class="kw-2">&amp;</span>items[<span class="number">0</span>];
-<a href=#709 id=709 data-nosnippet>709</a>        } <span class="kw">else </span>{
-<a href=#710 id=710 data-nosnippet>710</a>            <span class="kw">break</span>;
-<a href=#711 id=711 data-nosnippet>711</a>        }
-<a href=#712 id=712 data-nosnippet>712</a>    }
-<a href=#713 id=713 data-nosnippet>713</a>    at_bottom(current)
-<a href=#714 id=714 data-nosnippet>714</a>}
-<a href=#715 id=715 data-nosnippet>715</a>
-<a href=#716 id=716 data-nosnippet>716</a><span class="doccomment">/// Trivial implementation of Types using `String` for all associated types -----------------------------------
-<a href=#717 id=717 data-nosnippet>717</a></span><span class="kw">pub struct </span>StringTypes;
-<a href=#718 id=718 data-nosnippet>718</a><span class="kw">impl </span>Types <span class="kw">for </span>StringTypes {
-<a href=#719 id=719 data-nosnippet>719</a>    <span class="kw">type </span>Sort = String;
-<a href=#720 id=720 data-nosnippet>720</a>    <span class="kw">type </span>KVar = String;
-<a href=#721 id=721 data-nosnippet>721</a>    <span class="kw">type </span>Var = String;
-<a href=#722 id=722 data-nosnippet>722</a>    <span class="kw">type </span>Tag = String;
-<a href=#723 id=723 data-nosnippet>723</a>    <span class="kw">type </span>String = String;
-<a href=#724 id=724 data-nosnippet>724</a>    <span class="kw">type </span>Real = String;
-<a href=#725 id=725 data-nosnippet>725</a>}
-<a href=#726 id=726 data-nosnippet>726</a>
-<a href=#727 id=727 data-nosnippet>727</a><span class="kw">impl </span>FromSexp&lt;StringTypes&gt; <span class="kw">for </span>StringTypes {
-<a href=#728 id=728 data-nosnippet>728</a>    <span class="kw">fn </span>fresh_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; &lt;StringTypes <span class="kw">as </span>Types&gt;::Var {
-<a href=#729 id=729 data-nosnippet>729</a>        <span class="macro">todo!</span>()
-<a href=#730 id=730 data-nosnippet>730</a>    }
-<a href=#731 id=731 data-nosnippet>731</a>    <span class="kw">fn </span>var(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
-<a href=#732 id=732 data-nosnippet>732</a>        <span class="prelude-val">Ok</span>(name.to_string())
-<a href=#733 id=733 data-nosnippet>733</a>    }
-<a href=#734 id=734 data-nosnippet>734</a>
-<a href=#735 id=735 data-nosnippet>735</a>    <span class="kw">fn </span>kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
-<a href=#736 id=736 data-nosnippet>736</a>        <span class="prelude-val">Ok</span>(name.to_string())
-<a href=#737 id=737 data-nosnippet>737</a>    }
-<a href=#738 id=738 data-nosnippet>738</a>
-<a href=#739 id=739 data-nosnippet>739</a>    <span class="kw">fn </span>string(<span class="kw-2">&amp;</span><span class="self">self</span>, s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
-<a href=#740 id=740 data-nosnippet>740</a>        <span class="prelude-val">Ok</span>(s.to_string())
-<a href=#741 id=741 data-nosnippet>741</a>    }
-<a href=#742 id=742 data-nosnippet>742</a>
-<a href=#743 id=743 data-nosnippet>743</a>    <span class="kw">fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
-<a href=#744 id=744 data-nosnippet>744</a>        <span class="prelude-val">Ok</span>(name.to_string())
-<a href=#745 id=745 data-nosnippet>745</a>    }
-<a href=#746 id=746 data-nosnippet>746</a>}
+<a href=#653 id=653 data-nosnippet>653</a>        <span class="string">"int_to_bv128" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::IntToBv128),
+<a href=#654 id=654 data-nosnippet>654</a>        <span class="string">"bv128_to_int" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::Bv128ToInt),
+<a href=#655 id=655 data-nosnippet>655</a>
+<a href=#656 id=656 data-nosnippet>656</a>        <span class="comment">// BIT VECTORS - comparisons
+<a href=#657 id=657 data-nosnippet>657</a>        </span><span class="string">"bvule" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUle),
+<a href=#658 id=658 data-nosnippet>658</a>        <span class="string">"bvsle" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSle),
+<a href=#659 id=659 data-nosnippet>659</a>        <span class="string">"bvuge" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUge),
+<a href=#660 id=660 data-nosnippet>660</a>        <span class="string">"bvsge" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSge),
+<a href=#661 id=661 data-nosnippet>661</a>        <span class="string">"bvugt" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUgt),
+<a href=#662 id=662 data-nosnippet>662</a>        <span class="string">"bvsgt" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSgt),
+<a href=#663 id=663 data-nosnippet>663</a>        <span class="string">"bvult" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUlt),
+<a href=#664 id=664 data-nosnippet>664</a>        <span class="string">"bvslt" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSlt),
+<a href=#665 id=665 data-nosnippet>665</a>
+<a href=#666 id=666 data-nosnippet>666</a>        <span class="comment">// BIT VECTORS - arithmetic/logical operations
+<a href=#667 id=667 data-nosnippet>667</a>        </span><span class="string">"bvudiv" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUdiv),
+<a href=#668 id=668 data-nosnippet>668</a>        <span class="string">"bvsdiv" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSdiv),
+<a href=#669 id=669 data-nosnippet>669</a>        <span class="string">"bvurem" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvUrem),
+<a href=#670 id=670 data-nosnippet>670</a>        <span class="string">"bvsrem" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSrem),
+<a href=#671 id=671 data-nosnippet>671</a>        <span class="string">"bvlshr" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvLshr),
+<a href=#672 id=672 data-nosnippet>672</a>        <span class="string">"bvashr" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvAshr),
+<a href=#673 id=673 data-nosnippet>673</a>        <span class="string">"bvand" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvAnd),
+<a href=#674 id=674 data-nosnippet>674</a>        <span class="string">"bvor" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvOr),
+<a href=#675 id=675 data-nosnippet>675</a>        <span class="string">"bvxor" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvXor),
+<a href=#676 id=676 data-nosnippet>676</a>        <span class="string">"bvnot" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvNot),
+<a href=#677 id=677 data-nosnippet>677</a>        <span class="string">"bvadd" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvAdd),
+<a href=#678 id=678 data-nosnippet>678</a>        <span class="string">"bvneg" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvNeg),
+<a href=#679 id=679 data-nosnippet>679</a>        <span class="string">"bvsub" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvSub),
+<a href=#680 id=680 data-nosnippet>680</a>        <span class="string">"bvmul" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvMul),
+<a href=#681 id=681 data-nosnippet>681</a>        <span class="string">"bvshl" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::BvShl),
+<a href=#682 id=682 data-nosnippet>682</a>
+<a href=#683 id=683 data-nosnippet>683</a>        <span class="comment">// SETS
+<a href=#684 id=684 data-nosnippet>684</a>        </span><span class="string">"Set_empty" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetEmpty),
+<a href=#685 id=685 data-nosnippet>685</a>        <span class="string">"Set_sng" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetSng),
+<a href=#686 id=686 data-nosnippet>686</a>        <span class="string">"Set_cup" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetCup),
+<a href=#687 id=687 data-nosnippet>687</a>        <span class="string">"Set_cap" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetCap),
+<a href=#688 id=688 data-nosnippet>688</a>        <span class="string">"Set_dif" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetDif),
+<a href=#689 id=689 data-nosnippet>689</a>        <span class="string">"Set_mem" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetMem),
+<a href=#690 id=690 data-nosnippet>690</a>        <span class="string">"Set_sub" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::SetSub),
+<a href=#691 id=691 data-nosnippet>691</a>
+<a href=#692 id=692 data-nosnippet>692</a>        <span class="comment">// MAPS
+<a href=#693 id=693 data-nosnippet>693</a>        </span><span class="string">"Map_default" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::MapDefault),
+<a href=#694 id=694 data-nosnippet>694</a>        <span class="string">"Map_select" </span>| <span class="string">"arr_select_m" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::MapSelect),
+<a href=#695 id=695 data-nosnippet>695</a>        <span class="string">"Map_store" </span>| <span class="string">"arr_store_m" </span>=&gt; <span class="prelude-val">Some</span>(ThyFunc::MapStore),
+<a href=#696 id=696 data-nosnippet>696</a>
+<a href=#697 id=697 data-nosnippet>697</a>        <span class="comment">// Note: BvZeroExtend and BvSignExtend have parametric forms like "app (_ zero_extend N)"
+<a href=#698 id=698 data-nosnippet>698</a>        // These would need special parsing in the caller
+<a href=#699 id=699 data-nosnippet>699</a>        </span><span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#700 id=700 data-nosnippet>700</a>    }
+<a href=#701 id=701 data-nosnippet>701</a>}
+<a href=#702 id=702 data-nosnippet>702</a>
+<a href=#703 id=703 data-nosnippet>703</a><span class="kw">fn </span>through_nested_list&lt;T, F&gt;(sexp: <span class="kw-2">&amp;</span>Sexp, <span class="kw-2">mut </span>at_bottom: F) -&gt; T
+<a href=#704 id=704 data-nosnippet>704</a><span class="kw">where
+<a href=#705 id=705 data-nosnippet>705</a>    </span>F: FnMut(<span class="kw-2">&amp;</span>Sexp) -&gt; T,
+<a href=#706 id=706 data-nosnippet>706</a>{
+<a href=#707 id=707 data-nosnippet>707</a>    <span class="kw">let </span><span class="kw-2">mut </span>current = sexp;
+<a href=#708 id=708 data-nosnippet>708</a>    <span class="kw">while let </span>Sexp::List(items) = current {
+<a href=#709 id=709 data-nosnippet>709</a>        <span class="kw">if </span>items.len() == <span class="number">1 </span>{
+<a href=#710 id=710 data-nosnippet>710</a>            current = <span class="kw-2">&amp;</span>items[<span class="number">0</span>];
+<a href=#711 id=711 data-nosnippet>711</a>        } <span class="kw">else </span>{
+<a href=#712 id=712 data-nosnippet>712</a>            <span class="kw">break</span>;
+<a href=#713 id=713 data-nosnippet>713</a>        }
+<a href=#714 id=714 data-nosnippet>714</a>    }
+<a href=#715 id=715 data-nosnippet>715</a>    at_bottom(current)
+<a href=#716 id=716 data-nosnippet>716</a>}
+<a href=#717 id=717 data-nosnippet>717</a>
+<a href=#718 id=718 data-nosnippet>718</a><span class="doccomment">/// Trivial implementation of Types using `String` for all associated types -----------------------------------
+<a href=#719 id=719 data-nosnippet>719</a></span><span class="kw">pub struct </span>StringTypes;
+<a href=#720 id=720 data-nosnippet>720</a><span class="kw">impl </span>Types <span class="kw">for </span>StringTypes {
+<a href=#721 id=721 data-nosnippet>721</a>    <span class="kw">type </span>Sort = String;
+<a href=#722 id=722 data-nosnippet>722</a>    <span class="kw">type </span>KVar = String;
+<a href=#723 id=723 data-nosnippet>723</a>    <span class="kw">type </span>Var = String;
+<a href=#724 id=724 data-nosnippet>724</a>    <span class="kw">type </span>Tag = String;
+<a href=#725 id=725 data-nosnippet>725</a>    <span class="kw">type </span>String = String;
+<a href=#726 id=726 data-nosnippet>726</a>    <span class="kw">type </span>Real = String;
+<a href=#727 id=727 data-nosnippet>727</a>}
+<a href=#728 id=728 data-nosnippet>728</a>
+<a href=#729 id=729 data-nosnippet>729</a><span class="kw">impl </span>FromSexp&lt;StringTypes&gt; <span class="kw">for </span>StringTypes {
+<a href=#730 id=730 data-nosnippet>730</a>    <span class="kw">fn </span>fresh_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; &lt;StringTypes <span class="kw">as </span>Types&gt;::Var {
+<a href=#731 id=731 data-nosnippet>731</a>        <span class="macro">todo!</span>()
+<a href=#732 id=732 data-nosnippet>732</a>    }
+<a href=#733 id=733 data-nosnippet>733</a>    <span class="kw">fn </span>var(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
+<a href=#734 id=734 data-nosnippet>734</a>        <span class="prelude-val">Ok</span>(name.to_string())
+<a href=#735 id=735 data-nosnippet>735</a>    }
+<a href=#736 id=736 data-nosnippet>736</a>
+<a href=#737 id=737 data-nosnippet>737</a>    <span class="kw">fn </span>kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
+<a href=#738 id=738 data-nosnippet>738</a>        <span class="prelude-val">Ok</span>(name.to_string())
+<a href=#739 id=739 data-nosnippet>739</a>    }
+<a href=#740 id=740 data-nosnippet>740</a>
+<a href=#741 id=741 data-nosnippet>741</a>    <span class="kw">fn </span>string(<span class="kw-2">&amp;</span><span class="self">self</span>, s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
+<a href=#742 id=742 data-nosnippet>742</a>        <span class="prelude-val">Ok</span>(s.to_string())
+<a href=#743 id=743 data-nosnippet>743</a>    }
+<a href=#744 id=744 data-nosnippet>744</a>
+<a href=#745 id=745 data-nosnippet>745</a>    <span class="kw">fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ParseError&gt; {
+<a href=#746 id=746 data-nosnippet>746</a>        <span class="prelude-val">Ok</span>(name.to_string())
+<a href=#747 id=747 data-nosnippet>747</a>    }
+<a href=#748 id=748 data-nosnippet>748</a>}
 </code></pre></div></section></main></body></html>

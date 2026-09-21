@@ -6928,6 +6928,31 @@ pub fn test_bv_extensions() {
     assert(r.zero_extend() == 12); //~ ERROR refinement type
     assert(r.sign_extend() == u64::MAX);
     assert(r.sign_extend() == 12); //~ ERROR refinement type
+}
+
+#[flux::opaque]
+#[flux::refined_by(v: bitvec&lt;128&gt;)]
+struct Register128 {
+    inner: u128,
+}
+
+impl Register128 {
+    #[flux::sig(fn(u128[@n]) -&gt; Register128[bv_int_to_bv128(n)])]
+    #[flux::trusted]
+    fn new(v: u128) -&gt; Self {
+        Register128 { inner: v }
+    }
+
+    #[flux::sig(fn(&amp;Register128[@n]) -&gt; u128[bv_bv128_to_int(n)])]
+    #[flux::trusted]
+    fn get(&amp;self) -&gt; u128 {
+        self.inner
+    }
+}
+
+pub fn test_bv128_conversion() {
+    let r = Register128::new(u128::MAX);
+    assert(r.get() == 12); //~ ERROR refinement type
 }</code></pre>
 <h3 id="bitvector-constants"><a class="header" href="#bitvector-constants">Bitvector Constants</a></h3>
 <pre><code class="language-rust noplayground">#![flux::defs(
