@@ -118,6 +118,10 @@ pub fn smt_define_fun() -> bool {
     FLAGS.smt_define_fun
 }
 
+pub fn suggestions_z3() -> SuggestionsZ3 {
+    FLAGS.suggestions_z3
+}
+
 fn solver() -> SmtSolver {
     FLAGS.solver
 }
@@ -452,6 +456,50 @@ impl fmt::Display for SmtSolver {
         match self {
             SmtSolver::Z3 => write!(f, "z3"),
             SmtSolver::CVC5 => write!(f, "cvc5"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Default)]
+#[serde(try_from = "String")]
+pub enum SuggestionsZ3 {
+    Bindings,
+    #[default]
+    Process,
+    Compare,
+}
+
+impl SuggestionsZ3 {
+    pub(crate) const ERROR: &str = "expected one of `bindings`, `process`, or `compare`";
+}
+
+impl FromStr for SuggestionsZ3 {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "bindings" => Ok(Self::Bindings),
+            "process" => Ok(Self::Process),
+            "compare" => Ok(Self::Compare),
+            _ => Err(Self::ERROR),
+        }
+    }
+}
+
+impl TryFrom<String> for SuggestionsZ3 {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl fmt::Display for SuggestionsZ3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bindings => write!(f, "bindings"),
+            Self::Process => write!(f, "process"),
+            Self::Compare => write!(f, "compare"),
         }
     }
 }

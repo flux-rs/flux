@@ -19,7 +19,7 @@ mod constraint_fragments;
 mod constraint_solving;
 #[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
 mod constraint_with_env;
-#[cfg(feature = "rust-fixpoint")]
+#[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
 mod cstr2smt2;
 mod format;
 #[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
@@ -60,7 +60,34 @@ use crate::constraint_with_env::ConstraintWithEnv;
 #[cfg(feature = "suggestions")]
 use crate::constraint_with_env::topo_sort_data_declarations;
 #[cfg(feature = "suggestions")]
-pub use crate::z3_process::{SuggestionSolver, SuggestionSolverError};
+pub use crate::z3_process::SuggestionSolverError;
+
+#[cfg(feature = "suggestions")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SuggestionsZ3Backend {
+    Bindings,
+    Process,
+    Compare,
+}
+
+#[cfg(feature = "suggestions")]
+pub struct SuggestionSolver {
+    backend: SuggestionsZ3Backend,
+    process: Option<z3_process::ProcessSolver>,
+}
+
+#[cfg(feature = "suggestions")]
+impl SuggestionSolver {
+    pub fn new(backend: SuggestionsZ3Backend) -> Result<Self, SuggestionSolverError> {
+        let process = match backend {
+            SuggestionsZ3Backend::Bindings => None,
+            SuggestionsZ3Backend::Process | SuggestionsZ3Backend::Compare => {
+                Some(z3_process::ProcessSolver::new()?)
+            }
+        };
+        Ok(Self { backend, process })
+    }
+}
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
@@ -175,7 +202,63 @@ pub fn qe_and_simplify<T: Types>(
     // let mut consts = self.constants.clone();
     // consts.extend(free_vars.clone());
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    solver.qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
+    let process = |solver: &mut SuggestionSolver| {
+        solver
+            .process
+            .as_mut()
+            .expect("process backend initialized")
+            .qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
+    };
+    match solver.backend {
+        SuggestionsZ3Backend::Bindings => {
+            cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
+                .map_err(|err| SuggestionSolverError::Bindings(format!("{err:?}")))
+        }
+        SuggestionsZ3Backend::Process => process(solver),
+        SuggestionsZ3Backend::Compare => {
+            let start = std::time::Instant::now();
+            let bindings = cstr2smt2::qe_and_simplify(
+                constraint,
+                binder_consts,
+                global_consts,
+                &datatype_decls,
+            )
+            .map_err(|err| SuggestionSolverError::Bindings(format!("{err:?}")));
+            let bindings_time = start.elapsed();
+            let start = std::time::Instant::now();
+            let process_result = process(solver);
+            let process_time = start.elapsed();
+            eprintln!("[suggestions-z3] qe bindings={bindings_time:?} process={process_time:?}");
+            match (&bindings, &process_result) {
+                (Ok(lhs), Ok(rhs)) => {
+                    match z3_process::equivalent(
+                        solver
+                            .process
+                            .as_mut()
+                            .expect("process backend initialized"),
+                        lhs,
+                        rhs,
+                        constraint,
+                        binder_consts,
+                        global_consts,
+                        &datatype_decls,
+                    ) {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            eprintln!(
+                                "[suggestions-z3] QE semantic mismatch\nbindings: {lhs:?}\nprocess: {rhs:?}"
+                            )
+                        }
+                        Err(err) => eprintln!("[suggestions-z3] QE comparison failed: {err:?}"),
+                    }
+                }
+                (Ok(_), Err(err)) => eprintln!("[suggestions-z3] process failed: {err:?}"),
+                (Err(err), Ok(_)) => eprintln!("[suggestions-z3] bindings failed: {err:?}"),
+                _ => {}
+            }
+            process_result
+        }
+    }
 }
 
 #[cfg(feature = "suggestions")]
@@ -187,7 +270,33 @@ pub fn check_validity<T: Types>(
     datatype_decls: Vec<DataDecl<T>>,
 ) -> Result<bool, SuggestionSolverError> {
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    solver.check_validity(constraint, binder_consts, global_consts, &datatype_decls)
+    let bindings =
+        || Ok(cstr2smt2::check_validity(constraint, binder_consts, global_consts, &datatype_decls));
+    let process = |solver: &mut SuggestionSolver| {
+        solver
+            .process
+            .as_mut()
+            .expect("process backend initialized")
+            .check_validity(constraint, binder_consts, global_consts, &datatype_decls)
+    };
+    match solver.backend {
+        SuggestionsZ3Backend::Bindings => bindings(),
+        SuggestionsZ3Backend::Process => process(solver),
+        SuggestionsZ3Backend::Compare => {
+            let bindings = bindings();
+            let process_result = process(solver);
+            match (&bindings, &process_result) {
+                (Ok(lhs), Ok(rhs)) if lhs == rhs => {}
+                (Err(_), Err(_)) => {}
+                _ => {
+                    eprintln!(
+                        "[suggestions-z3] validity mismatch: bindings={bindings:?} process={process_result:?}"
+                    )
+                }
+            }
+            process_result
+        }
+    }
 }
 
 #[derive_where(Hash, Clone, Debug)]
