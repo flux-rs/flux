@@ -101,6 +101,7 @@ where
                 &suggestion_ctx.const_decls,
                 suggestion_ctx.data_decls.clone(),
             )
+            .unwrap_or(false)
         }) {
             continue;
         }
