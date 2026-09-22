@@ -40,5 +40,12 @@ version = "0.1"
 [package.metadata.rust-analyzer]
 rustc_private = true
 
+[features]
+suggestions = [
+    "flux-middle/suggestions",
+    "flux-fhir-analysis/suggestions",
+    "flux-infer/suggestions",
+]
+
 [lints]
 workspace = true

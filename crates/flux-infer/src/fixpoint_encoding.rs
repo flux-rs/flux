@@ -626,6 +626,7 @@ pub(crate) struct SuggestionCtxt {
     pub(crate) flat_constraints: FxIndexMap<TagIdx, fixpoint::FlatConstraint>,
     pub(crate) const_decls: Vec<fixpoint::ConstDecl>,
     pub(crate) data_decls: Vec<fixpoint::DataDecl>,
+    pub(crate) fun_defs: Vec<fixpoint::FunDef>,
 }
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
@@ -694,7 +695,11 @@ where
         let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
 
         #[cfg(feature = "suggestions")]
-        let constants_without_inequalities = constants.clone();
+        let constants_without_inequalities = constants
+            .iter()
+            .filter(|decl| !matches!(decl.name, fixpoint::Var::WKVar(..)))
+            .cloned()
+            .collect_vec();
         // The rust fixpoint implementation does not yet support polymorphic functions.
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
@@ -725,7 +730,7 @@ where
             comments: self.comments.clone(),
             constants,
             kvars,
-            define_funs,
+            define_funs: define_funs.clone(),
             constraint,
             qualifiers,
             scrape_quals,
@@ -742,6 +747,7 @@ where
             flat_constraints: flat_constraint_map,
             const_decls: constants_without_inequalities,
             data_decls,
+            fun_defs: define_funs,
         });
         #[cfg(not(feature = "suggestions"))]
         let suggestion_ctx = None;
@@ -782,7 +788,7 @@ where
         &mut self,
         result: ParsedResult,
         #[allow(unused)] mut suggestion_ctx: Option<SuggestionCtxt>,
-    ) -> Answer<Tag> {
+    ) -> QueryResult<Answer<Tag>> {
         #[cfg(feature = "suggestions")]
         suggestion_ctx.as_mut().map(|suggestion_ctx| {
             for constraint in suggestion_ctx.flat_constraints.values_mut() {
@@ -795,25 +801,39 @@ where
             }
         });
         let def_span = self.ecx.def_span();
+        #[cfg(feature = "suggestions")]
+        let mut suggestion_solver = None;
         let errors = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
                 metrics::incr_metric(Metric::CsError, errors.len() as u32);
                 let tags = errors.into_iter().map(|err| err.tag).unique().collect_vec();
                 tags.into_iter()
-                    .map(|tag_idx| {
+                    .map(|tag_idx| -> QueryResult<_> {
                         let tag = self.tags[tag_idx];
                         #[cfg(not(feature = "suggestions"))]
                         let possible_solutions = Default::default();
                         #[cfg(feature = "suggestions")]
                         let possible_solutions = if let Some(suggestion_ctx) = &suggestion_ctx {
-                            find_possible_solutions(self, tag_idx, &suggestion_ctx)
+                            find_possible_solutions(
+                                self,
+                                tag_idx,
+                                suggestion_ctx,
+                                &mut suggestion_solver,
+                            )
+                            .map_err(|err| {
+                                let diagnostic = self.genv.sess().dcx().struct_span_err(
+                                    def_span,
+                                    format!("failed to compute refinement suggestions: {err:?}"),
+                                );
+                                QueryErr::Emitted(diagnostic.emit_err())
+                            })?
                         } else {
                             Default::default()
                         };
-                        FixpointCheckError::new(tag, tag_idx, possible_solutions)
+                        Ok(FixpointCheckError::new(tag, tag_idx, possible_solutions))
                     })
-                    .collect_vec()
+                    .collect::<QueryResult<Vec<_>>>()?
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         };
@@ -830,11 +850,11 @@ where
             .map(|(kvid, sol)| (kvid, self.fixpoint_to_solution(&sol)))
             .collect_vec();
 
-        Answer {
+        Ok(Answer {
             errors,
             cut_solution: self.kcx.group_kvar_solution(cut_solution),
             non_cut_solution: self.kcx.group_kvar_solution(non_cut_solution),
-        }
+        })
     }
 
     fn parse_kvar_solutions(

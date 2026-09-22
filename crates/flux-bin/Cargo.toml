@@ -31,5 +31,8 @@ toml.workspace = true
 clap.workspace = true
 anstyle.workspace = true
 
+[features]
+suggestions = []
+
 [lints]
 workspace = true

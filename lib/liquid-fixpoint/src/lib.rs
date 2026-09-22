@@ -27,6 +27,8 @@ mod graph;
 pub mod parser;
 pub mod sexp;
 pub mod smt_horn;
+#[cfg(feature = "suggestions")]
+mod z3_process;
 
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
@@ -61,6 +63,92 @@ use process_control::{ChildExt, Control};
 use crate::constraint_with_env::ConstraintWithEnv;
 #[cfg(feature = "suggestions")]
 use crate::constraint_with_env::topo_sort_data_declarations;
+#[cfg(feature = "suggestions")]
+pub use crate::z3_process::SuggestionSolverError;
+
+#[cfg(feature = "suggestions")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SuggestionComparisonOperation {
+    Qe,
+    Validity,
+}
+
+#[cfg(feature = "suggestions")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SuggestionComparisonOutcome {
+    Agreed,
+    ProcessFailed,
+    BindingsFailed,
+    BothFailed,
+    Different,
+    ComparisonFailed,
+}
+
+#[cfg(feature = "suggestions")]
+#[derive(Debug)]
+pub struct SuggestionComparisonEvent {
+    pub operation: SuggestionComparisonOperation,
+    pub outcome: SuggestionComparisonOutcome,
+    pub bindings_time: std::time::Duration,
+    pub process_time: std::time::Duration,
+    pub details: Option<String>,
+}
+
+#[cfg(feature = "suggestions")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SuggestionsZ3Backend {
+    Bindings,
+    Process,
+    Compare,
+}
+
+#[cfg(feature = "suggestions")]
+pub struct SuggestionSolver {
+    backend: SuggestionsZ3Backend,
+    process: Option<z3_process::ProcessSolver>,
+    comparison_events: Vec<SuggestionComparisonEvent>,
+}
+
+#[cfg(feature = "suggestions")]
+impl SuggestionSolver {
+    pub fn new<T: Types>(
+        backend: SuggestionsZ3Backend,
+        global_consts: &[ConstDecl<T>],
+        funs: &[FunDef<T>],
+        datatype_decls: Vec<DataDecl<T>>,
+    ) -> Result<Self, SuggestionSolverError> {
+        let process = match backend {
+            SuggestionsZ3Backend::Bindings => None,
+            SuggestionsZ3Backend::Process | SuggestionsZ3Backend::Compare => {
+                Some(z3_process::ProcessSolver::new(backend == SuggestionsZ3Backend::Compare)?)
+            }
+        };
+        let mut solver = Self { backend, process, comparison_events: Vec::new() };
+        let datatype_decls = topo_sort_data_declarations(datatype_decls);
+        if let Some(process) = &mut solver.process {
+            process.initialize_context(global_consts, funs, &datatype_decls)?;
+        }
+        Ok(solver)
+    }
+
+    pub fn take_comparison_events(&mut self) -> Vec<SuggestionComparisonEvent> {
+        std::mem::take(&mut self.comparison_events)
+    }
+}
+
+#[cfg(feature = "suggestions")]
+fn validate_bindings_datatypes<T: Types>(
+    datatype_decls: &[DataDecl<T>],
+) -> Result<(), SuggestionSolverError> {
+    if let Some(data_decl) = datatype_decls.iter().find(|data_decl| data_decl.vars != 0) {
+        return Err(SuggestionSolverError::Bindings(format!(
+            "bindings backend does not support polymorphic datatype `{}` ({} type parameters)",
+            data_decl.name.display(),
+            data_decl.vars
+        )));
+    }
+    Ok(())
+}
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
@@ -166,26 +254,253 @@ macro_rules! declare_types {
 
 #[cfg(feature = "suggestions")]
 pub fn qe_and_simplify<T: Types>(
+    solver: &mut SuggestionSolver,
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
+    funs: &Vec<FunDef<T>>,
     datatype_decls: Vec<DataDecl<T>>,
-) -> Result<Expr<T>, cstr2smt2::Z3DecodeError> {
+) -> Result<Expr<T>, SuggestionSolverError> {
     // let mut consts = self.constants.clone();
     // consts.extend(free_vars.clone());
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
+    let process = |solver: &mut SuggestionSolver| {
+        solver
+            .process
+            .as_mut()
+            .expect("process backend initialized")
+            .qe_and_simplify(constraint, binder_consts, global_consts, funs, &datatype_decls)
+    };
+    match solver.backend {
+        SuggestionsZ3Backend::Bindings => {
+            validate_bindings_datatypes(&datatype_decls)?;
+            cstr2smt2::qe_and_simplify(
+                constraint,
+                binder_consts,
+                global_consts,
+                funs,
+                &datatype_decls,
+            )
+            .map_err(|err| SuggestionSolverError::Bindings(format!("{err:?}")))
+        }
+        SuggestionsZ3Backend::Process => process(solver),
+        SuggestionsZ3Backend::Compare => {
+            let start = std::time::Instant::now();
+            let bindings = validate_bindings_datatypes(&datatype_decls).and_then(|()| {
+                cstr2smt2::qe_and_simplify(
+                    constraint,
+                    binder_consts,
+                    global_consts,
+                    funs,
+                    &datatype_decls,
+                )
+                .map_err(|err| SuggestionSolverError::Bindings(format!("{err:?}")))
+            });
+            let bindings_time = start.elapsed();
+            let start = std::time::Instant::now();
+            let process_result = process(solver);
+            let process_time = start.elapsed();
+            let (outcome, details) = match (&bindings, &process_result) {
+                (Ok(lhs), Ok(rhs)) => {
+                    match z3_process::equivalent(
+                        solver
+                            .process
+                            .as_mut()
+                            .expect("process backend initialized"),
+                        lhs,
+                        rhs,
+                        constraint,
+                        binder_consts,
+                        global_consts,
+                        funs,
+                        &datatype_decls,
+                    ) {
+                        Ok(true) => (SuggestionComparisonOutcome::Agreed, None),
+                        Ok(false) => {
+                            (
+                                SuggestionComparisonOutcome::Different,
+                                Some(suggestion_comparison_details(
+                                    constraint,
+                                    binder_consts,
+                                    global_consts,
+                                    &datatype_decls,
+                                    &format!("bindings:\n{lhs}\nprocess:\n{rhs}"),
+                                    solver.process.as_ref().unwrap().last_query(),
+                                )),
+                            )
+                        }
+                        Err(_) => (SuggestionComparisonOutcome::ComparisonFailed, None),
+                    }
+                }
+                (Ok(lhs), Err(err)) => {
+                    (
+                        SuggestionComparisonOutcome::ProcessFailed,
+                        Some(suggestion_comparison_details(
+                            constraint,
+                            binder_consts,
+                            global_consts,
+                            &datatype_decls,
+                            &format!("bindings:\n{lhs}\nprocess failed: {err:?}"),
+                            solver.process.as_ref().unwrap().last_query(),
+                        )),
+                    )
+                }
+                (Err(err), Ok(process_result)) => {
+                    (
+                        SuggestionComparisonOutcome::BindingsFailed,
+                        Some(bindings_failure_details(
+                            err,
+                            process_result,
+                            constraint,
+                            binder_consts,
+                        )),
+                    )
+                }
+                (Err(bindings_err), Err(process_err)) => {
+                    (
+                        SuggestionComparisonOutcome::BothFailed,
+                        Some(format!(
+                            "bindings backend failed: {bindings_err:?}; process backend failed: {process_err:?}"
+                        )),
+                    )
+                }
+            };
+            solver.comparison_events.push(SuggestionComparisonEvent {
+                operation: SuggestionComparisonOperation::Qe,
+                outcome,
+                bindings_time,
+                process_time,
+                details,
+            });
+            process_result
+        }
+    }
+}
+
+#[cfg(feature = "suggestions")]
+fn suggestion_comparison_details<T: Types>(
+    constraint: &FlatConstraint<T>,
+    binder_consts: &[ConstDecl<T>],
+    global_consts: &[ConstDecl<T>],
+    datatype_decls: &[DataDecl<T>],
+    difference: &str,
+    process_query: &str,
+) -> String {
+    format!("constraint:\n{constraint:#?}\n{difference}\nprocess query:\n{process_query}")
 }
 
 #[cfg(feature = "suggestions")]
 pub fn check_validity<T: Types>(
+    solver: &mut SuggestionSolver,
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
+    funs: &Vec<FunDef<T>>,
     datatype_decls: Vec<DataDecl<T>>,
-) -> bool {
+) -> Result<bool, SuggestionSolverError> {
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::check_validity(constraint, binder_consts, global_consts, &datatype_decls)
+    let bindings = || {
+        validate_bindings_datatypes(&datatype_decls)?;
+        Ok(cstr2smt2::check_validity(
+            constraint,
+            binder_consts,
+            global_consts,
+            funs,
+            &datatype_decls,
+        ))
+    };
+    let process = |solver: &mut SuggestionSolver| {
+        solver
+            .process
+            .as_mut()
+            .expect("process backend initialized")
+            .check_validity(constraint, binder_consts, global_consts, funs, &datatype_decls)
+    };
+    match solver.backend {
+        SuggestionsZ3Backend::Bindings => bindings(),
+        SuggestionsZ3Backend::Process => process(solver),
+        SuggestionsZ3Backend::Compare => {
+            let start = std::time::Instant::now();
+            let bindings = bindings();
+            let bindings_time = start.elapsed();
+            let start = std::time::Instant::now();
+            let process_result = process(solver);
+            let process_time = start.elapsed();
+            let (outcome, details) = match (&bindings, &process_result) {
+                (Ok(lhs), Ok(rhs)) if lhs == rhs => (SuggestionComparisonOutcome::Agreed, None),
+                (Ok(lhs), Ok(rhs)) => {
+                    (
+                        SuggestionComparisonOutcome::Different,
+                        Some(suggestion_comparison_details(
+                            constraint,
+                            binder_consts,
+                            global_consts,
+                            &datatype_decls,
+                            &format!("bindings: {lhs}\nprocess: {rhs}"),
+                            solver.process.as_ref().unwrap().last_query(),
+                        )),
+                    )
+                }
+                (Ok(_), Err(err)) => {
+                    (
+                        SuggestionComparisonOutcome::ProcessFailed,
+                        Some(format!("process backend failed: {err:?}")),
+                    )
+                }
+                (Err(err), Ok(process_result)) => {
+                    (
+                        SuggestionComparisonOutcome::BindingsFailed,
+                        Some(bindings_failure_details(
+                            err,
+                            process_result,
+                            constraint,
+                            binder_consts,
+                        )),
+                    )
+                }
+                (Err(bindings_err), Err(process_err)) => {
+                    (
+                        SuggestionComparisonOutcome::BothFailed,
+                        Some(format!(
+                            "bindings backend failed: {bindings_err:?}; process backend failed: {process_err:?}"
+                        )),
+                    )
+                }
+            };
+            solver.comparison_events.push(SuggestionComparisonEvent {
+                operation: SuggestionComparisonOperation::Validity,
+                outcome,
+                bindings_time,
+                process_time,
+                details,
+            });
+            process_result
+        }
+    }
+}
+
+#[cfg(feature = "suggestions")]
+fn bindings_failure_details<T: Types>(
+    error: impl Debug,
+    process_result: impl Debug,
+    constraint: &FlatConstraint<T>,
+    binder_consts: &[ConstDecl<T>],
+) -> String {
+    let binder_sorts = binder_consts
+        .iter()
+        .map(|decl| format!("{}: {:?}", decl.name.display(), decl.sort))
+        .collect::<Vec<_>>();
+    let constraint_binders = constraint
+        .binders
+        .iter()
+        .map(|(name, sort)| format!("{}: {sort:?}", name.display()))
+        .collect::<Vec<_>>();
+    format!(
+        "bindings backend failed: {error:?}; process result: {process_result:?}\n\
+         declaration binders: {binder_sorts:?}\n\
+         constraint binders: {constraint_binders:?}\n\
+         constraint: {constraint:#?}"
+    )
 }
 
 #[derive_where(Hash, Clone, Debug)]
@@ -196,7 +511,7 @@ pub struct ConstDecl<T: Types> {
     pub comment: Option<String>,
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct FunDef<T: Types> {
     pub name: T::Var,
     pub sort: FunSort<T>,
@@ -205,7 +520,7 @@ pub struct FunDef<T: Types> {
     pub comment: Option<String>,
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct FunBody<T: Types> {
     pub args: Vec<T::Var>,
     pub expr: Expr<T>,
