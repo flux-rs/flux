@@ -58,7 +58,6 @@ pub fn test_data_wrong_addr(w: &Waker) -> *const () {
     w.data() //~ ERROR refinement type
 }
 
-#[flux::spec(fn(*const[@p] ()))]
 pub fn test_roundtrip_not_null(data: *const ()) {
     let raw = RawWaker::new(data, &VTABLE);
     let w = unsafe { Waker::from_raw(raw) };
