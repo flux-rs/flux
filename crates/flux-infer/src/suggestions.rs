@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use flux_middle::rty;
 use itertools::Itertools;
-use liquid_fixpoint::{SuggestionSolver, check_validity, qe_and_simplify};
+use liquid_fixpoint::{SuggestionSolver, SuggestionsZ3Backend, check_validity, qe_and_simplify};
 use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
@@ -14,6 +14,14 @@ use crate::{
 };
 
 pub type TagToFlatConstraint = FxIndexMap<TagIdx, fixpoint::FlatConstraint>;
+
+fn suggestions_z3_backend() -> SuggestionsZ3Backend {
+    match flux_config::suggestions_z3() {
+        flux_config::SuggestionsZ3::Bindings => SuggestionsZ3Backend::Bindings,
+        flux_config::SuggestionsZ3::Process => SuggestionsZ3Backend::Process,
+        flux_config::SuggestionsZ3::Compare => SuggestionsZ3Backend::Compare,
+    }
+}
 
 pub(crate) fn make_flat_constraint_map(constraint: &fixpoint::Constraint) -> TagToFlatConstraint {
     constraint
@@ -85,7 +93,7 @@ where
         _ => None,
     };
     let mut possible_solutions: PossibleSolutions = Default::default();
-    let mut solver = SuggestionSolver::new().ok();
+    let mut solver = SuggestionSolver::new(suggestions_z3_backend()).ok();
     let wkvars_and_constraints = flat_constraint.wkvars_and_constrs();
     for (wkvar, flat_constraint, other_constrs) in wkvars_and_constraints {
         if !other_constrs.iter().all(|other_constr| {

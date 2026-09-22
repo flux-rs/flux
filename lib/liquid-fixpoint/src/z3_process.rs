@@ -15,6 +15,7 @@ use crate::{
 
 #[derive(Debug)]
 pub enum SuggestionSolverError {
+    Bindings(String),
     Spawn(String),
     Io(String),
     ProcessFailure { status: Option<i32>, stdout: String, stderr: String, query: String },
@@ -149,12 +150,12 @@ impl Z3Session {
     }
 }
 
-pub struct SuggestionSolver {
+pub(crate) struct ProcessSolver {
     session: Z3Session,
 }
 
-impl SuggestionSolver {
-    pub fn new() -> Result<Self, SuggestionSolverError> {
+impl ProcessSolver {
+    pub(crate) fn new() -> Result<Self, SuggestionSolverError> {
         Ok(Self { session: Z3Session::new()? })
     }
 
@@ -221,6 +222,21 @@ impl SuggestionSolver {
             Err(SuggestionSolverError::FailedSanityCheck)
         }
     }
+}
+
+pub(crate) fn equivalent<T: Types>(
+    solver: &mut ProcessSolver,
+    lhs: &Expr<T>,
+    rhs: &Expr<T>,
+    constraint: &FlatConstraint<T>,
+    binder_consts: &[ConstDecl<T>],
+    global_consts: &[ConstDecl<T>],
+    datatype_decls: &[DataDecl<T>],
+) -> Result<bool, SuggestionSolverError> {
+    let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, &constraint.binders);
+    solver.session.reset(&env.declarations()?)?;
+    let assertion = format!("(not (= {} {}))", env.expr(lhs)?, env.expr(rhs)?);
+    Ok(matches!(solver.session.check_sat(&[assertion])?, SatStatus::Unsat))
 }
 
 impl Drop for Z3Session {

@@ -119,11 +119,10 @@ Expose it through a Flux flag such as:
 -Fsuggestions-z3=compare
 ```
 
-During the spike, default to `bindings`. After differential testing, change the
-default to `process`. The bindings and comparison modes, and all plumbing that
-supports selecting between implementations, are temporary testing
-infrastructure. Once the process implementation reaches parity, remove them and
-remove the `z3` crate dependency from suggestion generation.
+Default to `process`. Keep `bindings` and `compare` as temporary testing modes;
+`process` always means the reused-session subprocess implementation, not the
+initial one-shot implementation. Once comparison is no longer useful, remove
+the binding backend and the `z3` crate dependency from suggestion generation.
 
 The `liquid-fixpoint` Rust library should not depend on `flux-config`. Define a
 small backend enum in `liquid-fixpoint`, or pass the selected operation through
@@ -612,7 +611,9 @@ use `reset`, and pruning and sanity checks use `push`/`pop`. This keeps process
 ownership local to suggestion generation while avoiding almost all repeated
 startup overhead.
 
-After parity testing, the temporary backend selector and binding path were
-removed. The `suggestions` feature is process-only and no longer links `libz3`;
-`rust-fixpoint` continues to use the Rust `z3` crate independently. The planned
-polymorphic `benchmarks/pldi23/src/dotprod.rs` trial remains follow-up work.
+After parity testing, only the bindings backend, reused-process backend, and a
+comparison mode remain exposed. Process is the default. The `suggestions`
+feature still links `libz3` solely to support temporary binding comparisons;
+removing that dependency remains the final cleanup after comparison is no
+longer needed. The polymorphic `benchmarks/pldi23/src/dotprod.rs` trial produced
+the expected `v2.len >= v1.len` suggestion.
