@@ -688,7 +688,7 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             if !genv.no_suggestions(def_id.local_id())
                 && !matches!(fhir_node, fhir::Node::TraitItem(..) | fhir::Node::ForeignItem(..))
             {
-                fn_sig = fn_sig.add_weak_kvars(genv, def_id.local_id().into())?;
+                fn_sig = fn_sig.add_weak_kvars(genv, def_id.resolved_id())?;
             }
 
             if config::dump_rty() {

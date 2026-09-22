@@ -1134,8 +1134,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         // --- this check is perhaps redundant).
                         match genv.resolve_id(def_id).as_maybe_extern() {
                             Some(maybe_extern) if !genv.no_suggestions(maybe_extern.local_id()) => {
-                                poly_sig = poly_sig
-                                    .add_weak_kvars(genv, maybe_extern.local_id().into())?;
+                                poly_sig =
+                                    poly_sig.add_weak_kvars(genv, maybe_extern.resolved_id())?;
                             }
                             _ => {}
                         }
