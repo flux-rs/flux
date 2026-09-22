@@ -189,14 +189,12 @@ where
                                 }
                             } else {
                                 // NOTE: previously used blame_ctx.expr
-                                if let Some(binder_e) =
-                                    WKVarInstantiator::try_instantiate_wkvar_args(
-                                        self_args,
-                                        &rty_args,
-                                        &fxctx
-                                            .fixpoint_to_expr(head_expr.as_ref().unwrap())
-                                            .unwrap(),
-                                    )
+                                if let Ok(head) =
+                                    fxctx.fixpoint_to_expr(head_expr.as_ref().unwrap())
+                                    && let Some(binder_e) =
+                                        WKVarInstantiator::try_instantiate_wkvar_args(
+                                            self_args, &rty_args, &head,
+                                        )
                                 {
                                     possible_solutions
                                         .entry(wkvid.clone())
@@ -213,11 +211,10 @@ where
             }
             Err(_err) => {
                 // NOTE: previously used blame_ctx.expr
-                if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(
-                    self_args,
-                    &rty_args,
-                    &fxctx.fixpoint_to_expr(head_expr.as_ref().unwrap()).unwrap(),
-                ) {
+                if let Ok(head) = fxctx.fixpoint_to_expr(head_expr.as_ref().unwrap())
+                    && let Some(binder_e) =
+                        WKVarInstantiator::try_instantiate_wkvar_args(self_args, &rty_args, &head)
+                {
                     possible_solutions
                         .entry(wkvid.clone())
                         .or_default()
