@@ -19,7 +19,7 @@ mod constraint_fragments;
 mod constraint_solving;
 #[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
 mod constraint_with_env;
-#[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
+#[cfg(feature = "rust-fixpoint")]
 mod cstr2smt2;
 mod format;
 #[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
@@ -27,6 +27,8 @@ mod graph;
 pub mod parser;
 pub mod sexp;
 pub mod smt_horn;
+#[cfg(feature = "suggestions")]
+mod z3_process;
 
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
@@ -57,6 +59,8 @@ pub type Assignments<'a, T> = HashMap<<T as Types>::KVar, Vec<(&'a Qualifier<T>,
 use crate::constraint_with_env::ConstraintWithEnv;
 #[cfg(feature = "suggestions")]
 use crate::constraint_with_env::topo_sort_data_declarations;
+#[cfg(feature = "suggestions")]
+pub use crate::z3_process::SuggestionSolverError;
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
@@ -166,11 +170,11 @@ pub fn qe_and_simplify<T: Types>(
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
     datatype_decls: Vec<DataDecl<T>>,
-) -> Result<Expr<T>, cstr2smt2::Z3DecodeError> {
+) -> Result<Expr<T>, SuggestionSolverError> {
     // let mut consts = self.constants.clone();
     // consts.extend(free_vars.clone());
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
+    z3_process::qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
 }
 
 #[cfg(feature = "suggestions")]
@@ -179,9 +183,9 @@ pub fn check_validity<T: Types>(
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
     datatype_decls: Vec<DataDecl<T>>,
-) -> bool {
+) -> Result<bool, SuggestionSolverError> {
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::check_validity(constraint, binder_consts, global_consts, &datatype_decls)
+    z3_process::check_validity(constraint, binder_consts, global_consts, &datatype_decls)
 }
 
 #[derive_where(Hash, Clone, Debug)]
