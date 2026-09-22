@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use flux_middle::rty;
 use itertools::Itertools;
-use liquid_fixpoint::{check_validity, qe_and_simplify};
+use liquid_fixpoint::{SuggestionSolver, check_validity, qe_and_simplify};
 use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
@@ -85,6 +85,7 @@ where
         _ => None,
     };
     let mut possible_solutions: PossibleSolutions = Default::default();
+    let mut solver = SuggestionSolver::new().ok();
     let wkvars_and_constraints = flat_constraint.wkvars_and_constrs();
     for (wkvar, flat_constraint, other_constrs) in wkvars_and_constraints {
         if !other_constrs.iter().all(|other_constr| {
@@ -95,13 +96,16 @@ where
                     fixpoint::ConstDecl { name: *var, sort: sort.clone(), comment: None }
                 })
                 .collect_vec();
-            check_validity(
-                &other_constr,
-                &binder_consts,
-                &suggestion_ctx.const_decls,
-                suggestion_ctx.data_decls.clone(),
-            )
-            .unwrap_or(false)
+            solver.as_mut().is_some_and(|solver| {
+                check_validity(
+                    solver,
+                    &other_constr,
+                    &binder_consts,
+                    &suggestion_ctx.const_decls,
+                    suggestion_ctx.data_decls.clone(),
+                )
+                .unwrap_or(false)
+            })
         }) {
             continue;
         }
@@ -143,12 +147,17 @@ where
                 if !assumption.is_trivially_true() { Some(assumption) } else { None }
             })
             .collect();
-        match qe_and_simplify(
-            &new_flat_constraint,
-            &binder_consts,
-            &suggestion_ctx.const_decls,
-            suggestion_ctx.data_decls.clone(),
-        ) {
+        let result = solver.as_mut().ok_or(()).and_then(|solver| {
+            qe_and_simplify(
+                solver,
+                &new_flat_constraint,
+                &binder_consts,
+                &suggestion_ctx.const_decls,
+                suggestion_ctx.data_decls.clone(),
+            )
+            .map_err(|_| ())
+        });
+        match result {
             Ok(fe) => {
                 match fxctx.fixpoint_to_expr(&fe) {
                     Ok(e) => {

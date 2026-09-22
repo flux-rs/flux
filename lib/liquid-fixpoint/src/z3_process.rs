@@ -1,8 +1,10 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::Write as _,
-    io::Write as _,
-    process::{Command, Stdio},
+    io::{BufRead, BufReader, Read as _, Write as _},
+    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    sync::{Arc, Mutex},
+    thread::JoinHandle,
 };
 
 use crate::{
@@ -34,9 +36,201 @@ enum SatStatus {
     Unknown,
 }
 
-struct ProcessOutput {
-    stdout: String,
-    stderr: String,
+struct Z3Session {
+    child: Child,
+    stdin: Option<ChildStdin>,
+    stdout: BufReader<ChildStdout>,
+    stderr: Arc<Mutex<Vec<u8>>>,
+    stderr_reader: Option<JoinHandle<()>>,
+    request_id: usize,
+}
+
+impl Z3Session {
+    fn new() -> Result<Self, SuggestionSolverError> {
+        let mut child = Command::new("z3")
+            .args(["-smt2", "-in"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|err| SuggestionSolverError::Spawn(err.to_string()))?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| SuggestionSolverError::Io("Z3 stdin was not piped".to_string()))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| SuggestionSolverError::Io("Z3 stdout was not piped".to_string()))?;
+        let mut child_stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| SuggestionSolverError::Io("Z3 stderr was not piped".to_string()))?;
+        let stderr = Arc::new(Mutex::new(Vec::new()));
+        let stderr_buf = Arc::clone(&stderr);
+        let stderr_reader = std::thread::spawn(move || {
+            let mut chunk = [0; 4096];
+            loop {
+                match child_stderr.read(&mut chunk) {
+                    Ok(0) | Err(_) => break,
+                    Ok(len) => stderr_buf.lock().unwrap().extend_from_slice(&chunk[..len]),
+                }
+            }
+        });
+        Ok(Self {
+            child,
+            stdin: Some(stdin),
+            stdout: BufReader::new(stdout),
+            stderr,
+            stderr_reader: Some(stderr_reader),
+            request_id: 0,
+        })
+    }
+
+    fn request(&mut self, commands: &str) -> Result<String, SuggestionSolverError> {
+        let marker = format!("__flux_z3_end_{}__", self.request_id);
+        self.request_id += 1;
+        let stdin = self
+            .stdin
+            .as_mut()
+            .ok_or_else(|| SuggestionSolverError::Io("Z3 stdin is closed".to_string()))?;
+        writeln!(stdin, "{commands}").map_err(|err| SuggestionSolverError::Io(err.to_string()))?;
+        writeln!(stdin, "(echo \"{marker}\")")
+            .map_err(|err| SuggestionSolverError::Io(err.to_string()))?;
+        stdin
+            .flush()
+            .map_err(|err| SuggestionSolverError::Io(err.to_string()))?;
+
+        let mut response = String::new();
+        loop {
+            let mut line = String::new();
+            let read = self
+                .stdout
+                .read_line(&mut line)
+                .map_err(|err| SuggestionSolverError::Io(err.to_string()))?;
+            if read == 0 {
+                let status = self
+                    .child
+                    .try_wait()
+                    .map_err(|err| SuggestionSolverError::Io(err.to_string()))?
+                    .and_then(|status| status.code());
+                return Err(SuggestionSolverError::MalformedResponse {
+                    message: format!(
+                        "Z3 closed stdout before the response marker (status {status:?})"
+                    ),
+                    stdout: response,
+                    stderr: self.stderr(),
+                });
+            }
+            if line.trim() == marker {
+                return Ok(response);
+            }
+            response.push_str(&line);
+        }
+    }
+
+    fn check_sat(&mut self, assertions: &[String]) -> Result<SatStatus, SuggestionSolverError> {
+        let mut commands = String::from("(push)\n");
+        for assertion in assertions {
+            writeln!(commands, "(assert {assertion})").unwrap();
+        }
+        commands.push_str("(check-sat)\n(pop)");
+        let stdout = self.request(&commands)?;
+        parse_status(&stdout, &self.stderr())
+    }
+
+    fn reset(&mut self, declarations: &str) -> Result<(), SuggestionSolverError> {
+        self.request(&format!("(reset)\n{declarations}"))?;
+        Ok(())
+    }
+
+    fn stderr(&self) -> String {
+        String::from_utf8_lossy(&self.stderr.lock().unwrap()).into_owned()
+    }
+}
+
+pub struct SuggestionSolver {
+    session: Z3Session,
+}
+
+impl SuggestionSolver {
+    pub fn new() -> Result<Self, SuggestionSolverError> {
+        Ok(Self { session: Z3Session::new()? })
+    }
+
+    pub(crate) fn check_validity<T: Types>(
+        &mut self,
+        constraint: &FlatConstraint<T>,
+        binder_consts: &[ConstDecl<T>],
+        global_consts: &[ConstDecl<T>],
+        datatype_decls: &[DataDecl<T>],
+    ) -> Result<bool, SuggestionSolverError> {
+        let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, &constraint.binders);
+        self.session.reset(&env.declarations()?)?;
+        let mut assertions = constraint
+            .preconditions()
+            .iter()
+            .map(|pred| env.pred(pred))
+            .collect::<Result<Vec<_>, _>>()?;
+        assertions.push(format!("(not {})", env.pred(&constraint.head)?));
+        Ok(matches!(self.session.check_sat(&assertions)?, SatStatus::Unsat))
+    }
+
+    pub(crate) fn qe_and_simplify<T: Types>(
+        &mut self,
+        constraint: &FlatConstraint<T>,
+        binder_consts: &[ConstDecl<T>],
+        global_consts: &[ConstDecl<T>],
+        datatype_decls: &[DataDecl<T>],
+    ) -> Result<Expr<T>, SuggestionSolverError> {
+        let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, &constraint.binders);
+        let declarations = env.declarations()?;
+        self.session.reset(&declarations)?;
+        let implication = env.quantified_implication(constraint)?;
+        let output = self.session.request(&format!(
+            "(push)\n(assert {implication})\n(apply (try-for (then qe nnf) 10000))\n(pop)"
+        ))?;
+        let stderr = self.session.stderr();
+        if is_timeout(&output, &stderr) {
+            return Err(SuggestionSolverError::QETimeout);
+        }
+        let goals = parse_goals(&output, &stderr)?;
+        let goal = goals.last().ok_or(SuggestionSolverError::NoResults)?;
+        let mut candidate = goal
+            .iter()
+            .map(|formula| env.decode(formula))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .min_by_key(Expr::total_num_disjuncts)
+            .ok_or(SuggestionSolverError::NoResults)?;
+
+        let base = constraint
+            .preconditions()
+            .iter()
+            .map(|pred| env.pred(pred))
+            .collect::<Result<Vec<_>, _>>()?;
+        if prune_vacuous(&mut candidate, &env, &base, &[], &mut self.session)? {
+            return Ok(Expr::FALSE);
+        }
+
+        let sanity =
+            format!("(not (=> {} {}))", env.expr(&candidate)?, env.implication_body(constraint)?);
+        if matches!(self.session.check_sat(&[sanity])?, SatStatus::Unsat) {
+            Ok(candidate)
+        } else {
+            Err(SuggestionSolverError::FailedSanityCheck)
+        }
+    }
+}
+
+impl Drop for Z3Session {
+    fn drop(&mut self) {
+        self.stdin.take();
+        let _ = self.child.wait();
+        if let Some(reader) = self.stderr_reader.take() {
+            let _ = reader.join();
+        }
+    }
 }
 
 struct SmtEnv<'a, T: Types> {
@@ -601,81 +795,12 @@ fn substitute_sexp(sexp: &Sexp, substitutions: &HashMap<&str, &Sexp>) -> Sexp {
     }
 }
 
-pub(crate) fn check_validity<T: Types>(
-    constraint: &FlatConstraint<T>,
-    binder_consts: &[ConstDecl<T>],
-    global_consts: &[ConstDecl<T>],
-    datatype_decls: &[DataDecl<T>],
-) -> Result<bool, SuggestionSolverError> {
-    let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, &constraint.binders);
-    let mut query = env.declarations()?;
-    for pred in &constraint.preconditions() {
-        writeln!(query, "(assert {})", env.pred(pred)?).unwrap();
-    }
-    writeln!(query, "(assert (not {}))", env.pred(&constraint.head)?).unwrap();
-    query.push_str("(check-sat)\n");
-    Ok(matches!(run_status(&query)?, SatStatus::Unsat))
-}
-
-pub(crate) fn qe_and_simplify<T: Types>(
-    constraint: &FlatConstraint<T>,
-    binder_consts: &[ConstDecl<T>],
-    global_consts: &[ConstDecl<T>],
-    datatype_decls: &[DataDecl<T>],
-) -> Result<Expr<T>, SuggestionSolverError> {
-    qe_and_simplify_inner(constraint, binder_consts, global_consts, datatype_decls)
-}
-
-fn qe_and_simplify_inner<T: Types>(
-    constraint: &FlatConstraint<T>,
-    binder_consts: &[ConstDecl<T>],
-    global_consts: &[ConstDecl<T>],
-    datatype_decls: &[DataDecl<T>],
-) -> Result<Expr<T>, SuggestionSolverError> {
-    let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, &constraint.binders);
-    let implication = env.quantified_implication(constraint)?;
-    let mut query = env.declarations()?;
-    writeln!(query, "(assert {implication})").unwrap();
-    query.push_str("(apply (try-for (then qe nnf) 10000))\n");
-    let output = run_z3(&query)?;
-    if is_timeout(&output.stdout, &output.stderr) {
-        return Err(SuggestionSolverError::QETimeout);
-    }
-    let goals = parse_goals(&output.stdout, &output.stderr)?;
-    let goal = goals.last().ok_or(SuggestionSolverError::NoResults)?;
-    let mut candidate = goal
-        .iter()
-        .map(|formula| env.decode(formula))
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .min_by_key(Expr::total_num_disjuncts)
-        .ok_or(SuggestionSolverError::NoResults)?;
-
-    let base = constraint
-        .preconditions()
-        .iter()
-        .map(|pred| env.pred(pred))
-        .collect::<Result<Vec<_>, _>>()?;
-    if prune_vacuous(&mut candidate, &env, &base, &[])? {
-        return Ok(Expr::FALSE);
-    }
-
-    let sanity_implication = env.implication_body(constraint)?;
-    let mut sanity = env.declarations()?;
-    writeln!(sanity, "(assert (not (=> {} {sanity_implication})))", env.expr(&candidate)?).unwrap();
-    sanity.push_str("(check-sat)\n");
-    if matches!(run_status(&sanity)?, SatStatus::Unsat) {
-        Ok(candidate)
-    } else {
-        Err(SuggestionSolverError::FailedSanityCheck)
-    }
-}
-
 fn prune_vacuous<T: Types>(
     expr: &mut Expr<T>,
     env: &SmtEnv<'_, T>,
     base: &[String],
     siblings: &[Expr<T>],
+    session: &mut Z3Session,
 ) -> Result<bool, SuggestionSolverError> {
     match expr {
         Expr::And(conjuncts) => {
@@ -688,7 +813,7 @@ fn prune_vacuous<T: Types>(
                         .filter(|(j, _)| i != *j)
                         .map(|(_, e)| e.clone()),
                 );
-                if prune_vacuous(conjunct, env, base, &nested)? {
+                if prune_vacuous(conjunct, env, base, &nested, session)? {
                     *expr = Expr::FALSE;
                     return Ok(true);
                 }
@@ -698,7 +823,7 @@ fn prune_vacuous<T: Types>(
         Expr::Or(disjuncts) => {
             let mut kept = Vec::with_capacity(disjuncts.len());
             for mut disjunct in std::mem::take(disjuncts) {
-                if !prune_vacuous(&mut disjunct, env, base, siblings)? {
+                if !prune_vacuous(&mut disjunct, env, base, siblings, session)? {
                     kept.push(disjunct);
                 }
             }
@@ -718,66 +843,26 @@ fn prune_vacuous<T: Types>(
             }
         }
         _ => {
-            let mut query = env.declarations()?;
-            for assertion in base {
-                writeln!(query, "(assert {assertion})").unwrap();
-            }
+            let mut assertions = base.to_vec();
             for sibling in siblings {
-                writeln!(query, "(assert {})", env.expr(sibling)?).unwrap();
+                assertions.push(env.expr(sibling)?);
             }
-            writeln!(query, "(assert {})", env.expr(expr)?).unwrap();
-            query.push_str("(check-sat)\n");
-            Ok(matches!(run_status(&query)?, SatStatus::Unsat))
+            assertions.push(env.expr(expr)?);
+            Ok(matches!(session.check_sat(&assertions)?, SatStatus::Unsat))
         }
     }
 }
 
-fn run_z3(query: &str) -> Result<ProcessOutput, SuggestionSolverError> {
-    let mut child = Command::new("z3")
-        .args(["-smt2", "-in"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|err| SuggestionSolverError::Spawn(err.to_string()))?;
-    child
-        .stdin
-        .take()
-        .ok_or_else(|| SuggestionSolverError::Io("Z3 stdin was not piped".to_string()))?
-        .write_all(query.as_bytes())
-        .map_err(|err| SuggestionSolverError::Io(err.to_string()))?;
-    let output = child
-        .wait_with_output()
-        .map_err(|err| SuggestionSolverError::Io(err.to_string()))?;
-    let stdout = String::from_utf8(output.stdout)
-        .map_err(|err| SuggestionSolverError::InvalidUtf8(err.to_string()))?;
-    let stderr = String::from_utf8(output.stderr)
-        .map_err(|err| SuggestionSolverError::InvalidUtf8(err.to_string()))?;
-    if !output.status.success() {
-        if is_timeout(&stdout, &stderr) {
-            return Err(SuggestionSolverError::QETimeout);
-        }
-        return Err(SuggestionSolverError::ProcessFailure {
-            status: output.status.code(),
-            stdout,
-            stderr,
-            query: query.to_string(),
-        });
-    }
-    Ok(ProcessOutput { stdout, stderr })
-}
-
-fn run_status(query: &str) -> Result<SatStatus, SuggestionSolverError> {
-    let output = run_z3(query)?;
-    match output.stdout.trim() {
+fn parse_status(stdout: &str, stderr: &str) -> Result<SatStatus, SuggestionSolverError> {
+    match stdout.trim() {
         "sat" => Ok(SatStatus::Sat),
         "unsat" => Ok(SatStatus::Unsat),
         "unknown" => Ok(SatStatus::Unknown),
-        _ if is_timeout(&output.stdout, &output.stderr) => Err(SuggestionSolverError::QETimeout),
+        _ if is_timeout(stdout, stderr) => Err(SuggestionSolverError::QETimeout),
         _ => {
             Err(SuggestionSolverError::UnexpectedStatus {
-                stdout: output.stdout,
-                stderr: output.stderr,
+                stdout: stdout.to_string(),
+                stderr: stderr.to_string(),
             })
         }
     }
