@@ -12,26 +12,26 @@ static VTABLE: RawWakerVTable = RawWakerVTable::new(clone_fn, wake_fn, wake_fn, 
 
 // --- RawWaker::new ---
 
-#[flux::spec(fn(*const[@b, @a, @s] ()) -> RawWaker[b, a, s])]
+#[flux::spec(fn(*const[@p] ()) -> RawWaker[p])]
 pub fn test_raw_new(data: *const ()) -> RawWaker {
     RawWaker::new(data, &VTABLE)
 }
 
 // --- Waker::new ---
 
-#[flux::spec(fn(*const[@b, @a, @s] ()) -> Waker[b, a, s])]
+#[flux::spec(fn(*const[@p] ()) -> Waker[p])]
 pub fn test_waker_new(data: *const ()) -> Waker {
     unsafe { Waker::new(data, &VTABLE) }
 }
 
 // --- Waker::from_raw ---
 
-#[flux::spec(fn(RawWaker[@b, @a, @s]) -> Waker[b, a, s])]
+#[flux::spec(fn(RawWaker[@r]) -> Waker[r])]
 pub fn test_from_raw(raw: RawWaker) -> Waker {
     unsafe { Waker::from_raw(raw) }
 }
 
-#[flux::spec(fn(*const[@b, @a, @s] ()) -> Waker[b, a, s])]
+#[flux::spec(fn(*const[@p] ()) -> Waker[p])]
 pub fn test_new_then_from_raw(data: *const ()) -> Waker {
     let raw = RawWaker::new(data, &VTABLE);
     unsafe { Waker::from_raw(raw) }
@@ -45,12 +45,12 @@ pub fn test_noop() {
 
 // --- Waker::data ---
 
-#[flux::spec(fn(&Waker[@b, @a, @s]) -> *const[b, a, s] ())]
+#[flux::spec(fn(&Waker[@w]) -> *const[w] ())]
 pub fn test_data(w: &Waker) -> *const () {
     w.data()
 }
 
-#[flux::spec(fn(*const[@b, @a, @s] ()) -> *const[b, a, s] ())]
+#[flux::spec(fn(*const[@p] ()) -> *const[p] ())]
 pub fn test_roundtrip(data: *const ()) -> *const () {
     let raw = RawWaker::new(data, &VTABLE);
     let w = unsafe { Waker::from_raw(raw) };
