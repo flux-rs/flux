@@ -553,14 +553,14 @@ impl rty::PolyFnSig {
             let output_binder_params = make_vars_and_sorts_from_bound_vars(fn_sig.output.vars());
             params.extend(output_binder_params);
             wkvar_inserter.params = params.clone();
-            let ensures = if !fn_sig.output.vars().is_empty() {
-                let ensures_wkvar = make_weak_kvar(
+            let ensures = if !fn_sig.output.vars().is_empty()
+                && let Some(ensures_wkvar) = make_weak_kvar(
                     &mut wkvar_inserter.wkvar_map,
                     def_id,
                     &mut wkvar_inserter.kvid,
                     make_vars_and_sorts_from_bound_vars(fn_sig.output.vars()),
                     params.clone(),
-                );
+                ) {
                 fn_sig
                     .output
                     .skip_binder_ref()
@@ -582,12 +582,16 @@ impl rty::PolyFnSig {
                 safety: fn_sig.safety,
                 inputs,
                 // NOTE(CK): Not sure whether we can avoid the clone.
-                requires: fn_sig
-                    .requires
-                    .iter()
-                    .cloned()
-                    .chain(std::iter::once(rty::Expr::wkvar(requires_wkvar)))
-                    .collect(),
+                requires: if let Some(requires_wkvar) = requires_wkvar {
+                    fn_sig
+                        .requires
+                        .iter()
+                        .cloned()
+                        .chain(std::iter::once(rty::Expr::wkvar(requires_wkvar)))
+                        .collect()
+                } else {
+                    fn_sig.requires
+                },
                 output,
                 lifted: fn_sig.lifted,
                 no_panic: fn_sig.no_panic,
@@ -659,7 +663,11 @@ impl TypeFolder for WeakKVarInserter {
                 }
                 shift_out_vars(&mut self.params);
                 Ty::exists(rty::Binder::bind_with_vars(
-                    Ty::constr(Expr::wkvar(wkvar), new_ty),
+                    if let Some(wkvar) = wkvar {
+                        Ty::constr(Expr::wkvar(wkvar), new_ty)
+                    } else {
+                        new_ty
+                    },
                     bound_ty.vars().clone(),
                 ))
             }
@@ -703,14 +711,18 @@ impl TypeFolder for WeakKVarInserter {
                                 // Now we add the params for future weak kvars.
                                 self.existential_params.push(exist_params);
                                 let new_ty = subset_ty.skip_binder_ref().super_fold_with(self);
-                                let new_ty_with_wkvar = new_ty.strengthen(Expr::wkvar(wkvar));
+                                let new_ty_maybe_with_wkvar = if let Some(wkvar) = wkvar {
+                                    new_ty.strengthen(Expr::wkvar(wkvar))
+                                } else {
+                                    new_ty
+                                };
                                 self.existential_params.pop();
                                 for v in &mut self.existential_params {
                                     shift_out_vars(v);
                                 }
                                 shift_out_vars(&mut self.params);
                                 GenericArg::Base(rty::Binder::bind_with_vars(
-                                    new_ty_with_wkvar,
+                                    new_ty_maybe_with_wkvar,
                                     subset_ty.vars().clone(),
                                 ))
                             }
@@ -790,7 +802,10 @@ fn make_weak_kvar(
     kvid: &mut rty::KVid,
     self_args: Vec<(rty::Var, rty::Sort)>,
     params: Vec<(rty::Var, rty::Sort)>,
-) -> rty::WKVar {
+) -> Option<rty::WKVar> {
+    if params.is_empty() {
+        return None;
+    }
     let num_self_args = self_args.len();
     let (args, sorts): (Vec<rty::Var>, Vec<rty::Sort>) =
         self_args.into_iter().chain(params).unzip();
@@ -804,5 +819,5 @@ fn make_weak_kvar(
         args: arg_exprs,
     };
     *kvid += 1;
-    ret
+    Some(ret)
 }
