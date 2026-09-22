@@ -603,8 +603,14 @@ One-shot process execution was substantially slower. On the focused five-query
 `Layer::backward` run with Z3 4.8.12, bindings took about 94 ms total while the
 process backend took about 1.46 s, roughly 15.5x slower. A full warm
 `flux-demo` run measured about 1.76 s with bindings and 5.95 s with the initial
-process implementation. Process reuse or batching pruning checks is the next
-performance step if this overhead is unacceptable.
+process implementation.
+
+Reusing one Z3 subprocess for all validity, QE, pruning, and sanity operations
+within a single suggestion search reduced the full warm `flux-demo` run to
+about 2.07 s. Requests are delimited with SMT-LIB `echo`; independent operations
+use `reset`, and pruning and sanity checks use `push`/`pop`. This keeps process
+ownership local to suggestion generation while avoiding almost all repeated
+startup overhead.
 
 After parity testing, the temporary backend selector and binding path were
 removed. The `suggestions` feature is process-only and no longer links `libz3`;
