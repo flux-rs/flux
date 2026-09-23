@@ -1,5 +1,4 @@
-// compile-flags: -Fsuggestions-z3=process
-// Run with `cargo x --suggestions run tests/tests/todo/wkvar_local_ptr_scope.rs -- -Fsuggestions-z3=process`.
+// Run with `cargo x --suggestions run tests/tests/todo/wkvar_local_ptr_scope.rs`.
 #[path = "../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
@@ -34,9 +33,7 @@ fn poll_parse_fds() -> Result<(), ()> {
 #[flux::sig(fn(tos: &strg RVec<(u64, u64)>[@timeouts_old]) -> Result<(), ()>
     ensures tos: RVec<(u64, u64)>[#timeouts_new]
 )]
-pub fn parse_subscriptions(
-    timeouts: &mut RVec<(u64, u64)>,
-) -> Result<(), ()> {
+pub fn parse_subscriptions(timeouts: &mut RVec<(u64, u64)>) -> Result<(), ()> {
     let subscription = read_subscription()?;
     match subscription.subscription_inner {
         SubscriptionInner::Clock => {
