@@ -20,7 +20,7 @@ use flux_middle::{
         fold::TypeFoldable,
     },
 };
-use flux_rustc_bridge::ToRustc as _;
+use flux_rustc_bridge::ToRustc;
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
