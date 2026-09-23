@@ -12,7 +12,7 @@ pub enum E {
     B,
 }
 
-#[flux::sig(fn(&mut S<i32{v: v <= n}>{n: n >= 0}))]
+#[flux::sig(fn(&mut {n. S<{v. i32[v] | v <= n}>[n] | n >= 0}))]
 fn foo(_: &mut S<i32>) {}
 
 pub fn test(s: &mut S<i32>, e: E) -> i32 {
