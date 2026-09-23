@@ -803,7 +803,7 @@ fn make_weak_kvar(
     self_args: Vec<(rty::Var, rty::Sort)>,
     params: Vec<(rty::Var, rty::Sort)>,
 ) -> Option<rty::WKVar> {
-    if params.is_empty() {
+    if self_args.is_empty() && params.is_empty() {
         return None;
     }
     let num_self_args = self_args.len();
