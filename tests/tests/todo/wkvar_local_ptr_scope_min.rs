@@ -1,5 +1,6 @@
-// Minimized from `wkvar_local_ptr_scope.rs`.
-// Run with `cargo x --suggestions run tests/tests/todo/wkvar_local_ptr_scope_min.rs`.
+// Minimized from `wkvar_local_ptr_scope.rs`. The signature of `foo` mimics the one produced by
+// inserting weak kvars: the generic argument of `S` depends on the (existential) index of `S`.
+// Run with `cargo x run tests/tests/todo/wkvar_local_ptr_scope_min.rs`.
 #[flux::opaque]
 #[flux::refined_by(n: int)]
 pub struct S<T> {
@@ -11,6 +12,7 @@ pub enum E {
     B,
 }
 
+#[flux::sig(fn(&mut S<i32{v: v <= n}>{n: n >= 0}))]
 fn foo(_: &mut S<i32>) {}
 
 pub fn test(s: &mut S<i32>, e: E) -> i32 {
