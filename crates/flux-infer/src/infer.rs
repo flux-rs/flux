@@ -13,12 +13,14 @@ use flux_middle::{
     rty::{
         self, AliasKind, AliasTy, BaseTy, Binder, BoundReftKind, BoundVariableKinds,
         CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj,
-        GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, NameProvenance, Path,
-        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
+        GenericArg, GenericArgsExt, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name,
+        NameProvenance, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty,
+        TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::TypeFoldable,
     },
 };
+use flux_rustc_bridge::ToRustc as _;
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
@@ -1010,6 +1012,11 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 // only for when concrete type on LHS and impl-with-bounds on RHS
                 self.handle_opaque_type(infcx, a, *def_id, args, refine_args)
             }
+            (BaseTy::Alias(AliasTy { kind: AliasKind::Opaque { def_id }, args, .. }), _)
+                if opaque_reveal_eq(infcx.tcx(), *def_id, args, b) =>
+            {
+                Ok(())
+            }
             (
                 BaseTy::Alias(alias_ty_a @ AliasTy { kind: AliasKind::Projection { .. }, .. }),
                 BaseTy::Alias(alias_ty_b @ AliasTy { kind: AliasKind::Projection { .. }, .. }),
@@ -1076,21 +1083,6 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let (ty_a, ty_b) = match (a, b) {
             (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => (ty_a.clone(), ty_b.clone()),
             (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => {
-                // Somewhat of a hack. When one arg is opaque here, we know rustc has already
-                // type-checked the base types to be the same, but left one opaque. So we
-                // just set the base types to be equal.
-                let (ctor_a, ctor_b) = match (
-                    ctor_a.as_bty_skipping_binder().is_opaque(),
-                    ctor_b.as_bty_skipping_binder().is_opaque(),
-                ) {
-                    (true, false) => (ctor_a.with_other_bty(ctor_b), ctor_b.clone()),
-                    (false, true) => (ctor_a.clone(), ctor_b.with_other_bty(ctor_a)),
-                    _ => (ctor_a.clone(), ctor_b.clone()),
-                };
-                tracked_span_dbg_assert_eq!(
-                    ctor_a.sort().erase_regions(),
-                    ctor_b.sort().erase_regions()
-                );
                 (ctor_a.to_ty(), ctor_b.to_ty())
             }
             (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => return Ok(()),
@@ -1262,6 +1254,21 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         }
         Ok(())
     }
+}
+
+fn opaque_reveal_eq(
+    tcx: TyCtxt<'_>,
+    opaque_def_id: DefId,
+    opaque_args: &rty::GenericArgs,
+    other: &BaseTy,
+) -> bool {
+    let rustc_args = opaque_args.to_rustc(tcx);
+    let hidden = tcx
+        .type_of(opaque_def_id)
+        .instantiate(tcx, rustc_args)
+        .skip_normalization();
+    let other = other.to_rustc(tcx);
+    tcx.erase_and_anonymize_regions(hidden) == tcx.erase_and_anonymize_regions(other)
 }
 
 fn mk_coroutine_obligations(
