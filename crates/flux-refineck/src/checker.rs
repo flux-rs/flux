@@ -628,6 +628,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         bb: BasicBlock,
     ) -> Result {
         dbg::basic_block_start!(bb, infcx, env);
+        eprintln!("\n==================== ENTER {bb:?} ====================");
+        eprintln!("  scope = {:?}", infcx.marker().scope().unwrap());
+        eprintln!("  env   = {env:?}");
 
         self.visited.insert(bb);
         let data = &self.body.basic_blocks[bb];
@@ -645,6 +648,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 dbg::statement!("start", stmt, &infcx, &env, span, &self);
                 self.check_statement(&mut infcx, &mut env, stmt)?;
                 dbg::statement!("end", stmt, &infcx, &env, span, &self);
+                if !stmt.is_nop() {
+                    eprintln!("  [stmt] {stmt:?}");
+                    eprintln!("      env = {env:?}");
+                }
                 Ok(())
             })?;
             if !stmt.is_nop() {
@@ -673,6 +680,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     last_stmt_span,
                 )?;
                 dbg::terminator!("end", terminator, infcx, env);
+                eprintln!("  [term] {:?}", terminator.kind);
+                eprintln!("      scope = {:?}", infcx.marker().scope().unwrap());
+                eprintln!("      env   = {env:?}");
 
                 self.markers[bb] = Some(infcx.marker());
                 let term_span = last_stmt_span.unwrap_or(span);
@@ -916,9 +926,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             dbg::call!(genv, callee_def_id, body_def_id, span);
         }
 
+        eprintln!("    [call] actuals (before unfold_local_ptrs) = {actuals:?}");
         let actuals =
             unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());
+        eprintln!("    [call] actuals (after unfold_local_ptrs)  = {actuals:?}");
+        eprintln!("    [call] env (after unfold_local_ptrs)      = {env:?}");
         infcx.push_evar_scope();
 
         // Replace holes in generic arguments with fresh inference variables
@@ -1003,6 +1016,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
 
         // Check arguments
+        eprintln!("    [call] formals = {:?}", fn_sig.inputs());
         for (actual, formal) in iter::zip(actuals, fn_sig.inputs()) {
             at.subtyping_with_env(env, &actual, formal, ConstrReason::Call)
                 .with_span(span)?;
@@ -1010,6 +1024,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         infcx.pop_evar_scope().with_span(span)?;
         env.fully_resolve_evars(infcx);
+        eprintln!("    [call] env (after arg subtyping)          = {env:?}");
+        eprintln!("    [call] scope (after arg subtyping)        = {:?}", infcx.marker().scope().unwrap());
 
         let output = infcx
             .fully_resolve_evars(&fn_sig.output)
@@ -1018,7 +1034,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             });
 
         env.assume_ensures(infcx, &output.ensures, span);
+        eprintln!("    [call] env (after assume_ensures)         = {env:?}");
         fold_local_ptrs(infcx, env, span).with_span(span)?;
+        eprintln!("    [call] env (after fold_local_ptrs)        = {env:?}");
 
         Ok(ResolvedCall {
             output: output.ret,
@@ -2102,6 +2120,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
         dbg::statement!("end", stmt, infcx, env, span, &self);
+        eprintln!("  [ghost] {stmt:?}");
+        eprintln!("      env = {env:?}");
         Ok(())
     }
 
@@ -2386,6 +2406,9 @@ impl Mode for ShapeMode {
         let bb_envs = &mut ck.inherited.mode.bb_envs;
         let target_bb_env = bb_envs.entry(ck.checker_id).or_default().get(&target);
         dbg::shape_goto_enter!(target, env, target_bb_env);
+        eprintln!("  [goto join point {target:?}]");
+        eprintln!("      incoming env          = {env:?}");
+        eprintln!("      existing bb_env shape = {target_bb_env:?}");
 
         let modified = match bb_envs.entry(ck.checker_id).or_default().entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(env, span),
@@ -2393,12 +2416,17 @@ impl Mode for ShapeMode {
                 let scope = marker_at_dominator(ck.body, &ck.markers, target)
                     .scope()
                     .unwrap_or_else(|| tracked_span_bug!());
+                eprintln!(
+                    "      first visit: packing w.r.t. scope at dominator {:?} = {scope:?}",
+                    ck.body.dominators().immediate_dominator(target)
+                );
                 entry.insert(env.into_infer(scope));
                 true
             }
         };
 
         dbg::shape_goto_exit!(target, bb_envs[&ck.checker_id].get(&target));
+        eprintln!("      resulting bb_env shape = {:?}", bb_envs[&ck.checker_id].get(&target));
         Ok(modified)
     }
 

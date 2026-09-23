@@ -550,6 +550,9 @@ impl BasicBlockEnvShape {
         match arg {
             GenericArg::Ty(ty) => GenericArg::Ty(Self::pack_ty(scope, ty)),
             GenericArg::Base(arg) => {
+                if scope.has_free_vars(arg) {
+                    eprintln!("  !!! pack_generic_arg: `{arg:?}` has variables not in scope {scope:?}");
+                }
                 assert!(!scope.has_free_vars(arg));
                 GenericArg::Base(arg.clone())
             }
@@ -566,6 +569,7 @@ impl BasicBlockEnvShape {
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
     pub(crate) fn join(&mut self, other: TypeEnv, span: Span) -> bool {
+        eprintln!("      joining into existing shape with scope {:?}", self.scope);
         let paths = self.bindings.paths();
 
         // Join types
