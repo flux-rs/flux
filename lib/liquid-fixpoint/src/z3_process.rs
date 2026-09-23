@@ -43,6 +43,7 @@ struct Z3Session {
     stdout: BufReader<ChildStdout>,
     stderr: Arc<Mutex<Vec<u8>>>,
     stderr_reader: Option<JoinHandle<()>>,
+    last_stderr: String,
     request_id: usize,
 }
 
@@ -84,6 +85,7 @@ impl Z3Session {
             stdout: BufReader::new(stdout),
             stderr,
             stderr_reader: Some(stderr_reader),
+            last_stderr: String::new(),
             request_id: 0,
         })
     }
@@ -91,6 +93,7 @@ impl Z3Session {
     fn request(&mut self, commands: &str) -> Result<String, SuggestionSolverError> {
         let marker = format!("__flux_z3_end_{}__", self.request_id);
         self.request_id += 1;
+        self.stderr.lock().unwrap().clear();
         let stdin = self
             .stdin
             .as_mut()
@@ -115,15 +118,17 @@ impl Z3Session {
                     .try_wait()
                     .map_err(|err| SuggestionSolverError::Io(err.to_string()))?
                     .and_then(|status| status.code());
+                self.last_stderr = self.take_stderr();
                 return Err(SuggestionSolverError::MalformedResponse {
                     message: format!(
                         "Z3 closed stdout before the response marker (status {status:?})"
                     ),
                     stdout: response,
-                    stderr: self.stderr(),
+                    stderr: self.last_stderr.clone(),
                 });
             }
             if line.trim() == marker {
+                self.last_stderr = self.take_stderr();
                 return Ok(response);
             }
             response.push_str(&line);
@@ -137,7 +142,7 @@ impl Z3Session {
         }
         commands.push_str("(check-sat)\n(pop)");
         let stdout = self.request(&commands)?;
-        parse_status(&stdout, &self.stderr())
+        parse_status(&stdout, &self.last_stderr)
     }
 
     fn reset(&mut self, declarations: &str) -> Result<(), SuggestionSolverError> {
@@ -145,8 +150,9 @@ impl Z3Session {
         Ok(())
     }
 
-    fn stderr(&self) -> String {
-        String::from_utf8_lossy(&self.stderr.lock().unwrap()).into_owned()
+    fn take_stderr(&self) -> String {
+        let bytes = std::mem::take(&mut *self.stderr.lock().unwrap());
+        String::from_utf8_lossy(&bytes).into_owned()
     }
 }
 
@@ -191,8 +197,8 @@ impl ProcessSolver {
         let output = self.session.request(&format!(
             "(push)\n(assert {implication})\n(apply (try-for (then qe nnf) 10000))\n(pop)"
         ))?;
-        let stderr = self.session.stderr();
-        if is_timeout(&output, &stderr) {
+        let stderr = self.session.last_stderr.clone();
+        if is_timeout(&output) {
             return Err(SuggestionSolverError::QETimeout);
         }
         let goals = parse_goals(&output, &stderr)?;
@@ -874,7 +880,7 @@ fn parse_status(stdout: &str, stderr: &str) -> Result<SatStatus, SuggestionSolve
         "sat" => Ok(SatStatus::Sat),
         "unsat" => Ok(SatStatus::Unsat),
         "unknown" => Ok(SatStatus::Unknown),
-        _ if is_timeout(stdout, stderr) => Err(SuggestionSolverError::QETimeout),
+        _ if is_timeout(stdout) => Err(SuggestionSolverError::QETimeout),
         _ => {
             Err(SuggestionSolverError::UnexpectedStatus {
                 stdout: stdout.to_string(),
@@ -884,8 +890,8 @@ fn parse_status(stdout: &str, stderr: &str) -> Result<SatStatus, SuggestionSolve
     }
 }
 
-fn is_timeout(stdout: &str, stderr: &str) -> bool {
-    let output = format!("{stdout}\n{stderr}").to_ascii_lowercase();
+fn is_timeout(stdout: &str) -> bool {
+    let output = stdout.to_ascii_lowercase();
     output.contains("timeout")
         || output.contains("timed out")
         || output.contains("canceled")
@@ -1021,6 +1027,7 @@ mod tests {
     #[test]
     fn status_is_exact() {
         assert_eq!(" sat \n".trim(), "sat");
-        assert!(is_timeout("(error \"canceled\")", ""));
+        assert!(is_timeout("(error \"canceled\")"));
+        assert!(!is_timeout("sat"));
     }
 }
