@@ -13,6 +13,205 @@ use serde::Serialize;
 
 use crate::FixpointQueryKind;
 
+#[cfg(feature = "suggestions")]
+static SUGGESTION_COMPARISONS: Mutex<Vec<liquid_fixpoint::SuggestionComparisonEvent>> =
+    Mutex::new(Vec::new());
+
+#[cfg(feature = "suggestions")]
+pub fn record_suggestion_comparison(comparison: liquid_fixpoint::SuggestionComparisonEvent) {
+    SUGGESTION_COMPARISONS.lock().unwrap().push(comparison);
+}
+
+#[cfg(feature = "suggestions")]
+pub fn print_suggestion_comparison_summary() -> io::Result<()> {
+    let comparisons = std::mem::take(&mut *SUGGESTION_COMPARISONS.lock().unwrap());
+    if comparisons.is_empty() {
+        return Ok(());
+    }
+
+    let stderr = &mut anstream::Stderr::always(std::io::stderr());
+    writeln!(stderr, "\nsuggestions-z3 comparison report")?;
+    let all = comparisons.iter().collect_vec();
+    print_comparison_summary(stderr, "all operations", &all)?;
+    for (operation, name) in [
+        (liquid_fixpoint::SuggestionComparisonOperation::Qe, "QE"),
+        (liquid_fixpoint::SuggestionComparisonOperation::Validity, "validity"),
+    ] {
+        let entries = comparisons
+            .iter()
+            .filter(|entry| entry.operation == operation)
+            .collect_vec();
+        print_comparison_summary(stderr, name, &entries)?;
+    }
+
+    let mismatches = comparisons
+        .iter()
+        .filter(|entry| entry.outcome == liquid_fixpoint::SuggestionComparisonOutcome::Different)
+        .collect_vec();
+    if !mismatches.is_empty() {
+        writeln!(
+            stderr,
+            "semantic mismatches (both succeeded, results differed) ({}):",
+            mismatches.len()
+        )?;
+        for (index, mismatch) in mismatches.into_iter().enumerate() {
+            let operation = match mismatch.operation {
+                liquid_fixpoint::SuggestionComparisonOperation::Qe => "QE",
+                liquid_fixpoint::SuggestionComparisonOperation::Validity => "validity",
+            };
+            writeln!(stderr, "  mismatch {} [{operation}]", index + 1)?;
+            if let Some(details) = &mismatch.details {
+                for line in details.lines() {
+                    writeln!(stderr, "    {line}")?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "suggestions")]
+fn print_comparison_summary(
+    out: &mut impl io::Write,
+    name: &str,
+    entries: &[&liquid_fixpoint::SuggestionComparisonEvent],
+) -> io::Result<()> {
+    use liquid_fixpoint::SuggestionComparisonOutcome as Outcome;
+
+    let count = |outcome| {
+        entries
+            .iter()
+            .filter(|entry| entry.outcome == outcome)
+            .count()
+    };
+    writeln!(
+        out,
+        "  {name}: {} comparisons; mismatches {}; process-only failures {}; bindings-only failures {}; semantic mismatches {}; both failed {}; agreed {}; comparison failed {}",
+        entries.len(),
+        count(Outcome::Different) + count(Outcome::ProcessFailed) + count(Outcome::BindingsFailed),
+        count(Outcome::ProcessFailed),
+        count(Outcome::BindingsFailed),
+        count(Outcome::Different),
+        count(Outcome::BothFailed),
+        count(Outcome::Agreed),
+        count(Outcome::ComparisonFailed),
+    )?;
+
+    if entries.is_empty() {
+        writeln!(out, "    total time: bindings 0ns; process 0ns")?;
+        writeln!(out, "    process-bindings time delta: n/a")?;
+        return Ok(());
+    }
+
+    let bindings_total = entries
+        .iter()
+        .map(|entry| entry.bindings_time)
+        .sum::<Duration>();
+    let process_total = entries
+        .iter()
+        .map(|entry| entry.process_time)
+        .sum::<Duration>();
+    writeln!(
+        out,
+        "    total time: bindings {}; process {}",
+        fmt_duration(bindings_total),
+        fmt_duration(process_total),
+    )?;
+
+    let mut deltas = entries
+        .iter()
+        .map(|entry| entry.process_time.as_nanos() as i128 - entry.bindings_time.as_nanos() as i128)
+        .collect_vec();
+    deltas.sort_unstable();
+    let min = deltas[0];
+    let max = deltas[deltas.len() - 1];
+    let avg = deltas.iter().sum::<i128>() / deltas.len() as i128;
+    writeln!(
+        out,
+        "    process-bindings time delta (n={}): min {}, max {}, avg {}",
+        deltas.len(),
+        fmt_signed_duration(min),
+        fmt_signed_duration(max),
+        fmt_signed_duration(avg),
+    )
+}
+
+#[cfg(feature = "suggestions")]
+fn fmt_signed_duration(nanos: i128) -> String {
+    let sign = if nanos < 0 { "-" } else { "+" };
+    let nanos = nanos.unsigned_abs();
+    if nanos < 1_000 {
+        format!("{sign}{nanos}ns")
+    } else if nanos < 1_000_000 {
+        format!("{sign}{:.2}us", nanos as f64 / 1_000.0)
+    } else if nanos < 1_000_000_000 {
+        format!("{sign}{:.2}ms", nanos as f64 / 1_000_000.0)
+    } else {
+        format!("{sign}{:.2}s", nanos as f64 / 1_000_000_000.0)
+    }
+}
+
+#[cfg(all(test, feature = "suggestions"))]
+mod suggestion_comparison_tests {
+    use liquid_fixpoint::{
+        SuggestionComparisonOperation as Operation, SuggestionComparisonOutcome as Outcome,
+    };
+
+    use super::*;
+
+    #[test]
+    fn comparison_summary_counts_outcomes_and_signed_deltas() {
+        let entries = vec![
+            liquid_fixpoint::SuggestionComparisonEvent {
+                operation: Operation::Qe,
+                outcome: Outcome::Agreed,
+                bindings_time: Duration::from_millis(10),
+                process_time: Duration::from_millis(8),
+                details: None,
+            },
+            liquid_fixpoint::SuggestionComparisonEvent {
+                operation: Operation::Qe,
+                outcome: Outcome::Different,
+                bindings_time: Duration::from_millis(4),
+                process_time: Duration::from_millis(10),
+                details: Some("fixture mismatch".to_string()),
+            },
+        ];
+        let entries = entries.iter().collect_vec();
+        let mut output = Vec::new();
+        print_comparison_summary(&mut output, "QE", &entries).unwrap();
+        let output = String::from_utf8(output).unwrap();
+        assert!(output.contains("2 comparisons; mismatches 1"));
+        assert!(output.contains("total time: bindings 14.00ms; process 18.00ms"));
+        assert!(output.contains("min -2.00ms, max +6.00ms, avg +2.00ms"));
+    }
+
+    #[test]
+    fn comparison_summary_separates_mismatches_from_inconclusive_runs() {
+        let entries = [
+            Outcome::Different,
+            Outcome::ProcessFailed,
+            Outcome::BindingsFailed,
+            Outcome::BothFailed,
+            Outcome::ComparisonFailed,
+        ]
+        .map(|outcome| {
+            liquid_fixpoint::SuggestionComparisonEvent {
+                operation: Operation::Validity,
+                outcome,
+                bindings_time: Duration::ZERO,
+                process_time: Duration::ZERO,
+                details: None,
+            }
+        });
+        let entries = entries.iter().collect_vec();
+        let mut output = Vec::new();
+        print_comparison_summary(&mut output, "validity", &entries).unwrap();
+        let output = String::from_utf8(output).unwrap();
+        assert!(output.contains("5 comparisons; mismatches 3; process-only failures 1; bindings-only failures 1; semantic mismatches 1; both failed 1; agreed 0; comparison failed 1"));
+    }
+}
+
 const BOLD: anstyle::Style = anstyle::Style::new().bold();
 const GREY: anstyle::Style = anstyle::AnsiColor::BrightBlack.on_default();
 

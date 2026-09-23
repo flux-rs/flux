@@ -23,6 +23,12 @@ fn suggestions_z3_backend() -> SuggestionsZ3Backend {
     }
 }
 
+fn record_comparison_events(solver: &mut SuggestionSolver) {
+    for event in solver.take_comparison_events() {
+        flux_middle::metrics::record_suggestion_comparison(event);
+    }
+}
+
 pub(crate) fn make_flat_constraint_map(constraint: &fixpoint::Constraint) -> TagToFlatConstraint {
     constraint
         .flatten(|var| matches!(var, fixpoint::Var::Underscore))
@@ -105,13 +111,15 @@ where
                     fixpoint::ConstDecl { name: *var, sort: sort.clone(), comment: None }
                 })
                 .collect_vec();
-            if !check_validity(
+            let validity = check_validity(
                 &mut solver,
                 &other_constr,
                 &binder_consts,
                 &suggestion_ctx.const_decls,
                 suggestion_ctx.data_decls.clone(),
-            )? {
+            );
+            record_comparison_events(&mut solver);
+            if !validity? {
                 valid = false;
                 break;
             }
@@ -164,6 +172,7 @@ where
             &suggestion_ctx.const_decls,
             suggestion_ctx.data_decls.clone(),
         );
+        record_comparison_events(&mut solver);
         let fallback = head_expr
             .as_ref()
             .and_then(|head| fxctx.fixpoint_to_expr(head).ok())

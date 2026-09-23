@@ -32,4 +32,4 @@ rustc_private = true
 
 [features]
 rust-fixpoint = ["liquid-fixpoint/rust-fixpoint"]
-suggestions = ["liquid-fixpoint/suggestions"]
+suggestions = ["liquid-fixpoint/suggestions", "flux-middle/suggestions"]

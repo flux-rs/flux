@@ -64,6 +64,34 @@ pub use crate::z3_process::SuggestionSolverError;
 
 #[cfg(feature = "suggestions")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SuggestionComparisonOperation {
+    Qe,
+    Validity,
+}
+
+#[cfg(feature = "suggestions")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SuggestionComparisonOutcome {
+    Agreed,
+    ProcessFailed,
+    BindingsFailed,
+    BothFailed,
+    Different,
+    ComparisonFailed,
+}
+
+#[cfg(feature = "suggestions")]
+#[derive(Debug)]
+pub struct SuggestionComparisonEvent {
+    pub operation: SuggestionComparisonOperation,
+    pub outcome: SuggestionComparisonOutcome,
+    pub bindings_time: std::time::Duration,
+    pub process_time: std::time::Duration,
+    pub details: Option<String>,
+}
+
+#[cfg(feature = "suggestions")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SuggestionsZ3Backend {
     Bindings,
     Process,
@@ -74,6 +102,7 @@ pub enum SuggestionsZ3Backend {
 pub struct SuggestionSolver {
     backend: SuggestionsZ3Backend,
     process: Option<z3_process::ProcessSolver>,
+    comparison_events: Vec<SuggestionComparisonEvent>,
 }
 
 #[cfg(feature = "suggestions")]
@@ -82,10 +111,14 @@ impl SuggestionSolver {
         let process = match backend {
             SuggestionsZ3Backend::Bindings => None,
             SuggestionsZ3Backend::Process | SuggestionsZ3Backend::Compare => {
-                Some(z3_process::ProcessSolver::new()?)
+                Some(z3_process::ProcessSolver::new(backend == SuggestionsZ3Backend::Compare)?)
             }
         };
-        Ok(Self { backend, process })
+        Ok(Self { backend, process, comparison_events: Vec::new() })
+    }
+
+    pub fn take_comparison_events(&mut self) -> Vec<SuggestionComparisonEvent> {
+        std::mem::take(&mut self.comparison_events)
     }
 }
 
@@ -228,8 +261,7 @@ pub fn qe_and_simplify<T: Types>(
             let start = std::time::Instant::now();
             let process_result = process(solver);
             let process_time = start.elapsed();
-            eprintln!("[suggestions-z3] qe bindings={bindings_time:?} process={process_time:?}");
-            match (&bindings, &process_result) {
+            let (outcome, details) = match (&bindings, &process_result) {
                 (Ok(lhs), Ok(rhs)) => {
                     match z3_process::equivalent(
                         solver
@@ -243,22 +275,51 @@ pub fn qe_and_simplify<T: Types>(
                         global_consts,
                         &datatype_decls,
                     ) {
-                        Ok(true) => {}
+                        Ok(true) => (SuggestionComparisonOutcome::Agreed, None),
                         Ok(false) => {
-                            eprintln!(
-                                "[suggestions-z3] QE semantic mismatch\nbindings: {lhs:?}\nprocess: {rhs:?}"
+                            (
+                                SuggestionComparisonOutcome::Different,
+                                Some(suggestion_comparison_details(
+                                    constraint,
+                                    binder_consts,
+                                    global_consts,
+                                    &datatype_decls,
+                                    &format!("bindings:\n{lhs:#?}\nprocess:\n{rhs:#?}"),
+                                    solver.process.as_ref().unwrap().last_query(),
+                                )),
                             )
                         }
-                        Err(err) => eprintln!("[suggestions-z3] QE comparison failed: {err:?}"),
+                        Err(_) => (SuggestionComparisonOutcome::ComparisonFailed, None),
                     }
                 }
-                (Ok(_), Err(err)) => eprintln!("[suggestions-z3] process failed: {err:?}"),
-                (Err(err), Ok(_)) => eprintln!("[suggestions-z3] bindings failed: {err:?}"),
-                _ => {}
-            }
+                (Ok(_), Err(_)) => (SuggestionComparisonOutcome::ProcessFailed, None),
+                (Err(_), Ok(_)) => (SuggestionComparisonOutcome::BindingsFailed, None),
+                (Err(_), Err(_)) => (SuggestionComparisonOutcome::BothFailed, None),
+            };
+            solver.comparison_events.push(SuggestionComparisonEvent {
+                operation: SuggestionComparisonOperation::Qe,
+                outcome,
+                bindings_time,
+                process_time,
+                details,
+            });
             process_result
         }
     }
+}
+
+#[cfg(feature = "suggestions")]
+fn suggestion_comparison_details<T: Types>(
+    constraint: &FlatConstraint<T>,
+    binder_consts: &[ConstDecl<T>],
+    global_consts: &[ConstDecl<T>],
+    datatype_decls: &[DataDecl<T>],
+    difference: &str,
+    process_query: &str,
+) -> String {
+    format!(
+        "constraint:\n{constraint:#?}\nbinders:\n{binder_consts:#?}\nglobal constants:\n{global_consts:#?}\ndatatypes:\n{datatype_decls:#?}\n{difference}\nprocess query:\n{process_query}"
+    )
 }
 
 #[cfg(feature = "suggestions")]
@@ -283,17 +344,38 @@ pub fn check_validity<T: Types>(
         SuggestionsZ3Backend::Bindings => bindings(),
         SuggestionsZ3Backend::Process => process(solver),
         SuggestionsZ3Backend::Compare => {
+            let start = std::time::Instant::now();
             let bindings = bindings();
+            let bindings_time = start.elapsed();
+            let start = std::time::Instant::now();
             let process_result = process(solver);
-            match (&bindings, &process_result) {
-                (Ok(lhs), Ok(rhs)) if lhs == rhs => {}
-                (Err(_), Err(_)) => {}
-                _ => {
-                    eprintln!(
-                        "[suggestions-z3] validity mismatch: bindings={bindings:?} process={process_result:?}"
+            let process_time = start.elapsed();
+            let (outcome, details) = match (&bindings, &process_result) {
+                (Ok(lhs), Ok(rhs)) if lhs == rhs => (SuggestionComparisonOutcome::Agreed, None),
+                (Ok(lhs), Ok(rhs)) => {
+                    (
+                        SuggestionComparisonOutcome::Different,
+                        Some(suggestion_comparison_details(
+                            constraint,
+                            binder_consts,
+                            global_consts,
+                            &datatype_decls,
+                            &format!("bindings: {lhs}\nprocess: {rhs}"),
+                            solver.process.as_ref().unwrap().last_query(),
+                        )),
                     )
                 }
-            }
+                (Ok(_), Err(_)) => (SuggestionComparisonOutcome::ProcessFailed, None),
+                (Err(_), Ok(_)) => (SuggestionComparisonOutcome::BindingsFailed, None),
+                (Err(_), Err(_)) => (SuggestionComparisonOutcome::BothFailed, None),
+            };
+            solver.comparison_events.push(SuggestionComparisonEvent {
+                operation: SuggestionComparisonOperation::Validity,
+                outcome,
+                bindings_time,
+                process_time,
+                details,
+            });
             process_result
         }
     }

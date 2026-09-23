@@ -158,11 +158,16 @@ impl Z3Session {
 
 pub(crate) struct ProcessSolver {
     session: Z3Session,
+    last_query: Option<String>,
 }
 
 impl ProcessSolver {
-    pub(crate) fn new() -> Result<Self, SuggestionSolverError> {
-        Ok(Self { session: Z3Session::new()? })
+    pub(crate) fn new(track_queries: bool) -> Result<Self, SuggestionSolverError> {
+        Ok(Self { session: Z3Session::new()?, last_query: track_queries.then(String::new) })
+    }
+
+    pub(crate) fn last_query(&self) -> &str {
+        self.last_query.as_deref().unwrap_or_default()
     }
 
     pub(crate) fn check_validity<T: Types>(
@@ -172,14 +177,28 @@ impl ProcessSolver {
         global_consts: &[ConstDecl<T>],
         datatype_decls: &[DataDecl<T>],
     ) -> Result<bool, SuggestionSolverError> {
+        if let Some(last_query) = &mut self.last_query {
+            last_query.clear();
+        }
         let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, &constraint.binders);
-        self.session.reset(&env.declarations()?)?;
+        let declarations = env.declarations()?;
+        if let Some(last_query) = &mut self.last_query {
+            *last_query = format!("(reset)\n{declarations}");
+        }
+        self.session.reset(&declarations)?;
         let mut assertions = constraint
             .preconditions()
             .iter()
             .map(|pred| env.pred(pred))
             .collect::<Result<Vec<_>, _>>()?;
         assertions.push(format!("(not {})", env.pred(&constraint.head)?));
+        if let Some(last_query) = &mut self.last_query {
+            last_query.push_str("(push)\n");
+            for assertion in &assertions {
+                last_query.push_str(&format!("(assert {assertion})\n"));
+            }
+            last_query.push_str("(check-sat)\n(pop)\n");
+        }
         Ok(matches!(self.session.check_sat(&assertions)?, SatStatus::Unsat))
     }
 
@@ -190,13 +209,22 @@ impl ProcessSolver {
         global_consts: &[ConstDecl<T>],
         datatype_decls: &[DataDecl<T>],
     ) -> Result<Expr<T>, SuggestionSolverError> {
+        if let Some(last_query) = &mut self.last_query {
+            last_query.clear();
+        }
         let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, &constraint.binders);
         let declarations = env.declarations()?;
+        if let Some(last_query) = &mut self.last_query {
+            *last_query = format!("(reset)\n{declarations}");
+        }
         self.session.reset(&declarations)?;
         let implication = env.quantified_implication(constraint)?;
-        let output = self.session.request(&format!(
-            "(push)\n(assert {implication})\n(apply (try-for (then qe nnf) 10000))\n(pop)"
-        ))?;
+        let query =
+            format!("(push)\n(assert {implication})\n(apply (try-for (then qe nnf) 10000))\n(pop)");
+        if let Some(last_query) = &mut self.last_query {
+            last_query.push_str(&query);
+        }
+        let output = self.session.request(&query)?;
         let stderr = self.session.last_stderr.clone();
         if is_timeout(&output) {
             return Err(SuggestionSolverError::QETimeout);
@@ -240,8 +268,14 @@ pub(crate) fn equivalent<T: Types>(
     datatype_decls: &[DataDecl<T>],
 ) -> Result<bool, SuggestionSolverError> {
     let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, &constraint.binders);
-    solver.session.reset(&env.declarations()?)?;
+    let declarations = env.declarations()?;
+    solver.session.reset(&declarations)?;
     let assertion = format!("(not (= {} {}))", env.expr(lhs)?, env.expr(rhs)?);
+    if let Some(last_query) = &mut solver.last_query {
+        last_query.push_str(&format!(
+            "\n; semantic equivalence check\n(reset)\n{declarations}(push)\n(assert {assertion})\n(check-sat)\n(pop)\n"
+        ));
+    }
     Ok(matches!(solver.session.check_sat(&[assertion])?, SatStatus::Unsat))
 }
 
