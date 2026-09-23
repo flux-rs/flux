@@ -119,10 +119,6 @@ pub fn sysroot() -> Option<PathBuf> {
     }
 }
 
-pub fn smt_define_fun() -> bool {
-    FLAGS.smt_define_fun
-}
-
 pub fn suggestions_z3() -> SuggestionsZ3 {
     FLAGS.suggestions_z3
 }
