@@ -62,5 +62,7 @@ fn run() -> io::Result<ExitCode> {
     if config::summary() && result.is_ok() {
         metrics::print_summary(start.elapsed())?;
     };
+    #[cfg(feature = "suggestions")]
+    metrics::print_suggestion_comparison_summary()?;
     Ok(if result.is_ok() { ExitCode::SUCCESS } else { ExitCode::FAILURE })
 }
