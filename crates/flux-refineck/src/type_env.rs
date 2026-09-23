@@ -20,8 +20,8 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         BaseTy, Binder, BoundReftKind, Ctor, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
-        INNERMOST, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty,
-        TyKind, VariantIdx,
+        INNERMOST, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy,
+        SubsetTyCtor, Ty, TyKind, VariantIdx,
         canonicalize::{Hoister, LocalHoister},
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
@@ -549,13 +549,23 @@ impl BasicBlockEnvShape {
     fn pack_generic_arg(scope: &Scope, arg: &GenericArg) -> GenericArg {
         match arg {
             GenericArg::Ty(ty) => GenericArg::Ty(Self::pack_ty(scope, ty)),
-            GenericArg::Base(arg) => {
-                assert!(!scope.has_free_vars(arg));
-                GenericArg::Base(arg.clone())
-            }
+            GenericArg::Base(ctor) => GenericArg::Base(Self::pack_subset_ty_ctor(scope, ctor)),
             GenericArg::Lifetime(re) => GenericArg::Lifetime(*re),
             GenericArg::Const(c) => GenericArg::Const(c.clone()),
         }
+    }
+
+    fn pack_subset_ty_ctor(scope: &Scope, ctor: &SubsetTyCtor) -> SubsetTyCtor {
+        let sty = ctor.as_ref().skip_binder();
+        debug_assert!(sty.idx.is_nu());
+        let bty = Self::pack_bty(scope, &sty.bty);
+        let pred = if scope.has_free_vars(&sty.pred) {
+            Expr::hole(HoleKind::Pred)
+        } else {
+            sty.pred.clone()
+        };
+        let sort = bty.sort();
+        Binder::bind_with_sort(SubsetTy::new(bty, Expr::nu(), pred), sort)
     }
 
     fn update(&mut self, path: &Path, ty: Ty, span: Span) {
