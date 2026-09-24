@@ -159,15 +159,38 @@ impl Z3Session {
 pub(crate) struct ProcessSolver {
     session: Z3Session,
     last_query: Option<String>,
+    context_declarations: Option<String>,
 }
 
 impl ProcessSolver {
     pub(crate) fn new(track_queries: bool) -> Result<Self, SuggestionSolverError> {
-        Ok(Self { session: Z3Session::new()?, last_query: track_queries.then(String::new) })
+        Ok(Self {
+            session: Z3Session::new()?,
+            last_query: track_queries.then(String::new),
+            context_declarations: None,
+        })
     }
 
     pub(crate) fn last_query(&self) -> &str {
         self.last_query.as_deref().unwrap_or_default()
+    }
+
+    pub(crate) fn initialize_context<T: Types>(
+        &mut self,
+        global_consts: &[ConstDecl<T>],
+        funs: &[FunDef<T>],
+        datatype_decls: &[DataDecl<T>],
+    ) -> Result<(), SuggestionSolverError> {
+        let env = SmtEnv::new(datatype_decls, &[], global_consts, funs, &[]);
+        let declarations = env.global_declarations()?;
+        self.session.reset(&declarations)?;
+        if self.last_query.is_some() {
+            self.context_declarations = Some(declarations.clone());
+        }
+        if let Some(last_query) = &mut self.last_query {
+            *last_query = format!("(reset)\n{declarations}");
+        }
+        Ok(())
     }
 
     pub(crate) fn check_validity<T: Types>(
@@ -183,25 +206,31 @@ impl ProcessSolver {
         }
         let env =
             SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
-        let declarations = env.declarations()?;
+        let local_declarations = env.local_declarations()?;
         if let Some(last_query) = &mut self.last_query {
-            *last_query = format!("(reset)\n{declarations}");
+            *last_query =
+                format!("(reset)\n{}", self.context_declarations.as_deref().unwrap_or_default());
         }
-        self.session.reset(&declarations)?;
         let mut assertions = constraint
             .preconditions()
             .iter()
             .map(|pred| env.pred(pred))
             .collect::<Result<Vec<_>, _>>()?;
         assertions.push(format!("(not {})", env.pred(&constraint.head)?));
+        let mut query = format!("(push)\n{local_declarations}(push)\n");
+        for assertion in &assertions {
+            writeln!(query, "(assert {assertion})").unwrap();
+        }
+        query.push_str("(check-sat)\n(pop)\n(pop)");
         if let Some(last_query) = &mut self.last_query {
-            last_query.push_str("(push)\n");
+            last_query.push_str(&format!("(push)\n{local_declarations}(push)\n"));
             for assertion in &assertions {
                 last_query.push_str(&format!("(assert {assertion})\n"));
             }
-            last_query.push_str("(check-sat)\n(pop)\n");
+            last_query.push_str("(check-sat)\n(pop)\n(pop)\n");
         }
-        Ok(matches!(self.session.check_sat(&assertions)?, SatStatus::Unsat))
+        let output = self.session.request(&query)?;
+        Ok(matches!(parse_status(&output, &self.session.last_stderr)?, SatStatus::Unsat))
     }
 
     pub(crate) fn qe_and_simplify<T: Types>(
@@ -217,14 +246,33 @@ impl ProcessSolver {
         }
         let env =
             SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
-        let declarations = env.declarations()?;
+        let local_declarations = env.local_declarations()?;
         if let Some(last_query) = &mut self.last_query {
-            *last_query = format!("(reset)\n{declarations}");
+            *last_query =
+                format!("(reset)\n{}", self.context_declarations.as_deref().unwrap_or_default());
         }
-        self.session.reset(&declarations)?;
+        let result = self.qe_and_simplify_in_context(constraint, &env, &local_declarations);
+        let pop_result = self.session.request("(pop)");
+        if let Some(last_query) = &mut self.last_query {
+            last_query.push_str("\n(pop)\n");
+        }
+        match (result, pop_result) {
+            (Err(err), _) => Err(err),
+            (Ok(_), Err(err)) => Err(err),
+            (Ok(candidate), Ok(_)) => Ok(candidate),
+        }
+    }
+
+    fn qe_and_simplify_in_context<T: Types>(
+        &mut self,
+        constraint: &FlatConstraint<T>,
+        env: &SmtEnv<'_, T>,
+        local_declarations: &str,
+    ) -> Result<Expr<T>, SuggestionSolverError> {
         let implication = env.quantified_implication(constraint)?;
-        let query =
-            format!("(push)\n(assert {implication})\n(apply (try-for (then qe nnf) 10000))\n(pop)");
+        let query = format!(
+            "(push)\n{local_declarations}(push)\n(assert {implication})\n(apply (try-for (then qe nnf) 10000))\n(pop)"
+        );
         if let Some(last_query) = &mut self.last_query {
             last_query.push_str(&query);
         }
@@ -273,15 +321,18 @@ pub(crate) fn equivalent<T: Types>(
     datatype_decls: &[DataDecl<T>],
 ) -> Result<bool, SuggestionSolverError> {
     let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
-    let declarations = env.declarations()?;
-    solver.session.reset(&declarations)?;
+    let local_declarations = env.local_declarations()?;
     let assertion = format!("(not (= {} {}))", env.expr(lhs)?, env.expr(rhs)?);
     if let Some(last_query) = &mut solver.last_query {
         last_query.push_str(&format!(
-            "\n; semantic equivalence check\n(reset)\n{declarations}(push)\n(assert {assertion})\n(check-sat)\n(pop)\n"
+            "\n; semantic equivalence check\n(push)\n{local_declarations}(push)\n(assert {assertion})\n(check-sat)\n(pop)\n(pop)\n"
         ));
     }
-    Ok(matches!(solver.session.check_sat(&[assertion])?, SatStatus::Unsat))
+    let query = format!(
+        "(push)\n{local_declarations}(push)\n(assert {assertion})\n(check-sat)\n(pop)\n(pop)"
+    );
+    let output = solver.session.request(&query)?;
+    Ok(matches!(parse_status(&output, &solver.session.last_stderr)?, SatStatus::Unsat))
 }
 
 impl Drop for Z3Session {
@@ -336,14 +387,14 @@ impl<'a, T: Types> SmtEnv<'a, T> {
         Self { datatype_decls, binder_consts, global_consts, funs, binders, symbols, constructors }
     }
 
-    fn declarations(&self) -> Result<String, SuggestionSolverError> {
+    fn global_declarations(&self) -> Result<String, SuggestionSolverError> {
         let mut out = String::new();
         for decl in self.datatype_decls {
             self.write_datatype_decl(&mut out, decl)?;
         }
 
         let mut declared = HashSet::new();
-        for decl in self.global_consts.iter().chain(self.binder_consts) {
+        for decl in self.global_consts {
             let name = decl.name.display().to_string();
             if declared.insert(name.clone()) {
                 self.write_const_decl(&mut out, &name, &decl.sort)?;
@@ -354,6 +405,23 @@ impl<'a, T: Types> SmtEnv<'a, T> {
             let name = fun.name.display().to_string();
             if declared.insert(name.clone()) {
                 self.write_const_decl(&mut out, &name, &fun.sort.to_sort())?;
+            }
+        }
+        Ok(out)
+    }
+
+    fn local_declarations(&self) -> Result<String, SuggestionSolverError> {
+        let mut out = String::new();
+        let mut declared: HashSet<String> = self
+            .global_consts
+            .iter()
+            .map(|decl| decl.name.display().to_string())
+            .chain(self.funs.iter().map(|fun| fun.name.display().to_string()))
+            .collect();
+        for decl in self.binder_consts {
+            let name = decl.name.display().to_string();
+            if declared.insert(name.clone()) {
+                self.write_const_decl(&mut out, &name, &decl.sort)?;
             }
         }
         for (name, sort) in self.binders {
@@ -884,7 +952,7 @@ fn prune_vacuous<T: Types>(
                     copy.iter()
                         .enumerate()
                         .filter(|(j, _)| i != *j)
-                        .map(|(_, e)| e.clone()),
+                        .map(|(_, expr)| expr.clone()),
                 );
                 if prune_vacuous(conjunct, env, base, &nested, session)? {
                     *expr = Expr::FALSE;

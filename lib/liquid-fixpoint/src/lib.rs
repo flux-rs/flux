@@ -107,14 +107,24 @@ pub struct SuggestionSolver {
 
 #[cfg(feature = "suggestions")]
 impl SuggestionSolver {
-    pub fn new(backend: SuggestionsZ3Backend) -> Result<Self, SuggestionSolverError> {
+    pub fn new<T: Types>(
+        backend: SuggestionsZ3Backend,
+        global_consts: &[ConstDecl<T>],
+        funs: &[FunDef<T>],
+        datatype_decls: Vec<DataDecl<T>>,
+    ) -> Result<Self, SuggestionSolverError> {
         let process = match backend {
             SuggestionsZ3Backend::Bindings => None,
             SuggestionsZ3Backend::Process | SuggestionsZ3Backend::Compare => {
                 Some(z3_process::ProcessSolver::new(backend == SuggestionsZ3Backend::Compare)?)
             }
         };
-        Ok(Self { backend, process, comparison_events: Vec::new() })
+        let mut solver = Self { backend, process, comparison_events: Vec::new() };
+        let datatype_decls = topo_sort_data_declarations(datatype_decls);
+        if let Some(process) = &mut solver.process {
+            process.initialize_context(global_consts, funs, &datatype_decls)?;
+        }
+        Ok(solver)
     }
 
     pub fn take_comparison_events(&mut self) -> Vec<SuggestionComparisonEvent> {
@@ -293,7 +303,7 @@ pub fn qe_and_simplify<T: Types>(
                                     binder_consts,
                                     global_consts,
                                     &datatype_decls,
-                                    &format!("bindings:\n{lhs:#?}\nprocess:\n{rhs:#?}"),
+                                    &format!("bindings:\n{lhs}\nprocess:\n{rhs}"),
                                     solver.process.as_ref().unwrap().last_query(),
                                 )),
                             )
@@ -338,9 +348,7 @@ fn suggestion_comparison_details<T: Types>(
     difference: &str,
     process_query: &str,
 ) -> String {
-    format!(
-        "constraint:\n{constraint:#?}\nbinders:\n{binder_consts:#?}\nglobal constants:\n{global_consts:#?}\ndatatypes:\n{datatype_decls:#?}\n{difference}\nprocess query:\n{process_query}"
-    )
+    format!("constraint:\n{constraint:#?}\n{difference}\nprocess query:\n{process_query}")
 }
 
 #[cfg(feature = "suggestions")]

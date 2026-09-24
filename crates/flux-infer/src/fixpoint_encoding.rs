@@ -780,6 +780,8 @@ where
             }
         });
         let def_span = self.ecx.def_span();
+        #[cfg(feature = "suggestions")]
+        let mut suggestion_solver = None;
         let errors = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
@@ -792,18 +794,19 @@ where
                         let possible_solutions = Default::default();
                         #[cfg(feature = "suggestions")]
                         let possible_solutions = if let Some(suggestion_ctx) = &suggestion_ctx {
-                            find_possible_solutions(self, tag_idx, suggestion_ctx).map_err(
-                                |err| {
-                                    let diagnostic =
-                                        self.genv.sess().dcx().handle().struct_span_err(
-                                            def_span,
-                                            format!(
-                                                "failed to compute refinement suggestions: {err:?}"
-                                            ),
-                                        );
-                                    QueryErr::Emitted(diagnostic.emit())
-                                },
-                            )?
+                            find_possible_solutions(
+                                self,
+                                tag_idx,
+                                suggestion_ctx,
+                                &mut suggestion_solver,
+                            )
+                            .map_err(|err| {
+                                let diagnostic = self.genv.sess().dcx().handle().struct_span_err(
+                                    def_span,
+                                    format!("failed to compute refinement suggestions: {err:?}"),
+                                );
+                                QueryErr::Emitted(diagnostic.emit())
+                            })?
                         } else {
                             Default::default()
                         };
