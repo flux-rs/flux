@@ -19,7 +19,10 @@ use flux_middle::{
     rty::{BinOp, BvSize, PrettyMap, Sort, local_deps},
 };
 use itertools::Itertools;
-use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
+use rustc_data_structures::{
+    fx::{FxHashMap, FxIndexSet},
+    unord::UnordMap,
+};
 use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
@@ -236,10 +239,6 @@ struct LakeDiagnostic {
 }
 
 impl LakeDiagnostic {
-    fn is_in(&self, file: &str) -> bool {
-        self.file.as_deref() == Some(file)
-    }
-
     fn to_note(&self) -> String {
         format!("{}: {}", self.file.as_deref().unwrap_or(""), self.message)
     }
@@ -313,56 +312,95 @@ fn run_lake_build(genv: GlobalEnv, def_ids: &[DefId]) -> io::Result<Vec<LakeDiag
     Ok(parse_lake_output(&format!("{stdout}\n{stderr}")))
 }
 
-/// Determines whether the external proof for `def_id` was successfully checked. The proof is
-/// accepted iff the checking file was elaborated (witnessed by the `info` message reported by its
-/// `#print axioms`), neither the checking nor the proof file report errors, and the proof does not
-/// depend on `sorryAx`, i.e., neither the proof nor any lemma it (transitively) uses has a `sorry`.
-/// On failure, returns the relevant messages reported by lean.
-fn proof_status(
+/// What `lake build` reported about the external proof of a single function
+#[derive(Default)]
+struct ProofReport {
+    /// The message of the `#print axioms` in the checking file, if it was elaborated
+    axioms: Option<String>,
+    /// Errors reported in the checking or proof file
+    errors: Vec<String>,
+}
+
+impl ProofReport {
+    /// The proof is accepted iff the checking file was elaborated (witnessed by the `info` message
+    /// of its `#print axioms`), neither the checking nor the proof file report errors, and the proof
+    /// does not depend on `sorryAx`, i.e., neither the proof nor any lemma it (transitively) uses
+    /// has a `sorry`. On failure, returns the relevant messages reported by lean, where `sorries`
+    /// are all the `sorry` warnings in the build (one of which is the culprit for a `sorryAx`).
+    fn status(self, checking_file: &str, sorries: &[String]) -> Result<(), Vec<String>> {
+        let mut problems = self.errors;
+        if let Some(axioms) = &self.axioms
+            && axioms.contains("sorryAx")
+        {
+            problems.push(format!(
+                "the proof depends on `sorryAx`, i.e., it uses `sorry` directly or through a lemma: {axioms}"
+            ));
+            problems.extend_from_slice(sorries);
+        }
+
+        if self.axioms.is_some() && problems.is_empty() {
+            Ok(())
+        } else if problems.is_empty() {
+            Err(vec![format!(
+                "lean did not check `{checking_file}`; a dependency may have failed to build \
+                 (run `lake build` in the lean project for details)"
+            )])
+        } else {
+            Err(problems)
+        }
+    }
+}
+
+/// Determines the status of the external proof of each of the `def_ids` with a single pass over the
+/// `diagnostics`, dispatching each one to the proof whose checking or proof file it is reported in.
+/// Returns the results in the same order as `def_ids`.
+fn proof_statuses(
     genv: GlobalEnv,
-    def_id: DefId,
-    diagnostics: &[LakeDiagnostic],
-) -> Result<(), Vec<String>> {
-    let checking_file = LeanFile::Checking(def_id).relative_path(genv);
-    let proof_file = LeanFile::Proof(def_id).relative_path(genv);
-
-    let axioms = diagnostics.iter().find(|d| {
-        d.severity == LakeSeverity::Info && d.is_in(&checking_file) && d.message.contains("axioms")
-    });
-    let mut problems = diagnostics
+    def_ids: &[DefId],
+    diagnostics: Vec<LakeDiagnostic>,
+) -> Vec<Result<(), Vec<String>>> {
+    let checking_files = def_ids
         .iter()
-        .filter(|d| {
-            d.severity == LakeSeverity::Error && (d.is_in(&checking_file) || d.is_in(&proof_file))
-        })
-        .map(LakeDiagnostic::to_note)
+        .map(|def_id| LeanFile::Checking(*def_id).relative_path(genv))
         .collect_vec();
+    let checking_idx: FxHashMap<&str, usize> = checking_files
+        .iter()
+        .enumerate()
+        .map(|(i, f)| (f.as_str(), i))
+        .collect();
+    let proof_idx: FxHashMap<String, usize> = def_ids
+        .iter()
+        .enumerate()
+        .map(|(i, def_id)| (LeanFile::Proof(*def_id).relative_path(genv), i))
+        .collect();
 
-    if let Some(axioms) = axioms
-        && axioms.message.contains("sorryAx")
-    {
-        problems.push(format!(
-            "the proof depends on `sorryAx`, i.e., it uses `sorry` directly or through a lemma: {}",
-            axioms.message
-        ));
-        // Point to the `sorry`s that lean reported, as one of them is the culprit
-        problems.extend(
-            diagnostics
-                .iter()
-                .filter(|d| d.is_sorry())
-                .map(LakeDiagnostic::to_note),
-        );
+    let mut reports: Vec<ProofReport> = def_ids.iter().map(|_| ProofReport::default()).collect();
+    let mut sorries = vec![];
+    for d in diagnostics {
+        if d.is_sorry() {
+            sorries.push(d.to_note());
+        }
+        let Some(file) = d.file.as_deref() else { continue };
+        if let Some(&i) = checking_idx.get(file) {
+            match d.severity {
+                LakeSeverity::Info if d.message.contains("axioms") => {
+                    reports[i].axioms = Some(d.message);
+                }
+                LakeSeverity::Error => reports[i].errors.push(d.to_note()),
+                _ => {}
+            }
+        } else if let Some(&i) = proof_idx.get(file)
+            && d.severity == LakeSeverity::Error
+        {
+            reports[i].errors.push(d.to_note());
+        }
     }
 
-    if axioms.is_some() && problems.is_empty() {
-        Ok(())
-    } else if problems.is_empty() {
-        Err(vec![format!(
-            "lean did not check `{checking_file}`; a dependency may have failed to build \
-             (run `lake build` in the lean project for details)"
-        )])
-    } else {
-        Err(problems)
-    }
+    reports
+        .into_iter()
+        .zip(&checking_files)
+        .map(|(report, checking_file)| report.status(checking_file, &sorries))
+        .collect()
 }
 
 /// Checks the external (lean) proofs of all the `def_ids` with a single `lake build`, reporting an
@@ -372,14 +410,17 @@ pub fn check_proofs(genv: GlobalEnv, def_ids: &[DefId]) -> Vec<Result<(), ErrorG
         return vec![];
     }
     dbg::log_verbose!("FLUX running lean proofs for {def_ids:?}");
-    let diagnostics = run_lake_build(genv, def_ids);
+    let statuses = match run_lake_build(genv, def_ids) {
+        Ok(diagnostics) => proof_statuses(genv, def_ids, diagnostics),
+        Err(err) => {
+            let note = format!("failed to run `lake build`: {err}");
+            def_ids.iter().map(|_| Err(vec![note.clone()])).collect()
+        }
+    };
     def_ids
         .iter()
-        .map(|def_id| {
-            let status = match &diagnostics {
-                Ok(diagnostics) => proof_status(genv, *def_id, diagnostics),
-                Err(err) => Err(vec![format!("failed to run `lake build`: {err}")]),
-            };
+        .zip(statuses)
+        .map(|(def_id, status)| {
             status.map_err(|notes| {
                 let name = genv.tcx().def_path(*def_id).to_string_no_crate_verbose();
                 let msg = format!("failed to check external proof for `crate{name}`");
@@ -1108,7 +1149,7 @@ fn hyperlink_proof(genv: GlobalEnv, def_id: MaybeExternId) {
 }
 
 /// Generates the file that checks that the proof has the type of the VC. The `#print axioms` is
-/// used to reject proofs that (transitively) depend on `sorryAx`, see [`proof_status`]. The file is
+/// used to reject proofs that (transitively) depend on `sorryAx`, see [`ProofReport::status`]. The file is
 /// regenerated even when the VC is cached, so that it is always up to date.
 fn generate_checking_file(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
     let vc_name = vc_name(genv, def_id);
