@@ -146,32 +146,45 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         }
 
         let lean_result = if config::lean().is_check() {
-            genv.iter_local_def_id().try_for_each_exhaust(|def_id| {
-                // Skip proof check if not included
-                if !genv.included(genv.maybe_extern_id(def_id)) {
-                    return Ok(());
-                }
-                if genv.proven_externally(def_id).is_some() {
-                    let key = lean_task_key(genv.tcx(), def_id.to_def_id());
+            // A cached proof is only valid if the lean project has not changed since it was checked
+            let digest = if config::is_cache_enabled() {
+                lean_encoding::project_digest(genv).ok()
+            } else {
+                None
+            };
+            let pending = genv
+                .iter_local_def_id()
+                .filter(|def_id| {
+                    // Skip proof check if not included or not proven externally
+                    genv.included(genv.maybe_extern_id(*def_id))
+                        && genv.proven_externally(*def_id).is_some()
+                })
+                .map(|def_id| def_id.to_def_id())
+                .filter(|def_id| {
                     // Skip proof check if previously verified successfully.
-                    if config::is_cache_enabled()
-                        && ck
-                            .cache
-                            .lookup_by_key(&key)
-                            .map(|r| matches!(r.lean_status, LeanStatus::Valid))
-                            .unwrap_or(false)
+                    let key = lean_task_key(genv.tcx(), *def_id);
+                    let cached = ck.cache.lookup_by_key(&key).map(|r| &r.lean_status);
+                    !matches!((cached, digest), (Some(LeanStatus::Valid(d1)), Some(d2)) if *d1 == d2)
+                })
+                .collect::<Vec<_>>();
+            // Check all the pending proofs with a single `lake build`
+            let results = lean_encoding::check_proofs(genv, &pending);
+            pending
+                .iter()
+                .zip(results)
+                .map(|(def_id, result)| {
+                    if result.is_ok()
+                        && let Some(digest) = digest
                     {
-                        return Ok(());
+                        // Mark as valid in cache so future runs skip re-verification.
+                        let key = lean_task_key(genv.tcx(), *def_id);
+                        ck.cache.update_result_by_key(&key, |r| {
+                            r.lean_status = LeanStatus::Valid(digest);
+                        });
                     }
-                    lean_encoding::check_proof(genv, def_id.to_def_id())?;
-                    // Mark as valid in cache so future runs skip re-verification.
-                    ck.cache
-                        .update_result_by_key(&key, |r| r.lean_status = LeanStatus::Valid);
-                    Ok(())
-                } else {
-                    Ok(())
-                }
-            })
+                    result
+                })
+                .try_for_each_exhaust(|result| result)
         } else {
             Ok(())
         };

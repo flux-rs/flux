@@ -33,6 +33,7 @@ use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{
         Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key,
+        record_lean_task,
     },
     lean_encoding::log_proof,
     projections::NormalizeExt as _,
@@ -236,6 +237,9 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             if cache.lookup(&key, hash).is_some() {
                 return Ok(());
             }
+            fcx.generate_lean_files(def_id, task)?;
+            record_lean_task(cache, key, hash);
+            return Ok(());
         }
 
         fcx.generate_lean_files(def_id, task)
