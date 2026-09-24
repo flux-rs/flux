@@ -116,6 +116,7 @@ where
                 &other_constr,
                 &binder_consts,
                 &suggestion_ctx.const_decls,
+                &suggestion_ctx.fun_defs,
                 suggestion_ctx.data_decls.clone(),
             );
             record_comparison_events(&mut solver);
@@ -170,6 +171,7 @@ where
             &new_flat_constraint,
             &binder_consts,
             &suggestion_ctx.const_decls,
+            &suggestion_ctx.fun_defs,
             suggestion_ctx.data_decls.clone(),
         );
         record_comparison_events(&mut solver);

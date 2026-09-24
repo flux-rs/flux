@@ -8,8 +8,8 @@ use std::{
 };
 
 use crate::{
-    BinOp, BinRel, ConstDecl, Constant, DataDecl, Expr, FixpointFmt, FlatConstraint, Identifier,
-    Pred, Quantifier, Sort, SortCtor, ThyFunc, Types,
+    BinOp, BinRel, ConstDecl, Constant, DataDecl, Expr, FixpointFmt, FlatConstraint, FunDef,
+    Identifier, Pred, Quantifier, Sort, SortCtor, ThyFunc, Types,
     sexp::{Atom, Parser, Sexp},
 };
 
@@ -175,12 +175,14 @@ impl ProcessSolver {
         constraint: &FlatConstraint<T>,
         binder_consts: &[ConstDecl<T>],
         global_consts: &[ConstDecl<T>],
+        funs: &[FunDef<T>],
         datatype_decls: &[DataDecl<T>],
     ) -> Result<bool, SuggestionSolverError> {
         if let Some(last_query) = &mut self.last_query {
             last_query.clear();
         }
-        let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, &constraint.binders);
+        let env =
+            SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
         let declarations = env.declarations()?;
         if let Some(last_query) = &mut self.last_query {
             *last_query = format!("(reset)\n{declarations}");
@@ -207,12 +209,14 @@ impl ProcessSolver {
         constraint: &FlatConstraint<T>,
         binder_consts: &[ConstDecl<T>],
         global_consts: &[ConstDecl<T>],
+        funs: &[FunDef<T>],
         datatype_decls: &[DataDecl<T>],
     ) -> Result<Expr<T>, SuggestionSolverError> {
         if let Some(last_query) = &mut self.last_query {
             last_query.clear();
         }
-        let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, &constraint.binders);
+        let env =
+            SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
         let declarations = env.declarations()?;
         if let Some(last_query) = &mut self.last_query {
             *last_query = format!("(reset)\n{declarations}");
@@ -265,9 +269,10 @@ pub(crate) fn equivalent<T: Types>(
     constraint: &FlatConstraint<T>,
     binder_consts: &[ConstDecl<T>],
     global_consts: &[ConstDecl<T>],
+    funs: &[FunDef<T>],
     datatype_decls: &[DataDecl<T>],
 ) -> Result<bool, SuggestionSolverError> {
-    let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, &constraint.binders);
+    let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
     let declarations = env.declarations()?;
     solver.session.reset(&declarations)?;
     let assertion = format!("(not (= {} {}))", env.expr(lhs)?, env.expr(rhs)?);
@@ -293,6 +298,7 @@ struct SmtEnv<'a, T: Types> {
     datatype_decls: &'a [DataDecl<T>],
     binder_consts: &'a [ConstDecl<T>],
     global_consts: &'a [ConstDecl<T>],
+    funs: &'a [FunDef<T>],
     binders: &'a [(T::Var, Sort<T>)],
     symbols: HashMap<String, T::Var>,
     constructors: HashSet<String>,
@@ -303,6 +309,7 @@ impl<'a, T: Types> SmtEnv<'a, T> {
         datatype_decls: &'a [DataDecl<T>],
         binder_consts: &'a [ConstDecl<T>],
         global_consts: &'a [ConstDecl<T>],
+        funs: &'a [FunDef<T>],
         binders: &'a [(T::Var, Sort<T>)],
     ) -> Self {
         let mut symbols = HashMap::new();
@@ -320,10 +327,13 @@ impl<'a, T: Types> SmtEnv<'a, T> {
         for decl in binder_consts.iter().chain(global_consts) {
             symbols.insert(decl.name.display().to_string(), decl.name.clone());
         }
+        for fun in funs {
+            symbols.insert(fun.name.display().to_string(), fun.name.clone());
+        }
         for (name, _) in binders {
             symbols.insert(name.display().to_string(), name.clone());
         }
-        Self { datatype_decls, binder_consts, global_consts, binders, symbols, constructors }
+        Self { datatype_decls, binder_consts, global_consts, funs, binders, symbols, constructors }
     }
 
     fn declarations(&self) -> Result<String, SuggestionSolverError> {
@@ -337,6 +347,13 @@ impl<'a, T: Types> SmtEnv<'a, T> {
             let name = decl.name.display().to_string();
             if declared.insert(name.clone()) {
                 self.write_const_decl(&mut out, &name, &decl.sort)?;
+            }
+        }
+        // Function bodies are ignored here, matching the bindings backend.
+        for fun in self.funs {
+            let name = fun.name.display().to_string();
+            if declared.insert(name.clone()) {
+                self.write_const_decl(&mut out, &name, &fun.sort.to_sort())?;
             }
         }
         for (name, sort) in self.binders {

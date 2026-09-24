@@ -234,6 +234,7 @@ pub fn qe_and_simplify<T: Types>(
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
+    funs: &Vec<FunDef<T>>,
     datatype_decls: Vec<DataDecl<T>>,
 ) -> Result<Expr<T>, SuggestionSolverError> {
     // let mut consts = self.constants.clone();
@@ -244,12 +245,18 @@ pub fn qe_and_simplify<T: Types>(
             .process
             .as_mut()
             .expect("process backend initialized")
-            .qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
+            .qe_and_simplify(constraint, binder_consts, global_consts, funs, &datatype_decls)
     };
     match solver.backend {
         SuggestionsZ3Backend::Bindings => {
-            cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
-                .map_err(|err| SuggestionSolverError::Bindings(format!("{err:?}")))
+            cstr2smt2::qe_and_simplify(
+                constraint,
+                binder_consts,
+                global_consts,
+                funs,
+                &datatype_decls,
+            )
+            .map_err(|err| SuggestionSolverError::Bindings(format!("{err:?}")))
         }
         SuggestionsZ3Backend::Process => process(solver),
         SuggestionsZ3Backend::Compare => {
@@ -258,6 +265,7 @@ pub fn qe_and_simplify<T: Types>(
                 constraint,
                 binder_consts,
                 global_consts,
+                funs,
                 &datatype_decls,
             )
             .map_err(|err| SuggestionSolverError::Bindings(format!("{err:?}")));
@@ -277,6 +285,7 @@ pub fn qe_and_simplify<T: Types>(
                         constraint,
                         binder_consts,
                         global_consts,
+                        funs,
                         &datatype_decls,
                     ) {
                         Ok(true) => (SuggestionComparisonOutcome::Agreed, None),
@@ -296,7 +305,19 @@ pub fn qe_and_simplify<T: Types>(
                         Err(_) => (SuggestionComparisonOutcome::ComparisonFailed, None),
                     }
                 }
-                (Ok(_), Err(_)) => (SuggestionComparisonOutcome::ProcessFailed, None),
+                (Ok(lhs), Err(_)) => {
+                    (
+                        SuggestionComparisonOutcome::ProcessFailed,
+                        Some(suggestion_comparison_details(
+                            constraint,
+                            binder_consts,
+                            global_consts,
+                            &datatype_decls,
+                            &format!("bindings:\n{lhs}"),
+                            solver.process.as_ref().unwrap().last_query(),
+                        )),
+                    )
+                }
                 (Err(_), Ok(_)) => (SuggestionComparisonOutcome::BindingsFailed, None),
                 (Err(_), Err(_)) => (SuggestionComparisonOutcome::BothFailed, None),
             };
@@ -332,17 +353,25 @@ pub fn check_validity<T: Types>(
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
+    funs: &Vec<FunDef<T>>,
     datatype_decls: Vec<DataDecl<T>>,
 ) -> Result<bool, SuggestionSolverError> {
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    let bindings =
-        || Ok(cstr2smt2::check_validity(constraint, binder_consts, global_consts, &datatype_decls));
+    let bindings = || {
+        Ok(cstr2smt2::check_validity(
+            constraint,
+            binder_consts,
+            global_consts,
+            funs,
+            &datatype_decls,
+        ))
+    };
     let process = |solver: &mut SuggestionSolver| {
         solver
             .process
             .as_mut()
             .expect("process backend initialized")
-            .check_validity(constraint, binder_consts, global_consts, &datatype_decls)
+            .check_validity(constraint, binder_consts, global_consts, funs, &datatype_decls)
     };
     match solver.backend {
         SuggestionsZ3Backend::Bindings => bindings(),
@@ -393,7 +422,7 @@ pub struct ConstDecl<T: Types> {
     pub comment: Option<String>,
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct FunDef<T: Types> {
     pub name: T::Var,
     pub sort: FunSort<T>,
@@ -402,7 +431,7 @@ pub struct FunDef<T: Types> {
     pub comment: Option<String>,
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct FunBody<T: Types> {
     pub args: Vec<T::Var>,
     pub expr: Expr<T>,
