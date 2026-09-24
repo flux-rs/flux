@@ -612,6 +612,7 @@ pub(crate) struct SuggestionCtxt {
     pub(crate) flat_constraints: FxIndexMap<TagIdx, fixpoint::FlatConstraint>,
     pub(crate) const_decls: Vec<fixpoint::ConstDecl>,
     pub(crate) data_decls: Vec<fixpoint::DataDecl>,
+    pub(crate) fun_defs: Vec<fixpoint::FunDef>,
 }
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
@@ -710,7 +711,7 @@ where
             comments: self.comments.clone(),
             constants,
             kvars,
-            define_funs,
+            define_funs: define_funs.clone(),
             constraint,
             qualifiers,
             scrape_quals,
@@ -727,6 +728,7 @@ where
             flat_constraints: flat_constraint_map,
             const_decls: constants_without_inequalities,
             data_decls,
+            fun_defs: define_funs,
         });
         #[cfg(not(feature = "suggestions"))]
         let suggestion_ctx = None;

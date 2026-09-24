@@ -46,7 +46,10 @@ pub fn print_suggestion_comparison_summary() -> io::Result<()> {
 
     let mismatches = comparisons
         .iter()
-        .filter(|entry| entry.outcome == liquid_fixpoint::SuggestionComparisonOutcome::Different)
+        .filter(|entry| {
+            entry.outcome == liquid_fixpoint::SuggestionComparisonOutcome::Different
+                || entry.outcome == liquid_fixpoint::SuggestionComparisonOutcome::ProcessFailed
+        })
         .collect_vec();
     if !mismatches.is_empty() {
         writeln!(
