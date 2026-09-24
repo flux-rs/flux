@@ -87,6 +87,7 @@ pub(crate) fn find_possible_solutions<'genv, 'tcx, Tag>(
     fxctx: &mut FixpointCtxt<'genv, 'tcx, Tag>,
     tag_idx: TagIdx,
     suggestion_ctx: &SuggestionCtxt,
+    solver: &mut Option<SuggestionSolver>,
 ) -> Result<PossibleSolutions, liquid_fixpoint::SuggestionSolverError>
 where
     Tag: std::hash::Hash + Eq + Copy,
@@ -99,7 +100,15 @@ where
         _ => None,
     };
     let mut possible_solutions: PossibleSolutions = Default::default();
-    let mut solver = SuggestionSolver::new(suggestions_z3_backend())?;
+    if solver.is_none() {
+        *solver = Some(SuggestionSolver::new(
+            suggestions_z3_backend(),
+            &suggestion_ctx.const_decls,
+            &suggestion_ctx.fun_defs,
+            suggestion_ctx.data_decls.clone(),
+        )?);
+    }
+    let solver = solver.as_mut().unwrap();
     let wkvars_and_constraints = flat_constraint.wkvars_and_constrs();
     for (wkvar, flat_constraint, other_constrs) in wkvars_and_constraints {
         let mut valid = true;
@@ -112,14 +121,14 @@ where
                 })
                 .collect_vec();
             let validity = check_validity(
-                &mut solver,
+                solver,
                 &other_constr,
                 &binder_consts,
                 &suggestion_ctx.const_decls,
                 &suggestion_ctx.fun_defs,
                 suggestion_ctx.data_decls.clone(),
             );
-            record_comparison_events(&mut solver);
+            record_comparison_events(solver);
             if !validity? {
                 valid = false;
                 break;
@@ -167,14 +176,14 @@ where
             })
             .collect();
         let result = qe_and_simplify(
-            &mut solver,
+            solver,
             &new_flat_constraint,
             &binder_consts,
             &suggestion_ctx.const_decls,
             &suggestion_ctx.fun_defs,
             suggestion_ctx.data_decls.clone(),
         );
-        record_comparison_events(&mut solver);
+        record_comparison_events(solver);
         let fallback = head_expr
             .as_ref()
             .and_then(|head| fxctx.fixpoint_to_expr(head).ok())
