@@ -102,9 +102,10 @@ fn format_fn_root_binder<T: Pretty + TypeVisitable>(
     })
 }
 
-impl<T: Pretty> Pretty for EarlyBinder<T> {
+impl<T: Pretty + TypeVisitable> Pretty for EarlyBinder<T> {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        cx.with_early_params(|| self.skip_binder_ref().fmt(cx, f))
+        let early_params = self.skip_binder_ref().early_params();
+        cx.with_early_params(early_params, || self.skip_binder_ref().fmt(cx, f))
     }
 }
 
@@ -387,10 +388,10 @@ impl Pretty for IdxFmt {
                                 {
                                     match layer_type {
                                         FnRootLayerType::FnArgs => {
-                                            format_cx!(cx, "@{:?}", var_e)
+                                            format_cx!(cx, "@{}", ^cx.bvar_env.lookup(debruijn, var).unwrap())
                                         }
                                         FnRootLayerType::FnRet => {
-                                            format_cx!(cx, "#{:?}", var_e)
+                                            format_cx!(cx, "#{}", ^cx.bvar_env.lookup(debruijn, var).unwrap())
                                         }
                                     }
                                 }
@@ -402,7 +403,7 @@ impl Pretty for IdxFmt {
                                         .unwrap()
                                         .insert(ep) =>
                                 {
-                                    format_cx!(cx, "@{:?}", var_e)
+                                    format_cx!(cx, "@{}", ^ep.name)
                                 }
                                 _ => format_cx!(cx, "{:?}", var_e),
                             }
@@ -437,6 +438,7 @@ impl Pretty for IdxFmt {
                         cx.bvar_env.check_if_seen_fn_root_bvar(*debruijn, *var)
                         && !seen
                     {
+                        let name = cx.bvar_env.lookup(*debruijn, *var).unwrap();
                         match layer_type {
                             FnRootLayerType::FnArgs => {
                                 buf.write_str("@")?;
@@ -445,8 +447,10 @@ impl Pretty for IdxFmt {
                                 buf.write_str("#")?;
                             }
                         }
+                        buf.write_str(&name.to_string())?;
+                    } else {
+                        buf.write_str(&format_cx!(cx, "{:?}", e))?;
                     }
-                    buf.write_str(&format_cx!(cx, "{:?}", e))?;
                 }
             }
             ExprKind::Var(Var::EarlyParam(ep)) => {
@@ -454,7 +458,7 @@ impl Pretty for IdxFmt {
                     && param.insert(*ep)
                 {
                     // FIXME: handle adding # for early params in output position
-                    buf.write_str(&format_cx!(cx, "@{:?}", e))?;
+                    buf.write_str(&format_cx!(cx, "@{}", ^ep.name))?;
                 } else {
                     buf.write_str(&format_cx!(cx, "{:?}", e))?;
                 }
