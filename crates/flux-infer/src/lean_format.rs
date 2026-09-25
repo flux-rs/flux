@@ -124,7 +124,17 @@ impl LeanFmt for DataDecl {
                     .format(" ")
             )?;
             let ctor = &self.ctors[0];
-            if let fixpoint::Var::DataCtor(adt_id, _) = &ctor.name {
+            if let fixpoint::Var::TupleCtor { .. } = &ctor.name {
+                writeln!(f, "  mk ::")?;
+                for (idx, field) in ctor.fields.iter().enumerate() {
+                    writeln!(
+                        f,
+                        "    fld{} : {} ",
+                        as_subscript(idx),
+                        WithLeanCtxt { item: &field.sort, cx }
+                    )?;
+                }
+            } else if let fixpoint::Var::DataCtor(adt_id, _) = &ctor.name {
                 writeln!(
                     f,
                     "  mk{}{} ::",
@@ -301,6 +311,17 @@ impl LeanFmt for Var {
                 )
             }
             Var::DataProj { adt_id, field } => LeanDataProj(*adt_id, *field).lean_fmt(f, cx),
+            Var::TupleCtor { arity } => {
+                write!(f, "{}.mk", WithLeanCtxt { item: &DataSort::Tuple(*arity), cx })
+            }
+            Var::TupleProj { arity, field } => {
+                write!(
+                    f,
+                    "{}.fld{}",
+                    WithLeanCtxt { item: &DataSort::Tuple(*arity), cx },
+                    as_subscript(*field as usize)
+                )
+            }
             Var::Local(local_var) => {
                 write!(f, "{}", cx.pretty_var_map.get(&PrettyVar::Local(*local_var)))
             }
