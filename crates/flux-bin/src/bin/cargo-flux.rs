@@ -56,6 +56,9 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
         .env("RUSTC", flux_driver_path)
         .env("RUSTC_WRAPPER", "")
         .arg(format!("+{toolchain}"));
+    if cargo_flux_cmd.fix() {
+        cargo_command.env("FLUX_FIX", "1");
+    }
 
     cargo_flux_cmd.forward_args(&mut cargo_command, config_file.path());
 

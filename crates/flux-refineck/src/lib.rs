@@ -47,7 +47,10 @@ use flux_middle::{
     pretty,
     rty::{self, ESpan, EarlyBinder, fold::TypeFoldable},
 };
-use rustc_data_structures::{fx::FxHashMap, unord::UnordMap};
+use rustc_data_structures::{
+    fx::{FxHashMap, FxHashSet},
+    unord::UnordMap,
+};
 use rustc_errors::{Applicability, Diag, ErrorGuaranteed};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_span::Span;
@@ -234,8 +237,11 @@ fn report_errors(
             solutions_by_tag.insert(error.tag, (error.tag_idx, error.possible_solutions));
         }
     }
+    let combined_fn_fix_solutions =
+        config::inside_cargo_fix().then(|| combine_fix_solutions_by_fn(&solutions_by_tag));
     let rerun_note = rerun_hint_note(genv, local_id);
     let mut e = None;
+    let mut emitted_fn_fixes = FxHashSet::default();
     for (tag, (tag_idx, possible_solutions)) in solutions_by_tag {
         let span = tag.src_span;
         let mut err_diag = match tag.reason {
@@ -308,11 +314,24 @@ fn report_errors(
                 })
             }
         };
-        let wkvar_solutions = possible_solutions
-            .iter()
-            .flat_map(|(wkvid, solutions)| solutions.iter().map(move |solution| (wkvid, solution)));
-        for (wkvid, solution) in wkvar_solutions {
-            add_fn_fix_diagnostic(genv, &mut err_diag, wkvid.clone(), solution);
+        if let Some(combined_fn_fix_solutions) = &combined_fn_fix_solutions {
+            for wkvid in possible_solutions.keys() {
+                let parent_fn = wkvid.parent_fn;
+                if emitted_fn_fixes.insert(parent_fn)
+                    && let Some(wkvar_instantiations) = combined_fn_fix_solutions.get(&parent_fn)
+                {
+                    add_fn_fix_diagnostic(genv, &mut err_diag, parent_fn, wkvar_instantiations);
+                }
+            }
+        } else {
+            let wkvar_solutions = possible_solutions.iter().flat_map(|(wkvid, solutions)| {
+                solutions.iter().map(move |solution| (wkvid, solution))
+            });
+            for (wkvid, solution) in wkvar_solutions {
+                let wkvar_instantiations =
+                    std::iter::once((wkvid.clone(), solution.clone())).collect::<UnordMap<_, _>>();
+                add_fn_fix_diagnostic(genv, &mut err_diag, wkvid.parent_fn, &wkvar_instantiations);
+            }
         }
         if let Some(note) = &rerun_note {
             err_diag.note(note.clone());
@@ -328,6 +347,41 @@ fn report_errors(
     if let Some(e) = e { Err(e) } else { Ok(()) }
 }
 
+fn combine_fix_solutions_by_fn(
+    solutions_by_tag: &FxHashMap<Tag, (TagIdx, PossibleSolutions)>,
+) -> FxHashMap<DefId, UnordMap<rty::WKVid, rty::Binder<rty::Expr>>> {
+    let mut combined = FxHashMap::default();
+    for (_, possible_solutions) in solutions_by_tag.values() {
+        for (wkvid, solutions) in possible_solutions {
+            if solutions.is_empty() {
+                continue;
+            }
+            combined
+                .entry(wkvid.parent_fn)
+                .or_insert_with(UnordMap::default)
+                .entry(wkvid.clone())
+                .and_modify(|solution: &mut rty::Binder<rty::Expr>| {
+                    *solution =
+                        conjoin_solutions([solution.clone()].into_iter().chain(solutions.clone()));
+                })
+                .or_insert_with(|| conjoin_solutions(solutions.clone()));
+        }
+    }
+    combined
+}
+
+fn conjoin_solutions(
+    solutions: impl IntoIterator<Item = rty::Binder<rty::Expr>>,
+) -> rty::Binder<rty::Expr> {
+    let mut solutions = solutions.into_iter();
+    let first = solutions.next().unwrap();
+    let expr = rty::Expr::and_from_iter(
+        std::iter::once(first.skip_binder_ref().clone())
+            .chain(solutions.map(|solution| solution.skip_binder())),
+    );
+    rty::Binder::bind_with_vars(expr, first.vars().clone())
+}
+
 fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
     Err(genv.sess().emit_err(errors::ExpectedNeg {
         span: genv.tcx().def_span(def_id),
@@ -338,21 +392,23 @@ fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorG
 fn add_fn_fix_diagnostic<'a>(
     genv: GlobalEnv<'a, '_>,
     diag: &mut Diag<'a>,
-    wkvid: rty::WKVid,
-    solution: &rty::Binder<rty::Expr>,
+    parent_fn: DefId,
+    wkvar_instantiations: &UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
 ) {
-    let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()).prettify());
-    let fn_sig = genv.fn_sig(wkvid.parent_fn).unwrap();
-    let mut wkvar_subst = WKVarSubst::new(
-        std::iter::once((wkvid.clone(), pretty_solution)).collect::<UnordMap<_, _>>(),
-        false,
-    );
+    let wkvar_instantiations = wkvar_instantiations
+        .items()
+        .map(|(wkvid, solution)| {
+            (wkvid.clone(), solution.map_ref(|e| e.simplify(&Default::default()).prettify()))
+        })
+        .collect();
+    let fn_sig = genv.fn_sig(parent_fn).unwrap();
+    let mut wkvar_subst = WKVarSubst::new(wkvar_instantiations, false);
     let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
     let fixed_fn_sig_snippet = format!(
         "{:?}",
         pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig)
     );
-    let fn_first_line = fn_first_line(genv, wkvid.parent_fn);
+    let fn_first_line = fn_first_line(genv, parent_fn);
     let fn_first_line_snippet = genv
         .tcx()
         .sess
@@ -362,15 +418,17 @@ fn add_fn_fix_diagnostic<'a>(
     let prefix_spaces = &fn_first_line_snippet[..fn_first_line_snippet
         .find(|c: char| !c.is_whitespace())
         .unwrap_or(fn_first_line_snippet.len())];
-    let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
-    assert!(subst_solutions.len() == 1);
 
     // Check if there's an existing spec attribute that needs to be replaced
-    if let Some(old_spec_span) = genv.spec_attr_span(wkvid.parent_fn) {
+    if let Some(old_spec_span) = genv.spec_attr_span(parent_fn) {
         diag.span_suggestion(
             old_spec_span,
             "try replacing the refinement",
-            format!("{}#[flux_rs::sig({})]", prefix_spaces, fixed_fn_sig_snippet),
+            if config::inside_cargo_fix() {
+                format!("flux_rs::sig({fixed_fn_sig_snippet})")
+            } else {
+                format!("{}#[flux_rs::sig({})]", prefix_spaces, fixed_fn_sig_snippet)
+            },
             Applicability::MachineApplicable,
         );
     } else {

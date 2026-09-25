@@ -172,6 +172,10 @@ pub fn inside_cargo() -> bool {
     std::env::var_os("FLUX_CARGO").is_some()
 }
 
+pub fn inside_cargo_fix() -> bool {
+    std::env::var_os("FLUX_FIX").is_some()
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Pos {
