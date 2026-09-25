@@ -102,9 +102,10 @@ fn format_fn_root_binder<T: Pretty + TypeVisitable>(
     })
 }
 
-impl<T: Pretty> Pretty for EarlyBinder<T> {
+impl<T: Pretty + TypeVisitable> Pretty for EarlyBinder<T> {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        cx.with_early_params(|| self.skip_binder_ref().fmt(cx, f))
+        let early_params = self.skip_binder_ref().early_params();
+        cx.with_early_params(early_params, || self.skip_binder_ref().fmt(cx, f))
     }
 }
 
@@ -119,6 +120,8 @@ impl Pretty for SortCtor {
         match self {
             SortCtor::Set => w!(cx, f, "Set"),
             SortCtor::Map => w!(cx, f, "Map"),
+            // Flux sort names are printed without module qualification and rely on the imports
+            // at the insertion site. This is concise, but may resolve to a different sort.
             SortCtor::User(def_id) => w!(cx, f, "{}", ^def_id.name()),
             SortCtor::Adt(adt_sort_def) => {
                 w!(cx, f, "{:?}", adt_sort_def.did())
@@ -235,7 +238,8 @@ impl Pretty for FnSig {
             .filter(|r| !r.is_trivially_true())
             .collect_vec();
         let requires_str = if !filtered_requires.is_empty() {
-            format_cx!(cx, " requires {:?}", join!(" && ", &filtered_requires))
+            // Commas preserve each predicate's grouping, unlike an unparenthesized `&&` join.
+            format_cx!(cx, " requires {:?}", join!(", ", &filtered_requires))
         } else {
             String::new()
         };
@@ -257,7 +261,7 @@ impl Pretty for FnSig {
                 })
                 .collect_vec();
             if !filtered_ensures.is_empty() {
-                s.push_str(&format_cx!(cx, " ensures {:?}", join!(" && ", &filtered_ensures)));
+                s.push_str(&format_cx!(cx, " ensures {:?}", join!(", ", &filtered_ensures)));
             }
             s
         })
@@ -284,7 +288,7 @@ impl Pretty for FnOutput {
             })
             .collect_vec();
         if !filtered_ensures.is_empty() {
-            w!(cx, f, " ensures {:?}", join!(" && ", &filtered_ensures))?;
+            w!(cx, f, " ensures {:?}", join!(", ", &filtered_ensures))?;
         }
         Ok(())
     }
@@ -387,10 +391,10 @@ impl Pretty for IdxFmt {
                                 {
                                     match layer_type {
                                         FnRootLayerType::FnArgs => {
-                                            format_cx!(cx, "@{:?}", var_e)
+                                            format_cx!(cx, "@{}", ^cx.bvar_env.lookup(debruijn, var).unwrap())
                                         }
                                         FnRootLayerType::FnRet => {
-                                            format_cx!(cx, "#{:?}", var_e)
+                                            format_cx!(cx, "#{}", ^cx.bvar_env.lookup(debruijn, var).unwrap())
                                         }
                                     }
                                 }
@@ -402,7 +406,7 @@ impl Pretty for IdxFmt {
                                         .unwrap()
                                         .insert(ep) =>
                                 {
-                                    format_cx!(cx, "@{:?}", var_e)
+                                    format_cx!(cx, "@{}", ^ep.name)
                                 }
                                 _ => format_cx!(cx, "{:?}", var_e),
                             }
@@ -437,6 +441,7 @@ impl Pretty for IdxFmt {
                         cx.bvar_env.check_if_seen_fn_root_bvar(*debruijn, *var)
                         && !seen
                     {
+                        let name = cx.bvar_env.lookup(*debruijn, *var).unwrap();
                         match layer_type {
                             FnRootLayerType::FnArgs => {
                                 buf.write_str("@")?;
@@ -445,8 +450,10 @@ impl Pretty for IdxFmt {
                                 buf.write_str("#")?;
                             }
                         }
+                        buf.write_str(&name.to_string())?;
+                    } else {
+                        buf.write_str(&format_cx!(cx, "{:?}", e))?;
                     }
-                    buf.write_str(&format_cx!(cx, "{:?}", e))?;
                 }
             }
             ExprKind::Var(Var::EarlyParam(ep)) => {
@@ -454,7 +461,7 @@ impl Pretty for IdxFmt {
                     && param.insert(*ep)
                 {
                     // FIXME: handle adding # for early params in output position
-                    buf.write_str(&format_cx!(cx, "@{:?}", e))?;
+                    buf.write_str(&format_cx!(cx, "@{}", ^ep.name))?;
                 } else {
                     buf.write_str(&format_cx!(cx, "{:?}", e))?;
                 }

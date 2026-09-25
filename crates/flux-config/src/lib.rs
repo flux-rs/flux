@@ -170,6 +170,9 @@ pub fn fixpoint_timeout() -> Option<Duration> {
     FLAGS.fixpoint_timeout.map(Duration::from_secs)
 }
 
+pub fn fix_suggestions() -> bool {
+    FLAGS.fix_suggestions
+}
 /// Whether the driver is running under `cargo flux` (which sets `FLUX_CARGO=1`), as opposed to a
 /// direct `flux`/`flux-driver` invocation. Used to decide whether to emit the re-run hint.
 pub fn inside_cargo() -> bool {
