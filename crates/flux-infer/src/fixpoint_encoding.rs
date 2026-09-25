@@ -602,9 +602,22 @@ impl<Tag> FixpointCheckError<Tag> {
 
 pub use liquid_fixpoint::LeanStatus;
 
-/// Returns the cache key used for a function-body lean query.
+/// Returns the cache key used for a function-body lean query. It is distinct from the key of the
+/// corresponding fixpoint query, so a lean entry is never mistaken for a fixpoint result.
 pub fn lean_task_key(tcx: rustc_middle::ty::TyCtxt, def_id: DefId) -> String {
-    FixpointQueryKind::Body.task_key(tcx, def_id)
+    format!("{}###Lean", tcx.def_path_str(def_id))
+}
+
+/// Records that the lean files for the task with the given `hash` have been generated. The proof
+/// starts out as [`LeanStatus::Invalid`] and is marked as valid once it has been checked.
+pub(crate) fn record_lean_task(cache: &mut FixQueryCache, key: String, hash: u64) {
+    let result = liquid_fixpoint::VerificationResult {
+        status: FixpointStatus::Safe(Default::default()),
+        solution: vec![],
+        non_cuts_solution: vec![],
+        lean_status: LeanStatus::Invalid,
+    };
+    cache.insert(key, hash, result);
 }
 
 #[allow(unused)]

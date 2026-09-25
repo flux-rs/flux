@@ -1,5 +1,6 @@
 use std::{
     fs::{self, OpenOptions},
+    hash::{DefaultHasher, Hash, Hasher},
     io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -18,7 +19,10 @@ use flux_middle::{
     rty::{BinOp, BvSize, PrettyMap, Sort, local_deps},
 };
 use itertools::Itertools;
-use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
+use rustc_data_structures::{
+    fx::{FxHashMap, FxIndexSet},
+    unord::UnordMap,
+};
 use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
@@ -158,6 +162,47 @@ fn constant_deps(expr: &fixpoint::Expr, acc: &mut FxIndexSet<fixpoint::Var>) {
     }
 }
 
+/// A digest of the lean sources in the project (skipping build artifacts in `.lake`) and of the lake
+/// configuration. A cached proof is only trusted if this digest is unchanged since the proof was
+/// checked, as the proof, or any lemma or dependency it uses, may have been edited in the meantime.
+pub fn project_digest(genv: GlobalEnv) -> io::Result<u64> {
+    fn collect(dir: &Path, acc: &mut Vec<PathBuf>) -> io::Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let path = entry?.path();
+            if path
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with('.'))
+            {
+                continue;
+            }
+            if path.is_dir() {
+                collect(&path, acc)?;
+            } else if path.extension().is_some_and(|ext| ext == "lean") {
+                acc.push(path);
+            }
+        }
+        Ok(())
+    }
+
+    let root = final_project_path(genv);
+    let mut paths = vec![];
+    collect(&root, &mut paths)?;
+    for config_file in ["lakefile.toml", "lakefile.lean", "lake-manifest.json", "lean-toolchain"] {
+        let path = root.join(config_file);
+        if path.exists() {
+            paths.push(path);
+        }
+    }
+    paths.sort();
+
+    let mut hasher = DefaultHasher::new();
+    for path in paths {
+        path.strip_prefix(&root).unwrap_or(&path).hash(&mut hasher);
+        fs::read(&path)?.hash(&mut hasher);
+    }
+    Ok(hasher.finish())
+}
+
 pub fn finalize(genv: GlobalEnv) -> io::Result<()> {
     let project = project();
     let src = genv.temp_dir().path().join(&project);
@@ -177,68 +222,217 @@ fn project_path(genv: GlobalEnv, kind: FileKind) -> PathBuf {
     }
 }
 
-fn run_proof(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
-    let proof_path = LeanFile::Proof(def_id).path(genv, true);
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum LakeSeverity {
+    Info,
+    Warning,
+    Error,
+}
+
+/// A diagnostic reported by `lake build`, e.g., `error: LeanProofs/User/Proof/FooProof.lean:8:2: msg`
+#[derive(Debug)]
+struct LakeDiagnostic {
+    severity: LakeSeverity,
+    /// Path of the reported file relative to the lake project root, if any
+    file: Option<String>,
+    message: String,
+}
+
+impl LakeDiagnostic {
+    fn to_note(&self) -> String {
+        format!("{}: {}", self.file.as_deref().unwrap_or(""), self.message)
+    }
+
+    fn is_sorry(&self) -> bool {
+        self.severity == LakeSeverity::Warning
+            && self.message.contains("declaration uses")
+            && self.message.contains("sorry")
+    }
+}
+
+/// Parses the (human readable) output of `lake build` into a list of diagnostics. Each diagnostic
+/// starts with a line `<severity>: <file>:<line>:<col>: <message>` and extends over subsequent lines
+/// until the next diagnostic or a line reporting build progress.
+fn parse_lake_output(output: &str) -> Vec<LakeDiagnostic> {
+    let mut diagnostics: Vec<LakeDiagnostic> = vec![];
+    let mut open = false;
+    const SEVERITIES: [(&str, LakeSeverity); 3] = [
+        ("error: ", LakeSeverity::Error),
+        ("warning: ", LakeSeverity::Warning),
+        ("info: ", LakeSeverity::Info),
+    ];
+    for line in output.lines() {
+        let severity = SEVERITIES
+            .iter()
+            .find_map(|(prefix, severity)| line.strip_prefix(prefix).map(|rest| (*severity, rest)));
+        if let Some((severity, rest)) = severity {
+            let (file, message) = match rest.split_once(".lean:") {
+                Some((file, pos_and_msg)) => {
+                    // skip `<line>:<col>: `
+                    let message = pos_and_msg.splitn(3, ':').nth(2).unwrap_or("").trim_start();
+                    (Some(format!("{file}.lean")), message.to_string())
+                }
+                None => (None, rest.to_string()),
+            };
+            diagnostics.push(LakeDiagnostic { severity, file, message });
+            open = true;
+        } else if line.starts_with(['✔', '⚠', '✖', 'ℹ'])
+            || line.starts_with("trace: ")
+            || line.starts_with("Some required")
+            || line.starts_with("Build completed")
+        {
+            open = false;
+        } else if open && let Some(diagnostic) = diagnostics.last_mut() {
+            diagnostic.message.push('\n');
+            diagnostic.message.push_str(line);
+        }
+    }
+    diagnostics
+}
+
+/// Runs a single `lake build` on the checking files of all the `def_ids`
+fn run_lake_build(genv: GlobalEnv, def_ids: &[DefId]) -> io::Result<Vec<LakeDiagnostic>> {
+    // NOTE: we must not pass `--quiet` or `--log-level=warning` as we rely on the `info` message
+    // produced by the `#check` in each checking file to know that the file was actually checked.
     let out = Command::new("lake")
-        .arg("--quiet")
-        .arg("--log-level=error")
-        .arg("lean")
-        .arg(proof_path)
-        .arg("--")
-        .arg("--json")
+        .arg("build")
+        .args(
+            def_ids
+                .iter()
+                .map(|def_id| LeanFile::Checking(*def_id).module(genv)),
+        )
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .current_dir(project_path(genv, FileKind::User))
         .spawn()?
         .wait_with_output()?;
-    if !out.stderr.is_empty() {
-        let stderr =
-            std::str::from_utf8(&out.stderr).unwrap_or("Lean exited with a non-zero return code");
-        return Err(io::Error::other(stderr));
-    }
-    let stdout = std::str::from_utf8(&out.stdout).unwrap_or("");
-    if stdout.lines().any(|line| line.contains("\"hasSorry\"")) {
-        return Err(io::Error::other("proof uses `sorry`"));
-    }
-    Ok(())
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    Ok(parse_lake_output(&format!("{stdout}\n{stderr}")))
 }
 
-fn run_check(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
-    let checking_path = LeanFile::Checking(def_id).path(genv, true);
-    let status = Command::new("lake")
-        .arg("--quiet")
-        .arg("--log-level=error")
-        .arg("lean")
-        .arg(checking_path)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .current_dir(project_path(genv, FileKind::User))
-        .spawn()?
-        .wait()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(io::Error::other("Lean exited with a non-zero exit code"))
+/// What `lake build` reported about the external proof of a single function
+#[derive(Default)]
+struct ProofReport {
+    /// The message of the `#print axioms` in the checking file, if it was elaborated
+    axioms: Option<String>,
+    /// Errors reported in the checking or proof file
+    errors: Vec<String>,
+}
+
+impl ProofReport {
+    /// The proof is accepted iff the checking file was elaborated (witnessed by the `info` message
+    /// of its `#print axioms`), neither the checking nor the proof file report errors, and the proof
+    /// does not depend on `sorryAx`, i.e., neither the proof nor any lemma it (transitively) uses
+    /// has a `sorry`. On failure, returns the relevant messages reported by lean, where `sorries`
+    /// are all the `sorry` warnings in the build (one of which is the culprit for a `sorryAx`).
+    fn status(self, checking_file: &str, sorries: &[String]) -> Result<(), Vec<String>> {
+        let mut problems = self.errors;
+        if let Some(axioms) = &self.axioms
+            && axioms.contains("sorryAx")
+        {
+            problems.push(format!(
+                "the proof depends on `sorryAx`, i.e., it uses `sorry` directly or through a lemma: {axioms}"
+            ));
+            problems.extend_from_slice(sorries);
+        }
+
+        if self.axioms.is_some() && problems.is_empty() {
+            Ok(())
+        } else if problems.is_empty() {
+            Err(vec![format!(
+                "lean did not check `{checking_file}`; a dependency may have failed to build \
+                 (run `lake build` in the lean project for details)"
+            )])
+        } else {
+            Err(problems)
+        }
     }
 }
 
-fn run_lean(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
-    dbg::log_verbose!("FLUX running lean proof for {def_id:?}");
-    run_proof(genv, def_id)?;
-    run_check(genv, def_id)?;
-    Ok(())
+/// Determines the status of the external proof of each of the `def_ids` with a single pass over the
+/// `diagnostics`, dispatching each one to the proof whose checking or proof file it is reported in.
+/// Returns the results in the same order as `def_ids`.
+fn proof_statuses(
+    genv: GlobalEnv,
+    def_ids: &[DefId],
+    diagnostics: Vec<LakeDiagnostic>,
+) -> Vec<Result<(), Vec<String>>> {
+    let checking_files = def_ids
+        .iter()
+        .map(|def_id| LeanFile::Checking(*def_id).relative_path(genv))
+        .collect_vec();
+    let checking_idx: FxHashMap<&str, usize> = checking_files
+        .iter()
+        .enumerate()
+        .map(|(i, f)| (f.as_str(), i))
+        .collect();
+    let proof_idx: FxHashMap<String, usize> = def_ids
+        .iter()
+        .enumerate()
+        .map(|(i, def_id)| (LeanFile::Proof(*def_id).relative_path(genv), i))
+        .collect();
+
+    let mut reports: Vec<ProofReport> = def_ids.iter().map(|_| ProofReport::default()).collect();
+    let mut sorries = vec![];
+    for d in diagnostics {
+        if d.is_sorry() {
+            sorries.push(d.to_note());
+        }
+        let Some(file) = d.file.as_deref() else { continue };
+        if let Some(&i) = checking_idx.get(file) {
+            match d.severity {
+                LakeSeverity::Info if d.message.contains("axioms") => {
+                    reports[i].axioms = Some(d.message);
+                }
+                LakeSeverity::Error => reports[i].errors.push(d.to_note()),
+                _ => {}
+            }
+        } else if let Some(&i) = proof_idx.get(file)
+            && d.severity == LakeSeverity::Error
+        {
+            reports[i].errors.push(d.to_note());
+        }
+    }
+
+    reports
+        .into_iter()
+        .zip(&checking_files)
+        .map(|(report, checking_file)| report.status(checking_file, &sorries))
+        .collect()
 }
 
-pub fn check_proof(genv: GlobalEnv, def_id: DefId) -> Result<(), ErrorGuaranteed> {
-    run_lean(genv, def_id)
-        .map_err(|_| {
-            let name = genv.tcx().def_path(def_id).to_string_no_crate_verbose();
-            let msg = format!("failed to check external proof for `crate{name}`");
-            let span = genv.tcx().def_span(def_id);
-            QueryErr::Emitted(genv.sess().dcx().handle().struct_span_err(span, msg).emit())
+/// Checks the external (lean) proofs of all the `def_ids` with a single `lake build`, reporting an
+/// error for each proof that fails to check. Returns the results in the same order as `def_ids`.
+pub fn check_proofs(genv: GlobalEnv, def_ids: &[DefId]) -> Vec<Result<(), ErrorGuaranteed>> {
+    if def_ids.is_empty() {
+        return vec![];
+    }
+    dbg::log_verbose!("FLUX running lean proofs for {def_ids:?}");
+    let statuses = match run_lake_build(genv, def_ids) {
+        Ok(diagnostics) => proof_statuses(genv, def_ids, diagnostics),
+        Err(err) => {
+            let note = format!("failed to run `lake build`: {err}");
+            def_ids.iter().map(|_| Err(vec![note.clone()])).collect()
+        }
+    };
+    def_ids
+        .iter()
+        .zip(statuses)
+        .map(|(def_id, status)| {
+            status.map_err(|notes| {
+                let name = genv.tcx().def_path(*def_id).to_string_no_crate_verbose();
+                let msg = format!("failed to check external proof for `crate{name}`");
+                let span = genv.tcx().def_span(*def_id);
+                let mut diag = genv.sess().dcx().handle().struct_span_err(span, msg);
+                for note in notes {
+                    diag.note(note);
+                }
+                diag.emit()
+            })
         })
-        .emit(&genv)?;
-    Ok(())
+        .collect()
 }
 
 /// Create a file at the given path, creating any missing parent directories.
@@ -369,7 +563,17 @@ impl LeanFile {
     }
 
     pub fn import(&self, genv: GlobalEnv) -> String {
-        format!("import {}", self.segments(genv).join("."))
+        format!("import {}", self.module(genv))
+    }
+
+    /// The lean module name, e.g., `LeanProofs.Flux.Checking.Foo`
+    fn module(&self, genv: GlobalEnv) -> String {
+        self.segments(genv).join(".")
+    }
+
+    /// The path relative to the project root, as reported in `lake` diagnostics
+    fn relative_path(&self, genv: GlobalEnv) -> String {
+        format!("{}.lean", self.segments(genv).join("/"))
     }
 }
 
@@ -470,7 +674,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         self.generate_lib_if_absent()?;
         self.generate_vc_file()?;
         self.generate_proof_if_absent()?;
-        self.generate_checking_file()?;
         Ok(())
     }
 
@@ -911,21 +1114,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn generate_checking_file(&self) -> io::Result<()> {
-        let def_id = self.def_id.resolved_id();
-        let vc_name = vc_name(self.genv, def_id);
-        let proof_name = proof_name(self.genv, def_id);
-        let path = LeanFile::Checking(def_id).path(self.genv, false);
-
-        let mut file = create_or_truncate_file_with_dirs(path)?;
-        writeln!(file, "{}", LeanFile::Vc(def_id).import(self.genv))?;
-        writeln!(file, "{}", LeanFile::Proof(def_id).import(self.genv))?;
-        writeln!(file)?;
-        writeln!(file, "#check (F.{proof_name} : F.{vc_name})")?;
-        file.sync_all()?;
-        Ok(())
-    }
-
     pub fn encode(
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: MaybeExternId,
@@ -960,7 +1148,26 @@ fn hyperlink_proof(genv: GlobalEnv, def_id: MaybeExternId) {
     }
 }
 
+/// Generates the file that checks that the proof has the type of the VC. The `#print axioms` is
+/// used to reject proofs that (transitively) depend on `sorryAx`, see [`ProofReport::status`]. The file is
+/// regenerated even when the VC is cached, so that it is always up to date.
+fn generate_checking_file(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
+    let vc_name = vc_name(genv, def_id);
+    let proof_name = proof_name(genv, def_id);
+    let path = LeanFile::Checking(def_id).path(genv, false);
+
+    let mut file = create_or_truncate_file_with_dirs(path)?;
+    writeln!(file, "{}", LeanFile::Vc(def_id).import(genv))?;
+    writeln!(file, "{}", LeanFile::Proof(def_id).import(genv))?;
+    writeln!(file)?;
+    writeln!(file, "#check (F.{proof_name} : F.{vc_name})")?;
+    writeln!(file, "#print axioms F.{proof_name}")?;
+    file.sync_all()?;
+    Ok(())
+}
+
 fn record_proof(genv: GlobalEnv, def_id: MaybeExternId) -> io::Result<()> {
+    generate_checking_file(genv, def_id.resolved_id())?;
     let path = LeanFile::Basic.path(genv, false);
 
     let mut file = match create_file_with_dirs(&path)? {

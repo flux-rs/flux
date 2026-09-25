@@ -253,7 +253,8 @@ pub enum FixpointStatus<Tag> {
 pub enum LeanStatus {
     #[default]
     Invalid,
-    Valid,
+    /// The proof was checked when the user-written lean files had the given digest.
+    Valid(u64),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
