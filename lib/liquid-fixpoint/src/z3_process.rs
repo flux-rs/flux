@@ -322,15 +322,20 @@ pub(crate) fn equivalent<T: Types>(
 ) -> Result<bool, SuggestionSolverError> {
     let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
     let local_declarations = env.local_declarations()?;
+    let assumptions = constraint
+        .preconditions()
+        .iter()
+        .map(|pred| env.pred(pred))
+        .collect::<Result<Vec<_>, _>>()?;
     let assertion = format!("(not (= {} {}))", env.expr(lhs)?, env.expr(rhs)?);
-    if let Some(last_query) = &mut solver.last_query {
-        last_query.push_str(&format!(
-            "\n; semantic equivalence check\n(push)\n{local_declarations}(push)\n(assert {assertion})\n(check-sat)\n(pop)\n(pop)\n"
-        ));
+    let mut query = format!("(push)\n{local_declarations}(push)\n");
+    for assumption in &assumptions {
+        writeln!(query, "(assert {assumption})").unwrap();
     }
-    let query = format!(
-        "(push)\n{local_declarations}(push)\n(assert {assertion})\n(check-sat)\n(pop)\n(pop)"
-    );
+    writeln!(query, "(assert {assertion})\n(check-sat)\n(pop)\n(pop)").unwrap();
+    if let Some(last_query) = &mut solver.last_query {
+        last_query.push_str(&format!("\n; semantic equivalence check\n{query}"));
+    }
     let output = solver.session.request(&query)?;
     Ok(matches!(parse_status(&output, &solver.session.last_stderr)?, SatStatus::Unsat))
 }
