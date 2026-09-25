@@ -353,6 +353,9 @@ fn combine_fix_solutions_by_fn(
     let mut combined = FxHashMap::default();
     for (_, possible_solutions) in solutions_by_tag.values() {
         for (wkvid, solutions) in possible_solutions {
+            if solutions.is_empty() {
+                continue;
+            }
             combined
                 .entry(wkvid.parent_fn)
                 .or_insert_with(UnordMap::default)
