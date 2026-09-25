@@ -422,10 +422,15 @@ pub fn check_proofs(genv: GlobalEnv, def_ids: &[DefId]) -> Vec<Result<(), ErrorG
         .zip(statuses)
         .map(|(def_id, status)| {
             status.map_err(|notes| {
-                let name = genv.tcx().def_path(*def_id).to_string_no_crate_verbose();
-                let msg = format!("failed to check external proof for `crate{name}`");
+                let msg = format!("failed to check external proof `{}`", proof_name(genv, *def_id));
+                // Drop `.` segments, e.g. `crate/./lean_proofs` becomes `crate/lean_proofs`.
+                let path: PathBuf = LeanFile::Proof(*def_id)
+                    .path(genv, false)
+                    .components()
+                    .collect();
                 let span = genv.tcx().def_span(*def_id);
                 let mut diag = genv.sess().dcx().handle().struct_span_err(span, msg);
+                diag.note(format!("proof file: `{}`", path.display()));
                 for note in notes {
                     diag.note(note);
                 }
@@ -1139,13 +1144,38 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 }
 
-fn hyperlink_proof(genv: GlobalEnv, def_id: MaybeExternId) {
+/// Hyperlinks the `proven_externally` attribute to the proof's `def` in the proof file, so users
+/// can easily jump to it. Call this after the Lean files are generated, so that the proof file
+/// exists on the first run. The `def` is found by searching the file, since the user may have
+/// edited it; if the file or the `def` is missing, we link to the first line of the file.
+pub fn hyperlink_proof(genv: GlobalEnv, def_id: MaybeExternId) {
+    let Some(span) = genv.proven_externally(def_id.local_id()) else { return };
     let proof_name = proof_name(genv, def_id.resolved_id());
-    let path = LeanFile::Proof(def_id.resolved_id()).path(genv, false);
-    if let Some(span) = genv.proven_externally(def_id.local_id()) {
-        let dst_span = SpanTrace::from_path(&path, 3, 5, proof_name.len());
-        dbg::hyperlink_json!(genv.tcx(), span, dst_span);
-    }
+    // Drop `.` segments, e.g. `crate/./lean_proofs` becomes `crate/lean_proofs`.
+    let path: PathBuf = LeanFile::Proof(def_id.resolved_id())
+        .path(genv, false)
+        .components()
+        .collect();
+    let (line, col) = fs::read_to_string(&path)
+        .ok()
+        .and_then(|contents| find_def(&contents, &proof_name))
+        .unwrap_or((1, 1));
+    let dst_span = SpanTrace::from_path(&path, line, col, proof_name.len());
+    dbg::hyperlink_json!(genv.tcx(), span, dst_span);
+}
+
+/// Returns the 1-based line and column of `name` in the line that defines it (`def <name> ...`).
+fn find_def(contents: &str, name: &str) -> Option<(usize, usize)> {
+    contents.lines().enumerate().find_map(|(idx, line)| {
+        let indent = line.len() - line.trim_start().len();
+        let rest = line.trim_start().strip_prefix("def ")?;
+        let after = rest.strip_prefix(name)?;
+        // Make sure we matched the whole name and not just a prefix of a longer one.
+        if after.starts_with(|c: char| c.is_alphanumeric() || c == '_' || c == '\'') {
+            return None;
+        }
+        Some((idx + 1, indent + "def ".len() + 1))
+    })
 }
 
 /// Generates the file that checks that the proof has the type of the VC. The `#print axioms` is
@@ -1181,18 +1211,13 @@ fn record_proof(genv: GlobalEnv, def_id: MaybeExternId) -> io::Result<()> {
     writeln!(file, "{}", LeanFile::Checking(def_id.resolved_id()).import(genv))
 }
 
-/// We need to both hyperlink the proof (so users can easily jump to it)
-/// and record the checking file in `Basic.lean` (so that it gets checked by `lake build`),
+/// We need to record the checking file in `Basic.lean` (so that it gets checked by `lake build`),
 /// regardless of whether the proof was cached.
 pub fn log_proof(genv: GlobalEnv, def_id: MaybeExternId) -> Result<(), ErrorGuaranteed> {
-    hyperlink_proof(genv, def_id);
     record_proof(genv, def_id)
         .map_err(|_| {
-            let name = genv
-                .tcx()
-                .def_path(def_id.resolved_id())
-                .to_string_no_crate_verbose();
-            let msg = format!("failed to record proof for `{name}`");
+            let msg =
+                format!("failed to record proof `{}`", proof_name(genv, def_id.resolved_id()));
             let span = genv.tcx().def_span(def_id);
             QueryErr::Emitted(genv.sess().dcx().handle().struct_span_err(span, msg).emit())
         })
