@@ -1686,8 +1686,6 @@ impl<T: Pretty> Pretty for FieldBind<T> {
 
 pub(crate) mod pretty {
 
-    use flux_rustc_bridge::def_id_to_string;
-
     use super::*;
     use crate::name_of_thy_func;
 
@@ -1794,7 +1792,17 @@ pub(crate) mod pretty {
             match e.kind() {
                 ExprKind::Var(var) => w!(cx, f, "{:?}", var),
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
-                ExprKind::ConstDefId(did) => w!(cx, f, "{}", ^def_id_to_string(*did)),
+                // Use rustc's crate-prefix mode so this path resolves independently of the
+                // imports at the suggestion's insertion site. It may be more verbose than the
+                // spelling used in source.
+                ExprKind::ConstDefId(did) => {
+                    w!(
+                        cx,
+                        f,
+                        "{}",
+                        ^rustc_middle::ty::print::with_crate_prefix!(cx.tcx().def_path_str(*did))
+                    )
+                }
                 ExprKind::Constant(c) => w!(cx, f, "{:?}", c),
 
                 ExprKind::BinaryOp(op, e1, e2) => {
@@ -1919,8 +1927,18 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lam) => {
                     w!(cx, f, "{:?}", lam)
                 }
+                // Flux functions have no rustc DefId of their own; qualify them with the parent
+                // module's full, crate-prefixed path for suggestions.
                 ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
-                    w!(cx, f, "{}", ^did.name())
+                    w!(
+                        cx,
+                        f,
+                        "{}::{}",
+                        ^rustc_middle::ty::print::with_crate_prefix!(
+                            cx.tcx().def_path_str(did.parent())
+                        ),
+                        ^did.name()
+                    )
                 }
                 ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                     if let Some(name) = name_of_thy_func(*itf) {
