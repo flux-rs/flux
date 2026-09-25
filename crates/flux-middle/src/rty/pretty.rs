@@ -120,6 +120,8 @@ impl Pretty for SortCtor {
         match self {
             SortCtor::Set => w!(cx, f, "Set"),
             SortCtor::Map => w!(cx, f, "Map"),
+            // Flux sort names are printed without module qualification and rely on the imports
+            // at the insertion site. This is concise, but may resolve to a different sort.
             SortCtor::User(def_id) => w!(cx, f, "{}", ^def_id.name()),
             SortCtor::Adt(adt_sort_def) => {
                 w!(cx, f, "{:?}", adt_sort_def.did())

@@ -760,6 +760,8 @@ impl Pretty for DefId {
         if cx.fully_qualified_paths {
             w!(cx, f, "{}", ^cx.tcx().def_path_str(*self))
         } else {
+            // Short paths rely on imports at the insertion site. This is readable, but can
+            // resolve to a different item (or no item) when printing a suggested signature.
             let path = cx.tcx().def_path(*self);
             w!(cx, f, "{}", ^path.data.last().unwrap().as_sym(false))
         }
