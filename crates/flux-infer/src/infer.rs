@@ -231,12 +231,14 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         log_proof(self.genv, def_id)?;
         // Skip re-generation if task is already cached (same hash → same lean files on disk).
-        let cached = config::is_cache_enabled() && {
-            let key = lean_task_key(self.genv.tcx(), def_id.resolved_id());
-            cache.lookup(&key, task.hash_with_default()).is_some()
-        };
+        let key = lean_task_key(self.genv.tcx(), def_id.resolved_id());
+        let hash = task.hash_with_default();
+        let cached = config::is_cache_enabled() && cache.lookup(&key, hash).is_some();
         if !cached {
             fcx.generate_lean_files(def_id, task)?;
+            if config::is_cache_enabled() {
+                record_lean_task(cache, key, hash);
+            }
         }
         // After generation, so that the proof file exists the first time around.
         hyperlink_proof(self.genv, def_id);

@@ -422,10 +422,15 @@ pub fn check_proofs(genv: GlobalEnv, def_ids: &[DefId]) -> Vec<Result<(), ErrorG
         .zip(statuses)
         .map(|(def_id, status)| {
             status.map_err(|notes| {
-                let name = genv.tcx().def_path(*def_id).to_string_no_crate_verbose();
-                let msg = format!("failed to check external proof for `crate{name}`");
+                let msg = format!("failed to check external proof `{}`", proof_name(genv, *def_id));
+                // Drop `.` segments, e.g. `crate/./lean_proofs` becomes `crate/lean_proofs`.
+                let path: PathBuf = LeanFile::Proof(*def_id)
+                    .path(genv, false)
+                    .components()
+                    .collect();
                 let span = genv.tcx().def_span(*def_id);
                 let mut diag = genv.sess().dcx().handle().struct_span_err(span, msg);
+                diag.note(format!("proof file: `{}`", path.display()));
                 for note in notes {
                     diag.note(note);
                 }
