@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt, iter};
+use std::{cell::RefCell, collections::HashMap, fmt, iter};
 
 use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts, OverflowMode, RawDerefMode};
@@ -13,12 +13,14 @@ use flux_middle::{
     rty::{
         self, AliasKind, AliasTy, BaseTy, Binder, BoundReftKind, BoundVariableKinds,
         CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj,
-        GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, NameProvenance, Path,
-        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
+        GenericArg, GenericArgs, GenericArgsExt, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name,
+        NameProvenance, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort,
+        SubsetTyCtor, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::TypeFoldable,
     },
 };
+use flux_rustc_bridge::ToRustc;
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
@@ -311,11 +313,14 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
 struct InferCtxtInner {
     kvars: KVarGen,
     evars: EVarStore,
+    opaque_map: HashMap<OpaqueKey, SubsetTyCtor>,
 }
+
+pub type OpaqueKey = (DefId, GenericArgs, RefineArgs);
 
 impl InferCtxtInner {
     fn new(dummy_kvars: bool) -> Self {
-        Self { kvars: KVarGen::new(dummy_kvars), evars: Default::default() }
+        Self { kvars: KVarGen::new(dummy_kvars), evars: Default::default(), opaque_map: HashMap::new() }
     }
 }
 
@@ -389,6 +394,14 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     fn fresh_evar(&self) -> Expr {
         let evars = &mut self.inner.borrow_mut().evars;
         Expr::evar(evars.fresh(self.cursor.marker()))
+    }
+
+    pub fn get_opaque_ctor(&self, key: &OpaqueKey) -> Option<SubsetTyCtor> {
+        self.inner.borrow().opaque_map.get(key).cloned()
+    }
+
+    pub fn insert_opaque_ctor(&self, key: OpaqueKey, ctor: SubsetTyCtor) {
+        self.inner.borrow_mut().opaque_map.insert(key, ctor);
     }
 
     pub fn unify_exprs(&self, a: &Expr, b: &Expr) {
@@ -1014,6 +1027,11 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 // only for when concrete type on LHS and impl-with-bounds on RHS
                 self.handle_opaque_type(infcx, a, *def_id, args, refine_args)
             }
+            (BaseTy::Alias(AliasTy { kind: AliasKind::Opaque { def_id }, args, .. }), _)
+                if opaque_reveal_eq(infcx.tcx(), *def_id, args, b) =>
+            {
+                Ok(())
+            }
             (
                 BaseTy::Alias(alias_ty_a @ AliasTy { kind: AliasKind::Projection { .. }, .. }),
                 BaseTy::Alias(alias_ty_b @ AliasTy { kind: AliasKind::Projection { .. }, .. }),
@@ -1080,10 +1098,6 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let (ty_a, ty_b) = match (a, b) {
             (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => (ty_a.clone(), ty_b.clone()),
             (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => {
-                tracked_span_dbg_assert_eq!(
-                    ctor_a.sort().erase_regions(),
-                    ctor_b.sort().erase_regions()
-                );
                 (ctor_a.to_ty(), ctor_b.to_ty())
             }
             (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => return Ok(()),
@@ -1255,6 +1269,21 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         }
         Ok(())
     }
+}
+
+fn opaque_reveal_eq(
+    tcx: TyCtxt<'_>,
+    opaque_def_id: DefId,
+    opaque_args: &rty::GenericArgs,
+    other: &BaseTy,
+) -> bool {
+    let rustc_args = opaque_args.to_rustc(tcx);
+    let hidden = tcx
+        .type_of(opaque_def_id)
+        .instantiate(tcx, rustc_args)
+        .skip_normalization();
+    let other = other.to_rustc(tcx);
+    tcx.erase_and_anonymize_regions(hidden) == tcx.erase_and_anonymize_regions(other)
 }
 
 fn mk_coroutine_obligations(
