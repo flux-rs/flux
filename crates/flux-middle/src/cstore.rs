@@ -20,7 +20,7 @@ pub trait CrateStore<'tcx> {
     fn item_bounds(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::Clauses>>;
     fn predicates_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::GenericPredicates>>;
     fn assoc_refinements_of(&self, def_id: DefId) -> OptResult<rty::AssocRefinements>;
-    fn constant_info(&self, def_id: DefId) -> OptResult<rty::ConstantInfo>;
+    fn constant_info(&self, def_id: DefId) -> OptResult<Option<rty::ConstantInfo>>;
     fn static_info(&self, def_id: DefId) -> OptResult<rty::StaticInfo>;
     fn assoc_refinements_def(&self, key: FluxDefId) -> OptResult<rty::EarlyBinder<rty::Lambda>>;
     fn default_assoc_refinements_def(

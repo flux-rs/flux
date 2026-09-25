@@ -218,12 +218,28 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             let node_id = self.next_node_id();
             self.insert_impl_item(
                 owner_id,
-                surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
+                surface::ImplItem {
+                    attrs: attrs.into_attr_vec(),
+                    kind: surface::ImplItemKind::Fn(sig),
+                    node_id,
+                },
             )?;
             if let Some(span) = attr_span {
                 self.specs
                     .set_spec_attr_span(owner_id.def_id.to_def_id(), span);
             }
+        } else if let ImplItemKind::Const(..) = &impl_item.kind
+            && let Some(constant) = attrs.constant()
+        {
+            let node_id = self.next_node_id();
+            self.insert_impl_item(
+                owner_id,
+                surface::ImplItem {
+                    attrs: attrs.into_attr_vec(),
+                    kind: surface::ImplItemKind::Const(constant),
+                    node_id,
+                },
+            )?;
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         Ok(())
@@ -722,7 +738,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
     }
 
-    fn insert_impl_item(&mut self, owner_id: OwnerId, item: surface::ImplItemFn) -> Result {
+    fn insert_impl_item(&mut self, owner_id: OwnerId, item: surface::ImplItem) -> Result {
         match self.specs.insert_impl_item(owner_id, item) {
             Some(_) => Err(self.err_multiple_specs(owner_id.to_def_id())),
             None => Ok(()),

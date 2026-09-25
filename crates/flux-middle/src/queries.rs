@@ -180,7 +180,7 @@ pub struct Providers {
     pub adt_sort_def_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtDef>,
-    pub constant_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::ConstantInfo>,
+    pub constant_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<Option<rty::ConstantInfo>>,
     pub static_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::StaticInfo>,
     pub type_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>>,
     pub variants_of: fn(
@@ -278,7 +278,7 @@ pub struct Queries<'genv, 'tcx> {
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
-    constant_info: Cache<DefId, QueryResult<rty::ConstantInfo>>,
+    constant_info: Cache<DefId, QueryResult<Option<rty::ConstantInfo>>>,
     static_info: Cache<DefId, QueryResult<rty::StaticInfo>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>>,
@@ -649,7 +649,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rty::ConstantInfo> {
+    ) -> QueryResult<Option<rty::ConstantInfo>> {
         run_with_cache(&self.constant_info, def_id, || {
             def_id.dispatch_query(
                 genv,
@@ -665,13 +665,17 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                             rty::Constant::from_scalar_int(genv.tcx(), val, &ty)
                         });
                         if let Some(constant_) = val {
-                            return Ok(rty::ConstantInfo::Interpreted(
-                                rty::Expr::constant(constant_),
-                                rty::Sort::Int,
-                            ));
+                            return Ok(Some(rty::ConstantInfo {
+                                sort: rty::Sort::Int,
+                                value: Some(rty::EarlyBinder(rty::Expr::constant(constant_))),
+                            }));
                         }
                     }
-                    Ok(rty::ConstantInfo::Uninterpreted)
+                    // We don't know the value, but the constant can still be mentioned in a
+                    // refinement as an opaque symbol if its type has a sort.
+                    Ok(genv
+                        .sort_of_def_id(def_id)?
+                        .map(|sort| rty::ConstantInfo { sort, value: None }))
                 },
             )
         })

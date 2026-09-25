@@ -146,7 +146,14 @@ where
                     fixpoint::Var::Global(global_var, _) | fixpoint::Var::Const(global_var, _) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
-                                ConstKey::RustConst(def_id) => Ok(rty::Expr::const_def_id(*def_id)),
+                                ConstKey::RustConst(def_id) => {
+                                    Ok(rty::Expr::const_def_id(*def_id, rty::List::empty()))
+                                }
+                                ConstKey::AssocConst(def_id, _) => {
+                                    // We lose the generic args on the way back, but this is only
+                                    // used to render counterexamples.
+                                    Ok(rty::Expr::const_def_id(*def_id, rty::List::empty()))
+                                }
                                 ConstKey::Alias(_flux_id, _args) => {
                                     unreachable!("Should be special-cased as the head of an app")
                                 }
@@ -353,7 +360,9 @@ where
                                 ConstKey::WKVar(..) => {
                                     unreachable!("WKVars should not appear in global vars");
                                 }
-                                ConstKey::RustConst(..) | ConstKey::Lambda(..) => {
+                                ConstKey::RustConst(..)
+                                | ConstKey::AssocConst(..)
+                                | ConstKey::Lambda(..) => {
                                     // These should be treated as a normal app.
                                     self.fixpoint_app_to_expr(fhead, fargs)
                                 }
