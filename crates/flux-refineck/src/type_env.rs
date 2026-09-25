@@ -127,6 +127,20 @@ impl<'a> TypeEnv<'a> {
         self.bindings.lookup(path, span).update(new_ty);
     }
 
+    /// If `place` is a strong (`is_strg`) lookup whose resolved type is `&mut T`, return the
+    /// canonical path that lookup resolved to.  This is used by [`super::checker::unfold_local_ptrs`]
+    /// to track the source of a local-ptr so that [`TypeEnv::fold_local_ptrs`] can write the
+    /// updated pointee type back into the original location.
+    pub(crate) fn mut_ref_canonical_path(&mut self, place: &Place, span: Span) -> Option<Path> {
+        let result = self.bindings.lookup(place, span);
+        if result.is_strg {
+            if let TyKind::Indexed(BaseTy::Ref(_, _, Mutability::Mut), _) = result.ty.kind() {
+                return Some(result.path());
+            }
+        }
+        None
+    }
+
     /// When checking a borrow in the right hand side of an assignment `x = &'?n p`, we use the
     /// annotated region `'?n` in the type of the result. This region will only be used temporarily
     /// and then replaced by the region in the type of `x` after the assignment. See [`TypeEnv::assign`]
@@ -230,8 +244,15 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult {
-        for (loc, bound, ty) in self.bindings.local_ptrs() {
+        for (loc, bound, ty, source) in self.bindings.local_ptrs() {
             infcx.subtyping(&ty, &bound, ConstrReason::FoldLocal)?;
+            if let Some((re, path)) = source {
+                // Update the source reference's type to reflect the new pointee type.
+                // This ensures that when the containing struct is folded, the field's
+                // reference type accurately reflects the current state of the pointee.
+                let new_ref_ty = Ty::mk_ref(re, ty, Mutability::Mut);
+                self.update_path(&path, new_ref_ty, infcx.span);
+            }
             self.bindings.remove_local(&loc);
         }
         Ok(())
@@ -323,13 +344,16 @@ impl<'a> TypeEnv<'a> {
     pub(crate) fn unfold_local_ptr(
         &mut self,
         infcx: &mut InferCtxt,
+        re: Region,
         bound: &Ty,
+        source: Option<Path>,
     ) -> InferResult<Loc> {
         let name = infcx.define_unknown_var(&Sort::Loc);
         let loc = Loc::from(name);
         let ty = infcx.unpack(bound);
+        let source_info = source.map(|p| (re, p));
         self.bindings
-            .insert(loc, LocKind::LocalPtr(bound.clone()), ty);
+            .insert(loc, LocKind::LocalPtr(bound.clone(), source_info), ty);
         Ok(loc)
     }
 
