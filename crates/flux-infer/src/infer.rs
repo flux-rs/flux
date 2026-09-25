@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt, iter};
+use std::{cell::RefCell, collections::HashMap, fmt, iter};
 
 use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts, OverflowMode, RawDerefMode};
@@ -13,9 +13,9 @@ use flux_middle::{
     rty::{
         self, AliasKind, AliasTy, BaseTy, Binder, BoundReftKind, BoundVariableKinds,
         CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj,
-        GenericArg, GenericArgsExt, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name,
-        NameProvenance, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty,
-        TyCtor, TyKind, Var,
+        GenericArg, GenericArgs, GenericArgsExt, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name,
+        NameProvenance, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort,
+        SubsetTyCtor, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::TypeFoldable,
     },
@@ -309,11 +309,14 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
 struct InferCtxtInner {
     kvars: KVarGen,
     evars: EVarStore,
+    opaque_map: HashMap<OpaqueKey, SubsetTyCtor>,
 }
+
+pub type OpaqueKey = (DefId, GenericArgs, RefineArgs);
 
 impl InferCtxtInner {
     fn new(dummy_kvars: bool) -> Self {
-        Self { kvars: KVarGen::new(dummy_kvars), evars: Default::default() }
+        Self { kvars: KVarGen::new(dummy_kvars), evars: Default::default(), opaque_map: HashMap::new() }
     }
 }
 
@@ -387,6 +390,14 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     fn fresh_evar(&self) -> Expr {
         let evars = &mut self.inner.borrow_mut().evars;
         Expr::evar(evars.fresh(self.cursor.marker()))
+    }
+
+    pub fn get_opaque_ctor(&self, key: &OpaqueKey) -> Option<SubsetTyCtor> {
+        self.inner.borrow().opaque_map.get(key).cloned()
+    }
+
+    pub fn insert_opaque_ctor(&self, key: OpaqueKey, ctor: SubsetTyCtor) {
+        self.inner.borrow_mut().opaque_map.insert(key, ctor);
     }
 
     pub fn unify_exprs(&self, a: &Expr, b: &Expr) {

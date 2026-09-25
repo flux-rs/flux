@@ -51,3 +51,14 @@ fn requires_ge5(_x: i32) {}
 pub fn client() {
     requires_ge5(test_rec_id(5).get()); //~ ERROR refinement type
 }
+
+#[flux::spec(fn(n: i32) -> impl Tr<Out = i32{v: v >= n}>)]
+pub fn test_rec_closure(n: i32) -> impl Tr<Out = i32> {
+    let clo = |nn: i32| {
+        test_rec_closure(0)
+    };
+    if n > 0 {
+        return clo(n + 1); //~ ERROR refinement type
+    }
+    Wrap(n)
+}
