@@ -403,7 +403,6 @@ fn proof_statuses(
         .collect()
 }
 
-<<<<<<< HEAD
 /// Checks the external (lean) proofs of all the `def_ids` with a single `lake build`, reporting an
 /// error for each proof that fails to check. Returns the results in the same order as `def_ids`.
 pub fn check_proofs(genv: GlobalEnv, def_ids: &[DefId]) -> Vec<Result<(), ErrorGuaranteed>> {
@@ -432,27 +431,6 @@ pub fn check_proofs(genv: GlobalEnv, def_ids: &[DefId]) -> Vec<Result<(), ErrorG
                 }
                 diag.emit()
             })
-=======
-pub fn check_proof(genv: GlobalEnv, def_id: DefId) -> Result<(), ErrorGuaranteed> {
-    run_lean(genv, def_id)
-        .map_err(|err| {
-            let msg = format!("failed to check external proof `{}`", proof_name(genv, def_id));
-            // Drop `.` segments, e.g. `crate/./lean_proofs` becomes `crate/lean_proofs`.
-            let path: PathBuf = LeanFile::Proof(def_id)
-                .path(genv, false)
-                .components()
-                .collect();
-            let span = genv.tcx().def_span(def_id);
-            QueryErr::Emitted(
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .struct_span_err(span, msg)
-                    .with_note(format!("proof file: `{}`", path.display()))
-                    .with_note(format!("reason: {err}"))
-                    .emit(),
-            )
->>>>>>> 6b4a2dada5 (fix proof hyperlinks too)
         })
         .collect()
 }
