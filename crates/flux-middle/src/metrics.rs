@@ -44,26 +44,29 @@ pub fn print_suggestion_comparison_summary() -> io::Result<()> {
         print_comparison_summary(stderr, name, &entries)?;
     }
 
-    let mismatches = comparisons
+    let non_agreed = comparisons
         .iter()
         .filter(|entry| {
-            entry.outcome == liquid_fixpoint::SuggestionComparisonOutcome::Different
-                || entry.outcome == liquid_fixpoint::SuggestionComparisonOutcome::ProcessFailed
+            !matches!(
+                entry.outcome,
+                liquid_fixpoint::SuggestionComparisonOutcome::Agreed
+                    | liquid_fixpoint::SuggestionComparisonOutcome::BothFailed
+            )
         })
         .collect_vec();
-    if !mismatches.is_empty() {
+    if !non_agreed.is_empty() {
         writeln!(
             stderr,
-            "semantic mismatches (both succeeded, results differed) ({}):",
-            mismatches.len()
+            "non-agreed comparisons with a successful backend ({}):",
+            non_agreed.len()
         )?;
-        for (index, mismatch) in mismatches.into_iter().enumerate() {
-            let operation = match mismatch.operation {
+        for (index, entry) in non_agreed.into_iter().enumerate() {
+            let operation = match entry.operation {
                 liquid_fixpoint::SuggestionComparisonOperation::Qe => "QE",
                 liquid_fixpoint::SuggestionComparisonOperation::Validity => "validity",
             };
-            writeln!(stderr, "  mismatch {} [{operation}]", index + 1)?;
-            if let Some(details) = &mismatch.details {
+            writeln!(stderr, "  {:?} {} [{operation}]", entry.outcome, index + 1)?;
+            if let Some(details) = &entry.details {
                 for line in details.lines() {
                     writeln!(stderr, "    {line}")?;
                 }
@@ -89,9 +92,9 @@ fn print_comparison_summary(
     };
     writeln!(
         out,
-        "  {name}: {} comparisons; mismatches {}; process-only failures {}; bindings-only failures {}; semantic mismatches {}; both failed {}; agreed {}; comparison failed {}",
+        "  {name}: {} comparisons; non-agreed {}; process-only failures {}; bindings-only failures {}; semantic mismatches {}; both failed {}; agreed {}; comparison failed {}",
         entries.len(),
-        count(Outcome::Different) + count(Outcome::ProcessFailed) + count(Outcome::BindingsFailed),
+        entries.len() - count(Outcome::Agreed),
         count(Outcome::ProcessFailed),
         count(Outcome::BindingsFailed),
         count(Outcome::Different),
@@ -184,7 +187,7 @@ mod suggestion_comparison_tests {
         let mut output = Vec::new();
         print_comparison_summary(&mut output, "QE", &entries).unwrap();
         let output = String::from_utf8(output).unwrap();
-        assert!(output.contains("2 comparisons; mismatches 1"));
+        assert!(output.contains("2 comparisons; non-agreed 1"));
         assert!(output.contains("total time: bindings 14.00ms; process 18.00ms"));
         assert!(output.contains("min -2.00ms, max +6.00ms, avg +2.00ms"));
     }
@@ -211,7 +214,7 @@ mod suggestion_comparison_tests {
         let mut output = Vec::new();
         print_comparison_summary(&mut output, "validity", &entries).unwrap();
         let output = String::from_utf8(output).unwrap();
-        assert!(output.contains("5 comparisons; mismatches 3; process-only failures 1; bindings-only failures 1; semantic mismatches 1; both failed 1; agreed 0; comparison failed 1"));
+        assert!(output.contains("5 comparisons; non-agreed 5; process-only failures 1; bindings-only failures 1; semantic mismatches 1; both failed 1; agreed 0; comparison failed 1"));
     }
 }
 
