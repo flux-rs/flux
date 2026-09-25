@@ -13,7 +13,11 @@ use flux_middle::{
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, Quantifier, ThyFunc};
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def::DefKind, def_id::DefId, definitions::DefPathData};
+use rustc_middle::ty::{
+    TyCtxt,
+    print::{PrintTraitRefExt, with_forced_trimmed_paths},
+};
 
 use crate::fixpoint_encoding::{
     ClosedSolution, InterpretedConst,
@@ -279,11 +283,7 @@ impl LeanFmt for Var {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         match self {
             Var::Global(_gvar, def_id) => {
-                let path = cx
-                    .genv
-                    .tcx()
-                    .def_path(def_id.parent())
-                    .to_filename_friendly_no_crate();
+                let path = stable_def_path(cx.genv.tcx(), def_id.parent());
                 if path.is_empty() {
                     write!(f, "{}", def_id.name())
                 } else {
@@ -298,7 +298,7 @@ impl LeanFmt for Var {
                 }
             }
             Var::Const(_, Some(did)) => {
-                let path = cx.genv.tcx().def_path(*did).to_filename_friendly_no_crate();
+                let path = stable_def_path(cx.genv.tcx(), *did);
                 write!(f, "{}", sanitize_name(&path))
             }
             Var::DataCtor(adt_id, idx) => {
@@ -819,15 +819,78 @@ fn sanitize_name(name: &str) -> String {
     }
 }
 
-pub fn def_id_to_pascal_case(def_id: &DefId, tcx: &rustc_middle::ty::TyCtxt) -> String {
-    let snake = tcx
-        .def_path(*def_id)
-        .to_filename_friendly_no_crate()
-        .replace("-", "_");
-    let pascal_case = snake_case_to_pascal_case(&snake);
-    IMPL_RE
-        .replace_all(&pascal_case, "Impl__${1}__")
-        .to_string()
+pub fn def_id_to_pascal_case(def_id: &DefId, tcx: &TyCtxt) -> String {
+    let snake = stable_def_path(*tcx, *def_id).replace("-", "_");
+    snake_case_to_pascal_case(&snake)
+}
+
+/// Like [`rustc_hir::definitions::DefPath::to_filename_friendly_no_crate`], but names impl
+/// blocks by their header (e.g., `RawValIter_T_as_Iterator`) instead of by their position in
+/// the enclosing module (`{impl#10}`). Lean names, and hence the names of user proof files,
+/// then stay the same when impl blocks are added, removed or reordered.
+fn stable_def_path(tcx: TyCtxt, def_id: DefId) -> String {
+    // `DefPath::data` has one component per ancestor, excluding the crate root.
+    let mut ancestors = iter::successors(Some(def_id), |id| tcx.opt_parent(*id)).collect_vec();
+    ancestors.pop();
+    ancestors.reverse();
+    iter::zip(ancestors, tcx.def_path(def_id).data)
+        .map(|(id, component)| {
+            if let DefPathData::Impl = component.data {
+                stable_impl_name(tcx, id)
+            } else {
+                component.as_sym(true).to_string()
+            }
+        })
+        .join("-")
+}
+
+/// A name for an impl block derived from its header: `SelfTy_as_Trait` for trait impls and
+/// `SelfTy` for inherent impls. In the rare case where several impls in the same parent get
+/// the same name, e.g., because their generic parameters are named differently, they are
+/// suffixed with their index among those impls.
+fn stable_impl_name(tcx: TyCtxt, impl_id: DefId) -> String {
+    let name = impl_header_name(tcx, impl_id);
+    let parent = tcx.opt_parent(impl_id);
+    let clashing = tcx
+        .hir_crate_items(())
+        .definitions()
+        .map(|id| id.to_def_id())
+        .filter(|id| {
+            matches!(tcx.def_kind(*id), DefKind::Impl { .. })
+                && tcx.opt_parent(*id) == parent
+                && impl_header_name(tcx, *id) == name
+        })
+        .sorted_by_key(|id| tcx.def_key(*id).disambiguated_data.disambiguator)
+        .collect_vec();
+    if clashing.len() > 1
+        && let Some(idx) = clashing.iter().position(|id| *id == impl_id)
+    {
+        format!("{name}_{idx}")
+    } else {
+        name
+    }
+}
+
+fn impl_header_name(tcx: TyCtxt, impl_id: DefId) -> String {
+    let self_ty = tcx
+        .type_of(impl_id)
+        .instantiate_identity()
+        .skip_normalization();
+    let header = with_forced_trimmed_paths!(match tcx.def_kind(impl_id) {
+        DefKind::Impl { of_trait: true } => {
+            let trait_ref = tcx
+                .impl_trait_ref(impl_id)
+                .instantiate_identity()
+                .skip_normalization();
+            format!("{self_ty} as {}", trait_ref.print_only_trait_path())
+        }
+        _ => format!("{self_ty}"),
+    });
+    // Keep only identifier characters, e.g., `&'a [T] as Foo<u8>` becomes `a_T_as_Foo_u8`.
+    header
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .join("_")
 }
 
 pub fn snake_case_to_pascal_case(snake: &str) -> String {
