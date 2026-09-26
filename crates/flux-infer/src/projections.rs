@@ -834,10 +834,14 @@ fn normalize_alias_reft<'tcx>(
                     .lower(tcx)
                     .map_err(|reason| query_bug!("{reason:?}"))?,
             )?;
-            let e = genv
-                .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
-                .instantiate(tcx, &args, &[])
-                .apply(refine_args);
+            // If the implementation has no body for the associated refinement, we leave it
+            // unnormalized, i.e., we treat it as uninterpreted.
+            let Some(body) =
+                genv.assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
+            else {
+                return Ok((false, Expr::alias(alias_reft.clone(), refine_args.clone())));
+            };
+            let e = body.instantiate(tcx, &args, &[]).apply(refine_args);
             Ok((true, e))
         }
         Some(ImplSource::Builtin(BuiltinImplSource::Misc | BuiltinImplSource::Trivial, _)) => {

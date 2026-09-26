@@ -414,15 +414,21 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// Given the id of an associated refinement in a trait definition returns the body for the
     /// corresponding associated refinement in the implementation with id `impl_id`.
     ///
-    /// This function returns [`QueryErr::MissingAssocReft`] if the associated refinement is not
-    /// found in the implementation and there's no default body in the trait. This can happen if an
-    /// extern spec adds an associated refinement without a default body because we are currently
-    /// not checking `compare_impl_item` for those definitions.
+    /// Returns `None` if the implementation doesn't define the associated refinement, there's no
+    /// default body in the trait, and the implementation is in an external crate. This can happen
+    /// if an extern spec adds an associated refinement without a default body to a trait: existing
+    /// implementations in other crates know nothing about the associated refinement and we cannot
+    /// enumerate them to check them beforehand. In that case, the associated refinement should be
+    /// treated as uninterpreted for the implementation.
+    ///
+    /// For local implementations, a missing associated refinement is an error which is reported
+    /// when checking the implementation. In that case, this function returns
+    /// [`QueryErr::MissingAssocReft`] so the error is also reported at the use site.
     pub fn assoc_refinement_body_for_impl(
         self,
         trait_assoc_id: FluxDefId,
         impl_id: DefId,
-    ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
+    ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
         // Check if the implementation has the associated refinement
         let impl_assoc_refts = self.assoc_refinements_of(impl_id)?;
         if let Some(impl_assoc_reft) = impl_assoc_refts.find(trait_assoc_id.name()) {
@@ -430,20 +436,29 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             // could use an ill-sorted body at a use site (see #1786). If the check fails, an error
             // is reported (once) at the implementation.
             self.compare_impl_assoc_reft(impl_assoc_reft.def_id())?;
-            return self.assoc_refinement_body(impl_assoc_reft.def_id());
+            return Ok(Some(self.assoc_refinement_body(impl_assoc_reft.def_id())?));
         }
 
         // Otherwise, check if the trait has a default body
         if let Some(body) = self.default_assoc_refinement_body(trait_assoc_id)? {
             let impl_trait_ref = self.impl_trait_ref(impl_id)?.instantiate_identity();
-            return Ok(rty::EarlyBinder(body.instantiate(self.tcx(), &impl_trait_ref.args, &[])));
+            return Ok(Some(rty::EarlyBinder(body.instantiate(
+                self.tcx(),
+                &impl_trait_ref.args,
+                &[],
+            ))));
         }
 
-        Err(QueryErr::MissingAssocReft {
-            impl_id,
-            trait_id: trait_assoc_id.parent(),
-            name: trait_assoc_id.name(),
-        })
+        match self.resolve_id(impl_id) {
+            ResolvedDefId::Local(_) | ResolvedDefId::ExternSpec(..) => {
+                Err(QueryErr::MissingAssocReft {
+                    impl_id,
+                    trait_id: trait_assoc_id.parent(),
+                    name: trait_assoc_id.name(),
+                })
+            }
+            ResolvedDefId::Extern(_) => Ok(None),
+        }
     }
 
     pub fn default_assoc_refinement_body(
