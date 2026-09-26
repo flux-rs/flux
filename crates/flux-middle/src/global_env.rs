@@ -426,6 +426,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         // Check if the implementation has the associated refinement
         let impl_assoc_refts = self.assoc_refinements_of(impl_id)?;
         if let Some(impl_assoc_reft) = impl_assoc_refts.find(trait_assoc_id.name()) {
+            // Before using the body, make sure it is compatible with the trait. Otherwise, we
+            // could use an ill-sorted body at a use site (see #1786). If the check fails, an error
+            // is reported (once) at the implementation.
+            self.compare_impl_assoc_reft(impl_assoc_reft.def_id())?;
             return self.assoc_refinement_body(impl_assoc_reft.def_id());
         }
 
