@@ -467,6 +467,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.sort_of_assoc_reft(self, assoc_id)
     }
 
+    /// Checks that the associated refinement with id `impl_assoc_id`, defined in a trait
+    /// implementation, is compatible with the corresponding associated refinement in the trait.
+    ///
+    /// An error is emitted (once) at the implementation if the check fails. Implementations in
+    /// external crates are assumed to be compatible.
+    pub fn compare_impl_assoc_reft(self, impl_assoc_id: FluxDefId) -> QueryResult {
+        self.inner
+            .queries
+            .compare_impl_assoc_reft(self, impl_assoc_id)
+    }
+
     pub fn item_bounds(
         self,
         def_id: impl IntoQueryKey<DefId>,

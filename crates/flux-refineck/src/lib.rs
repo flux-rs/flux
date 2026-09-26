@@ -45,6 +45,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     pretty,
+    queries::Providers,
     rty::{self, ESpan, EarlyBinder, fold::TypeFoldable},
 };
 use rustc_data_structures::{fx::FxHashMap, unord::UnordMap};
@@ -53,6 +54,10 @@ use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_span::Span;
 
 use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_statements};
+
+pub fn provide(providers: &mut Providers) {
+    providers.compare_impl_assoc_reft = compare_impl_item::compare_impl_assoc_reft;
+}
 
 pub fn report_fixpoint_errors(
     genv: GlobalEnv,

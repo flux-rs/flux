@@ -196,6 +196,7 @@ pub struct Providers {
     pub assoc_refinements_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AssocRefinements>,
     pub sort_of_assoc_reft:
         fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<rty::EarlyBinder<rty::FuncSort>>,
+    pub compare_impl_assoc_reft: fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult,
     pub assoc_refinement_body:
         fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<rty::EarlyBinder<rty::Lambda>>,
     #[allow(clippy::type_complexity)]
@@ -241,6 +242,7 @@ impl Default for Providers {
             assoc_refinement_body: |_, _| empty_query!(),
             default_assoc_refinement_body: |_, _| empty_query!(),
             sort_of_assoc_reft: |_, _| empty_query!(),
+            compare_impl_assoc_reft: |_, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
             constant_info: |_, _| empty_query!(),
             static_info: |_, _| empty_query!(),
@@ -288,6 +290,7 @@ pub struct Queries<'genv, 'tcx> {
     default_assoc_refinement_body:
         Cache<FluxDefId, QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
     sort_of_assoc_reft: Cache<FluxDefId, QueryResult<rty::EarlyBinder<rty::FuncSort>>>,
+    compare_impl_assoc_reft: Cache<FluxDefId, QueryResult>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
@@ -333,6 +336,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             assoc_refinement_body: Default::default(),
             default_assoc_refinement_body: Default::default(),
             sort_of_assoc_reft: Default::default(),
+            compare_impl_assoc_reft: Default::default(),
             item_bounds: Default::default(),
             type_of: Default::default(),
             variants_of: Default::default(),
@@ -981,6 +985,24 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         )
                     })
                 },
+            )
+        })
+    }
+
+    pub(crate) fn compare_impl_assoc_reft(
+        &self,
+        genv: GlobalEnv,
+        impl_assoc_id: FluxDefId,
+    ) -> QueryResult {
+        run_with_cache(&self.compare_impl_assoc_reft, impl_assoc_id, || {
+            impl_assoc_id.dispatch_query(
+                genv,
+                self,
+                |impl_assoc_id| (self.providers.compare_impl_assoc_reft)(genv, impl_assoc_id),
+                // Implementations in external crates were already compared when checking their
+                // crate, so we trust their metadata.
+                |_| Some(Ok(())),
+                |_| Ok(()),
             )
         })
     }
