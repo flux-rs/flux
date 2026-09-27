@@ -260,7 +260,7 @@ impl Pretty for FnSig {
                 })
                 .collect_vec();
             if !filtered_ensures.is_empty() {
-                s.push_str(&format_cx!(cx, " ensures {:?}", join!(" && ", &filtered_ensures)));
+                s.push_str(&format_cx!(cx, " ensures {:?}", join!(", ", &filtered_ensures)));
             }
             s
         })
@@ -287,7 +287,7 @@ impl Pretty for FnOutput {
             })
             .collect_vec();
         if !filtered_ensures.is_empty() {
-            w!(cx, f, " ensures {:?}", join!(" && ", &filtered_ensures))?;
+            w!(cx, f, " ensures {:?}", join!(", ", &filtered_ensures))?;
         }
         Ok(())
     }
