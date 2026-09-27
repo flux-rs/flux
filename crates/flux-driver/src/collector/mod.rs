@@ -869,7 +869,10 @@ impl FluxAttrs {
                 attrs.pop().and_then(|attr| {
                     if let FluxAttrKind::FnSig(mut sig) = attr.kind {
                         sig.no_panic = read_attr!(self, NoPanicIf);
-                        Some((sig, attr.span))
+                        // The parsed signature retains its source span even when a proc macro
+                        // generates the enclosing attribute (whose span covers the invocation).
+                        let sig_span = sig.span;
+                        Some((sig, sig_span))
                     } else {
                         None
                     }
