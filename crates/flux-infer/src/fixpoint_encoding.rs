@@ -680,7 +680,11 @@ where
         let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
 
         #[cfg(feature = "suggestions")]
-        let constants_without_inequalities = constants.clone();
+        let constants_without_inequalities = constants
+            .iter()
+            .filter(|decl| !matches!(decl.name, fixpoint::Var::WKVar(..)))
+            .cloned()
+            .collect_vec();
         // The rust fixpoint implementation does not yet support polymorphic functions.
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
