@@ -56,10 +56,6 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
         .env("RUSTC", flux_driver_path)
         .env("RUSTC_WRAPPER", "")
         .arg(format!("+{toolchain}"));
-    if cargo_flux_cmd.fix() {
-        cargo_command.env("FLUX_FIX", "1");
-    }
-
     cargo_flux_cmd.forward_args(&mut cargo_command, config_file.path());
 
     Ok(cargo_command.status()?.code().unwrap_or(EXIT_ERR))
@@ -84,7 +80,10 @@ fn write_cargo_config(
         return Err(anyhow!("`enabled` cannot be set in `flux.toml`"));
     }
     let targeted_package_ids = cargo_flux_cmd.targeted_package_ids(&metadata);
-    let cli_flags = cargo_flux_cmd.rustflags();
+    let mut cli_flags = cargo_flux_cmd.rustflags();
+    if cargo_flux_cmd.fix() {
+        cli_flags.push("-Ffix-suggestions".to_string());
+    }
 
     let mut file = NamedTempFile::new()?;
     {

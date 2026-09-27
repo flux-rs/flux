@@ -238,7 +238,7 @@ fn report_errors(
         }
     }
     let combined_fn_fix_solutions =
-        config::inside_cargo_fix().then(|| combine_fix_solutions_by_fn(&solutions_by_tag));
+        config::fix_suggestions().then(|| combine_fix_solutions_by_fn(&solutions_by_tag));
     let rerun_note = rerun_hint_note(genv, local_id);
     let mut e = None;
     let mut emitted_fn_fixes = FxHashSet::default();
@@ -317,8 +317,8 @@ fn report_errors(
         if let Some(combined_fn_fix_solutions) = &combined_fn_fix_solutions {
             for wkvid in possible_solutions.keys() {
                 let parent_fn = wkvid.parent_fn;
-                if emitted_fn_fixes.insert(parent_fn)
-                    && let Some(wkvar_instantiations) = combined_fn_fix_solutions.get(&parent_fn)
+                if let Some(wkvar_instantiations) = combined_fn_fix_solutions.get(&parent_fn)
+                    && emitted_fn_fixes.insert(parent_fn)
                 {
                     add_fn_fix_diagnostic(genv, &mut err_diag, parent_fn, wkvar_instantiations);
                 }
@@ -351,6 +351,8 @@ fn combine_fix_solutions_by_fn(
     solutions_by_tag: &FxHashMap<Tag, (TagIdx, PossibleSolutions)>,
 ) -> FxHashMap<DefId, UnordMap<rty::WKVid, rty::Binder<rty::Expr>>> {
     let mut combined = FxHashMap::default();
+    // Cargo fix applies span replacements, so inferred refinements for a function must be
+    // conjoined into one replacement rather than emitted as overlapping suggestions.
     for (_, possible_solutions) in solutions_by_tag.values() {
         for (wkvid, solutions) in possible_solutions {
             if solutions.is_empty() {
@@ -424,7 +426,7 @@ fn add_fn_fix_diagnostic<'a>(
         diag.span_suggestion(
             old_spec_span,
             "try replacing the refinement",
-            if config::inside_cargo_fix() {
+            if config::fix_suggestions() {
                 format!("flux_rs::sig({fixed_fn_sig_snippet})")
             } else {
                 format!("{}#[flux_rs::sig({})]", prefix_spaces, fixed_fn_sig_snippet)
