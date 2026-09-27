@@ -844,7 +844,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fhir_attr_map(def_id).proven_externally()
     }
 
-    /// Get the span of the #[sig(...)] attribute for a function, if it exists.
+    /// Get the span of the signature inside a #[sig(...)] or #[spec(...)] attribute, if it exists.
     /// Checks local specs (including extern spec mapping) then falls back to cross-crate metadata.
     pub fn spec_attr_span(self, def_id: DefId) -> Option<Span> {
         let specs = self.collect_specs();
@@ -857,8 +857,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .or_else(|| self.cstore().spec_attr_span(def_id))
     }
 
-    /// Get the source text of the #[sig(...)] attribute for a function.
-    /// Reconstructs the string from the spec attribute span via the source map.
+    /// Get the source text of the signature inside a #[sig(...)] or #[spec(...)] attribute.
     pub fn spec_attr_string(self, def_id: DefId) -> Option<String> {
         let span = self.spec_attr_span(def_id)?;
         self.tcx().sess.source_map().span_to_snippet(span).ok()

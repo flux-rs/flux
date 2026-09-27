@@ -421,16 +421,12 @@ fn add_fn_fix_diagnostic<'a>(
         .find(|c: char| !c.is_whitespace())
         .unwrap_or(fn_first_line_snippet.len())];
 
-    // Check if there's an existing spec attribute that needs to be replaced
+    // The stored span covers only the signature inside the attribute.
     if let Some(old_spec_span) = genv.spec_attr_span(parent_fn) {
         diag.span_suggestion(
             old_spec_span,
             "try replacing the refinement",
-            if config::fix_suggestions() {
-                format!("flux_rs::sig({fixed_fn_sig_snippet})")
-            } else {
-                format!("{}#[flux_rs::sig({})]", prefix_spaces, fixed_fn_sig_snippet)
-            },
+            fixed_fn_sig_snippet,
             Applicability::MachineApplicable,
         );
     } else {
