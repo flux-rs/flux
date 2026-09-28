@@ -579,6 +579,9 @@ impl LeanFmt for FunDef {
         write!(f, "noncomputable def ")?;
         name.lean_fmt(f, cx)?;
         if let Some(body) = body {
+            for i in 0..sort.params {
+                write!(f, " {{t{i} : Type}} [Inhabited t{i}]")?;
+            }
             for (arg, arg_sort) in iter::zip(&body.args, &sort.inputs) {
                 write!(f, " (")?;
                 arg.lean_fmt(f, cx)?;
