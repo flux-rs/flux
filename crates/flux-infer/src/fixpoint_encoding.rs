@@ -2587,12 +2587,19 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::FunDef> {
         let name = *self.const_env.fun_decl_map.get(&def_id).unwrap();
         let body = self.genv.inlined_body(def_id);
-        let output = scx.sort_to_fixpoint(self.genv.func_sort(def_id).expect_mono().output());
+        let fsort = self.genv.func_sort(def_id);
+        // Only the Lean backend can emit a definition with sort parameters: the SMT encoding
+        // (`define_fun`) has no way to bind them.
+        let params = fsort.params().len();
+        if params > 0 && !matches!(self.backend, Backend::Lean) {
+            bug!("polymorphic definition `{def_id:?}` is only supported by the lean backend");
+        }
+        let output = scx.sort_to_fixpoint(fsort.skip_binders().output());
         let (args, expr) = self.body_to_fixpoint(&body, scx)?;
         let (args, inputs) = args.into_iter().unzip();
         Ok(fixpoint::FunDef {
             name,
-            sort: fixpoint::FunSort { params: 0, inputs, output },
+            sort: fixpoint::FunSort { params, inputs, output },
             body: Some(fixpoint::FunBody { args, expr }),
             comment: Some(format!("flux def: {def_id:?}")),
         })
