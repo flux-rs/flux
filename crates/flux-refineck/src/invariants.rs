@@ -17,12 +17,13 @@ use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
 use rustc_span::{DUMMY_SP, Span};
 
-pub fn check_invariants(
-    genv: GlobalEnv,
+pub fn check_invariants<'a, 'tcx>(
+    genv: GlobalEnv<'a, 'tcx>,
     cache: &mut FixQueryCache,
     def_id: MaybeExternId,
     invariants: &[fhir::Expr],
     adt_def: &rty::AdtDef,
+    mut deferred: Option<&mut Vec<super::fixpoint::DeferredQuery<'a, 'tcx>>>,
 ) -> Result<(), ErrorGuaranteed> {
     // FIXME(nilehmann) maybe we should record whether the invariants were generated with overflow
     // checking enabled and only assume them in code that also overflow checking enabled.
@@ -39,18 +40,28 @@ pub fn check_invariants(
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
             let span = invariants[idx].span;
-            check_invariant(genv, cache, def_id, adt_def, span, invariant, opts)
+            check_invariant(
+                genv,
+                cache,
+                def_id,
+                adt_def,
+                span,
+                invariant,
+                opts,
+                deferred.as_deref_mut(),
+            )
         })
 }
 
-fn check_invariant(
-    genv: GlobalEnv,
+fn check_invariant<'a, 'tcx>(
+    genv: GlobalEnv<'a, 'tcx>,
     cache: &mut FixQueryCache,
     def_id: MaybeExternId,
     adt_def: &rty::AdtDef,
     span: Span,
     invariant: &rty::Invariant,
     opts: InferOpts,
+    deferred: Option<&mut Vec<super::fixpoint::DeferredQuery<'a, 'tcx>>>,
 ) -> Result<(), ErrorGuaranteed> {
     let resolved_id = def_id.resolved_id();
 
@@ -86,15 +97,24 @@ fn check_invariant(
         let pred = invariant.apply(&variant_sig.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
+    if let Some(deferred) = deferred {
+        deferred.push(super::fixpoint::DeferredQuery::invariant(
+            infcx_root
+                .save_fixpoint_query(def_id, FixpointQueryKind::Invariant)
+                .emit(&genv)?,
+            span,
+        ));
+        return Ok(());
+    }
     let answer = infcx_root
         .execute_fixpoint_query(cache, def_id, FixpointQueryKind::Invariant)
         .emit(&genv)?;
 
-    if answer.errors.is_empty() {
-        Ok(())
-    } else {
-        Err(genv.sess().emit_err(errors::Invalid { span }))
-    }
+    if answer.errors.is_empty() { Ok(()) } else { Err(emit_invalid(genv, span)) }
+}
+
+pub(crate) fn emit_invalid(genv: GlobalEnv, span: Span) -> ErrorGuaranteed {
+    genv.sess().emit_err(errors::Invalid { span })
 }
 
 mod errors {
@@ -104,7 +124,7 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag("invariant cannot be proven", code = E0999)]
-    pub struct Invalid {
+    pub(crate) struct Invalid {
         #[primary_span]
         pub span: Span,
     }
