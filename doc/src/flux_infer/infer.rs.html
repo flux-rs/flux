@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a>        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key,
 <a href=#36 id=36 data-nosnippet>36</a>        record_lean_task,
 <a href=#37 id=37 data-nosnippet>37</a>    },
-<a href=#38 id=38 data-nosnippet>38</a>    lean_encoding::log_proof,
+<a href=#38 id=38 data-nosnippet>38</a>    lean_encoding::{hyperlink_proof, log_proof},
 <a href=#39 id=39 data-nosnippet>39</a>    projections::NormalizeExt <span class="kw">as _</span>,
 <a href=#40 id=40 data-nosnippet>40</a>    refine_tree::{Cursor, Marker, RefineTree, Scope},
 <a href=#41 id=41 data-nosnippet>41</a>};
@@ -231,18 +231,18 @@
 <a href=#231 id=231 data-nosnippet>231</a>
 <a href=#232 id=232 data-nosnippet>232</a>        log_proof(<span class="self">self</span>.genv, def_id)<span class="question-mark">?</span>;
 <a href=#233 id=233 data-nosnippet>233</a>        <span class="comment">// Skip re-generation if task is already cached (same hash → same lean files on disk).
-<a href=#234 id=234 data-nosnippet>234</a>        </span><span class="kw">if </span>config::is_cache_enabled() {
-<a href=#235 id=235 data-nosnippet>235</a>            <span class="kw">let </span>key = lean_task_key(<span class="self">self</span>.genv.tcx(), def_id.resolved_id());
-<a href=#236 id=236 data-nosnippet>236</a>            <span class="kw">let </span>hash = task.hash_with_default();
-<a href=#237 id=237 data-nosnippet>237</a>            <span class="kw">if </span>cache.lookup(<span class="kw-2">&amp;</span>key, hash).is_some() {
-<a href=#238 id=238 data-nosnippet>238</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-<a href=#239 id=239 data-nosnippet>239</a>            }
-<a href=#240 id=240 data-nosnippet>240</a>            fcx.generate_lean_files(def_id, task)<span class="question-mark">?</span>;
-<a href=#241 id=241 data-nosnippet>241</a>            record_lean_task(cache, key, hash);
-<a href=#242 id=242 data-nosnippet>242</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-<a href=#243 id=243 data-nosnippet>243</a>        }
-<a href=#244 id=244 data-nosnippet>244</a>
-<a href=#245 id=245 data-nosnippet>245</a>        fcx.generate_lean_files(def_id, task)
+<a href=#234 id=234 data-nosnippet>234</a>        </span><span class="kw">let </span>key = lean_task_key(<span class="self">self</span>.genv.tcx(), def_id.resolved_id());
+<a href=#235 id=235 data-nosnippet>235</a>        <span class="kw">let </span>hash = task.hash_with_default();
+<a href=#236 id=236 data-nosnippet>236</a>        <span class="kw">let </span>cached = config::is_cache_enabled() &amp;&amp; cache.lookup(<span class="kw-2">&amp;</span>key, hash).is_some();
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="kw">if </span>!cached {
+<a href=#238 id=238 data-nosnippet>238</a>            fcx.generate_lean_files(def_id, task)<span class="question-mark">?</span>;
+<a href=#239 id=239 data-nosnippet>239</a>            <span class="kw">if </span>config::is_cache_enabled() {
+<a href=#240 id=240 data-nosnippet>240</a>                record_lean_task(cache, key, hash);
+<a href=#241 id=241 data-nosnippet>241</a>            }
+<a href=#242 id=242 data-nosnippet>242</a>        }
+<a href=#243 id=243 data-nosnippet>243</a>        <span class="comment">// After generation, so that the proof file exists the first time around.
+<a href=#244 id=244 data-nosnippet>244</a>        </span>hyperlink_proof(<span class="self">self</span>.genv, def_id);
+<a href=#245 id=245 data-nosnippet>245</a>        <span class="prelude-val">Ok</span>(())
 <a href=#246 id=246 data-nosnippet>246</a>    }
 <a href=#247 id=247 data-nosnippet>247</a>
 <a href=#248 id=248 data-nosnippet>248</a>    <span class="kw">pub fn </span>execute_fixpoint_query(
