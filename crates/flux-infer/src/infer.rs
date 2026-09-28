@@ -20,6 +20,7 @@ use flux_middle::{
     },
 };
 use itertools::{Itertools, izip};
+use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
 use rustc_middle::{
@@ -39,6 +40,7 @@ use crate::{
     lean_encoding::{hyperlink_proof, log_proof},
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
+    wkvars::WKVarSubst,
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
@@ -252,6 +254,15 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         def_id: MaybeExternId,
         kind: FixpointQueryKind,
     ) -> QueryResult<Answer<Tag>> {
+        self.save_fixpoint_query(def_id, kind)?
+            .run(cache, &UnordMap::default())
+    }
+
+    pub fn save_fixpoint_query(
+        self,
+        def_id: MaybeExternId,
+        kind: FixpointQueryKind,
+    ) -> QueryResult<SavedFixpointQuery<'genv, 'tcx>> {
         let inner = self.inner.into_inner();
         let kvars = inner.kvars;
         let evars = inner.evars;
@@ -272,31 +283,70 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let backend = match self.opts.solver {
+        let solver = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
 
-        let mut fcx =
-            FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint, self.opts.uif_ops);
+        Ok(SavedFixpointQuery {
+            genv: self.genv,
+            def_id,
+            kind,
+            refine_tree,
+            kvars,
+            scrape_quals: self.opts.scrape_quals,
+            solver,
+            uif_ops: self.opts.uif_ops,
+        })
+    }
+
+    pub fn split(self) -> (RefineTree, KVarGen) {
+        (self.refine_tree, self.inner.into_inner().kvars)
+    }
+}
+
+pub struct SavedFixpointQuery<'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    pub def_id: MaybeExternId,
+    pub kind: FixpointQueryKind,
+    refine_tree: RefineTree,
+    kvars: KVarGen,
+    scrape_quals: bool,
+    solver: liquid_fixpoint::SmtSolver,
+    uif_ops: flux_config::UifOps,
+}
+
+impl SavedFixpointQuery<'_, '_> {
+    pub fn run(
+        &self,
+        cache: &mut FixQueryCache,
+        current_solutions: &UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
+    ) -> QueryResult<Answer<Tag>> {
+        let mut subst = WKVarSubst::new(current_solutions.clone(), true);
+        let mut refine_tree = self.refine_tree.deep_fold_with(&mut subst);
+        refine_tree.simplify(self.genv);
+
+        let mut fcx = FixpointCtxt::new(
+            self.genv,
+            self.def_id,
+            self.kvars.clone(),
+            Backend::Fixpoint,
+            self.uif_ops,
+        );
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
 
         // skip checking trivial constraints
         let count = cstr.concrete_head_count();
         metrics::incr_metric(Metric::CsTotal, count as u32);
         if count == 0 {
-            metrics::incr_metric_if(kind.is_body(), Metric::FnTrivial);
+            metrics::incr_metric_if(self.kind.is_body(), Metric::FnTrivial);
             return Ok(Answer::trivial());
         }
 
         let (task, suggestion_ctx) =
-            fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
-        let result = fcx.run_task(cache, def_id, kind, &task)?;
+            fcx.create_task(self.def_id, cstr, self.scrape_quals, self.solver)?;
+        let result = fcx.run_task(cache, self.def_id, self.kind, &task)?;
         fcx.result_to_answer(result, suggestion_ctx)
-    }
-
-    pub fn split(self) -> (RefineTree, KVarGen) {
-        (self.refine_tree, self.inner.into_inner().kvars)
     }
 }
 

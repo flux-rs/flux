@@ -13,6 +13,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
+    rty::StaticInfo,
 };
 use flux_refineck as refineck;
 use rustc_borrowck::consumers::ConsumerOptions;
@@ -139,6 +140,12 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             .iter_local_def_id()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
+        let fixpoint_result = if config::fixpoint() {
+            refineck::fixpoint::run(genv, &mut ck.cache, std::mem::take(&mut ck.deferred))
+        } else {
+            Ok(())
+        };
+
         if config::lean().is_check() || config::lean().is_emit() {
             lean_encoding::finalize(genv)
                 .unwrap_or_else(|err| bug!("error running lean-check {err:?}"));
@@ -192,7 +199,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
         tracing::info!("Callbacks::check_crate");
 
-        result.and(lean_result)
+        result.and(fixpoint_result).and(lean_result)
     })
 }
 
@@ -223,11 +230,12 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     cache: FixQueryCache,
+    deferred: Vec<refineck::fixpoint::DeferredQuery<'genv, 'tcx>>,
 }
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        Self { genv, cache: QueryCache::load() }
+        Self { genv, cache: QueryCache::load(), deferred: vec![] }
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -278,7 +286,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             DefKind::Fn | DefKind::AssocFn => {
                 let Some(local_id) = def_id.as_local() else { return Ok(()) };
                 if is_fn_with_body {
-                    refineck::check_fn(genv, &mut self.cache, local_id)?;
+                    refineck::check_fn(
+                        genv,
+                        &mut self.cache,
+                        local_id,
+                        config::fixpoint().then_some(&mut self.deferred),
+                    )?;
                 }
             }
             DefKind::Enum => {
@@ -293,6 +306,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                     def_id,
                     enum_def.invariants,
                     &adt_def,
+                    config::fixpoint().then_some(&mut self.deferred),
                 )?;
             }
             DefKind::Struct => {
@@ -312,10 +326,15 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 if let Some(local_id) = def_id.as_local()
                     && genv.tcx().hir_node_by_def_id(local_id).body_id().is_some()
                 {
-                    // A static without a spec is checked against the default refinement of its
-                    // type, e.g., to check the field specs of a struct in the initializer.
-                    let ty = genv.static_info(def_id).emit(&genv)?;
-                    refineck::check_static(genv, &mut self.cache, local_id, ty)?;
+                    if let StaticInfo::Known(ty) = genv.static_info(def_id).emit(&genv)? {
+                        refineck::check_static(
+                            genv,
+                            &mut self.cache,
+                            local_id,
+                            ty,
+                            config::fixpoint().then_some(&mut self.deferred),
+                        )?;
+                    }
                 }
             }
             _ => (),

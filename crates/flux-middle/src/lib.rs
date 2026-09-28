@@ -636,6 +636,8 @@ impl FixpointQueryKind {
 
     /// A string that uniquely identifies a query given an item `DefId`
     pub fn task_key(self, tcx: TyCtxt, def_id: DefId) -> String {
+        // Invariant queries for one enum share this key even though each invariant has a
+        // separate constraint and tag set; the cache retains only one result per key.
         format!("{}###{:?}", tcx.def_path_str(def_id), self)
     }
 

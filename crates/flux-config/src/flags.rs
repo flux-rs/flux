@@ -257,6 +257,13 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub fix_suggestions: bool,
+    /// Iteratively replay refinement queries using accumulated weak-kvar suggestions.
+    #[arg(
+        long = flux_arg!("fixpoint"),
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub fixpoint: bool,
 }
 
 impl Default for Flags {
@@ -299,6 +306,7 @@ impl Default for Flags {
             no_suggestions_default: false,
             rerun_hint: true,
             fix_suggestions: false,
+            fixpoint: false,
         }
     }
 }
@@ -393,6 +401,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
             "rerun-hint" => parse_bool(&mut flags.rerun_hint, value),
             "fix-suggestions" => parse_bool(&mut flags.fix_suggestions, value),
+            "fixpoint" => parse_bool(&mut flags.fixpoint, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);

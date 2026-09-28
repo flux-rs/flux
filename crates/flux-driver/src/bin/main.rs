@@ -15,6 +15,10 @@ use rustc_driver::{catch_fatal_errors, run_compiler};
 mod logger;
 
 fn main() -> ExitCode {
+    if config::fixpoint() && !cfg!(feature = "suggestions") {
+        eprintln!("error: `-Ffixpoint` requires Flux to be built with the `suggestions` feature");
+        return ExitCode::FAILURE;
+    }
     if !config::verify() {
         return rustc_driver::main();
     }
