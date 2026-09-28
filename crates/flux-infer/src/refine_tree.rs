@@ -13,7 +13,7 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         BaseTy, EVid, Expr, ExprKind, KVid, Name, NameProvenance, PrettyVar, Sort, Ty, TyKind, Var,
-        fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
+        fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 use itertools::Itertools;
@@ -66,6 +66,29 @@ impl RefineTree {
             .simplify(SimplifyPhase::Full(genv), &mut SnapshotMap::default());
         self.root.borrow_mut().simplify_bot();
         self.root.borrow_mut().simplify_top();
+    }
+
+    pub(crate) fn deep_fold_with(&self, folder: &mut impl TypeFolder) -> RefineTree {
+        fn fold_node(node: &Node, folder: &mut impl TypeFolder) -> Node {
+            let kind = match &node.kind {
+                NodeKind::Root(params) => NodeKind::Root(params.clone()),
+                NodeKind::ForAll(name, sort, provenance) => {
+                    NodeKind::ForAll(*name, sort.clone(), *provenance)
+                }
+                NodeKind::Assumption(pred) => NodeKind::Assumption(pred.fold_with(folder)),
+                NodeKind::Head(pred, tag) => NodeKind::Head(pred.fold_with(folder), *tag),
+                NodeKind::True => NodeKind::True,
+                NodeKind::Trace(trace) => NodeKind::Trace(trace.fold_with(folder)),
+            };
+            let children = node
+                .children
+                .iter()
+                .map(|child| NodePtr(Rc::new(RefCell::new(fold_node(&child.borrow(), folder)))))
+                .collect();
+            Node { kind, nbindings: node.nbindings, parent: None, children }
+        }
+
+        RefineTree { root: NodePtr(Rc::new(RefCell::new(fold_node(&self.root.borrow(), folder)))) }
     }
 
     pub(crate) fn to_fixpoint(

@@ -21,6 +21,7 @@ extern crate rustc_type_ir;
 
 mod checker;
 pub mod compare_impl_item;
+pub mod fixpoint;
 mod ghost_statements;
 pub mod invariants;
 mod primops;
@@ -69,11 +70,66 @@ pub fn report_fixpoint_errors(
     }
 }
 
-fn check_body(
+pub(crate) fn report_fixpoint_queries(
     genv: GlobalEnv,
+    local_id: LocalDefId,
+    query_errors: Vec<Vec<FixpointCheckError<Tag>>>,
+    query_failed: bool,
+    fixes: &UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
+    emitted_fixes: &mut FxHashSet<DefId>,
+) -> Result<(), ErrorGuaranteed> {
+    let has_errors = query_errors.iter().any(|errors| !errors.is_empty());
+    if genv.should_fail(local_id) {
+        if has_errors {
+            let result = report_fixpoint_errors(
+                genv,
+                local_id,
+                query_errors.into_iter().flatten().collect(),
+            );
+            if !fixes.is_empty() && emitted_fixes.insert(local_id.to_def_id()) {
+                report_standalone_fn_fix(genv, local_id.to_def_id(), fixes);
+            }
+            return result;
+        }
+        if query_failed {
+            if !fixes.is_empty() && emitted_fixes.insert(local_id.to_def_id()) {
+                report_standalone_fn_fix(genv, local_id.to_def_id(), fixes);
+            }
+            return Ok(());
+        }
+        let mut diag = genv.sess().dcx().create_err(errors::ExpectedNeg {
+            span: genv.tcx().def_span(local_id),
+            def_descr: genv.tcx().def_descr(local_id.to_def_id()),
+        });
+        if !fixes.is_empty() {
+            add_fn_fix_diagnostic(genv, &mut diag, local_id.to_def_id(), fixes);
+            emitted_fixes.insert(local_id.to_def_id());
+        }
+        return Err(diag.emit_err());
+    }
+    if !has_errors {
+        if !fixes.is_empty() && emitted_fixes.insert(local_id.to_def_id()) {
+            report_standalone_fn_fix(genv, local_id.to_def_id(), fixes);
+        }
+        return Ok(());
+    }
+    let mut err = None;
+    for errors in query_errors.into_iter().filter(|errors| !errors.is_empty()) {
+        if let Err(error) =
+            report_errors_with_fixes(genv, local_id, errors, Some(fixes), emitted_fixes)
+        {
+            err = Some(error);
+        }
+    }
+    err.map_or(Ok(()), Err)
+}
+
+fn check_body<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
     cache: &mut FixQueryCache,
     def_id: LocalDefId,
     poly_sig: &rty::PolyFnSig,
+    mut deferred: Option<&mut Vec<fixpoint::DeferredQuery<'genv, 'tcx>>>,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
     let opts = genv.infer_opts(def_id);
@@ -110,9 +166,23 @@ fn check_body(
             .execute_lean_query(cache, MaybeExternId::Local(def_id))
             .emit(&genv)
     } else {
-        let answer = infcx_root
-            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
-            .emit(&genv)?;
+        let answer = if let Some(deferred) = deferred {
+            deferred.push(fixpoint::DeferredQuery::body(
+                infcx_root
+                    .save_fixpoint_query(MaybeExternId::Local(def_id), FixpointQueryKind::Body)
+                    .emit(&genv)?,
+                def_id,
+            ));
+            return Ok(());
+        } else {
+            infcx_root
+                .execute_fixpoint_query(
+                    cache,
+                    MaybeExternId::Local(def_id),
+                    FixpointQueryKind::Body,
+                )
+                .emit(&genv)?
+        };
 
         let tcx = genv.tcx();
         let hir_id = tcx.local_def_id_to_hir_id(def_id);
@@ -124,11 +194,12 @@ fn check_body(
     }
 }
 
-pub fn check_static(
-    genv: GlobalEnv,
+pub fn check_static<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
     cache: &mut FixQueryCache,
     def_id: LocalDefId,
     ty: rty::Ty,
+    deferred: Option<&mut Vec<fixpoint::DeferredQuery<'genv, 'tcx>>>,
 ) -> Result<(), ErrorGuaranteed> {
     // Build a PolyFnSig with no inputs and `ty` as the output
     let output = rty::Binder::dummy(rty::FnOutput::new(ty, vec![]));
@@ -144,13 +215,16 @@ pub fn check_static(
     let poly_sig = rty::PolyFnSig::dummy(fn_sig);
 
     metrics::incr_metric(Metric::FnChecked, 1);
-    metrics::time_it(TimingKind::CheckBody(def_id), || check_body(genv, cache, def_id, &poly_sig))
+    metrics::time_it(TimingKind::CheckBody(def_id), || {
+        check_body(genv, cache, def_id, &poly_sig, deferred)
+    })
 }
 
-pub fn check_fn(
-    genv: GlobalEnv,
+pub fn check_fn<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
     cache: &mut FixQueryCache,
     def_id: LocalDefId,
+    mut deferred: Option<&mut Vec<fixpoint::DeferredQuery<'genv, 'tcx>>>,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
 
@@ -174,12 +248,25 @@ pub fn check_fn(
         .map_err(|err| err.emit(genv, def_id))?
     {
         tracing::info!("check_fn::refine-subtyping");
-        let answer = infcx_root
-            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
-            .emit(&genv)?;
+        if let Some(deferred) = deferred.as_deref_mut() {
+            deferred.push(fixpoint::DeferredQuery::body(
+                infcx_root
+                    .save_fixpoint_query(MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
+                    .emit(&genv)?,
+                def_id,
+            ));
+        } else {
+            let answer = infcx_root
+                .execute_fixpoint_query(
+                    cache,
+                    MaybeExternId::Local(def_id),
+                    FixpointQueryKind::Impl,
+                )
+                .emit(&genv)?;
+            let errors = answer.errors;
+            report_fixpoint_errors(genv, def_id, errors)?;
+        }
         tracing::info!("check_fn::fixpoint-subtyping");
-        let errors = answer.errors;
-        report_fixpoint_errors(genv, def_id, errors)?;
     }
 
     // Skip trusted functions
@@ -197,7 +284,7 @@ pub fn check_fn(
             .instantiate_identity();
         let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
 
-        check_body(genv, cache, def_id, &poly_sig)
+        check_body(genv, cache, def_id, &poly_sig, deferred)
     })?;
 
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| Ok(()))
@@ -220,6 +307,16 @@ fn report_errors(
     local_id: LocalDefId,
     errors: Vec<FixpointCheckError<Tag>>,
 ) -> Result<(), ErrorGuaranteed> {
+    report_errors_with_fixes(genv, local_id, errors, None, &mut FxHashSet::default())
+}
+
+fn report_errors_with_fixes(
+    genv: GlobalEnv,
+    local_id: LocalDefId,
+    errors: Vec<FixpointCheckError<Tag>>,
+    final_fixes: Option<&UnordMap<rty::WKVid, rty::Binder<rty::Expr>>>,
+    emitted_fixes: &mut FxHashSet<DefId>,
+) -> Result<(), ErrorGuaranteed> {
     let log_path = if config::dump_constraint() {
         let path = dbg::item_dump_path(genv.tcx(), local_id.to_def_id(), "smt2");
         if path.exists() { Some(path) } else { None }
@@ -238,7 +335,6 @@ fn report_errors(
         config::fix_suggestions().then(|| combine_fix_solutions_by_fn(&solutions_by_tag));
     let rerun_note = rerun_hint_note(genv, local_id);
     let mut e = None;
-    let mut emitted_fn_fixes = FxHashSet::default();
     for (tag, (tag_idx, possible_solutions)) in solutions_by_tag {
         let span = tag.src_span;
         let mut err_diag = match tag.reason {
@@ -278,11 +374,16 @@ fn report_errors(
                 })
             }
         };
-        if let Some(combined_fn_fix_solutions) = &combined_fn_fix_solutions {
+        if let Some(final_fixes) = final_fixes {
+            let parent_fn = local_id.to_def_id();
+            if !final_fixes.is_empty() && emitted_fixes.insert(parent_fn) {
+                add_fn_fix_diagnostic(genv, &mut err_diag, parent_fn, final_fixes);
+            }
+        } else if let Some(combined_fn_fix_solutions) = &combined_fn_fix_solutions {
             for wkvid in possible_solutions.keys() {
                 let parent_fn = wkvid.parent_fn;
                 if let Some(wkvar_instantiations) = combined_fn_fix_solutions.get(&parent_fn)
-                    && emitted_fn_fixes.insert(parent_fn)
+                    && emitted_fixes.insert(parent_fn)
                 {
                     add_fn_fix_diagnostic(genv, &mut err_diag, parent_fn, wkvar_instantiations);
                 }
@@ -361,6 +462,15 @@ fn add_fn_fix_diagnostic<'a>(
     parent_fn: DefId,
     wkvar_instantiations: &UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
 ) {
+    let (span, replacement, message) = fn_fix_suggestion(genv, parent_fn, wkvar_instantiations);
+    diag.span_suggestion(span, message, replacement, Applicability::MachineApplicable);
+}
+
+fn fn_fix_suggestion(
+    genv: GlobalEnv,
+    parent_fn: DefId,
+    wkvar_instantiations: &UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
+) -> (Span, String, &'static str) {
     let wkvar_instantiations = wkvar_instantiations
         .items()
         .map(|(wkvid, solution)| {
@@ -387,23 +497,31 @@ fn add_fn_fix_diagnostic<'a>(
 
     // The stored span covers only the signature inside the attribute.
     if let Some(old_spec_span) = genv.spec_attr_span(parent_fn) {
-        diag.span_suggestion(
-            old_spec_span,
-            "try replacing the refinement",
-            fixed_fn_sig_snippet,
-            Applicability::MachineApplicable,
-        );
+        (old_spec_span, fixed_fn_sig_snippet, "try replacing the refinement")
     } else {
-        diag.span_suggestion(
+        (
             fn_first_line,
-            "try adding the refinement",
             format!(
                 "{}#[flux_rs::sig({})]\n{}",
                 prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet
             ),
-            Applicability::MachineApplicable,
-        );
+            "try adding the refinement",
+        )
     }
+}
+
+pub(crate) fn report_standalone_fn_fix(
+    genv: GlobalEnv,
+    parent_fn: DefId,
+    fixes: &UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
+) {
+    let (span, replacement, message) = fn_fix_suggestion(genv, parent_fn, fixes);
+    let mut diag = genv
+        .sess()
+        .dcx()
+        .struct_span_warn(span, "Flux inferred a refinement for this function");
+    diag.span_suggestion(span, message, replacement, Applicability::MachineApplicable);
+    diag.emit();
 }
 
 fn fn_first_line<'a>(genv: GlobalEnv<'a, '_>, def_id: DefId) -> Span {

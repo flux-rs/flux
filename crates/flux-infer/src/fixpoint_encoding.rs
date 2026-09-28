@@ -739,6 +739,8 @@ where
         };
         let id = def_id.resolved_id();
         if config::dump_constraint() {
+            // Impl-subtyping and body queries for one method share this path; deferred fixpoint
+            // reporting can therefore link a tag to the other query's overwritten dump.
             dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
         }
 
@@ -1453,6 +1455,7 @@ impl LocalVarEnv {
     }
 }
 
+#[derive(Clone)]
 pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
     /// If true, generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
