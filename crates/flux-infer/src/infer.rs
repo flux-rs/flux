@@ -35,7 +35,7 @@ use crate::{
         Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key,
         record_lean_task,
     },
-    lean_encoding::log_proof,
+    lean_encoding::{hyperlink_proof, log_proof},
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
@@ -231,18 +231,18 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         log_proof(self.genv, def_id)?;
         // Skip re-generation if task is already cached (same hash → same lean files on disk).
-        if config::is_cache_enabled() {
-            let key = lean_task_key(self.genv.tcx(), def_id.resolved_id());
-            let hash = task.hash_with_default();
-            if cache.lookup(&key, hash).is_some() {
-                return Ok(());
-            }
+        let key = lean_task_key(self.genv.tcx(), def_id.resolved_id());
+        let hash = task.hash_with_default();
+        let cached = config::is_cache_enabled() && cache.lookup(&key, hash).is_some();
+        if !cached {
             fcx.generate_lean_files(def_id, task)?;
-            record_lean_task(cache, key, hash);
-            return Ok(());
+            if config::is_cache_enabled() {
+                record_lean_task(cache, key, hash);
+            }
         }
-
-        fcx.generate_lean_files(def_id, task)
+        // After generation, so that the proof file exists the first time around.
+        hyperlink_proof(self.genv, def_id);
+        Ok(())
     }
 
     pub fn execute_fixpoint_query(
