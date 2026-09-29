@@ -19,18 +19,16 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
-        BaseTy, Binder, BoundReftKind, Ctor, Expr, ExprKind, FnSig, GenericArg, HoleKind,
-        INNERMOST, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy,
-        SubsetTyCtor, Ty, TyKind, TyOrBase, VariantIdx,
+        BaseTy, Binder, BoundReftKind, BoundVariableKind, Ctor, Expr, ExprKind, FnOutput, FnSig,
+        GenericArg, HoleKind, INNERMOST, Lambda, List, Loc, Mutability, Path, PolyFnSig, PtrKind,
+        Region, SortCtor, SubsetTy, SubsetTyCtor, Ty, TyKind, VariantIdx,
         canonicalize::{Hoister, LocalHoister},
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        refining::Refiner,
         region_matching::{rty_match_regions, ty_match_regions},
     },
 };
 use flux_rustc_bridge::{
-    self, ToRustc as _,
-    lowering::Lower as _,
+    self,
     mir::{BasicBlock, Body, Local, LocalDecl, LocalDecls, Place, PlaceElem},
     ty,
 };
@@ -551,10 +549,7 @@ impl BasicBlockEnvShape {
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    ///
-    /// The (default) `refiner` is used to generalize types which cannot be joined structurally,
-    /// e.g., fn pointers with different signatures.
-    pub(crate) fn join(&mut self, other: TypeEnv, span: Span, refiner: &Refiner) -> bool {
+    pub(crate) fn join(&mut self, other: TypeEnv, span: Span) -> bool {
         let paths = self.bindings.paths();
 
         // Join types
@@ -562,7 +557,7 @@ impl BasicBlockEnvShape {
         for path in &paths {
             let ty1 = self.bindings.get(path);
             let ty2 = other.bindings.get(path);
-            let ty = if ty1 == ty2 { ty1.clone() } else { self.join_ty(refiner, &ty1, &ty2) };
+            let ty = if ty1 == ty2 { ty1.clone() } else { self.join_ty(&ty1, &ty2) };
             modified |= ty1 != ty;
             self.update(path, ty, span);
         }
@@ -570,17 +565,17 @@ impl BasicBlockEnvShape {
         modified
     }
 
-    fn join_ty(&self, refiner: &Refiner, ty1: &Ty, ty2: &Ty) -> Ty {
+    fn join_ty(&self, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Blocked(ty1), _) => Ty::blocked(self.join_ty(refiner, ty1, &ty2.unblocked())),
-            (_, TyKind::Blocked(ty2)) => Ty::blocked(self.join_ty(refiner, &ty1.unblocked(), ty2)),
+            (TyKind::Blocked(ty1), _) => Ty::blocked(self.join_ty(ty1, &ty2.unblocked())),
+            (_, TyKind::Blocked(ty2)) => Ty::blocked(self.join_ty(&ty1.unblocked(), ty2)),
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
-            (TyKind::Exists(ty1), _) => self.join_ty(refiner, ty1.as_ref().skip_binder(), ty2),
-            (_, TyKind::Exists(ty2)) => self.join_ty(refiner, ty1, ty2.as_ref().skip_binder()),
-            (TyKind::Constr(_, ty1), _) => self.join_ty(refiner, ty1, ty2),
-            (_, TyKind::Constr(_, ty2)) => self.join_ty(refiner, ty1, ty2),
+            (TyKind::Exists(ty1), _) => self.join_ty(ty1.as_ref().skip_binder(), ty2),
+            (_, TyKind::Exists(ty2)) => self.join_ty(ty1, ty2.as_ref().skip_binder()),
+            (TyKind::Constr(_, ty1), _) => self.join_ty(ty1, ty2),
+            (_, TyKind::Constr(_, ty2)) => self.join_ty(ty1, ty2),
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                let bty = self.join_bty(refiner, bty1, bty2);
+                let bty = self.join_bty(bty1, bty2);
                 let mut sorts = vec![];
                 let idx = self.join_idx(idx1, idx2, &bty.sort(), &mut sorts);
                 if sorts.is_empty() {
@@ -609,7 +604,7 @@ impl BasicBlockEnvShape {
                 debug_assert_eq!(variant1, variant2);
                 debug_assert_eq!(fields1.len(), fields2.len());
                 let fields = iter::zip(fields1, fields2)
-                    .map(|(ty1, ty2)| self.join_ty(refiner, ty1, ty2))
+                    .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
                     .collect();
                 Ty::downcast(adt1.clone(), args1.clone(), ty1.clone(), *variant1, fields)
             }
@@ -665,18 +660,18 @@ impl BasicBlockEnvShape {
         }
     }
 
-    fn join_bty(&self, refiner: &Refiner, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
+    fn join_bty(&self, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
         match (bty1, bty2) {
             (BaseTy::Adt(def1, args1), BaseTy::Adt(def2, args2)) => {
                 tracked_span_dbg_assert_eq!(def1.did(), def2.did());
                 let args = iter::zip(args1, args2)
-                    .map(|(arg1, arg2)| self.join_generic_arg(refiner, arg1, arg2))
+                    .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
                     .collect();
                 BaseTy::adt(def1.clone(), List::from_vec(args))
             }
             (BaseTy::Tuple(fields1), BaseTy::Tuple(fields2)) => {
                 let fields = iter::zip(fields1, fields2)
-                    .map(|(ty1, ty2)| self.join_ty(refiner, ty1, ty2))
+                    .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
                     .collect();
                 BaseTy::Tuple(fields)
             }
@@ -687,29 +682,18 @@ impl BasicBlockEnvShape {
             (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) => {
                 tracked_span_dbg_assert_eq!(r1, r2);
                 tracked_span_dbg_assert_eq!(mutbl1, mutbl2);
-                BaseTy::Ref(*r1, self.join_ty(refiner, ty1, ty2), *mutbl1)
+                BaseTy::Ref(*r1, self.join_ty(ty1, ty2), *mutbl1)
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
                 tracked_span_dbg_assert_eq!(len1, len2);
-                BaseTy::Array(self.join_ty(refiner, ty1, ty2), len1.clone())
+                BaseTy::Array(self.join_ty(ty1, ty2), len1.clone())
             }
-            (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => {
-                BaseTy::Slice(self.join_ty(refiner, ty1, ty2))
-            }
+            (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => BaseTy::Slice(self.join_ty(ty1, ty2)),
             (BaseTy::FnPtr(sig1), BaseTy::FnPtr(sig2)) if sig1 != sig2 => {
-                // Generalize to the rust fn pointer type refined with holes, which are replaced
-                // by kvars in the basic block env, e.g., `fn(i32{v: $k0(v)}) -> i32{v: $k1(v)}`.
-                // Fn subtyping is checked when jumping to the join point.
-                let tcx = refiner.genv().tcx();
-                let ty = bty1
-                    .to_rustc(tcx)
-                    .lower(tcx)
-                    .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
-                match refiner.refine_ty_or_base(&ty) {
-                    Ok(TyOrBase::Base(ctor)) => ctor.as_ref().skip_binder().bty.with_holes(),
-                    Ok(TyOrBase::Ty(ty)) => tracked_span_bug!("unexpected type: {ty:?}"),
-                    Err(err) => tracked_span_bug!("{err:?}"),
-                }
+                // Generalize to a signature with holes, which are replaced by kvars in the basic
+                // block env, e.g., `fn(i32{v: $k0(v)}) -> i32{v: $k1(v)}`. Fn subtyping (against
+                // both signatures) is checked when jumping to the join point.
+                BaseTy::FnPtr(generalize_fn_sig(sig1))
             }
             _ => {
                 tracked_span_dbg_assert_eq!(bty1, bty2);
@@ -718,23 +702,16 @@ impl BasicBlockEnvShape {
         }
     }
 
-    fn join_generic_arg(
-        &self,
-        refiner: &Refiner,
-        arg1: &GenericArg,
-        arg2: &GenericArg,
-    ) -> GenericArg {
+    fn join_generic_arg(&self, arg1: &GenericArg, arg2: &GenericArg) -> GenericArg {
         match (arg1, arg2) {
-            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
-                GenericArg::Ty(self.join_ty(refiner, ty1, ty2))
-            }
+            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => GenericArg::Ty(self.join_ty(ty1, ty2)),
             (GenericArg::Base(ctor1), GenericArg::Base(ctor2)) => {
                 let sty1 = ctor1.as_ref().skip_binder();
                 let sty2 = ctor2.as_ref().skip_binder();
                 debug_assert!(sty1.idx.is_nu());
                 debug_assert!(sty2.idx.is_nu());
 
-                let bty = self.join_bty(refiner, &sty1.bty, &sty2.bty);
+                let bty = self.join_bty(&sty1.bty, &sty2.bty);
                 let pred = if self.scope.has_free_vars(&sty2.pred) || sty1.pred != sty2.pred {
                     Expr::hole(HoleKind::Pred)
                 } else {
@@ -804,6 +781,32 @@ impl BasicBlockEnvShape {
             scope: self.scope,
         }
     }
+}
+
+/// Generalizes a fn pointer signature to one with the same (rust) shape where all refinements are
+/// holes, e.g., `for<n> fn(i32[n]) -> i32[n + 1]` becomes `fn({v. i32[v] | *}) -> {v. i32[v] | *}`.
+/// The refinement params of the signature are dropped, and so are the `requires`, `ensures` and
+/// `no_panic` (which could mention them). The region vars are kept: they come before the
+/// refinement params in the binder, so dropping the latter doesn't shift them.
+fn generalize_fn_sig(sig: &PolyFnSig) -> PolyFnSig {
+    let vars = sig
+        .vars()
+        .iter()
+        .filter(|var| matches!(var, BoundVariableKind::Region(_)))
+        .cloned()
+        .collect();
+    let fn_sig = sig.skip_binder_ref();
+    let ret = fn_sig.output().skip_binder().ret.with_holes();
+    let fn_sig = FnSig::new(
+        fn_sig.safety,
+        fn_sig.abi,
+        List::empty(),
+        fn_sig.inputs.with_holes(),
+        Binder::dummy(FnOutput::new(ret, vec![])),
+        Expr::ff(),
+        fn_sig.lifted,
+    );
+    Binder::bind_with_vars(fn_sig, vars)
 }
 
 impl TypeVisitable for BasicBlockEnvData {

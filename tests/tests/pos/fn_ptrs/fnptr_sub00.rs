@@ -54,6 +54,18 @@ pub fn join_input(b: bool) -> usize {
     f(1)
 }
 
+#[flux::spec(fn(x: usize) -> usize{v: v < x} requires x > 0)]
+fn dec(x: usize) -> usize {
+    x - 1
+}
+
+// The `requires` of `dec` is not part of the joined signature, but it is still checked (via the
+// inferred input) at the call through the pointer
+pub fn join_requires(b: bool) -> usize {
+    let f: fn(usize) -> usize = if b { dec } else { clamp10 };
+    f(3)
+}
+
 #[flux::spec(fn(n: usize) -> usize{v: v <= 10})]
 pub fn join_loop(n: usize) -> usize {
     let mut f: fn(usize) -> usize = clamp10;

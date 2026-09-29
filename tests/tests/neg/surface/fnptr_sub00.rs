@@ -50,3 +50,13 @@ pub fn join_output_bad(b: bool, x: usize) -> usize {
     let f: fn(usize) -> usize = if b { clamp10 } else { clamp5 };
     f(x) //~ ERROR refinement type
 }
+
+#[flux::spec(fn(x: usize) -> usize{v: v < x} requires x > 0)]
+fn dec(x: usize) -> usize {
+    x - 1
+}
+
+pub fn join_requires_bad(b: bool) -> usize {
+    let f: fn(usize) -> usize = if b { dec } else { clamp10 }; //~ ERROR refinement type
+    f(0)
+}
