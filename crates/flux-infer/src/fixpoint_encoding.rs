@@ -2596,7 +2596,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 }
 
 /// Strips a leading chain of `ForAll`s over `Var::Const(..)` binders off `cstr`.
-fn peel_leading_const_binds(mut cstr: fixpoint::Constraint) -> (Vec<fixpoint::Bind>, fixpoint::Constraint) {
+fn peel_leading_const_binds(
+    mut cstr: fixpoint::Constraint,
+) -> (Vec<fixpoint::Bind>, fixpoint::Constraint) {
     let mut binds = vec![];
     while let fixpoint::Constraint::ForAll(bind, inner) = cstr {
         if matches!(bind.name, fixpoint::Var::Const(..)) {
