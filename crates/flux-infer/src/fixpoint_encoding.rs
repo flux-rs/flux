@@ -956,9 +956,20 @@ where
                 if let ConstKey::PrimOp(op) = key { Some((decl.clone(), op.clone())) } else { None }
             })
             .collect();
-        // Leftover `Var::Const(..)` foralls are the uninterpreted constants added by
-        // `assume_const_values_from`; peel them off so Lean can quantify them above the kvars.
-        let (const_binds, cstr) = peel_leading_const_binds(cstr);
+        // Uninterpreted constants (e.g. `T::size_of()`), quantified above the kvars in the Lean VC.
+        let const_binds = self
+            .ecx
+            .const_env
+            .const_map
+            .iter()
+            .filter_map(|(key, decl)| {
+                if let ConstKey::Alias(..) = key {
+                    Some(fixpoint::Bind { name: decl.name, sort: decl.sort.clone(), preds: vec![] })
+                } else {
+                    None
+                }
+            })
+            .collect();
         let const_deps = ConstDeps { interpreted, opaque, const_binds };
         (const_deps, cstr)
     }
@@ -2456,16 +2467,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         }
                     }
                 }
-                ConstKey::Alias(..) if matches!(self.backend, Backend::Lean) => {
-                    constraint = fixpoint::Constraint::ForAll(
-                        fixpoint::Bind {
-                            name: const_.name,
-                            sort: const_.sort.clone(),
-                            preds: vec![],
-                        },
-                        Box::new(constraint),
-                    );
-                }
                 ConstKey::Alias(..)
                 | ConstKey::Cast(..)
                 | ConstKey::Lambda(..)
@@ -2593,23 +2594,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .collect();
         Ok(fixpoint::Qualifier { name, args, body })
     }
-}
-
-/// Strips a leading chain of `ForAll`s over `Var::Const(..)` binders off `cstr`.
-fn peel_leading_const_binds(
-    mut cstr: fixpoint::Constraint,
-) -> (Vec<fixpoint::Bind>, fixpoint::Constraint) {
-    let mut binds = vec![];
-    while let fixpoint::Constraint::ForAll(bind, inner) = cstr {
-        if matches!(bind.name, fixpoint::Var::Const(..)) {
-            binds.push(bind);
-            cstr = *inner;
-        } else {
-            cstr = fixpoint::Constraint::ForAll(bind, inner);
-            break;
-        }
-    }
-    (binds, cstr)
 }
 
 fn parse_kvid(kvid: &str) -> fixpoint::KVid {
