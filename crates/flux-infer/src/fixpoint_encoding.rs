@@ -957,7 +957,21 @@ where
                 if let ConstKey::PrimOp(op) = key { Some((decl.clone(), op.clone())) } else { None }
             })
             .collect();
-        let const_deps = ConstDeps { interpreted, opaque };
+        // Uninterpreted constants (e.g. `T::size_of()`), quantified above the kvars in the Lean VC.
+        let const_binds = self
+            .ecx
+            .const_env
+            .const_map
+            .iter()
+            .filter_map(|(key, decl)| {
+                if let ConstKey::Alias(..) = key {
+                    Some(fixpoint::Bind { name: decl.name, sort: decl.sort.clone(), preds: vec![] })
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let const_deps = ConstDeps { interpreted, opaque, const_binds };
         (const_deps, cstr)
     }
 
@@ -1601,6 +1615,9 @@ pub struct ConstDeps {
     /// Primop constants: the decl paired with the `BinOp` that gives a stable, cross-run
     /// identity used to derive the Lean name.
     pub opaque: Vec<(fixpoint::ConstDecl, rty::BinOp)>,
+    /// Uninterpreted constants (e.g. `T::size_of()`), quantified above the kvars' existentials
+    /// in the Lean VC so their solution can depend on them.
+    pub const_binds: Vec<fixpoint::Bind>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
@@ -2499,18 +2516,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         }
                     }
                 }
-                ConstKey::Alias(..) if matches!(self.backend, Backend::Lean) => {
-                    constraint = fixpoint::Constraint::ForAll(
-                        fixpoint::Bind {
-                            name: const_.name,
-                            sort: const_.sort.clone(),
-                            preds: vec![],
-                        },
-                        Box::new(constraint),
-                    );
-                }
-                ConstKey::AssocConst(..)
-                | ConstKey::Alias(..)
+                ConstKey::Alias(..)
                 | ConstKey::Cast(..)
                 | ConstKey::Lambda(..)
                 | ConstKey::PrimOp(..)
