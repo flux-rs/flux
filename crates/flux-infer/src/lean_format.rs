@@ -55,6 +55,8 @@ pub trait LeanFmt {
 pub struct LeanKConstraint<'a> {
     pub theorem_name: &'a str,
     pub kvars: &'a [KVarDecl],
+    /// Quantified above `kvars`' existentials so a kvar's solution can depend on them.
+    pub const_binds: &'a [fixpoint::Bind],
     pub constr: &'a Constraint,
     pub should_fail: bool,
 }
@@ -687,6 +689,12 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
 
         if self.should_fail {
             write!(f, "¬")?;
+        }
+
+        for bind in self.const_binds {
+            write!(f, "∀ (")?;
+            bind.name.lean_fmt(f, cx)?;
+            write!(f, " : {}), ", WithLeanCtxt { item: &bind.sort, cx })?;
         }
 
         if self.kvars.is_empty() {
