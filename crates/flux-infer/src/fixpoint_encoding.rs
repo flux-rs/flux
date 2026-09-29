@@ -2516,7 +2516,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         }
                     }
                 }
-                ConstKey::Alias(..)
+                ConstKey::AssocConst(_, _)
+                | ConstKey::Alias(..)
                 | ConstKey::Cast(..)
                 | ConstKey::Lambda(..)
                 | ConstKey::PrimOp(..)
