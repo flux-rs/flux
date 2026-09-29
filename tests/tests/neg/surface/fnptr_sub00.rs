@@ -34,8 +34,19 @@ pub fn twice_bad(x: i32) -> i32 {
     f(f(x)) //~ ERROR refinement type
 }
 
-// At the join point, the fn pointer is generalized to `fn(usize) -> usize`, which `needs_pos` is not
-pub fn join_bad(b: bool) -> usize {
+// The joined fn pointer is called with `0`, which `needs_pos` does not accept
+pub fn join_input_bad(b: bool) -> usize {
     let f: fn(usize) -> usize = if b { needs_pos } else { clamp10 }; //~ ERROR refinement type
-    f(1)
+    f(0)
+}
+
+#[flux::spec(fn(x: usize) -> usize{v: v <= 5})]
+fn clamp5(x: usize) -> usize {
+    if x <= 5 { x } else { 5 }
+}
+
+#[flux::spec(fn(bool, usize) -> usize{v: v <= 5})]
+pub fn join_output_bad(b: bool, x: usize) -> usize {
+    let f: fn(usize) -> usize = if b { clamp10 } else { clamp5 };
+    f(x) //~ ERROR refinement type
 }

@@ -36,10 +36,33 @@ pub fn call_apply(x: usize) -> usize {
     apply(clamp10, x)
 }
 
-// Fn pointers from different branches
+// Fn pointers from different branches are joined into a signature with kvars
+#[flux::spec(fn(bool, usize) -> usize{v: v <= 10})]
 pub fn join(b: bool, x: usize) -> usize {
     let f: fn(usize) -> usize = if b { clamp10 } else { clamp5 };
     f(x)
+}
+
+#[flux::spec(fn(x: usize{x > 0}) -> usize{v: v < x})]
+fn needs_pos(x: usize) -> usize {
+    x - 1
+}
+
+// The input of the joined signature is inferred from the calls through the pointer
+pub fn join_input(b: bool) -> usize {
+    let f: fn(usize) -> usize = if b { needs_pos } else { clamp10 };
+    f(1)
+}
+
+#[flux::spec(fn(n: usize) -> usize{v: v <= 10})]
+pub fn join_loop(n: usize) -> usize {
+    let mut f: fn(usize) -> usize = clamp10;
+    let mut i = 0;
+    while i < n {
+        f = clamp5;
+        i += 1;
+    }
+    f(n)
 }
 
 // Generic fns

@@ -551,6 +551,9 @@ impl BasicBlockEnvShape {
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
+    ///
+    /// The (default) `refiner` is used to generalize types which cannot be joined structurally,
+    /// e.g., fn pointers with different signatures.
     pub(crate) fn join(&mut self, other: TypeEnv, span: Span, refiner: &Refiner) -> bool {
         let paths = self.bindings.paths();
 
@@ -694,15 +697,16 @@ impl BasicBlockEnvShape {
                 BaseTy::Slice(self.join_ty(refiner, ty1, ty2))
             }
             (BaseTy::FnPtr(sig1), BaseTy::FnPtr(sig2)) if sig1 != sig2 => {
-                // Generalize to the (default refinement of the) rust fn pointer type, which is a
-                // supertype of both (fn subtyping is checked when jumping to the join point).
+                // Generalize to the rust fn pointer type refined with holes, which are replaced
+                // by kvars in the basic block env, e.g., `fn(i32{v: $k0(v)}) -> i32{v: $k1(v)}`.
+                // Fn subtyping is checked when jumping to the join point.
                 let tcx = refiner.genv().tcx();
                 let ty = bty1
                     .to_rustc(tcx)
                     .lower(tcx)
                     .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
                 match refiner.refine_ty_or_base(&ty) {
-                    Ok(TyOrBase::Base(ctor)) => ctor.as_ref().skip_binder().bty.clone(),
+                    Ok(TyOrBase::Base(ctor)) => ctor.as_ref().skip_binder().bty.with_holes(),
                     Ok(TyOrBase::Ty(ty)) => tracked_span_bug!("unexpected type: {ty:?}"),
                     Err(err) => tracked_span_bug!("{err:?}"),
                 }
