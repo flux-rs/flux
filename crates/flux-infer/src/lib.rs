@@ -14,6 +14,7 @@ extern crate rustc_type_ir;
 mod evars;
 pub mod fixpoint_encoding;
 pub mod fixpoint_qualifiers;
+pub mod fn_subtyping;
 pub mod infer;
 pub mod lean_encoding;
 pub mod lean_format;

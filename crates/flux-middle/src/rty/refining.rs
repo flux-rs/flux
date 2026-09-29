@@ -88,6 +88,10 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(Self { genv, def_id, generics, refine })
     }
 
+    pub fn genv(&self) -> GlobalEnv<'genv, 'tcx> {
+        self.genv
+    }
+
     pub fn default_for_item(genv: GlobalEnv<'genv, 'tcx>, def_id: DefId) -> QueryResult<Self> {
         Self::new_for_item(genv, def_id, refine_default)
     }
