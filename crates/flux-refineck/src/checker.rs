@@ -956,12 +956,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Instantiate function signature and normalize it
         let late_refine_args = vec![];
-        let fn_sig = fn_sig
-            .instantiate(tcx, &generic_args, &early_refine_args)
-            .replace_bound_vars(
-                |_| rty::ReErased,
-                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
-            );
+        let fn_sig = if callee_def_id.is_some() {
+            fn_sig.instantiate(tcx, &generic_args, &early_refine_args)
+        } else {
+            // Calls through fn pointers: the signature has no early-bound params of its own, but it
+            // may mention (early) params of the enclosing item, which are in scope as-is.
+            fn_sig.skip_binder()
+        };
+        let fn_sig = fn_sig.replace_bound_vars(
+            |_| rty::ReErased,
+            |sort, mode, _| infcx.fresh_infer_var(sort, mode),
+        );
 
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))
@@ -1801,11 +1806,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer(_)) => {
                 let to = self.refine_default(to)?;
                 if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
+                    && let TyKind::Indexed(BaseTy::FnPtr(_), _) = to.kind()
+                    && infcx.genv.refinement_generics_of(*def_id)?.count() == 0
+                {
+                    // Without (early) refinement params, the fn's signature can be used as the
+                    // (precise) signature of the fn pointer; it is checked where the pointer is used.
+                    let sig = infcx
+                        .genv
+                        .fn_sig(*def_id)?
+                        .instantiate(infcx.genv.tcx(), args, &[]);
+                    Ty::indexed(BaseTy::FnPtr(sig), rty::Expr::unit())
+                } else if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()
                 {
-                    let current_did = infcx.def_id;
-                    let sub_sig =
-                        SubFn::Poly(current_did, infcx.genv.fn_sig(*def_id)?, args.clone());
+                    let sub_sig = SubFn::Poly(*def_id, infcx.genv.fn_sig(*def_id)?, args.clone());
                     // TODO:CLOSURE:2 TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
                     check_fn_subtyping(infcx, sub_sig, super_sig, stmt_span)?;
                     to

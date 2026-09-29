@@ -892,6 +892,49 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         }
     }
 
+    /// Subtyping for fn pointers: inputs are contravariant and the output is covariant. We only
+    /// support "simple" signatures, i.e., without refinement binders, requires or ensures (which
+    /// cannot be written in fn pointer types), otherwise we require the signatures to be equal.
+    fn fn_ptrs(
+        &mut self,
+        infcx: &mut InferCtxt,
+        sig_a: &rty::PolyFnSig,
+        sig_b: &rty::PolyFnSig,
+    ) -> InferResult {
+        fn is_simple(sig: &rty::PolyFnSig) -> bool {
+            let fn_sig = sig.skip_binder_ref();
+            let output = fn_sig.output();
+            sig.vars()
+                .iter()
+                .all(|var| matches!(var, rty::BoundVariableKind::Region(_)))
+                && fn_sig.requires().is_empty()
+                && output.vars().is_empty()
+                && output.skip_binder_ref().ensures.is_empty()
+        }
+        if sig_a == sig_b {
+            return Ok(());
+        }
+        if !is_simple(sig_a) || !is_simple(sig_b) {
+            tracked_span_assert_eq!(sig_a.erase_regions(), sig_b.erase_regions());
+            return Ok(());
+        }
+        let erase = |sig: &rty::PolyFnSig| {
+            sig.replace_bound_vars(|_| rty::ReErased, |_, _, _| bug!("unexpected refine var"))
+        };
+        let sig_a = erase(sig_a);
+        let sig_b = erase(sig_b);
+        tracked_span_dbg_assert_eq!(sig_a.inputs().len(), sig_b.inputs().len());
+
+        // `b` must not panic more often than `a`
+        infcx.check_pred(Expr::implies(sig_b.no_panic(), sig_a.no_panic()), self.tag());
+        for (input_a, input_b) in iter::zip(sig_a.inputs(), sig_b.inputs()) {
+            self.tys(infcx, input_b, input_a)?;
+        }
+        let output_a = sig_a.output().skip_binder();
+        let output_b = sig_b.output().skip_binder();
+        self.tys(infcx, &output_a.ret, &output_b.ret)
+    }
+
     fn btys(&mut self, infcx: &mut InferCtxt, a: &BaseTy, b: &BaseTy) -> InferResult {
         // infcx.push_trace(TypeTrace::btys(a, b));
 
@@ -1046,10 +1089,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 }
                 Ok(())
             }
-            (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) => {
-                tracked_span_assert_eq!(sig_a.erase_regions(), sig_b.erase_regions());
-                Ok(())
-            }
+            (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) => self.fn_ptrs(infcx, sig_a, sig_b),
             (BaseTy::Never, BaseTy::Never) => Ok(()),
             (
                 BaseTy::Coroutine(did1, resume_ty_a, tys_a, _),

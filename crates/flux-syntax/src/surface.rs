@@ -493,9 +493,18 @@ pub enum TyKind {
     Constr(Expr, Box<Ty>),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ConstArg),
+    /// A function pointer type, e.g., `fn(i32) -> i32{v: v > 0}`
+    BareFn(Box<BareFnTy>),
     /// The `NodeId` is used to resolve the type to a corresponding `OpaqueTy`
     ImplTrait(NodeId, GenericBounds),
     Hole,
+}
+
+#[derive(Debug)]
+pub struct BareFnTy {
+    pub inputs: Vec<Ty>,
+    pub output: FnRetTy,
+    pub span: Span,
 }
 
 impl Ty {
@@ -510,6 +519,7 @@ impl Ty {
                     TyKind::Tuple(_)
                     | TyKind::Ref(..)
                     | TyKind::Array(..)
+                    | TyKind::BareFn(..)
                     | TyKind::ImplTrait(..)
                     | TyKind::Hole
                     | TyKind::Base(_) => {

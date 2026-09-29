@@ -266,7 +266,9 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                     surface::visit::walk_ty(this, ty);
                 });
             }
-            surface::TyKind::Array(..) => {
+            // Implicit params (`@n`, `#n`) inside a fn pointer type are not supported:
+            // the `Misc` scope makes them illegal, while still resolving outer names.
+            surface::TyKind::Array(..) | surface::TyKind::BareFn(..) => {
                 self.with_scope(RibKind::Misc, |this| {
                     surface::visit::walk_ty(this, ty);
                 });

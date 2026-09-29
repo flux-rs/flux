@@ -1276,20 +1276,24 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 Ok(rty::Ty::mk_ref(region, self.conv_ty(env, ty, name)?, *mutbl))
             }
             fhir::TyKind::BareFn(bare_fn) => {
-                let mut env = Env::empty();
+                // We push a layer on the current `env` (instead of starting from an empty one) so
+                // that refinements in the signature can mention refinement params in scope, e.g.,
+                // `fn(x: usize, f: fn(usize) -> usize{v: v <= x})`
                 env.push_layer(Layer::list(
                     self.results(),
                     bare_fn.generic_params.len() as u32,
                     &[],
                 ));
                 let fn_sig = self.conv_fn_decl(
-                    &mut env,
+                    env,
                     bare_fn.safety,
                     bare_fn.abi,
                     bare_fn.decl,
                     None,
                     Expr::ff(),
-                )?;
+                );
+                env.pop_layer();
+                let fn_sig = fn_sig?;
                 let vars = bare_fn
                     .generic_params
                     .iter()
