@@ -2259,7 +2259,7 @@ impl Mode for ShapeMode {
         dbg::shape_goto_enter!(target, env, target_bb_env);
 
         let modified = match bb_envs.entry(ck.checker_id).or_default().entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(env, span, &ck.default_refiner),
+            Entry::Occupied(mut entry) => entry.get_mut().join(env, span),
             Entry::Vacant(entry) => {
                 let scope = marker_at_dominator(ck.body, &ck.markers, target)
                     .scope()
