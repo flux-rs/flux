@@ -1119,7 +1119,7 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
         let inputs = parens(cx, Comma, parse_type)?;
         let output = parse_fn_ret(cx)?;
         let span = cx.mk_span(lo, cx.hi());
-        TyKind::BareFn(Box::new(BareFnTy { inputs, output, span }))
+        TyKind::BareFn(Box::new(BareFnTy { inputs, output, node_id: cx.next_node_id(), span }))
     } else if lookahead.peek(NonReserved) {
         // ⟨path⟩ ...
         let path = parse_path(cx)?;

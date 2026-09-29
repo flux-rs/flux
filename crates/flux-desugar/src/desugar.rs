@@ -1371,7 +1371,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let decl =
             fhir::FnDecl { requires: &[], inputs, output, span: bare_fn.span, lifted: false };
         // TODO: support `unsafe` and `extern` fn pointers
+        let params = self
+            .genv()
+            .alloc_slice_fill_iter(self.implicit_params_to_params(bare_fn.node_id));
         fhir::BareFnTy {
+            params,
             safety: hir::Safety::Safe,
             abi: rustc_abi::ExternAbi::Rust,
             generic_params: &[],

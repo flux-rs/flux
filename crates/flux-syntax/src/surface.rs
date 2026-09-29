@@ -502,8 +502,10 @@ pub enum TyKind {
 
 #[derive(Debug)]
 pub struct BareFnTy {
+    /// example `&T[@n]`. `@` binders in the inputs are bound by the fn pointer type itself
     pub inputs: Vec<Ty>,
     pub output: FnRetTy,
+    pub node_id: NodeId,
     pub span: Span,
 }
 

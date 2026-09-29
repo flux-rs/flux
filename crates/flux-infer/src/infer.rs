@@ -86,11 +86,21 @@ pub enum ConstrReason {
     Other,
 }
 
+/// Checks subtyping between two fn pointer signatures, i.e., `sig_a <: sig_b`. Fn subtyping is
+/// implemented in `flux-refineck`, which registers it with [`InferCtxtRootBuilder::with_fn_ptr_subtyping`].
+pub type FnPtrSubtyping = for<'infcx, 'genv, 'tcx> fn(
+    &mut InferCtxt<'infcx, 'genv, 'tcx>,
+    &rty::PolyFnSig,
+    &rty::PolyFnSig,
+    Span,
+) -> InferResult;
+
 pub struct InferCtxtRoot<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     inner: RefCell<InferCtxtInner>,
     refine_tree: RefineTree,
     opts: InferOpts,
+    fn_ptr_subtyping: Option<FnPtrSubtyping>,
 }
 
 pub struct InferCtxtRootBuilder<'a, 'genv, 'tcx> {
@@ -99,6 +109,7 @@ pub struct InferCtxtRootBuilder<'a, 'genv, 'tcx> {
     params: Vec<(Var, Sort)>,
     infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
     dummy_kvars: bool,
+    fn_ptr_subtyping: Option<FnPtrSubtyping>,
 }
 
 #[extension(pub trait GlobalEnvExt<'genv, 'tcx>)]
@@ -108,11 +119,23 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         opts: InferOpts,
     ) -> InferCtxtRootBuilder<'a, 'genv, 'tcx> {
-        InferCtxtRootBuilder { genv: self, infcx, params: vec![], opts, dummy_kvars: false }
+        InferCtxtRootBuilder {
+            genv: self,
+            infcx,
+            params: vec![],
+            opts,
+            dummy_kvars: false,
+            fn_ptr_subtyping: None,
+        }
     }
 }
 
 impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
+    pub fn with_fn_ptr_subtyping(mut self, fn_ptr_subtyping: FnPtrSubtyping) -> Self {
+        self.fn_ptr_subtyping = Some(fn_ptr_subtyping);
+        self
+    }
+
     pub fn with_dummy_kvars(mut self) -> Self {
         self.dummy_kvars = true;
         self
@@ -176,6 +199,7 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
         Ok(InferCtxtRoot {
             genv: self.genv,
             inner: RefCell::new(InferCtxtInner::new(self.dummy_kvars)),
+            fn_ptr_subtyping: self.fn_ptr_subtyping,
             refine_tree: RefineTree::new(self.params),
             opts: self.opts,
         })
@@ -196,6 +220,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             inner: &self.inner,
             check_overflow: self.opts.check_overflow,
             allow_raw_deref: self.opts.allow_raw_deref,
+            fn_ptr_subtyping: self.fn_ptr_subtyping,
         }
     }
 
@@ -306,6 +331,7 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub allow_raw_deref: flux_config::RawDerefMode,
     cursor: Cursor<'infcx>,
     inner: &'infcx RefCell<InferCtxtInner>,
+    fn_ptr_subtyping: Option<FnPtrSubtyping>,
 }
 
 struct InferCtxtInner {
@@ -892,47 +918,23 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         }
     }
 
-    /// Subtyping for fn pointers: inputs are contravariant and the output is covariant. We only
-    /// support "simple" signatures, i.e., without refinement binders, requires or ensures (which
-    /// cannot be written in fn pointer types), otherwise we require the signatures to be equal.
+    /// Subtyping for fn pointers is delegated to the (registered) [`FnPtrSubtyping`] check. Without
+    /// it, we require the signatures to be equal (modulo regions).
     fn fn_ptrs(
         &mut self,
         infcx: &mut InferCtxt,
         sig_a: &rty::PolyFnSig,
         sig_b: &rty::PolyFnSig,
     ) -> InferResult {
-        fn is_simple(sig: &rty::PolyFnSig) -> bool {
-            let fn_sig = sig.skip_binder_ref();
-            let output = fn_sig.output();
-            sig.vars()
-                .iter()
-                .all(|var| matches!(var, rty::BoundVariableKind::Region(_)))
-                && fn_sig.requires().is_empty()
-                && output.vars().is_empty()
-                && output.skip_binder_ref().ensures.is_empty()
-        }
         if sig_a == sig_b {
             return Ok(());
         }
-        if !is_simple(sig_a) || !is_simple(sig_b) {
+        if let Some(fn_ptr_subtyping) = infcx.fn_ptr_subtyping {
+            fn_ptr_subtyping(infcx, sig_a, sig_b, self.span)
+        } else {
             tracked_span_assert_eq!(sig_a.erase_regions(), sig_b.erase_regions());
-            return Ok(());
+            Ok(())
         }
-        let erase = |sig: &rty::PolyFnSig| {
-            sig.replace_bound_vars(|_| rty::ReErased, |_, _, _| bug!("unexpected refine var"))
-        };
-        let sig_a = erase(sig_a);
-        let sig_b = erase(sig_b);
-        tracked_span_dbg_assert_eq!(sig_a.inputs().len(), sig_b.inputs().len());
-
-        // `b` must not panic more often than `a`
-        infcx.check_pred(Expr::implies(sig_b.no_panic(), sig_a.no_panic()), self.tag());
-        for (input_a, input_b) in iter::zip(sig_a.inputs(), sig_b.inputs()) {
-            self.tys(infcx, input_b, input_a)?;
-        }
-        let output_a = sig_a.output().skip_binder();
-        let output_b = sig_b.output().skip_binder();
-        self.tys(infcx, &output_a.ret, &output_b.ret)
     }
 
     fn btys(&mut self, infcx: &mut InferCtxt, a: &BaseTy, b: &BaseTy) -> InferResult {

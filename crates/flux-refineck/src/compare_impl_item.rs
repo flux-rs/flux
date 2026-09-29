@@ -46,6 +46,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
         .build(TypingMode::non_body_analysis());
     let mut root_ctxt = genv
         .infcx_root(&rustc_infcx, genv.infer_opts(impl_id.local_id()))
+        .with_fn_ptr_subtyping(crate::checker::check_fn_ptr_subtyping)
         .with_const_generics(impl_id.resolved_id())?
         .build()?;
     let mut infcx = root_ctxt.infcx(impl_id.resolved_id(), &rustc_infcx);

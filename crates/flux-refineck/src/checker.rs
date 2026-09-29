@@ -188,6 +188,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
             // In shape mode we don't care about kvars
             let mut root_ctxt = try_query(|| {
                 genv.infcx_root(&body.infcx, opts)
+                    .with_fn_ptr_subtyping(check_fn_ptr_subtyping)
                     .with_dummy_kvars()
                     .identity_for_item(def_id)?
                     .build()
@@ -220,6 +221,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
         let body = genv.mir(local_id).with_span(span)?;
         let mut root_ctxt = try_query(|| {
             genv.infcx_root(&body.infcx, opts)
+                .with_fn_ptr_subtyping(check_fn_ptr_subtyping)
                 .identity_for_item(def_id)?
                 .build()
         })
@@ -268,6 +270,46 @@ impl SubFn {
 ///  fn g(x1:T1,...,xn:Tn) -> T {
 ///      f(x1,...,xn)
 ///  }
+/// Returns the signature of the fn item `def_id` (instantiated with `args`) as the signature of a
+/// fn pointer. The early refinement params of the fn become late-bound params of the fn pointer, e.g.,
+/// `fn(&Handle[@h]) -> Handle[h]` becomes `for<h> fn(&Handle[h]) -> Handle[h]`. Returns `None` for
+/// fns that inherit refinement params from a parent (e.g. an `impl` with a refined self type).
+fn fn_def_as_fn_ptr_sig(
+    genv: GlobalEnv,
+    def_id: DefId,
+    args: &[GenericArg],
+) -> QueryResult<Option<rty::PolyFnSig>> {
+    let tcx = genv.tcx();
+    let generics = genv.refinement_generics_of(def_id)?;
+    if generics.parent_count() != 0 {
+        return Ok(None);
+    }
+    let poly_sig = genv.fn_sig(def_id)?.skip_binder();
+    let mut vars = poly_sig.vars().to_vec();
+    let mut refine_args = vec![];
+    for i in 0..generics.own_count() {
+        let param = generics.own_param_at(i).instantiate(tcx, args, &[]);
+        let kind = rty::BoundReftKind::Named(param.name);
+        let var = rty::BoundVar::from_usize(vars.len());
+        refine_args.push(Expr::bvar(rty::INNERMOST, var, kind));
+        vars.push(rty::BoundVariableKind::Refine(param.sort, param.mode, kind));
+    }
+    // We instantiate the *inner* sig so the params refer to the fn pointer's binder (at `INNERMOST`)
+    let fn_sig = EarlyBinder(poly_sig.skip_binder()).instantiate(tcx, args, &refine_args);
+    Ok(Some(Binder::bind_with_vars(fn_sig, rty::List::from_vec(vars))))
+}
+
+/// Subtyping between fn pointer signatures (`sub_sig <: super_sig`), registered with the
+/// [`InferCtxtRoot`] so it can be used when relating `BaseTy::FnPtr` types.
+pub(crate) fn check_fn_ptr_subtyping(
+    infcx: &mut InferCtxt,
+    sub_sig: &rty::PolyFnSig,
+    super_sig: &rty::PolyFnSig,
+    span: Span,
+) -> InferResult {
+    check_fn_subtyping(infcx, SubFn::Mono(sub_sig.clone()), super_sig, span)
+}
+
 fn check_fn_subtyping(
     infcx: &mut InferCtxt,
     sub_sig: SubFn,
@@ -394,6 +436,7 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
 
     let mut root_ctxt = genv
         .infcx_root(&rustc_infcx, opts)
+        .with_fn_ptr_subtyping(check_fn_ptr_subtyping)
         .with_const_generics(impl_id)?
         .with_refinement_generics(trait_method_id, &trait_method_args)?
         .build()?;
@@ -1807,14 +1850,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let to = self.refine_default(to)?;
                 if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(_), _) = to.kind()
-                    && infcx.genv.refinement_generics_of(*def_id)?.count() == 0
+                    && let Some(sig) = fn_def_as_fn_ptr_sig(infcx.genv, *def_id, args)?
                 {
-                    // Without (early) refinement params, the fn's signature can be used as the
-                    // (precise) signature of the fn pointer; it is checked where the pointer is used.
-                    let sig = infcx
-                        .genv
-                        .fn_sig(*def_id)?
-                        .instantiate(infcx.genv.tcx(), args, &[]);
+                    // Use the fn's (precise) signature as the signature of the fn pointer; it is
+                    // checked where the pointer is used.
                     Ty::indexed(BaseTy::FnPtr(sig), rty::Expr::unit())
                 } else if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()

@@ -1278,11 +1278,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::TyKind::BareFn(bare_fn) => {
                 // We push a layer on the current `env` (instead of starting from an empty one) so
                 // that refinements in the signature can mention refinement params in scope, e.g.,
-                // `fn(x: usize, f: fn(usize) -> usize{v: v <= x})`
+                // `fn(x: usize, f: fn(usize) -> usize{v: v <= x})`. The layer binds the fn pointer's
+                // own refinement params, e.g., `n` in `fn(i32[@n]) -> i32[n]`.
                 env.push_layer(Layer::list(
                     self.results(),
                     bare_fn.generic_params.len() as u32,
-                    &[],
+                    bare_fn.params,
                 ));
                 let fn_sig = self.conv_fn_decl(
                     env,
@@ -1292,12 +1293,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     None,
                     Expr::ff(),
                 );
-                env.pop_layer();
+                let reft_vars = env.pop_layer().into_bound_vars(self.genv())?;
                 let fn_sig = fn_sig?;
                 let vars = bare_fn
                     .generic_params
                     .iter()
                     .map(|param| self.param_as_bound_var(param))
+                    .chain(reft_vars.iter().cloned().map(Ok))
                     .try_collect()?;
                 let poly_fn_sig = rty::Binder::bind_with_vars(fn_sig, vars);
                 Ok(rty::BaseTy::FnPtr(poly_fn_sig).to_ty())

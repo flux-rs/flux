@@ -62,6 +62,7 @@ fn check_invariant(
 
     let mut infcx_root = try_query(|| {
         genv.infcx_root(&region_infercx, opts)
+            .with_fn_ptr_subtyping(crate::checker::check_fn_ptr_subtyping)
             .identity_for_item(resolved_id)?
             .build()
     })

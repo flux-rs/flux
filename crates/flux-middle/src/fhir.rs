@@ -597,6 +597,8 @@ pub enum TyKind<'fhir> {
 }
 
 pub struct BareFnTy<'fhir> {
+    /// Refinement params bound by the fn pointer type, e.g., `n` in `fn(i32[@n]) -> i32[n]`
+    pub params: &'fhir [RefineParam<'fhir>],
     pub safety: Safety,
     pub abi: rustc_abi::ExternAbi,
     pub generic_params: &'fhir [GenericParam<'fhir>],

@@ -1036,6 +1036,8 @@ pub(crate) enum RibKind {
     /// The input position of an `Fn`-trait bound (e.g. the `T` in `FnMut(T) -> S`). `@` binders are
     /// legal here.
     FnTraitInput,
+    /// The inputs of a fn pointer type (e.g. the `T` in `fn(T) -> S`). `@` binders are legal here.
+    FnPtrInput,
 }
 
 /// The value stored for each binding in a [`Rib`]. Lookups and clash detection are keyed by the
