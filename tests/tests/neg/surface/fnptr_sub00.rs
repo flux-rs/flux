@@ -60,3 +60,8 @@ pub fn join_requires_bad(b: bool) -> usize {
     let f: fn(usize) -> usize = if b { dec } else { clamp10 }; //~ ERROR refinement type
     f(0)
 }
+
+pub fn join_requires_bad_swapped(b: bool) -> usize {
+    let f: fn(usize) -> usize = if b { clamp10 } else { dec }; //~ ERROR refinement type
+    f(0)
+}

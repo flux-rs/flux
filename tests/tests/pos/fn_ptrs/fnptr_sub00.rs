@@ -66,6 +66,32 @@ pub fn join_requires(b: bool) -> usize {
     f(3)
 }
 
+// Same, with the branches swapped: the joined signature must not depend on which one comes first
+pub fn join_requires_swapped(b: bool) -> usize {
+    let f: fn(usize) -> usize = if b { clamp10 } else { dec };
+    f(3)
+}
+
+#[flux::no_panic]
+fn no_panic_id(x: usize) -> usize {
+    x
+}
+
+fn may_panic_id(x: usize) -> usize {
+    x
+}
+
+// The joined signature must not claim `no_panic` when only one of the branches is
+pub fn join_no_panic(b: bool) -> usize {
+    let f: fn(usize) -> usize = if b { no_panic_id } else { may_panic_id };
+    f(3)
+}
+
+pub fn join_no_panic_swapped(b: bool) -> usize {
+    let f: fn(usize) -> usize = if b { may_panic_id } else { no_panic_id };
+    f(3)
+}
+
 #[flux::spec(fn(n: usize) -> usize{v: v <= 10})]
 pub fn join_loop(n: usize) -> usize {
     let mut f: fn(usize) -> usize = clamp10;
