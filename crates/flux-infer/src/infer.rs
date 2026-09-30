@@ -407,16 +407,15 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     fn enter_exists<T, U>(
         &mut self,
         t: &Binder<T>,
-        f: impl FnOnce(&mut InferCtxt<'_, 'genv, 'tcx>, T) -> U,
-    ) -> U
+        f: impl FnOnce(&mut InferCtxt<'_, 'genv, 'tcx>, T) -> InferResult<U>,
+    ) -> InferResult<U>
     where
         T: TypeFoldable,
     {
         self.ensure_resolved_evars(|infcx| {
             let t = t.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-            Ok(f(infcx, t))
+            f(infcx, t)
         })
-        .unwrap()
     }
 
     /// Used in conjunction with [`InferCtxt::pop_evar_scope`] to ensure evars are solved at the end
