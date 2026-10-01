@@ -15,7 +15,7 @@ use flux_middle::{
     PanicReason, PanicSpec,
     global_env::GlobalEnv,
     pretty::PrettyCx,
-    queries::{QueryResult, try_query},
+    queries::{QueryErr, QueryResult, try_query},
     query_bug,
     rty::{
         self, AdtDef, AliasReft, BaseTy, BinOp, Binder, Bool, Clause, Constant,
@@ -252,27 +252,119 @@ fn fn_def_as_fn_ptr_sig(
     if generics.parent_count() != 0 {
         return Ok(None);
     }
-    let poly_sig = genv.fn_sig(def_id)?.skip_binder();
-    if poly_sig
-        .skip_binder_ref()
+}
+
+/// The function `check_fn_subtyping` does a function subtyping check between
+/// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
+/// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
+/// as akin to the code
+///
+///   T_f := (S1,...,Sn) -> S
+///   T_g := (T1,...,Tn) -> T
+///   T_f <: T_g
+///
+///  fn g(x1:T1,...,xn:Tn) -> T {
+///      f(x1,...,xn)
+///  }
+fn check_fn_subtyping(
+    infcx: &mut InferCtxt,
+    sub_sig: SubFn,
+    super_sig: &rty::PolyFnSig,
+    span: Span,
+) -> InferResult {
+    let mut infcx = infcx.branch();
+    let mut infcx = infcx.at(span);
+    let tcx = infcx.genv.tcx();
+
+    let super_sig = super_sig
+        .try_replace_bound_vars(
+            |_| Ok::<_, QueryErr>(rty::ReErased),
+            |sort, _, kind| {
+                let sort =
+                    sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
+                Ok(Expr::fvar(infcx.define_bound_reft_var(&sort, kind)))
+            },
+        )?
+        .deeply_normalize(&mut infcx)?;
+
+    // 1. Unpack `T_g` input types
+    let actuals = super_sig
         .inputs()
         .iter()
-        .any(|ty| matches!(ty.kind(), TyKind::StrgRef(..)))
-    {
-        return Ok(None);
-    }
-    let mut vars = poly_sig.vars().to_vec();
-    let mut refine_args = vec![];
-    for i in 0..generics.own_count() {
-        let param = generics.own_param_at(i).instantiate(tcx, args, &[]);
-        let kind = rty::BoundReftKind::Named(param.name);
-        let var = rty::BoundVar::from_usize(vars.len());
-        refine_args.push(Expr::bvar(rty::INNERMOST, var, kind));
-        vars.push(rty::BoundVariableKind::Refine(param.sort, param.mode, kind));
-    }
-    // We instantiate the *inner* sig so the params refer to the fn pointer's binder (at `INNERMOST`)
-    let fn_sig = EarlyBinder(poly_sig.skip_binder()).instantiate(tcx, args, &refine_args);
-    Ok(Some(Binder::bind_with_vars(fn_sig, rty::List::from_vec(vars))))
+        .map(|ty| infcx.unpack(ty))
+        .collect_vec();
+
+    let mut env = TypeEnv::empty();
+    let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals)?;
+    let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
+
+    let output = infcx.ensure_resolved_evars(|infcx| {
+        // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
+        // in subtyping_mono, skip next two steps...
+        let sub_sig = match sub_sig {
+            SubFn::Poly(def_id, early_sig, sub_args) => {
+                let refine_args = infcx.instantiate_refine_args(def_id, &sub_args)?;
+                early_sig.instantiate(tcx, &sub_args, &refine_args)
+            }
+            SubFn::Mono(sig) => sig,
+        };
+        // ... jump right here.
+        let sub_sig = sub_sig
+            .try_replace_bound_vars(
+                |_| Ok::<_, QueryErr>(rty::ReErased),
+                |sort, mode, _| {
+                    let sort =
+                        sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
+                    Ok(infcx.fresh_infer_var(&sort, mode))
+                },
+            )?
+            .deeply_normalize(infcx)?;
+
+        // 3. INPUT subtyping (g-input <: f-input)
+        for requires in super_sig.requires() {
+            infcx.assume_pred(requires);
+        }
+        infcx.check_pred(
+            Expr::implies(super_sig.no_panic(), sub_sig.no_panic()),
+            ConstrReason::Subtype(SubtypeReason::Input),
+        );
+        for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
+            let reason = ConstrReason::Subtype(SubtypeReason::Input);
+            infcx.subtyping_with_env(&mut env, &actual, formal, reason)?;
+        }
+        // we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in
+        // the actuals
+        for requires in sub_sig.requires() {
+            let reason = ConstrReason::Subtype(SubtypeReason::Requires);
+            infcx.check_pred(requires, reason);
+        }
+
+        Ok(sub_sig.output())
+    })?;
+
+    let output = infcx
+        .fully_resolve_evars(&output)
+        .replace_bound_refts_with(|sort, _, kind| {
+            Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+        });
+
+    // 4. OUTPUT subtyping (f_out <: g_out)
+    infcx.ensure_resolved_evars(|infcx| {
+        let super_output = super_sig
+            .output()
+            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+        let reason = ConstrReason::Subtype(SubtypeReason::Output);
+        infcx.subtyping(&output.ret, &super_output.ret, reason)?;
+
+        // 6. Update state with Output "ensures" and check super ensures
+        env.assume_ensures(infcx, &output.ensures, span);
+        fold_local_ptrs(infcx, &mut env, span)?;
+        env.check_ensures(
+            infcx,
+            &super_output.ensures,
+            ConstrReason::Subtype(SubtypeReason::Ensures),
+        )
+    })
 }
 
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
@@ -408,13 +500,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let span = body.span();
 
         let fn_sig = poly_sig
-            .replace_bound_vars(
-                |_| rty::ReErased,
+            .try_replace_bound_vars(
+                |_| Ok::<_, QueryErr>(rty::ReErased),
                 |sort, _, kind| {
-                    let name = infcx.define_bound_reft_var(sort, kind);
-                    Expr::fvar(name)
+                    let sort =
+                        sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
+                    let name = infcx.define_bound_reft_var(&sort, kind);
+                    Ok(Expr::fvar(name))
                 },
             )
+            .with_span(span)?
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
         let mut env = TypeEnv::new(infcx, body, &fn_sig);
@@ -834,6 +929,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Instantiate function signature and normalize it
         let late_refine_args = vec![];
+<<<<<<< HEAD
         let fn_sig = if callee_def_id.is_some() {
             fn_sig.instantiate(tcx, &generic_args, &early_refine_args)
         } else {
@@ -845,6 +941,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             |_| rty::ReErased,
             |sort, mode, _| infcx.fresh_infer_var(sort, mode),
         );
+=======
+        let fn_sig = fn_sig
+            .instantiate(tcx, &generic_args, &early_refine_args)
+            .try_replace_bound_vars(
+                |_| Ok::<_, QueryErr>(rty::ReErased),
+                |sort, mode, _| {
+                    let sort =
+                        sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
+                    Ok(infcx.fresh_infer_var(&sort, mode))
+                },
+            )
+            .with_span(span)?;
+>>>>>>> main
 
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))
