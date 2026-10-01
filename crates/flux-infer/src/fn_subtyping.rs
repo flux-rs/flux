@@ -6,9 +6,12 @@
 
 use std::iter;
 
-use flux_middle::rty::{
-    self, BaseTy, EarlyBinder, Expr, Mutability, Path, PolyFnSig, PtrKind, Ty, TyKind,
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+use flux_middle::{
+    queries::QueryErr,
+    rty::{
+        self, BaseTy, EarlyBinder, Expr, Mutability, Path, PolyFnSig, PtrKind, Ty, TyKind,
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+    },
 };
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::DefId;
@@ -64,10 +67,14 @@ pub fn check_fn_subtyping(
     let tcx = infcx.genv.tcx();
 
     let super_sig = super_sig
-        .replace_bound_vars(
-            |_| rty::ReErased,
-            |sort, _, kind| Expr::fvar(infcx.define_bound_reft_var(sort, kind)),
-        )
+        .try_replace_bound_vars(
+            |_| Ok::<_, QueryErr>(rty::ReErased),
+            |sort, _, kind| {
+                let sort =
+                    sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
+                Ok(Expr::fvar(infcx.define_bound_reft_var(&sort, kind)))
+            },
+        )?
         .deeply_normalize(&mut infcx)?;
 
     // 1. Unpack `T_g` input types
@@ -92,10 +99,14 @@ pub fn check_fn_subtyping(
         };
         // ... jump right here.
         let sub_sig = sub_sig
-            .replace_bound_vars(
-                |_| rty::ReErased,
-                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
-            )
+            .try_replace_bound_vars(
+                |_| Ok::<_, QueryErr>(rty::ReErased),
+                |sort, mode, _| {
+                    let sort =
+                        sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
+                    Ok(infcx.fresh_infer_var(&sort, mode))
+                },
+            )?
             .deeply_normalize(infcx)?;
 
         // 3. INPUT subtyping (g-input <: f-input)

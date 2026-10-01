@@ -237,134 +237,38 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
 }
 
 /// Returns the signature of the fn item `def_id` (instantiated with `args`) as the signature of a
-/// fn pointer. The early refinement params of the fn become late-bound params of the fn pointer, e.g.,
-/// `fn(&Handle[@h]) -> Handle[h]` becomes `for<h> fn(&Handle[h]) -> Handle[h]`.
+/// fn pointer. This is only possible when all the refinement params of the fn are late-bound, i.e.,
+/// bound by the signature itself (e.g., `fn(&Handle[@h]) -> Handle[h]` is `for<h> fn(..)`).
 ///
-/// Returns `None` for fns that inherit refinement params from a parent (e.g. an `impl`), or that take
-/// strong references: fn pointer subtyping is checked without an environment for locations.
+/// Returns `None` (and the fn pointer gets the default refinement of its rust type) for fns
+/// - with clauses (including those of a parent, e.g. an `impl`), which are not checked when calling
+///   through a fn pointer;
+/// - with early-bound refinement params (own or from a parent), which cannot be instantiated when
+///   calling through a fn pointer;
+/// - that take strong references, as fn pointer subtyping is checked without an environment for
+///   locations.
 fn fn_def_as_fn_ptr_sig(
     genv: GlobalEnv,
     def_id: DefId,
     args: &[GenericArg],
 ) -> QueryResult<Option<PolyFnSig>> {
     let tcx = genv.tcx();
-    let generics = genv.refinement_generics_of(def_id)?;
-    if generics.parent_count() != 0 {
+    if all_predicates_of(tcx, def_id).next().is_some() {
         return Ok(None);
     }
-}
-
-/// The function `check_fn_subtyping` does a function subtyping check between
-/// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
-/// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
-/// as akin to the code
-///
-///   T_f := (S1,...,Sn) -> S
-///   T_g := (T1,...,Tn) -> T
-///   T_f <: T_g
-///
-///  fn g(x1:T1,...,xn:Tn) -> T {
-///      f(x1,...,xn)
-///  }
-fn check_fn_subtyping(
-    infcx: &mut InferCtxt,
-    sub_sig: SubFn,
-    super_sig: &rty::PolyFnSig,
-    span: Span,
-) -> InferResult {
-    let mut infcx = infcx.branch();
-    let mut infcx = infcx.at(span);
-    let tcx = infcx.genv.tcx();
-
-    let super_sig = super_sig
-        .try_replace_bound_vars(
-            |_| Ok::<_, QueryErr>(rty::ReErased),
-            |sort, _, kind| {
-                let sort =
-                    sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
-                Ok(Expr::fvar(infcx.define_bound_reft_var(&sort, kind)))
-            },
-        )?
-        .deeply_normalize(&mut infcx)?;
-
-    // 1. Unpack `T_g` input types
-    let actuals = super_sig
+    if genv.refinement_generics_of(def_id)?.count() > 0 {
+        return Ok(None);
+    }
+    let poly_sig = genv.fn_sig(def_id)?.instantiate(tcx, args, &[]);
+    if poly_sig
+        .skip_binder_ref()
         .inputs()
         .iter()
-        .map(|ty| infcx.unpack(ty))
-        .collect_vec();
-
-    let mut env = TypeEnv::empty();
-    let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals)?;
-    let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
-
-    let output = infcx.ensure_resolved_evars(|infcx| {
-        // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
-        // in subtyping_mono, skip next two steps...
-        let sub_sig = match sub_sig {
-            SubFn::Poly(def_id, early_sig, sub_args) => {
-                let refine_args = infcx.instantiate_refine_args(def_id, &sub_args)?;
-                early_sig.instantiate(tcx, &sub_args, &refine_args)
-            }
-            SubFn::Mono(sig) => sig,
-        };
-        // ... jump right here.
-        let sub_sig = sub_sig
-            .try_replace_bound_vars(
-                |_| Ok::<_, QueryErr>(rty::ReErased),
-                |sort, mode, _| {
-                    let sort =
-                        sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
-                    Ok(infcx.fresh_infer_var(&sort, mode))
-                },
-            )?
-            .deeply_normalize(infcx)?;
-
-        // 3. INPUT subtyping (g-input <: f-input)
-        for requires in super_sig.requires() {
-            infcx.assume_pred(requires);
-        }
-        infcx.check_pred(
-            Expr::implies(super_sig.no_panic(), sub_sig.no_panic()),
-            ConstrReason::Subtype(SubtypeReason::Input),
-        );
-        for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
-            let reason = ConstrReason::Subtype(SubtypeReason::Input);
-            infcx.subtyping_with_env(&mut env, &actual, formal, reason)?;
-        }
-        // we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in
-        // the actuals
-        for requires in sub_sig.requires() {
-            let reason = ConstrReason::Subtype(SubtypeReason::Requires);
-            infcx.check_pred(requires, reason);
-        }
-
-        Ok(sub_sig.output())
-    })?;
-
-    let output = infcx
-        .fully_resolve_evars(&output)
-        .replace_bound_refts_with(|sort, _, kind| {
-            Expr::fvar(infcx.define_bound_reft_var(sort, kind))
-        });
-
-    // 4. OUTPUT subtyping (f_out <: g_out)
-    infcx.ensure_resolved_evars(|infcx| {
-        let super_output = super_sig
-            .output()
-            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-        let reason = ConstrReason::Subtype(SubtypeReason::Output);
-        infcx.subtyping(&output.ret, &super_output.ret, reason)?;
-
-        // 6. Update state with Output "ensures" and check super ensures
-        env.assume_ensures(infcx, &output.ensures, span);
-        fold_local_ptrs(infcx, &mut env, span)?;
-        env.check_ensures(
-            infcx,
-            &super_output.ensures,
-            ConstrReason::Subtype(SubtypeReason::Ensures),
-        )
-    })
+        .any(|ty| matches!(ty.kind(), TyKind::StrgRef(..)))
+    {
+        return Ok(None);
+    }
+    Ok(Some(poly_sig))
 }
 
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
@@ -929,7 +833,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Instantiate function signature and normalize it
         let late_refine_args = vec![];
-<<<<<<< HEAD
         let fn_sig = if callee_def_id.is_some() {
             fn_sig.instantiate(tcx, &generic_args, &early_refine_args)
         } else {
@@ -937,13 +840,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             // may mention (early) params of the enclosing item, which are in scope as-is.
             fn_sig.skip_binder()
         };
-        let fn_sig = fn_sig.replace_bound_vars(
-            |_| rty::ReErased,
-            |sort, mode, _| infcx.fresh_infer_var(sort, mode),
-        );
-=======
         let fn_sig = fn_sig
-            .instantiate(tcx, &generic_args, &early_refine_args)
             .try_replace_bound_vars(
                 |_| Ok::<_, QueryErr>(rty::ReErased),
                 |sort, mode, _| {
@@ -953,7 +850,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 },
             )
             .with_span(span)?;
->>>>>>> main
 
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))
