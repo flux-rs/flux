@@ -594,56 +594,57 @@
 <a href=#594 id=594 data-nosnippet>594</a>            vis.visit_expr(e2);
 <a href=#595 id=595 data-nosnippet>595</a>        }
 <a href=#596 id=596 data-nosnippet>596</a>        ExprKind::UnaryOp(_op, e) =&gt; vis.visit_expr(e),
-<a href=#597 id=597 data-nosnippet>597</a>        ExprKind::App(_func, args) =&gt; {
-<a href=#598 id=598 data-nosnippet>598</a>            <span class="macro">walk_list!</span>(vis, visit_expr, args);
-<a href=#599 id=599 data-nosnippet>599</a>        }
-<a href=#600 id=600 data-nosnippet>600</a>        ExprKind::Alias(alias_reft, args) =&gt; {
-<a href=#601 id=601 data-nosnippet>601</a>            vis.visit_alias_reft(<span class="kw-2">&amp;</span>alias_reft);
-<a href=#602 id=602 data-nosnippet>602</a>            <span class="macro">walk_list!</span>(vis, visit_expr, args);
-<a href=#603 id=603 data-nosnippet>603</a>        }
-<a href=#604 id=604 data-nosnippet>604</a>        ExprKind::IfThenElse(e1, e2, e3) =&gt; {
-<a href=#605 id=605 data-nosnippet>605</a>            vis.visit_expr(e1);
-<a href=#606 id=606 data-nosnippet>606</a>            vis.visit_expr(e2);
-<a href=#607 id=607 data-nosnippet>607</a>            vis.visit_expr(e3);
-<a href=#608 id=608 data-nosnippet>608</a>        }
-<a href=#609 id=609 data-nosnippet>609</a>        ExprKind::Abs(refine_params, body) =&gt; {
-<a href=#610 id=610 data-nosnippet>610</a>            <span class="macro">walk_list!</span>(vis, visit_refine_param, refine_params);
-<a href=#611 id=611 data-nosnippet>611</a>            vis.visit_expr(body);
-<a href=#612 id=612 data-nosnippet>612</a>        }
-<a href=#613 id=613 data-nosnippet>613</a>        ExprKind::Record(exprs) | ExprKind::SetLiteral(exprs) | ExprKind::Tuple(exprs) =&gt; {
-<a href=#614 id=614 data-nosnippet>614</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
-<a href=#615 id=615 data-nosnippet>615</a>        }
-<a href=#616 id=616 data-nosnippet>616</a>        ExprKind::Constructor(path, exprs, spread) =&gt; {
-<a href=#617 id=617 data-nosnippet>617</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
-<a href=#618 id=618 data-nosnippet>618</a>                vis.visit_path_expr(<span class="kw-2">&amp;</span>path);
-<a href=#619 id=619 data-nosnippet>619</a>            }
-<a href=#620 id=620 data-nosnippet>620</a>            <span class="macro">walk_list!</span>(vis, visit_field_expr, exprs);
-<a href=#621 id=621 data-nosnippet>621</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = spread {
-<a href=#622 id=622 data-nosnippet>622</a>                vis.visit_expr(<span class="kw-2">&amp;</span>s.expr);
-<a href=#623 id=623 data-nosnippet>623</a>            }
-<a href=#624 id=624 data-nosnippet>624</a>        }
-<a href=#625 id=625 data-nosnippet>625</a>        ExprKind::Quant(<span class="kw">_</span>, param, dom, expr) =&gt; {
-<a href=#626 id=626 data-nosnippet>626</a>            vis.visit_domain(<span class="kw-2">&amp;</span>dom);
-<a href=#627 id=627 data-nosnippet>627</a>            vis.visit_refine_param(<span class="kw-2">&amp;</span>param);
-<a href=#628 id=628 data-nosnippet>628</a>            vis.visit_expr(expr);
-<a href=#629 id=629 data-nosnippet>629</a>        }
-<a href=#630 id=630 data-nosnippet>630</a>        ExprKind::Block(decls, body) =&gt; {
-<a href=#631 id=631 data-nosnippet>631</a>            <span class="kw">for </span>decl <span class="kw">in </span>decls {
-<a href=#632 id=632 data-nosnippet>632</a>                vis.visit_expr(<span class="kw-2">&amp;</span>decl.init);
-<a href=#633 id=633 data-nosnippet>633</a>                vis.visit_refine_param(<span class="kw-2">&amp;</span>decl.param);
-<a href=#634 id=634 data-nosnippet>634</a>            }
-<a href=#635 id=635 data-nosnippet>635</a>            vis.visit_expr(body);
-<a href=#636 id=636 data-nosnippet>636</a>        }
-<a href=#637 id=637 data-nosnippet>637</a>        ExprKind::Err(<span class="kw">_</span>) =&gt; {}
-<a href=#638 id=638 data-nosnippet>638</a>    }
-<a href=#639 id=639 data-nosnippet>639</a>}
-<a href=#640 id=640 data-nosnippet>640</a>
-<a href=#641 id=641 data-nosnippet>641</a><span class="kw">pub fn </span>walk_qpath_expr&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: QPathExpr&lt;<span class="lifetime">'v</span>&gt;) {
-<a href=#642 id=642 data-nosnippet>642</a>    <span class="kw">match </span>qpath {
-<a href=#643 id=643 data-nosnippet>643</a>        QPathExpr::Resolved(path, _param_kind) =&gt; {
-<a href=#644 id=644 data-nosnippet>644</a>            vis.visit_path_expr(<span class="kw-2">&amp;</span>path);
-<a href=#645 id=645 data-nosnippet>645</a>        }
-<a href=#646 id=646 data-nosnippet>646</a>        QPathExpr::TypeRelative(qself, _ident) =&gt; vis.visit_ty(qself),
-<a href=#647 id=647 data-nosnippet>647</a>    }
-<a href=#648 id=648 data-nosnippet>648</a>}
+<a href=#597 id=597 data-nosnippet>597</a>        ExprKind::App(func, args) =&gt; {
+<a href=#598 id=598 data-nosnippet>598</a>            vis.visit_path_expr(<span class="kw-2">&amp;</span>func);
+<a href=#599 id=599 data-nosnippet>599</a>            <span class="macro">walk_list!</span>(vis, visit_expr, args);
+<a href=#600 id=600 data-nosnippet>600</a>        }
+<a href=#601 id=601 data-nosnippet>601</a>        ExprKind::Alias(alias_reft, args) =&gt; {
+<a href=#602 id=602 data-nosnippet>602</a>            vis.visit_alias_reft(<span class="kw-2">&amp;</span>alias_reft);
+<a href=#603 id=603 data-nosnippet>603</a>            <span class="macro">walk_list!</span>(vis, visit_expr, args);
+<a href=#604 id=604 data-nosnippet>604</a>        }
+<a href=#605 id=605 data-nosnippet>605</a>        ExprKind::IfThenElse(e1, e2, e3) =&gt; {
+<a href=#606 id=606 data-nosnippet>606</a>            vis.visit_expr(e1);
+<a href=#607 id=607 data-nosnippet>607</a>            vis.visit_expr(e2);
+<a href=#608 id=608 data-nosnippet>608</a>            vis.visit_expr(e3);
+<a href=#609 id=609 data-nosnippet>609</a>        }
+<a href=#610 id=610 data-nosnippet>610</a>        ExprKind::Abs(refine_params, body) =&gt; {
+<a href=#611 id=611 data-nosnippet>611</a>            <span class="macro">walk_list!</span>(vis, visit_refine_param, refine_params);
+<a href=#612 id=612 data-nosnippet>612</a>            vis.visit_expr(body);
+<a href=#613 id=613 data-nosnippet>613</a>        }
+<a href=#614 id=614 data-nosnippet>614</a>        ExprKind::Record(exprs) | ExprKind::SetLiteral(exprs) | ExprKind::Tuple(exprs) =&gt; {
+<a href=#615 id=615 data-nosnippet>615</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
+<a href=#616 id=616 data-nosnippet>616</a>        }
+<a href=#617 id=617 data-nosnippet>617</a>        ExprKind::Constructor(path, exprs, spread) =&gt; {
+<a href=#618 id=618 data-nosnippet>618</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
+<a href=#619 id=619 data-nosnippet>619</a>                vis.visit_path_expr(<span class="kw-2">&amp;</span>path);
+<a href=#620 id=620 data-nosnippet>620</a>            }
+<a href=#621 id=621 data-nosnippet>621</a>            <span class="macro">walk_list!</span>(vis, visit_field_expr, exprs);
+<a href=#622 id=622 data-nosnippet>622</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = spread {
+<a href=#623 id=623 data-nosnippet>623</a>                vis.visit_expr(<span class="kw-2">&amp;</span>s.expr);
+<a href=#624 id=624 data-nosnippet>624</a>            }
+<a href=#625 id=625 data-nosnippet>625</a>        }
+<a href=#626 id=626 data-nosnippet>626</a>        ExprKind::Quant(<span class="kw">_</span>, param, dom, expr) =&gt; {
+<a href=#627 id=627 data-nosnippet>627</a>            vis.visit_domain(<span class="kw-2">&amp;</span>dom);
+<a href=#628 id=628 data-nosnippet>628</a>            vis.visit_refine_param(<span class="kw-2">&amp;</span>param);
+<a href=#629 id=629 data-nosnippet>629</a>            vis.visit_expr(expr);
+<a href=#630 id=630 data-nosnippet>630</a>        }
+<a href=#631 id=631 data-nosnippet>631</a>        ExprKind::Block(decls, body) =&gt; {
+<a href=#632 id=632 data-nosnippet>632</a>            <span class="kw">for </span>decl <span class="kw">in </span>decls {
+<a href=#633 id=633 data-nosnippet>633</a>                vis.visit_expr(<span class="kw-2">&amp;</span>decl.init);
+<a href=#634 id=634 data-nosnippet>634</a>                vis.visit_refine_param(<span class="kw-2">&amp;</span>decl.param);
+<a href=#635 id=635 data-nosnippet>635</a>            }
+<a href=#636 id=636 data-nosnippet>636</a>            vis.visit_expr(body);
+<a href=#637 id=637 data-nosnippet>637</a>        }
+<a href=#638 id=638 data-nosnippet>638</a>        ExprKind::Err(<span class="kw">_</span>) =&gt; {}
+<a href=#639 id=639 data-nosnippet>639</a>    }
+<a href=#640 id=640 data-nosnippet>640</a>}
+<a href=#641 id=641 data-nosnippet>641</a>
+<a href=#642 id=642 data-nosnippet>642</a><span class="kw">pub fn </span>walk_qpath_expr&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: QPathExpr&lt;<span class="lifetime">'v</span>&gt;) {
+<a href=#643 id=643 data-nosnippet>643</a>    <span class="kw">match </span>qpath {
+<a href=#644 id=644 data-nosnippet>644</a>        QPathExpr::Resolved(path, _param_kind) =&gt; {
+<a href=#645 id=645 data-nosnippet>645</a>            vis.visit_path_expr(<span class="kw-2">&amp;</span>path);
+<a href=#646 id=646 data-nosnippet>646</a>        }
+<a href=#647 id=647 data-nosnippet>647</a>        QPathExpr::TypeRelative(qself, _ident) =&gt; vis.visit_ty(qself),
+<a href=#648 id=648 data-nosnippet>648</a>    }
+<a href=#649 id=649 data-nosnippet>649</a>}
 </code></pre></div></section></main></body></html>
