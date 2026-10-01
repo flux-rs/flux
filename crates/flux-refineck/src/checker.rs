@@ -16,7 +16,7 @@ use flux_middle::{
     PanicReason, PanicSpec,
     global_env::GlobalEnv,
     pretty::PrettyCx,
-    queries::{QueryResult, try_query},
+    queries::{QueryErr, QueryResult, try_query},
     query_bug,
     rty::{
         self, AdtDef, AliasReft, BaseTy, BinOp, Binder, Bool, Clause, Constant,
@@ -279,10 +279,14 @@ fn check_fn_subtyping(
     let tcx = infcx.genv.tcx();
 
     let super_sig = super_sig
-        .replace_bound_vars(
-            |_| rty::ReErased,
-            |sort, _, kind| Expr::fvar(infcx.define_bound_reft_var(sort, kind)),
-        )
+        .try_replace_bound_vars(
+            |_| Ok::<_, QueryErr>(rty::ReErased),
+            |sort, _, kind| {
+                let sort =
+                    sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
+                Ok(Expr::fvar(infcx.define_bound_reft_var(&sort, kind)))
+            },
+        )?
         .deeply_normalize(&mut infcx)?;
 
     // 1. Unpack `T_g` input types
@@ -308,10 +312,14 @@ fn check_fn_subtyping(
         };
         // ... jump right here.
         let sub_sig = sub_sig
-            .replace_bound_vars(
-                |_| rty::ReErased,
-                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
-            )
+            .try_replace_bound_vars(
+                |_| Ok::<_, QueryErr>(rty::ReErased),
+                |sort, mode, _| {
+                    let sort =
+                        sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
+                    Ok(infcx.fresh_infer_var(&sort, mode))
+                },
+            )?
             .deeply_normalize(infcx)?;
 
         // 3. INPUT subtyping (g-input <: f-input)
@@ -530,13 +538,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let span = body.span();
 
         let fn_sig = poly_sig
-            .replace_bound_vars(
-                |_| rty::ReErased,
+            .try_replace_bound_vars(
+                |_| Ok::<_, QueryErr>(rty::ReErased),
                 |sort, _, kind| {
-                    let name = infcx.define_bound_reft_var(sort, kind);
-                    Expr::fvar(name)
+                    let sort =
+                        sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
+                    let name = infcx.define_bound_reft_var(&sort, kind);
+                    Ok(Expr::fvar(name))
                 },
             )
+            .with_span(span)?
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
         let mut env = TypeEnv::new(infcx, body, &fn_sig);
@@ -958,10 +969,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let late_refine_args = vec![];
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &early_refine_args)
-            .replace_bound_vars(
-                |_| rty::ReErased,
-                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
-            );
+            .try_replace_bound_vars(
+                |_| Ok::<_, QueryErr>(rty::ReErased),
+                |sort, mode, _| {
+                    let sort =
+                        sort.deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?;
+                    Ok(infcx.fresh_infer_var(&sort, mode))
+                },
+            )
+            .with_span(span)?;
 
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))

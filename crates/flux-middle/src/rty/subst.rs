@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, marker::PhantomData};
 
 use flux_common::{bug, tracked_span_bug};
 use rustc_type_ir::DebruijnIndex;
@@ -14,35 +14,40 @@ pub(super) struct BoundVarReplacer<D> {
 }
 
 pub trait BoundVarReplacerDelegate {
-    fn replace_expr(&mut self, var: BoundReft) -> Expr;
-    fn replace_region(&mut self, br: BoundRegion) -> Region;
+    type Error = !;
+
+    fn replace_expr(&mut self, var: BoundReft) -> Result<Expr, Self::Error>;
+    fn replace_region(&mut self, br: BoundRegion) -> Result<Region, Self::Error>;
 }
 
-pub(crate) struct FnMutDelegate<F1, F2> {
+pub(crate) struct FnMutDelegate<F1, F2, E = !> {
     pub exprs: F1,
     pub regions: F2,
+    _error: PhantomData<E>,
 }
 
-impl<F1, F2> FnMutDelegate<F1, F2>
+impl<F1, F2, E> FnMutDelegate<F1, F2, E>
 where
-    F1: FnMut(BoundReft) -> Expr,
-    F2: FnMut(BoundRegion) -> Region,
+    F1: FnMut(BoundReft) -> Result<Expr, E>,
+    F2: FnMut(BoundRegion) -> Result<Region, E>,
 {
     pub(crate) fn new(exprs: F1, regions: F2) -> Self {
-        Self { exprs, regions }
+        Self { exprs, regions, _error: PhantomData }
     }
 }
 
-impl<F1, F2> BoundVarReplacerDelegate for FnMutDelegate<F1, F2>
+impl<F1, F2, E> BoundVarReplacerDelegate for FnMutDelegate<F1, F2, E>
 where
-    F1: FnMut(BoundReft) -> Expr,
-    F2: FnMut(BoundRegion) -> Region,
+    F1: FnMut(BoundReft) -> Result<Expr, E>,
+    F2: FnMut(BoundRegion) -> Result<Region, E>,
 {
-    fn replace_expr(&mut self, var: BoundReft) -> Expr {
+    type Error = E;
+
+    fn replace_expr(&mut self, var: BoundReft) -> Result<Expr, E> {
         (self.exprs)(var)
     }
 
-    fn replace_region(&mut self, br: BoundRegion) -> Region {
+    fn replace_region(&mut self, br: BoundRegion) -> Result<Region, E> {
         (self.regions)(br)
     }
 }
@@ -53,55 +58,58 @@ impl<D> BoundVarReplacer<D> {
     }
 }
 
-impl<D> TypeFolder for BoundVarReplacer<D>
+impl<D> FallibleTypeFolder for BoundVarReplacer<D>
 where
     D: BoundVarReplacerDelegate,
 {
-    fn enter_binder(&mut self, _: &BoundVariableKinds) {
+    type Error = D::Error;
+
+    fn try_enter_binder(&mut self, _: &BoundVariableKinds) {
         self.current_index.shift_in(1);
     }
 
-    fn exit_binder(&mut self) {
+    fn try_exit_binder(&mut self) {
         self.current_index.shift_out(1);
     }
 
-    fn fold_expr(&mut self, e: &Expr) -> Expr {
+    fn try_fold_expr(&mut self, e: &Expr) -> Result<Expr, D::Error> {
         if let ExprKind::Var(Var::Bound(debruijn, breft)) = e.kind() {
             match debruijn.cmp(&self.current_index) {
-                Ordering::Less => Expr::bvar(*debruijn, breft.var, breft.kind),
+                Ordering::Less => Ok(Expr::bvar(*debruijn, breft.var, breft.kind)),
                 Ordering::Equal => {
-                    self.delegate
-                        .replace_expr(*breft)
-                        .shift_in_escaping(self.current_index.as_u32())
+                    Ok(self
+                        .delegate
+                        .replace_expr(*breft)?
+                        .shift_in_escaping(self.current_index.as_u32()))
                 }
-                Ordering::Greater => Expr::bvar(debruijn.shifted_out(1), breft.var, breft.kind),
+                Ordering::Greater => Ok(Expr::bvar(debruijn.shifted_out(1), breft.var, breft.kind)),
             }
         } else {
-            e.super_fold_with(self)
+            e.try_super_fold_with(self)
         }
     }
 
-    fn fold_region(&mut self, re: &Region) -> Region {
+    fn try_fold_region(&mut self, re: &Region) -> Result<Region, D::Error> {
         if let ReBound(debruijn, br) = *re {
             match debruijn.cmp(&self.current_index) {
-                Ordering::Less => *re,
+                Ordering::Less => Ok(*re),
                 Ordering::Equal => {
-                    let region = self.delegate.replace_region(br);
+                    let region = self.delegate.replace_region(br)?;
                     if let ReBound(debruijn1, br) = region {
                         // If the callback returns a late-bound region,
                         // that region should always use the INNERMOST
                         // debruijn index. Then we adjust it to the
                         // correct depth.
                         tracked_span_assert_eq!(debruijn1, INNERMOST);
-                        Region::ReBound(debruijn, br)
+                        Ok(Region::ReBound(debruijn, br))
                     } else {
-                        region
+                        Ok(region)
                     }
                 }
-                Ordering::Greater => ReBound(debruijn.shifted_out(1), br),
+                Ordering::Greater => Ok(ReBound(debruijn.shifted_out(1), br)),
             }
         } else {
-            *re
+            Ok(*re)
         }
     }
 }
