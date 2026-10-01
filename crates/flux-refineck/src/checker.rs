@@ -9,7 +9,7 @@ use flux_infer::{
     infer::{
         ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
-    projections::NormalizeExt as _,
+    projections::{NormalizeExt as _, normalize_bound_var_sorts},
     refine_tree::{Marker, RefineCtxtTrace},
 };
 use flux_middle::{
@@ -278,7 +278,7 @@ fn check_fn_subtyping(
     let mut infcx = infcx.at(span);
     let tcx = infcx.genv.tcx();
 
-    let super_sig = super_sig
+    let super_sig = normalize_bound_var_sorts(super_sig, &mut infcx)?
         .replace_bound_vars(
             |_| rty::ReErased,
             |sort, _, kind| Expr::fvar(infcx.define_bound_reft_var(sort, kind)),
@@ -307,7 +307,7 @@ fn check_fn_subtyping(
             SubFn::Mono(sig) => sig,
         };
         // ... jump right here.
-        let sub_sig = sub_sig
+        let sub_sig = normalize_bound_var_sorts(&sub_sig, infcx)?
             .replace_bound_vars(
                 |_| rty::ReErased,
                 |sort, mode, _| infcx.fresh_infer_var(sort, mode),
@@ -529,6 +529,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let span = body.span();
 
+        let poly_sig = normalize_bound_var_sorts(&poly_sig, &mut infcx.at(span)).with_span(span)?;
         let fn_sig = poly_sig
             .replace_bound_vars(
                 |_| rty::ReErased,
@@ -956,12 +957,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Instantiate function signature and normalize it
         let late_refine_args = vec![];
-        let fn_sig = fn_sig
-            .instantiate(tcx, &generic_args, &early_refine_args)
-            .replace_bound_vars(
-                |_| rty::ReErased,
-                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
-            );
+        let fn_sig = fn_sig.instantiate(tcx, &generic_args, &early_refine_args);
+        let fn_sig = normalize_bound_var_sorts(&fn_sig, &mut infcx.at(span)).with_span(span)?;
+        let fn_sig = fn_sig.replace_bound_vars(
+            |_| rty::ReErased,
+            |sort, mode, _| infcx.fresh_infer_var(sort, mode),
+        );
 
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))

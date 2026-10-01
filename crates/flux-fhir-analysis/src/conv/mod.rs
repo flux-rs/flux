@@ -366,6 +366,72 @@ pub(crate) fn conv_generics(
     }
 }
 
+/// Splits the refinement params of an item into *early-bound* and *late-bound* params.
+///
+/// For a fn-like item (i.e., when `fn_decl` is `Some`), a param is early-bound if it is mentioned
+/// in a where-clause of the item, or in the bounds of an opaque type (`impl Trait` or `async fn`)
+/// in the signature. Those are converted separately from the signature (as clauses of the item or
+/// of the opaque type), so the param must be in scope there. All the other params are late-bound
+/// in the signature, i.e., `for<..>`. For other items, all refinement params are early-bound.
+///
+/// The early-bound params are the item's refinement generics (see `refinement_generics_of`), and
+/// the index of an early param is its position in the returned list, so this must be used wherever
+/// the early params of an item are put in scope.
+pub(crate) fn split_refinement_params<'fhir>(
+    generics: &fhir::Generics<'fhir>,
+    fn_decl: Option<&fhir::FnDecl<'fhir>>,
+) -> (Vec<fhir::RefineParam<'fhir>>, Vec<fhir::RefineParam<'fhir>>) {
+    let Some(fn_decl) = fn_decl else {
+        return (generics.refinement_params.to_vec(), vec![]);
+    };
+
+    struct ParamsInClauses {
+        in_clause: bool,
+        params: rustc_hash::FxHashSet<fhir::ParamId>,
+    }
+
+    impl<'v> fhir::visit::Visitor<'v> for ParamsInClauses {
+        fn visit_ty(&mut self, ty: &fhir::Ty<'v>) {
+            if let fhir::TyKind::OpaqueDef(_) = ty.kind {
+                let in_clause = std::mem::replace(&mut self.in_clause, true);
+                fhir::visit::walk_ty(self, ty);
+                self.in_clause = in_clause;
+            } else {
+                fhir::visit::walk_ty(self, ty);
+            }
+        }
+
+        fn visit_expr(&mut self, expr: &fhir::Expr<'v>) {
+            // The walker doesn't visit the function in an application, which can be a param,
+            // e.g., an abstract refinement `p` in `p(x, v)`.
+            if let fhir::ExprKind::App(func, _) = expr.kind {
+                self.visit_path_expr(&func);
+            }
+            fhir::visit::walk_expr(self, expr);
+        }
+
+        fn visit_path_expr(&mut self, path: &fhir::PathExpr<'v>) {
+            if self.in_clause
+                && let fhir::Res::Param(_, id) = path.res
+            {
+                self.params.insert(id);
+            }
+        }
+    }
+
+    let mut vis = ParamsInClauses { in_clause: true, params: Default::default() };
+    for predicate in generics.predicates.unwrap_or_default() {
+        fhir::visit::Visitor::visit_where_predicate(&mut vis, predicate);
+    }
+    vis.in_clause = false;
+    fhir::visit::Visitor::visit_fn_decl(&mut vis, fn_decl);
+
+    generics
+        .refinement_params
+        .iter()
+        .partition(|param| vis.params.contains(&param.id))
+}
+
 pub(crate) fn conv_refinement_generics(
     params: &[fhir::RefineParam],
     wfckresults: &WfckResults,
@@ -674,8 +740,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         );
 
         let generics = self.genv().fhir_get_generics(fn_id.local_id())?.unwrap();
-        let mut env = Env::new(generics.refinement_params);
-        env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
+        let (early_params, late_params) = split_refinement_params(generics, Some(decl));
+        let mut env = Env::new(&early_params);
+        env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &late_params));
 
         let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
 
@@ -704,7 +771,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         def_id: MaybeExternId,
         generics: &fhir::Generics,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-        let env = &mut Env::new(generics.refinement_params);
+        let fn_decl = self
+            .genv()
+            .fhir_expect_owner_node(def_id.local_id())?
+            .fn_sig()
+            .map(|fn_sig| fn_sig.decl);
+        let (early_params, _) = split_refinement_params(generics, fn_decl);
+        let env = &mut Env::new(&early_params);
 
         let predicates = if let Some(fhir_predicates) = generics.predicates {
             let mut clauses = vec![];
@@ -782,13 +855,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult<rty::Clauses> {
         let def_id = opaque_ty.def_id;
         let parent = self.tcx().local_parent(def_id.local_id());
-        let refparams = &self
-            .genv()
-            .fhir_get_generics(parent)?
-            .unwrap()
-            .refinement_params;
+        let parent_owner = self.genv().fhir_expect_owner_node(parent)?;
+        let (refparams, _) = split_refinement_params(
+            parent_owner.generics(),
+            parent_owner.fn_sig().map(|fn_sig| fn_sig.decl),
+        );
 
-        let env = &mut Env::new(refparams);
+        let env = &mut Env::new(&refparams);
 
         let args = rty::GenericArg::identity_for_item(self.genv(), def_id.resolved_id())?;
         let alias_ty = rty::AliasTy::new(

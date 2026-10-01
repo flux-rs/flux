@@ -245,7 +245,15 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
 
         for (i, ensures) in a.ensures.iter().enumerate() {
             if let rty::Ensures::Type(path, ty_a) = ensures {
-                let loc = path.to_loc().unwrap();
+                // The path is inside the output's binder, but the locations were recorded (when
+                // zipping the inputs) outside of it, so we shift it out to match a (late-bound)
+                // location param of the signature.
+                let loc = match path.to_loc().unwrap() {
+                    rty::Loc::Var(rty::Var::Bound(debruijn, breft)) => {
+                        rty::Loc::Var(rty::Var::Bound(debruijn.shifted_out(1), breft))
+                    }
+                    loc => loc,
+                };
                 let ty_b = self.locs.get(&loc).unwrap().shift_in_escaping(1);
                 self.zip_ty(ty_a, &ty_b)
                     .map_err(|_| FnSigErr::Ensures { i, expected: ty_b })?;

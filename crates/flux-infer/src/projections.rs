@@ -67,6 +67,17 @@ impl<T: TypeFoldable> NormalizeExt for T {
     }
 }
 
+/// Deeply normalizes the sorts of the variables bound by `binder` (but not its body). Late-bound
+/// refinement params can have sorts with projections (e.g., the sort of `Self::Assoc`), so this has
+/// to be done before replacing the bound variables, whose sorts end up in the constraints.
+pub fn normalize_bound_var_sorts<T: Clone>(
+    binder: &Binder<T>,
+    infcx: &mut InferCtxtAt,
+) -> QueryResult<Binder<T>> {
+    let vars = binder.vars().deeply_normalize(infcx)?;
+    Ok(Binder::bind_with_vars(binder.skip_binder_ref().clone(), vars))
+}
+
 struct Normalizer<'a, 'infcx, 'genv, 'tcx> {
     infcx: InferCtxtAt<'a, 'infcx, 'genv, 'tcx>,
     selcx: SelectionContext<'infcx, 'tcx>,

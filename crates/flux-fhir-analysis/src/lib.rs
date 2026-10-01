@@ -476,7 +476,8 @@ fn refinement_generics_of(
     let parent = genv.tcx().generics_of(def_id).parent;
     let parent_count =
         if let Some(def_id) = parent { genv.refinement_generics_of(def_id)?.count() } else { 0 };
-    let generics = match genv.fhir_node(def_id.local_id())? {
+    let node = genv.fhir_node(def_id.local_id())?;
+    let generics = match node {
         fhir::Node::Item(fhir::Item {
             kind: fhir::ItemKind::Fn(..) | fhir::ItemKind::TyAlias(..),
             generics,
@@ -491,7 +492,14 @@ fn refinement_generics_of(
             kind: fhir::ImplItemKind::Fn(..), generics, ..
         }) => {
             let wfckresults = genv.check_wf(def_id.local_id())?;
-            let params = conv::conv_refinement_generics(generics.refinement_params, &wfckresults)?;
+            // Only the early-bound params are refinement generics, the late-bound ones are bound
+            // in the fn signature.
+            let fn_decl = node
+                .as_owner()
+                .and_then(|owner| owner.fn_sig())
+                .map(|sig| sig.decl);
+            let (early_params, _) = conv::split_refinement_params(generics, fn_decl);
+            let params = conv::conv_refinement_generics(&early_params, &wfckresults)?;
             rty::RefinementGenerics { parent, parent_count, own_params: params }
         }
         _ => rty::RefinementGenerics { parent, parent_count, own_params: rty::List::empty() },
