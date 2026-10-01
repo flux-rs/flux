@@ -521,15 +521,6 @@ impl<'fhir> fhir::visit::Visitor<'fhir> for EarlyParamsCollector {
         self.in_early_position(|this| fhir::visit::walk_opaque_ty(this, opaque_ty));
     }
 
-    fn visit_expr(&mut self, expr: &fhir::Expr<'fhir>) {
-        // `walk_expr` doesn't visit the function in an application, but it can be a parameter
-        // (e.g., an abstract refinement)
-        if let fhir::ExprKind::App(func, _) = expr.kind {
-            self.visit_path_expr(&func);
-        }
-        fhir::visit::walk_expr(self, expr);
-    }
-
     fn visit_path_expr(&mut self, path: &fhir::PathExpr<'fhir>) {
         if self.in_early_position
             && let fhir::Res::Param(_, id) = path.res
