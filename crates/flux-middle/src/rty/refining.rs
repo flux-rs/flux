@@ -529,7 +529,7 @@ impl rty::PolyFnSig {
             .into_iter()
             .filter_map(|param| {
                 let sort = early_param_sorts.get(&param.name).unwrap().clone();
-                if !sort.is_param() && !sort.is_loc() {
+                if is_weak_kvar_sort(&sort) {
                     Some((rty::Var::EarlyParam(param), sort))
                 } else {
                     None
@@ -763,9 +763,19 @@ impl TypeFolder for WeakKVarInserter {
 ///   * Skips params (we don't presently handle polymorphism, though even if we did,
 ///     I'm not sure that we need to pass params to the weak kvars).
 ///   * Skips locs because we can't encode those.
+///   * Skips aliases: a projection can normalize to a unit sort at a call-site,
+///     while the weak kvar's declaration would still encode it as an integer.
 ///   * Skips unit + unit adts because they otherwise get encoded as a 0 tuple
 ///     to fixpoint because we use them in the args to a weak kvar, which
 ///     we don't want to do.
+fn is_weak_kvar_sort(sort: &rty::Sort) -> bool {
+    !sort.is_param()
+        && !matches!(sort, rty::Sort::Alias(..))
+        && !sort.is_loc()
+        && !sort.is_unit()
+        && sort.is_unit_adt().is_none()
+}
+
 fn make_vars_and_sorts_from_bound_vars<'a, I, II>(vars: I) -> Vec<(rty::Var, rty::Sort)>
 where
     I: IntoIterator<IntoIter = II>,
@@ -775,10 +785,7 @@ where
         .enumerate()
         .filter_map(|(i, var_kind)| {
             if let rty::BoundVariableKind::Refine(sort, _, reft_kind) = var_kind
-                && !sort.is_param()
-                && !sort.is_loc()
-                && !sort.is_unit()
-                && sort.is_unit_adt().is_none()
+                && is_weak_kvar_sort(sort)
             {
                 let bound_reft = rty::BoundReft { var: rty::BoundVar::from(i), kind: *reft_kind };
                 Some((rty::Var::Bound(INNERMOST, bound_reft), sort.clone()))
