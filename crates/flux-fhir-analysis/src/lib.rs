@@ -24,7 +24,7 @@ use flux_middle::{
     def_id::{FluxDefId, FluxId, MaybeExternId},
     fhir::{
         self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
-        TraitItemKind,
+        TraitItemKind, visit::Visitor as _,
     },
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
@@ -38,7 +38,7 @@ use flux_middle::{
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
 use rustc_abi::FIRST_VARIANT;
-use rustc_data_structures::unord::UnordMap;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
@@ -55,6 +55,7 @@ pub fn provide(providers: &mut Providers) {
     providers.prim_rel = prim_rel;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
+    providers.early_refinement_params = early_refinement_params;
     providers.adt_def = adt_def;
     providers.constant_info = constant_info;
     providers.static_info = static_info;
@@ -469,6 +470,66 @@ fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Gener
     Ok(generics)
 }
 
+fn early_refinement_params(
+    genv: GlobalEnv,
+    def_id: LocalDefId,
+) -> QueryResult<Rc<UnordSet<fhir::ParamId>>> {
+    let node = genv.fhir_expect_owner_node(def_id)?;
+    let generics = node.generics();
+    let Some(fn_sig) = node.fn_sig() else {
+        return Ok(Rc::new(
+            generics
+                .refinement_params
+                .iter()
+                .map(|param| param.id)
+                .collect(),
+        ));
+    };
+
+    // Locations are always early bound
+    let early = generics
+        .refinement_params
+        .iter()
+        .filter(|param| param.kind.is_loc() || matches!(param.sort, fhir::Sort::Loc))
+        .map(|param| param.id)
+        .collect();
+    let mut collector = EarlyParamsCollector { early, in_early_position: false };
+    for pred in generics.predicates.into_iter().flatten() {
+        collector.in_early_position(|this| this.visit_where_predicate(pred));
+    }
+    collector.visit_fn_sig(fn_sig);
+    Ok(Rc::new(collector.early))
+}
+
+/// Collects refinement parameters mentioned in positions that force them to be early bound, i.e.,
+/// where-clauses and the bounds of opaque types.
+struct EarlyParamsCollector {
+    early: UnordSet<fhir::ParamId>,
+    in_early_position: bool,
+}
+
+impl EarlyParamsCollector {
+    fn in_early_position(&mut self, f: impl FnOnce(&mut Self)) {
+        let prev = std::mem::replace(&mut self.in_early_position, true);
+        f(self);
+        self.in_early_position = prev;
+    }
+}
+
+impl<'fhir> fhir::visit::Visitor<'fhir> for EarlyParamsCollector {
+    fn visit_opaque_ty(&mut self, opaque_ty: &fhir::OpaqueTy<'fhir>) {
+        self.in_early_position(|this| fhir::visit::walk_opaque_ty(this, opaque_ty));
+    }
+
+    fn visit_path_expr(&mut self, path: &fhir::PathExpr<'fhir>) {
+        if self.in_early_position
+            && let fhir::Res::Param(_, id) = path.res
+        {
+            self.early.insert(id);
+        }
+    }
+}
+
 fn refinement_generics_of(
     genv: GlobalEnv,
     def_id: MaybeExternId,
@@ -479,19 +540,16 @@ fn refinement_generics_of(
     let generics = match genv.fhir_node(def_id.local_id())? {
         fhir::Node::Item(fhir::Item {
             kind: fhir::ItemKind::Fn(..) | fhir::ItemKind::TyAlias(..),
-            generics,
             ..
         })
-        | fhir::Node::TraitItem(fhir::TraitItem {
-            kind: fhir::TraitItemKind::Fn(..),
-            generics,
-            ..
-        })
-        | fhir::Node::ImplItem(fhir::ImplItem {
-            kind: fhir::ImplItemKind::Fn(..), generics, ..
+        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Fn(..), .. })
+        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Fn(..), .. })
+        | fhir::Node::ForeignItem(fhir::ForeignItem {
+            kind: fhir::ForeignItemKind::Fn(..), ..
         }) => {
             let wfckresults = genv.check_wf(def_id.local_id())?;
-            let params = conv::conv_refinement_generics(generics.refinement_params, &wfckresults)?;
+            let (early, _) = genv.fhir_split_refinement_params(def_id.local_id())?;
+            let params = conv::conv_refinement_generics(&early, &wfckresults)?;
             rty::RefinementGenerics { parent, parent_count, own_params: params }
         }
         _ => rty::RefinementGenerics { parent, parent_count, own_params: rty::List::empty() },

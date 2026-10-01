@@ -364,6 +364,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.check_wf(self, def_id)
     }
 
+    /// The set of refinement parameters of an item that are *early bound*. For fn-like items, a
+    /// refinement parameter is early bound if it is mentioned in a where-clause or in the bounds of
+    /// an opaque type, or if it is a location. All other parameters are late bound. For all other
+    /// items, every refinement parameter is early bound.
+    pub fn early_refinement_params(
+        self,
+        def_id: LocalDefId,
+    ) -> QueryResult<Rc<UnordSet<fhir::ParamId>>> {
+        self.inner.queries.early_refinement_params(self, def_id)
+    }
+
     pub fn impl_trait_ref(self, impl_id: DefId) -> QueryResult<rty::EarlyBinder<rty::TraitRef>> {
         let trait_ref = self.tcx().impl_trait_ref(impl_id);
         let trait_ref = trait_ref.skip_binder();
@@ -932,6 +943,24 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         } else {
             Ok(Some(self.fhir_expect_owner_node(def_id)?.generics()))
         }
+    }
+
+    /// Splits the refinement parameters in the generics of `def_id` into early and late bound
+    /// parameters (in that order) preserving declaration order.
+    /// See [`GlobalEnv::early_refinement_params`].
+    pub fn fhir_split_refinement_params(
+        self,
+        def_id: LocalDefId,
+    ) -> QueryResult<(Vec<fhir::RefineParam<'genv>>, Vec<fhir::RefineParam<'genv>>)> {
+        let Some(generics) = self.fhir_get_generics(def_id)? else {
+            return Ok((vec![], vec![]));
+        };
+        let early = self.early_refinement_params(def_id)?;
+        Ok(generics
+            .refinement_params
+            .iter()
+            .copied()
+            .partition(|param| early.contains(&param.id)))
     }
 
     pub fn fhir_expect_refinement_kind(
