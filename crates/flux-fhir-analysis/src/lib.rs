@@ -55,7 +55,7 @@ pub fn provide(providers: &mut Providers) {
     providers.prim_rel = prim_rel;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
-    providers.early_refinement_params = early_refinement_params;
+    providers.late_bound_refinement_params = late_bound_refinement_params;
     providers.adt_def = adt_def;
     providers.constant_info = constant_info;
     providers.static_info = static_info;
@@ -470,63 +470,54 @@ fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Gener
     Ok(generics)
 }
 
-fn early_refinement_params(
-    genv: GlobalEnv,
+/// See [`GlobalEnv::late_bound_refinement_params`]
+fn late_bound_refinement_params<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     def_id: LocalDefId,
-) -> QueryResult<Rc<UnordSet<fhir::ParamId>>> {
+) -> QueryResult<&'genv [fhir::ParamId]> {
     let node = genv.fhir_expect_owner_node(def_id)?;
+    let Some(fn_sig) = node.fn_sig() else { return Ok(&[]) };
     let generics = node.generics();
-    let Some(fn_sig) = node.fn_sig() else {
-        return Ok(Rc::new(
-            generics
-                .refinement_params
-                .iter()
-                .map(|param| param.id)
-                .collect(),
-        ));
-    };
 
-    // Locations are always early bound
-    let early = generics
+    // Where-clauses and opaque types are converted separately from the signature (as clauses of the
+    // item or the opaque type), so params mentioned there must be early bound.
+    let mut appears_in_clauses = ParamCollector::default();
+    for pred in generics.predicates.unwrap_or_default() {
+        appears_in_clauses.visit_where_predicate(pred);
+    }
+    OpaqueTyParamCollector(&mut appears_in_clauses).visit_fn_sig(fn_sig);
+
+    let late_bound = generics
         .refinement_params
         .iter()
-        .filter(|param| param.kind.is_loc() || matches!(param.sort, fhir::Sort::Loc))
+        // Locations are always early bound
+        .filter(|param| !param.kind.is_loc() && !matches!(param.sort, fhir::Sort::Loc))
+        .filter(|param| !appears_in_clauses.params.contains(&param.id))
         .map(|param| param.id)
-        .collect();
-    let mut collector = EarlyParamsCollector { early, in_early_position: false };
-    for pred in generics.predicates.into_iter().flatten() {
-        collector.in_early_position(|this| this.visit_where_predicate(pred));
-    }
-    collector.visit_fn_sig(fn_sig);
-    Ok(Rc::new(collector.early))
+        .collect_vec();
+    Ok(genv.alloc_slice(&late_bound))
 }
 
-/// Collects refinement parameters mentioned in positions that force them to be early bound, i.e.,
-/// where-clauses and the bounds of opaque types.
-struct EarlyParamsCollector {
-    early: UnordSet<fhir::ParamId>,
-    in_early_position: bool,
+/// Collects all refinement params mentioned in the visited nodes.
+#[derive(Default)]
+struct ParamCollector {
+    params: UnordSet<fhir::ParamId>,
 }
 
-impl EarlyParamsCollector {
-    fn in_early_position(&mut self, f: impl FnOnce(&mut Self)) {
-        let prev = std::mem::replace(&mut self.in_early_position, true);
-        f(self);
-        self.in_early_position = prev;
-    }
-}
-
-impl<'fhir> fhir::visit::Visitor<'fhir> for EarlyParamsCollector {
-    fn visit_opaque_ty(&mut self, opaque_ty: &fhir::OpaqueTy<'fhir>) {
-        self.in_early_position(|this| fhir::visit::walk_opaque_ty(this, opaque_ty));
-    }
-
+impl<'fhir> fhir::visit::Visitor<'fhir> for ParamCollector {
     fn visit_path_expr(&mut self, path: &fhir::PathExpr<'fhir>) {
-        if self.in_early_position
-            && let fhir::Res::Param(_, id) = path.res
-        {
-            self.early.insert(id);
+        if let fhir::Res::Param(_, id) = path.res {
+            self.params.insert(id);
         }
+    }
+}
+
+/// Collects the refinement params mentioned in the bounds of opaque types.
+struct OpaqueTyParamCollector<'a>(&'a mut ParamCollector);
+
+impl<'fhir> fhir::visit::Visitor<'fhir> for OpaqueTyParamCollector<'_> {
+    fn visit_opaque_ty(&mut self, opaque_ty: &fhir::OpaqueTy<'fhir>) {
+        self.0.visit_opaque_ty(opaque_ty);
     }
 }
 

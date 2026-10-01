@@ -179,8 +179,8 @@ pub struct Providers {
     pub func_span: fn(GlobalEnv, FluxId<MaybeExternId>) -> Span,
     pub adt_sort_def_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
-    pub early_refinement_params:
-        fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<UnordSet<fhir::ParamId>>>,
+    pub late_bound_refinement_params:
+        for<'genv> fn(GlobalEnv<'genv, '_>, LocalDefId) -> QueryResult<&'genv [fhir::ParamId]>,
     pub adt_def: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtDef>,
     pub constant_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::ConstantInfo>,
     pub static_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::StaticInfo>,
@@ -232,7 +232,7 @@ impl Default for Providers {
             prim_rel: |_| empty_query!(),
             adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
-            early_refinement_params: |_, _| empty_query!(),
+            late_bound_refinement_params: |_, _| empty_query!(),
             adt_def: |_, _| empty_query!(),
             type_of: |_, _| empty_query!(),
             variants_of: |_, _| empty_query!(),
@@ -280,7 +280,7 @@ pub struct Queries<'genv, 'tcx> {
     prim_rel: OnceCell<QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
-    early_refinement_params: Cache<LocalDefId, QueryResult<Rc<UnordSet<fhir::ParamId>>>>,
+    late_bound_refinement_params: Cache<LocalDefId, QueryResult<&'genv [fhir::ParamId]>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     constant_info: Cache<DefId, QueryResult<rty::ConstantInfo>>,
     static_info: Cache<DefId, QueryResult<rty::StaticInfo>>,
@@ -327,7 +327,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             prim_rel: Default::default(),
             adt_sort_def_of: Default::default(),
             check_wf: Default::default(),
-            early_refinement_params: Default::default(),
+            late_bound_refinement_params: Default::default(),
             adt_def: Default::default(),
             constant_info: Default::default(),
             static_info: Default::default(),
@@ -650,13 +650,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.check_wf, def_id, || (self.providers.check_wf)(genv, def_id))
     }
 
-    pub(crate) fn early_refinement_params(
+    pub(crate) fn late_bound_refinement_params(
         &self,
         genv: GlobalEnv<'genv, '_>,
         def_id: LocalDefId,
-    ) -> QueryResult<Rc<UnordSet<fhir::ParamId>>> {
-        run_with_cache(&self.early_refinement_params, def_id, || {
-            (self.providers.early_refinement_params)(genv, def_id)
+    ) -> QueryResult<&'genv [fhir::ParamId]> {
+        run_with_cache(&self.late_bound_refinement_params, def_id, || {
+            (self.providers.late_bound_refinement_params)(genv, def_id)
         })
     }
 
