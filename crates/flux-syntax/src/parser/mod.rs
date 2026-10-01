@@ -1431,6 +1431,8 @@ pub(crate) fn parse_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<
 
 fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> ParseResult<Expr> {
     let mut lhs = unary_expr(cx, allow_struct)?;
+    // Track operators in this invocation, not inside a parenthesized lhs.
+    let mut previous_precedence = None;
     loop {
         let lo = cx.lo();
         let Some((op, ntokens)) = cx.peek_binop() else { break };
@@ -1443,15 +1445,14 @@ fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> Par
             Associativity::Right => precedence,
             Associativity::Left => precedence.next(),
             Associativity::None => {
-                if let ExprKind::BinaryOp(op, ..) = &lhs.kind
-                    && Precedence::of_binop(op) == precedence
-                {
+                if previous_precedence == Some(precedence) {
                     return Err(cx.cannot_be_chained(lo, cx.hi()));
                 }
                 precedence.next()
             }
         };
         let rhs = parse_binops(cx, next, allow_struct)?;
+        previous_precedence = Some(precedence);
         let span = lhs.span.to(rhs.span);
         lhs = Expr {
             kind: ExprKind::BinaryOp(op, Box::new([lhs, rhs])),
