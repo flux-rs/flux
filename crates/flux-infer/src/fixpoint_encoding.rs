@@ -1014,7 +1014,9 @@ where
             metrics::incr_metric_if(kind.is_body(), Metric::FnCached);
             return Ok(result.clone());
         }
-        let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || task.run(None))?;
+        let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
+            task.run(config::fixpoint_timeout())
+        })?;
 
         if config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());
@@ -2813,6 +2815,7 @@ fn parse_wkvars(expr: &mut fixpoint::Expr) {
 mod errors {
     use std::io;
 
+    use flux_config as config;
     use flux_errors::E0999;
     use flux_macros::msg;
     use liquid_fixpoint::FixpointError;
@@ -2831,7 +2834,16 @@ mod errors {
             level: Level,
         ) -> Diag<'sess, ErrorGuaranteed> {
             let mut diag = match self.err {
-                FixpointError::Timeout => Diag::new(dcx, level, msg!("fixpoint query timed out")),
+                FixpointError::Timeout => {
+                    let mut diag = Diag::new(dcx, level, msg!("fixpoint query timed out"));
+                    if let Some(timeout) = config::fixpoint_timeout() {
+                        diag.note(format!(
+                            "the timeout is set to {}s with `-Ffixpoint-timeout`",
+                            timeout.as_secs()
+                        ));
+                    }
+                    diag
+                }
                 FixpointError::Io(err) => {
                     let mut diag = Diag::new(dcx, level, msg!("failed to run fixpoint: {$err}"));
                     if err.kind() == io::ErrorKind::NotFound {
