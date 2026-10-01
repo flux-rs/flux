@@ -1746,9 +1746,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         use ty::TyKind as RustTy;
         let ty = match kind {
             CastKind::PointerExposeProvenance => {
-                match to.kind() {
-                    RustTy::Int(int_ty) => Ty::int(*int_ty),
-                    RustTy::Uint(uint_ty) => Ty::uint(*uint_ty),
+                match (from.kind(), to.kind()) {
+                    (TyKind::Indexed(BaseTy::RawPtr(_, _), idx), RustTy::Int(int_ty)) => {
+                        let addr = idx.reduce_ptr_addr();
+                        uint_int_cast(&addr, UintTy::Usize, *int_ty)
+                    }
+                    (TyKind::Indexed(BaseTy::RawPtr(_, _), idx), RustTy::Uint(uint_ty)) => {
+                        let addr = idx.reduce_ptr_addr();
+                        uint_uint_cast(&addr, UintTy::Usize, *uint_ty)
+                    }
+                    (_, RustTy::Int(int_ty)) => Ty::int(*int_ty),
+                    (_, RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
                     _ => tracked_span_bug!("unsupported PointerExposeProvenance cast"),
                 }
             }
