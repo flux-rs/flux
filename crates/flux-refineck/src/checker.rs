@@ -241,10 +241,9 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
 /// bound by the signature itself (e.g., `fn(&Handle[@h]) -> Handle[h]` is `for<h> fn(..)`).
 ///
 /// Returns `None` (and the fn pointer gets the default refinement of its rust type) for fns
-/// - with early-bound refinement params (own or from a parent), which cannot be instantiated when
-///   calling through a fn pointer;
-/// - that take strong references, as fn pointer subtyping is checked without an environment for
-///   locations.
+/// with early-bound refinement params (own or from a parent), which cannot be instantiated when
+/// calling through a fn pointer; these include strg-references, or refinement params that can be
+/// mentioned in clauses.
 fn fn_def_as_fn_ptr_sig(
     genv: GlobalEnv,
     def_id: DefId,
