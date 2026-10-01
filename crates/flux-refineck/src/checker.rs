@@ -278,7 +278,10 @@ fn check_fn_subtyping(
     let mut infcx = infcx.at(span);
     let tcx = infcx.genv.tcx();
 
+    // Normalize sorts before opening the binder so late-bound refinement parameters are named
+    // with normalized sorts
     let super_sig = super_sig
+        .deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)?
         .replace_bound_vars(
             |_| rty::ReErased,
             |sort, _, kind| Expr::fvar(infcx.define_bound_reft_var(sort, kind)),
@@ -529,7 +532,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let span = body.span();
 
+        // Normalize sorts before opening the binder so late-bound refinement parameters are named
+        // with normalized sorts
         let fn_sig = poly_sig
+            .deeply_normalize_sorts(infcx.def_id, infcx.genv, infcx.region_infcx)
+            .with_span(span)?
             .replace_bound_vars(
                 |_| rty::ReErased,
                 |sort, _, kind| {
