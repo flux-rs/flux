@@ -34,7 +34,7 @@ jobs:
 
       - name: Run tests
         run: |
-          cargo xtask test
+          cargo xtask test --fixpoint-timeout 10
 
   vtock:
     runs-on: ubuntu-latest
