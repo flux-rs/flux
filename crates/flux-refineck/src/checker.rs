@@ -1693,6 +1693,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             | CastKind::PointerWithExposedProvenance => self.refine_default(to)?,
             CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer(_)) => {
                 let to = self.refine_default(to)?;
+                // Check the fn has no early-bound refinement params (own or from a parent), which cannot be instantiated when
+                // calling through a fn pointer; these include strg-references, or refinement params that occur in clauses
                 if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(_), _) = to.kind()
                     && infcx.genv.refinement_generics_of(*def_id)?.count() == 0
