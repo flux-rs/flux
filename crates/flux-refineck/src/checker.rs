@@ -255,14 +255,6 @@ fn fn_def_as_fn_ptr_sig(
         return Ok(None);
     }
     let poly_sig = genv.fn_sig(def_id)?.instantiate(tcx, args, &[]);
-    if poly_sig
-        .skip_binder_ref()
-        .inputs()
-        .iter()
-        .any(|ty| matches!(ty.kind(), TyKind::StrgRef(..)))
-    {
-        return Ok(None);
-    }
     Ok(Some(poly_sig))
 }
 
