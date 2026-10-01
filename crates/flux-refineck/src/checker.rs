@@ -241,8 +241,6 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
 /// bound by the signature itself (e.g., `fn(&Handle[@h]) -> Handle[h]` is `for<h> fn(..)`).
 ///
 /// Returns `None` (and the fn pointer gets the default refinement of its rust type) for fns
-/// - with clauses (including those of a parent, e.g. an `impl`), which are not checked when calling
-///   through a fn pointer;
 /// - with early-bound refinement params (own or from a parent), which cannot be instantiated when
 ///   calling through a fn pointer;
 /// - that take strong references, as fn pointer subtyping is checked without an environment for
@@ -253,9 +251,6 @@ fn fn_def_as_fn_ptr_sig(
     args: &[GenericArg],
 ) -> QueryResult<Option<PolyFnSig>> {
     let tcx = genv.tcx();
-    if all_predicates_of(tcx, def_id).next().is_some() {
-        return Ok(None);
-    }
     if genv.refinement_generics_of(def_id)?.count() > 0 {
         return Ok(None);
     }
