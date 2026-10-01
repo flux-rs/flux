@@ -236,26 +236,26 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
     }
 }
 
-/// Returns the signature of the fn item `def_id` (instantiated with `args`) as the signature of a
-/// fn pointer. This is only possible when all the refinement params of the fn are late-bound, i.e.,
-/// bound by the signature itself (e.g., `fn(&Handle[@h]) -> Handle[h]` is `for<h> fn(..)`).
-///
-/// Returns `None` (and the fn pointer gets the default refinement of its rust type) for fns
-/// with early-bound refinement params (own or from a parent), which cannot be instantiated when
-/// calling through a fn pointer; these include strg-references, or refinement params that can be
-/// mentioned in clauses.
-fn fn_def_as_fn_ptr_sig(
-    genv: GlobalEnv,
-    def_id: DefId,
-    args: &[GenericArg],
-) -> QueryResult<Option<PolyFnSig>> {
-    let tcx = genv.tcx();
-    if genv.refinement_generics_of(def_id)?.count() > 0 {
-        return Ok(None);
-    }
-    let poly_sig = genv.fn_sig(def_id)?.instantiate(tcx, args, &[]);
-    Ok(Some(poly_sig))
-}
+// /// Returns the signature of the fn item `def_id` (instantiated with `args`) as the signature of a
+// /// fn pointer. This is only possible when all the refinement params of the fn are late-bound, i.e.,
+// /// bound by the signature itself (e.g., `fn(&Handle[@h]) -> Handle[h]` is `for<h> fn(..)`).
+// ///
+// /// Returns `None` (and the fn pointer gets the default refinement of its rust type) for fns
+// /// with early-bound refinement params (own or from a parent), which cannot be instantiated when
+// /// calling through a fn pointer; these include strg-references, or refinement params that can be
+// /// mentioned in clauses.
+// fn fn_def_as_fn_ptr_sig(
+//     genv: GlobalEnv,
+//     def_id: DefId,
+//     args: &[GenericArg],
+// ) -> QueryResult<Option<PolyFnSig>> {
+//     let tcx = genv.tcx();
+//     if genv.refinement_generics_of(def_id)?.count() > 0 {
+//         return Ok(None);
+//     }
+//     let poly_sig = genv.fn_sig(def_id)?.instantiate(tcx, args, &[]);
+//     Ok(Some(poly_sig))
+// }
 
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
@@ -1695,10 +1695,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let to = self.refine_default(to)?;
                 if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(_), _) = to.kind()
-                    && let Some(sig) = fn_def_as_fn_ptr_sig(infcx.genv, *def_id, args)?
+                    && infcx.genv.refinement_generics_of(*def_id)?.count() == 0
                 {
-                    // The fn pointer gets the (precise) signature of the fn, which is checked
-                    // (via fn subtyping) wherever the pointer is used.
+                    let sig = infcx
+                        .genv
+                        .fn_sig(*def_id)?
+                        .instantiate(infcx.genv.tcx(), args, &[]);
                     Ty::indexed(BaseTy::FnPtr(sig), Expr::unit())
                 } else if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()
