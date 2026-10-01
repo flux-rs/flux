@@ -1692,21 +1692,27 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             | CastKind::PointerCoercion(mir::PointerCast::ClosureFnPointer)
             | CastKind::PointerWithExposedProvenance => self.refine_default(to)?,
             CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer(_)) => {
-                let to = self.refine_default(to)?;
-                // Check the fn has no early-bound refinement params (own or from a parent), which cannot be instantiated when
-                // calling through a fn pointer; these include strg-references, or refinement params that occur in clauses
-                if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
-                    && let TyKind::Indexed(BaseTy::FnPtr(_), _) = to.kind()
-                    && infcx.genv.refinement_generics_of(*def_id)?.count() == 0
-                {
+                let (TyKind::Indexed(BaseTy::FnDef(def_id, args), _), RustTy::FnPtr(_)) =
+                    (from.kind(), to.kind())
+                else {
+                    tracked_span_bug!("invalid cast from `{from:?}` to `{to:?}`")
+                };
+                // Check the fn has no early-bound refinement params (own or from a parent),
+                // which cannot be instantiated when calling through a fn pointer; these
+                // include strg-references, or refinement params that occur in clauses
+                if infcx.genv.refinement_generics_of(*def_id)?.count() == 0 {
                     let sig = infcx
                         .genv
                         .fn_sig(*def_id)?
                         .instantiate(infcx.genv.tcx(), args, &[]);
                     Ty::indexed(BaseTy::FnPtr(sig), Expr::unit())
-                } else if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
-                    && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()
-                {
+                } else {
+                    // Otherwise, the fn pointer gets the default refinement of its rust type,
+                    // which the fn must be a subtype of
+                    let to = self.refine_default(to)?;
+                    let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind() else {
+                        tracked_span_bug!("invalid cast from `{from:?}` to `{to:?}`")
+                    };
                     let sub_sig = SubFn::Poly(*def_id, infcx.genv.fn_sig(*def_id)?, args.clone());
                     check_fn_subtyping(
                         infcx,
@@ -1716,8 +1722,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         stmt_span,
                     )?;
                     to
-                } else {
-                    tracked_span_bug!("invalid cast from `{from:?}` to `{to:?}`")
                 }
             }
         };
