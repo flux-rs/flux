@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["evars","fixpoint_encoding","fixpoint_qualifiers","infer","lean_encoding","lean_format","projections","refine_tree","wkvars"]};
+window.SIDEBAR_ITEMS = {"mod":["evars","fixpoint_encoding","fixpoint_qualifiers","fn_subtyping","infer","lean_encoding","lean_format","projections","refine_tree","wkvars"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SubFn"],"fn":["check_fn_subtyping","infer_under_mut_ref_hack","is_indexed_mut_skipping_constr","unfold_local_ptrs"],"struct":["SkipConstr"]};
