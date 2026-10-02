@@ -19,9 +19,9 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
-        BaseTy, Binder, BoundReftKind, Ctor, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
-        INNERMOST, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy,
-        SubsetTyCtor, Ty, TyKind, VariantIdx,
+        BaseTy, Binder, BoundReftKind, BoundVariableKind, Ctor, Expr, ExprKind, FnOutput, FnSig,
+        GenericArg, HoleKind, INNERMOST, Lambda, List, Loc, Mutability, Path, PolyFnSig, PtrKind,
+        Region, SortCtor, SubsetTy, SubsetTyCtor, Ty, TyKind, VariantIdx,
         canonicalize::{Hoister, LocalHoister},
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
@@ -380,44 +380,6 @@ impl<'a> TypeEnv<'a> {
         self.bindings
             .fmap_mut(|_loc, ty| infcx.fully_resolve_evars(ty));
     }
-
-    pub(crate) fn assume_ensures(
-        &mut self,
-        infcx: &mut InferCtxt,
-        ensures: &[Ensures],
-        span: Span,
-    ) {
-        for ensure in ensures {
-            match ensure {
-                Ensures::Type(path, updated_ty) => {
-                    let updated_ty = infcx.unpack(updated_ty);
-                    infcx.assume_invariants(&updated_ty);
-                    self.update_path(path, updated_ty, span);
-                }
-                Ensures::Pred(e) => infcx.assume_pred(e),
-            }
-        }
-    }
-
-    pub(crate) fn check_ensures(
-        &mut self,
-        at: &mut InferCtxtAt,
-        ensures: &[Ensures],
-        reason: ConstrReason,
-    ) -> InferResult {
-        for constraint in ensures {
-            match constraint {
-                Ensures::Type(path, ty) => {
-                    let actual_ty = self.get(path).unblocked(); // HACK
-                    at.subtyping(&actual_ty, ty, reason)?;
-                }
-                Ensures::Pred(e) => {
-                    at.check_pred(e, ConstrReason::Ret);
-                }
-            }
-        }
-        Ok(())
-    }
 }
 
 pub(crate) enum PtrToRefBound {
@@ -444,6 +406,18 @@ impl flux_infer::infer::LocEnv for TypeEnv<'_> {
 
     fn unfold_strg_ref(&mut self, infcx: &mut InferCtxt, path: &Path, ty: &Ty) -> InferResult<Loc> {
         self.unfold_strg_ref(infcx, path, ty)
+    }
+
+    fn unfold_local_ptr(&mut self, infcx: &mut InferCtxt, bound: &Ty) -> InferResult<Loc> {
+        self.unfold_local_ptr(infcx, bound)
+    }
+
+    fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult {
+        self.fold_local_ptrs(infcx)
+    }
+
+    fn update_path(&mut self, path: &Path, new_ty: Ty, span: Span) {
+        self.update_path(path, new_ty, span);
     }
 }
 
@@ -715,6 +689,12 @@ impl BasicBlockEnvShape {
                 BaseTy::Array(self.join_ty(ty1, ty2), len1.clone())
             }
             (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => BaseTy::Slice(self.join_ty(ty1, ty2)),
+            (BaseTy::FnPtr(sig1), BaseTy::FnPtr(sig2)) if sig1 != sig2 => {
+                // Generalize to a signature with holes, which are replaced by kvars in the basic
+                // block env, e.g., `fn(i32{v: $k0(v)}) -> i32{v: $k1(v)}`. Fn subtyping (against
+                // both signatures) is checked when jumping to the join point.
+                BaseTy::FnPtr(generalize_fn_sig(sig1))
+            }
             _ => {
                 tracked_span_dbg_assert_eq!(bty1, bty2);
                 bty1.clone()
@@ -801,6 +781,37 @@ impl BasicBlockEnvShape {
             scope: self.scope,
         }
     }
+}
+
+/// Generalizes a fn pointer signature to one with the same (rust) shape where all refinements are
+/// holes, e.g., `for<n> fn(i32[n]) -> i32[n + 1]` becomes `fn({v. i32[v] | *}) -> {v. i32[v] | *}`.
+/// The refinement params of the signature are dropped, and so are the `requires`, `ensures` and
+/// `no_panic` (which could mention them). The region vars are kept: they come before the
+/// refinement params in the binder, so dropping the latter doesn't shift them.
+///
+/// This is the same template that refining the rust signature with [`Refiner::with_holes`] would
+/// produce (see the `Refine` impl for `ty::FnSig`), but it doesn't need a refiner.
+///
+/// [`Refiner::with_holes`]: flux_middle::rty::refining::Refiner::with_holes
+fn generalize_fn_sig(sig: &PolyFnSig) -> PolyFnSig {
+    let vars = sig
+        .vars()
+        .iter()
+        .filter(|var| matches!(var, BoundVariableKind::Region(_)))
+        .cloned()
+        .collect();
+    let fn_sig = sig.skip_binder_ref();
+    let ret = fn_sig.output().skip_binder().ret.with_holes();
+    let fn_sig = FnSig::new(
+        fn_sig.safety,
+        fn_sig.abi,
+        List::empty(),
+        fn_sig.inputs.with_holes(),
+        Binder::dummy(FnOutput::new(ret, vec![])),
+        Expr::ff(),
+        fn_sig.lifted,
+    );
+    Binder::bind_with_vars(fn_sig, vars)
 }
 
 impl TypeVisitable for BasicBlockEnvData {
