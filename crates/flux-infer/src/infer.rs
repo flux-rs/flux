@@ -405,6 +405,12 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         }
     }
 
+    /// Instantiate the binder with fresh inference variables and run `f` in a scope that requires
+    /// every evar generated for it to be solved by the time `f` returns.
+    ///
+    /// Note `f` returns an [`InferResult`] which is propagated as is. It'd be wrong to wrap it in
+    /// `Ok` and unwrap the outer result: if `f` fails early it may leave evars unsolved, and the
+    /// `UnsolvedEvar` from [`InferCtxt::pop_evar_scope`] would then mask the real error.
     fn enter_exists<T, U>(
         &mut self,
         t: &Binder<T>,
@@ -739,6 +745,19 @@ impl fmt::Debug for TypeTrace {
     }
 }
 
+/// Whether converting a `ptr(mut, ℓ)` into a `&mut` should block `ℓ`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Blocking {
+    /// Block `ℓ` for the duration of the borrow. This is the normal case: the resulting `&mut`
+    /// can be used to mutate the pointee, so `ℓ` must not be used until the borrow expires.
+    Block,
+    /// Leave `ℓ` alone. Used when the resulting `&mut` sits *underneath* a shared reference: a
+    /// `&&mut T` cannot be reborrowed mutably, so the pointee cannot change and there is nothing
+    /// to block. Blocking here would be unreleasable anyway, because no mutable borrow expires to
+    /// trigger the matching `Unblock` ghost statement.
+    NoBlock,
+}
+
 pub trait LocEnv {
     fn ptr_to_ref(
         &mut self,
@@ -747,6 +766,7 @@ pub trait LocEnv {
         re: Region,
         path: &Path,
         bound: Ty,
+        blocking: Blocking,
     ) -> InferResult<Ty>;
 
     fn unfold_strg_ref(&mut self, infcx: &mut InferCtxt, path: &Path, ty: &Ty) -> InferResult<Loc>;
@@ -807,6 +827,7 @@ impl LocEnv for DummyEnv {
         _: Region,
         _: &Path,
         _: Ty,
+        _: Blocking,
     ) -> InferResult<Ty> {
         tracked_span_bug!("call to `ptr_to_ref` on `DummyEnv`")
     }
@@ -843,11 +864,14 @@ struct Sub<'a, E> {
     /// relating an opaque type. Other obligations related to relating opaque types are resolved
     /// directly here. The implementation is really messy and we may be missing some obligations.
     obligations: Vec<Binder<rty::CoroutineObligPredicate>>,
+    /// Whether we are currently relating types underneath a shared reference. A `ptr` reached
+    /// from here must not block its location. See [`Blocking::NoBlock`].
+    under_shared_ref: bool,
 }
 
 impl<'a, E: LocEnv> Sub<'a, E> {
     fn new(env: &'a mut E, reason: ConstrReason, span: Span) -> Self {
-        Self { env, reason, span, obligations: vec![] }
+        Self { env, reason, span, obligations: vec![], under_shared_ref: false }
     }
 
     fn tag(&self) -> Tag {
@@ -912,12 +936,15 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 // we solve them.
                 self.idxs_eq(infcx, &Expr::unit(), idx);
 
+                let blocking =
+                    if self.under_shared_ref { Blocking::NoBlock } else { Blocking::Block };
                 self.env.ptr_to_ref(
                     &mut infcx.at(self.span),
                     self.reason,
                     *re,
                     path,
                     bound.clone(),
+                    blocking,
                 )?;
                 Ok(())
             }
@@ -1028,7 +1055,12 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 }
             }
             (BaseTy::Ref(_, ty_a, Mutability::Not), BaseTy::Ref(_, ty_b, Mutability::Not)) => {
-                self.tys(infcx, ty_a, ty_b)
+                // Nothing below a shared reference can be mutated, so the flag is monotone: once
+                // set it stays set even if we descend through a `&mut` further down.
+                let prev = std::mem::replace(&mut self.under_shared_ref, true);
+                let r = self.tys(infcx, ty_a, ty_b);
+                self.under_shared_ref = prev;
+                r
             }
             (BaseTy::Tuple(tys_a), BaseTy::Tuple(tys_b)) => {
                 debug_assert_eq!(tys_a.len(), tys_b.len());
