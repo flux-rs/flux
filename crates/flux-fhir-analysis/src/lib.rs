@@ -1,4 +1,4 @@
-#![feature(rustc_private, never_type)]
+#![feature(rustc_private)]
 
 extern crate rustc_abi;
 extern crate rustc_ast;

@@ -8,12 +8,12 @@ use rustc_middle::{
     ty::{self, TyCtxt, codec::TyEncoder},
 };
 use rustc_serialize::{Encodable, Encoder, opaque, opaque::IntEncodedWithFixedSize};
-use rustc_session::config::CrateType;
 use rustc_span::{
     ByteSymbol, ExpnId, SourceFile, Span, SpanEncoder, Symbol, SyntaxContext,
     def_id::{CrateNum, DefIndex},
     hygiene::{ExpnIndex, HygieneEncodeContext},
 };
+use rustc_structures::CrateType;
 
 use crate::{
     AbsoluteBytePos, CrateMetadata, EncodedSourceFileId, Footer, METADATA_HEADER, SYMBOL_OFFSET,

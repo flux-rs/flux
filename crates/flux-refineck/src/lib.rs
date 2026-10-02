@@ -2,9 +2,8 @@
 
 #![feature(
     associated_type_defaults,
-    box_patterns,
+    deref_patterns,
     min_specialization,
-    never_type,
     rustc_private,
     unwrap_infallible
 )]

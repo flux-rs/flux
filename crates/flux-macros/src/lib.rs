@@ -1,4 +1,4 @@
-#![feature(proc_macro_diagnostic, never_type)]
+#![feature(proc_macro_diagnostic)]
 
 #[allow(clippy::all, clippy::semicolon_if_nothing_returned)] // copied from upstream, kept as is
 mod diagnostics;
