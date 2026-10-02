@@ -30,6 +30,7 @@ fn goofy(n: i32) {
 
 #[flux_rs::sig(fn (n:i32{n == 99}))]
 fn mickey(n: i32) {
+    goofy(n);
     for i in 0..n {
         assert(0 <= i);
         assert(i < n);
