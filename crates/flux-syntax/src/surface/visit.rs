@@ -421,10 +421,17 @@ pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
     vis.visit_indices(&ret.indices);
 }
 
+// Explicit refinement params must be brought into scope *before* the generics, because a
+// `where` clause lives in `generics.predicates` and may mention them, e.g. an `hrn` parameter
+// used in the refinement of an `Fn`-trait bound e.g. tests/tests/pos/abstract_refinements/test05.rs
+// Implicit params (named inputs, `@`/`#` binders) are already pre-collected in `on_fn_sig`
+// before the walk, so only the explicit ones need this.
+
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
     vis.visit_async(&fn_sig.asyncness);
-    vis.visit_generics(&fn_sig.generics);
+
     walk_list!(vis, visit_refine_param, &fn_sig.params);
+    vis.visit_generics(&fn_sig.generics);
     for requires in &fn_sig.requires {
         walk_list!(vis, visit_refine_param, &requires.params);
         vis.visit_expr(&requires.pred);

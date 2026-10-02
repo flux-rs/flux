@@ -142,6 +142,8 @@ pub fn name_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<&'static str> 
         ThyFunc::Bv32ToInt => "bv_bv32_to_int",
         ThyFunc::IntToBv64 => "bv_int_to_bv64",
         ThyFunc::Bv64ToInt => "bv_bv64_to_int",
+        ThyFunc::IntToBv128 => "bv_int_to_bv128",
+        ThyFunc::Bv128ToInt => "bv_bv128_to_int",
         ThyFunc::BvUge => "bv_uge",
         ThyFunc::BvSge => "bv_sge",
         ThyFunc::BvUdiv => "bv_udiv",
@@ -250,6 +252,20 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
             rty::PolyFuncSort::new(
                 List::empty(),
                 rty::FuncSort::new(vec![BitVec(BvSize::Fixed(64))], Int),
+            )
+        }
+        ThyFunc::IntToBv128 => {
+            // int -> BitVec<128>
+            rty::PolyFuncSort::new(
+                List::empty(),
+                rty::FuncSort::new(vec![rty::Sort::Int], BitVec(BvSize::Fixed(128))),
+            )
+        }
+        ThyFunc::Bv128ToInt => {
+            // BitVec<128> -> int
+            rty::PolyFuncSort::new(
+                List::empty(),
+                rty::FuncSort::new(vec![BitVec(BvSize::Fixed(128))], Int),
             )
         }
         ThyFunc::BvUdiv

@@ -97,6 +97,10 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub scrape_quals: bool,
+    /// Timeout in seconds for each fixpoint query. If a query doesn't finish in time, fixpoint is
+    /// killed and an error is reported for the item being checked. Disabled by default.
+    #[arg(long = flux_arg!("fixpoint-timeout"), value_name = "SECONDS")]
+    pub fixpoint_timeout: Option<u64>,
     /// Enables uninterpreted casts.
     #[arg(
         long = flux_arg!("allow-uninterpreted-cast"),
@@ -262,6 +266,7 @@ impl Default for Flags {
             check_overflow: OverflowMode::default(),
             allow_raw_deref: RawDerefMode::default(),
             scrape_quals: false,
+            fixpoint_timeout: None,
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
             smt_define_fun: false,
@@ -349,6 +354,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "check-overflow" => parse_overflow(&mut flags.check_overflow, value),
             "allow-raw-deref" => parse_raw_deref(&mut flags.allow_raw_deref, value),
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
+            "fixpoint-timeout" => parse_opt_u64(&mut flags.fixpoint_timeout, value),
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
             "smt-define-fun" => parse_bool(&mut flags.smt_define_fun, value),
@@ -441,6 +447,16 @@ fn parse_string(slot: &mut String, v: Option<&str>) -> Result<(), &'static str> 
             Ok(())
         }
         None => Err("expected a string"),
+    }
+}
+
+fn parse_opt_u64(slot: &mut Option<u64>, v: Option<&str>) -> Result<(), &'static str> {
+    match v.and_then(|s| s.parse().ok()) {
+        Some(n) => {
+            *slot = Some(n);
+            Ok(())
+        }
+        None => Err("expected a non-negative integer"),
     }
 }
 

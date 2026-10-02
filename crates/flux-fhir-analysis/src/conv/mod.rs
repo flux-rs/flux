@@ -610,8 +610,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     .collect(),
             );
 
-            let requires = adt_def
-                .invariants()
+            let requires = self
+                .genv()
+                .invariants_of(struct_id)
+                .as_deref()
                 .iter_identity()
                 .map(|inv| inv.apply(&idx))
                 .collect();
@@ -673,9 +675,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 .vars(),
         );
 
-        let generics = self.genv().fhir_get_generics(fn_id.local_id())?.unwrap();
-        let mut env = Env::new(generics.refinement_params);
-        env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
+        let (early_params, late_params) =
+            self.genv().fhir_split_refinement_params(fn_id.local_id())?;
+        let mut env = Env::new(&early_params);
+        env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &late_params));
 
         let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
 
@@ -704,7 +707,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         def_id: MaybeExternId,
         generics: &fhir::Generics,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-        let env = &mut Env::new(generics.refinement_params);
+        let (early_params, _) = self
+            .genv()
+            .fhir_split_refinement_params(def_id.local_id())?;
+        let env = &mut Env::new(&early_params);
 
         let predicates = if let Some(fhir_predicates) = generics.predicates {
             let mut clauses = vec![];
@@ -782,13 +788,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult<rty::Clauses> {
         let def_id = opaque_ty.def_id;
         let parent = self.tcx().local_parent(def_id.local_id());
-        let refparams = &self
-            .genv()
-            .fhir_get_generics(parent)?
-            .unwrap()
-            .refinement_params;
+        let (early_params, _) = self.genv().fhir_split_refinement_params(parent)?;
 
-        let env = &mut Env::new(refparams);
+        let env = &mut Env::new(&early_params);
 
         let args = rty::GenericArg::identity_for_item(self.genv(), def_id.resolved_id())?;
         let alias_ty = rty::AliasTy::new(
