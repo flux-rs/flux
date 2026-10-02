@@ -17,7 +17,11 @@ mod wf;
 use std::{iter, rc::Rc};
 
 use conv::{AfterSortck, ConvPhase, struct_compat};
-use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
+use flux_common::{
+    bug, dbg,
+    iter::IterExt,
+    result::{ErrorEmitter as _, ResultExt},
+};
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
@@ -27,7 +31,7 @@ use flux_middle::{
         TraitItemKind, visit::Visitor as _,
     },
     global_env::GlobalEnv,
-    queries::{Providers, QueryResult},
+    queries::{Providers, QueryErr, QueryResult},
     query_bug,
     rty::{
         self, AssocReft, Binder, WfckResults,
@@ -57,6 +61,7 @@ pub fn provide(providers: &mut Providers) {
     providers.check_wf = check_wf;
     providers.late_bound_refinement_params = late_bound_refinement_params;
     providers.adt_def = adt_def;
+    providers.invariants_of = invariants_of;
     providers.constant_info = constant_info;
     providers.static_info = static_info;
     providers.type_of = type_of;
@@ -190,13 +195,12 @@ fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> 
 
 fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
     let item = genv.fhir_expect_item(def_id.local_id())?;
-    let invariants = invariants_of(genv, item)?;
 
     let adt_def = genv.tcx().adt_def(def_id.resolved_id()).lower(genv.tcx());
 
     let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());
 
-    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, invariants, is_opaque))
+    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, is_opaque))
 }
 
 fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::ConstantInfo> {
@@ -257,10 +261,24 @@ fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Stati
     }
 }
 
-fn invariants_of<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    item: &fhir::Item<'genv>,
-) -> QueryResult<Vec<rty::Invariant>> {
+/// Errors are reported at the definition of the adt. If the invariants fail to convert, we
+/// continue as if the adt had no invariants. This is sound because the invariants are then
+/// neither checked (when constructing the adt) nor assumed (when using it).
+fn invariants_of(
+    genv: GlobalEnv,
+    def_id: MaybeExternId,
+) -> rty::EarlyBinder<rty::List<rty::Invariant>> {
+    let invariants = try_invariants_of(genv, def_id).unwrap_or_else(|err| {
+        if !matches!(err, QueryErr::Emitted(_)) {
+            genv.emit(err);
+        }
+        vec![]
+    });
+    rty::EarlyBinder(rty::List::from_vec(invariants))
+}
+
+fn try_invariants_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Vec<rty::Invariant>> {
+    let item = genv.fhir_expect_item(def_id.local_id())?;
     let (params, invariants) = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => (enum_def.params, enum_def.invariants),
         fhir::ItemKind::Struct(struct_def) => (struct_def.params, struct_def.invariants),
