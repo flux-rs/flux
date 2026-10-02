@@ -281,9 +281,9 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                     |this, owner_id, item| {
                         this.inner.insert_impl_item(
                             owner_id,
-                            surface::ImplItemFn {
+                            surface::ImplItem {
                                 attrs: item.attrs,
-                                sig: Some(item.kind),
+                                kind: surface::ImplItemKind::Fn(Some(item.kind)),
                                 node_id: item.node_id,
                             },
                         )
@@ -368,9 +368,9 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         self.collect_assoc_methods(trait_impl.items, assoc_items, |this, owner_id, item| {
             this.inner.insert_impl_item(
                 owner_id,
-                surface::ImplItemFn {
+                surface::ImplItem {
                     attrs: item.attrs,
-                    sig: Some(item.kind),
+                    kind: surface::ImplItemKind::Fn(Some(item.kind)),
                     node_id: item.node_id,
                 },
             )

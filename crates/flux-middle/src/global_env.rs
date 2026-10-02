@@ -345,7 +345,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .invariants_of(self, def_id.into_query_key())
     }
 
-    pub fn constant_info(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::ConstantInfo> {
+    pub fn constant_info(
+        self,
+        def_id: impl IntoQueryKey<DefId>,
+    ) -> QueryResult<Option<rty::ConstantInfo>> {
         self.inner
             .queries
             .constant_info(self, def_id.into_query_key())

@@ -163,10 +163,15 @@ pub struct TraitItemFn {
     pub node_id: NodeId,
 }
 
-pub struct ImplItemFn {
+pub struct ImplItem {
     pub attrs: Vec<Attr>,
-    pub sig: Option<FnSig>,
+    pub kind: ImplItemKind,
     pub node_id: NodeId,
+}
+
+pub enum ImplItemKind {
+    Fn(Option<FnSig>),
+    Const(ConstantInfo),
 }
 
 #[derive(Debug)]

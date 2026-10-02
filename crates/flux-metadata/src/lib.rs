@@ -168,7 +168,7 @@ pub struct Tables<'tcx, K: Eq + Hash> {
     fn_sig: UnordMap<K, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
     invariants_of: UnordMap<K, rty::EarlyBinder<rty::List<rty::Invariant>>>,
-    constant_info: UnordMap<K, QueryResult<rty::ConstantInfo>>,
+    constant_info: UnordMap<K, QueryResult<Option<rty::ConstantInfo>>>,
     static_info: UnordMap<K, QueryResult<rty::StaticInfo>>,
     adt_sort_def: UnordMap<K, QueryResult<rty::AdtSortDef>>,
     variants_of: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
@@ -337,7 +337,7 @@ impl<'tcx> CrateStore<'tcx> for CStore<'tcx> {
         get!(self, sort_of_assoc_reft, key)
     }
 
-    fn constant_info(&self, key: DefId) -> OptResult<rty::ConstantInfo> {
+    fn constant_info(&self, key: DefId) -> OptResult<Option<rty::ConstantInfo>> {
         get!(self, constant_info, key)
     }
 

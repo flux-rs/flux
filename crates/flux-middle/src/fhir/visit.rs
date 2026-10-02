@@ -349,7 +349,11 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>)
     vis.visit_generics(&impl_item.generics);
     match &impl_item.kind {
         ImplItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
-        ImplItemKind::Const => {}
+        ImplItemKind::Const(expr) => {
+            if let Some(expr) = expr {
+                vis.visit_expr(expr);
+            }
+        }
         ImplItemKind::Type => {}
     }
 }
