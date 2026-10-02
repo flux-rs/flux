@@ -907,7 +907,12 @@ impl<'tcx> Lower<'tcx> for rustc_ty::AliasConstKind<'tcx> {
             rustc_ty::AliasConstKind::Projection { def_id } => {
                 AliasConstKind::Projection { def_id }
             }
-            rustc_ty::AliasConstKind::Inherent { def_id } => AliasConstKind::Inherent { def_id },
+            rustc_ty::AliasConstKind::InherentSelf { def_id } => {
+                AliasConstKind::InherentSelf { def_id }
+            }
+            rustc_ty::AliasConstKind::InherentImpl { def_id } => {
+                AliasConstKind::InherentImpl { def_id }
+            }
             rustc_ty::AliasConstKind::Free { def_id } => AliasConstKind::Free { def_id },
             rustc_ty::AliasConstKind::Anon { def_id } => AliasConstKind::Anon { def_id },
         })

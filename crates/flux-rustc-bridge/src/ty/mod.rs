@@ -421,7 +421,8 @@ pub struct AliasConst {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum AliasConstKind {
     Projection { def_id: DefId },
-    Inherent { def_id: DefId },
+    InherentSelf { def_id: DefId },
+    InherentImpl { def_id: DefId },
     Free { def_id: DefId },
     Anon { def_id: DefId },
 }
@@ -431,7 +432,8 @@ impl AliasConstKind {
         use rustc_middle::ty;
         match self {
             AliasConstKind::Projection { def_id } => ty::AliasConstKind::Projection { def_id },
-            AliasConstKind::Inherent { def_id } => ty::AliasConstKind::Inherent { def_id },
+            AliasConstKind::InherentSelf { def_id } => ty::AliasConstKind::InherentSelf { def_id },
+            AliasConstKind::InherentImpl { def_id } => ty::AliasConstKind::InherentImpl { def_id },
             AliasConstKind::Free { def_id } => ty::AliasConstKind::Free { def_id },
             AliasConstKind::Anon { def_id } => ty::AliasConstKind::Anon { def_id },
         }

@@ -754,7 +754,8 @@ impl Pretty for AliasConst {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (descr, def_id) = match self.kind {
             AliasConstKind::Projection { def_id } => ("projection", def_id),
-            AliasConstKind::Inherent { def_id } => ("inherent", def_id),
+            AliasConstKind::InherentSelf { def_id } => ("inherent_self", def_id),
+            AliasConstKind::InherentImpl { def_id } => ("inherent_impl", def_id),
             AliasConstKind::Free { def_id } => ("free", def_id),
             AliasConstKind::Anon { def_id } => ("anon", def_id),
         };
