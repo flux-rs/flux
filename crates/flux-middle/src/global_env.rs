@@ -336,6 +336,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.adt_def(self, def_id.into_query_key())
     }
 
+    pub fn invariants_of(
+        self,
+        def_id: impl IntoQueryKey<DefId>,
+    ) -> rty::EarlyBinder<List<rty::Invariant>> {
+        self.inner
+            .queries
+            .invariants_of(self, def_id.into_query_key())
+    }
+
     pub fn constant_info(
         self,
         def_id: impl IntoQueryKey<DefId>,
@@ -365,6 +374,22 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn check_wf(self, def_id: LocalDefId) -> QueryResult<Rc<rty::WfckResults>> {
         self.inner.queries.check_wf(self, def_id)
+    }
+
+    /// The refinement parameters of `def_id` that are *late bound*, i.e., bound in the fn signature
+    /// instead of being part of the item's refinement generics. This is the analog of rustc's
+    /// `is_late_bound_map` for refinement parameters.
+    ///
+    /// A refinement parameter of a fn-like item is late bound unless it is a location or it is
+    /// mentioned in a where-clause or in the bounds of an opaque type. Items that are not fn-like
+    /// have no late bound parameters.
+    pub fn late_bound_refinement_params(
+        self,
+        def_id: LocalDefId,
+    ) -> QueryResult<&'genv [fhir::ParamId]> {
+        self.inner
+            .queries
+            .late_bound_refinement_params(self, def_id)
     }
 
     pub fn impl_trait_ref(self, impl_id: DefId) -> QueryResult<rty::EarlyBinder<rty::TraitRef>> {
@@ -935,6 +960,24 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         } else {
             Ok(Some(self.fhir_expect_owner_node(def_id)?.generics()))
         }
+    }
+
+    /// Splits the refinement parameters in the generics of `def_id` into early and late bound
+    /// parameters (in that order) preserving declaration order.
+    /// See [`GlobalEnv::late_bound_refinement_params`].
+    pub fn fhir_split_refinement_params(
+        self,
+        def_id: LocalDefId,
+    ) -> QueryResult<(Vec<fhir::RefineParam<'genv>>, Vec<fhir::RefineParam<'genv>>)> {
+        let Some(generics) = self.fhir_get_generics(def_id)? else {
+            return Ok((vec![], vec![]));
+        };
+        let late_bound = self.late_bound_refinement_params(def_id)?;
+        Ok(generics
+            .refinement_params
+            .iter()
+            .copied()
+            .partition(|param| !late_bound.contains(&param.id)))
     }
 
     pub fn fhir_expect_refinement_kind(

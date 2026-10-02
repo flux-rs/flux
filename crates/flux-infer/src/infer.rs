@@ -35,6 +35,7 @@ use crate::{
         Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key,
         record_lean_task,
     },
+    fn_subtyping::{SubFn, check_fn_subtyping},
     lean_encoding::{hyperlink_proof, log_proof},
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
@@ -770,10 +771,53 @@ pub trait LocEnv {
 
     fn unfold_strg_ref(&mut self, infcx: &mut InferCtxt, path: &Path, ty: &Ty) -> InferResult<Loc>;
 
+    /// Temporarily unfolds a `&mut` into a local pointer, see [`crate::fn_subtyping::unfold_local_ptrs`]
+    fn unfold_local_ptr(&mut self, infcx: &mut InferCtxt, bound: &Ty) -> InferResult<Loc>;
+
+    /// Folds all the local pointers created with [`LocEnv::unfold_local_ptr`] back into `&mut`
+    fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult;
+
     fn get(&self, path: &Path) -> Ty;
+
+    fn update_path(&mut self, path: &Path, new_ty: Ty, span: Span);
+
+    fn assume_ensures(&mut self, infcx: &mut InferCtxt, ensures: &[rty::Ensures], span: Span) {
+        for ensure in ensures {
+            match ensure {
+                rty::Ensures::Type(path, updated_ty) => {
+                    let updated_ty = infcx.unpack(updated_ty);
+                    infcx.assume_invariants(&updated_ty);
+                    self.update_path(path, updated_ty, span);
+                }
+                rty::Ensures::Pred(e) => infcx.assume_pred(e),
+            }
+        }
+    }
+
+    fn check_ensures(
+        &mut self,
+        at: &mut InferCtxtAt,
+        ensures: &[rty::Ensures],
+        reason: ConstrReason,
+    ) -> InferResult {
+        for constraint in ensures {
+            match constraint {
+                rty::Ensures::Type(path, ty) => {
+                    let actual_ty = self.get(path).unblocked(); // HACK
+                    at.subtyping(&actual_ty, ty, reason)?;
+                }
+                rty::Ensures::Pred(e) => {
+                    at.check_pred(e, ConstrReason::Ret);
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
-struct DummyEnv;
+/// An environment without locations. Used when relating types that cannot mention locations, e.g.,
+/// the signatures of fn pointers (which cannot have strong references).
+pub(crate) struct DummyEnv;
 
 impl LocEnv for DummyEnv {
     fn ptr_to_ref(
@@ -792,8 +836,21 @@ impl LocEnv for DummyEnv {
         tracked_span_bug!("call to `unfold_str_ref` on `DummyEnv`")
     }
 
+    fn unfold_local_ptr(&mut self, _: &mut InferCtxt, _: &Ty) -> InferResult<Loc> {
+        tracked_span_bug!("call to `unfold_local_ptr` on `DummyEnv`")
+    }
+
+    fn fold_local_ptrs(&mut self, _: &mut InferCtxtAt) -> InferResult {
+        // There are no local pointers to fold
+        Ok(())
+    }
+
     fn get(&self, _: &Path) -> Ty {
         tracked_span_bug!("call to `get` on `DummyEnv`")
+    }
+
+    fn update_path(&mut self, _: &Path, _: Ty, _: Span) {
+        tracked_span_bug!("call to `update_path` on `DummyEnv`");
     }
 }
 
@@ -1078,8 +1135,11 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) => {
-                tracked_span_assert_eq!(sig_a.erase_regions(), sig_b.erase_regions());
-                Ok(())
+                if sig_a == sig_b {
+                    return Ok(());
+                }
+                let sub_sig = SubFn::Mono(sig_a.clone());
+                check_fn_subtyping(infcx, &mut DummyEnv, sub_sig, sig_b, self.span)
             }
             (BaseTy::Never, BaseTy::Never) => Ok(()),
             (

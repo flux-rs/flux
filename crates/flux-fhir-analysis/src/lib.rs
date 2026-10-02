@@ -17,17 +17,21 @@ mod wf;
 use std::{iter, rc::Rc};
 
 use conv::{AfterSortck, ConvPhase, struct_compat};
-use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
+use flux_common::{
+    bug, dbg,
+    iter::IterExt,
+    result::{ErrorEmitter as _, ResultExt},
+};
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
     def_id::{FluxDefId, FluxId, MaybeExternId},
     fhir::{
         self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
-        TraitItemKind,
+        TraitItemKind, visit::Visitor as _,
     },
     global_env::GlobalEnv,
-    queries::{Providers, QueryResult},
+    queries::{Providers, QueryErr, QueryResult},
     query_bug,
     rty::{
         self, AssocReft, Binder, WfckResults,
@@ -38,7 +42,7 @@ use flux_middle::{
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
 use rustc_abi::FIRST_VARIANT;
-use rustc_data_structures::unord::UnordMap;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
@@ -55,7 +59,9 @@ pub fn provide(providers: &mut Providers) {
     providers.prim_rel = prim_rel;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
+    providers.late_bound_refinement_params = late_bound_refinement_params;
     providers.adt_def = adt_def;
+    providers.invariants_of = invariants_of;
     providers.constant_info = constant_info;
     providers.static_info = static_info;
     providers.type_of = type_of;
@@ -189,13 +195,12 @@ fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> 
 
 fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
     let item = genv.fhir_expect_item(def_id.local_id())?;
-    let invariants = invariants_of(genv, item)?;
 
     let adt_def = genv.tcx().adt_def(def_id.resolved_id()).lower(genv.tcx());
 
     let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());
 
-    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, invariants, is_opaque))
+    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, is_opaque))
 }
 
 fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Option<rty::ConstantInfo>> {
@@ -274,10 +279,24 @@ fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Stati
     }
 }
 
-fn invariants_of<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    item: &fhir::Item<'genv>,
-) -> QueryResult<Vec<rty::Invariant>> {
+/// Errors are reported at the definition of the adt. If the invariants fail to convert, we
+/// continue as if the adt had no invariants. This is sound because the invariants are then
+/// neither checked (when constructing the adt) nor assumed (when using it).
+fn invariants_of(
+    genv: GlobalEnv,
+    def_id: MaybeExternId,
+) -> rty::EarlyBinder<rty::List<rty::Invariant>> {
+    let invariants = try_invariants_of(genv, def_id).unwrap_or_else(|err| {
+        if !matches!(err, QueryErr::Emitted(_)) {
+            genv.emit(err);
+        }
+        vec![]
+    });
+    rty::EarlyBinder(rty::List::from_vec(invariants))
+}
+
+fn try_invariants_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Vec<rty::Invariant>> {
+    let item = genv.fhir_expect_item(def_id.local_id())?;
     let (params, invariants) = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => (enum_def.params, enum_def.invariants),
         fhir::ItemKind::Struct(struct_def) => (struct_def.params, struct_def.invariants),
@@ -492,6 +511,57 @@ fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Gener
     Ok(generics)
 }
 
+/// See [`GlobalEnv::late_bound_refinement_params`]
+fn late_bound_refinement_params<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    def_id: LocalDefId,
+) -> QueryResult<&'genv [fhir::ParamId]> {
+    let node = genv.fhir_expect_owner_node(def_id)?;
+    let Some(fn_sig) = node.fn_sig() else { return Ok(&[]) };
+    let generics = node.generics();
+
+    // Where-clauses and opaque types are converted separately from the signature (as clauses of the
+    // item or the opaque type), so params mentioned there must be early bound.
+    let mut appears_in_clauses = ParamCollector::default();
+    for pred in generics.predicates.unwrap_or_default() {
+        appears_in_clauses.visit_where_predicate(pred);
+    }
+    OpaqueTyParamCollector(&mut appears_in_clauses).visit_fn_sig(fn_sig);
+
+    let late_bound = generics
+        .refinement_params
+        .iter()
+        // Locations are always early bound
+        .filter(|param| !param.kind.is_loc() && !matches!(param.sort, fhir::Sort::Loc))
+        .filter(|param| !appears_in_clauses.params.contains(&param.id))
+        .map(|param| param.id)
+        .collect_vec();
+    Ok(genv.alloc_slice(&late_bound))
+}
+
+/// Collects all refinement params mentioned in the visited nodes.
+#[derive(Default)]
+struct ParamCollector {
+    params: UnordSet<fhir::ParamId>,
+}
+
+impl<'fhir> fhir::visit::Visitor<'fhir> for ParamCollector {
+    fn visit_path_expr(&mut self, path: &fhir::PathExpr<'fhir>) {
+        if let fhir::Res::Param(_, id) = path.res {
+            self.params.insert(id);
+        }
+    }
+}
+
+/// Collects the refinement params mentioned in the bounds of opaque types.
+struct OpaqueTyParamCollector<'a>(&'a mut ParamCollector);
+
+impl<'fhir> fhir::visit::Visitor<'fhir> for OpaqueTyParamCollector<'_> {
+    fn visit_opaque_ty(&mut self, opaque_ty: &fhir::OpaqueTy<'fhir>) {
+        self.0.visit_opaque_ty(opaque_ty);
+    }
+}
+
 fn refinement_generics_of(
     genv: GlobalEnv,
     def_id: MaybeExternId,
@@ -502,19 +572,16 @@ fn refinement_generics_of(
     let generics = match genv.fhir_node(def_id.local_id())? {
         fhir::Node::Item(fhir::Item {
             kind: fhir::ItemKind::Fn(..) | fhir::ItemKind::TyAlias(..),
-            generics,
             ..
         })
-        | fhir::Node::TraitItem(fhir::TraitItem {
-            kind: fhir::TraitItemKind::Fn(..),
-            generics,
-            ..
-        })
-        | fhir::Node::ImplItem(fhir::ImplItem {
-            kind: fhir::ImplItemKind::Fn(..), generics, ..
+        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Fn(..), .. })
+        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Fn(..), .. })
+        | fhir::Node::ForeignItem(fhir::ForeignItem {
+            kind: fhir::ForeignItemKind::Fn(..), ..
         }) => {
             let wfckresults = genv.check_wf(def_id.local_id())?;
-            let params = conv::conv_refinement_generics(generics.refinement_params, &wfckresults)?;
+            let (early, _) = genv.fhir_split_refinement_params(def_id.local_id())?;
+            let params = conv::conv_refinement_generics(&early, &wfckresults)?;
             rty::RefinementGenerics { parent, parent_count, own_params: params }
         }
         _ => rty::RefinementGenerics { parent, parent_count, own_params: rty::List::empty() },
