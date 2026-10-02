@@ -1765,18 +1765,27 @@ pub(crate) mod pretty {
                 | BinOp::BitXor(_) => Precedence::Bitvec,
             }
         }
-    }
 
-    impl Precedence {
-        pub fn is_associative(&self) -> bool {
-            !matches!(self, Precedence::Imp | Precedence::Cmp)
+        fn is_associative(&self) -> bool {
+            matches!(
+                self,
+                BinOp::Or
+                    | BinOp::And
+                    | BinOp::Add(_)
+                    | BinOp::Mul(_)
+                    | BinOp::BitAnd(_)
+                    | BinOp::BitOr(_)
+                    | BinOp::BitXor(_)
+            )
         }
     }
 
     pub fn should_parenthesize(op: &BinOp, child: &Expr) -> bool {
         if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
             child_op.precedence() < op.precedence()
-                || (child_op.precedence() == op.precedence() && !op.precedence().is_associative())
+                // Sharing precedence does not make mixed operators associative (e.g. `a * (b / c)`).
+                || (child_op.precedence() == op.precedence()
+                    && (child_op != op || !op.is_associative()))
         } else {
             false
         }
@@ -1872,9 +1881,10 @@ pub(crate) mod pretty {
                     }
                 }
                 ExprKind::FieldProj(e, proj) if let ExprKind::Ctor(_, _) = e.kind() => {
-                    // special case to avoid printing `{n:12}.n` as `12.n` but instead, just print `12`
+                    // Print the selected field rather than a constructor followed by a projection.
                     // TODO: maintain an invariant that `FieldProj` never has a Ctor as first argument (as always reduced)
-                    w!(cx, f, "{:?}", e.proj_and_reduce(*proj))
+                    // The parent sees a projection, not the selected expression's precedence.
+                    w!(cx, f, "({:?})", e.proj_and_reduce(*proj))
                 }
                 ExprKind::FieldProj(e, proj) => {
                     if e.is_atom() {
@@ -2284,9 +2294,11 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children: e_d.children, key: None })
                 }
                 ExprKind::FieldProj(e, proj) if let ExprKind::Ctor(_, _) = e.kind() => {
-                    // special case to avoid printing `{n:12}.n` as `12.n` but instead, just print `12`
+                    // Print the selected field rather than a constructor followed by a projection.
                     // TODO: maintain an invariant that `FieldProj` never has a Ctor as first argument (as always reduced)
-                    e.proj_and_reduce(*proj).fmt_nested(cx)
+                    let mut reduced = e.proj_and_reduce(*proj).fmt_nested(cx)?;
+                    reduced.text = format!("({})", reduced.text);
+                    Ok(reduced)
                 }
                 ExprKind::FieldProj(e, proj) => {
                     let e_d = e.fmt_nested(cx)?;

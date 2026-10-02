@@ -238,7 +238,8 @@ impl Pretty for FnSig {
             .filter(|r| !r.is_trivially_true())
             .collect_vec();
         let requires_str = if !filtered_requires.is_empty() {
-            format_cx!(cx, " requires {:?}", join!(" && ", &filtered_requires))
+            // Commas preserve each predicate's grouping, unlike an unparenthesized `&&` join.
+            format_cx!(cx, " requires {:?}", join!(", ", &filtered_requires))
         } else {
             String::new()
         };
