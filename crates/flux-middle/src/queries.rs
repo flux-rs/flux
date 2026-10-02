@@ -182,6 +182,8 @@ pub struct Providers {
     pub late_bound_refinement_params:
         for<'genv> fn(GlobalEnv<'genv, '_>, LocalDefId) -> QueryResult<&'genv [fhir::ParamId]>,
     pub adt_def: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtDef>,
+    pub invariants_of:
+        fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Invariant>>>,
     pub constant_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::ConstantInfo>,
     pub static_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::StaticInfo>,
     pub type_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>>,
@@ -234,6 +236,7 @@ impl Default for Providers {
             check_wf: |_, _| empty_query!(),
             late_bound_refinement_params: |_, _| empty_query!(),
             adt_def: |_, _| empty_query!(),
+            invariants_of: |_, _| empty_query!(),
             type_of: |_, _| empty_query!(),
             variants_of: |_, _| empty_query!(),
             fn_sig: |_, _| empty_query!(),
@@ -282,6 +285,7 @@ pub struct Queries<'genv, 'tcx> {
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     late_bound_refinement_params: Cache<LocalDefId, QueryResult<&'genv [fhir::ParamId]>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
+    invariants_of: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Invariant>>>>,
     constant_info: Cache<DefId, QueryResult<rty::ConstantInfo>>,
     static_info: Cache<DefId, QueryResult<rty::StaticInfo>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
@@ -329,6 +333,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             check_wf: Default::default(),
             late_bound_refinement_params: Default::default(),
             adt_def: Default::default(),
+            invariants_of: Default::default(),
             constant_info: Default::default(),
             static_info: Default::default(),
             generics_of: Default::default(),
@@ -793,8 +798,24 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| genv.cstore().adt_def(def_id),
                 |def_id| {
                     let adt_def = genv.tcx().adt_def(def_id).lower(genv.tcx());
-                    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, vec![], false))
+                    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, false))
                 },
+            )
+        })
+    }
+
+    pub(crate) fn invariants_of(
+        &self,
+        genv: GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<rty::EarlyBinder<List<rty::Invariant>>> {
+        run_with_cache(&self.invariants_of, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                self,
+                |def_id| (self.providers.invariants_of)(genv, def_id),
+                |def_id| genv.cstore().invariants_of(def_id),
+                |_| Ok(rty::EarlyBinder(List::empty())),
             )
         })
     }

@@ -1299,7 +1299,6 @@ pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
-    invariants: Vec<Invariant>,
     sort_def: AdtSortDef,
     opaque: bool,
     rustc: ty::AdtDef,
@@ -1981,8 +1980,13 @@ impl BaseTy {
     ) -> std::vec::IntoIter<Invariant> {
         match self {
             BaseTy::Adt(adt_def, args) => {
-                adt_def
-                    .invariants()
+                // If the invariants fail to convert, the error is reported when checking the
+                // definition of the adt. Assuming no invariants here is sound.
+                let Ok(invariants) = genv.invariants_of(adt_def.did()) else {
+                    return vec![].into_iter();
+                };
+                invariants
+                    .as_deref()
                     .iter_identity()
                     .map(|inv| EarlyBinder(inv).instantiate_ref(genv.tcx(), args, &[]))
                     .collect()
@@ -2835,13 +2839,8 @@ impl<'tcx> ToRustc<'tcx> for FnOutput {
 }
 
 impl AdtDef {
-    pub fn new(
-        rustc: ty::AdtDef,
-        sort_def: AdtSortDef,
-        invariants: Vec<Invariant>,
-        opaque: bool,
-    ) -> Self {
-        AdtDef(Interned::new(AdtDefData { invariants, sort_def, opaque, rustc }))
+    pub fn new(rustc: ty::AdtDef, sort_def: AdtSortDef, opaque: bool) -> Self {
+        AdtDef(Interned::new(AdtDefData { sort_def, opaque, rustc }))
     }
 
     pub fn did(&self) -> DefId {
@@ -2878,10 +2877,6 @@ impl AdtDef {
 
     pub fn variant(&self, idx: VariantIdx) -> &VariantDef {
         self.0.rustc.variant(idx)
-    }
-
-    pub fn invariants(&self) -> EarlyBinder<&[Invariant]> {
-        EarlyBinder(&self.0.invariants)
     }
 
     pub fn discriminants(&self) -> impl Iterator<Item = (VariantIdx, u128)> + '_ {

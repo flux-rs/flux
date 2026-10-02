@@ -33,8 +33,9 @@ pub fn check_invariants(
     // error/warn in case of a mismatch: overflow-checked types can flow to non-checked code but not
     // the other way around.
     let opts = genv.infer_opts(def_id.local_id());
-    adt_def
-        .invariants()
+    genv.invariants_of(def_id)
+        .emit(&genv)?
+        .as_deref()
         .iter_identity()
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
