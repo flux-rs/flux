@@ -2478,13 +2478,13 @@ pub(crate) mod errors {
                         msg!("parameter inference error at function call"),
                     );
                     diag.code(E0999);
-                    diag.emit()
+                    diag.emit_err()
                 }
                 InferErr::Query(err) => {
                     let level = rustc_errors::Level::Error;
                     err.at(ErrCtxt::FnCheck(self.span, fn_def_id))
                         .into_diag(dcx, level)
-                        .emit()
+                        .emit_err()
                 }
             }
         }

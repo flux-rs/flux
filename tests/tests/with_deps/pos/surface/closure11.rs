@@ -1,4 +1,4 @@
-#![feature(step_trait, allocator_api)]
+#![feature(step_trait, allocator_ext)]
 #![allow(unused)]
 
 extern crate flux_alloc;

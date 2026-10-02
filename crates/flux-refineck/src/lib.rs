@@ -286,7 +286,7 @@ fn report_errors(
             err_diag.arg("tag", tag_idx.to_string());
             err_diag.note(msg!("log file saved to {$path} (tag: {$tag})"));
         }
-        e = Some(err_diag.emit());
+        e = Some(err_diag.emit_err());
     }
 
     if let Some(e) = e { Err(e) } else { Ok(()) }

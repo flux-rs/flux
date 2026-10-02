@@ -1247,7 +1247,7 @@ impl<'a> Diagnostic<'a> for QueryErr {
         self,
         dcx: rustc_errors::DiagCtxtHandle<'a>,
         _level: rustc_errors::Level,
-    ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
+    ) -> rustc_errors::Diag<'a> {
         rustc_middle::ty::tls::with_opt(
             #[track_caller]
             |tcx| {
@@ -1323,7 +1323,7 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
         self,
         dcx: rustc_errors::DiagCtxtHandle<'a>,
         level: rustc_errors::Level,
-    ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
+    ) -> rustc_errors::Diag<'a> {
         rustc_middle::ty::tls::with_opt(
             #[track_caller]
             |tcx| {

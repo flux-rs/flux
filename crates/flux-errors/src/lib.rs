@@ -11,7 +11,7 @@ use flux_common::result::{ErrorCollector, ErrorEmitter};
 use rustc_data_structures::sync;
 pub use rustc_errors::ErrorGuaranteed;
 use rustc_errors::{
-    Diagnostic, ErrCode, FatalAbort, FatalError, TerminalUrl,
+    Diagnostic, ErrCode, FatalError, TerminalUrl,
     annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
     emitter::{Emitter, HumanReadableErrorType, OutputTheme, stderr_destination},
     json::JsonEmitter,
@@ -43,7 +43,7 @@ impl FluxSession {
     }
 
     #[track_caller]
-    pub fn emit_fatal<'a>(&'a self, fatal: impl Diagnostic<'a, FatalAbort>) -> ! {
+    pub fn emit_fatal<'a>(&'a self, fatal: impl Diagnostic<'a>) -> ! {
         self.parse_sess.dcx().emit_fatal(fatal)
     }
 

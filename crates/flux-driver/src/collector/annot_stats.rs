@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs, io};
 
 use flux_config as config;
 use rustc_ast::{DelimArgs, tokenstream::TokenTree};
-use rustc_hir::{AttrArgs, def_id::LOCAL_CRATE};
+use rustc_hir::{attrs::AttrArgs, def_id::LOCAL_CRATE};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, source_map::SourceMap};
 use serde::Serialize;

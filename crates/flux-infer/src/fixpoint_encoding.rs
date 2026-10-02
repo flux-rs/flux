@@ -1873,7 +1873,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Quant(..) => {
                 let span = expr.span().map_or(self.def_span(), |s| s.span);
                 let msg = "unbounded quantifiers are only supported with the lean backend; try `proven_externally`";
-                let err = self.genv.sess().dcx().struct_span_err(span, msg).emit();
+                let err = self.genv.sess().dcx().struct_span_err(span, msg).emit_err();
                 return Err(QueryErr::Emitted(err));
             }
             rty::ExprKind::Hole(..)
@@ -2813,7 +2813,7 @@ mod errors {
     use flux_macros::msg;
     use liquid_fixpoint::FixpointError;
     use rustc_errors::{Diag, DiagCtxtHandle, Diagnostic, Level};
-    use rustc_span::{ErrorGuaranteed, Span};
+    use rustc_span::Span;
 
     pub(super) struct FixpointErr {
         pub span: Span,
@@ -2821,11 +2821,7 @@ mod errors {
     }
 
     impl<'sess> Diagnostic<'sess> for FixpointErr {
-        fn into_diag(
-            self,
-            dcx: DiagCtxtHandle<'sess>,
-            level: Level,
-        ) -> Diag<'sess, ErrorGuaranteed> {
+        fn into_diag(self, dcx: DiagCtxtHandle<'sess>, level: Level) -> Diag<'sess> {
             let mut diag = match self.err {
                 FixpointError::Timeout => {
                     let mut diag = Diag::new(dcx, level, msg!("fixpoint query timed out"));
