@@ -100,7 +100,7 @@ fn trait_ref_impl_id<'tcx>(
     let trait_ref = tcx.erase_and_anonymize_regions(trait_ref);
     let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     let impl_source = selcx.select(&obligation).ok()??;
-    let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
+    let impl_source = selcx.infcx.deeply_resolve_ignoring_regions(impl_source);
     // let impl_source = selcx.infcx.fully_resolve(impl_source).ok()?;
     let ImplSource::UserDefined(impl_data) = impl_source else { return None };
     Some((impl_data.impl_def_id, impl_data.args))
