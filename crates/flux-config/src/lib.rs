@@ -9,6 +9,7 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
     sync::LazyLock,
+    time::Duration,
 };
 
 use flags::FLAGS;
@@ -160,6 +161,10 @@ pub fn no_suggestions_default() -> bool {
 
 pub fn rerun_hint() -> bool {
     FLAGS.rerun_hint
+}
+
+pub fn fixpoint_timeout() -> Option<Duration> {
+    FLAGS.fixpoint_timeout.map(Duration::from_secs)
 }
 
 /// Whether the driver is running under `cargo flux` (which sets `FLUX_CARGO=1`), as opposed to a
