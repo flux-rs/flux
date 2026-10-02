@@ -262,7 +262,8 @@ fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Stati
 }
 
 /// Errors are reported at the definition of the adt. If the invariants fail to convert, we
-/// continue as if the adt had no invariants, which is sound because invariants are only assumed.
+/// continue as if the adt had no invariants. This is sound because the invariants are then
+/// neither checked (when constructing the adt) nor assumed (when using it).
 fn invariants_of(
     genv: GlobalEnv,
     def_id: MaybeExternId,
