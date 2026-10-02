@@ -339,7 +339,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn invariants_of(
         self,
         def_id: impl IntoQueryKey<DefId>,
-    ) -> QueryResult<rty::EarlyBinder<List<rty::Invariant>>> {
+    ) -> rty::EarlyBinder<List<rty::Invariant>> {
         self.inner
             .queries
             .invariants_of(self, def_id.into_query_key())

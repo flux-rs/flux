@@ -167,7 +167,7 @@ pub struct Tables<'tcx, K: Eq + Hash> {
     sort_of_assoc_reft: UnordMap<FluxId<K>, QueryResult<rty::EarlyBinder<rty::FuncSort>>>,
     fn_sig: UnordMap<K, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
-    invariants_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::List<rty::Invariant>>>>,
+    invariants_of: UnordMap<K, rty::EarlyBinder<rty::List<rty::Invariant>>>,
     constant_info: UnordMap<K, QueryResult<rty::ConstantInfo>>,
     static_info: UnordMap<K, QueryResult<rty::StaticInfo>>,
     adt_sort_def: UnordMap<K, QueryResult<rty::AdtSortDef>>,
@@ -272,10 +272,7 @@ impl<'tcx> CrateStore<'tcx> for CStore<'tcx> {
         get!(self, adt_def, def_id)
     }
 
-    fn invariants_of(
-        &self,
-        def_id: DefId,
-    ) -> OptResult<rty::EarlyBinder<rty::List<rty::Invariant>>> {
+    fn invariants_of(&self, def_id: DefId) -> Option<rty::EarlyBinder<rty::List<rty::Invariant>>> {
         get!(self, invariants_of, def_id)
     }
 
@@ -588,9 +585,11 @@ fn encode_def_ids<'tcx, K: Eq + Hash + Copy>(
                 tables
                     .adt_def
                     .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::adt_def));
-                tables
-                    .invariants_of
-                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::invariants_of));
+                if let Ok(invariants) =
+                    genv.run_query_if_reached(def_id, |genv, def_id| Ok(genv.invariants_of(def_id)))
+                {
+                    tables.invariants_of.insert(key, invariants);
+                }
                 tables
                     .adt_sort_def
                     .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::adt_sort_def_of));

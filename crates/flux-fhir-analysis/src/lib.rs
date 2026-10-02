@@ -17,7 +17,11 @@ mod wf;
 use std::{iter, rc::Rc};
 
 use conv::{AfterSortck, ConvPhase, struct_compat};
-use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
+use flux_common::{
+    bug, dbg,
+    iter::IterExt,
+    result::{ErrorEmitter as _, ResultExt},
+};
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
@@ -27,7 +31,7 @@ use flux_middle::{
         TraitItemKind, visit::Visitor as _,
     },
     global_env::GlobalEnv,
-    queries::{Providers, QueryResult},
+    queries::{Providers, QueryErr, QueryResult},
     query_bug,
     rty::{
         self, AssocReft, Binder, WfckResults,
@@ -257,10 +261,22 @@ fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Stati
     }
 }
 
+/// Errors are reported at the definition of the adt. If the invariants fail to convert, we
+/// continue as if the adt had no invariants, which is sound because invariants are only assumed.
 fn invariants_of(
     genv: GlobalEnv,
     def_id: MaybeExternId,
-) -> QueryResult<rty::EarlyBinder<rty::List<rty::Invariant>>> {
+) -> rty::EarlyBinder<rty::List<rty::Invariant>> {
+    let invariants = try_invariants_of(genv, def_id).unwrap_or_else(|err| {
+        if !matches!(err, QueryErr::Emitted(_)) {
+            genv.emit(err);
+        }
+        vec![]
+    });
+    rty::EarlyBinder(rty::List::from_vec(invariants))
+}
+
+fn try_invariants_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Vec<rty::Invariant>> {
     let item = genv.fhir_expect_item(def_id.local_id())?;
     let (params, invariants) = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => (enum_def.params, enum_def.invariants),
@@ -268,10 +284,9 @@ fn invariants_of(
         _ => Err(query_bug!(item.owner_id.local_id(), "expected struct or enum"))?,
     };
     let wfckresults = wf::check_invariants(genv, item.owner_id, params, invariants)?;
-    let invariants = AfterSortck::new(genv, &wfckresults)
+    AfterSortck::new(genv, &wfckresults)
         .into_conv_ctxt()
-        .conv_invariants(item.owner_id.map(|it| it.def_id), params, invariants)?;
-    Ok(rty::EarlyBinder(rty::List::from_vec(invariants)))
+        .conv_invariants(item.owner_id.map(|it| it.def_id), params, invariants)
 }
 
 fn predicates_of(

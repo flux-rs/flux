@@ -612,7 +612,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
             let requires = self
                 .genv()
-                .invariants_of(struct_id)?
+                .invariants_of(struct_id)
                 .as_deref()
                 .iter_identity()
                 .map(|inv| inv.apply(&idx))

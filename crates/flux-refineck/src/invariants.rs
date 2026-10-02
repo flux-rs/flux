@@ -34,7 +34,6 @@ pub fn check_invariants(
     // the other way around.
     let opts = genv.infer_opts(def_id.local_id());
     genv.invariants_of(def_id)
-        .emit(&genv)?
         .as_deref()
         .iter_identity()
         .enumerate()

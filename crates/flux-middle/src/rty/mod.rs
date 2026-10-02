@@ -1980,12 +1980,7 @@ impl BaseTy {
     ) -> std::vec::IntoIter<Invariant> {
         match self {
             BaseTy::Adt(adt_def, args) => {
-                // If the invariants fail to convert, the error is reported when checking the
-                // definition of the adt. Assuming no invariants here is sound.
-                let Ok(invariants) = genv.invariants_of(adt_def.did()) else {
-                    return vec![].into_iter();
-                };
-                invariants
+                genv.invariants_of(adt_def.did())
                     .as_deref()
                     .iter_identity()
                     .map(|inv| EarlyBinder(inv).instantiate_ref(genv.tcx(), args, &[]))
