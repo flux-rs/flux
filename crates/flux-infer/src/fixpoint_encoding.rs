@@ -8,6 +8,7 @@ use flux_common::{
     cache::QueryCache,
     dbg,
     index::{IndexGen, IndexVec},
+    result::ResultExt as _,
     span_bug, tracked_span_bug,
 };
 use flux_config::{self as config};
@@ -31,7 +32,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
-    FixpointStatus, KVarBind, SmtSolver, VerificationResult,
+    FixpointError, FixpointStatus, KVarBind, SmtSolver, VerificationResult,
     parser::{FromSexp, ParseError},
     sexp::Parser,
 };
@@ -604,9 +605,22 @@ impl<Tag> FixpointCheckError<Tag> {
 
 pub use liquid_fixpoint::LeanStatus;
 
-/// Returns the cache key used for a function-body lean query.
+/// Returns the cache key used for a function-body lean query. It is distinct from the key of the
+/// corresponding fixpoint query, so a lean entry is never mistaken for a fixpoint result.
 pub fn lean_task_key(tcx: rustc_middle::ty::TyCtxt, def_id: DefId) -> String {
-    FixpointQueryKind::Body.task_key(tcx, def_id)
+    format!("{}###Lean", tcx.def_path_str(def_id))
+}
+
+/// Records that the lean files for the task with the given `hash` have been generated. The proof
+/// starts out as [`LeanStatus::Invalid`] and is marked as valid once it has been checked.
+pub(crate) fn record_lean_task(cache: &mut FixQueryCache, key: String, hash: u64) {
+    let result = liquid_fixpoint::VerificationResult {
+        status: FixpointStatus::Safe(Default::default()),
+        solution: vec![],
+        non_cuts_solution: vec![],
+        lean_status: LeanStatus::Invalid,
+    };
+    cache.insert(key, hash, result);
 }
 
 #[allow(unused)]
@@ -743,7 +757,9 @@ where
         kind: FixpointQueryKind,
         task: &fixpoint::Task,
     ) -> QueryResult<ParsedResult> {
-        let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
+        let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache)
+            .map_err(|err| errors::FixpointErr { span: self.ecx.def_span(), err })
+            .emit(&self.genv)?;
 
         if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
@@ -944,7 +960,21 @@ where
                 if let ConstKey::PrimOp(op) = key { Some((decl.clone(), op.clone())) } else { None }
             })
             .collect();
-        let const_deps = ConstDeps { interpreted, opaque };
+        // Uninterpreted constants (e.g. `T::size_of()`), quantified above the kvars in the Lean VC.
+        let const_binds = self
+            .ecx
+            .const_env
+            .const_map
+            .iter()
+            .filter_map(|(key, decl)| {
+                if let ConstKey::Alias(..) = key {
+                    Some(fixpoint::Bind { name: decl.name, sort: decl.sort.clone(), preds: vec![] })
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let const_deps = ConstDeps { interpreted, opaque, const_binds };
         (const_deps, cstr)
     }
 
@@ -974,7 +1004,7 @@ where
         def_id: DefId,
         kind: FixpointQueryKind,
         cache: &mut FixQueryCache,
-    ) -> VerificationResult<TagIdx> {
+    ) -> Result<VerificationResult<TagIdx>, FixpointError> {
         let key = kind.task_key(genv.tcx(), def_id);
 
         let hash = task.hash_with_default();
@@ -983,18 +1013,17 @@ where
             && let Some(result) = cache.lookup(&key, hash)
         {
             metrics::incr_metric_if(kind.is_body(), Metric::FnCached);
-            return result.clone();
+            return Ok(result.clone());
         }
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
-            task.run()
-                .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
-        });
+            task.run(config::fixpoint_timeout())
+        })?;
 
         if config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());
         }
 
-        result
+        Ok(result)
     }
 
     fn tag_idx(&mut self, tag: Tag) -> TagIdx
@@ -1588,6 +1617,9 @@ pub struct ConstDeps {
     /// Primop constants: the decl paired with the `BinOp` that gives a stable, cross-run
     /// identity used to derive the Lean name.
     pub opaque: Vec<(fixpoint::ConstDecl, rty::BinOp)>,
+    /// Uninterpreted constants (e.g. `T::size_of()`), quantified above the kvars' existentials
+    /// in the Lean VC so their solution can depend on them.
+    pub const_binds: Vec<fixpoint::Bind>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
@@ -1795,8 +1827,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 ]))
             }
             rty::ExprKind::Alias(alias_reft, args) => {
-                let sort = self.genv.sort_of_assoc_reft(alias_reft.assoc_id)?;
-                let sort = sort.instantiate_identity();
+                let sort = alias_reft.fsort(self.genv)?;
                 let func =
                     fixpoint::Expr::Var(self.define_const_for_alias_reft(alias_reft, sort, scx));
                 let args = args
@@ -2486,16 +2517,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         }
                     }
                 }
-                ConstKey::Alias(..) if matches!(self.backend, Backend::Lean) => {
-                    constraint = fixpoint::Constraint::ForAll(
-                        fixpoint::Bind {
-                            name: const_.name,
-                            sort: const_.sort.clone(),
-                            preds: vec![],
-                        },
-                        Box::new(constraint),
-                    );
-                }
                 ConstKey::AssocConst(..)
                 | ConstKey::Alias(..)
                 | ConstKey::Cast(..)
@@ -2574,12 +2595,19 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::FunDef> {
         let name = *self.const_env.fun_decl_map.get(&def_id).unwrap();
         let body = self.genv.inlined_body(def_id);
-        let output = scx.sort_to_fixpoint(self.genv.func_sort(def_id).expect_mono().output());
+        let fsort = self.genv.func_sort(def_id);
+        // Only the Lean backend can emit a definition with sort parameters: the SMT encoding
+        // (`define_fun`) has no way to bind them.
+        let params = fsort.params().len();
+        if params > 0 && !matches!(self.backend, Backend::Lean) {
+            bug!("polymorphic definition `{def_id:?}` is only supported by the lean backend");
+        }
+        let output = scx.sort_to_fixpoint(fsort.skip_binders().output());
         let (args, expr) = self.body_to_fixpoint(&body, scx)?;
         let (args, inputs) = args.into_iter().unzip();
         Ok(fixpoint::FunDef {
             name,
-            sort: fixpoint::FunSort { params: 0, inputs, output },
+            sort: fixpoint::FunSort { params, inputs, output },
             body: Some(fixpoint::FunBody { args, expr }),
             comment: Some(format!("flux def: {def_id:?}")),
         })
@@ -2829,6 +2857,52 @@ fn parse_wkvars(expr: &mut fixpoint::Expr) {
             for e in args {
                 parse_wkvars(e);
             }
+        }
+    }
+}
+
+mod errors {
+    use std::io;
+
+    use flux_config as config;
+    use flux_errors::E0999;
+    use flux_macros::msg;
+    use liquid_fixpoint::FixpointError;
+    use rustc_errors::{Diag, DiagCtxtHandle, Diagnostic, Level};
+    use rustc_span::{ErrorGuaranteed, Span};
+
+    pub(super) struct FixpointErr {
+        pub span: Span,
+        pub err: FixpointError,
+    }
+
+    impl<'sess> Diagnostic<'sess> for FixpointErr {
+        fn into_diag(
+            self,
+            dcx: DiagCtxtHandle<'sess>,
+            level: Level,
+        ) -> Diag<'sess, ErrorGuaranteed> {
+            let mut diag = match self.err {
+                FixpointError::Timeout => {
+                    let mut diag = Diag::new(dcx, level, msg!("fixpoint query timed out"));
+                    if let Some(timeout) = config::fixpoint_timeout() {
+                        diag.note(format!(
+                            "the timeout is set to {}s with `-Ffixpoint-timeout`",
+                            timeout.as_secs()
+                        ));
+                    }
+                    diag
+                }
+                FixpointError::Io(err) => {
+                    let mut diag = Diag::new(dcx, level, msg!("failed to run fixpoint: {$err}"));
+                    if err.kind() == io::ErrorKind::NotFound {
+                        diag.help(msg!("is `fixpoint` installed and on PATH?"));
+                    }
+                    diag.with_arg("err", err.to_string())
+                }
+            };
+            diag.code(E0999).span(self.span);
+            diag
         }
     }
 }

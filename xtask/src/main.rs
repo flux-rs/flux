@@ -32,6 +32,8 @@ xflags::xflags! {
             optional filter: String
             /// Run only the named suite(s). May be repeated. If omitted, all suites run.
             repeated --suite suite: Suite
+            /// Timeout in seconds for each fixpoint query (passed as `-Ffixpoint-timeout`)
+            optional --fixpoint-timeout seconds: u64
         }
         /// Run lean benchmarks: emit lean files for each test in tests/pos/
         cmd lean-bench {
@@ -143,6 +145,7 @@ fn run_tests(
     sysroot: &Path,
     suite: &str,
     filter: Option<&str>,
+    fixpoint_timeout: Option<u64>,
 ) -> anyhow::Result<()> {
     let mut cmd = Command::new("cargo");
     cmd.args(["test", "-p", "tests", "--"])
@@ -151,6 +154,9 @@ fn run_tests(
         .args(["--suite", suite]);
     if let Some(filter) = filter {
         cmd.args(["--filter", filter]);
+    }
+    if let Some(timeout) = fixpoint_timeout {
+        cmd.arg("--fixpoint-timeout").arg(timeout.to_string());
     }
     cmd.run()
 }
@@ -173,7 +179,7 @@ fn test(args: Test, rust_fixpoint: bool, suggestions: bool) -> anyhow::Result<()
             build_libs: BuildLibs { force: false, libs },
         };
         let flux_driver = install_sysroot(&config)?;
-        run_tests(&flux_driver, &dst, suite.name(), args.filter.as_deref())?;
+        run_tests(&flux_driver, &dst, suite.name(), args.filter.as_deref(), args.fixpoint_timeout)?;
     }
     Ok(())
 }
