@@ -33,8 +33,8 @@
 <a href=#33 id=33 data-nosnippet>33</a>    // error/warn in case of a mismatch: overflow-checked types can flow to non-checked code but not
 <a href=#34 id=34 data-nosnippet>34</a>    // the other way around.
 <a href=#35 id=35 data-nosnippet>35</a>    </span><span class="kw">let </span>opts = genv.infer_opts(def_id.local_id());
-<a href=#36 id=36 data-nosnippet>36</a>    adt_def
-<a href=#37 id=37 data-nosnippet>37</a>        .invariants()
+<a href=#36 id=36 data-nosnippet>36</a>    genv.invariants_of(def_id)
+<a href=#37 id=37 data-nosnippet>37</a>        .as_deref()
 <a href=#38 id=38 data-nosnippet>38</a>        .iter_identity()
 <a href=#39 id=39 data-nosnippet>39</a>        .enumerate()
 <a href=#40 id=40 data-nosnippet>40</a>        .try_for_each_exhaust(|(idx, invariant)| {
