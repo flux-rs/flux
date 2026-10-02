@@ -66,7 +66,7 @@ struct BasicBlockEnvData {
 }
 
 impl<'a> TypeEnv<'a> {
-    pub fn new(infcx: &mut InferCtxt, body: &'a Body, fn_sig: &FnSig) -> TypeEnv<'a> {
+    pub fn new(infcx: &mut InferCtxt, body: &'a Body, fn_sig: &FnSig) -> InferResult<TypeEnv<'a>> {
         let mut env = TypeEnv { bindings: PlacesTree::default(), local_decls: &body.local_decls };
 
         for requires in fn_sig.requires() {
@@ -75,7 +75,7 @@ impl<'a> TypeEnv<'a> {
 
         for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
             let ty = infcx.unpack(ty);
-            infcx.assume_invariants(&ty);
+            infcx.assume_invariants(&ty)?;
             env.alloc_with_ty(local, ty);
         }
 
@@ -84,7 +84,7 @@ impl<'a> TypeEnv<'a> {
         }
 
         env.alloc(RETURN_PLACE);
-        env
+        Ok(env)
     }
 
     pub fn empty() -> TypeEnv<'a> {
@@ -279,13 +279,14 @@ impl<'a> TypeEnv<'a> {
         }
     }
 
-    pub(crate) fn unpack(&mut self, infcx: &mut InferCtxt) {
-        self.bindings
-            .fmap_mut(|_loc, ty| infcx.hoister(true).hoist(ty));
+    pub(crate) fn unpack(&mut self, infcx: &mut InferCtxt) -> InferResult {
+        Ok(self
+            .bindings
+            .try_fmap_mut(|_loc, ty| infcx.hoister_with_invariants().try_hoist(ty))?)
     }
 
-    pub(crate) fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place) {
-        self.bindings.unblock(infcx, place);
+    pub(crate) fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place) -> InferResult {
+        self.bindings.unblock(infcx, place)
     }
 
     pub(crate) fn check_goto(

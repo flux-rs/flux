@@ -146,7 +146,7 @@ pub fn check_fn_subtyping(
         infcx.subtyping(&output.ret, &super_output.ret, reason)?;
 
         // 6. Update state with Output "ensures" and check super ensures
-        env.assume_ensures(infcx, &output.ensures, span);
+        env.assume_ensures(infcx, &output.ensures, span)?;
         env.fold_local_ptrs(infcx)?;
         env.check_ensures(
             infcx,

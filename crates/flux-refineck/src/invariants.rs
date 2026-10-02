@@ -33,8 +33,9 @@ pub fn check_invariants(
     // error/warn in case of a mismatch: overflow-checked types can flow to non-checked code but not
     // the other way around.
     let opts = genv.infer_opts(def_id.local_id());
-    adt_def
-        .invariants()
+    genv.adt_invariants(def_id)
+        .emit(&genv)?
+        .as_ref()
         .iter_identity()
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
@@ -81,7 +82,7 @@ fn check_invariant(
 
         for ty in variant_sig.fields() {
             let ty = rcx.unpack(ty);
-            rcx.assume_invariants(&ty);
+            rcx.assume_invariants(&ty).emit(&genv)?;
         }
         let pred = invariant.apply(&variant_sig.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));

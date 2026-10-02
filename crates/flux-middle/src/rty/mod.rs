@@ -1299,7 +1299,6 @@ pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
-    invariants: Vec<Invariant>,
     sort_def: AdtSortDef,
     opaque: bool,
     rustc: ty::AdtDef,
@@ -1978,11 +1977,11 @@ impl BaseTy {
         &self,
         genv: GlobalEnv,
         overflow_mode: OverflowMode,
-    ) -> std::vec::IntoIter<Invariant> {
-        match self {
+    ) -> QueryResult<std::vec::IntoIter<Invariant>> {
+        Ok(match self {
             BaseTy::Adt(adt_def, args) => {
-                adt_def
-                    .invariants()
+                genv.adt_invariants(adt_def.did())?
+                    .as_ref()
                     .iter_identity()
                     .map(|inv| EarlyBinder(inv).instantiate_ref(genv.tcx(), args, &[]))
                     .collect()
@@ -1993,7 +1992,7 @@ impl BaseTy {
             BaseTy::Slice(ty) => slice_invariants(genv, ty, overflow_mode),
             _ => vec![],
         }
-        .into_iter()
+        .into_iter())
     }
 
     pub fn to_ty(&self) -> Ty {
@@ -2835,13 +2834,8 @@ impl<'tcx> ToRustc<'tcx> for FnOutput {
 }
 
 impl AdtDef {
-    pub fn new(
-        rustc: ty::AdtDef,
-        sort_def: AdtSortDef,
-        invariants: Vec<Invariant>,
-        opaque: bool,
-    ) -> Self {
-        AdtDef(Interned::new(AdtDefData { invariants, sort_def, opaque, rustc }))
+    pub fn new(rustc: ty::AdtDef, sort_def: AdtSortDef, opaque: bool) -> Self {
+        AdtDef(Interned::new(AdtDefData { sort_def, opaque, rustc }))
     }
 
     pub fn did(&self) -> DefId {
@@ -2878,10 +2872,6 @@ impl AdtDef {
 
     pub fn variant(&self, idx: VariantIdx) -> &VariantDef {
         self.0.rustc.variant(idx)
-    }
-
-    pub fn invariants(&self) -> EarlyBinder<&[Invariant]> {
-        EarlyBinder(&self.0.invariants)
     }
 
     pub fn discriminants(&self) -> impl Iterator<Item = (VariantIdx, u128)> + '_ {

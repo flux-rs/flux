@@ -40,7 +40,7 @@ use rustc_type_ir::{BoundVar, INNERMOST};
 use super::{
     BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, PolyFnSig, SubsetTy, Ty, TyCtor,
     TyKind, TyOrBase,
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
+    fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
 };
 use crate::rty::{BoundReftKind, ExprKind, GenericArgsExt, HoleKind};
 
@@ -63,7 +63,9 @@ pub struct Hoister<D> {
 }
 
 pub trait HoisterDelegate {
-    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty;
+    type Error;
+
+    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Result<Ty, Self::Error>;
     fn hoist_constr(&mut self, pred: Expr);
 }
 
@@ -143,8 +145,14 @@ impl<D> Hoister<D> {
 }
 
 impl<D: HoisterDelegate> Hoister<D> {
+    pub fn try_hoist(&mut self, ty: &Ty) -> Result<Ty, D::Error> {
+        ty.try_fold_with(self)
+    }
+}
+
+impl<D: HoisterDelegate<Error = !>> Hoister<D> {
     pub fn hoist(&mut self, ty: &Ty) -> Ty {
-        ty.fold_with(self)
+        self.try_hoist(ty).into_ok()
     }
 }
 
@@ -165,10 +173,12 @@ fn is_indexed_slice(ty: &Ty) -> bool {
     }
 }
 
-impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
-    fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        match ty.kind() {
-            TyKind::Indexed(bty, idx) => Ty::indexed(bty.fold_with(self), idx.clone()),
+impl<D: HoisterDelegate> FallibleTypeFolder for Hoister<D> {
+    type Error = D::Error;
+
+    fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
+        Ok(match ty.kind() {
+            TyKind::Indexed(bty, idx) => Ty::indexed(bty.try_fold_with(self)?, idx.clone()),
             TyKind::Exists(ty_ctor) if self.existentials => {
                 // Avoid hoisting useless parameters for unit sorts. This is important for
                 // canonicalization because we assume mutable references won't be under a
@@ -182,42 +192,43 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                         } else if let Some(def_id) = sort.is_unit_adt() {
                             ty_ctor.replace_bound_reft(&Expr::unit_struct(def_id))
                         } else {
-                            self.delegate.hoist_exists(ty_ctor)
+                            self.delegate.hoist_exists(ty_ctor)?
                         }
                     }
-                    _ => self.delegate.hoist_exists(ty_ctor),
+                    _ => self.delegate.hoist_exists(ty_ctor)?,
                 }
-                .fold_with(self)
+                .try_fold_with(self)?
             }
             TyKind::Constr(pred, ty) => {
                 self.delegate.hoist_constr(pred.clone());
-                ty.fold_with(self)
+                ty.try_fold_with(self)?
             }
-            TyKind::StrgRef(..) if self.in_strg_refs => ty.super_fold_with(self),
-            TyKind::Downcast(..) if self.in_downcast => ty.super_fold_with(self),
+            TyKind::StrgRef(..) if self.in_strg_refs => ty.try_super_fold_with(self)?,
+            TyKind::Downcast(..) if self.in_downcast => ty.try_super_fold_with(self)?,
             _ => ty.clone(),
-        }
+        })
     }
 
-    fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
-        match bty {
+    fn try_fold_bty(&mut self, bty: &BaseTy) -> Result<BaseTy, Self::Error> {
+        Ok(match bty {
             BaseTy::Adt(adt_def, args) if adt_def.is_box() && self.in_boxes => {
                 let (boxed, alloc) = args.box_args();
-                let args = List::from_arr([GenericArg::Ty(boxed.fold_with(self)), alloc.clone()]);
+                let args =
+                    List::from_arr([GenericArg::Ty(boxed.try_fold_with(self)?), alloc.clone()]);
                 BaseTy::Adt(adt_def.clone(), args)
             }
             BaseTy::Ref(re, ty, mutability) if is_indexed_slice(ty) && self.slices => {
-                BaseTy::Ref(*re, ty.fold_with(self), *mutability)
+                BaseTy::Ref(*re, ty.try_fold_with(self)?, *mutability)
             }
             BaseTy::Ref(re, ty, Mutability::Not) if self.in_shr_refs => {
-                BaseTy::Ref(*re, ty.fold_with(self), Mutability::Not)
+                BaseTy::Ref(*re, ty.try_fold_with(self)?, Mutability::Not)
             }
             BaseTy::Ref(re, ty, Mutability::Mut) if self.in_mut_refs => {
-                BaseTy::Ref(*re, ty.fold_with(self), Mutability::Mut)
+                BaseTy::Ref(*re, ty.try_fold_with(self)?, Mutability::Mut)
             }
-            BaseTy::Tuple(tys) if self.in_tuples => BaseTy::Tuple(tys.fold_with(self)),
+            BaseTy::Tuple(tys) if self.in_tuples => BaseTy::Tuple(tys.try_fold_with(self)?),
             _ => bty.clone(),
-        }
+        })
     }
 }
 
@@ -240,14 +251,16 @@ impl LocalHoister {
 }
 
 impl HoisterDelegate for &mut LocalHoister {
-    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        ty_ctor.replace_bound_refts_with(|sort, mode, kind| {
+    type Error = !;
+
+    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Result<Ty, !> {
+        Ok(ty_ctor.replace_bound_refts_with(|sort, mode, kind| {
             let idx = self.vars.len();
             let kind = if let Some(name) = self.name { BoundReftKind::Named(name) } else { kind };
             self.vars
                 .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
             Expr::bvar(INNERMOST, BoundVar::from_usize(idx), kind)
-        })
+        }))
     }
 
     fn hoist_constr(&mut self, pred: Expr) {

@@ -515,11 +515,11 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.hoister(false).hoist(ty)
+        self.hoister().hoist(ty)
     }
 
     pub fn unpack_at_name(&mut self, name: Option<Symbol>, ty: &Ty) -> Ty {
-        let mut hoister = self.hoister(false);
+        let mut hoister = self.hoister();
         hoister.delegate.name = name;
         hoister.hoist(ty)
     }
@@ -528,17 +528,20 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.cursor.marker()
     }
 
-    pub fn hoister(
+    pub fn hoister(&mut self) -> Hoister<Unpacker<'_, 'infcx, 'genv, 'tcx>> {
+        Hoister::with_delegate(Unpacker { infcx: self, name: None }).transparent()
+    }
+
+    pub fn hoister_with_invariants(
         &mut self,
-        assume_invariants: bool,
-    ) -> Hoister<Unpacker<'_, 'infcx, 'genv, 'tcx>> {
-        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants, name: None })
+    ) -> Hoister<InvariantUnpacker<'_, 'infcx, 'genv, 'tcx>> {
+        Hoister::with_delegate(InvariantUnpacker(Unpacker { infcx: self, name: None }))
             .transparent()
     }
 
-    pub fn assume_invariants(&mut self, ty: &Ty) {
+    pub fn assume_invariants(&mut self, ty: &Ty) -> QueryResult {
         self.cursor
-            .assume_invariants(self.genv, ty, self.check_overflow);
+            .assume_invariants(self.genv, ty, self.check_overflow)
     }
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
@@ -548,20 +551,18 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 
 pub struct Unpacker<'a, 'infcx, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
-    assume_invariants: bool,
     name: Option<Symbol>,
 }
 
 impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
-    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
+    type Error = !;
+
+    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Result<Ty, !> {
         let ty = ty_ctor.replace_bound_refts_with(|sort, _, kind| {
             let kind = if let Some(name) = self.name { BoundReftKind::Named(name) } else { kind };
             Expr::fvar(self.infcx.define_bound_reft_var(sort, kind))
         });
-        if self.assume_invariants {
-            self.infcx.assume_invariants(&ty);
-        }
-        ty
+        Ok(ty)
     }
 
     fn hoist_constr(&mut self, pred: Expr) {
@@ -572,6 +573,23 @@ impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
 impl std::fmt::Debug for InferCtxt<'_, '_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(&self.cursor, f)
+    }
+}
+
+/// Unpacks existential variables and assumes the invariants of the resulting type.
+pub struct InvariantUnpacker<'a, 'infcx, 'genv, 'tcx>(Unpacker<'a, 'infcx, 'genv, 'tcx>);
+
+impl HoisterDelegate for InvariantUnpacker<'_, '_, '_, '_> {
+    type Error = QueryErr;
+
+    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> QueryResult<Ty> {
+        let Ok(ty) = self.0.hoist_exists(ty_ctor);
+        self.0.infcx.assume_invariants(&ty)?;
+        Ok(ty)
+    }
+
+    fn hoist_constr(&mut self, pred: Expr) {
+        self.0.hoist_constr(pred);
     }
 }
 
@@ -761,17 +779,23 @@ pub trait LocEnv {
 
     fn update_path(&mut self, path: &Path, new_ty: Ty, span: Span);
 
-    fn assume_ensures(&mut self, infcx: &mut InferCtxt, ensures: &[rty::Ensures], span: Span) {
+    fn assume_ensures(
+        &mut self,
+        infcx: &mut InferCtxt,
+        ensures: &[rty::Ensures],
+        span: Span,
+    ) -> InferResult {
         for ensure in ensures {
             match ensure {
                 rty::Ensures::Type(path, updated_ty) => {
                     let updated_ty = infcx.unpack(updated_ty);
-                    infcx.assume_invariants(&updated_ty);
+                    infcx.assume_invariants(&updated_ty)?;
                     self.update_path(path, updated_ty, span);
                 }
                 rty::Ensures::Pred(e) => infcx.assume_pred(e),
             }
         }
+        Ok(())
     }
 
     fn check_ensures(

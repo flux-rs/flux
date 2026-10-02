@@ -10,7 +10,7 @@ use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
     pretty::{PrettyCx, PrettyNested, format_cx},
-    queries::QueryResult,
+    queries::{QueryErr, QueryResult},
     rty::{
         BaseTy, EVid, Expr, ExprKind, KVid, Name, NameProvenance, PrettyVar, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
@@ -174,14 +174,15 @@ impl Cursor<'_> {
         genv: GlobalEnv,
         ty: &Ty,
         overflow_checking: OverflowMode,
-    ) {
+    ) -> QueryResult {
         struct Visitor<'cursor, 'tree, 'genv, 'tcx> {
             genv: GlobalEnv<'genv, 'tcx>,
             cursor: &'cursor mut Cursor<'tree>,
             overflow_mode: OverflowMode,
         }
         impl TypeVisitor for Visitor<'_, '_, '_, '_> {
-            fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!> {
+            type BreakTy = QueryErr;
+            fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<QueryErr> {
                 match bty {
                     BaseTy::Adt(adt_def, substs) if adt_def.is_box() => substs.visit_with(self),
                     BaseTy::Ref(_, ty, _) => ty.visit_with(self),
@@ -190,11 +191,15 @@ impl Cursor<'_> {
                 }
             }
 
-            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<!> {
+            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<QueryErr> {
                 if let TyKind::Indexed(bty, idx) = ty.kind()
                     && !idx.has_escaping_bvars()
                 {
-                    for invariant in bty.invariants(self.genv, self.overflow_mode) {
+                    let invariants = match bty.invariants(self.genv, self.overflow_mode) {
+                        Ok(invariants) => invariants,
+                        Err(err) => return ControlFlow::Break(err),
+                    };
+                    for invariant in invariants {
                         let invariant = invariant.apply(idx);
                         self.cursor.assume_pred(&invariant);
                     }
@@ -202,8 +207,10 @@ impl Cursor<'_> {
                 ty.super_visit_with(self)
             }
         }
-        let _ =
-            ty.visit_with(&mut Visitor { genv, cursor: self, overflow_mode: overflow_checking });
+        match ty.visit_with(&mut Visitor { genv, cursor: self, overflow_mode: overflow_checking }) {
+            ControlFlow::Continue(()) => Ok(()),
+            ControlFlow::Break(err) => Err(err),
+        }
     }
 }
 

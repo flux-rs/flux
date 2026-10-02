@@ -402,7 +402,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(span)?
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
-        let mut env = TypeEnv::new(infcx, body, &fn_sig);
+        let mut env = TypeEnv::new(infcx, body, &fn_sig).with_span(span)?;
 
         let mut ck = Checker::new(infcx.genv, checker_id, inherited, body, fn_sig, promoted)
             .with_span(span)?;
@@ -420,7 +420,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let marker = ck.marker_at_dominator(bb);
             let mut infcx = infcx.move_to(marker, visited);
             let mut env = M::enter_basic_block(&mut ck, &mut infcx, bb);
-            env.unpack(&mut infcx);
+            env.unpack(&mut infcx).with_span(span)?;
             ck.check_basic_block(infcx, env, bb)?;
         }
         Ok(())
@@ -553,7 +553,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         ty: Ty,
         span: Span,
     ) -> InferResult {
-        let ty = infcx.hoister(true).hoist(&ty);
+        let ty = infcx.hoister_with_invariants().try_hoist(&ty)?;
         env.assign(&mut infcx.at(span), place, ty)
     }
 
@@ -699,7 +699,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
                 let name = destination.name(&self.body.local_names);
                 let ret = infcx.unpack_at_name(name, &ret);
-                infcx.assume_invariants(&ret);
+                infcx.assume_invariants(&ret).with_span(terminator_span)?;
 
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
                     .with_span(terminator_span)?;
@@ -891,7 +891,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Expr::fvar(infcx.define_bound_reft_var(sort, kind))
             });
 
-        env.assume_ensures(infcx, &output.ensures, span);
+        env.assume_ensures(infcx, &output.ensures, span)
+            .with_span(span)?;
         fold_local_ptrs(infcx, env, span).with_span(span)?;
 
         Ok(ResolvedCall {
@@ -1822,7 +1823,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Operand::Move(p) => env.move_place(&mut infcx.at(span), p)?,
             Operand::Constant(c) => self.check_constant(infcx, c)?,
         };
-        Ok(infcx.hoister(true).hoist(&ty))
+        Ok(infcx.hoister_with_invariants().try_hoist(&ty)?)
     }
 
     fn check_constant(
@@ -2015,7 +2016,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             GhostStatement::Unfold(place) => {
                 env.unfold(infcx, place, span)?;
             }
-            GhostStatement::Unblock(place) => env.unblock(infcx, place),
+            GhostStatement::Unblock(place) => env.unblock(infcx, place)?,
             GhostStatement::PtrToRef(place) => {
                 env.ptr_to_ref_at_place(&mut infcx.at(span), place)?;
             }

@@ -336,6 +336,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.adt_def(self, def_id.into_query_key())
     }
 
+    /// Invariants are queried separately from the ADT definition so their expressions can
+    /// refer to types (including the owning ADT) without recursively converting invariants.
+    pub fn adt_invariants(
+        self,
+        def_id: impl IntoQueryKey<DefId>,
+    ) -> QueryResult<rty::EarlyBinder<rty::List<rty::Invariant>>> {
+        self.inner
+            .queries
+            .adt_invariants(self, def_id.into_query_key())
+    }
+
     pub fn constant_info(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::ConstantInfo> {
         self.inner
             .queries

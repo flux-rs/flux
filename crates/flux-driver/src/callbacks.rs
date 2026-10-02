@@ -357,6 +357,7 @@ fn trigger_queries(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult {
             genv.predicates_of(def_id)?;
             genv.refinement_generics_of(def_id)?;
             genv.adt_def(def_id)?;
+            genv.adt_invariants(def_id)?;
             genv.adt_sort_def_of(def_id)?;
             genv.variants_of(def_id)?;
             genv.type_of(def_id)?;
