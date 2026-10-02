@@ -273,17 +273,17 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     }
                     continue;
                 }
-                ItemKind::TyAlias(..) => DefKind::TyAlias,
-                ItemKind::Enum(..) => DefKind::Enum,
-                ItemKind::Struct(..) => DefKind::Struct,
-                ItemKind::Union(..) => DefKind::Union,
-                ItemKind::Trait { .. } => DefKind::Trait,
-                ItemKind::Mod(..) => DefKind::Mod,
-                ItemKind::Const(..) => self.genv.tcx().def_kind(item.owner_id),
                 ItemKind::ForeignMod { items, .. } => {
                     self.define_foreign_items(items);
                     continue;
                 }
+                ItemKind::TyAlias(..)
+                | ItemKind::Enum(..)
+                | ItemKind::Struct(..)
+                | ItemKind::Union(..)
+                | ItemKind::Trait { .. }
+                | ItemKind::Mod(..)
+                | ItemKind::Const(..) => self.genv.def_kind(item.owner_id),
                 _ => continue,
             };
             if let Some(ns) = def_kind.ns().map(Namespace::from)
