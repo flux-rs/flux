@@ -28,7 +28,7 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     self as hir, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy, def::CtorOf, def_id::CRATE_DEF_ID,
 };
-use rustc_middle::{metadata::ModChild, ty::TyCtxt};
+use rustc_middle::{middle::resolve::ModChild, ty::TyCtxt};
 use rustc_span::{Span, Symbol, def_id::DefId, symbol::kw};
 
 use self::refinement_resolver::RefinementResolver;
@@ -279,11 +279,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 ItemKind::Union(..) => DefKind::Union,
                 ItemKind::Trait { .. } => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
-                ItemKind::Const(.., rhs) => {
-                    DefKind::Const {
-                        is_type_const: matches!(rhs, hir::ConstItemRhs::TypeConst(..)),
-                    }
-                }
+                ItemKind::Const(..) => self.genv.tcx().def_kind(item.owner_id),
                 ItemKind::ForeignMod { items, .. } => {
                     self.define_foreign_items(items);
                     continue;

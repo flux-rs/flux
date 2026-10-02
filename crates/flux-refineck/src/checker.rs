@@ -2470,7 +2470,7 @@ pub(crate) mod errors {
 
     impl CheckerError {
         pub fn emit(self, genv: GlobalEnv, fn_def_id: LocalDefId) -> ErrorGuaranteed {
-            let dcx = genv.sess().dcx().handle();
+            let dcx = genv.sess().dcx();
             match self.kind {
                 InferErr::UnsolvedEvar(_) => {
                     let mut diag = dcx.struct_span_err(

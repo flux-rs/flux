@@ -429,7 +429,7 @@ pub fn check_proofs(genv: GlobalEnv, def_ids: &[DefId]) -> Vec<Result<(), ErrorG
                     .components()
                     .collect();
                 let span = genv.tcx().def_span(*def_id);
-                let mut diag = genv.sess().dcx().handle().struct_span_err(span, msg);
+                let mut diag = genv.sess().dcx().struct_span_err(span, msg);
                 diag.note(format!("proof file: `{}`", path.display()));
                 for note in notes {
                     diag.note(note);
@@ -1220,7 +1220,7 @@ pub fn log_proof(genv: GlobalEnv, def_id: MaybeExternId) -> Result<(), ErrorGuar
             let msg =
                 format!("failed to record proof `{}`", proof_name(genv, def_id.resolved_id()));
             let span = genv.tcx().def_span(def_id);
-            QueryErr::Emitted(genv.sess().dcx().handle().struct_span_err(span, msg).emit())
+            QueryErr::Emitted(genv.sess().dcx().struct_span_err(span, msg).emit())
         })
         .emit(&genv)?;
     Ok(())

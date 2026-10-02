@@ -1873,13 +1873,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Quant(..) => {
                 let span = expr.span().map_or(self.def_span(), |s| s.span);
                 let msg = "unbounded quantifiers are only supported with the lean backend; try `proven_externally`";
-                let err = self
-                    .genv
-                    .sess()
-                    .dcx()
-                    .handle()
-                    .struct_span_err(span, msg)
-                    .emit();
+                let err = self.genv.sess().dcx().struct_span_err(span, msg).emit();
                 return Err(QueryErr::Emitted(err));
             }
             rty::ExprKind::Hole(..)

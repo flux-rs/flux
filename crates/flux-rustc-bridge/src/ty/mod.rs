@@ -22,7 +22,7 @@ pub use rustc_middle::{
 };
 use rustc_middle::{
     mir::Promoted,
-    ty::{self as rustc_ty, AdtFlags, ParamConst, RegionExt, TyCtxt},
+    ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt},
 };
 use rustc_span::Symbol;
 pub use rustc_type_ir::InferConst;

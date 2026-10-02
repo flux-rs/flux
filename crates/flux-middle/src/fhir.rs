@@ -871,7 +871,7 @@ pub enum Res<Id = ParamId> {
     Err,
 }
 
-/// Akin to `rustc_middle::metadata::ModChild` but for flux items defined in a module
+/// Akin to `rustc_middle::middle::resolve::ModChild` but for flux items defined in a module
 #[derive(Debug, Clone, Copy, Encodable, Decodable)]
 pub struct FluxModChild {
     pub ident: Ident,

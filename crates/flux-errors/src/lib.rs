@@ -61,8 +61,8 @@ impl FluxSession {
         self.abort_if_errors();
     }
 
-    pub fn dcx(&self) -> &rustc_errors::DiagCtxt {
-        &self.parse_sess.dcx()
+    pub fn dcx(&self) -> rustc_errors::DiagCtxtHandle<'_> {
+        self.parse_sess.dcx()
     }
 }
 

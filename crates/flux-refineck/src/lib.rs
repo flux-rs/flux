@@ -203,14 +203,12 @@ pub fn check_fn(
 fn call_error<'a>(genv: GlobalEnv<'a, '_>, span: Span, dst_span: Option<ESpan>) -> Diag<'a> {
     genv.sess()
         .dcx()
-        .handle()
         .create_err(errors::RefineError::call(span, dst_span))
 }
 
 fn ret_error<'a>(genv: GlobalEnv<'a, '_>, span: Span, dst_span: Option<ESpan>) -> Diag<'a> {
     genv.sess()
         .dcx()
-        .handle()
         .create_err(errors::RefineError::ret(span, dst_span))
 }
 
@@ -242,65 +240,32 @@ fn report_errors(
             | ConstrReason::Subtype(SubtypeReason::Input)
             | ConstrReason::Subtype(SubtypeReason::Requires)
             | ConstrReason::Predicate => call_error(genv, span, tag.dst_span),
-            ConstrReason::Assign => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::AssignError { span })
-            }
+            ConstrReason::Assign => genv.sess().dcx().create_err(errors::AssignError { span }),
             ConstrReason::Ret
             | ConstrReason::Subtype(SubtypeReason::Output)
             | ConstrReason::Subtype(SubtypeReason::Ensures) => ret_error(genv, span, tag.dst_span),
-            ConstrReason::Div => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::DivError { span })
-            }
-            ConstrReason::Rem => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::RemError { span })
-            }
-            ConstrReason::Goto(_) => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::GotoError { span })
-            }
+            ConstrReason::Div => genv.sess().dcx().create_err(errors::DivError { span }),
+            ConstrReason::Rem => genv.sess().dcx().create_err(errors::RemError { span }),
+            ConstrReason::Goto(_) => genv.sess().dcx().create_err(errors::GotoError { span }),
             ConstrReason::Assert(msg) => {
                 genv.sess()
                     .dcx()
-                    .handle()
                     .create_err(errors::AssertError { span, msg })
             }
             ConstrReason::Fold | ConstrReason::FoldLocal => {
                 genv.sess()
                     .dcx()
-                    .handle()
                     .create_err(errors::FoldError::new(span, tag.dst_span))
             }
-            ConstrReason::Overflow => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::OverflowError { span })
-            }
+            ConstrReason::Overflow => genv.sess().dcx().create_err(errors::OverflowError { span }),
             ConstrReason::Underflow => {
                 genv.sess()
                     .dcx()
-                    .handle()
                     .create_err(errors::UnderflowError { span })
             }
-            ConstrReason::Other => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::UnknownError { span })
-            }
+            ConstrReason::Other => genv.sess().dcx().create_err(errors::UnknownError { span }),
             ConstrReason::NoPanic(callee, reason) => {
-                genv.sess().dcx().handle().create_err(errors::PanicError {
+                genv.sess().dcx().create_err(errors::PanicError {
                     span,
                     callee: genv.tcx().def_path_debug_str(callee),
                     reason: format!("{:?}", reason),
