@@ -15,6 +15,21 @@ fn clone_impl(h: &Handle) -> Handle {
     Handle { n: h.n }
 }
 
+static VTABLE: Vtable = Vtable { clone: clone_impl };
+
+// VERIFIES. The call goes through the fn-pointer field, whose (dependent) spec says the
+// result is `Handle[h]`. The initializer of `VTABLE` is checked against that spec.
+#[flux::spec(fn(&Handle[@h]) -> Handle[h])]
+pub fn clone_via_vtable(h: &Handle) -> Handle {
+    (VTABLE.clone)(h)
+}
+
+// VERIFIES. Same function, called directly: the spec is available.
+#[flux::spec(fn(&Handle[@h]) -> Handle[h])]
+pub fn clone_direct(h: &Handle) -> Handle {
+    clone_impl(h)
+}
+
 #[flux::spec(fn(h: &Handle[@k], f: fn(&Handle[@h]) -> Handle[h]) -> Handle[k])]
 pub fn call_dep(h: &Handle, f: fn(&Handle) -> Handle) -> Handle {
     f(h)
