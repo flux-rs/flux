@@ -330,9 +330,8 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.zip_ty(ty_a, ty_b)
             }
             (rty::BaseTy::FnPtr(poly_sig_a), rty::BaseTy::FnPtr(poly_sig_b)) => {
-                // The safety and abi of a fn pointer in a spec are not taken from the rust type
-                // (see `desugar_bare_fn`), so we must check they match, e.g., to not refine an
-                // `unsafe fn` pointer with a safe one.
+                // Check that safety and abi of a fn-ptr in a spec (see `desugar_bare_fn`)
+                // matches the rust one, to not refine an `unsafe fn` pointer with a safe one.
                 let (sig_a, sig_b) = (poly_sig_a.skip_binder_ref(), poly_sig_b.skip_binder_ref());
                 assert_eq_or_incompatible(sig_a.safety, sig_b.safety)?;
                 assert_eq_or_incompatible(sig_a.abi, sig_b.abi)?;
