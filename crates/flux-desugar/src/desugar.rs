@@ -1590,12 +1590,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let kind = match &expr.kind {
             surface::ExprKind::Path(path) => fhir::ExprKind::Var(self.desugar_epath(path)),
             surface::ExprKind::Literal(lit) => self.desugar_lit(expr.span, *lit),
-            surface::ExprKind::BinaryOp(op, box [e1, e2]) => {
+            surface::ExprKind::BinaryOp(op, deref!([e1, e2])) => {
                 let e1 = self.desugar_expr(e1);
                 let e2 = self.desugar_expr(e2);
                 fhir::ExprKind::BinaryOp(*op, self.genv().alloc(e1), self.genv().alloc(e2))
             }
-            surface::ExprKind::UnaryOp(op, box e) => {
+            surface::ExprKind::UnaryOp(op, deref!(e)) => {
                 fhir::ExprKind::UnaryOp(*op, self.genv().alloc(self.desugar_expr(e)))
             }
             surface::ExprKind::Dot(base, fld) => {
@@ -1606,7 +1606,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             surface::ExprKind::AssocReft(..) | surface::ExprKind::PrimUIF(..) => {
                 fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(expr.span)))
             }
-            surface::ExprKind::IfThenElse(box [p, e1, e2]) => {
+            surface::ExprKind::IfThenElse(deref!([p, e1, e2])) => {
                 let p = self.desugar_expr(p);
                 let e1 = self.desugar_expr(e1);
                 let e2 = self.desugar_expr(e2);

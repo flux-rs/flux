@@ -1,7 +1,8 @@
-#![feature(never_type, rustc_private)]
+#![feature(rustc_private)]
 
 extern crate rustc_abi;
 extern crate rustc_data_structures;
+extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_index;
 extern crate rustc_infer;

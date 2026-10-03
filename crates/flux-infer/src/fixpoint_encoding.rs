@@ -8,6 +8,7 @@ use flux_common::{
     cache::QueryCache,
     dbg,
     index::{IndexGen, IndexVec},
+    result::ResultExt as _,
     span_bug, tracked_span_bug,
 };
 use flux_config::{self as config};
@@ -31,7 +32,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
-    FixpointStatus, KVarBind, SmtSolver, VerificationResult,
+    FixpointError, FixpointStatus, KVarBind, SmtSolver, VerificationResult,
     parser::{FromSexp, ParseError},
     sexp::Parser,
 };
@@ -754,7 +755,9 @@ where
         kind: FixpointQueryKind,
         task: &fixpoint::Task,
     ) -> QueryResult<ParsedResult> {
-        let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
+        let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache)
+            .map_err(|err| errors::FixpointErr { span: self.ecx.def_span(), err })
+            .emit(&self.genv)?;
 
         if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
@@ -1000,7 +1003,7 @@ where
         def_id: DefId,
         kind: FixpointQueryKind,
         cache: &mut FixQueryCache,
-    ) -> VerificationResult<TagIdx> {
+    ) -> Result<VerificationResult<TagIdx>, FixpointError> {
         let key = kind.task_key(genv.tcx(), def_id);
 
         let hash = task.hash_with_default();
@@ -1009,18 +1012,17 @@ where
             && let Some(result) = cache.lookup(&key, hash)
         {
             metrics::incr_metric_if(kind.is_body(), Metric::FnCached);
-            return result.clone();
+            return Ok(result.clone());
         }
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
-            task.run()
-                .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
-        });
+            task.run(config::fixpoint_timeout())
+        })?;
 
         if config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());
         }
 
-        result
+        Ok(result)
     }
 
     fn tag_idx(&mut self, tag: Tag) -> TagIdx
@@ -1820,8 +1822,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 ]))
             }
             rty::ExprKind::Alias(alias_reft, args) => {
-                let sort = self.genv.sort_of_assoc_reft(alias_reft.assoc_id)?;
-                let sort = sort.instantiate_identity();
+                let sort = alias_reft.fsort(self.genv)?;
                 let func =
                     fixpoint::Expr::Var(self.define_const_for_alias_reft(alias_reft, sort, scx));
                 let args = args
@@ -1872,13 +1873,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Quant(..) => {
                 let span = expr.span().map_or(self.def_span(), |s| s.span);
                 let msg = "unbounded quantifiers are only supported with the lean backend; try `proven_externally`";
-                let err = self
-                    .genv
-                    .sess()
-                    .dcx()
-                    .handle()
-                    .struct_span_err(span, msg)
-                    .emit();
+                let err = self.genv.sess().dcx().struct_span_err(span, msg).emit_err();
                 return Err(QueryErr::Emitted(err));
             }
             rty::ExprKind::Hole(..)
@@ -2806,6 +2801,48 @@ fn parse_wkvars(expr: &mut fixpoint::Expr) {
             for e in args {
                 parse_wkvars(e);
             }
+        }
+    }
+}
+
+mod errors {
+    use std::io;
+
+    use flux_config as config;
+    use flux_errors::E0999;
+    use flux_macros::msg;
+    use liquid_fixpoint::FixpointError;
+    use rustc_errors::{Diag, DiagCtxtHandle, Diagnostic, Level};
+    use rustc_span::Span;
+
+    pub(super) struct FixpointErr {
+        pub span: Span,
+        pub err: FixpointError,
+    }
+
+    impl<'sess> Diagnostic<'sess> for FixpointErr {
+        fn into_diag(self, dcx: DiagCtxtHandle<'sess>, level: Level) -> Diag<'sess> {
+            let mut diag = match self.err {
+                FixpointError::Timeout => {
+                    let mut diag = Diag::new(dcx, level, msg!("fixpoint query timed out"));
+                    if let Some(timeout) = config::fixpoint_timeout() {
+                        diag.note(format!(
+                            "the timeout is set to {}s with `-Ffixpoint-timeout`",
+                            timeout.as_secs()
+                        ));
+                    }
+                    diag
+                }
+                FixpointError::Io(err) => {
+                    let mut diag = Diag::new(dcx, level, msg!("failed to run fixpoint: {$err}"));
+                    if err.kind() == io::ErrorKind::NotFound {
+                        diag.help(msg!("is `fixpoint` installed and on PATH?"));
+                    }
+                    diag.with_arg("err", err.to_string())
+                }
+            };
+            diag.code(E0999).span(self.span);
+            diag
         }
     }
 }

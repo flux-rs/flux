@@ -26,9 +26,9 @@ use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
-    self as hir, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy, def::CtorOf, def_id::CRATE_DEF_ID,
+    self as hir, CRATE_OWNER_ID, ParamName, PrimTy, def::CtorOf, def_id::CRATE_DEF_ID,
 };
-use rustc_middle::{metadata::ModChild, ty::TyCtxt};
+use rustc_middle::{middle::resolve::ModChild, ty::TyCtxt};
 use rustc_span::{Span, Symbol, def_id::DefId, symbol::kw};
 
 use self::refinement_resolver::RefinementResolver;
@@ -273,21 +273,17 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     }
                     continue;
                 }
-                ItemKind::TyAlias(..) => DefKind::TyAlias,
-                ItemKind::Enum(..) => DefKind::Enum,
-                ItemKind::Struct(..) => DefKind::Struct,
-                ItemKind::Union(..) => DefKind::Union,
-                ItemKind::Trait { .. } => DefKind::Trait,
-                ItemKind::Mod(..) => DefKind::Mod,
-                ItemKind::Const(.., rhs) => {
-                    DefKind::Const {
-                        is_type_const: matches!(rhs, hir::ConstItemRhs::TypeConst(..)),
-                    }
-                }
                 ItemKind::ForeignMod { items, .. } => {
                     self.define_foreign_items(items);
                     continue;
                 }
+                ItemKind::TyAlias(..)
+                | ItemKind::Enum(..)
+                | ItemKind::Struct(..)
+                | ItemKind::Union(..)
+                | ItemKind::Trait { .. }
+                | ItemKind::Mod(..)
+                | ItemKind::Const(..) => self.genv.def_kind(item.owner_id),
                 _ => continue,
             };
             if let Some(ns) = def_kind.ns().map(Namespace::from)
@@ -854,9 +850,15 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.genv.tcx()
     }
 
-    fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
+    fn visit_mod(
+        &mut self,
+        module: &'tcx hir::Mod<'tcx>,
+        _s: Span,
+        mod_id: hir::def_id::LocalModId,
+    ) {
+        let owner_id = OwnerId { def_id: mod_id.to_local_def_id() };
         let old_mod = self.current_module;
-        self.current_module = hir_id.expect_owner();
+        self.current_module = owner_id;
         self.push_rib(TypeNS, RibKind::Module);
         self.push_rib(ValueNS, RibKind::Module);
         self.push_rib(ReftNS, RibKind::Module);
@@ -864,13 +866,13 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.define_items(module.item_ids);
 
         // Flux primops and wualifiers are made globally available as if they were defined at the top of the crate
-        if hir_id == CRATE_HIR_ID {
+        if mod_id.is_top_level_module() {
             self.define_flux_global_items();
         }
         // Other items are defined in the module they are declared in.
-        self.define_module_flux_items(hir_id.expect_owner());
+        self.define_module_flux_items(owner_id);
 
-        self.resolve_flux_items(hir_id.expect_owner());
+        self.resolve_flux_items(owner_id);
         hir::intravisit::walk_mod(self, module);
 
         self.pop_rib(ReftNS);

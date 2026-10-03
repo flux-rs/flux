@@ -1,5 +1,5 @@
 //! code adapted from https://rust-unofficial.github.io/too-many-lists/first-final.html
-#![feature(box_patterns)]
+#![feature(deref_patterns)]
 
 #[flux::refined_by(len: int)]
 pub struct List<T> {
@@ -41,7 +41,7 @@ impl<T> Link<T> {
     fn len(&self) -> usize {
         match self {
             Link::Empty => 0,
-            Link::More(box node) => 1 + node.next.len(),
+            Link::More(deref!(node)) => 1 + node.next.len(),
         }
     }
 }

@@ -619,7 +619,7 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::Literal(lit) => {
             vis.visit_literal(*lit);
         }
-        ExprKind::BinaryOp(_bin_op, box exprs) => {
+        ExprKind::BinaryOp(_bin_op, deref!(exprs)) => {
             walk_list!(vis, visit_expr, exprs);
         }
         ExprKind::UnaryOp(_un_op, e) => {
@@ -635,7 +635,7 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
             vis.visit_path(path);
             vis.visit_ident(*name);
         }
-        ExprKind::IfThenElse(box exprs) => {
+        ExprKind::IfThenElse(deref!(exprs)) => {
             walk_list!(vis, visit_expr, exprs);
         }
         ExprKind::Constructor(path, exprs) => {

@@ -28,7 +28,7 @@ use crate::{
         TyAlias, TyKind, UnOp, UseTree, UseTreeKind, VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
-    token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
+    token::{self, Comma, Delimiter::*, IdentKind, Or, Token, TokenKind},
 };
 
 /// An attribute that's considered part of the *syntax* of an item.
@@ -1762,7 +1762,7 @@ fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
 
 fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
     if let Token { kind: token::Ident(name, is_raw), lo, hi } = cx.at(0)
-        && (!cx.is_reserved(name) || is_raw == IdentIsRaw::Yes)
+        && (!cx.is_reserved(name) || is_raw == IdentKind::Raw)
     {
         cx.advance();
         return Ok(Ident { name, span: cx.mk_span(lo, hi) });

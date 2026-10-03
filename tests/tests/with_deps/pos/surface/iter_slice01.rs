@@ -1,6 +1,6 @@
 //@ignore-test: ignored as its crashing in normalization :-(
 #![allow(unused)]
-#![feature(allocator_api)]
+#![feature(allocator_ext)]
 
 use std::{
     alloc::{Allocator, Global},

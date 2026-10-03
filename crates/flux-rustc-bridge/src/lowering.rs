@@ -100,7 +100,7 @@ fn trait_ref_impl_id<'tcx>(
     let trait_ref = tcx.erase_and_anonymize_regions(trait_ref);
     let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     let impl_source = selcx.select(&obligation).ok()??;
-    let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
+    let impl_source = selcx.infcx.deeply_resolve_ignoring_regions(impl_source);
     // let impl_source = selcx.infcx.fully_resolve(impl_source).ok()?;
     let ImplSource::UserDefined(impl_data) = impl_source else { return None };
     Some((impl_data.impl_def_id, impl_data.args))
@@ -244,7 +244,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
     ) -> Result<Statement<'tcx>, ErrorGuaranteed> {
         let span = stmt.source_info.span;
         let kind = match &stmt.kind {
-            rustc_mir::StatementKind::Assign(box (place, rvalue)) => {
+            rustc_mir::StatementKind::Assign(deref!((place, rvalue))) => {
                 StatementKind::Assign(
                     lower_place(self.tcx, place)
                         .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
@@ -262,7 +262,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                     *variant_index,
                 )
             }
-            rustc_mir::StatementKind::FakeRead(box (cause, place)) => {
+            rustc_mir::StatementKind::FakeRead(deref!((cause, place))) => {
                 StatementKind::FakeRead(Box::new((
                     *cause,
                     lower_place(self.tcx, place)
@@ -281,7 +281,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             | rustc_mir::StatementKind::StorageLive(_)
             | rustc_mir::StatementKind::StorageDead(_) => StatementKind::Nop,
             rustc_mir::StatementKind::AscribeUserType(
-                box (place, rustc_mir::UserTypeProjection { projs, .. }),
+                deref!((place, rustc_mir::UserTypeProjection { projs, .. })),
                 variance,
             ) if projs.is_empty() => {
                 StatementKind::AscribeUserType(
@@ -505,7 +505,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 let ty = ty.lower(self.tcx)?;
                 Ok(Rvalue::Cast(kind, op, ty))
             }
-            rustc_mir::Rvalue::BinaryOp(bin_op, box (op1, op2)) => {
+            rustc_mir::Rvalue::BinaryOp(bin_op, deref!((op1, op2))) => {
                 Ok(Rvalue::BinaryOp(
                     self.lower_bin_op(*bin_op)?,
                     self.lower_operand(op1)?,
@@ -907,7 +907,12 @@ impl<'tcx> Lower<'tcx> for rustc_ty::AliasConstKind<'tcx> {
             rustc_ty::AliasConstKind::Projection { def_id } => {
                 AliasConstKind::Projection { def_id }
             }
-            rustc_ty::AliasConstKind::Inherent { def_id } => AliasConstKind::Inherent { def_id },
+            rustc_ty::AliasConstKind::InherentSelf { def_id } => {
+                AliasConstKind::InherentSelf { def_id }
+            }
+            rustc_ty::AliasConstKind::InherentImpl { def_id } => {
+                AliasConstKind::InherentImpl { def_id }
+            }
             rustc_ty::AliasConstKind::Free { def_id } => AliasConstKind::Free { def_id },
             rustc_ty::AliasConstKind::Anon { def_id } => AliasConstKind::Anon { def_id },
         })
