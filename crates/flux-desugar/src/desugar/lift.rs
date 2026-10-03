@@ -402,6 +402,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         );
         let decl = self.lift_fn_decl_inner(span, fn_ptr.decl);
         fhir::BareFnTy {
+            params: &[],
             safety: fn_ptr.safety,
             abi: fn_ptr.abi,
             generic_params,
