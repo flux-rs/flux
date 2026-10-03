@@ -697,7 +697,7 @@ fn test01(vec: &amp;mut RVec&lt;i32&gt;) {
 <h2 id="refined-vec"><a class="header" href="#refined-vec">Refined <code>Vec</code></a></h2>
 <p>This uses <code>extern_spec</code> which is <a href="#extern-specs">described below</a>.</p>
 <p><strong>Standalone</strong></p>
-<pre><code class="language-rust noplayground">#![feature(allocator_api)]
+<pre><code class="language-rust noplayground">#![feature(allocator_ext)]
 
 extern crate flux_alloc;
 extern crate flux_core;
@@ -842,7 +842,7 @@ impl&lt;T, A: Allocator&gt; DerefMut for Vec&lt;T, A&gt; {
     #[sig(fn(self: &amp;mut Self[@v]) -&gt; &amp;mut [T][v])]
     fn deref_mut(&amp;mut self) -&gt; &amp;mut [T];
 }</code></pre>
-<pre><code class="language-rust noplayground">#![feature(allocator_api)]
+<pre><code class="language-rust noplayground">#![feature(allocator_ext)]
 
 use std::ops::Index;
 
@@ -3704,7 +3704,7 @@ impl&lt;T, A: Allocator&gt; DerefMut for Vec&lt;T, A&gt; {
 mod range;
 mod traits;</code></pre>
 <pre><code class="language-rust noplayground">#![allow(unused)]
-#![feature(allocator_api)]
+#![feature(allocator_ext)]
 
 use std::{iter::Enumerate, slice::Iter};
 
