@@ -13,9 +13,9 @@ use flux_config::{self as config, IncludePattern};
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
+use rustc_attr_ir::LangItem;
 use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::{
-    attrs::lang_items::LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LocalDefId},
 };

@@ -585,7 +585,7 @@ pub enum TyKind<'fhir> {
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr<'fhir>, &'fhir Ty<'fhir>),
     StrgRef(Lifetime, &'fhir PathExpr<'fhir>, &'fhir Ty<'fhir>),
-    Ref(Lifetime, MutTy<'fhir>),
+    Ref(Lifetime, &'fhir Ty<'fhir>, Mutability),
     BareFn(&'fhir BareFnTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ConstArg),
@@ -604,12 +604,6 @@ pub struct BareFnTy<'fhir> {
     pub generic_params: &'fhir [GenericParam<'fhir>],
     pub decl: &'fhir FnDecl<'fhir>,
     pub param_idents: &'fhir [Option<Ident>],
-}
-
-#[derive(Clone, Copy)]
-pub struct MutTy<'fhir> {
-    pub ty: &'fhir Ty<'fhir>,
-    pub mutbl: Mutability,
 }
 
 /// Our surface syntax doesn't have lifetimes. To deal with them we create a *hole* for every lifetime
@@ -1554,8 +1548,8 @@ impl fmt::Debug for Ty<'_> {
                 }
             }
             TyKind::StrgRef(_lft, loc, ty) => write!(f, "&strg <{loc:?}: {ty:?}>"),
-            TyKind::Ref(_lft, mut_ty) => {
-                write!(f, "&{}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
+            TyKind::Ref(_lft, ty, mutbl) => {
+                write!(f, "&{}{:?}", mutbl.prefix_str(), ty)
             }
             TyKind::BareFn(bare_fn_ty) => {
                 write!(f, "{bare_fn_ty:?}")

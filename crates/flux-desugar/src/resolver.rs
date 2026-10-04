@@ -236,41 +236,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         for item_id in item_ids {
             let item = self.genv.tcx().hir_item(*item_id);
             let def_kind = match item.kind {
-                ItemKind::Use(path, kind) => {
-                    match kind {
-                        hir::UseKind::Single(ident) => {
-                            if let Some(res) = path.res.value_ns
-                                && let Ok(res) = fhir::Res::try_from(res)
-                            {
-                                self.define_res_in(res, ValueNS, BindingSource::Explicit(ident));
-                            }
-                            if let Some(res) = path.res.type_ns
-                                && let Ok(res) = fhir::Res::try_from(res)
-                            {
-                                self.define_res_in(res, TypeNS, BindingSource::Explicit(ident));
-                            }
-                        }
-                        hir::UseKind::Glob => {
-                            let is_prelude = is_prelude_import(self.genv.tcx(), item);
-                            let glob_span = item.span;
-                            for mod_child in self.glob_imports(path) {
-                                if let Ok(res) = fhir::Res::try_from(mod_child.res)
-                                    && let Some(ns @ (TypeNS | ValueNS)) = res.ns()
-                                {
-                                    if is_prelude {
-                                        self.define_in_prelude(mod_child.ident, res, ns);
-                                    } else {
-                                        let source = BindingSource::Glob {
-                                            ident: mod_child.ident,
-                                            glob_span,
-                                        };
-                                        self.define_res_in(res, ns, source);
-                                    }
-                                }
-                            }
-                        }
-                        hir::UseKind::ListStem => {}
-                    }
+                ItemKind::Use(use_tree) => {
+                    let is_prelude = is_prelude_import(self.genv.tcx(), item);
+                    self.define_use_tree(&use_tree, &mut vec![], is_prelude, item.span);
                     continue;
                 }
                 ItemKind::ForeignMod { items, .. } => {
@@ -637,16 +605,67 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         Err(ResolveError::NotFound)
     }
 
+    /// Defines the names brought into scope by a `use` tree. `prefix` accumulates the segments of
+    /// the enclosing nested trees, because the path of a nested tree is relative to its parent.
+    fn define_use_tree(
+        &mut self,
+        use_tree: &hir::UseTree<'tcx>,
+        prefix: &mut Vec<hir::PathSegment<'tcx>>,
+        is_prelude: bool,
+        glob_span: Span,
+    ) {
+        let path = use_tree.prefix;
+        match use_tree.kind {
+            hir::UseKind::Single(ident) => {
+                if let Some(res) = path.res.value_ns
+                    && let Ok(res) = fhir::Res::try_from(res)
+                {
+                    self.define_res_in(res, ValueNS, BindingSource::Explicit(ident));
+                }
+                if let Some(res) = path.res.type_ns
+                    && let Ok(res) = fhir::Res::try_from(res)
+                {
+                    self.define_res_in(res, TypeNS, BindingSource::Explicit(ident));
+                }
+            }
+            hir::UseKind::Glob => {
+                let len = prefix.len();
+                prefix.extend_from_slice(path.segments);
+                for mod_child in self.glob_imports(prefix) {
+                    if let Ok(res) = fhir::Res::try_from(mod_child.res)
+                        && let Some(ns @ (TypeNS | ValueNS)) = res.ns()
+                    {
+                        if is_prelude {
+                            self.define_in_prelude(mod_child.ident, res, ns);
+                        } else {
+                            let source = BindingSource::Glob { ident: mod_child.ident, glob_span };
+                            self.define_res_in(res, ns, source);
+                        }
+                    }
+                }
+                prefix.truncate(len);
+            }
+            hir::UseKind::Nested { items } => {
+                let len = prefix.len();
+                prefix.extend_from_slice(path.segments);
+                for (nested, _, _) in items {
+                    self.define_use_tree(nested, prefix, is_prelude, glob_span);
+                }
+                prefix.truncate(len);
+            }
+        }
+    }
+
     fn glob_imports(
         &mut self,
-        path: &hir::UsePath,
+        segments: &[hir::PathSegment<'tcx>],
     ) -> impl Iterator<Item = &'tcx ModChild> + use<'tcx> {
         // The path for the prelude import is not resolved anymore after <https://github.com/rust-lang/rust/pull/145322>,
         // so we resolve all paths here. If this ever causes problems, we could use the resolution in the `UsePath` for
         // non-prelude glob imports.
         let tcx = self.genv.tcx();
         let curr_mod = self.current_module.to_def_id();
-        self.resolve_path_with_ribs_inner(path.segments, TypeNS)
+        self.resolve_path_with_ribs_inner(segments, TypeNS)
             .ok()
             .and_then(|partial_res| partial_res.full_res())
             .and_then(|res| {
@@ -1215,7 +1234,10 @@ fn visible_module_children(
 /// Return true if the item has a `#[prelude_import]` annotation
 fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
     tcx.hir_attrs(item.hir_id()).iter().any(|attr| {
-        matches!(attr, hir::Attribute::Parsed(hir::attrs::AttributeKind::PreludeImport))
+        matches!(
+            attr,
+            rustc_attr_ir::Attribute::Parsed(rustc_attr_ir::AttributeKind::PreludeImport)
+        )
     })
 }
 
