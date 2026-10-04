@@ -690,7 +690,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> fhir::OpaqueTy<'genv> {
         let output = self.desugar_fn_ret_ty(returns);
         let trait_ref = self.make_lang_item_path(
-            hir::attrs::lang_items::LangItem::Future,
+            rustc_attr_ir::LangItem::Future,
             DUMMY_SP,
             &[],
             self.genv.alloc_slice(&[fhir::AssocItemConstraint {
@@ -713,7 +713,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn make_lang_item_path(
         &mut self,
-        lang_item: hir::attrs::lang_items::LangItem,
+        lang_item: rustc_attr_ir::LangItem,
         span: Span,
         args: &'genv [fhir::GenericArg<'genv>],
         constraints: &'genv [fhir::AssocItemConstraint<'genv>],
@@ -1332,8 +1332,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
             surface::TyKind::Ref(mutbl, ty) => {
                 let ty = self.desugar_ty(ty);
-                let mut_ty = fhir::MutTy { ty: self.genv().alloc(ty), mutbl: *mutbl };
-                fhir::TyKind::Ref(self.mk_lft_hole(), mut_ty)
+                fhir::TyKind::Ref(self.mk_lft_hole(), self.genv().alloc(ty), *mutbl)
             }
 
             surface::TyKind::Tuple(tys) => {

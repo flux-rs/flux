@@ -458,9 +458,9 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
             vis.visit_path_expr(loc);
             vis.visit_ty(ty);
         }
-        TyKind::Ref(lft, mty) => {
+        TyKind::Ref(lft, ty, _) => {
             vis.visit_lifetime(&lft);
-            vis.visit_ty(mty.ty);
+            vis.visit_ty(ty);
         }
         TyKind::BareFn(bare_fn) => {
             walk_list!(vis, visit_refine_param, bare_fn.params);

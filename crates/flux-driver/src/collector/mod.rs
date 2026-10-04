@@ -21,11 +21,12 @@ use flux_syntax::{
     surface::{self, NodeId, Trusted},
 };
 use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
+use rustc_attr_ir::Attribute;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
-    self as hir, Attribute, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, Mutability,
-    OwnerId, VariantData,
+    self as hir, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, Mutability, OwnerId,
+    VariantData,
     def::DefKind,
     def_id::{CRATE_DEF_ID, DefId, LocalDefId},
 };
@@ -546,7 +547,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
     fn parse_flux_attr(
         &mut self,
-        attr_item: &hir::attrs::AttrItem,
+        attr_item: &rustc_attr_ir::AttrItem,
         def_kind: DefKind,
     ) -> Result<FluxAttr> {
         let invalid_attr_err = |this: &Self| {
@@ -557,19 +558,19 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let [_, segment] = &attr_item.path.segments[..] else { return Err(invalid_attr_err(self)) };
 
         let kind = match (segment.as_str(), &attr_item.args) {
-            ("alias", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("alias", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_type_alias, |t| {
                     FluxAttrKind::TypeAlias(Box::new(t))
                 })?
             }
-            ("sig" | "spec", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("sig" | "spec", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 if matches!(def_kind, DefKind::Static { .. }) {
                     self.parse(dargs, ParseSess::parse_static_info, FluxAttrKind::StaticSpec)?
                 } else {
                     self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
                 }
             }
-            ("assoc" | "reft", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("assoc" | "reft", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 match def_kind {
                     DefKind::Trait => {
                         self.parse(
@@ -588,56 +589,58 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     _ => return Err(invalid_attr_err(self)),
                 }
             }
-            ("qualifiers", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("qualifiers", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::QualNames)?
             }
-            ("reveal", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("reveal", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::RevealNames)?
             }
-            ("hide", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("hide", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::HideNames)?
             }
-            ("defs", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("defs", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_flux_item, FluxAttrKind::Items)?
             }
-            ("refined_by", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("refined_by", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_refined_by, FluxAttrKind::RefinedBy)?
             }
-            ("field", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("field", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_type, FluxAttrKind::Field)?
             }
-            ("variant", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("variant", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_variant, FluxAttrKind::Variant)?
             }
-            ("invariant", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("invariant", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::Invariant)?
             }
-            ("no_panic_if", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("no_panic_if", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::NoPanicIf)?
             }
-            ("constant", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("constant", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)?
             }
-            ("opts", hir::attrs::AttrArgs::Delimited(..)) => {
+            ("opts", rustc_attr_ir::AttrArgs::Delimited(..)) => {
                 let opts = AttrMap::parse(attr_item)
                     .emit(&self.errors)?
                     .try_into_infer_opts()
                     .emit(&self.errors)?;
                 FluxAttrKind::InferOpts(opts)
             }
-            ("ignore", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("ignore", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_yes_or_no_with_reason, |b| {
                     FluxAttrKind::Ignore(b.into())
                 })?
             }
-            ("ignore", hir::attrs::AttrArgs::Empty) => FluxAttrKind::Ignore(surface::Ignored::Yes),
-            ("trusted", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("ignore", rustc_attr_ir::AttrArgs::Empty) => {
+                FluxAttrKind::Ignore(surface::Ignored::Yes)
+            }
+            ("trusted", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_yes_or_no_with_reason, |b| {
                     FluxAttrKind::Trusted(b.into())
                 })?
             }
-            ("trusted", hir::attrs::AttrArgs::Empty) => FluxAttrKind::Trusted(Trusted::Yes),
-            ("trusted_impl", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("trusted", rustc_attr_ir::AttrArgs::Empty) => FluxAttrKind::Trusted(Trusted::Yes),
+            ("trusted_impl", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_yes_or_no_with_reason, |b| {
                     FluxAttrKind::TrustedImpl(b.into())
                 })?
@@ -646,27 +649,27 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 let span = attr_item_inner_span(attr_item);
                 FluxAttrKind::ProvenExternally(span)
             }
-            ("trusted_impl", hir::attrs::AttrArgs::Empty) => {
+            ("trusted_impl", rustc_attr_ir::AttrArgs::Empty) => {
                 FluxAttrKind::TrustedImpl(Trusted::Yes)
             }
-            ("trusted_derive", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("trusted_derive", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_yes_or_no_with_reason, |b| {
                     FluxAttrKind::TrustedDerive(b.into())
                 })?
             }
-            ("trusted_derive", hir::attrs::AttrArgs::Empty) => {
+            ("trusted_derive", rustc_attr_ir::AttrArgs::Empty) => {
                 FluxAttrKind::TrustedDerive(Trusted::Yes)
             }
-            ("opaque", hir::attrs::AttrArgs::Empty) => FluxAttrKind::Opaque,
-            ("reflect", hir::attrs::AttrArgs::Empty) => FluxAttrKind::Reflect,
-            ("extern_spec", hir::attrs::AttrArgs::Empty) => FluxAttrKind::ExternSpec,
-            ("no_panic", hir::attrs::AttrArgs::Empty) => FluxAttrKind::NoPanic,
-            ("assume_parametric", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("opaque", rustc_attr_ir::AttrArgs::Empty) => FluxAttrKind::Opaque,
+            ("reflect", rustc_attr_ir::AttrArgs::Empty) => FluxAttrKind::Reflect,
+            ("extern_spec", rustc_attr_ir::AttrArgs::Empty) => FluxAttrKind::ExternSpec,
+            ("no_panic", rustc_attr_ir::AttrArgs::Empty) => FluxAttrKind::NoPanic,
+            ("assume_parametric", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::AssumeParametric)?
             }
-            ("should_fail", hir::attrs::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
-            ("no_suggestions", hir::attrs::AttrArgs::Empty) => FluxAttrKind::NoSuggestions,
-            ("specs", hir::attrs::AttrArgs::Delimited(dargs)) => {
+            ("should_fail", rustc_attr_ir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
+            ("no_suggestions", rustc_attr_ir::AttrArgs::Empty) => FluxAttrKind::NoSuggestions,
+            ("specs", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_detached_specs, FluxAttrKind::DetachedSpecs)?
             }
 
@@ -1058,7 +1061,7 @@ macro_rules! try_read_setting {
 type AttrMapErr<T = ()> = std::result::Result<T, errors::AttrMapErr>;
 
 impl AttrMap {
-    fn parse(attr_item: &hir::attrs::AttrItem) -> AttrMapErr<Self> {
+    fn parse(attr_item: &rustc_attr_ir::AttrItem) -> AttrMapErr<Self> {
         let mut map = Self { map: HashMap::new() };
         let err = || {
             Err(errors::AttrMapErr {
@@ -1066,7 +1069,7 @@ impl AttrMap {
                 message: "bad syntax".to_string(),
             })
         };
-        let hir::attrs::AttrArgs::Delimited(d) = &attr_item.args else { return err() };
+        let rustc_attr_ir::AttrArgs::Delimited(d) = &attr_item.args else { return err() };
         let Some(items) = MetaItemKind::list_from_tokens(d.tokens.clone()) else { return err() };
         for item in items {
             map.parse_entry(&item)?;
@@ -1128,16 +1131,16 @@ impl AttrMap {
 }
 
 /// Returns the span of an attribute without `#[` and `]`
-fn attr_item_inner_span(attr_item: &hir::attrs::AttrItem) -> Span {
+fn attr_item_inner_span(attr_item: &rustc_attr_ir::AttrItem) -> Span {
     attr_args_span(&attr_item.args)
         .map_or(attr_item.path.span, |args_span| attr_item.path.span.to(args_span))
 }
 
-fn attr_args_span(attr_args: &hir::attrs::AttrArgs) -> Option<Span> {
+fn attr_args_span(attr_args: &rustc_attr_ir::AttrArgs) -> Option<Span> {
     match attr_args {
-        hir::attrs::AttrArgs::Empty => None,
-        hir::attrs::AttrArgs::Delimited(args) => Some(args.dspan.entire()),
-        hir::attrs::AttrArgs::Eq { eq_span, expr } => Some(eq_span.to(expr.span)),
+        rustc_attr_ir::AttrArgs::Empty => None,
+        rustc_attr_ir::AttrArgs::Delimited(args) => Some(args.dspan.entire()),
+        rustc_attr_ir::AttrArgs::Eq { eq_span, expr } => Some(eq_span.to(expr.span)),
     }
 }
 
