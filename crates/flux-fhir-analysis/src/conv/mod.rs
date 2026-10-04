@@ -1266,7 +1266,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let ty = self.conv_ty(env, ty, name)?;
                 Ok(rty::Ty::strg_ref(re, loc, ty))
             }
-            fhir::TyKind::Ref(_, fhir::MutTy { ty, mutbl }) => {
+            fhir::TyKind::Ref(_, ty, mutbl) => {
                 let region = self.next_region_hole();
                 Ok(rty::Ty::mk_ref(region, self.conv_ty(env, ty, name)?, *mutbl))
             }

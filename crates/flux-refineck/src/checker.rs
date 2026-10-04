@@ -37,15 +37,13 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _},
 };
 use itertools::Itertools;
+use rustc_attr_ir::LangItem;
 use rustc_data_structures::{
     graph::dominators::Dominators,
     unord::{UnordMap, UnordSet},
 };
 use rustc_hash::FxHashMap;
-use rustc_hir::{
-    attrs::lang_items::LangItem,
-    def_id::{DefId, LocalDefId},
-};
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::{IndexSlice, bit_set::DenseBitSet};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
