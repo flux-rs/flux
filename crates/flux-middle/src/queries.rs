@@ -184,7 +184,7 @@ pub struct Providers {
     pub adt_def: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtDef>,
     pub invariants_of: fn(GlobalEnv, MaybeExternId) -> rty::EarlyBinder<List<rty::Invariant>>,
     pub constant_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::ConstantInfo>,
-    pub static_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::StaticInfo>,
+    pub static_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::Ty>,
     pub type_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>>,
     pub variants_of: fn(
         GlobalEnv,
@@ -286,7 +286,7 @@ pub struct Queries<'genv, 'tcx> {
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     invariants_of: Cache<DefId, rty::EarlyBinder<List<rty::Invariant>>>,
     constant_info: Cache<DefId, QueryResult<rty::ConstantInfo>>,
-    static_info: Cache<DefId, QueryResult<rty::StaticInfo>>,
+    static_info: Cache<DefId, QueryResult<rty::Ty>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
@@ -711,18 +711,14 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             .clone()
     }
 
-    pub(crate) fn static_info(
-        &self,
-        genv: GlobalEnv,
-        def_id: DefId,
-    ) -> QueryResult<rty::StaticInfo> {
+    pub(crate) fn static_info(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::Ty> {
         run_with_cache(&self.static_info, def_id, || {
             def_id.dispatch_query(
                 genv,
                 self,
                 |def_id| (self.providers.static_info)(genv, def_id),
                 |def_id| genv.cstore().static_info(def_id),
-                |_def_id| Ok(rty::StaticInfo::Unknown),
+                |def_id| rty::refining::default_static_ty(genv, def_id),
             )
         })
     }

@@ -121,19 +121,6 @@ fn check_body(
     }
 }
 
-/// The type used to check a `static` without a flux spec: the default refinement of its rust type.
-/// Reads of such a static use this type too, so e.g. the field specs of a struct are assumed when
-/// reading from the static, and thus must be checked in its initializer.
-pub fn default_static_ty(
-    genv: GlobalEnv,
-    def_id: DefId,
-) -> flux_middle::queries::QueryResult<rty::Ty> {
-    use flux_middle::rty::refining::{Refine as _, Refiner};
-    genv.lower_type_of(def_id)?
-        .skip_binder()
-        .refine(&Refiner::default_for_item(genv, def_id)?)
-}
-
 pub fn check_static(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,

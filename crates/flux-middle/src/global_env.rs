@@ -351,7 +351,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .constant_info(self, def_id.into_query_key())
     }
 
-    pub fn static_info(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::StaticInfo> {
+    /// The type of a static: its spec if it has one, or the default refinement of its rust type.
+    pub fn static_info(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::Ty> {
         self.inner
             .queries
             .static_info(self, def_id.into_query_key())

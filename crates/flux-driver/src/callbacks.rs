@@ -13,7 +13,6 @@ use flux_middle::{
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
-    rty::StaticInfo,
 };
 use flux_refineck as refineck;
 use rustc_borrowck::consumers::ConsumerOptions;
@@ -313,14 +312,9 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 if let Some(local_id) = def_id.as_local()
                     && genv.tcx().hir_node_by_def_id(local_id).body_id().is_some()
                 {
-                    let ty = match genv.static_info(def_id).emit(&genv)? {
-                        StaticInfo::Known(ty) => ty,
-                        // A static without a spec is checked against the default refinement of
-                        // its type, e.g., to check the field specs of a struct in the initializer.
-                        StaticInfo::Unknown => {
-                            refineck::default_static_ty(genv, def_id.resolved_id()).emit(&genv)?
-                        }
-                    };
+                    // A static without a spec is checked against the default refinement of its
+                    // type, e.g., to check the field specs of a struct in the initializer.
+                    let ty = genv.static_info(def_id).emit(&genv)?;
                     refineck::check_static(genv, &mut self.cache, local_id, ty)?;
                 }
             }
