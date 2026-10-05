@@ -23,7 +23,7 @@ use rustc_data_structures::{
     fx::{FxHashMap, FxIndexSet},
     unord::UnordMap,
 };
-use rustc_hir::def_id::{DefId, LOCAL_CRATE};
+use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
 use crate::{
@@ -833,9 +833,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if !self.genv.normalized_info(did).uif {
             let body = self.genv.inlined_body(did);
             for dep_id in deps(&body) {
-                if dep_id.krate() == LOCAL_CRATE {
-                    res.push(self.fun_file(&dep_id));
-                }
+                res.push(self.fun_file(&dep_id));
             }
         }
 
