@@ -156,7 +156,7 @@ where
                                         bin_op.clone(),
                                     )))
                                 }
-                                ConstKey::Cast(_sort, _sort1) => {
+                                ConstKey::Cast(..) | ConstKey::UifOp(_) => {
                                     unreachable!(
                                         "Should be specially handled as the head of a function app."
                                     )
@@ -320,6 +320,19 @@ where
                                     unreachable!(
                                         "Should have been handled by is_curried_primop_app"
                                     )
+                                }
+                                // An operation encoded as an uninterpreted function is decoded
+                                // back into the (interpreted) operation
+                                ConstKey::UifOp(op) => {
+                                    if let [e1, e2] = &fargs[..] {
+                                        Ok(rty::Expr::binary_op(
+                                            op.clone(),
+                                            self.fixpoint_to_expr(e1)?,
+                                            self.fixpoint_to_expr(e2)?,
+                                        ))
+                                    } else {
+                                        Err(FixpointParseError::UIFRelArityMismatch(fargs.len()))
+                                    }
                                 }
                                 ConstKey::Cast(sort1, sort2) => {
                                     if fargs.len() != 1 {

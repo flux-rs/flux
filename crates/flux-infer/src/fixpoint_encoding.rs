@@ -11,7 +11,7 @@ use flux_common::{
     result::ResultExt as _,
     span_bug, tracked_span_bug,
 };
-use flux_config::{self as config};
+use flux_config::{self as config, UifOp, UifOps};
 use flux_errors::Errors;
 use flux_macros::DebugAsJson;
 use flux_middle::{
@@ -561,6 +561,10 @@ pub(crate) enum ConstKey<'tcx> {
     Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Lambda(Lambda),
     PrimOp(rty::BinOp),
+    /// A binary operation encoded as an uninterpreted function, see [`InferOpts::uif_ops`]
+    ///
+    /// [`InferOpts::uif_ops`]: flux_config::InferOpts::uif_ops
+    UifOp(rty::BinOp),
     Cast(rty::Sort, rty::Sort),
     WKVar(rty::WKVid, usize),
 }
@@ -637,13 +641,14 @@ where
         def_id: MaybeExternId,
         kvars: KVarGen,
         backend: Backend,
+        uif_ops: UifOps,
     ) -> Self {
         Self {
             comments: vec![],
             kvars,
             scx: SortEncodingCtxt::default(),
             genv,
-            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend),
+            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend).with_uif_ops(uif_ops),
             kcx: Default::default(),
             tags: IndexVec::new(),
             // tags_inv: Default::default(),
@@ -1602,6 +1607,8 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     def_id: Option<MaybeExternId>,
     infcx: rustc_infer::infer::InferCtxt<'tcx>,
     backend: Backend,
+    /// Binary operations to encode as uninterpreted functions
+    uif_ops: UifOps,
 }
 
 #[derive(Debug)]
@@ -1639,7 +1646,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .with_next_trait_solver(true)
                 .build(TypingMode::non_body_analysis()),
             backend,
+            uif_ops: UifOps::default(),
         }
+    }
+
+    pub fn with_uif_ops(mut self, uif_ops: UifOps) -> Self {
+        self.uif_ops = uif_ops;
+        self
     }
 
     fn def_span(&self) -> Span {
@@ -2003,6 +2016,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e2: &rty::Expr,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
+        if let Some(uif_op) = Self::uif_op(op)
+            && self.uif_ops.contains(uif_op)
+        {
+            let func = fixpoint::Expr::Var(self.define_const_for_uif_op(op, scx));
+            let args = vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?];
+            return Ok(fixpoint::Expr::App(Box::new(func), None, args, None));
+        }
         let op = match op {
             rty::BinOp::Eq => {
                 return Ok(fixpoint::Expr::Atom(
@@ -2263,6 +2283,68 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name
     }
 
+    /// The operator (if any) that `op` corresponds to in [`UifOps`]
+    fn uif_op(op: &rty::BinOp) -> Option<UifOp> {
+        let op = match op {
+            rty::BinOp::Add(_) => UifOp::Add,
+            rty::BinOp::Sub(_) => UifOp::Sub,
+            rty::BinOp::Mul(_) => UifOp::Mul,
+            rty::BinOp::Div(_) => UifOp::Div,
+            rty::BinOp::Mod(_) => UifOp::Mod,
+            rty::BinOp::BitAnd(_) => UifOp::BitAnd,
+            rty::BinOp::BitOr(_) => UifOp::BitOr,
+            rty::BinOp::BitXor(_) => UifOp::BitXor,
+            rty::BinOp::BitShl(_) => UifOp::BitShl,
+            rty::BinOp::BitShr(_) => UifOp::BitShr,
+            rty::BinOp::Iff
+            | rty::BinOp::Imp
+            | rty::BinOp::Or
+            | rty::BinOp::And
+            | rty::BinOp::Eq
+            | rty::BinOp::Ne
+            | rty::BinOp::Gt(_)
+            | rty::BinOp::Ge(_)
+            | rty::BinOp::Lt(_)
+            | rty::BinOp::Le(_) => return None,
+        };
+        Some(op)
+    }
+
+    /// Declares an uninterpreted function `(s, s) -> s` for the binary operation `op` on sort `s`.
+    /// There is one function per operation and sort, e.g., `*` on `int` and `*` on `real` are
+    /// different functions.
+    fn define_const_for_uif_op(
+        &mut self,
+        op: &rty::BinOp,
+        scx: &mut SortEncodingCtxt,
+    ) -> fixpoint::Var {
+        let key = ConstKey::UifOp(op.clone());
+        self.const_env
+            .get_or_insert(key, |global_name| {
+                let sort = match op {
+                    rty::BinOp::Add(sort)
+                    | rty::BinOp::Sub(sort)
+                    | rty::BinOp::Mul(sort)
+                    | rty::BinOp::Div(sort)
+                    | rty::BinOp::Mod(sort)
+                    | rty::BinOp::BitAnd(sort)
+                    | rty::BinOp::BitOr(sort)
+                    | rty::BinOp::BitXor(sort)
+                    | rty::BinOp::BitShl(sort)
+                    | rty::BinOp::BitShr(sort) => sort.clone(),
+                    _ => bug!("unexpected uninterpreted operation `{op:?}`"),
+                };
+                let fsort = rty::FuncSort::new(vec![sort.clone(), sort.clone()], sort);
+                let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
+                fixpoint::ConstDecl {
+                    name: fixpoint::Var::Const(global_name, None),
+                    sort: scx.func_sort_to_fixpoint(&fsort).into_sort(),
+                    comment: Some(format!("uninterpreted op: {op:?}")),
+                }
+            })
+            .name
+    }
+
     fn define_const_for_prim_op(
         &mut self,
         op: &rty::BinOp,
@@ -2466,6 +2548,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 | ConstKey::Cast(..)
                 | ConstKey::Lambda(..)
                 | ConstKey::PrimOp(..)
+                | ConstKey::UifOp(..)
                 | ConstKey::WKVar(..) => {}
             }
         }
