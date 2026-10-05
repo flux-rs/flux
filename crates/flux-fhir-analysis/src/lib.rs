@@ -47,7 +47,7 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
     def::{CtorOf, DefKind},
-    def_id::{DefId, LocalDefId},
+    def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_span::Span;
 
@@ -124,18 +124,18 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
         };
         let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
         let Ok(defn) = cx.conv_defn(func).emit(&errors) else { continue };
-        defns.push((func.def_id, defn, func.hide));
+        defns.push((func.def_id.to_def_id(), defn, func.hide));
     }
     errors.to_result()?;
 
-    let defns = rty::NormalizedDefns::new(genv, &defns)
+    let defns = rty::NormalizedDefns::new(genv, LOCAL_CRATE, &defns)
         .map_err(|cycle| {
-            let span = genv
-                .fhir_spec_func_body(cycle[0])
-                .unwrap()
-                .body
-                .unwrap()
-                .span;
+            #[allow(
+                clippy::disallowed_methods,
+                reason = "refinement functions cannot be extern specs"
+            )]
+            let root = cycle[0].expect_local();
+            let span = genv.fhir_spec_func_body(root).unwrap().body.unwrap().span;
             errors::DefinitionCycle::new(span, cycle)
         })
         .emit(&genv)?;
@@ -737,7 +737,7 @@ fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>>
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::def_id::FluxLocalDefId;
+    use flux_middle::def_id::FluxDefId;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
@@ -750,7 +750,7 @@ mod errors {
     }
 
     impl DefinitionCycle {
-        pub(super) fn new(span: Span, cycle: Vec<FluxLocalDefId>) -> Self {
+        pub(super) fn new(span: Span, cycle: Vec<FluxDefId>) -> Self {
             let root = format!("`{}`", cycle[0].name());
             let names: Vec<String> = cycle.iter().map(|s| format!("`{}`", s.name())).collect();
             let msg = format!("{} -> {}", names.join(" -> "), root);

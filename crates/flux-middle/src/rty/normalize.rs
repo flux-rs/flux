@@ -8,7 +8,7 @@ use toposort_scc::IndexGraph;
 
 use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
-    def_id::{FluxDefId, FluxId, FluxLocalDefId},
+    def_id::{FluxDefId, FluxId},
     global_env::GlobalEnv,
     rty::{
         Binder, Expr, ExprKind, SortArg,
@@ -58,10 +58,10 @@ pub struct FuncInfo {
     pub uif: bool,
 }
 
-#[derive(Default)]
 pub(super) struct InliningCtxt {
-    inlined_bodies: UnordMap<FluxLocalDefId, Binder<Expr>>,
-    info: UnordMap<FluxLocalDefId, FuncInfo>,
+    krate: CrateNum,
+    inlined_bodies: UnordMap<FluxDefId, Binder<Expr>>,
+    info: UnordMap<FluxDefId, FuncInfo>,
 }
 
 pub(super) struct Normalizer<'a, 'genv, 'tcx> {
@@ -72,13 +72,15 @@ pub(super) struct Normalizer<'a, 'genv, 'tcx> {
 impl NormalizedDefns {
     pub fn new(
         genv: GlobalEnv,
-        funs: &[(FluxLocalDefId, Option<Binder<Expr>>, bool)],
-    ) -> Result<Self, Vec<FluxLocalDefId>> {
+        krate: CrateNum,
+        funs: &[(FluxDefId, Option<Binder<Expr>>, bool)],
+    ) -> Result<Self, Vec<FluxDefId>> {
         // 1. Topologically sort the Defns
-        let ds = toposort(funs)?;
+        let ds = toposort(krate, funs)?;
 
         // 2. Expand each defn in the sorted order
-        let mut inlining = InliningCtxt::default();
+        let mut inlining =
+            InliningCtxt { krate, inlined_bodies: UnordMap::default(), info: UnordMap::default() };
         for (rank, i) in ds.iter().enumerate() {
             let (id, body, hide) = &funs[*i];
 
@@ -88,12 +90,7 @@ impl NormalizedDefns {
                 inlining.inlined_bodies.insert(*id, body);
                 inlining.info.insert(
                     *id,
-                    FuncInfo {
-                        rank,
-                        inline: genv.should_inline_fun(id.to_def_id()),
-                        hide: *hide,
-                        uif: false,
-                    },
+                    FuncInfo { rank, inline: genv.should_inline_fun(*id), hide: *hide, uif: false },
                 );
             } else {
                 inlining
@@ -102,16 +99,16 @@ impl NormalizedDefns {
             }
         }
         Ok(Self {
-            krate: LOCAL_CRATE,
+            krate,
             info: inlining
                 .info
                 .into_items()
-                .map(|(id, info)| (id.local_def_index(), info))
+                .map(|(id, info)| (id.index(), info))
                 .collect(),
             inlined_bodies: inlining
                 .inlined_bodies
                 .into_items()
-                .map(|(id, body)| (id.local_def_index(), body))
+                .map(|(id, body)| (id.index(), body))
                 .collect(),
         })
     }
@@ -132,10 +129,11 @@ impl NormalizedDefns {
 ///   forall i < j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
 fn toposort<T>(
-    defns: &[(FluxLocalDefId, Option<Binder<Expr>>, T)],
-) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
+    krate: CrateNum,
+    defns: &[(FluxDefId, Option<Binder<Expr>>, T)],
+) -> Result<Vec<usize>, Vec<FluxDefId>> {
     // 1. Make a Symbol to Index map
-    let s2i: UnordMap<FluxLocalDefId, usize> = defns
+    let s2i: UnordMap<FluxDefId, usize> = defns
         .iter()
         .enumerate()
         .map(|(i, defn)| (defn.0, i))
@@ -145,8 +143,9 @@ fn toposort<T>(
     let mut adj_list = Vec::with_capacity(defns.len());
     for defn in defns {
         if let Some(body) = &defn.1 {
-            let deps = local_deps(body)
+            let deps = deps(body)
                 .iter()
+                .filter(|did| did.krate() == krate)
                 .filter_map(|s| s2i.get(s).copied())
                 .collect_vec();
             adj_list.push(deps);
@@ -167,16 +166,15 @@ fn toposort<T>(
     }
 }
 
-pub fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
-    struct DepsVisitor(FxIndexSet<FluxLocalDefId>);
+/// Returns all the flux-defs (of any crate) called in `body`
+pub fn deps(body: &Binder<Expr>) -> FxIndexSet<FluxDefId> {
+    struct DepsVisitor(FxIndexSet<FluxDefId>);
     impl TypeVisitor for DepsVisitor {
-        #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
         fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
             if let ExprKind::App(func, ..) = expr.kind()
                 && let ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind()
-                && let Some(did) = did.as_local()
             {
-                self.0.insert(did);
+                self.0.insert(*did);
             }
             expr.super_visit_with(self)
         }
@@ -191,23 +189,21 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
         Self { genv, inlining }
     }
 
-    #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
     fn func_defn(&self, did: FluxDefId) -> Binder<Expr> {
         if let Some(inlining) = self.inlining
-            && let Some(local_id) = did.as_local()
+            && did.krate() == inlining.krate
         {
-            inlining.inlined_bodies[&local_id].clone()
+            inlining.inlined_bodies[&did].clone()
         } else {
             self.genv.inlined_body(did)
         }
     }
 
-    #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
     fn should_inline(&self, did: FluxDefId) -> bool {
         let info = if let Some(inlining) = self.inlining
-            && let Some(local_id) = did.as_local()
+            && did.krate() == inlining.krate
         {
-            &inlining.info[&local_id]
+            &inlining.info[&did]
         } else {
             &self.genv.normalized_info(did)
         };

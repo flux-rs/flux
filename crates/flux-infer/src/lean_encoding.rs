@@ -16,14 +16,14 @@ use flux_middle::{
     def_id::{FluxDefId, MaybeExternId},
     global_env::GlobalEnv,
     queries::QueryErr,
-    rty::{BinOp, BvSize, PrettyMap, Sort, local_deps},
+    rty::{BinOp, BvSize, PrettyMap, Sort, deps},
 };
 use itertools::Itertools;
 use rustc_data_structures::{
     fx::{FxHashMap, FxIndexSet},
     unord::UnordMap,
 };
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, LOCAL_CRATE};
 use rustc_span::ErrorGuaranteed;
 
 use crate::{
@@ -832,8 +832,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         // 2. Collect the fun dependencies
         if !self.genv.normalized_info(did).uif {
             let body = self.genv.inlined_body(did);
-            for dep_id in local_deps(&body) {
-                res.push(self.fun_file(&dep_id.to_def_id()));
+            for dep_id in deps(&body) {
+                if dep_id.krate() == LOCAL_CRATE {
+                    res.push(self.fun_file(&dep_id));
+                }
             }
         }
 
