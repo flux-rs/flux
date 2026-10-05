@@ -17,18 +17,18 @@ use crate::{
     surface::{
         self, Async,
         Attr::{self},
-        BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind, ConstructorArg,
-        DetachedInherentImpl, DetachedItem, DetachedItemKind, DetachedSpecs, DetachedTrait,
-        DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr,
-        FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds,
-        GenericParam, Generics, Ident, ImplAssocReft, Indices, LetDecl, LitKind, Mutability,
-        ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
-        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
-        StaticInfo, StructDef, TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp,
-        UseTree, UseTreeKind, VariantDef, VariantRet, WhereBoundPredicate,
+        BareFnTy, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
+        ConstructorArg, DetachedInherentImpl, DetachedItem, DetachedItemKind, DetachedSpecs,
+        DetachedTrait, DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath,
+        ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg,
+        GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices,
+        LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, Qualifier,
+        QualifierKind, QuantKind, RefineArg, RefineParam, RefineParams, Requires, Sort, SortDecl,
+        SortPath, SpecFunc, Spread, StaticInfo, StructDef, TraitAssocReft, TraitRef, Trusted, Ty,
+        TyAlias, TyKind, UnOp, UseTree, UseTreeKind, VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
-    token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
+    token::{self, Comma, Delimiter::*, IdentKind, Or, Token, TokenKind},
 };
 
 /// An attribute that's considered part of the *syntax* of an item.
@@ -1038,6 +1038,7 @@ fn parse_reft(cx: &mut ParseCtxt) -> ParseResult<Reft> {
 ///       | * mut ⟨ { ⟨ident⟩ : ⟨expr⟩ } ⟩? ⟨ty⟩
 ///       | [ ⟨ty⟩ ; ⟨const_arg⟩ ]
 ///       | impl ⟨path⟩
+///       | fn ( ⟨ty⟩,* ) ⟨fn_ret⟩
 ///       | ⟨bty⟩
 ///       | ⟨bty⟩ [ ⟨refine_arg⟩,* ]
 ///       | ⟨bty⟩ { ⟨ident⟩ : ⟨block_expr⟩ }
@@ -1113,6 +1114,12 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
     } else if lookahead.advance_if(kw::Impl) {
         // impl ⟨bounds⟩
         TyKind::ImplTrait(cx.next_node_id(), parse_generic_bounds(cx)?)
+    } else if lookahead.advance_if(kw::Fn) {
+        // fn ( ⟨ty⟩,* ) ⟨fn_ret⟩
+        let inputs = parens(cx, Comma, parse_type)?;
+        let output = parse_fn_ret(cx)?;
+        let span = cx.mk_span(lo, cx.hi());
+        TyKind::BareFn(Box::new(BareFnTy { inputs, output, node_id: cx.next_node_id(), span }))
     } else if lookahead.peek(NonReserved) {
         // ⟨path⟩ ...
         let path = parse_path(cx)?;
@@ -1755,7 +1762,7 @@ fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
 
 fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
     if let Token { kind: token::Ident(name, is_raw), lo, hi } = cx.at(0)
-        && (!cx.is_reserved(name) || is_raw == IdentIsRaw::Yes)
+        && (!cx.is_reserved(name) || is_raw == IdentKind::Raw)
     {
         cx.advance();
         return Ok(Ident { name, span: cx.mk_span(lo, hi) });

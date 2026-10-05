@@ -1,19 +1,17 @@
-use std::{collections::hash_map::Entry, sync::Arc};
+use std::{cell::RefCell, collections::hash_map::Entry, sync::Arc};
 
+use flux_common::bug;
 use flux_middle::global_env::GlobalEnv;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::def_id::{DefId, LOCAL_CRATE};
-use rustc_middle::{
-    bug,
-    ty::{self, TyCtxt, codec::TyEncoder},
-};
+use rustc_middle::ty::{self, TyCtxt, codec::TyEncoder};
 use rustc_serialize::{Encodable, Encoder, opaque, opaque::IntEncodedWithFixedSize};
-use rustc_session::config::CrateType;
 use rustc_span::{
     ByteSymbol, ExpnId, SourceFile, Span, SpanEncoder, Symbol, SyntaxContext,
     def_id::{CrateNum, DefIndex},
     hygiene::{ExpnIndex, HygieneEncodeContext},
 };
+use rustc_structures::CrateType;
 
 use crate::{
     AbsoluteBytePos, CrateMetadata, EncodedSourceFileId, Footer, METADATA_HEADER, SYMBOL_OFFSET,
@@ -27,7 +25,7 @@ struct EncodeContext<'a, 'tcx> {
     predicate_shorthands: FxHashMap<ty::PredicateKind<'tcx>, usize>,
     file_to_file_index: FxHashMap<*const SourceFile, SourceFileIndex>,
     is_proc_macro: bool,
-    hygiene_ctxt: &'a HygieneEncodeContext,
+    hygiene_ctxt: &'a RefCell<HygieneEncodeContext>,
     symbol_index_table: FxHashMap<u32, usize>,
 }
 
@@ -128,7 +126,7 @@ pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
 
     let crate_root = CrateMetadata::new(genv);
 
-    let hygiene_ctxt = HygieneEncodeContext::default();
+    let hygiene_ctxt = RefCell::new(HygieneEncodeContext::default());
     let tcx = genv.tcx();
     let mut ecx = EncodeContext {
         tcx,
@@ -148,7 +146,8 @@ pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
     let mut expn_data = FxHashMap::default();
 
     // Encode all hygiene data (`SyntaxContextData` and `ExpnData`) from the current session.
-    ecx.hygiene_ctxt.encode(
+    HygieneEncodeContext::encode(
+        &hygiene_ctxt,
         &mut ecx,
         |encoder, index, ctxt_data| {
             let pos = AbsoluteBytePos::new(encoder.position());
@@ -157,7 +156,7 @@ pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
         },
         |encoder, expn_id, data, hash| {
             let pos = AbsoluteBytePos::new(encoder.position());
-            data.encode(encoder);
+            data.expect("local expn").encode(encoder);
             hash.encode(encoder);
             expn_data.insert((tcx.stable_crate_id(expn_id.krate), expn_id.local_id.as_u32()), pos);
         },
@@ -197,7 +196,11 @@ impl SpanEncoder for EncodeContext<'_, '_> {
     }
 
     fn encode_syntax_context(&mut self, syntax_context: SyntaxContext) {
-        rustc_span::hygiene::raw_encode_syntax_context(syntax_context, self.hygiene_ctxt, self);
+        let idx = self
+            .hygiene_ctxt
+            .borrow_mut()
+            .get_syntax_ctxt_encoding_index(syntax_context);
+        idx.encode(self);
     }
 
     fn encode_expn_id(&mut self, expn_id: ExpnId) {
@@ -206,7 +209,9 @@ impl SpanEncoder for EncodeContext<'_, '_> {
             // data from the corresponding crate's metadata.
             // FIXME(#43047) FIXME(#74731) We may eventually want to avoid relying on external
             // metadata from proc-macro crates.
-            self.hygiene_ctxt.schedule_expn_data_for_encoding(expn_id);
+            self.hygiene_ctxt
+                .borrow_mut()
+                .schedule_expn_data_for_encoding(expn_id);
         }
         expn_id.krate.encode(self);
         expn_id.local_id.encode(self);

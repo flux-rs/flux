@@ -1,7 +1,8 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
-#![feature(rustc_private, min_specialization, box_patterns)]
+#![feature(deref_patterns, rustc_private, min_specialization)]
 
+extern crate rustc_abi;
 extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;

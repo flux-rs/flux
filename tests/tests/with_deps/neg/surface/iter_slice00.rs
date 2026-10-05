@@ -1,5 +1,5 @@
 #![allow(unused)]
-#![feature(allocator_api)]
+#![feature(allocator_ext)]
 
 use std::{
     alloc::{Allocator, Global},

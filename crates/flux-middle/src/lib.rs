@@ -4,7 +4,6 @@
     closure_track_caller,
     map_try_insert,
     min_specialization,
-    never_type,
     rustc_private,
     unwrap_infallible
 )]

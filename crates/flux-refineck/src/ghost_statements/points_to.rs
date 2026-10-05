@@ -76,7 +76,7 @@ impl<'a> PointsToAnalysis<'a> {
 
     fn handle_statement(&self, statement: &mir::Statement, state: &mut State) {
         match &statement.kind {
-            mir::StatementKind::Assign(box (target, rvalue)) => {
+            mir::StatementKind::Assign(deref!((target, rvalue))) => {
                 self.handle_assign(*target, rvalue, state);
             }
             mir::StatementKind::StorageLive(local) | mir::StatementKind::StorageDead(local) => {
@@ -108,7 +108,7 @@ impl<'a> PointsToAnalysis<'a> {
                 let result = PlaceOrValue::Value(self.handle_ref(place, state));
                 state.assign(target.as_ref(), result, self.map);
             }
-            mir::Rvalue::Aggregate(box mir::AggregateKind::Tuple, operands) => {
+            mir::Rvalue::Aggregate(deref!(mir::AggregateKind::Tuple), operands) => {
                 state.flood(target.as_ref(), self.map);
                 let Some(target_idx) = self.map.find(target.as_ref()) else { return };
                 for (elem, operand) in operands.iter_enumerated() {
