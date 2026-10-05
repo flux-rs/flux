@@ -35,18 +35,10 @@ impl Default for NormalizedDefns {
 // TODO(nilehmann) should we make an enum? most of the fields don't matter for UIFs
 /// This type represents what we know about a flux-def *after*
 /// normalization, i.e. after "inlining" all or some transitively
-/// called flux-defs.
-/// - When `FLUX_SMT_DEFINE_FUN=1` is set we inline
-///   all *polymorphic* flux-defs, since they cannot
-///   be represented  as `define-fun` in SMTLIB but leave
-///   all *monomorphic* flux-defs un-inlined.
-/// - When the above flag is not set, we replace *every* flux-def
-///   with its (transitively) inlined body
+/// called flux-defs. Whether a flux-def is inlined is decided by
+/// [`GlobalEnv::should_inline_fun`] in the current session.
 #[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FuncInfo {
-    /// Whether or not this function is inlined (i.e. NOT represented as `define-fun`).
-    /// This value is irrelevant of UIFs.
-    pub inline: bool,
     /// Whether or not this function is uninterpreted by default
     /// This value is irrelevant of UIFs.
     pub hide: bool,
@@ -88,14 +80,13 @@ impl NormalizedDefns {
                 let body = body.fold_with(&mut Normalizer::new(genv, Some(&inlining)));
 
                 inlining.inlined_bodies.insert(*id, body);
-                inlining.info.insert(
-                    *id,
-                    FuncInfo { rank, inline: genv.should_inline_fun(*id), hide: *hide, uif: false },
-                );
+                inlining
+                    .info
+                    .insert(*id, FuncInfo { rank, hide: *hide, uif: false });
             } else {
                 inlining
                     .info
-                    .insert(*id, FuncInfo { rank, inline: false, hide: *hide, uif: true });
+                    .insert(*id, FuncInfo { rank, hide: *hide, uif: true });
             }
         }
         Ok(Self {
@@ -207,7 +198,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
         } else {
             &self.genv.normalized_info(did)
         };
-        info.inline && !info.hide
+        !info.uif && !info.hide && self.genv.should_inline_fun(did)
     }
 
     fn at_base(expr: Expr, espan: Option<ESpan>) -> Expr {
