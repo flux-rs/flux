@@ -13,7 +13,7 @@ use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 use super::{
     BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind,
     GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort,
-    SubsetTy, Ty, TyKind, TyOrBase, normalize::Normalizer,
+    SubsetTy, Ty, TyKind, TyOrBase, reduce::Reducer,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -346,9 +346,12 @@ pub trait TypeFoldable: TypeVisitable {
         self.try_fold_with(folder).into_ok()
     }
 
-    /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
-    fn normalize(&self, genv: GlobalEnv) -> Self {
-        self.fold_with(&mut Normalizer::new(genv))
+    /// Reduces expressions by
+    /// * inlining calls to spec functions (according to [`GlobalEnv::should_inline_fun`]),
+    /// * applying lambda abstractions to their arguments, and
+    /// * reducing field projections on tuples and constructors.
+    fn reduce(&self, genv: GlobalEnv) -> Self {
+        self.fold_with(&mut Reducer::new(genv))
     }
 
     /// Replaces all [holes] with the result of calling a closure. The closure takes a list with

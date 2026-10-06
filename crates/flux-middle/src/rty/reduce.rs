@@ -5,11 +5,11 @@ use crate::{
     rty::{Expr, ExprKind, SortArg, expr::SpecFuncKind, fold::TypeFolder},
 };
 
-pub(super) struct Normalizer<'genv, 'tcx> {
+pub(super) struct Reducer<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
 }
 
-impl<'genv, 'tcx> Normalizer<'genv, 'tcx> {
+impl<'genv, 'tcx> Reducer<'genv, 'tcx> {
     pub(super) fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
         Self { genv }
     }
@@ -47,7 +47,7 @@ impl<'genv, 'tcx> Normalizer<'genv, 'tcx> {
     }
 }
 
-impl TypeFolder for Normalizer<'_, '_> {
+impl TypeFolder for Reducer<'_, '_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         let expr = expr.super_fold_with(self);
         let span = expr.span();

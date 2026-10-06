@@ -562,7 +562,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let Some(body) = genv.spec_func(did).body else {
                 bug!("inlined body of uninterpreted function `{did:?}`")
             };
-            body.normalize(genv)
+            body.reduce(genv)
         })
     }
 

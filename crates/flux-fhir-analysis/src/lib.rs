@@ -148,7 +148,7 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
             Ok(AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_qualifier(qualifier)?
-                .normalize(genv))
+                .reduce(genv))
         })
         .try_collect()
 }
@@ -160,7 +160,7 @@ fn primop_props(genv: GlobalEnv) -> QueryResult<Vec<rty::PrimOpProp>> {
             Ok(AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_primop_prop(primop_prop)?
-                .normalize(genv))
+                .reduce(genv))
         })
         .try_collect()
 }
