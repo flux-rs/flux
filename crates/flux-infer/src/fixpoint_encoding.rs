@@ -2502,14 +2502,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         while let Some((&did, _)) = self.const_env.fun_decl_map.get_index(idx) {
             idx += 1;
 
-            let info = self.genv.normalized_info(did);
+            let func = self.genv.spec_func(did);
             let revealed = reveals.contains(&did);
-            let def = if info.uif || (info.hide && !revealed && proven_externally.is_none()) {
+            let def = if func.is_uif() || (func.hide && !revealed && proven_externally.is_none()) {
                 self.fun_decl_to_fixpoint(did, scx)
             } else {
                 self.fun_def_to_fixpoint(did, scx)?
             };
-            defs.push(((crate_rank(self.genv, did.krate()), info.rank), def));
+            defs.push(((crate_rank(self.genv, did.krate()), self.genv.spec_func_rank(did)), def));
         }
 
         // We sort the definitions so they go out without any forward dependencies. A definition can

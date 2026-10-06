@@ -830,7 +830,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
 
         // 2. Collect the fun dependencies
-        if !self.genv.normalized_info(did).uif {
+        if !self.genv.spec_func(did).is_uif() {
             let body = self.genv.inlined_body(did);
             for dep_id in deps(&body) {
                 res.push(self.fun_file(&dep_id));

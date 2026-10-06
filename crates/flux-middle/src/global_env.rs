@@ -240,11 +240,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
-        self.normalized_defns(did.krate()).inlined_body(did)
+        self.normalized_defns(did.krate()).inlined_body(did.index())
     }
 
-    pub fn normalized_info(self, did: FluxDefId) -> rty::FuncInfo {
-        self.normalized_defns(did.krate()).func_info(did).clone()
+    pub fn spec_func(self, did: FluxDefId) -> rty::SpecFunc {
+        self.spec_funcs(did.krate()).get(did.index()).clone()
+    }
+
+    /// The rank of a spec function in the topological order of the spec functions of its crate
+    pub fn spec_func_rank(self, did: FluxDefId) -> usize {
+        self.spec_funcs(did.krate()).rank(did.index())
     }
 
     /// All the spec functions of a crate in topological order
