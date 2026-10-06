@@ -240,7 +240,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
-        self.normalized_defns(did.krate()).inlined_body(did.index())
+        self.inlined_bodies(did.krate()).get(did.index())
     }
 
     pub fn spec_func(self, did: FluxDefId) -> rty::SpecFunc {
@@ -257,8 +257,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.spec_funcs(self, krate)
     }
 
-    pub fn normalized_defns(self, krate: CrateNum) -> Rc<rty::NormalizedDefns> {
-        self.inner.queries.normalized_defns(self, krate)
+    pub fn inlined_bodies(self, krate: CrateNum) -> Rc<rty::InlinedBodies> {
+        self.inner.queries.inlined_bodies(self, krate)
     }
 
     pub fn prim_rel_for(self, op: &rty::BinOp) -> QueryResult<Option<&'genv rty::PrimRel>> {

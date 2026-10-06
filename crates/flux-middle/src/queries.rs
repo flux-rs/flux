@@ -276,7 +276,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     spec_funcs: Cache<CrateNum, Rc<rty::SpecFuncs>>,
-    normalized_defns: Cache<CrateNum, Rc<rty::NormalizedDefns>>,
+    inlined_bodies: Cache<CrateNum, Rc<rty::InlinedBodies>>,
     func_sort: Cache<FluxDefId, rty::PolyFuncSort>,
     func_span: Cache<FluxDefId, Span>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
@@ -325,7 +325,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_type_of: Default::default(),
             lower_fn_sig: Default::default(),
             spec_funcs: Default::default(),
-            normalized_defns: Default::default(),
+            inlined_bodies: Default::default(),
             func_sort: Default::default(),
             func_span: Default::default(),
             qualifiers: Default::default(),
@@ -552,15 +552,15 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn normalized_defns(
+    pub(crate) fn inlined_bodies(
         &self,
         genv: GlobalEnv,
         krate: CrateNum,
-    ) -> Rc<rty::NormalizedDefns> {
+    ) -> Rc<rty::InlinedBodies> {
         // We normalize the spec functions of every crate (including external ones) in the current
         // session, so they are inlined according to the flags of the current crate.
-        run_with_cache(&self.normalized_defns, krate, || {
-            Rc::new(rty::NormalizedDefns::new(genv, krate, &genv.spec_funcs(krate)))
+        run_with_cache(&self.inlined_bodies, krate, || {
+            Rc::new(rty::InlinedBodies::new(genv, krate, &genv.spec_funcs(krate)))
         })
     }
 

@@ -18,8 +18,8 @@ use crate::{
 ///
 /// Functions are identified by their index within the crate. Use [`GlobalEnv::inlined_body`] to
 /// get the inlined body of a [`FluxDefId`].
-pub struct NormalizedDefns {
-    inlined_bodies: UnordMap<FluxId<DefIndex>, Binder<Expr>>,
+pub struct InlinedBodies {
+    bodies: UnordMap<FluxId<DefIndex>, Binder<Expr>>,
 }
 
 pub(super) struct InliningCtxt {
@@ -32,7 +32,7 @@ pub(super) struct Normalizer<'a, 'genv, 'tcx> {
     inlining: Option<&'a InliningCtxt>,
 }
 
-impl NormalizedDefns {
+impl InlinedBodies {
     pub fn new(genv: GlobalEnv, krate: CrateNum, funcs: &SpecFuncs) -> Self {
         // Expand each function in postorder, so its callees are already expanded
         let mut inlining = InliningCtxt { krate, inlined_bodies: UnordMap::default() };
@@ -42,11 +42,11 @@ impl NormalizedDefns {
                 inlining.inlined_bodies.insert(id, body);
             }
         }
-        Self { inlined_bodies: inlining.inlined_bodies }
+        Self { bodies: inlining.inlined_bodies }
     }
 
-    pub fn inlined_body(&self, id: FluxId<DefIndex>) -> Binder<Expr> {
-        self.inlined_bodies[&id].clone()
+    pub fn get(&self, id: FluxId<DefIndex>) -> Binder<Expr> {
+        self.bodies[&id].clone()
     }
 }
 
