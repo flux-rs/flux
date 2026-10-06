@@ -2016,7 +2016,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e2: &rty::Expr,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
-        if let Some(uif_op) = Self::uif_op(op)
+        if matches!(self.backend, Backend::Fixpoint)
+            && let Some(uif_op) = Self::uif_op(op)
             && self.uif_ops.contains(uif_op)
         {
             let func = fixpoint::Expr::Var(self.define_const_for_uif_op(op, scx));

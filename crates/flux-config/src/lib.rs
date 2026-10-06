@@ -605,9 +605,7 @@ pub struct InferOpts {
     pub allow_uninterpreted_cast: bool,
     /// Whether to allow raw pointer dereferences.
     pub allow_raw_deref: RawDerefMode,
-    /// Binary operators that are encoded (in the constraints sent to the solver) as uninterpreted
-    /// functions instead of the actual (interpreted) operations, e.g., to avoid non-linear
-    /// arithmetic with `*`.
+    /// Binary operators that are encoded as uninterpreted functions (e.g. to avoid nonlinear arithmetic).
     pub uif_ops: UifOps,
 }
 
