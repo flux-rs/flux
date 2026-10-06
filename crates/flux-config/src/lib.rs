@@ -342,18 +342,26 @@ pub enum UifOp {
 }
 
 impl UifOp {
-    const ALL: [UifOp; 10] = [
-        UifOp::Add,
-        UifOp::Sub,
-        UifOp::Mul,
-        UifOp::Div,
-        UifOp::Mod,
-        UifOp::BitAnd,
-        UifOp::BitOr,
-        UifOp::BitXor,
-        UifOp::BitShl,
-        UifOp::BitShr,
+    /// Maps the surface syntax (token) of each operator to the operator.
+    const TOKENS: [(&'static str, UifOp); 10] = [
+        ("+", UifOp::Add),
+        ("-", UifOp::Sub),
+        ("*", UifOp::Mul),
+        ("/", UifOp::Div),
+        ("%", UifOp::Mod),
+        ("&", UifOp::BitAnd),
+        ("|", UifOp::BitOr),
+        ("^", UifOp::BitXor),
+        ("<<", UifOp::BitShl),
+        (">>", UifOp::BitShr),
     ];
+
+    /// The operator written as `token` in the surface syntax, if any
+    pub fn from_token(token: &str) -> Option<UifOp> {
+        Self::TOKENS
+            .iter()
+            .find_map(|(tok, op)| (*tok == token).then_some(*op))
+    }
 
     /// The surface syntax of the operator
     pub fn token(self) -> &'static str {
@@ -394,8 +402,15 @@ impl UifOps {
         self.0 == 0
     }
 
+    pub fn insert(&mut self, op: UifOp) {
+        self.0 |= op.bit();
+    }
+
     pub fn iter(self) -> impl Iterator<Item = UifOp> {
-        UifOp::ALL.into_iter().filter(move |op| self.contains(*op))
+        UifOp::TOKENS
+            .into_iter()
+            .map(|(_, op)| op)
+            .filter(move |op| self.contains(*op))
     }
 }
 
@@ -409,11 +424,8 @@ impl FromStr for UifOps {
             .map(str::trim)
             .filter(|token| !token.is_empty())
         {
-            let op = UifOp::ALL
-                .into_iter()
-                .find(|op| op.token() == token)
-                .ok_or(Self::ERROR)?;
-            ops.0 |= op.bit();
+            let op = UifOp::from_token(token).ok_or(Self::ERROR)?;
+            ops.insert(op);
         }
         Ok(ops)
     }
