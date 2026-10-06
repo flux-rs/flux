@@ -406,7 +406,7 @@ impl UifOps {
         self.0 |= op.bit();
     }
 
-    pub fn iter(self) -> impl Iterator<Item = UifOp> {
+    fn iter(self) -> impl Iterator<Item = UifOp> {
         UifOp::TOKENS
             .into_iter()
             .map(|(_, op)| op)
