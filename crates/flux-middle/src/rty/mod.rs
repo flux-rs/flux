@@ -40,7 +40,6 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _, VariantDef},
 };
 use itertools::Itertools;
-pub use normalize::InlinedBodies;
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
 use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};

@@ -35,6 +35,7 @@ use crate::{
     global_env::GlobalEnv,
     rty::{
         self, AliasReft, Expr, GenericArg,
+        fold::TypeFoldable,
         refining::{self, Refine, Refiner, refine_generic_param_def},
     },
 };
@@ -276,7 +277,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     spec_funcs: Cache<CrateNum, Rc<rty::SpecFuncs>>,
-    inlined_bodies: Cache<CrateNum, Rc<rty::InlinedBodies>>,
+    inlined_body: Cache<FluxDefId, rty::Binder<rty::Expr>>,
     func_sort: Cache<FluxDefId, rty::PolyFuncSort>,
     func_span: Cache<FluxDefId, Span>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
@@ -325,7 +326,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_type_of: Default::default(),
             lower_fn_sig: Default::default(),
             spec_funcs: Default::default(),
-            inlined_bodies: Default::default(),
+            inlined_body: Default::default(),
             func_sort: Default::default(),
             func_span: Default::default(),
             qualifiers: Default::default(),
@@ -552,15 +553,16 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn inlined_bodies(
-        &self,
-        genv: GlobalEnv,
-        krate: CrateNum,
-    ) -> Rc<rty::InlinedBodies> {
-        // We normalize the spec functions of every crate (including external ones) in the current
-        // session, so they are inlined according to the flags of the current crate.
-        run_with_cache(&self.inlined_bodies, krate, || {
-            Rc::new(rty::InlinedBodies::new(genv, krate, &genv.spec_funcs(krate)))
+    pub(crate) fn inlined_body(&self, genv: GlobalEnv, did: FluxDefId) -> rty::Binder<rty::Expr> {
+        // We inline spec functions lazily (including those of external crates) in the current
+        // session, so they are inlined according to the flags of the current crate. Inlining a
+        // body recursively inlines (and caches) the bodies of the functions it calls. This
+        // terminates because `spec_funcs` rejects cycles.
+        run_with_cache(&self.inlined_body, did, || {
+            let Some(body) = genv.spec_func(did).body else {
+                bug!("inlined body of uninterpreted function `{did:?}`")
+            };
+            body.normalize(genv)
         })
     }
 

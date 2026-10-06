@@ -348,7 +348,7 @@ pub trait TypeFoldable: TypeVisitable {
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
     fn normalize(&self, genv: GlobalEnv) -> Self {
-        self.fold_with(&mut Normalizer::new(genv, None))
+        self.fold_with(&mut Normalizer::new(genv))
     }
 
     /// Replaces all [holes] with the result of calling a closure. The closure takes a list with

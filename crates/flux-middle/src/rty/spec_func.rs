@@ -71,12 +71,6 @@ impl SpecFuncs {
     pub fn rank(&self, id: FluxId<DefIndex>) -> usize {
         self.funcs.get_index_of(&id).unwrap()
     }
-
-    /// Iterates over the functions in postorder, i.e., every function comes after all the functions
-    /// (in the same crate) it calls.
-    pub fn postorder(&self) -> impl Iterator<Item = (FluxId<DefIndex>, &SpecFunc)> {
-        self.funcs.iter().map(|(id, func)| (*id, func))
-    }
 }
 
 /// Returns

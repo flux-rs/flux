@@ -239,8 +239,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         PanicSpec::MightPanic(PanicReason::NotInCallGraph)
     }
 
+    /// The body of a spec function after inlining all or some of the spec functions it
+    /// (transitively) calls. Whether a spec function is inlined is decided by
+    /// [`GlobalEnv::should_inline_fun`] in the current session.
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
-        self.inlined_bodies(did.krate()).get(did.index())
+        self.inner.queries.inlined_body(self, did)
     }
 
     pub fn spec_func(self, did: FluxDefId) -> rty::SpecFunc {
@@ -255,10 +258,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// All the spec functions of a crate in topological order
     pub fn spec_funcs(self, krate: CrateNum) -> Rc<rty::SpecFuncs> {
         self.inner.queries.spec_funcs(self, krate)
-    }
-
-    pub fn inlined_bodies(self, krate: CrateNum) -> Rc<rty::InlinedBodies> {
-        self.inner.queries.inlined_bodies(self, krate)
     }
 
     pub fn prim_rel_for(self, op: &rty::BinOp) -> QueryResult<Option<&'genv rty::PrimRel>> {
