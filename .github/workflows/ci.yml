@@ -115,6 +115,33 @@ jobs:
         run: |
           git clone https://github.com/flux-rs/flux-to-lean-demo
 
+        # elan downloads toolchains from releases.lean-lang.org, which is sometimes flaky. Pre-install
+        # the toolchain required by lean-fixpoint from GitHub releases so elan finds it already
+        # installed. If this fails, elan will still try downloading it as usual.
+      - name: Pre-install Lean toolchain from GitHub
+        run: |
+          set -uo pipefail
+          tc=$(curl -fsSL --retry 5 https://raw.githubusercontent.com/jam-khan/lean-fixpoint/main/lean-toolchain | tr -d '[:space:]')
+          ver=${tc#leanprover/lean4:v}
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            Linux-X64) plat=linux ;;
+            Linux-ARM64) plat=linux_aarch64 ;;
+            macOS-X64) plat=darwin ;;
+            macOS-ARM64) plat=darwin_aarch64 ;;
+          esac
+          dest="$HOME/.elan/toolchains/$(echo "$tc" | sed 's|/|--|; s|:|---|')"
+          tmp=$(mktemp -d)
+          mkdir -p "$tmp/out" "$HOME/.elan/toolchains"
+          if curl -fsSL --retry 5 -o "$tmp/lean.tar.zst" \
+              "https://github.com/leanprover/lean4/releases/download/v$ver/lean-$ver-$plat.tar.zst" \
+            && zstd -dc "$tmp/lean.tar.zst" | tar -x --strip-components=1 -C "$tmp/out"; then
+            rm -rf "$dest" && mv "$tmp/out" "$dest"
+            echo "Installed $tc from GitHub"
+          else
+            echo "::warning::Could not install $tc from GitHub; elan will download it instead"
+          fi
+          rm -rf "$tmp"
+
       - name: Patch flux-rs dependency if in pull request
         if: github.event_name == 'pull_request'
         run: |
