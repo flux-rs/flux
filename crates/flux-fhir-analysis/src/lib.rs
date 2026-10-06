@@ -243,21 +243,17 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
     }
 }
 
-fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::StaticInfo> {
-    let node = genv.fhir_node(def_id.local_id())?;
-    match node {
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Static(ty), .. }) => {
-            if let Some(ty) = ty {
-                let wfckresults = genv.check_wf(def_id.local_id())?;
-                let rty_ty = AfterSortck::new(genv, &wfckresults)
-                    .into_conv_ctxt()
-                    .conv_static_ty(ty)?;
-                Ok(rty::StaticInfo::Known(rty_ty))
-            } else {
-                Ok(rty::StaticInfo::Unknown)
-            }
-        }
-        _ => Ok(rty::StaticInfo::Unknown),
+/// The type of a static: its spec if it has one, or the default refinement of its rust type.
+fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Ty> {
+    if let fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Static(Some(ty)), .. }) =
+        genv.fhir_node(def_id.local_id())?
+    {
+        let wfckresults = genv.check_wf(def_id.local_id())?;
+        AfterSortck::new(genv, &wfckresults)
+            .into_conv_ctxt()
+            .conv_static_ty(ty)
+    } else {
+        rty::refining::default_static_ty(genv, def_id.resolved_id())
     }
 }
 

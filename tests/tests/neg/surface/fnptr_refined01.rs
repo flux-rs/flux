@@ -14,6 +14,8 @@ fn clone_wrong(h: &Handle) -> Handle {
     Handle { n: h.n + 1 }
 }
 
+static BAD_VTABLE: Vtable = Vtable { clone: clone_wrong }; //~ ERROR refinement type
+
 pub fn make_bad_vtable() -> Vtable {
     Vtable { clone: clone_wrong } //~ ERROR refinement type
 }
