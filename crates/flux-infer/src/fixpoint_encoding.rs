@@ -2502,9 +2502,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         while let Some((&did, _)) = self.const_env.fun_decl_map.get_index(idx) {
             idx += 1;
 
-            let func = self.genv.spec_func(did);
             let revealed = reveals.contains(&did);
-            let def = if func.is_uif() || (func.hide && !revealed && proven_externally.is_none()) {
+            let uninterpreted = match self.genv.spec_func(did) {
+                rty::SpecFunc::Uif => true,
+                rty::SpecFunc::Defined { hide, .. } => {
+                    hide && !revealed && proven_externally.is_none()
+                }
+            };
+            let def = if uninterpreted {
                 self.fun_decl_to_fixpoint(did, scx)
             } else {
                 self.fun_def_to_fixpoint(did, scx)?

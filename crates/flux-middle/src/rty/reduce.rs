@@ -2,7 +2,7 @@ use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
     def_id::FluxDefId,
     global_env::GlobalEnv,
-    rty::{Expr, ExprKind, SortArg, expr::SpecFuncKind, fold::TypeFolder},
+    rty::{Expr, ExprKind, SortArg, SpecFunc, expr::SpecFuncKind, fold::TypeFolder},
 };
 
 pub(super) struct Reducer<'genv, 'tcx> {
@@ -15,8 +15,8 @@ impl<'genv, 'tcx> Reducer<'genv, 'tcx> {
     }
 
     fn should_inline(&self, did: FluxDefId) -> bool {
-        let func = self.genv.spec_func(did);
-        !func.is_uif() && !func.hide && self.genv.should_inline_fun(did)
+        matches!(self.genv.spec_func(did), SpecFunc::Defined { hide: false, .. })
+            && self.genv.should_inline_fun(did)
     }
 
     fn at_base(expr: Expr, espan: Option<ESpan>) -> Expr {

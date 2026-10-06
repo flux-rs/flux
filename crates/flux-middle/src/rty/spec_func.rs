@@ -21,16 +21,20 @@ use crate::{
 /// A spec function (aka flux-def) as written by the user, i.e., *before* inlining any of the
 /// functions it calls.
 #[derive(Clone, TyEncodable, TyDecodable)]
-pub struct SpecFunc {
-    /// The body of the function or `None` for uninterpreted functions
-    pub body: Option<Binder<Expr>>,
-    /// Whether the function is uninterpreted by default
-    pub hide: bool,
+pub enum SpecFunc {
+    /// An uninterpreted function
+    Uif,
+    /// A function with a body
+    Defined {
+        body: Binder<Expr>,
+        /// Whether the function is uninterpreted by default
+        hide: bool,
+    },
 }
 
 impl SpecFunc {
     pub fn is_uif(&self) -> bool {
-        self.body.is_none()
+        matches!(self, SpecFunc::Uif)
     }
 }
 
@@ -88,7 +92,7 @@ fn toposort(funcs: &[(FluxLocalDefId, SpecFunc)]) -> Result<Vec<usize>, Vec<Flux
     // 2. Make the dependency graph. Calls to functions in other crates are not in `s2i`.
     let mut adj_list = Vec::with_capacity(funcs.len());
     for (_, func) in funcs {
-        if let Some(body) = &func.body {
+        if let SpecFunc::Defined { body, .. } = func {
             let deps = deps(body)
                 .iter()
                 .filter_map(|s| s2i.get(s).copied())

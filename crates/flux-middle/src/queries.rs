@@ -559,7 +559,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         // body recursively inlines (and caches) the bodies of the functions it calls. This
         // terminates because `spec_funcs` rejects cycles.
         run_with_cache(&self.inlined_body, did, || {
-            let Some(body) = genv.spec_func(did).body else {
+            let rty::SpecFunc::Defined { body, .. } = genv.spec_func(did) else {
                 bug!("inlined body of uninterpreted function `{did:?}`")
             };
             body.reduce(genv)
