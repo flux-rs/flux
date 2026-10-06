@@ -34,7 +34,7 @@
 <a href=#34 id=34 data-nosnippet>34</a>        def_id: DefId,
 <a href=#35 id=35 data-nosnippet>35</a>    ) -&gt; OptResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;;
 <a href=#36 id=36 data-nosnippet>36</a>    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt;;
-<a href=#37 id=37 data-nosnippet>37</a>    <span class="kw">fn </span>normalized_defns(<span class="kw-2">&amp;</span><span class="self">self</span>, krate: CrateNum) -&gt; Rc&lt;rty::NormalizedDefns&gt;;
+<a href=#37 id=37 data-nosnippet>37</a>    <span class="kw">fn </span>spec_funcs(<span class="kw-2">&amp;</span><span class="self">self</span>, krate: CrateNum) -&gt; Rc&lt;rty::SpecFuncs&gt;;
 <a href=#38 id=38 data-nosnippet>38</a>    <span class="kw">fn </span>flux_module_children(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[fhir::FluxModChild]&gt;;
 <a href=#39 id=39 data-nosnippet>39</a>    <span class="kw">fn </span>func_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: FluxDefId) -&gt; <span class="prelude-ty">Option</span>&lt;rty::PolyFuncSort&gt;;
 <a href=#40 id=40 data-nosnippet>40</a>    <span class="kw">fn </span>func_span(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: FluxDefId) -&gt; <span class="prelude-ty">Option</span>&lt;rustc_span::Span&gt;;

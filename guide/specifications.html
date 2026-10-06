@@ -2039,7 +2039,8 @@ pub fn bar(xs: &amp;[i32]) -&gt; i32 {
 <p>By default <code>flux</code> inlines all such function definitions.</p>
 <p>Monomorphic functions may <em>optionally</em> be encoded
 as functions in SMT by using the <code>FLUX_SMT_DEFINE_FUN=1</code>
-environment variable.</p>
+environment variable. The flag also applies to functions defined in
+dependencies (e.g., <code>flux-core</code>), regardless of the flags used to check them.</p>
 <h2 id="type-holes"><a class="header" href="#type-holes">Type Holes</a></h2>
 <p>You can (sometimes!) use <code>_</code> in the <code>flux</code> signatures to omit the Rust components, e.g.</p>
 <h3 id="function-signatures"><a class="header" href="#function-signatures">Function Signatures</a></h3>

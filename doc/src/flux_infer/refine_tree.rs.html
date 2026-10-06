@@ -384,7 +384,7 @@
 <a href=#384 id=384 data-nosnippet>384</a>        </span><span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.kind {
 <a href=#385 id=385 data-nosnippet>385</a>            NodeKind::Head(pred, tag) =&gt; {
 <a href=#386 id=386 data-nosnippet>386</a>                <span class="kw">let </span>pred = <span class="kw">match </span>phase {
-<a href=#387 id=387 data-nosnippet>387</a>                    SimplifyPhase::Full(genv) =&gt; pred.normalize(genv).simplify(assumed_preds),
+<a href=#387 id=387 data-nosnippet>387</a>                    SimplifyPhase::Full(genv) =&gt; pred.reduce(genv).simplify(assumed_preds),
 <a href=#388 id=388 data-nosnippet>388</a>                    SimplifyPhase::Partial =&gt; pred.clone(),
 <a href=#389 id=389 data-nosnippet>389</a>                };
 <a href=#390 id=390 data-nosnippet>390</a>                <span class="kw">if </span>pred.is_trivially_true() {
@@ -395,7 +395,7 @@
 <a href=#395 id=395 data-nosnippet>395</a>            }
 <a href=#396 id=396 data-nosnippet>396</a>            NodeKind::Assumption(pred) =&gt; {
 <a href=#397 id=397 data-nosnippet>397</a>                <span class="kw">if let </span>SimplifyPhase::Full(genv) = phase {
-<a href=#398 id=398 data-nosnippet>398</a>                    <span class="kw-2">*</span>pred = pred.normalize(genv).simplify(assumed_preds);
+<a href=#398 id=398 data-nosnippet>398</a>                    <span class="kw-2">*</span>pred = pred.reduce(genv).simplify(assumed_preds);
 <a href=#399 id=399 data-nosnippet>399</a>                }
 <a href=#400 id=400 data-nosnippet>400</a>                pred.visit_conj(|conjunct| {
 <a href=#401 id=401 data-nosnippet>401</a>                    assumed_preds.insert(conjunct.erase_spans(), ());

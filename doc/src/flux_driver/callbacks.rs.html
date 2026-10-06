@@ -129,7 +129,7 @@
 <a href=#129 id=129 data-nosnippet>129</a>        <span class="macro">tracing::info!</span>(<span class="string">"Callbacks::check_wf"</span>);
 <a href=#130 id=130 data-nosnippet>130</a>        <span class="comment">// Query qualifiers and spec funcs to report wf errors
 <a href=#131 id=131 data-nosnippet>131</a>        </span><span class="kw">let _ </span>= genv.qualifiers().emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
-<a href=#132 id=132 data-nosnippet>132</a>        <span class="kw">let _ </span>= genv.normalized_defns(LOCAL_CRATE);
+<a href=#132 id=132 data-nosnippet>132</a>        <span class="kw">let _ </span>= genv.spec_funcs(LOCAL_CRATE);
 <a href=#133 id=133 data-nosnippet>133</a>
 <a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">let </span><span class="kw-2">mut </span>ck = CrateChecker::new(genv);
 <a href=#135 id=135 data-nosnippet>135</a>

@@ -174,7 +174,7 @@
 <a href=#174 id=174 data-nosnippet>174</a>    adt_sort_def: UnordMap&lt;K, QueryResult&lt;rty::AdtSortDef&gt;&gt;,
 <a href=#175 id=175 data-nosnippet>175</a>    variants_of: UnordMap&lt;K, QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;,
 <a href=#176 id=176 data-nosnippet>176</a>    type_of: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt;&gt;,
-<a href=#177 id=177 data-nosnippet>177</a>    normalized_defns: Rc&lt;rty::NormalizedDefns&gt;,
+<a href=#177 id=177 data-nosnippet>177</a>    spec_funcs: Rc&lt;rty::SpecFuncs&gt;,
 <a href=#178 id=178 data-nosnippet>178</a>    flux_module_children: UnordMap&lt;K, Vec&lt;fhir::FluxModChild&gt;&gt;,
 <a href=#179 id=179 data-nosnippet>179</a>    func_sort: UnordMap&lt;FluxId&lt;K&gt;, rty::PolyFuncSort&gt;,
 <a href=#180 id=180 data-nosnippet>180</a>    func_span: UnordMap&lt;FluxId&lt;K&gt;, Span&gt;,
@@ -346,8 +346,8 @@
 <a href=#346 id=346 data-nosnippet>346</a>        <span class="macro">get!</span>(<span class="self">self</span>, static_info, key)
 <a href=#347 id=347 data-nosnippet>347</a>    }
 <a href=#348 id=348 data-nosnippet>348</a>
-<a href=#349 id=349 data-nosnippet>349</a>    <span class="kw">fn </span>normalized_defns(<span class="kw-2">&amp;</span><span class="self">self</span>, krate: CrateNum) -&gt; std::rc::Rc&lt;rty::NormalizedDefns&gt; {
-<a href=#350 id=350 data-nosnippet>350</a>        <span class="self">self</span>.local_tables[<span class="kw-2">&amp;</span>krate].normalized_defns.clone()
+<a href=#349 id=349 data-nosnippet>349</a>    <span class="kw">fn </span>spec_funcs(<span class="kw-2">&amp;</span><span class="self">self</span>, krate: CrateNum) -&gt; std::rc::Rc&lt;rty::SpecFuncs&gt; {
+<a href=#350 id=350 data-nosnippet>350</a>        <span class="self">self</span>.local_tables[<span class="kw-2">&amp;</span>krate].spec_funcs.clone()
 <a href=#351 id=351 data-nosnippet>351</a>    }
 <a href=#352 id=352 data-nosnippet>352</a>
 <a href=#353 id=353 data-nosnippet>353</a>    <span class="kw">fn </span>flux_module_children(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[fhir::FluxModChild]&gt; {
@@ -427,7 +427,7 @@
 <a href=#427 id=427 data-nosnippet>427</a>}
 <a href=#428 id=428 data-nosnippet>428</a>
 <a href=#429 id=429 data-nosnippet>429</a><span class="kw">fn </span>encode_flux_defs&lt;<span class="lifetime">'tcx</span>&gt;(genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;, tables: <span class="kw-2">&amp;mut </span>Tables&lt;<span class="lifetime">'tcx</span>, DefIndex&gt;) {
-<a href=#430 id=430 data-nosnippet>430</a>    tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
+<a href=#430 id=430 data-nosnippet>430</a>    tables.spec_funcs = genv.spec_funcs(LOCAL_CRATE);
 <a href=#431 id=431 data-nosnippet>431</a>
 <a href=#432 id=432 data-nosnippet>432</a>    encode_flux_module_children(genv, tables);
 <a href=#433 id=433 data-nosnippet>433</a>    <span class="kw">for </span>(def_id, item) <span class="kw">in </span>genv.fhir_iter_flux_items() {

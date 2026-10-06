@@ -16,7 +16,7 @@
 <a href=#16 id=16 data-nosnippet>16</a>    def_id::{FluxDefId, MaybeExternId},
 <a href=#17 id=17 data-nosnippet>17</a>    global_env::GlobalEnv,
 <a href=#18 id=18 data-nosnippet>18</a>    queries::QueryErr,
-<a href=#19 id=19 data-nosnippet>19</a>    rty::{BinOp, BvSize, PrettyMap, Sort, local_deps},
+<a href=#19 id=19 data-nosnippet>19</a>    rty::{BinOp, BvSize, PrettyMap, Sort, deps},
 <a href=#20 id=20 data-nosnippet>20</a>};
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>itertools::Itertools;
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>rustc_data_structures::{
@@ -830,10 +830,10 @@
 <a href=#830 id=830 data-nosnippet>830</a>        }
 <a href=#831 id=831 data-nosnippet>831</a>
 <a href=#832 id=832 data-nosnippet>832</a>        <span class="comment">// 2. Collect the fun dependencies
-<a href=#833 id=833 data-nosnippet>833</a>        </span><span class="kw">if </span>!<span class="self">self</span>.genv.normalized_info(did).uif {
+<a href=#833 id=833 data-nosnippet>833</a>        </span><span class="kw">if </span>!<span class="self">self</span>.genv.spec_func(did).is_uif() {
 <a href=#834 id=834 data-nosnippet>834</a>            <span class="kw">let </span>body = <span class="self">self</span>.genv.inlined_body(did);
-<a href=#835 id=835 data-nosnippet>835</a>            <span class="kw">for </span>dep_id <span class="kw">in </span>local_deps(<span class="kw-2">&amp;</span>body) {
-<a href=#836 id=836 data-nosnippet>836</a>                res.push(<span class="self">self</span>.fun_file(<span class="kw-2">&amp;</span>dep_id.to_def_id()));
+<a href=#835 id=835 data-nosnippet>835</a>            <span class="kw">for </span>dep_id <span class="kw">in </span>deps(<span class="kw-2">&amp;</span>body) {
+<a href=#836 id=836 data-nosnippet>836</a>                res.push(<span class="self">self</span>.fun_file(<span class="kw-2">&amp;</span>dep_id));
 <a href=#837 id=837 data-nosnippet>837</a>            }
 <a href=#838 id=838 data-nosnippet>838</a>        }
 <a href=#839 id=839 data-nosnippet>839</a>

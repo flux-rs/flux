@@ -2,7 +2,7 @@
     genv: <a class="struct" href="../../flux_middle/global_env/struct.GlobalEnv.html" title="struct flux_middle::global_env::GlobalEnv">GlobalEnv</a>&lt;'genv, 'tcx&gt;,
     kind: &amp;RawPtrKind,
     ctor: <a class="type" href="../../flux_middle/rty/type.SubsetTyCtor.html" title="type flux_middle::rty::SubsetTyCtor">SubsetTyCtor</a>,
-    infcx: &amp;<a class="struct" href="../../flux_infer/infer/struct.InferCtxt.html" title="struct flux_infer::infer::InferCtxt">InferCtxt</a>&lt;'_, 'genv, 'tcx&gt;,
+    infcx: &amp;InferCtxt&lt;'_, 'genv, 'tcx&gt;,
     def_id: LocalDefId,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>, <a class="struct" href="errors/struct.CheckerError.html" title="struct flux_refineck::checker::errors::CheckerError">CheckerError</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Converts a reference into a raw-ptr, tracking size etc.</p>
 <p>For types that do implement Sized:

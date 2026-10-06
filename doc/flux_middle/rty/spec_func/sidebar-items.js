@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SpecFunc"],"fn":["deps","toposort"],"struct":["SpecFuncs"]};
