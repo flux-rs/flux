@@ -364,7 +364,7 @@ impl UifOp {
     }
 
     /// The surface syntax of the operator
-    pub fn token(self) -> &'static str {
+    fn token(self) -> &'static str {
         match self {
             UifOp::Add => "+",
             UifOp::Sub => "-",
@@ -419,11 +419,11 @@ impl FromStr for UifOps {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut ops = UifOps::default();
-        for token in s
+        let tokens = s
             .split(',')
             .map(str::trim)
-            .filter(|token| !token.is_empty())
-        {
+            .filter(|token| !token.is_empty());
+        for token in tokens {
             let op = UifOp::from_token(token).ok_or(Self::ERROR)?;
             ops.insert(op);
         }
