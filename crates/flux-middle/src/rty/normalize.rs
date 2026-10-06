@@ -1,6 +1,5 @@
 use rustc_data_structures::unord::UnordMap;
-use rustc_hir::def_id::{CrateNum, DefIndex, LOCAL_CRATE};
-use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_hir::def_id::{CrateNum, DefIndex};
 
 use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
@@ -13,7 +12,6 @@ use crate::{
     },
 };
 
-#[derive(TyEncodable, TyDecodable)]
 pub struct NormalizedDefns {
     krate: CrateNum,
     inlined_bodies: UnordMap<FluxId<DefIndex>, Binder<Expr>>,
@@ -21,19 +19,12 @@ pub struct NormalizedDefns {
     info: UnordMap<FluxId<DefIndex>, FuncInfo>,
 }
 
-// This implementation is needed for `flux-metada::Tables`
-impl Default for NormalizedDefns {
-    fn default() -> Self {
-        Self { krate: LOCAL_CRATE, inlined_bodies: UnordMap::default(), info: UnordMap::default() }
-    }
-}
-
 // TODO(nilehmann) should we make an enum? most of the fields don't matter for UIFs
 /// This type represents what we know about a flux-def *after*
 /// normalization, i.e. after "inlining" all or some transitively
 /// called flux-defs. Whether a flux-def is inlined is decided by
 /// [`GlobalEnv::should_inline_fun`] in the current session.
-#[derive(Clone, TyEncodable, TyDecodable)]
+#[derive(Clone)]
 pub struct FuncInfo {
     /// Whether or not this function is uninterpreted by default
     /// This value is irrelevant of UIFs.

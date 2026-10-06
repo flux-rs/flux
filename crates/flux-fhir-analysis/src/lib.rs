@@ -47,13 +47,12 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
     def::{CtorOf, DefKind},
-    def_id::{DefId, LOCAL_CRATE, LocalDefId},
+    def_id::{DefId, LocalDefId},
 };
 use rustc_span::Span;
 
 pub fn provide(providers: &mut Providers) {
     providers.spec_funcs = spec_funcs;
-    providers.normalized_defns = normalized_defns;
     providers.func_sort = func_sort;
     providers.func_span = flux_def_ident_span;
     providers.qualifiers = qualifiers;
@@ -140,10 +139,6 @@ fn try_spec_funcs(genv: GlobalEnv) -> Result<rty::SpecFuncs, ErrorGuaranteed> {
             errors::DefinitionCycle::new(span, cycle)
         })
         .emit(&genv)
-}
-
-fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {
-    rty::NormalizedDefns::new(genv, LOCAL_CRATE, &genv.spec_funcs(LOCAL_CRATE))
 }
 
 fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {

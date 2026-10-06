@@ -175,7 +175,6 @@ pub struct Providers {
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub prim_rel: fn(GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>,
     pub spec_funcs: fn(GlobalEnv) -> rty::SpecFuncs,
-    pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
     pub func_sort: fn(GlobalEnv, FluxId<MaybeExternId>) -> rty::PolyFuncSort,
     pub func_span: fn(GlobalEnv, FluxId<MaybeExternId>) -> Span,
     pub adt_sort_def_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtSortDef>,
@@ -228,7 +227,6 @@ impl Default for Providers {
             fhir_attr_map: |_, _| empty_query!(),
             fhir_crate: |_| empty_query!(),
             spec_funcs: |_| empty_query!(),
-            normalized_defns: |_| empty_query!(),
             func_sort: |_, _| empty_query!(),
             func_span: |_, _| empty_query!(),
             qualifiers: |_| empty_query!(),
@@ -549,7 +547,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             if krate == LOCAL_CRATE {
                 Rc::new((self.providers.spec_funcs)(genv))
             } else {
-                bug!("spec functions of external crates are not available")
+                genv.cstore().spec_funcs(krate)
             }
         })
     }
@@ -559,12 +557,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         genv: GlobalEnv,
         krate: CrateNum,
     ) -> Rc<rty::NormalizedDefns> {
+        // We normalize the spec functions of every crate (including external ones) in the current
+        // session, so they are inlined according to the flags of the current crate.
         run_with_cache(&self.normalized_defns, krate, || {
-            if krate == LOCAL_CRATE {
-                Rc::new((self.providers.normalized_defns)(genv))
-            } else {
-                genv.cstore().normalized_defns(krate)
-            }
+            Rc::new(rty::NormalizedDefns::new(genv, krate, &genv.spec_funcs(krate)))
         })
     }
 
