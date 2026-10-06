@@ -328,7 +328,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                 cx.conv_qualifier(qualifier)?;
             }
             fhir::FluxItem::Func(spec_func) => {
-                cx.conv_defn(spec_func)?;
+                cx.conv_spec_func(spec_func)?;
             }
             fhir::FluxItem::PrimOpProp(prim_op_prop) => {
                 cx.conv_primop_prop(prim_op_prop)?;

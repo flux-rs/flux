@@ -129,7 +129,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         tracing::info!("Callbacks::check_wf");
         // Query qualifiers and spec funcs to report wf errors
         let _ = genv.qualifiers().emit(&genv)?;
-        let _ = genv.normalized_defns(LOCAL_CRATE);
+        let _ = genv.spec_funcs(LOCAL_CRATE);
 
         let mut ck = CrateChecker::new(genv);
 

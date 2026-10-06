@@ -384,7 +384,7 @@ impl Node {
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
                 let pred = match phase {
-                    SimplifyPhase::Full(genv) => pred.normalize(genv).simplify(assumed_preds),
+                    SimplifyPhase::Full(genv) => pred.reduce(genv).simplify(assumed_preds),
                     SimplifyPhase::Partial => pred.clone(),
                 };
                 if pred.is_trivially_true() {
@@ -395,7 +395,7 @@ impl Node {
             }
             NodeKind::Assumption(pred) => {
                 if let SimplifyPhase::Full(genv) = phase {
-                    *pred = pred.normalize(genv).simplify(assumed_preds);
+                    *pred = pred.reduce(genv).simplify(assumed_preds);
                 }
                 pred.visit_conj(|conjunct| {
                     assumed_preds.insert(conjunct.erase_spans(), ());

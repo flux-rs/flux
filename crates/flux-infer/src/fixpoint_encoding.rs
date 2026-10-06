@@ -40,7 +40,7 @@ use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::def_id::{CrateNum, DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_infer::infer::TyCtxtInferExt as _;
 use rustc_middle::ty::TypingMode;
@@ -2502,17 +2502,24 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         while let Some((&did, _)) = self.const_env.fun_decl_map.get_index(idx) {
             idx += 1;
 
-            let info = self.genv.normalized_info(did);
             let revealed = reveals.contains(&did);
-            let def = if info.uif || (info.hide && !revealed && proven_externally.is_none()) {
+            let uninterpreted = match self.genv.spec_func(did) {
+                rty::SpecFunc::Uif => true,
+                rty::SpecFunc::Defined { hide, .. } => {
+                    hide && !revealed && proven_externally.is_none()
+                }
+            };
+            let def = if uninterpreted {
                 self.fun_decl_to_fixpoint(did, scx)
             } else {
                 self.fun_def_to_fixpoint(did, scx)?
             };
-            defs.push((info.rank, def));
+            defs.push(((crate_rank(self.genv, did.krate()), self.genv.spec_func_rank(did)), def));
         }
 
-        // we sort by rank so the definitions go out without any forward dependencies.
+        // We sort the definitions so they go out without any forward dependencies. A definition can
+        // only depend on definitions in the same crate (which have a lower rank) or in crates it
+        // depends on (which come first in the crate order).
         let defs = defs
             .into_iter()
             .sorted_by_key(|(rank, _)| *rank)
@@ -2589,6 +2596,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .collect();
         Ok(fixpoint::Qualifier { name, args, body })
     }
+}
+
+/// The position of `krate` in a topological order of all crates, i.e., every crate comes after all
+/// the crates it depends on. The local crate goes last.
+fn crate_rank(genv: GlobalEnv, krate: CrateNum) -> usize {
+    genv.tcx()
+        .postorder_cnums(())
+        .iter()
+        .position(|cnum| *cnum == krate)
+        .unwrap_or(usize::MAX)
 }
 
 fn parse_kvid(kvid: &str) -> fixpoint::KVid {

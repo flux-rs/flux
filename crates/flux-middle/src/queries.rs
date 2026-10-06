@@ -35,6 +35,7 @@ use crate::{
     global_env::GlobalEnv,
     rty::{
         self, AliasReft, Expr, GenericArg,
+        fold::TypeFoldable,
         refining::{self, Refine, Refiner, refine_generic_param_def},
     },
 };
@@ -174,7 +175,7 @@ pub struct Providers {
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub prim_rel: fn(GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>,
-    pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
+    pub spec_funcs: fn(GlobalEnv) -> rty::SpecFuncs,
     pub func_sort: fn(GlobalEnv, FluxId<MaybeExternId>) -> rty::PolyFuncSort,
     pub func_span: fn(GlobalEnv, FluxId<MaybeExternId>) -> Span,
     pub adt_sort_def_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtSortDef>,
@@ -226,7 +227,7 @@ impl Default for Providers {
             desugar: |_, _| empty_query!(),
             fhir_attr_map: |_, _| empty_query!(),
             fhir_crate: |_| empty_query!(),
-            normalized_defns: |_| empty_query!(),
+            spec_funcs: |_| empty_query!(),
             func_sort: |_, _| empty_query!(),
             func_span: |_, _| empty_query!(),
             qualifiers: |_| empty_query!(),
@@ -275,7 +276,8 @@ pub struct Queries<'genv, 'tcx> {
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
-    normalized_defns: Cache<CrateNum, Rc<rty::NormalizedDefns>>,
+    spec_funcs: Cache<CrateNum, Rc<rty::SpecFuncs>>,
+    inlined_body: Cache<FluxDefId, rty::Binder<rty::Expr>>,
     func_sort: Cache<FluxDefId, rty::PolyFuncSort>,
     func_span: Cache<FluxDefId, Span>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
@@ -323,7 +325,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_predicates_of: Default::default(),
             lower_type_of: Default::default(),
             lower_fn_sig: Default::default(),
-            normalized_defns: Default::default(),
+            spec_funcs: Default::default(),
+            inlined_body: Default::default(),
             func_sort: Default::default(),
             func_span: Default::default(),
             qualifiers: Default::default(),
@@ -540,17 +543,26 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn normalized_defns(
-        &self,
-        genv: GlobalEnv,
-        krate: CrateNum,
-    ) -> Rc<rty::NormalizedDefns> {
-        run_with_cache(&self.normalized_defns, krate, || {
+    pub(crate) fn spec_funcs(&self, genv: GlobalEnv, krate: CrateNum) -> Rc<rty::SpecFuncs> {
+        run_with_cache(&self.spec_funcs, krate, || {
             if krate == LOCAL_CRATE {
-                Rc::new((self.providers.normalized_defns)(genv))
+                Rc::new((self.providers.spec_funcs)(genv))
             } else {
-                genv.cstore().normalized_defns(krate)
+                genv.cstore().spec_funcs(krate)
             }
+        })
+    }
+
+    pub(crate) fn inlined_body(&self, genv: GlobalEnv, did: FluxDefId) -> rty::Binder<rty::Expr> {
+        // We inline spec functions lazily (including those of external crates) in the current
+        // session, so they are inlined according to the flags of the current crate. Inlining a
+        // body recursively inlines (and caches) the bodies of the functions it calls. This
+        // terminates because `spec_funcs` rejects cycles.
+        run_with_cache(&self.inlined_body, did, || {
+            let rty::SpecFunc::Defined { body, .. } = genv.spec_func(did) else {
+                bug!("inlined body of uninterpreted function `{did:?}`")
+            };
+            body.reduce(genv)
         })
     }
 

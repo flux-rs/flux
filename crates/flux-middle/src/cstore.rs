@@ -34,7 +34,7 @@ pub trait CrateStore<'tcx> {
         def_id: DefId,
     ) -> OptResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>;
     fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyOrCtor>>;
-    fn normalized_defns(&self, krate: CrateNum) -> Rc<rty::NormalizedDefns>;
+    fn spec_funcs(&self, krate: CrateNum) -> Rc<rty::SpecFuncs>;
     fn flux_module_children(&self, def_id: DefId) -> Option<&[fhir::FluxModChild]>;
     fn func_sort(&self, def_id: FluxDefId) -> Option<rty::PolyFuncSort>;
     fn func_span(&self, def_id: FluxDefId) -> Option<rustc_span::Span>;

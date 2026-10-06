@@ -599,7 +599,8 @@ By default `flux` inlines all such function definitions.
 
 Monomorphic functions may _optionally_ be encoded
 as functions in SMT by using the `FLUX_SMT_DEFINE_FUN=1`
-environment variable.
+environment variable. The flag also applies to functions defined in
+dependencies (e.g., `flux-core`), regardless of the flags used to check them.
 
 ## Type Holes
 
