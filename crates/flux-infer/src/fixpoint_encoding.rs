@@ -1738,11 +1738,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
         match internal_func {
-            InternalFuncKind::Val(op) => {
-                let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
-                let args = self.exprs_to_fixpoint(args, scx)?;
-                Ok(fixpoint::Expr::App(Box::new(func), None, args, None))
-            }
             InternalFuncKind::Rel(op) => {
                 let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
                     prim_rel.body.replace_bound_refts(args)
@@ -2010,6 +2005,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         fixpoint::Expr::ThyFunc(itf)
     }
 
+    // An operation is encoded as an uninterpreted function (see `ConstKey::PrimOp`) if it has
+    // no interpretation in the logic (bitwise operations on `int`), or if the user asked for it
+    // with `uif_ops` (only for the fixpoint backend; lean keeps the interpreted operations).
     fn bin_op_to_fixpoint(
         &mut self,
         op: &rty::BinOp,
@@ -2017,18 +2015,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e2: &rty::Expr,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
-        if matches!(self.backend, Backend::Fixpoint)
-            && let Some(uif_op) = Self::uif_op(op)
-            && self.uif_ops.contains(uif_op)
-        {
-            // Encode `e1 op e2` as `prim_val(op, e1, e2)`, i.e., with the same uninterpreted function
-            // used for the value of primitive operations (see `ConstKey::PrimOp`).
-            return self.internal_func_to_fixpoint(
-                &InternalFuncKind::Val(op.clone()),
-                &[],
-                &[e1.clone(), e2.clone()],
-                scx,
-            );
+        let uninterpreted = op.is_uninterpreted()
+            || (matches!(self.backend, Backend::Fixpoint)
+                && Self::uif_op(op).is_some_and(|uif_op| self.uif_ops.contains(uif_op)));
+        if uninterpreted {
+            let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
+            let args = vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?];
+            return Ok(fixpoint::Expr::App(Box::new(func), None, args, None));
         }
         let op = match op {
             rty::BinOp::Eq => {
@@ -2246,14 +2239,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             })
     }
 
-    /// The sort of the uninterpreted function denoting the value of the primitive operation `op`.
-    ///
-    /// (NOTE:PrimOpSort) We are somewhat "overloading" the `BinOps`: as we are using them
-    /// for (a) interpreted operations (e.g. on bit vectors) AND (b) uninterpreted functions (e.g. on
-    /// integers). So when Binop::BitShr (a) appears in a ExprKind::BinOp, it means an (interpreted)
-    /// bit vector operation, but (b) inside ExprKind::InternalFunc it means an uninterpreted function
-    /// (e.g. on int). The logic in `rty::BinOp::uif_sort` is a bit "duplicated" with the
-    /// `prim_op_sort` in `sortck.rs` (on fhir), we should make sure they remain in sync.
+    /// The sort of the uninterpreted function encoding the binary operation `op` (see
+    /// `bin_op_to_fixpoint`). Note that the sort of the bitwise operations on `int` (which are
+    /// always uninterpreted) is also given by `prim_op_sort` in `sortck.rs` (on fhir), we should make
+    /// sure they remain in sync with `rty::BinOp::uif_sort`.
     fn prim_op_sort(op: &rty::BinOp, span: Span) -> rty::PolyFuncSort {
         op.uif_sort()
             .unwrap_or_else(|| span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`"))

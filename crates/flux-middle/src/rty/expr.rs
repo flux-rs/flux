@@ -353,10 +353,6 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn prim_val(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        Expr::app(InternalFuncKind::Val(op), List::empty(), List::from_arr([e1.into(), e2.into()]))
-    }
-
     pub fn prim_rel(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
         Expr::app(InternalFuncKind::Rel(op), List::empty(), List::from_arr([e1.into(), e2.into()]))
     }
@@ -887,8 +883,23 @@ pub enum BinOp {
 }
 
 impl BinOp {
+    /// Whether the operation has no interpretation in the logic and must always be encoded as an
+    /// uninterpreted function, i.e., the bitwise operations on `int` (they are interpreted on
+    /// bit vectors).
+    pub fn is_uninterpreted(&self) -> bool {
+        matches!(
+            self,
+            BinOp::BitAnd(Sort::Int)
+                | BinOp::BitOr(Sort::Int)
+                | BinOp::BitXor(Sort::Int)
+                | BinOp::BitShl(Sort::Int)
+                | BinOp::BitShr(Sort::Int)
+        )
+    }
+
     /// The sort `(s, s) -> s` of the uninterpreted function denoting an arithmetic or bitwise
-    /// operation on sort `s` (see [`InternalFuncKind::Val`]), or `None` for other operations.
+    /// operation on sort `s`, when it is encoded as such (see [`BinOp::is_uninterpreted`]), or
+    /// `None` for other operations.
     pub fn uif_sort(&self) -> Option<super::PolyFuncSort> {
         let sort = match self {
             BinOp::Add(sort)
@@ -962,8 +973,6 @@ impl Ctor {
 /// to customize primops like `<<` with extra "facts" or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
 #[derive(Debug, Clone, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
 pub enum InternalFuncKind {
-    /// UIF representing the value of a primop
-    Val(BinOp),
     /// UIF representing the relationship of a primop
     Rel(BinOp),
     // Conversions betweeen Sorts
@@ -1807,7 +1816,6 @@ pub(crate) mod pretty {
     impl Pretty for InternalFuncKind {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                InternalFuncKind::Val(op) => w!(cx, f, "[{:?}]", op),
                 InternalFuncKind::Rel(op) => w!(cx, f, "[{:?}]?", op),
                 InternalFuncKind::Cast => w!(cx, f, "cast"),
             }

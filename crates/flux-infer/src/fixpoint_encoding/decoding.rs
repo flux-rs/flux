@@ -238,7 +238,7 @@ where
                     } else {
                         let e1 = self.fixpoint_to_expr(&op_args[0])?;
                         let e2 = self.fixpoint_to_expr(&op_args[1])?;
-                        return Ok(rty::Expr::prim_val(bin_op, e1, e2));
+                        return Ok(rty::Expr::binary_op(bin_op, e1, e2));
                     }
                 }
                 match &**fhead {
