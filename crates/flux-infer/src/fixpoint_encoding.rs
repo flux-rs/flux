@@ -2000,6 +2000,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         fixpoint::Expr::ThyFunc(itf)
     }
 
+    // An operation is encoded as an uninterpreted function (see `ConstKey::PrimOp`) if it has
+    // no interpretation in the logic (bitwise operations on `int`), or if the user asked for it
+    // with `uif_ops` (only for the fixpoint backend; lean keeps the interpreted operations).
     fn bin_op_to_fixpoint(
         &mut self,
         op: &rty::BinOp,
@@ -2007,9 +2010,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e2: &rty::Expr,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
-        // An operation is encoded as an uninterpreted function (see `ConstKey::PrimOp`) if it has
-        // no interpretation in the logic (bitwise operations on `int`), or if the user asked for it
-        // with `uif_ops` (only for the fixpoint backend; lean keeps the interpreted operations).
         let uninterpreted = op.is_uninterpreted()
             || (matches!(self.backend, Backend::Fixpoint)
                 && Self::uif_op(op).is_some_and(|uif_op| self.uif_ops.contains(uif_op)));
