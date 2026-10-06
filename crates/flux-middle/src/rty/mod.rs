@@ -12,6 +12,7 @@ pub mod normalize;
 mod pretty;
 pub mod refining;
 pub mod region_matching;
+mod spec_func;
 pub mod subst;
 use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
@@ -39,7 +40,7 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _, VariantDef},
 };
 use itertools::Itertools;
-pub use normalize::{FuncInfo, NormalizedDefns, deps};
+pub use normalize::{FuncInfo, NormalizedDefns};
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
 use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};
@@ -57,6 +58,7 @@ use rustc_middle::{
 use rustc_span::{DUMMY_SP, Span, Symbol, sym, symbol::kw};
 use rustc_type_ir::Upcast as _;
 pub use rustc_type_ir::{INNERMOST, TyVid};
+pub use spec_func::{SpecFunc, SpecFuncs, deps};
 
 use self::fold::TypeFoldable;
 pub use crate::fhir::InferMode;

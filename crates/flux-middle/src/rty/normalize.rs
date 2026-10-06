@@ -1,19 +1,15 @@
-use std::ops::ControlFlow;
-
-use itertools::Itertools;
-use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
+use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::{CrateNum, DefIndex, LOCAL_CRATE};
 use rustc_macros::{TyDecodable, TyEncodable};
-use toposort_scc::IndexGraph;
 
 use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
     def_id::{FluxDefId, FluxId},
     global_env::GlobalEnv,
     rty::{
-        Binder, Expr, ExprKind, SortArg,
+        Binder, Expr, ExprKind, SortArg, SpecFunc, SpecFuncs,
         expr::SpecFuncKind,
-        fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
+        fold::{TypeFoldable, TypeFolder},
     },
 };
 
@@ -52,8 +48,8 @@ pub struct FuncInfo {
 
 pub(super) struct InliningCtxt {
     krate: CrateNum,
-    inlined_bodies: UnordMap<FluxDefId, Binder<Expr>>,
-    info: UnordMap<FluxDefId, FuncInfo>,
+    inlined_bodies: UnordMap<FluxId<DefIndex>, Binder<Expr>>,
+    info: UnordMap<FluxId<DefIndex>, FuncInfo>,
 }
 
 pub(super) struct Normalizer<'a, 'genv, 'tcx> {
@@ -62,46 +58,27 @@ pub(super) struct Normalizer<'a, 'genv, 'tcx> {
 }
 
 impl NormalizedDefns {
-    pub fn new(
-        genv: GlobalEnv,
-        krate: CrateNum,
-        funs: &[(FluxDefId, Option<Binder<Expr>>, bool)],
-    ) -> Result<Self, Vec<FluxDefId>> {
-        // 1. Topologically sort the Defns
-        let ds = toposort(krate, funs)?;
-
-        // 2. Expand each defn in the sorted order
+    pub fn new(genv: GlobalEnv, krate: CrateNum, funcs: &SpecFuncs) -> Self {
+        // Expand each function in postorder, so its callees are already expanded
         let mut inlining =
             InliningCtxt { krate, inlined_bodies: UnordMap::default(), info: UnordMap::default() };
-        for (rank, i) in ds.iter().enumerate() {
-            let (id, body, hide) = &funs[*i];
+        for (rank, (id, func)) in funcs.postorder().enumerate() {
+            let SpecFunc { body, hide } = func;
 
             if let Some(body) = body {
                 let body = body.fold_with(&mut Normalizer::new(genv, Some(&inlining)));
 
-                inlining.inlined_bodies.insert(*id, body);
+                inlining.inlined_bodies.insert(id, body);
                 inlining
                     .info
-                    .insert(*id, FuncInfo { rank, hide: *hide, uif: false });
+                    .insert(id, FuncInfo { rank, hide: *hide, uif: false });
             } else {
                 inlining
                     .info
-                    .insert(*id, FuncInfo { rank, hide: *hide, uif: true });
+                    .insert(id, FuncInfo { rank, hide: *hide, uif: true });
             }
         }
-        Ok(Self {
-            krate,
-            info: inlining
-                .info
-                .into_items()
-                .map(|(id, info)| (id.index(), info))
-                .collect(),
-            inlined_bodies: inlining
-                .inlined_bodies
-                .into_items()
-                .map(|(id, body)| (id.index(), body))
-                .collect(),
-        })
+        Self { krate, info: inlining.info, inlined_bodies: inlining.inlined_bodies }
     }
 
     pub fn func_info(&self, did: FluxDefId) -> FuncInfo {
@@ -115,66 +92,6 @@ impl NormalizedDefns {
     }
 }
 
-/// Returns
-/// * either Ok(d1...dn) which are topologically sorted such that
-///   forall i < j, di does not depend on i.e. "call" dj
-/// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-fn toposort<T>(
-    krate: CrateNum,
-    defns: &[(FluxDefId, Option<Binder<Expr>>, T)],
-) -> Result<Vec<usize>, Vec<FluxDefId>> {
-    // 1. Make a Symbol to Index map
-    let s2i: UnordMap<FluxDefId, usize> = defns
-        .iter()
-        .enumerate()
-        .map(|(i, defn)| (defn.0, i))
-        .collect();
-
-    // 2. Make the dependency graph
-    let mut adj_list = Vec::with_capacity(defns.len());
-    for defn in defns {
-        if let Some(body) = &defn.1 {
-            let deps = deps(body)
-                .iter()
-                .filter(|did| did.krate() == krate)
-                .filter_map(|s| s2i.get(s).copied())
-                .collect_vec();
-            adj_list.push(deps);
-        } else {
-            adj_list.push(vec![]);
-        }
-    }
-    let mut g = IndexGraph::from_adjacency_list(&adj_list);
-    g.transpose();
-
-    // 3. Topologically sort the graph
-    match g.toposort_or_scc() {
-        Ok(is) => Ok(is),
-        Err(mut scc) => {
-            let cycle = scc.pop().unwrap();
-            Err(cycle.iter().map(|i| defns[*i].0).collect())
-        }
-    }
-}
-
-/// Returns all the flux-defs (of any crate) called in `body`
-pub fn deps(body: &Binder<Expr>) -> FxIndexSet<FluxDefId> {
-    struct DepsVisitor(FxIndexSet<FluxDefId>);
-    impl TypeVisitor for DepsVisitor {
-        fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
-            if let ExprKind::App(func, ..) = expr.kind()
-                && let ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind()
-            {
-                self.0.insert(*did);
-            }
-            expr.super_visit_with(self)
-        }
-    }
-    let mut visitor = DepsVisitor(Default::default());
-    let _ = body.visit_with(&mut visitor);
-    visitor.0
-}
-
 impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
     pub(super) fn new(genv: GlobalEnv<'genv, 'tcx>, inlining: Option<&'a InliningCtxt>) -> Self {
         Self { genv, inlining }
@@ -184,7 +101,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
         if let Some(inlining) = self.inlining
             && did.krate() == inlining.krate
         {
-            inlining.inlined_bodies[&did].clone()
+            inlining.inlined_bodies[&did.index()].clone()
         } else {
             self.genv.inlined_body(did)
         }
@@ -194,7 +111,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
         let info = if let Some(inlining) = self.inlining
             && did.krate() == inlining.krate
         {
-            &inlining.info[&did]
+            &inlining.info[&did.index()]
         } else {
             &self.genv.normalized_info(did)
         };

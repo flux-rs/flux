@@ -247,6 +247,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.normalized_defns(did.krate()).func_info(did).clone()
     }
 
+    /// All the spec functions of a crate in topological order
+    pub fn spec_funcs(self, krate: CrateNum) -> Rc<rty::SpecFuncs> {
+        self.inner.queries.spec_funcs(self, krate)
+    }
+
     pub fn normalized_defns(self, krate: CrateNum) -> Rc<rty::NormalizedDefns> {
         self.inner.queries.normalized_defns(self, krate)
     }

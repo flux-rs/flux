@@ -478,20 +478,16 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(rty::Qualifier { def_id: qualifier.def_id, body, wildcards, kind: qualifier.kind })
     }
 
-    pub(crate) fn conv_defn(
-        &mut self,
-        func: &fhir::SpecFunc,
-    ) -> QueryResult<Option<rty::Binder<rty::Expr>>> {
-        if let Some(body) = &func.body {
+    pub(crate) fn conv_spec_func(&mut self, func: &fhir::SpecFunc) -> QueryResult<rty::SpecFunc> {
+        let body = if let Some(body) = &func.body {
             let mut env = Env::new(&[]);
             env.push_layer(Layer::list(self.results(), 0, func.args));
             let expr = self.conv_expr(&mut env, body)?;
-            let body =
-                rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(self.genv())?);
-            Ok(Some(body))
+            Some(rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(self.genv())?))
         } else {
-            Ok(None)
-        }
+            None
+        };
+        Ok(rty::SpecFunc { body, hide: func.hide })
     }
 
     pub(crate) fn conv_primop_prop(

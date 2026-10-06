@@ -174,6 +174,7 @@ pub struct Providers {
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub prim_rel: fn(GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>,
+    pub spec_funcs: fn(GlobalEnv) -> rty::SpecFuncs,
     pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
     pub func_sort: fn(GlobalEnv, FluxId<MaybeExternId>) -> rty::PolyFuncSort,
     pub func_span: fn(GlobalEnv, FluxId<MaybeExternId>) -> Span,
@@ -226,6 +227,7 @@ impl Default for Providers {
             desugar: |_, _| empty_query!(),
             fhir_attr_map: |_, _| empty_query!(),
             fhir_crate: |_| empty_query!(),
+            spec_funcs: |_| empty_query!(),
             normalized_defns: |_| empty_query!(),
             func_sort: |_, _| empty_query!(),
             func_span: |_, _| empty_query!(),
@@ -275,6 +277,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
+    spec_funcs: Cache<CrateNum, Rc<rty::SpecFuncs>>,
     normalized_defns: Cache<CrateNum, Rc<rty::NormalizedDefns>>,
     func_sort: Cache<FluxDefId, rty::PolyFuncSort>,
     func_span: Cache<FluxDefId, Span>,
@@ -323,6 +326,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_predicates_of: Default::default(),
             lower_type_of: Default::default(),
             lower_fn_sig: Default::default(),
+            spec_funcs: Default::default(),
             normalized_defns: Default::default(),
             func_sort: Default::default(),
             func_span: Default::default(),
@@ -537,6 +541,16 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     .lower(genv.tcx())
                     .map_err(|err| QueryErr::unsupported(def_id, err.into_err()))?,
             ))
+        })
+    }
+
+    pub(crate) fn spec_funcs(&self, genv: GlobalEnv, krate: CrateNum) -> Rc<rty::SpecFuncs> {
+        run_with_cache(&self.spec_funcs, krate, || {
+            if krate == LOCAL_CRATE {
+                Rc::new((self.providers.spec_funcs)(genv))
+            } else {
+                bug!("spec functions of external crates are not available")
+            }
         })
     }
 

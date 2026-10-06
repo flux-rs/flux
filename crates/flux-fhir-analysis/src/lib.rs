@@ -52,6 +52,7 @@ use rustc_hir::{
 use rustc_span::Span;
 
 pub fn provide(providers: &mut Providers) {
+    providers.spec_funcs = spec_funcs;
     providers.normalized_defns = normalized_defns;
     providers.func_sort = func_sort;
     providers.func_span = flux_def_ident_span;
@@ -103,17 +104,17 @@ fn flux_def_ident_span(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> Span {
         .ident_span
 }
 
-fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {
-    match try_normalized_defns(genv) {
-        Ok(normalized) => normalized,
+fn spec_funcs(genv: GlobalEnv) -> rty::SpecFuncs {
+    match try_spec_funcs(genv) {
+        Ok(funcs) => funcs,
         Err(err) => {
             genv.sess().abort(err);
         }
     }
 }
 
-fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGuaranteed> {
-    let mut defns = vec![];
+fn try_spec_funcs(genv: GlobalEnv) -> Result<rty::SpecFuncs, ErrorGuaranteed> {
+    let mut funcs = vec![];
 
     // Collect and emit all errors
     let mut errors = Errors::new(genv.sess());
@@ -123,24 +124,26 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
             continue;
         };
         let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
-        let Ok(defn) = cx.conv_defn(func).emit(&errors) else { continue };
-        defns.push((func.def_id.to_def_id(), defn, func.hide));
+        let Ok(spec_func) = cx.conv_spec_func(func).emit(&errors) else { continue };
+        funcs.push((func.def_id, spec_func));
     }
     errors.to_result()?;
 
-    let defns = rty::NormalizedDefns::new(genv, LOCAL_CRATE, &defns)
+    rty::SpecFuncs::new(funcs)
         .map_err(|cycle| {
-            #[allow(
-                clippy::disallowed_methods,
-                reason = "refinement functions cannot be extern specs"
-            )]
-            let root = cycle[0].expect_local();
-            let span = genv.fhir_spec_func_body(root).unwrap().body.unwrap().span;
+            let span = genv
+                .fhir_spec_func_body(cycle[0])
+                .unwrap()
+                .body
+                .unwrap()
+                .span;
             errors::DefinitionCycle::new(span, cycle)
         })
-        .emit(&genv)?;
+        .emit(&genv)
+}
 
-    Ok(defns)
+fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {
+    rty::NormalizedDefns::new(genv, LOCAL_CRATE, &genv.spec_funcs(LOCAL_CRATE))
 }
 
 fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
@@ -737,7 +740,7 @@ fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>>
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::def_id::FluxDefId;
+    use flux_middle::def_id::FluxLocalDefId;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
@@ -750,7 +753,7 @@ mod errors {
     }
 
     impl DefinitionCycle {
-        pub(super) fn new(span: Span, cycle: Vec<FluxDefId>) -> Self {
+        pub(super) fn new(span: Span, cycle: Vec<FluxLocalDefId>) -> Self {
             let root = format!("`{}`", cycle[0].name());
             let names: Vec<String> = cycle.iter().map(|s| format!("`{}`", s.name())).collect();
             let msg = format!("{} -> {}", names.join(" -> "), root);
