@@ -159,9 +159,11 @@ jobs:
           # have not been built yet, so its exit code is ignored.
           cargo flux || true
           cp -r LeanUserProofs/User LeanUserProofs/Lib lean_proofs/LeanProofs/
-          if [ -f LeanUserProofs/lakefile.toml ]; then
-            cp LeanUserProofs/lakefile.toml lean_proofs/lakefile.toml
-          fi
+          for f in lakefile.toml lean-toolchain; do
+            if [ -f "LeanUserProofs/$f" ]; then
+              cp "LeanUserProofs/$f" "lean_proofs/$f"
+            fi
+          done
 
       - name: Fetch Lean toolchain and dependencies
         working-directory: flux-to-lean-demo/lean_proofs
