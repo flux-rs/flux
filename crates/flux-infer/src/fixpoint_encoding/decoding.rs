@@ -163,7 +163,7 @@ where
                                         bin_op.clone(),
                                     )))
                                 }
-                                ConstKey::Cast(_sort, _sort1) => {
+                                ConstKey::Cast(..) => {
                                     unreachable!(
                                         "Should be specially handled as the head of a function app."
                                     )

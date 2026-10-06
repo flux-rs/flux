@@ -1,5 +1,5 @@
 use cargo_metadata::camino::Utf8Path;
-use flux_config::{LeanMode, OverflowMode, SmtSolver};
+use flux_config::{LeanMode, OverflowMode, SmtSolver, UifOps};
 use serde::Deserialize;
 
 pub mod cargo_flux_opts;
@@ -18,6 +18,8 @@ pub struct FluxMetadata {
     pub scrape_quals: Option<bool>,
     /// Enable overflow checking
     pub check_overflow: Option<OverflowMode>,
+    /// Binary operators to encode as uninterpreted functions
+    pub uif_ops: Option<UifOps>,
     /// Enable uninterpreted casts
     pub allow_uninterpreted_cast: Option<bool>,
     /// Enable flux-defs to be defined as SMT functions
@@ -60,6 +62,9 @@ impl FluxMetadata {
         }
         if let Some(v) = self.check_overflow {
             flags.push(format!("-Fcheck-overflow={v}"));
+        }
+        if let Some(v) = self.uif_ops {
+            flags.push(format!("-Fuif-ops={v}"));
         }
         if let Some(v) = self.lean {
             flags.push(format!("-Flean={v}"));

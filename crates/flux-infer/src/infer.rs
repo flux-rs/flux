@@ -226,7 +226,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean, self.opts.uif_ops);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
         let (task, _) = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
 
@@ -277,7 +277,8 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
+        let mut fcx =
+            FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint, self.opts.uif_ops);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
 
         // skip checking trivial constraints
