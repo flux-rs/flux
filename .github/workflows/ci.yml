@@ -150,10 +150,30 @@ jobs:
           echo 'flux-core = { path = "../lib/flux-core" }' >> flux-to-lean-demo/Cargo.toml
           echo 'flux-alloc = { path = "../lib/flux-alloc" }' >> flux-to-lean-demo/Cargo.toml
 
-      - name: Run lean demo
+        # The steps below mirror `runlean.sh` in flux-to-lean-demo, split up so a failure is reported
+        # by the step that caused it instead of surfacing as proof errors in the final flux run.
+      - name: Generate Lean project
         working-directory: flux-to-lean-demo
         run: |
-          bash runlean.sh
+          # This run generates the Lean project. It reports proof errors because the proofs
+          # have not been built yet, so its exit code is ignored.
+          cargo flux || true
+          cp -r LeanUserProofs/User LeanUserProofs/Lib lean_proofs/LeanProofs/
+          if [ -f LeanUserProofs/lakefile.toml ]; then
+            cp LeanUserProofs/lakefile.toml lean_proofs/lakefile.toml
+          fi
+
+      - name: Fetch Lean toolchain and dependencies
+        working-directory: flux-to-lean-demo/lean_proofs
+        run: lake update
+
+      - name: Build Lean proofs
+        working-directory: flux-to-lean-demo/lean_proofs
+        run: lake build
+
+      - name: Check proofs with flux
+        working-directory: flux-to-lean-demo
+        run: cargo flux
 
   rustfmt:
     runs-on: ubuntu-latest
