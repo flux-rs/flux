@@ -170,7 +170,7 @@
 <a href=#170 id=170 data-nosnippet>170</a>    adt_def: UnordMap&lt;K, QueryResult&lt;rty::AdtDef&gt;&gt;,
 <a href=#171 id=171 data-nosnippet>171</a>    invariants_of: UnordMap&lt;K, rty::EarlyBinder&lt;rty::List&lt;rty::Invariant&gt;&gt;&gt;,
 <a href=#172 id=172 data-nosnippet>172</a>    constant_info: UnordMap&lt;K, QueryResult&lt;rty::ConstantInfo&gt;&gt;,
-<a href=#173 id=173 data-nosnippet>173</a>    static_info: UnordMap&lt;K, QueryResult&lt;rty::StaticInfo&gt;&gt;,
+<a href=#173 id=173 data-nosnippet>173</a>    static_info: UnordMap&lt;K, QueryResult&lt;rty::Ty&gt;&gt;,
 <a href=#174 id=174 data-nosnippet>174</a>    adt_sort_def: UnordMap&lt;K, QueryResult&lt;rty::AdtSortDef&gt;&gt;,
 <a href=#175 id=175 data-nosnippet>175</a>    variants_of: UnordMap&lt;K, QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;,
 <a href=#176 id=176 data-nosnippet>176</a>    type_of: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt;&gt;,
@@ -342,7 +342,7 @@
 <a href=#342 id=342 data-nosnippet>342</a>        <span class="macro">get!</span>(<span class="self">self</span>, constant_info, key)
 <a href=#343 id=343 data-nosnippet>343</a>    }
 <a href=#344 id=344 data-nosnippet>344</a>
-<a href=#345 id=345 data-nosnippet>345</a>    <span class="kw">fn </span>static_info(<span class="kw-2">&amp;</span><span class="self">self</span>, key: DefId) -&gt; OptResult&lt;rty::StaticInfo&gt; {
+<a href=#345 id=345 data-nosnippet>345</a>    <span class="kw">fn </span>static_info(<span class="kw-2">&amp;</span><span class="self">self</span>, key: DefId) -&gt; OptResult&lt;rty::Ty&gt; {
 <a href=#346 id=346 data-nosnippet>346</a>        <span class="macro">get!</span>(<span class="self">self</span>, static_info, key)
 <a href=#347 id=347 data-nosnippet>347</a>    }
 <a href=#348 id=348 data-nosnippet>348</a>

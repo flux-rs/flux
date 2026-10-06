@@ -1939,10 +1939,10 @@
 <a href=#1939 id=1939 data-nosnippet>1939</a>            Scalar::Ptr(ptr, <span class="kw">_</span>) =&gt; {
 <a href=#1940 id=1940 data-nosnippet>1940</a>                <span class="kw">let </span>alloc_id = ptr.provenance.alloc_id();
 <a href=#1941 id=1941 data-nosnippet>1941</a>                <span class="kw">if let </span>GlobalAlloc::Static(def_id) = <span class="self">self</span>.genv.tcx().global_alloc(alloc_id)
-<a href=#1942 id=1942 data-nosnippet>1942</a>                    &amp;&amp; <span class="kw">let </span>rty::StaticInfo::Known(ty) = <span class="self">self</span>.genv.static_info(def_id)<span class="question-mark">?
-<a href=#1943 id=1943 data-nosnippet>1943</a>                    </span>&amp;&amp; !<span class="self">self</span>.genv.tcx().is_mutable_static(def_id)
-<a href=#1944 id=1944 data-nosnippet>1944</a>                <span class="comment">// TODO: mutable statics!
-<a href=#1945 id=1945 data-nosnippet>1945</a>                </span>{
+<a href=#1942 id=1942 data-nosnippet>1942</a>                    &amp;&amp; !<span class="self">self</span>.genv.tcx().is_mutable_static(def_id)
+<a href=#1943 id=1943 data-nosnippet>1943</a>                <span class="comment">// TODO: mutable statics!
+<a href=#1944 id=1944 data-nosnippet>1944</a>                </span>{
+<a href=#1945 id=1945 data-nosnippet>1945</a>                    <span class="kw">let </span>ty = <span class="self">self</span>.genv.static_info(def_id)<span class="question-mark">?</span>;
 <a href=#1946 id=1946 data-nosnippet>1946</a>                    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Ty::mk_ref(ReErased, ty, Mutability::Not)))
 <a href=#1947 id=1947 data-nosnippet>1947</a>                } <span class="kw">else </span>{
 <a href=#1948 id=1948 data-nosnippet>1948</a>                    <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
