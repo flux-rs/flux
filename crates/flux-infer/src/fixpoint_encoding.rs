@@ -561,10 +561,6 @@ pub(crate) enum ConstKey<'tcx> {
     Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Lambda(Lambda),
     PrimOp(rty::BinOp),
-    /// A binary operation encoded as an uninterpreted function, see [`InferOpts::uif_ops`]
-    ///
-    /// [`InferOpts::uif_ops`]: flux_config::InferOpts::uif_ops
-    UifOp(rty::BinOp),
     Cast(rty::Sort, rty::Sort),
     WKVar(rty::WKVid, usize),
 }
@@ -2020,9 +2016,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             && let Some(uif_op) = Self::uif_op(op)
             && self.uif_ops.contains(uif_op)
         {
-            let func = fixpoint::Expr::Var(self.define_const_for_uif_op(op, scx));
-            let args = vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?];
-            return Ok(fixpoint::Expr::App(Box::new(func), None, args, None));
+            // Encode `e1 op e2` as `prim_val(op, e1, e2)`, i.e., with the same uninterpreted function
+            // used for the value of primitive operations (see `ConstKey::PrimOp`).
+            return self.internal_func_to_fixpoint(
+                &InternalFuncKind::Val(op.clone()),
+                &[],
+                &[e1.clone(), e2.clone()],
+                scx,
+            );
         }
         let op = match op {
             rty::BinOp::Eq => {
@@ -2240,27 +2241,17 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             })
     }
 
-    /// The logic below is a bit "duplicated" with the `prim_op_sort` in `sortck.rs`;
-    /// They are not exactly the same because this is on rty and the other one on fhir.
-    /// We should make sure these two remain in sync.
+    /// The sort of the uninterpreted function denoting the value of the primitive operation `op`.
     ///
     /// (NOTE:PrimOpSort) We are somewhat "overloading" the `BinOps`: as we are using them
-    /// for (a) interpreted operations on bit vectors AND (b) uninterpreted functions on integers.
-    /// So when Binop::BitShr (a) appears in a ExprKind::BinOp, it means bit vectors, but
-    /// (b) inside ExprKind::InternalFunc it means int.
+    /// for (a) interpreted operations (e.g. on bit vectors) AND (b) uninterpreted functions (e.g. on
+    /// integers). So when Binop::BitShr (a) appears in a ExprKind::BinOp, it means an (interpreted)
+    /// bit vector operation, but (b) inside ExprKind::InternalFunc it means an uninterpreted function
+    /// (e.g. on int). The logic in `rty::BinOp::uif_sort` is a bit "duplicated" with the
+    /// `prim_op_sort` in `sortck.rs` (on fhir), we should make sure they remain in sync.
     fn prim_op_sort(op: &rty::BinOp, span: Span) -> rty::PolyFuncSort {
-        match op {
-            rty::BinOp::BitAnd(rty::Sort::Int)
-            | rty::BinOp::BitOr(rty::Sort::Int)
-            | rty::BinOp::BitXor(rty::Sort::Int)
-            | rty::BinOp::BitShl(rty::Sort::Int)
-            | rty::BinOp::BitShr(rty::Sort::Int) => {
-                let fsort =
-                    rty::FuncSort::new(vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int);
-                rty::PolyFuncSort::new(List::empty(), fsort)
-            }
-            _ => span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`"),
-        }
+        op.uif_sort()
+            .unwrap_or_else(|| span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`"))
     }
 
     fn define_const_for_cast(
@@ -2309,41 +2300,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::BinOp::Le(_) => return None,
         };
         Some(op)
-    }
-
-    /// Declares an uninterpreted function `(s, s) -> s` for the binary operation `op` on sort `s`.
-    /// There is one function per operation and sort, e.g., `*` on `int` and `*` on `real` are
-    /// different functions.
-    fn define_const_for_uif_op(
-        &mut self,
-        op: &rty::BinOp,
-        scx: &mut SortEncodingCtxt,
-    ) -> fixpoint::Var {
-        let key = ConstKey::UifOp(op.clone());
-        self.const_env
-            .get_or_insert(key, |global_name| {
-                let sort = match op {
-                    rty::BinOp::Add(sort)
-                    | rty::BinOp::Sub(sort)
-                    | rty::BinOp::Mul(sort)
-                    | rty::BinOp::Div(sort)
-                    | rty::BinOp::Mod(sort)
-                    | rty::BinOp::BitAnd(sort)
-                    | rty::BinOp::BitOr(sort)
-                    | rty::BinOp::BitXor(sort)
-                    | rty::BinOp::BitShl(sort)
-                    | rty::BinOp::BitShr(sort) => sort.clone(),
-                    _ => bug!("unexpected uninterpreted operation `{op:?}`"),
-                };
-                let fsort = rty::FuncSort::new(vec![sort.clone(), sort.clone()], sort);
-                let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
-                fixpoint::ConstDecl {
-                    name: fixpoint::Var::Const(global_name, None),
-                    sort: scx.func_sort_to_fixpoint(&fsort).into_sort(),
-                    comment: Some(format!("uninterpreted op: {op:?}")),
-                }
-            })
-            .name
     }
 
     fn define_const_for_prim_op(
@@ -2549,7 +2505,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 | ConstKey::Cast(..)
                 | ConstKey::Lambda(..)
                 | ConstKey::PrimOp(..)
-                | ConstKey::UifOp(..)
                 | ConstKey::WKVar(..) => {}
             }
         }

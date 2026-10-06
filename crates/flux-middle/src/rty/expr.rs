@@ -886,6 +886,37 @@ pub enum BinOp {
     BitShr(Sort),
 }
 
+impl BinOp {
+    /// The sort `(s, s) -> s` of the uninterpreted function denoting an arithmetic or bitwise
+    /// operation on sort `s` (see [`InternalFuncKind::Val`]), or `None` for other operations.
+    pub fn uif_sort(&self) -> Option<super::PolyFuncSort> {
+        let sort = match self {
+            BinOp::Add(sort)
+            | BinOp::Sub(sort)
+            | BinOp::Mul(sort)
+            | BinOp::Div(sort)
+            | BinOp::Mod(sort)
+            | BinOp::BitAnd(sort)
+            | BinOp::BitOr(sort)
+            | BinOp::BitXor(sort)
+            | BinOp::BitShl(sort)
+            | BinOp::BitShr(sort) => sort,
+            BinOp::Iff
+            | BinOp::Imp
+            | BinOp::Or
+            | BinOp::And
+            | BinOp::Eq
+            | BinOp::Ne
+            | BinOp::Gt(_)
+            | BinOp::Ge(_)
+            | BinOp::Lt(_)
+            | BinOp::Le(_) => return None,
+        };
+        let fsort = FuncSort::new(vec![sort.clone(), sort.clone()], sort.clone());
+        Some(super::PolyFuncSort::new(List::empty(), fsort))
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Debug, Decodable)]
 pub enum UnOp {
     Not,
