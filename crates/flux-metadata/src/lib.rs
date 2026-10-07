@@ -170,11 +170,11 @@ pub struct Tables<'tcx, K: Eq + Hash> {
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
     invariants_of: UnordMap<K, rty::EarlyBinder<rty::List<rty::Invariant>>>,
     constant_info: UnordMap<K, QueryResult<rty::ConstantInfo>>,
-    static_info: UnordMap<K, QueryResult<rty::StaticInfo>>,
+    static_info: UnordMap<K, QueryResult<rty::Ty>>,
     adt_sort_def: UnordMap<K, QueryResult<rty::AdtSortDef>>,
     variants_of: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
-    normalized_defns: Rc<rty::NormalizedDefns>,
+    spec_funcs: Rc<rty::SpecFuncs>,
     flux_module_children: UnordMap<K, Vec<fhir::FluxModChild>>,
     func_sort: UnordMap<FluxId<K>, rty::PolyFuncSort>,
     func_span: UnordMap<FluxId<K>, Span>,
@@ -342,12 +342,12 @@ impl<'tcx> CrateStore<'tcx> for CStore<'tcx> {
         get!(self, constant_info, key)
     }
 
-    fn static_info(&self, key: DefId) -> OptResult<rty::StaticInfo> {
+    fn static_info(&self, key: DefId) -> OptResult<rty::Ty> {
         get!(self, static_info, key)
     }
 
-    fn normalized_defns(&self, krate: CrateNum) -> std::rc::Rc<rty::NormalizedDefns> {
-        self.local_tables[&krate].normalized_defns.clone()
+    fn spec_funcs(&self, krate: CrateNum) -> std::rc::Rc<rty::SpecFuncs> {
+        self.local_tables[&krate].spec_funcs.clone()
     }
 
     fn flux_module_children(&self, def_id: DefId) -> Option<&[fhir::FluxModChild]> {
@@ -427,7 +427,7 @@ impl<'tcx> CrateMetadata<'tcx> {
 }
 
 fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, DefIndex>) {
-    tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
+    tables.spec_funcs = genv.spec_funcs(LOCAL_CRATE);
 
     encode_flux_module_children(genv, tables);
     for (def_id, item) in genv.fhir_iter_flux_items() {

@@ -498,8 +498,8 @@ impl Expr {
     }
 
     /// Simplify the expression by removing double negations, short-circuiting boolean connectives and
-    /// doing constant folding. Note that we also have [`TypeFoldable::normalize`] which applies beta
-    /// reductions for tuples and abstractions.
+    /// doing constant folding. Note that we also have [`TypeFoldable::reduce`] which inlines spec
+    /// functions and reduces applications and projections.
     ///
     /// Additionally replaces any occurrences of elements in assumed_preds with True.
     pub fn simplify(&self, assumed_preds: &SnapshotMap<Expr, ()>) -> Expr {
