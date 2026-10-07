@@ -659,6 +659,9 @@ with [`uif_ops`](#uninterpreted-operators). Below, `x * y` and `y * x` are the p
 axiom when checking `mul_comm`, where `*` is uninterpreted. When checking `mul_two`, where `*`
 keeps its usual meaning, the same axiom is sent to the solver without a pattern.
 
+The `[op](x, y)` syntax also works for the arithmetic operators (`+`, `-`, `*`, `/` and `%` on
+`int`), where it means the same as `x op y`, as in `ModPosGe` below.
+
 ```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/axiom02.rs}}
 ```

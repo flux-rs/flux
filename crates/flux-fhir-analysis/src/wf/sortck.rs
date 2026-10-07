@@ -53,6 +53,20 @@ pub fn prim_op_sort(op: &fhir::BinOp) -> Option<(Vec<rty::Sort>, rty::Sort)> {
     }
 }
 
+/// The sort of an *application* `[op](e1, e2)` of a primop, which besides the bitwise operations
+/// of [`prim_op_sort`] can also be an arithmetic operation on `int`, i.e., any of the operators
+/// that can be made uninterpreted with `uif_ops`.
+fn prim_app_sort(op: &fhir::BinOp) -> Option<(Vec<rty::Sort>, rty::Sort)> {
+    match op {
+        fhir::BinOp::Add
+        | fhir::BinOp::Sub
+        | fhir::BinOp::Mul
+        | fhir::BinOp::Div
+        | fhir::BinOp::Mod => Some((vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int)),
+        _ => prim_op_sort(op),
+    }
+}
+
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     pub(super) fn new(genv: GlobalEnv<'genv, 'tcx>, owner: FluxOwnerId) -> Self {
         // We skip 0 because that's used for sort dummy self types during conv.
@@ -289,7 +303,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         e2: &fhir::Expr<'genv>,
         span: Span,
     ) -> Result<rty::Sort> {
-        let Some((inputs, output)) = prim_op_sort(op) else {
+        let Some((inputs, output)) = prim_app_sort(op) else {
             return Err(self.emit_err(errors::UnsupportedPrimOp::new(span, *op)));
         };
         let [sort1, sort2] = &inputs[..] else {
