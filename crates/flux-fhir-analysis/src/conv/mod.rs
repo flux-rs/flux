@@ -2380,6 +2380,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     fn conv_primop_val(&self, op: fhir::BinOp) -> rty::BinOp {
         match op {
+            fhir::BinOp::Add => rty::BinOp::Add(rty::Sort::Int),
+            fhir::BinOp::Sub => rty::BinOp::Sub(rty::Sort::Int),
+            fhir::BinOp::Mul => rty::BinOp::Mul(rty::Sort::Int),
+            fhir::BinOp::Div => rty::BinOp::Div(rty::Sort::Int),
+            fhir::BinOp::Mod => rty::BinOp::Mod(rty::Sort::Int),
             fhir::BinOp::BitAnd => rty::BinOp::BitAnd(rty::Sort::Int),
             fhir::BinOp::BitOr => rty::BinOp::BitOr(rty::Sort::Int),
             fhir::BinOp::BitXor => rty::BinOp::BitXor(rty::Sort::Int),
