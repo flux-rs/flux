@@ -2170,7 +2170,7 @@
 <a href=#2170 id=2170 data-nosnippet>2170</a>            }
 <a href=#2171 id=2171 data-nosnippet>2171</a>
 <a href=#2172 id=2172 data-nosnippet>2172</a>            fhir::ExprKind::PrimApp(op, e1, e2) =&gt; {
-<a href=#2173 id=2173 data-nosnippet>2173</a>                rty::Expr::prim_val(
+<a href=#2173 id=2173 data-nosnippet>2173</a>                rty::Expr::binary_op(
 <a href=#2174 id=2174 data-nosnippet>2174</a>                    <span class="self">self</span>.conv_primop_val(op),
 <a href=#2175 id=2175 data-nosnippet>2175</a>                    <span class="self">self</span>.conv_expr(env, e1)<span class="question-mark">?</span>,
 <a href=#2176 id=2176 data-nosnippet>2176</a>                    <span class="self">self</span>.conv_expr(env, e2)<span class="question-mark">?</span>,

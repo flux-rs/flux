@@ -4434,6 +4434,85 @@ pub fn test_refinement_syntax(n: usize) -&gt; usize {
     }
     res
 }</code></pre>
+<h2 id="uninterpreted-operators"><a class="header" href="#uninterpreted-operators">Uninterpreted Operators</a></h2>
+<p>Sometimes the solver gets stuck (or times out) reasoning about arithmetic -- e.g. <em>non-linear</em>
+arithmetic with <code>*</code>, <code>/</code> or <code>%</code> -- even though the property being checked does not depend on what
+the operation actually computes. For such cases you can tell <code>flux</code> to encode some binary operators
+as <em>uninterpreted functions</em> in the constraints sent to the solver, using the <code>uif_ops</code> option.</p>
+<p>Each listed operator is replaced by an uninterpreted function (one per operator <em>and</em> sort, e.g.,
+<code>*</code> on <code>int</code> and <code>*</code> on <code>real</code> are different functions), about which the solver knows nothing other
+than the congruence property: <code>x * y</code> equals <code>x * y</code>, but the solver can no longer prove e.g.
+<code>x * y == y * x</code> or <code>x * 1 == x</code>. This only removes information, so it never makes <code>flux</code> accept
+a program it would otherwise reject. Operators that are not listed remain interpreted.</p>
+<p>The option takes a comma separated list of operators, which can be any of the arithmetic and
+bitwise operators <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code>, <code>&amp;</code>, <code>|</code>, <code>^</code>, <code>&lt;&lt;</code>, or <code>&gt;&gt;</code>. Like
+<a href="#checking-overflows">checking overflows</a>, it can be set</p>
+<ul>
+<li><em>globally</em> <a href="install.html#flux-flags">with a flag</a>, e.g. <code>-Fuif-ops="*,/"</code>, or with
+<code>uif_ops = "*,/"</code> in the <code>[package.metadata.flux]</code> table (or <code>flux.toml</code>), or</li>
+<li><em>locally</em> with an attribute on a function, <code>impl</code>, module or crate, e.g.
+<code>#[flux::opts(uif_ops = "*,/")]</code>, as shown below</li>
+</ul>
+<pre><code class="language-rust noplayground">// Without `uif_ops`, `*` is interpreted, so e.g. commutativity holds
+#[flux::sig(fn(x: i32, y: i32) -&gt; i32[y * x])]
+pub fn mul_comm(x: i32, y: i32) -&gt; i32 {
+    x * y
+}
+
+// With `uif_ops = "*"`, `x * y` is encoded as an uninterpreted function, so the same term is still
+// provable (by congruence)
+#[flux::opts(uif_ops = "*")]
+#[flux::sig(fn(x: i32, y: i32) -&gt; i32[x * y])]
+pub fn mul_uif(x: i32, y: i32) -&gt; i32 {
+    x * y
+}
+
+// With `uif_ops = "*"`, `x * y` is encoded as an uninterpreted function, so the same term is still
+// provable (by congruence)
+#[flux::opts(uif_ops = "*")]
+#[flux::sig(fn(x: i32, y: i32) -&gt; i32[x * x])]
+pub fn mul_uif_square(x: i32, y: i32) -&gt; i32 {
+    if x == y { x * y } else { x * x }
+}
+
+// Operations not in `uif_ops` remain interpreted
+#[flux::opts(uif_ops = "*,/")]
+#[flux::sig(fn(x: i32, y: i32) -&gt; i32[y + x])]
+pub fn add_comm(x: i32, y: i32) -&gt; i32 {
+    x + y
+}
+
+#[flux::opts(uif_ops = "*")]
+#[flux::sig(fn(x: i32, y: i32) -&gt; i32[x * y])]
+fn mul(x: i32, y: i32) -&gt; i32 {
+    x * y
+}
+
+// Calls agree on the uninterpreted function
+#[flux::opts(uif_ops = "*")]
+#[flux::sig(fn(a: i32, b: i32) -&gt; i32[a * b])]
+pub fn call_mul(a: i32, b: i32) -&gt; i32 {
+    mul(a, b)
+}</code></pre>
+<pre><code class="language-rust noplayground">// With `uif_ops = "*"`, `x * y` is encoded as an uninterpreted function, so e.g. commutativity no
+// longer holds
+#[flux::opts(uif_ops = "*")]
+#[flux::sig(fn(x: i32, y: i32) -&gt; i32[y * x])]
+pub fn mul_comm_uif(x: i32, y: i32) -&gt; i32 {
+    x * y //~ ERROR refinement type
+}
+
+#[flux::opts(uif_ops = "*, /, +")]
+#[flux::sig(fn(x: i32, y: i32) -&gt; i32[y + x])]
+pub fn add_comm_uif(x: i32, y: i32) -&gt; i32 {
+    x + y //~ ERROR refinement type
+}
+
+#[flux::opts(uif_ops = "+")]
+#[flux::sig(fn(x: i32) -&gt; i32[x + 1])]
+pub fn add_one(x: i32) -&gt; i32 {
+    1 + x //~ ERROR refinement type
+}</code></pre>
 <hr>
 <ol class="footnote-definition"><li id="footnote-ignore-shorthand">
 <p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>
