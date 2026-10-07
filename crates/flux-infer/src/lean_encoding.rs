@@ -688,9 +688,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             let fixpoint::Var::Global(_, did) = fun_def.name else {
                 bug!("expected global var with id")
             };
-            let name = self.var_name(&fun_def.name);
-            let file = LeanFile::Fun(name);
-            res.insert(did, file);
+            res.insert(did, self.lean_file_for_fun(fun_def));
         }
         res
     }
