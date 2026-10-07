@@ -298,15 +298,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Whether a (non-hidden) flux-def should be replaced by its body instead of being
-    /// represented as a `define-fun`. This is decided by the flags of the current session,
-    /// regardless of the crate defining the function.
-    /// - When `FLUX_SMT_DEFINE_FUN=1` is set we inline all *polymorphic* flux-defs, since they
-    ///   cannot be represented as `define-fun` in SMTLIB, but leave all *monomorphic* flux-defs
-    ///   un-inlined.
-    /// - When the above flag is not set, we inline *every* flux-def.
+    /// represented as a `define-fun`. We inline all *polymorphic* flux-defs, since they cannot be
+    /// represented as `define-fun` in SMTLIB, but leave all *monomorphic* flux-defs un-inlined.
     pub fn should_inline_fun(self, def_id: FluxDefId) -> bool {
-        let is_poly = self.func_sort(def_id).params().len() > 0;
-        is_poly || !flux_config::smt_define_fun()
+        self.func_sort(def_id).params().len() > 0
     }
 
     pub fn variances_of(self, did: DefId) -> &'tcx [Variance] {
