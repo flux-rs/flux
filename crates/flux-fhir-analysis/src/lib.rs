@@ -52,7 +52,7 @@ use rustc_hir::{
 use rustc_span::Span;
 
 pub fn provide(providers: &mut Providers) {
-    providers.normalized_defns = normalized_defns;
+    providers.spec_funcs = spec_funcs;
     providers.func_sort = func_sort;
     providers.func_span = flux_def_ident_span;
     providers.qualifiers = qualifiers;
@@ -103,17 +103,17 @@ fn flux_def_ident_span(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> Span {
         .ident_span
 }
 
-fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {
-    match try_normalized_defns(genv) {
-        Ok(normalized) => normalized,
+fn spec_funcs(genv: GlobalEnv) -> rty::SpecFuncs {
+    match try_spec_funcs(genv) {
+        Ok(funcs) => funcs,
         Err(err) => {
             genv.sess().abort(err);
         }
     }
 }
 
-fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGuaranteed> {
-    let mut defns = vec![];
+fn try_spec_funcs(genv: GlobalEnv) -> Result<rty::SpecFuncs, ErrorGuaranteed> {
+    let mut funcs = vec![];
 
     // Collect and emit all errors
     let mut errors = Errors::new(genv.sess());
@@ -123,12 +123,12 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
             continue;
         };
         let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
-        let Ok(defn) = cx.conv_defn(func).emit(&errors) else { continue };
-        defns.push((func.def_id, defn, func.hide));
+        let Ok(spec_func) = cx.conv_spec_func(func).emit(&errors) else { continue };
+        funcs.push((func.def_id, spec_func));
     }
     errors.to_result()?;
 
-    let defns = rty::NormalizedDefns::new(genv, &defns)
+    rty::SpecFuncs::new(funcs)
         .map_err(|cycle| {
             let span = genv
                 .fhir_spec_func_body(cycle[0])
@@ -138,9 +138,7 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
                 .span;
             errors::DefinitionCycle::new(span, cycle)
         })
-        .emit(&genv)?;
-
-    Ok(defns)
+        .emit(&genv)
 }
 
 fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
@@ -150,7 +148,7 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
             Ok(AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_qualifier(qualifier)?
-                .normalize(genv))
+                .reduce(genv))
         })
         .try_collect()
 }
@@ -162,7 +160,7 @@ fn primop_props(genv: GlobalEnv) -> QueryResult<Vec<rty::PrimOpProp>> {
             Ok(AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_primop_prop(primop_prop)?
-                .normalize(genv))
+                .reduce(genv))
         })
         .try_collect()
 }
@@ -261,21 +259,17 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Option<r
     }
 }
 
-fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::StaticInfo> {
-    let node = genv.fhir_node(def_id.local_id())?;
-    match node {
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Static(ty), .. }) => {
-            if let Some(ty) = ty {
-                let wfckresults = genv.check_wf(def_id.local_id())?;
-                let rty_ty = AfterSortck::new(genv, &wfckresults)
-                    .into_conv_ctxt()
-                    .conv_static_ty(ty)?;
-                Ok(rty::StaticInfo::Known(rty_ty))
-            } else {
-                Ok(rty::StaticInfo::Unknown)
-            }
-        }
-        _ => Ok(rty::StaticInfo::Unknown),
+/// The type of a static: its spec if it has one, or the default refinement of its rust type.
+fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Ty> {
+    if let fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Static(Some(ty)), .. }) =
+        genv.fhir_node(def_id.local_id())?
+    {
+        let wfckresults = genv.check_wf(def_id.local_id())?;
+        AfterSortck::new(genv, &wfckresults)
+            .into_conv_ctxt()
+            .conv_static_ty(ty)
+    } else {
+        rty::refining::default_static_ty(genv, def_id.resolved_id())
     }
 }
 

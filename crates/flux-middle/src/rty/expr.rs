@@ -498,8 +498,8 @@ impl Expr {
     }
 
     /// Simplify the expression by removing double negations, short-circuiting boolean connectives and
-    /// doing constant folding. Note that we also have [`TypeFoldable::normalize`] which applies beta
-    /// reductions for tuples and abstractions.
+    /// doing constant folding. Note that we also have [`TypeFoldable::reduce`] which inlines spec
+    /// functions and reduces applications and projections.
     ///
     /// Additionally replaces any occurrences of elements in assumed_preds with True.
     pub fn simplify(&self, assumed_preds: &SnapshotMap<Expr, ()>) -> Expr {
@@ -897,9 +897,11 @@ impl BinOp {
         )
     }
 
+    /// TODO(RJ): bit shady that we're mixing two things here: computing the sort AND determining
+    /// if the operator is uninterpreted...
     /// The sort `(s, s) -> s` of the uninterpreted function denoting an arithmetic or bitwise
     /// operation on sort `s`, when it is encoded as such (see [`BinOp::is_uninterpreted`]), or
-    /// `None` for other operations.
+    /// `None` for other operations. Ensure this is kept in sync with `prim_op_sort` in `sortck.rs` (on fhir).
     pub fn uif_sort(&self) -> Option<super::PolyFuncSort> {
         let sort = match self {
             BinOp::Add(sort)

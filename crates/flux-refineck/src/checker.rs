@@ -2010,10 +2010,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Scalar::Ptr(ptr, _) => {
                 let alloc_id = ptr.provenance.alloc_id();
                 if let GlobalAlloc::Static(def_id) = self.genv.tcx().global_alloc(alloc_id)
-                    && let rty::StaticInfo::Known(ty) = self.genv.static_info(def_id)?
                     && !self.genv.tcx().is_mutable_static(def_id)
                 // TODO: mutable statics!
                 {
+                    let ty = self.genv.static_info(def_id)?;
                     Ok(Some(Ty::mk_ref(ReErased, ty, Mutability::Not)))
                 } else {
                     Ok(None)

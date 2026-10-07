@@ -40,7 +40,7 @@ use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::def_id::{CrateNum, DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_infer::infer::TyCtxtInferExt as _;
 use rustc_middle::ty::TypingMode;
@@ -646,7 +646,7 @@ where
             kvars,
             scx: SortEncodingCtxt::default(),
             genv,
-            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend).with_uif_ops(uif_ops),
+            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend, uif_ops),
             kcx: Default::default(),
             tags: IndexVec::new(),
             // tags_inv: Default::default(),
@@ -1630,6 +1630,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: Option<MaybeExternId>,
         backend: Backend,
+        uif_ops: UifOps,
     ) -> Self {
         Self {
             genv,
@@ -1643,13 +1644,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .with_next_trait_solver(true)
                 .build(TypingMode::non_body_analysis()),
             backend,
-            uif_ops: UifOps::default(),
+            uif_ops,
         }
-    }
-
-    pub fn with_uif_ops(mut self, uif_ops: UifOps) -> Self {
-        self.uif_ops = uif_ops;
-        self
     }
 
     fn def_span(&self) -> Span {
@@ -2239,15 +2235,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             })
     }
 
-    /// The sort of the uninterpreted function encoding the binary operation `op` (see
-    /// `bin_op_to_fixpoint`). Note that the sort of the bitwise operations on `int` (which are
-    /// always uninterpreted) is also given by `prim_op_sort` in `sortck.rs` (on fhir), we should make
-    /// sure they remain in sync with `rty::BinOp::uif_sort`.
-    fn prim_op_sort(op: &rty::BinOp, span: Span) -> rty::PolyFuncSort {
-        op.uif_sort()
-            .unwrap_or_else(|| span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`"))
-    }
-
     fn define_const_for_cast(
         &mut self,
         from: &rty::Sort,
@@ -2305,9 +2292,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let span = self.def_span();
         self.const_env
             .get_or_insert(key, |global_name| {
-                let sort = scx
-                    .func_sort_to_fixpoint(&Self::prim_op_sort(op, span))
-                    .into_sort();
+                let fsort = op.uif_sort().unwrap_or_else(|| {
+                    span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`")
+                });
+                let sort = scx.func_sort_to_fixpoint(&fsort).into_sort();
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Const(global_name, None),
                     sort,
@@ -2580,17 +2568,24 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         while let Some((&did, _)) = self.const_env.fun_decl_map.get_index(idx) {
             idx += 1;
 
-            let info = self.genv.normalized_info(did);
             let revealed = reveals.contains(&did);
-            let def = if info.uif || (info.hide && !revealed && proven_externally.is_none()) {
+            let uninterpreted = match self.genv.spec_func(did) {
+                rty::SpecFunc::Uif => true,
+                rty::SpecFunc::Defined { hide, .. } => {
+                    hide && !revealed && proven_externally.is_none()
+                }
+            };
+            let def = if uninterpreted {
                 self.fun_decl_to_fixpoint(did, scx)
             } else {
                 self.fun_def_to_fixpoint(did, scx)?
             };
-            defs.push((info.rank, def));
+            defs.push(((crate_rank(self.genv, did.krate()), self.genv.spec_func_rank(did)), def));
         }
 
-        // we sort by rank so the definitions go out without any forward dependencies.
+        // We sort the definitions so they go out without any forward dependencies. A definition can
+        // only depend on definitions in the same crate (which have a lower rank) or in crates it
+        // depends on (which come first in the crate order).
         let defs = defs
             .into_iter()
             .sorted_by_key(|(rank, _)| *rank)
@@ -2667,6 +2662,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .collect();
         Ok(fixpoint::Qualifier { name, args, body })
     }
+}
+
+/// The position of `krate` in a topological order of all crates, i.e., every crate comes after all
+/// the crates it depends on. The local crate goes last.
+fn crate_rank(genv: GlobalEnv, krate: CrateNum) -> usize {
+    genv.tcx()
+        .postorder_cnums(())
+        .iter()
+        .position(|cnum| *cnum == krate)
+        .unwrap_or(usize::MAX)
 }
 
 fn parse_kvid(kvid: &str) -> fixpoint::KVid {
