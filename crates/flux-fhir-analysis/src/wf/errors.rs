@@ -364,3 +364,48 @@ impl HideAndRevealDefinition {
         Self { span, name: def_id.name() }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag("cannot reveal uninterpreted function `{$name}`", code = E0999)]
+#[note("uninterpreted functions have no definition")]
+pub(super) struct RevealUninterpretedFunction {
+    #[primary_span]
+    span: Span,
+    name: Symbol,
+}
+
+impl RevealUninterpretedFunction {
+    pub(super) fn new(span: Span, def_id: FluxDefId) -> Self {
+        Self { span, name: def_id.name() }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag("revealing definition `{$name}` has no effect", code = E0999)]
+#[note("`{$name}` is not hidden by default")]
+pub(super) struct RevealNotHiddenDefinition {
+    #[primary_span]
+    span: Span,
+    name: Symbol,
+}
+
+impl RevealNotHiddenDefinition {
+    pub(super) fn new(span: Span, def_id: FluxDefId) -> Self {
+        Self { span, name: def_id.name() }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag("hiding uninterpreted function `{$name}` has no effect", code = E0999)]
+#[note("uninterpreted functions have no definition")]
+pub(super) struct HideUninterpretedFunction {
+    #[primary_span]
+    span: Span,
+    name: Symbol,
+}
+
+impl HideUninterpretedFunction {
+    pub(super) fn new(span: Span, def_id: FluxDefId) -> Self {
+        Self { span, name: def_id.name() }
+    }
+}

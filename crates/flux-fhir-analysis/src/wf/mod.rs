@@ -103,7 +103,7 @@ pub(crate) fn check_node<'genv>(
         ImplicitParamInferer::infer(wf.infcx, node)?;
 
         wf.check_node(node);
-        wf.check_hides(node.owner_id().local_id().def_id);
+        wf.check_hides_and_reveals(node.owner_id().local_id().def_id);
         Ok(())
     })?;
 
@@ -144,12 +144,32 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
         self.visit_node(node);
     }
 
-    /// Checks that definitions in `#[hide(...)]` are not inlined and are not also revealed.
-    fn check_hides(&mut self, def_id: LocalDefId) {
+    /// Checks that `#[hide(...)]` and `#[reveal(...)]` have an effect. Hiding an inlined definition
+    /// or revealing an uninterpreted function are errors. Hiding an uninterpreted function or
+    /// revealing a definition that is not hidden by default are warnings.
+    fn check_hides_and_reveals(&mut self, def_id: LocalDefId) {
         let genv = self.infcx.genv;
         let attr_map = genv.fhir_attr_map(def_id);
+        for &(revealed, span) in attr_map.reveals {
+            match genv.spec_func(revealed) {
+                rty::SpecFunc::Uif => {
+                    self.errors
+                        .emit(errors::RevealUninterpretedFunction::new(span, revealed));
+                }
+                rty::SpecFunc::Defined { hide: false, .. } => {
+                    genv.sess()
+                        .dcx()
+                        .emit_warn(errors::RevealNotHiddenDefinition::new(span, revealed));
+                }
+                rty::SpecFunc::Defined { hide: true, .. } => {}
+            }
+        }
         for &(hidden, span) in attr_map.hides {
-            if genv.should_inline_fun(hidden) {
+            if let rty::SpecFunc::Uif = genv.spec_func(hidden) {
+                genv.sess()
+                    .dcx()
+                    .emit_warn(errors::HideUninterpretedFunction::new(span, hidden));
+            } else if genv.should_inline_fun(hidden) {
                 self.errors
                     .emit(errors::HideInlinedDefinition::new(span, hidden));
             }
