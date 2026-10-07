@@ -1477,10 +1477,11 @@ impl Axiom {
     /// [reduced] so that the applications are the ones that will be sent to the solver.
     ///
     /// A function is considered uninterpreted if it has no body or if it is hidden. We also
-    /// include the UIFs used for the value of primops on `int` (e.g., `[&](x, y)`), for casts
-    /// that have no interpretation, and for associated refinements. (Whether a
-    /// hidden function is revealed depends on the item being checked, so that has to be accounted
-    /// for when encoding the axiom.) Applications mentioning variables bound *inside* the body (by
+    /// include the arithmetic and bitwise operations that can be encoded as UIFs (e.g.,
+    /// `[&](x, y)` on `int`, or `x * y` under `uif_ops`), the casts that have no interpretation,
+    /// and associated refinements. (Whether a hidden function is revealed, or an operation is
+    /// uninterpreted, depends on the item being checked, so those are *candidates* that are
+    /// filtered when encoding the axiom.) Applications mentioning variables bound *inside* the body (by
     /// a `let` or a quantifier) are skipped as they are not valid outside of their binder.
     ///
     /// [reduced]: fold::TypeFoldable::reduce
@@ -1507,8 +1508,6 @@ impl Axiom {
                                     SpecFunc::Uif | SpecFunc::Defined { hide: true, .. }
                                 )
                             }
-                            // The UIF for the value of a primop, e.g., `[&](x, y)`
-                            ExprKind::InternalFunc(InternalFuncKind::Val(_)) => true,
                             ExprKind::InternalFunc(InternalFuncKind::Cast) => {
                                 matches!(
                                     &sort_args[..],
@@ -1519,6 +1518,8 @@ impl Axiom {
                             _ => false,
                         }
                     }
+                    // An operation that *may* be encoded as a UIF, e.g., `[&](x, y)` or `x * y`
+                    ExprKind::BinaryOp(op, ..) => op.uif_sort().is_some(),
                     ExprKind::Alias(..) => true,
                     _ => false,
                 }

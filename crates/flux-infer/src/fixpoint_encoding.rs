@@ -2013,10 +2013,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e2: &rty::Expr,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
-        let uninterpreted = op.is_uninterpreted()
-            || (matches!(self.backend, Backend::Fixpoint)
-                && Self::uif_op(op).is_some_and(|uif_op| self.uif_ops.contains(uif_op)));
-        if uninterpreted {
+        if self.is_uif_bin_op(op) {
             let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
             let args = vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?];
             return Ok(fixpoint::Expr::App(Box::new(func), None, args, None));
@@ -2265,6 +2262,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 }
             })
             .name
+    }
+
+    /// Whether `op` is encoded as an uninterpreted function in this constraint
+    fn is_uif_bin_op(&self, op: &rty::BinOp) -> bool {
+        op.is_uninterpreted()
+            || (matches!(self.backend, Backend::Fixpoint)
+                && Self::uif_op(op).is_some_and(|uif_op| self.uif_ops.contains(uif_op)))
     }
 
     /// The operator (if any) that `op` corresponds to in [`UifOps`]
@@ -2630,7 +2634,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     /// Encodes an axiom together with its patterns, which were computed in [`rty::Axiom::new`].
     /// The only thing we do here is drop the applications of hidden functions that are revealed
-    /// for the item being checked, as those are not uninterpreted in this constraint.
+    /// for the item being checked, and the operations that are not in its `uif_ops`, as those
+    /// are not uninterpreted in this constraint.
     fn axiom_to_fixpoint(
         &mut self,
         axiom: &rty::Axiom,
@@ -2641,24 +2646,26 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let vars = axiom.body.vars();
         let rty::AxiomBody { expr, patterns } = axiom.body.skip_binder_ref();
 
-        let genv = self.genv;
         self.local_var_env.push_layer_with_fresh_names(vars.len());
         let body = self.expr_to_fixpoint(expr, scx)?;
         // This is retroactively removing certain applications which are "interpreted"
-        // for this specific Task; this is likely to change with the `uif_ops` and `retro-hide` mechanisms...
-        let patterns = patterns
-            .iter()
-            .filter(|pattern| {
-                if let rty::ExprKind::App(func, ..) = pattern.kind()
-                    && let rty::ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind()
+        // for this specific Task; this is likely to change with the `retro-hide` mechanism...
+        let mut fixpoint_patterns = vec![];
+        for pattern in patterns {
+            let uninterpreted = match pattern.kind() {
+                rty::ExprKind::App(func, ..)
+                    if let rty::ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind() =>
                 {
-                    fun_env.is_uninterpreted(genv, *did)
-                } else {
-                    true
+                    fun_env.is_uninterpreted(self.genv, *did)
                 }
-            })
-            .map(|pattern| self.expr_to_fixpoint(pattern, scx))
-            .try_collect()?;
+                rty::ExprKind::BinaryOp(op, ..) => self.is_uif_bin_op(op),
+                _ => true,
+            };
+            if uninterpreted {
+                fixpoint_patterns.push(self.expr_to_fixpoint(pattern, scx)?);
+            }
+        }
+        let patterns = fixpoint_patterns;
         let args = iter::zip(self.local_var_env.pop_layer(), vars)
             .map(|(name, var)| (name.into(), scx.sort_to_fixpoint(var.expect_sort())))
             .collect();

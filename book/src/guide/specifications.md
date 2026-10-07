@@ -629,6 +629,8 @@ Axioms are passed to the SMT solver as quantified formulas
     a function that `reveal`s them,
   - the uninterpreted functions `flux` uses for [primitive operations](#extensible-properties-for-primitive-ops)
     like `&` or `<<` on `int`, written `[&](x, y)` (see below),
+  - the operators made uninterpreted with [`uif_ops`](#uninterpreted-operators), but only when
+    checking a function for which that option is set (see below),
   - casts between sorts that have no interpretation, and
   - associated refinements.
 
@@ -650,6 +652,15 @@ the pattern for the axiom, so it is instantiated at each `x & y` in the code bei
 
 ```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/axiom01.rs}}
+```
+
+Similarly, axioms can recover _some_ of the facts about the operators that are made uninterpreted
+with [`uif_ops`](#uninterpreted-operators). Below, `x * y` and `y * x` are the pattern for the
+axiom when checking `mul_comm`, where `*` is uninterpreted. When checking `mul_two`, where `*`
+keeps its usual meaning, the same axiom is sent to the solver without a pattern.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/axiom02.rs}}
 ```
 
 ## Hiding and Revealing Function Definitions
