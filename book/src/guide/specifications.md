@@ -622,8 +622,17 @@ to keep in mind when using them.
 
   has no pair of terms matching the pattern.
 
-- **Hidden functions count as uninterpreted.** Applications of a [hidden](#hiding-and-revealing-function-definitions)
-  spec function are used in the pattern, except when checking a function that `reveal`s it.
+- **What counts as uninterpreted.** Besides functions declared without a body, the pattern
+  includes applications of
+
+  - [hidden](#hiding-and-revealing-function-definitions) spec functions, except when checking
+    a function that `reveal`s them,
+  - the uninterpreted functions `flux` uses for [primitive operations](#extensible-properties-for-primitive-ops)
+    like `&` or `<<` on `int`, written `[&](x, y)` (see below),
+  - casts between sorts that have no interpretation, and
+  - associated refinements.
+
+  Applications that appear under a `let` or a quantifier inside the body are _not_ used.
   An axiom whose body has no applications of uninterpreted functions is sent to the solver
   without a pattern.
 
@@ -631,6 +640,17 @@ to keep in mind when using them.
   in which they are defined, but are not (yet) exported to other crates.
 
 - Axioms require a version of `fixpoint` that supports the `axiom` declaration.
+
+### Axioms about Primitive Operations
+
+Axioms can also talk about the uninterpreted functions that `flux` uses for bit-level
+operations on integers, using the same `[op](x, y)` syntax as in
+[properties](#extensible-properties-for-primitive-ops). The application `[&](x, y)` is then
+the pattern for the axiom, so it is instantiated at each `x & y` in the code being checked.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/axiom01.rs}}
+```
 
 ## Hiding and Revealing Function Definitions
 

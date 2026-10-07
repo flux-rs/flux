@@ -2628,27 +2628,39 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         Ok(fixpoint::Qualifier { name, args, body })
     }
 
-    /// Encodes an axiom, using *each* application of an uninterpreted function occurring in
-    /// (the encoding of) its body as the pattern (trigger) for instantiating it.
+    /// Encodes an axiom together with its patterns, which were computed in [`rty::Axiom::new`].
+    /// The only thing we do here is drop the applications of hidden functions that are revealed
+    /// for the item being checked, as those are not uninterpreted in this constraint.
     fn axiom_to_fixpoint(
         &mut self,
         axiom: &rty::Axiom,
         fun_env: &FunEnv,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Axiom> {
-        let (args, body) = self.body_to_fixpoint(&axiom.body, scx)?;
         let name = axiom.def_id.name().to_string();
-        let is_uif = |var: &fixpoint::Var| {
-            match var {
-                fixpoint::Var::Global(_, did) => fun_env.is_uninterpreted(self.genv, *did),
-                // Constants in function position are the UIFs we generate for alias refinements,
-                // casts, primops, etc.
-                fixpoint::Var::Const(..) => true,
-                _ => false,
-            }
-        };
-        let mut patterns = vec![];
-        collect_uif_apps(&body, &is_uif, &mut patterns);
+        let vars = axiom.body.vars();
+        let rty::AxiomBody { expr, patterns } = axiom.body.skip_binder_ref();
+
+        let genv = self.genv;
+        self.local_var_env.push_layer_with_fresh_names(vars.len());
+        let body = self.expr_to_fixpoint(expr, scx)?;
+        let patterns = patterns
+            .iter()
+            .filter(|pattern| {
+                if let rty::ExprKind::App(func, ..) = pattern.kind()
+                    && let rty::ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind()
+                {
+                    fun_env.is_uninterpreted(genv, *did)
+                } else {
+                    true
+                }
+            })
+            .map(|pattern| self.expr_to_fixpoint(pattern, scx))
+            .try_collect()?;
+        let args = iter::zip(self.local_var_env.pop_layer(), vars)
+            .map(|(name, var)| (name.into(), scx.sort_to_fixpoint(var.expect_sort())))
+            .collect();
+
         Ok(fixpoint::Axiom { name, args, body, patterns })
     }
 }
@@ -2678,70 +2690,6 @@ impl FunEnv {
             }
         }
     }
-}
-
-/// Collects (without duplicates) every application in `expr` whose head satisfies `is_uif`.
-/// Applications mentioning variables bound *inside* `expr` (by a `let` or a quantifier) are
-/// skipped as they are not valid outside of their binder.
-fn collect_uif_apps(
-    expr: &fixpoint::Expr,
-    is_uif: &impl Fn(&fixpoint::Var) -> bool,
-    apps: &mut Vec<fixpoint::Expr>,
-) {
-    /// Returns whether `expr` contains a binder, in which case it cannot be part of a pattern.
-    fn go(
-        expr: &fixpoint::Expr,
-        is_uif: &impl Fn(&fixpoint::Var) -> bool,
-        bound: &mut Vec<fixpoint::Var>,
-        apps: &mut Vec<fixpoint::Expr>,
-    ) -> bool {
-        use fixpoint::Expr;
-        let mut go_many = |exprs: &[Expr], bound: &mut Vec<fixpoint::Var>| {
-            exprs
-                .iter()
-                .fold(false, |tainted, e| go(e, is_uif, bound, apps) | tainted)
-        };
-        match expr {
-            Expr::Constant(_) | Expr::ThyFunc(_) => false,
-            Expr::Var(var) => bound.contains(var),
-            Expr::App(func, _, args, _) => {
-                let tainted = go_many(std::slice::from_ref(func), bound) | go_many(args, bound);
-                if !tainted
-                    && let Expr::Var(head) = &**func
-                    && is_uif(head)
-                    && !apps.contains(expr)
-                {
-                    apps.push(expr.clone());
-                }
-                tainted
-            }
-            Expr::Neg(e) | Expr::Not(e) | Expr::IsCtor(_, e) => {
-                go_many(std::slice::from_ref(e), bound)
-            }
-            Expr::BinaryOp(_, es) | Expr::Imp(es) | Expr::Iff(es) | Expr::Atom(_, es) => {
-                go_many(&es[..], bound)
-            }
-            Expr::IfThenElse(es) => go_many(&es[..], bound),
-            Expr::And(es) | Expr::Or(es) => go_many(es, bound),
-            Expr::WKVar(wkvar) => go_many(&wkvar.args, bound),
-            Expr::Let(var, es) => {
-                let [init, body] = &**es;
-                go_many(std::slice::from_ref(init), bound);
-                bound.push(*var);
-                go_many(std::slice::from_ref(body), bound);
-                bound.pop();
-                true
-            }
-            Expr::Quantifier(_, vars, body) => {
-                let n = bound.len();
-                bound.extend(vars.iter().map(|(var, _)| *var));
-                go_many(std::slice::from_ref(body), bound);
-                bound.truncate(n);
-                true
-            }
-        }
-    }
-    go(expr, is_uif, &mut vec![], apps);
 }
 
 /// The position of `krate` in a topological order of all crates, i.e., every crate comes after all

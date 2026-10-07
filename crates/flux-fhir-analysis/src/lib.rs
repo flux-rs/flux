@@ -158,10 +158,13 @@ fn axioms(genv: GlobalEnv) -> QueryResult<Vec<rty::Axiom>> {
     genv.fhir_axioms()
         .map(|axiom| {
             let wfckresults = wf::check_flux_item(genv, fhir::FluxItem::Axiom(axiom))?;
-            Ok(AfterSortck::new(genv, &wfckresults)
+            let body = AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_axiom(axiom)?
-                .reduce(genv))
+                .reduce(genv);
+            // The patterns are computed here, *after* reducing the body, so it is only done
+            // once (instead of once per query).
+            Ok(rty::Axiom::new(genv, axiom.def_id, body))
         })
         .try_collect()
 }

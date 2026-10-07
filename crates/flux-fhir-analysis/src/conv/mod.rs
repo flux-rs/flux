@@ -487,12 +487,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(rty::SpecFunc::Defined { body, hide: func.hide })
     }
 
-    pub(crate) fn conv_axiom(&mut self, axiom: &fhir::Axiom) -> QueryResult<rty::Axiom> {
+    /// Converts the body of an axiom. Use [`rty::Axiom::new`] to build the axiom after reducing it.
+    pub(crate) fn conv_axiom(
+        &mut self,
+        axiom: &fhir::Axiom,
+    ) -> QueryResult<rty::Binder<rty::Expr>> {
         let mut env = Env::new(&[]);
         env.push_layer(Layer::list(self.results(), 0, axiom.args));
         let body = self.conv_expr(&mut env, &axiom.body)?;
-        let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(self.genv())?);
-        Ok(rty::Axiom { def_id: axiom.def_id, body })
+        Ok(rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(self.genv())?))
     }
 
     pub(crate) fn conv_primop_prop(

@@ -876,7 +876,10 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
                 fhir::FluxItem::PrimOpProp(self.genv.alloc(primop_prop))
             }
             surface::FluxItem::Axiom(axiom) => {
+                // Axioms can talk about the UIFs for primops, e.g., `[&](x, y)`
+                self.allow_primop_app = true;
                 let axiom = self.desugar_axiom(axiom);
+                self.allow_primop_app = false;
                 fhir::FluxItem::Axiom(self.genv.alloc(axiom))
             }
             surface::FluxItem::SortDecl(sort_decl) => {
