@@ -90,6 +90,10 @@ fn check_overflow() -> OverflowMode {
     FLAGS.check_overflow
 }
 
+fn uif_ops() -> UifOps {
+    FLAGS.uif_ops
+}
+
 fn allow_raw_deref() -> RawDerefMode {
     FLAGS.allow_raw_deref
 }
@@ -321,6 +325,133 @@ impl fmt::Display for LeanMode {
     }
 }
 
+/// A binary operator that can be encoded as an uninterpreted function, see [`InferOpts::uif_ops`].
+/// These mirror the arithmetic and bitwise operators of the surface syntax.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum UifOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    BitAnd,
+    BitOr,
+    BitXor,
+    BitShl,
+    BitShr,
+}
+
+impl UifOp {
+    /// Maps the surface syntax (token) of each operator to the operator.
+    const TOKENS: [(&'static str, UifOp); 10] = [
+        ("+", UifOp::Add),
+        ("-", UifOp::Sub),
+        ("*", UifOp::Mul),
+        ("/", UifOp::Div),
+        ("%", UifOp::Mod),
+        ("&", UifOp::BitAnd),
+        ("|", UifOp::BitOr),
+        ("^", UifOp::BitXor),
+        ("<<", UifOp::BitShl),
+        (">>", UifOp::BitShr),
+    ];
+
+    /// The operator written as `token` in the surface syntax, if any
+    pub fn from_token(token: &str) -> Option<UifOp> {
+        Self::TOKENS
+            .iter()
+            .find_map(|(tok, op)| (*tok == token).then_some(*op))
+    }
+
+    /// The surface syntax of the operator
+    fn token(self) -> &'static str {
+        match self {
+            UifOp::Add => "+",
+            UifOp::Sub => "-",
+            UifOp::Mul => "*",
+            UifOp::Div => "/",
+            UifOp::Mod => "%",
+            UifOp::BitAnd => "&",
+            UifOp::BitOr => "|",
+            UifOp::BitXor => "^",
+            UifOp::BitShl => "<<",
+            UifOp::BitShr => ">>",
+        }
+    }
+
+    fn bit(self) -> u16 {
+        1 << (self as u16)
+    }
+}
+
+/// A set of [`UifOp`]s. It is a bitset so [`InferOpts`] can be `Copy`. It is written as a comma
+/// separated list of operators, e.g., `*,/,%`.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(try_from = "String")]
+pub struct UifOps(u16);
+
+impl UifOps {
+    const ERROR: &'static str =
+        "expected a comma separated list of `+`, `-`, `*`, `/`, `%`, `&`, `|`, `^`, `<<`, or `>>`";
+
+    pub fn contains(self, op: UifOp) -> bool {
+        self.0 & op.bit() != 0
+    }
+
+    pub fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    pub fn insert(&mut self, op: UifOp) {
+        self.0 |= op.bit();
+    }
+
+    fn iter(self) -> impl Iterator<Item = UifOp> {
+        UifOp::TOKENS
+            .into_iter()
+            .map(|(_, op)| op)
+            .filter(move |op| self.contains(*op))
+    }
+}
+
+impl FromStr for UifOps {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut ops = UifOps::default();
+        let tokens = s
+            .split(',')
+            .map(str::trim)
+            .filter(|token| !token.is_empty());
+        for token in tokens {
+            let op = UifOp::from_token(token).ok_or(Self::ERROR)?;
+            ops.insert(op);
+        }
+        Ok(ops)
+    }
+}
+
+impl TryFrom<String> for UifOps {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl fmt::Display for UifOps {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let tokens: Vec<_> = self.iter().map(UifOp::token).collect();
+        write!(f, "{}", tokens.join(","))
+    }
+}
+
+impl fmt::Debug for UifOps {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "UifOps({self})")
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
 #[serde(try_from = "String")]
 pub enum OverflowMode {
@@ -474,6 +605,8 @@ pub struct InferOpts {
     pub allow_uninterpreted_cast: bool,
     /// Whether to allow raw pointer dereferences.
     pub allow_raw_deref: RawDerefMode,
+    /// Binary operators that are encoded as uninterpreted functions (e.g. to avoid nonlinear arithmetic).
+    pub uif_ops: UifOps,
 }
 
 impl From<PartialInferOpts> for InferOpts {
@@ -486,6 +619,7 @@ impl From<PartialInferOpts> for InferOpts {
                 .allow_uninterpreted_cast
                 .unwrap_or_else(allow_uninterpreted_cast),
             allow_raw_deref: opts.allow_raw_deref.unwrap_or_else(allow_raw_deref),
+            uif_ops: opts.uif_ops.unwrap_or_else(uif_ops),
         }
     }
 }
@@ -497,6 +631,7 @@ pub struct PartialInferOpts {
     pub solver: Option<SmtSolver>,
     pub allow_uninterpreted_cast: Option<bool>,
     pub allow_raw_deref: Option<RawDerefMode>,
+    pub uif_ops: Option<UifOps>,
 }
 
 impl PartialInferOpts {
@@ -508,6 +643,7 @@ impl PartialInferOpts {
         self.scrape_quals = self.scrape_quals.or(other.scrape_quals);
         self.solver = self.solver.or(other.solver);
         self.allow_raw_deref = self.allow_raw_deref.or(other.allow_raw_deref);
+        self.uif_ops = self.uif_ops.or(other.uif_ops);
     }
 }
 

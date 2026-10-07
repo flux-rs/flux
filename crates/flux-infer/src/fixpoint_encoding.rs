@@ -11,7 +11,7 @@ use flux_common::{
     result::ResultExt as _,
     span_bug, tracked_span_bug,
 };
-use flux_config::{self as config};
+use flux_config::{self as config, UifOp, UifOps};
 use flux_errors::Errors;
 use flux_macros::DebugAsJson;
 use flux_middle::{
@@ -637,13 +637,14 @@ where
         def_id: MaybeExternId,
         kvars: KVarGen,
         backend: Backend,
+        uif_ops: UifOps,
     ) -> Self {
         Self {
             comments: vec![],
             kvars,
             scx: SortEncodingCtxt::default(),
             genv,
-            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend),
+            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend, uif_ops),
             kcx: Default::default(),
             tags: IndexVec::new(),
             // tags_inv: Default::default(),
@@ -1602,6 +1603,8 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     def_id: Option<MaybeExternId>,
     infcx: rustc_infer::infer::InferCtxt<'tcx>,
     backend: Backend,
+    /// Binary operations to encode as uninterpreted functions
+    uif_ops: UifOps,
 }
 
 #[derive(Debug)]
@@ -1626,6 +1629,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: Option<MaybeExternId>,
         backend: Backend,
+        uif_ops: UifOps,
     ) -> Self {
         Self {
             genv,
@@ -1639,6 +1643,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .with_next_trait_solver(true)
                 .build(TypingMode::non_body_analysis()),
             backend,
+            uif_ops,
         }
     }
 
@@ -1728,11 +1733,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
         match internal_func {
-            InternalFuncKind::Val(op) => {
-                let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
-                let args = self.exprs_to_fixpoint(args, scx)?;
-                Ok(fixpoint::Expr::App(Box::new(func), None, args, None))
-            }
             InternalFuncKind::Rel(op) => {
                 let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
                     prim_rel.body.replace_bound_refts(args)
@@ -1996,6 +1996,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         fixpoint::Expr::ThyFunc(itf)
     }
 
+    // An operation is encoded as an uninterpreted function (see `ConstKey::PrimOp`) if it has
+    // no interpretation in the logic (bitwise operations on `int`), or if the user asked for it
+    // with `uif_ops` (only for the fixpoint backend; lean keeps the interpreted operations).
     fn bin_op_to_fixpoint(
         &mut self,
         op: &rty::BinOp,
@@ -2003,6 +2006,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e2: &rty::Expr,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
+        let uninterpreted = op.is_uninterpreted()
+            || (matches!(self.backend, Backend::Fixpoint)
+                && Self::uif_op(op).is_some_and(|uif_op| self.uif_ops.contains(uif_op)));
+        if uninterpreted {
+            let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
+            let args = vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?];
+            return Ok(fixpoint::Expr::App(Box::new(func), None, args, None));
+        }
         let op = match op {
             rty::BinOp::Eq => {
                 return Ok(fixpoint::Expr::Atom(
@@ -2219,29 +2230,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             })
     }
 
-    /// The logic below is a bit "duplicated" with the `prim_op_sort` in `sortck.rs`;
-    /// They are not exactly the same because this is on rty and the other one on fhir.
-    /// We should make sure these two remain in sync.
-    ///
-    /// (NOTE:PrimOpSort) We are somewhat "overloading" the `BinOps`: as we are using them
-    /// for (a) interpreted operations on bit vectors AND (b) uninterpreted functions on integers.
-    /// So when Binop::BitShr (a) appears in a ExprKind::BinOp, it means bit vectors, but
-    /// (b) inside ExprKind::InternalFunc it means int.
-    fn prim_op_sort(op: &rty::BinOp, span: Span) -> rty::PolyFuncSort {
-        match op {
-            rty::BinOp::BitAnd(rty::Sort::Int)
-            | rty::BinOp::BitOr(rty::Sort::Int)
-            | rty::BinOp::BitXor(rty::Sort::Int)
-            | rty::BinOp::BitShl(rty::Sort::Int)
-            | rty::BinOp::BitShr(rty::Sort::Int) => {
-                let fsort =
-                    rty::FuncSort::new(vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int);
-                rty::PolyFuncSort::new(List::empty(), fsort)
-            }
-            _ => span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`"),
-        }
-    }
-
     fn define_const_for_cast(
         &mut self,
         from: &rty::Sort,
@@ -2263,6 +2251,33 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name
     }
 
+    /// The operator (if any) that `op` corresponds to in [`UifOps`]
+    fn uif_op(op: &rty::BinOp) -> Option<UifOp> {
+        let op = match op {
+            rty::BinOp::Add(_) => UifOp::Add,
+            rty::BinOp::Sub(_) => UifOp::Sub,
+            rty::BinOp::Mul(_) => UifOp::Mul,
+            rty::BinOp::Div(_) => UifOp::Div,
+            rty::BinOp::Mod(_) => UifOp::Mod,
+            rty::BinOp::BitAnd(_) => UifOp::BitAnd,
+            rty::BinOp::BitOr(_) => UifOp::BitOr,
+            rty::BinOp::BitXor(_) => UifOp::BitXor,
+            rty::BinOp::BitShl(_) => UifOp::BitShl,
+            rty::BinOp::BitShr(_) => UifOp::BitShr,
+            rty::BinOp::Iff
+            | rty::BinOp::Imp
+            | rty::BinOp::Or
+            | rty::BinOp::And
+            | rty::BinOp::Eq
+            | rty::BinOp::Ne
+            | rty::BinOp::Gt(_)
+            | rty::BinOp::Ge(_)
+            | rty::BinOp::Lt(_)
+            | rty::BinOp::Le(_) => return None,
+        };
+        Some(op)
+    }
+
     fn define_const_for_prim_op(
         &mut self,
         op: &rty::BinOp,
@@ -2272,9 +2287,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let span = self.def_span();
         self.const_env
             .get_or_insert(key, |global_name| {
-                let sort = scx
-                    .func_sort_to_fixpoint(&Self::prim_op_sort(op, span))
-                    .into_sort();
+                let fsort = op.uif_sort().unwrap_or_else(|| {
+                    span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`")
+                });
+                let sort = scx.func_sort_to_fixpoint(&fsort).into_sort();
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Const(global_name, None),
                     sort,

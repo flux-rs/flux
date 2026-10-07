@@ -1124,3 +1124,33 @@ refinement-only syntax. Sorts are inferred, or annotated as in `invariant!`.
 ```rust,noplayground
 {{#include ../../../tests/tests/with_deps/pos/surface/qualifier_macro00.rs}}
 ```
+
+## Uninterpreted Operators
+
+Sometimes the solver gets stuck (or times out) reasoning about arithmetic -- e.g. _non-linear_
+arithmetic with `*`, `/` or `%` -- even though the property being checked does not depend on what
+the operation actually computes. For such cases you can tell `flux` to encode some binary operators
+as _uninterpreted functions_ in the constraints sent to the solver, using the `uif_ops` option.
+
+Each listed operator is replaced by an uninterpreted function (one per operator _and_ sort, e.g.,
+`*` on `int` and `*` on `real` are different functions), about which the solver knows nothing other
+than the congruence property: `x * y` equals `x * y`, but the solver can no longer prove e.g.
+`x * y == y * x` or `x * 1 == x`. This only removes information, so it never makes `flux` accept
+a program it would otherwise reject. Operators that are not listed remain interpreted.
+
+The option takes a comma separated list of operators, which can be any of the arithmetic and
+bitwise operators `+`, `-`, `*`, `/`, `%`, `&`, `|`, `^`, `<<`, or `>>`. Like
+[checking overflows](#checking-overflows), it can be set
+
+- _globally_ [with a flag](install.md#flux-flags), e.g. `-Fuif-ops="*,/"`, or with
+  `uif_ops = "*,/"` in the `[package.metadata.flux]` table (or `flux.toml`), or
+- _locally_ with an attribute on a function, `impl`, module or crate, e.g.
+  `#[flux::opts(uif_ops = "*,/")]`, as shown below
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/uif_ops00.rs}}
+```
+
+```rust,noplayground
+{{#include ../../../tests/tests/neg/surface/uif_ops00.rs}}
+```

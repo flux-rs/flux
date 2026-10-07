@@ -4,7 +4,9 @@ use clap::{ArgMatches, Args, Command, FromArgMatches, parser::ValueSource};
 pub use toml::Value;
 use tracing::Level;
 
-use crate::{IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver};
+use crate::{
+    IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver, UifOps,
+};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
@@ -132,6 +134,10 @@ pub struct Flags {
         default_value = "none"
     )]
     pub allow_raw_deref: RawDerefMode,
+    /// Binary operators to encode as uninterpreted functions in the constraints, as a comma
+    /// separated list, e.g., `*,/,%`.
+    #[arg(long = flux_arg!("uif-ops"), value_name = "OPS", default_value = "")]
+    pub uif_ops: UifOps,
     /// Dump constraints generated for each function (debugging).
     #[arg(
         long = flux_arg!("dump-constraint"),
@@ -257,6 +263,7 @@ impl Default for Flags {
             cache: None,
             check_overflow: OverflowMode::default(),
             allow_raw_deref: RawDerefMode::default(),
+            uif_ops: UifOps::default(),
             scrape_quals: false,
             fixpoint_timeout: None,
             allow_uninterpreted_cast: false,
@@ -344,6 +351,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "pointer-width" => parse_pointer_width(&mut flags.pointer_width, value),
             "check-overflow" => parse_overflow(&mut flags.check_overflow, value),
             "allow-raw-deref" => parse_raw_deref(&mut flags.allow_raw_deref, value),
+            "uif-ops" => parse_uif_ops(&mut flags.uif_ops, value),
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
             "fixpoint-timeout" => parse_opt_u64(&mut flags.fixpoint_timeout, value),
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
@@ -488,6 +496,16 @@ fn parse_overflow(slot: &mut OverflowMode, v: Option<&str>) -> Result<(), &'stat
             Ok(())
         }
         _ => Err(OverflowMode::ERROR),
+    }
+}
+
+fn parse_uif_ops(slot: &mut UifOps, v: Option<&str>) -> Result<(), &'static str> {
+    match v {
+        Some(s) => {
+            *slot = s.parse()?;
+            Ok(())
+        }
+        _ => Err(UifOps::ERROR),
     }
 }
 
