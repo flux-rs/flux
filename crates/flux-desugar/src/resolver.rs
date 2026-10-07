@@ -160,7 +160,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let mut definitions = DefinitionMap::default();
         for (parent, items) in &self.specs.flux_items_by_parent {
             for item in items {
-                // We are putting qualifiers, primpops and axioms in the same namespace.
+                // We are putting qualifiers, primops and axioms in the same namespace.
                 match item {
                     surface::FluxItem::Qualifier(qual) => {
                         let ident = qual.name;

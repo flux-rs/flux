@@ -2644,6 +2644,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let genv = self.genv;
         self.local_var_env.push_layer_with_fresh_names(vars.len());
         let body = self.expr_to_fixpoint(expr, scx)?;
+        // This is retroactively removing certain applications which are "interpreted"
+        // for this specific Task; this is likely to change with the `uif_ops` and `retro-hide` mechanisms...
         let patterns = patterns
             .iter()
             .filter(|pattern| {
