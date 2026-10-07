@@ -2230,15 +2230,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             })
     }
 
-    /// The sort of the uninterpreted function encoding the binary operation `op` (see
-    /// `bin_op_to_fixpoint`). Note that the sort of the bitwise operations on `int` (which are
-    /// always uninterpreted) is also given by `prim_op_sort` in `sortck.rs` (on fhir), we should make
-    /// sure they remain in sync with `rty::BinOp::uif_sort`.
-    fn prim_op_sort(op: &rty::BinOp, span: Span) -> rty::PolyFuncSort {
-        op.uif_sort()
-            .unwrap_or_else(|| span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`"))
-    }
-
     fn define_const_for_cast(
         &mut self,
         from: &rty::Sort,
@@ -2296,9 +2287,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let span = self.def_span();
         self.const_env
             .get_or_insert(key, |global_name| {
-                let sort = scx
-                    .func_sort_to_fixpoint(&Self::prim_op_sort(op, span))
-                    .into_sort();
+                let fsort = op.uif_sort().unwrap_or_else(|| {
+                    span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`")
+                });
+                let sort = scx.func_sort_to_fixpoint(&fsort).into_sort();
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Const(global_name, None),
                     sort,
