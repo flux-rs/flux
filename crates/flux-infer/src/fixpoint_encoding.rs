@@ -644,7 +644,7 @@ where
             kvars,
             scx: SortEncodingCtxt::default(),
             genv,
-            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend).with_uif_ops(uif_ops),
+            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend, uif_ops),
             kcx: Default::default(),
             tags: IndexVec::new(),
             // tags_inv: Default::default(),
@@ -1632,6 +1632,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: Option<MaybeExternId>,
         backend: Backend,
+        uif_ops: UifOps,
     ) -> Self {
         Self {
             genv,
@@ -1645,13 +1646,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .with_next_trait_solver(true)
                 .build(TypingMode::non_body_analysis()),
             backend,
-            uif_ops: UifOps::default(),
+            uif_ops,
         }
-    }
-
-    pub fn with_uif_ops(mut self, uif_ops: UifOps) -> Self {
-        self.uif_ops = uif_ops;
-        self
     }
 
     fn def_span(&self) -> Span {
@@ -2234,15 +2230,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             })
     }
 
-    /// The sort of the uninterpreted function encoding the binary operation `op` (see
-    /// `bin_op_to_fixpoint`). Note that the sort of the bitwise operations on `int` (which are
-    /// always uninterpreted) is also given by `prim_op_sort` in `sortck.rs` (on fhir), we should make
-    /// sure they remain in sync with `rty::BinOp::uif_sort`.
-    fn prim_op_sort(op: &rty::BinOp, span: Span) -> rty::PolyFuncSort {
-        op.uif_sort()
-            .unwrap_or_else(|| span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`"))
-    }
-
     fn define_const_for_cast(
         &mut self,
         from: &rty::Sort,
@@ -2307,9 +2294,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let span = self.def_span();
         self.const_env
             .get_or_insert(key, |global_name| {
-                let sort = scx
-                    .func_sort_to_fixpoint(&Self::prim_op_sort(op, span))
-                    .into_sort();
+                let fsort = op.uif_sort().unwrap_or_else(|| {
+                    span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`")
+                });
+                let sort = scx.func_sort_to_fixpoint(&fsort).into_sort();
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Const(global_name, None),
                     sort,
