@@ -173,7 +173,11 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                 self.errors
                     .emit(errors::HideInlinedDefinition::new(span, hidden));
             }
-            if attr_map.reveals.iter().any(|(revealed, _)| *revealed == hidden) {
+            if attr_map
+                .reveals
+                .iter()
+                .any(|(revealed, _)| *revealed == hidden)
+            {
                 self.errors
                     .emit(errors::HideAndRevealDefinition::new(span, hidden));
             }
