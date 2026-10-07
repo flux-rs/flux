@@ -580,9 +580,9 @@ that asserts facts over the uninterpreted function
 
 ## Hiding and Revealing Function Definitions
 
-By default all the function definitions are either _inlined_ or sent to the SMT solver
-as `define-fun` (when run with `FLUX_SMT_DEFINE_FUN=1`). Sometimes we want to _hide_ the
-definition because reasoning about those functions can kill the solver -- or the function
+By default all the function definitions are sent to the SMT solver as `define-fun`
+(polymorphic functions, which cannot be encoded as `define-fun`, are _inlined_ instead).
+Sometimes we want to _hide_ the definition because reasoning about those functions can kill the solver -- or the function
 is super complex and we just want to reason about it via congruence. For that you can
 
 - use the `#[hide]` attribute at the spec function definition, to make the function _uninterpreted_ by default, and
@@ -592,15 +592,6 @@ is super complex and we just want to reason about it via congruence. For that yo
 ```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/hide00.rs}}
 ```
-
-## Spec Functions in SMTLIB
-
-By default `flux` inlines all such function definitions.
-
-Monomorphic functions may _optionally_ be encoded
-as functions in SMT by using the `FLUX_SMT_DEFINE_FUN=1`
-environment variable. The flag also applies to functions defined in
-dependencies (e.g., `flux-core`), regardless of the flags used to check them.
 
 ## Type Holes
 

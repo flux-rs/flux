@@ -119,10 +119,6 @@ pub fn sysroot() -> Option<PathBuf> {
     }
 }
 
-pub fn smt_define_fun() -> bool {
-    FLAGS.smt_define_fun
-}
-
 fn solver() -> SmtSolver {
     FLAGS.solver
 }

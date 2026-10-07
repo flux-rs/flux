@@ -1,7 +1,5 @@
-// compile-flags: -Fsmt-define-fun
-
 // Regression test for https://github.com/flux-rs/flux/issues/1662
-// When -Fsmt-define-fun is used, Rust constants (like u32::MAX) referenced inside
+// When flux defs are encoded as `define-fun`, Rust constants (like u32::MAX) referenced inside
 // flux defs must be declared in the SMT constraint, not silently dropped.
 
 use flux_attrs::*;
