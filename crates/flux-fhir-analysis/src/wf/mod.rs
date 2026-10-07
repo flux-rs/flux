@@ -333,6 +333,9 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
             fhir::FluxItem::PrimOpProp(prim_op_prop) => {
                 cx.conv_primop_prop(prim_op_prop)?;
             }
+            fhir::FluxItem::Axiom(axiom) => {
+                cx.conv_axiom(axiom)?;
+            }
             fhir::FluxItem::SortDecl(_sort_decl) => {}
         }
         Ok(())
@@ -396,6 +399,10 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             return;
         }
         self.check_expr(&primop_prop.body, &rty::Sort::Bool);
+    }
+
+    fn visit_axiom(&mut self, axiom: &fhir::Axiom<'genv>) {
+        self.check_expr(&axiom.body, &rty::Sort::Bool);
     }
 
     fn visit_func(&mut self, func: &fhir::SpecFunc<'genv>) {

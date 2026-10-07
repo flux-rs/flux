@@ -160,7 +160,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let mut definitions = DefinitionMap::default();
         for (parent, items) in &self.specs.flux_items_by_parent {
             for item in items {
-                // We are putting qualifiers and primpops in the same namespace.
+                // We are putting qualifiers, primpops and axioms in the same namespace.
                 match item {
                     surface::FluxItem::Qualifier(qual) => {
                         let ident = qual.name;
@@ -186,6 +186,12 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                             self.primop_props.insert(ident.name, def_id);
                         }
                     }
+                    surface::FluxItem::Axiom(axiom) => {
+                        let _ = definitions
+                            .define(axiom.name)
+                            .emit(&self.genv)
+                            .collect_err(&mut self.err);
+                    }
                     surface::FluxItem::Use(_)
                     | surface::FluxItem::FuncDef(_)
                     | surface::FluxItem::SortDecl(_) => {}
@@ -202,7 +208,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
         for item in items {
             match item {
-                surface::FluxItem::Qualifier(_) | surface::FluxItem::PrimOpProp(_) => {
+                surface::FluxItem::Qualifier(_)
+                | surface::FluxItem::PrimOpProp(_)
+                | surface::FluxItem::Axiom(_) => {
                     // Already registered in `define_global_qualifiers_and_primop_props`.
                 }
                 surface::FluxItem::FuncDef(defn) => {

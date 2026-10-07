@@ -487,6 +487,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(rty::SpecFunc::Defined { body, hide: func.hide })
     }
 
+    pub(crate) fn conv_axiom(&mut self, axiom: &fhir::Axiom) -> QueryResult<rty::Axiom> {
+        let mut env = Env::new(&[]);
+        env.push_layer(Layer::list(self.results(), 0, axiom.args));
+        let body = self.conv_expr(&mut env, &axiom.body)?;
+        let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(self.genv())?);
+        Ok(rty::Axiom { def_id: axiom.def_id, body })
+    }
+
     pub(crate) fn conv_primop_prop(
         &mut self,
         primop_prop: &fhir::PrimOpProp,

@@ -578,6 +578,60 @@ that asserts facts over the uninterpreted function
 {{#include ../../../tests/tests/pos/surface/uif01.rs}}
 ```
 
+## Axioms
+
+Instead of asserting facts about an uninterpreted function one `trusted` signature at
+a time, you can state them once as an **axiom**
+
+```text
+axiom <name>(x1: s1, ..., xn: sn) { <expr> }
+```
+
+which says that the `bool`-sorted refinement `<expr>` holds for _all_ values `x1, ..., xn`
+of sorts `s1, ..., sn`. The sorts of the parameters must be written out explicitly.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/axiom00.rs}}
+```
+
+Axioms are passed to the SMT solver as quantified formulas, so there are a few things
+to keep in mind when using them.
+
+- **Axioms are assumed, not checked.** Like `trusted` code, an axiom that does not actually
+  hold (e.g. one that is equivalent to `false`) makes verification unsound.
+
+- **Axioms are instantiated by triggers.** The solver does not try all possible values for
+  `x1, ..., xn`. Instead, `flux` uses the applications of uninterpreted functions that occur in
+  the axiom's body as a _pattern_ and the solver only instantiates the axiom when it finds
+  terms matching _all_ of them. In the example above the pattern is the pair `modc(y, c)`
+  and `modc(x, c)`, so to relate `modc(x, c)` and `modc(z, c)` the verification condition
+  must also mention the intermediate term `modc(y, c)`, which is why `test` calls `modc(y, c)`
+  even though it does not use the result. (You can inspect the generated axiom and its
+  pattern with `-Fdump-constraint`.)
+
+- **Make sure the trigger terms survive in the verification condition.** Calling `modc(y, c)`
+  only helps because `modc` returns the _existential_ type `i32{v: v == modc(x, c)}`: each call
+  then adds a hypothesis `v == modc(..)` to the verification condition, whether or not the
+  result is used. Had we instead given it the _indexed_ type `i32[modc(x, c)]`, `flux` would
+  substitute the index directly into the places where the result is used, so the unused call
+  `modc(y, c)` would leave no trace, and the assertion would fail as
+
+  ```text
+  modc(x, c) == modc(x - c - c, c)
+  ```
+
+  has no pair of terms matching the pattern.
+
+- **Hidden functions count as uninterpreted.** Applications of a [hidden](#hiding-and-revealing-function-definitions)
+  spec function are used in the pattern, except when checking a function that `reveal`s it.
+  An axiom whose body has no applications of uninterpreted functions is sent to the solver
+  without a pattern.
+
+- **Axioms are global to the crate.** They are used when checking every function in the crate
+  in which they are defined, but are not (yet) exported to other crates.
+
+- Axioms require a version of `fixpoint` that supports the `axiom` declaration.
+
 ## Hiding and Revealing Function Definitions
 
 By default all the function definitions are either _inlined_ or sent to the SMT solver

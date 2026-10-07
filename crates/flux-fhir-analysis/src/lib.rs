@@ -56,6 +56,7 @@ pub fn provide(providers: &mut Providers) {
     providers.func_sort = func_sort;
     providers.func_span = flux_def_ident_span;
     providers.qualifiers = qualifiers;
+    providers.axioms = axioms;
     providers.prim_rel = prim_rel;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
@@ -148,6 +149,18 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
             Ok(AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_qualifier(qualifier)?
+                .reduce(genv))
+        })
+        .try_collect()
+}
+
+fn axioms(genv: GlobalEnv) -> QueryResult<Vec<rty::Axiom>> {
+    genv.fhir_axioms()
+        .map(|axiom| {
+            let wfckresults = wf::check_flux_item(genv, fhir::FluxItem::Axiom(axiom))?;
+            Ok(AfterSortck::new(genv, &wfckresults)
+                .into_conv_ctxt()
+                .conv_axiom(axiom)?
                 .reduce(genv))
         })
         .try_collect()

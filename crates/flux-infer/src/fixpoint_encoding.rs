@@ -667,6 +667,8 @@ where
             .chain(FIXPOINT_QUALIFIERS.iter().cloned())
             .collect();
 
+        let axioms = self.ecx.axioms_for(def_id, &mut self.scx)?;
+
         // Assuming values should happen after all encoding is done so we are sure we've collected
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
@@ -677,7 +679,7 @@ where
         #[cfg(feature = "suggestions")]
         let flat_constraint_map = make_flat_constraint_map(&constraint);
 
-        // Encode function bodies after qualifiers/assumptions so any functions referenced there
+        // Encode function bodies after qualifiers/axioms/assumptions so any functions referenced there
         // are picked up as dependencies.
         let define_funs = self.ecx.define_funs(def_id, &mut self.scx)?;
 
@@ -728,6 +730,7 @@ where
             define_funs,
             constraint,
             qualifiers,
+            axioms,
             scrape_quals,
             solver,
             data_decls: data_decls.clone(),
@@ -2511,18 +2514,25 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .try_collect()
     }
 
+    fn axioms_for(
+        &mut self,
+        def_id: MaybeExternId,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<Vec<fixpoint::Axiom>> {
+        let fun_env = FunEnv::new(self.genv, def_id);
+        self.genv
+            .axioms()?
+            .iter()
+            .map(|axiom| self.axiom_to_fixpoint(axiom, &fun_env, scx))
+            .try_collect()
+    }
+
     fn define_funs(
         &mut self,
         def_id: MaybeExternId,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<Vec<fixpoint::FunDef>> {
-        let reveals: UnordSet<FluxDefId> = self
-            .genv
-            .reveals_for(def_id.local_id())
-            .iter()
-            .copied()
-            .collect();
-        let proven_externally = self.genv.proven_externally(def_id.local_id());
+        let fun_env = FunEnv::new(self.genv, def_id);
         let mut defs = vec![];
 
         // Iterate till encoding the body of functions doesn't require any more functions to be encoded.
@@ -2530,14 +2540,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         while let Some((&did, _)) = self.const_env.fun_decl_map.get_index(idx) {
             idx += 1;
 
-            let revealed = reveals.contains(&did);
-            let uninterpreted = match self.genv.spec_func(did) {
-                rty::SpecFunc::Uif => true,
-                rty::SpecFunc::Defined { hide, .. } => {
-                    hide && !revealed && proven_externally.is_none()
-                }
-            };
-            let def = if uninterpreted {
+            let def = if fun_env.is_uninterpreted(self.genv, did) {
                 self.fun_decl_to_fixpoint(did, scx)
             } else {
                 self.fun_def_to_fixpoint(did, scx)?
@@ -2624,6 +2627,121 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .collect();
         Ok(fixpoint::Qualifier { name, args, body })
     }
+
+    /// Encodes an axiom, using *each* application of an uninterpreted function occurring in
+    /// (the encoding of) its body as the pattern (trigger) for instantiating it.
+    fn axiom_to_fixpoint(
+        &mut self,
+        axiom: &rty::Axiom,
+        fun_env: &FunEnv,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::Axiom> {
+        let (args, body) = self.body_to_fixpoint(&axiom.body, scx)?;
+        let name = axiom.def_id.name().to_string();
+        let is_uif = |var: &fixpoint::Var| {
+            match var {
+                fixpoint::Var::Global(_, did) => fun_env.is_uninterpreted(self.genv, *did),
+                // Constants in function position are the UIFs we generate for alias refinements,
+                // casts, primops, etc.
+                fixpoint::Var::Const(..) => true,
+                _ => false,
+            }
+        };
+        let mut patterns = vec![];
+        collect_uif_apps(&body, &is_uif, &mut patterns);
+        Ok(fixpoint::Axiom { name, args, body, patterns })
+    }
+}
+
+/// Determines which Flux functions are uninterpreted in the constraint generated for an item.
+struct FunEnv {
+    reveals: UnordSet<FluxDefId>,
+    proven_externally: bool,
+}
+
+impl FunEnv {
+    fn new(genv: GlobalEnv, def_id: MaybeExternId) -> Self {
+        let reveals = genv
+            .reveals_for(def_id.local_id())
+            .iter()
+            .copied()
+            .collect();
+        let proven_externally = genv.proven_externally(def_id.local_id()).is_some();
+        Self { reveals, proven_externally }
+    }
+
+    fn is_uninterpreted(&self, genv: GlobalEnv, did: FluxDefId) -> bool {
+        match genv.spec_func(did) {
+            rty::SpecFunc::Uif => true,
+            rty::SpecFunc::Defined { hide, .. } => {
+                hide && !self.reveals.contains(&did) && !self.proven_externally
+            }
+        }
+    }
+}
+
+/// Collects (without duplicates) every application in `expr` whose head satisfies `is_uif`.
+/// Applications mentioning variables bound *inside* `expr` (by a `let` or a quantifier) are
+/// skipped as they are not valid outside of their binder.
+fn collect_uif_apps(
+    expr: &fixpoint::Expr,
+    is_uif: &impl Fn(&fixpoint::Var) -> bool,
+    apps: &mut Vec<fixpoint::Expr>,
+) {
+    /// Returns whether `expr` contains a binder, in which case it cannot be part of a pattern.
+    fn go(
+        expr: &fixpoint::Expr,
+        is_uif: &impl Fn(&fixpoint::Var) -> bool,
+        bound: &mut Vec<fixpoint::Var>,
+        apps: &mut Vec<fixpoint::Expr>,
+    ) -> bool {
+        use fixpoint::Expr;
+        let mut go_many = |exprs: &[Expr], bound: &mut Vec<fixpoint::Var>| {
+            exprs
+                .iter()
+                .fold(false, |tainted, e| go(e, is_uif, bound, apps) | tainted)
+        };
+        match expr {
+            Expr::Constant(_) | Expr::ThyFunc(_) => false,
+            Expr::Var(var) => bound.contains(var),
+            Expr::App(func, _, args, _) => {
+                let tainted = go_many(std::slice::from_ref(func), bound) | go_many(args, bound);
+                if !tainted
+                    && let Expr::Var(head) = &**func
+                    && is_uif(head)
+                    && !apps.contains(expr)
+                {
+                    apps.push(expr.clone());
+                }
+                tainted
+            }
+            Expr::Neg(e) | Expr::Not(e) | Expr::IsCtor(_, e) => {
+                go_many(std::slice::from_ref(e), bound)
+            }
+            Expr::BinaryOp(_, es) | Expr::Imp(es) | Expr::Iff(es) | Expr::Atom(_, es) => {
+                go_many(&es[..], bound)
+            }
+            Expr::IfThenElse(es) => go_many(&es[..], bound),
+            Expr::And(es) | Expr::Or(es) => go_many(es, bound),
+            Expr::WKVar(wkvar) => go_many(&wkvar.args, bound),
+            Expr::Let(var, es) => {
+                let [init, body] = &**es;
+                go_many(std::slice::from_ref(init), bound);
+                bound.push(*var);
+                go_many(std::slice::from_ref(body), bound);
+                bound.pop();
+                true
+            }
+            Expr::Quantifier(_, vars, body) => {
+                let n = bound.len();
+                bound.extend(vars.iter().map(|(var, _)| *var));
+                go_many(std::slice::from_ref(body), bound);
+                bound.truncate(n);
+                true
+            }
+        }
+    }
+    go(expr, is_uif, &mut vec![], apps);
 }
 
 /// The position of `krate` in a topological order of all crates, i.e., every crate comes after all

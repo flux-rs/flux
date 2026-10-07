@@ -875,6 +875,10 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
                 self.allow_primop_app = false;
                 fhir::FluxItem::PrimOpProp(self.genv.alloc(primop_prop))
             }
+            surface::FluxItem::Axiom(axiom) => {
+                let axiom = self.desugar_axiom(axiom);
+                fhir::FluxItem::Axiom(self.genv.alloc(axiom))
+            }
             surface::FluxItem::SortDecl(sort_decl) => {
                 let sort_decl = self.desugar_sort_decl(sort_decl);
                 fhir::FluxItem::SortDecl(self.genv.alloc(sort_decl))
@@ -922,6 +926,15 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
             args,
             body,
             span: primop_prop.span,
+        }
+    }
+
+    fn desugar_axiom(&mut self, axiom: &surface::Axiom) -> fhir::Axiom<'genv> {
+        fhir::Axiom {
+            def_id: self.owner,
+            args: self.desugar_refine_params(&axiom.params),
+            body: self.desugar_expr(&axiom.body),
+            span: axiom.span,
         }
     }
 

@@ -445,7 +445,9 @@ fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, D
                     .sort_decl_param_count
                     .insert(def_id.local_def_index(), genv.sort_decl_param_count(def_id));
             }
-            fhir::FluxItem::PrimOpProp(_) | fhir::FluxItem::Qualifier(_) => {}
+            fhir::FluxItem::PrimOpProp(_)
+            | fhir::FluxItem::Axiom(_)
+            | fhir::FluxItem::Qualifier(_) => {}
         }
     }
 }

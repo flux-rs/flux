@@ -1456,6 +1456,14 @@ pub struct PrimOpProp {
     pub body: Binder<Expr>,
 }
 
+/// An `Axiom` is a (global) fact, typically about uninterpreted functions, that is assumed to
+/// hold for all values of the variables bound in `body`.
+#[derive(Debug, TypeVisitable, TypeFoldable)]
+pub struct Axiom {
+    pub def_id: FluxLocalDefId,
+    pub body: Binder<Expr>,
+}
+
 #[derive(Debug, TypeVisitable, TypeFoldable)]
 pub struct PrimRel {
     pub body: Binder<Expr>,

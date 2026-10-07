@@ -317,6 +317,7 @@ pub enum FluxItem<'fhir> {
     Qualifier(&'fhir Qualifier<'fhir>),
     Func(&'fhir SpecFunc<'fhir>),
     PrimOpProp(&'fhir PrimOpProp<'fhir>),
+    Axiom(&'fhir Axiom<'fhir>),
     SortDecl(&'fhir SortDecl),
 }
 
@@ -326,6 +327,7 @@ impl FluxItem<'_> {
             FluxItem::Qualifier(qualifier) => qualifier.def_id,
             FluxItem::Func(func) => func.def_id,
             FluxItem::PrimOpProp(prop) => prop.def_id,
+            FluxItem::Axiom(axiom) => axiom.def_id,
             FluxItem::SortDecl(sort_decl) => sort_decl.def_id,
         }
     }
@@ -1392,6 +1394,15 @@ pub struct SpecFunc<'fhir> {
 pub struct PrimOpProp<'fhir> {
     pub def_id: FluxLocalDefId,
     pub op: BinOp,
+    pub args: &'fhir [RefineParam<'fhir>],
+    pub body: Expr<'fhir>,
+    pub span: Span,
+}
+
+/// A (global) axiom: `body` is assumed to hold for all values of `args`.
+#[derive(Debug)]
+pub struct Axiom<'fhir> {
+    pub def_id: FluxLocalDefId,
     pub args: &'fhir [RefineParam<'fhir>],
     pub body: Expr<'fhir>,
     pub span: Span,
