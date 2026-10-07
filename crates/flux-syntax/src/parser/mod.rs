@@ -17,7 +17,7 @@ use crate::{
     surface::{
         self, Async,
         Attr::{self},
-        BareFnTy, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
+        Axiom, BareFnTy, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, DetachedInherentImpl, DetachedItem, DetachedItemKind, DetachedSpecs,
         DetachedTrait, DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath,
         ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg,
@@ -165,6 +165,7 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<FluxItem>>
 ///              | ⟨qualifier⟩
 ///              | ⟨sort_decl⟩
 ///              | ⟨primop_prop⟩
+///              | ⟨axiom⟩
 ///              | ⟨use_item⟩
 /// ```
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
@@ -180,6 +181,8 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
         parse_sort_decl(cx).map(FluxItem::SortDecl)
     } else if lookahead.peek(kw::Property) {
         parse_primop_property(cx).map(FluxItem::PrimOpProp)
+    } else if lookahead.peek(kw::Axiom) {
+        parse_axiom(cx).map(FluxItem::Axiom)
     } else if lookahead.peek(kw::Use) {
         parse_use_item(cx).map(FluxItem::Use)
     } else {
@@ -602,6 +605,19 @@ fn parse_primop_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
     let hi = cx.hi();
 
     Ok(PrimOpProp { name, op, params, body, span: cx.mk_span(lo, hi) })
+}
+
+/// ```text
+/// ⟨axiom⟩ := axiom ⟨ident⟩ ( ⟨refine_param⟩,* ) ⟨block⟩
+/// ```
+fn parse_axiom(cx: &mut ParseCtxt) -> ParseResult<Axiom> {
+    let lo = cx.lo();
+    cx.expect(kw::Axiom)?;
+    let name = parse_ident(cx)?;
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
+    let body = parse_block(cx)?;
+    let hi = cx.hi();
+    Ok(Axiom { name, params, body, span: cx.mk_span(lo, hi) })
 }
 
 /// ```text

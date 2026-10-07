@@ -1456,6 +1456,108 @@ pub struct PrimOpProp {
     pub body: Binder<Expr>,
 }
 
+/// An `Axiom` is a (global) fact, typically about uninterpreted functions, that is assumed to
+/// hold for all values of the variables bound in `body`.
+#[derive(TypeVisitable, TypeFoldable)]
+pub struct Axiom {
+    pub def_id: FluxLocalDefId,
+    pub body: Binder<AxiomBody>,
+}
+
+#[derive(Debug, TypeVisitable, TypeFoldable)]
+pub struct AxiomBody {
+    pub expr: Expr,
+    /// The terms used as the pattern (trigger) to instantiate the axiom: *each* application of an
+    /// uninterpreted function occurring in `expr`. See [`Axiom::new`].
+    pub patterns: List<Expr>,
+}
+
+impl Axiom {
+    /// Creates an axiom, computing its patterns from `body`, which must have already been
+    /// [reduced] so that the applications are the ones that will be sent to the solver.
+    ///
+    /// A function is considered uninterpreted if it has no body or if it is hidden. We also
+    /// include the arithmetic and bitwise operations that can be encoded as UIFs (e.g.,
+    /// `[&](x, y)` on `int`, or `x * y` under `uif_ops`), the casts that have no interpretation,
+    /// and associated refinements. (Whether a hidden function is revealed, or an operation is
+    /// uninterpreted, depends on the item being checked, so those are *candidates* that are
+    /// filtered when encoding the axiom.) Applications mentioning variables bound *inside* the body (by
+    /// a `let` or a quantifier) are skipped as they are not valid outside of their binder.
+    ///
+    /// [reduced]: fold::TypeFoldable::reduce
+    pub fn new(genv: GlobalEnv, def_id: FluxLocalDefId, body: Binder<Expr>) -> Self {
+        use fold::{TypeSuperVisitable as _, TypeVisitable as _};
+
+        struct Collector<'genv, 'tcx> {
+            genv: GlobalEnv<'genv, 'tcx>,
+            /// Number of binders we are currently under
+            depth: usize,
+            /// Total number of binders entered so far
+            binders: usize,
+            patterns: Vec<Expr>,
+        }
+
+        impl Collector<'_, '_> {
+            fn is_uif_app(&self, expr: &Expr) -> bool {
+                match expr.kind() {
+                    ExprKind::App(func, sort_args, _) => {
+                        match func.kind() {
+                            ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
+                                matches!(
+                                    self.genv.spec_func(*did),
+                                    SpecFunc::Uif | SpecFunc::Defined { hide: true, .. }
+                                )
+                            }
+                            ExprKind::InternalFunc(InternalFuncKind::Cast) => {
+                                matches!(
+                                    &sort_args[..],
+                                    [SortArg::Sort(from), SortArg::Sort(to)]
+                                        if matches!(from.cast_kind(to), CastKind::Uninterpreted)
+                                )
+                            }
+                            _ => false,
+                        }
+                    }
+                    // An operation that *may* be encoded as a UIF, e.g., `[&](x, y)` or `x * y`
+                    ExprKind::BinaryOp(op, ..) => op.uif_sort().is_some(),
+                    ExprKind::Alias(..) => true,
+                    _ => false,
+                }
+            }
+        }
+
+        impl fold::TypeVisitor for Collector<'_, '_> {
+            fn enter_binder(&mut self, _vars: &BoundVariableKinds) {
+                self.depth += 1;
+                self.binders += 1;
+            }
+
+            fn exit_binder(&mut self) {
+                self.depth -= 1;
+            }
+
+            fn visit_expr(&mut self, expr: &Expr) -> std::ops::ControlFlow<!> {
+                let binders = self.binders;
+                expr.super_visit_with(self)?;
+                // Skip applications under a binder or containing one
+                if self.depth == 0 && self.binders == binders && self.is_uif_app(expr) {
+                    let expr = expr.erase_spans();
+                    if !self.patterns.contains(&expr) {
+                        self.patterns.push(expr);
+                    }
+                }
+                std::ops::ControlFlow::Continue(())
+            }
+        }
+
+        let mut collector = Collector { genv, depth: 0, binders: 0, patterns: vec![] };
+        let _ = body.skip_binder_ref().visit_with(&mut collector);
+        let patterns = List::from_vec(collector.patterns);
+        let body = body.map(|expr| AxiomBody { expr, patterns });
+        Axiom { def_id, body }
+    }
+}
+
 #[derive(Debug, TypeVisitable, TypeFoldable)]
 pub struct PrimRel {
     pub body: Binder<Expr>,

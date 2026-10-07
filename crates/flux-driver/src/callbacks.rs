@@ -127,8 +127,9 @@ fn inject_std_extern_specs(config: &mut rustc_interface::interface::Config) {
 fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     tracing::info_span!("check_crate").in_scope(move || {
         tracing::info!("Callbacks::check_wf");
-        // Query qualifiers and spec funcs to report wf errors
+        // Query qualifiers, axioms and spec funcs to report wf errors
         let _ = genv.qualifiers().emit(&genv)?;
+        let _ = genv.axioms().emit(&genv)?;
         let _ = genv.spec_funcs(LOCAL_CRATE);
 
         let mut ck = CrateChecker::new(genv);

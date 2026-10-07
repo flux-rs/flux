@@ -174,6 +174,7 @@ pub struct Providers {
     pub fhir_attr_map: for<'genv> fn(GlobalEnv<'genv, '_>, LocalDefId) -> fhir::AttrMap<'genv>,
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
+    pub axioms: fn(GlobalEnv) -> QueryResult<Vec<rty::Axiom>>,
     pub prim_rel: fn(GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>,
     pub spec_funcs: fn(GlobalEnv) -> rty::SpecFuncs,
     pub func_sort: fn(GlobalEnv, FluxId<MaybeExternId>) -> rty::PolyFuncSort,
@@ -231,6 +232,7 @@ impl Default for Providers {
             func_sort: |_, _| empty_query!(),
             func_span: |_, _| empty_query!(),
             qualifiers: |_| empty_query!(),
+            axioms: |_| empty_query!(),
             prim_rel: |_| empty_query!(),
             adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
@@ -281,6 +283,7 @@ pub struct Queries<'genv, 'tcx> {
     func_sort: Cache<FluxDefId, rty::PolyFuncSort>,
     func_span: Cache<FluxDefId, Span>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
+    axioms: OnceCell<QueryResult<Vec<rty::Axiom>>>,
     prim_rel: OnceCell<QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
@@ -330,6 +333,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             func_sort: Default::default(),
             func_span: Default::default(),
             qualifiers: Default::default(),
+            axioms: Default::default(),
             prim_rel: Default::default(),
             adt_sort_def_of: Default::default(),
             check_wf: Default::default(),
@@ -430,6 +434,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                                     }
                                     surface::FluxItem::Qualifier(_)
                                     | surface::FluxItem::PrimOpProp(_)
+                                    | surface::FluxItem::Axiom(_)
                                     | surface::FluxItem::Use(_) => return None,
                                 };
                                 Some(fhir::FluxModChild { ident, res })
@@ -607,6 +612,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn qualifiers(&self, genv: GlobalEnv) -> QueryResult<&[rty::Qualifier]> {
         self.qualifiers
             .get_or_init(|| (self.providers.qualifiers)(genv))
+            .as_deref()
+            .map_err(Clone::clone)
+    }
+
+    pub(crate) fn axioms(&self, genv: GlobalEnv) -> QueryResult<&[rty::Axiom]> {
+        self.axioms
+            .get_or_init(|| (self.providers.axioms)(genv))
             .as_deref()
             .map_err(Clone::clone)
     }
