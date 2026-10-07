@@ -20,7 +20,7 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
     def::DefKind,
-    def_id::{CrateNum, DefId, DefIndex},
+    def_id::{CrateNum, DefId, DefIndex, LocalDefId},
 };
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
@@ -103,6 +103,7 @@ pub(crate) fn check_node<'genv>(
         ImplicitParamInferer::infer(wf.infcx, node)?;
 
         wf.check_node(node);
+        wf.check_hides(node.owner_id().local_id().def_id);
         Ok(())
     })?;
 
@@ -141,6 +142,22 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
 
     fn check_node(&mut self, node: &fhir::OwnerNode<'genv>) {
         self.visit_node(node);
+    }
+
+    /// Checks that definitions in `#[hide(...)]` are not inlined and are not also revealed.
+    fn check_hides(&mut self, def_id: LocalDefId) {
+        let genv = self.infcx.genv;
+        let attr_map = genv.fhir_attr_map(def_id);
+        for &(hidden, span) in attr_map.hides {
+            if genv.should_inline_fun(hidden) {
+                self.errors
+                    .emit(errors::HideInlinedDefinition::new(span, hidden));
+            }
+            if attr_map.reveals.iter().any(|(revealed, _)| *revealed == hidden) {
+                self.errors
+                    .emit(errors::HideAndRevealDefinition::new(span, hidden));
+            }
+        }
     }
 
     fn check_expr(&mut self, expr: &fhir::Expr<'genv>, sort: &rty::Sort) {

@@ -585,9 +585,13 @@ By default all the function definitions are sent to the SMT solver as `define-fu
 Sometimes we want to _hide_ the definition because reasoning about those functions can kill the solver -- or the function
 is super complex and we just want to reason about it via congruence. For that you can
 
-- use the `#[hide]` attribute at the spec function definition, to make the function _uninterpreted_ by default, and
+- use the `#[hide]` attribute at the spec function definition, to make the function _uninterpreted_ by default,
 - use the `#[reveal]` attribute at specific Rust function definition, to indicate you
-  want to use the actual definition when checking that Rust function.
+  want to use the actual definition when checking that Rust function, and
+- use the `#[hide]` attribute at specific Rust function definition, to indicate you
+  want to treat a definition as uninterpreted when checking that Rust function.
+
+Inlined definitions (i.e., polymorphic ones) cannot be hidden.
 
 ```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/hide00.rs}}

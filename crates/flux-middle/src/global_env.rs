@@ -285,8 +285,19 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Return the list of flux function definitions that should be revelaed for item
-    pub fn reveals_for(self, did: LocalDefId) -> &'genv [FluxDefId] {
-        self.fhir_attr_map(did).reveals
+    pub fn reveals_for(self, did: LocalDefId) -> impl Iterator<Item = FluxDefId> + 'genv {
+        self.fhir_attr_map(did)
+            .reveals
+            .iter()
+            .map(|(def_id, _)| *def_id)
+    }
+
+    /// Return the list of flux function definitions that should be hidden for item
+    pub fn hides_for(self, did: LocalDefId) -> impl Iterator<Item = FluxDefId> + 'genv {
+        self.fhir_attr_map(did)
+            .hides
+            .iter()
+            .map(|(def_id, _)| *def_id)
     }
 
     pub fn func_sort(self, def_id: impl IntoQueryKey<FluxDefId>) -> rty::PolyFuncSort {

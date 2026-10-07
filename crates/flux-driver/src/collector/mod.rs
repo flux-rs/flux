@@ -594,6 +594,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("reveal", hir::attrs::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::RevealNames)?
             }
+            ("hide", hir::attrs::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::HideNames)?
+            }
             ("defs", hir::attrs::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_flux_item, FluxAttrKind::Items)?
             }
@@ -774,6 +777,7 @@ enum FluxAttrKind {
     Generics(surface::Generics),
     QualNames(Vec<Ident>),
     RevealNames(Vec<Ident>),
+    HideNames(Vec<Ident>),
     Items(Vec<surface::FluxItem>),
     TypeAlias(Box<surface::TyAlias>),
     Field(surface::Ty),
@@ -948,6 +952,7 @@ impl FluxAttrs {
                 FluxAttrKind::ProvenExternally(span) => surface::Attr::ProvenExternally(span),
                 FluxAttrKind::QualNames(names) => surface::Attr::Qualifiers(names),
                 FluxAttrKind::RevealNames(names) => surface::Attr::Reveal(names),
+                FluxAttrKind::HideNames(names) => surface::Attr::Hide(names),
                 FluxAttrKind::InferOpts(opts) => surface::Attr::InferOpts(opts),
                 FluxAttrKind::Ignore(ignored) => surface::Attr::Ignore(ignored),
                 FluxAttrKind::ShouldFail => surface::Attr::ShouldFail,
@@ -995,6 +1000,7 @@ impl FluxAttrKind {
             FluxAttrKind::Items(_) => attr_name!(Items),
             FluxAttrKind::QualNames(_) => attr_name!(QualNames),
             FluxAttrKind::RevealNames(_) => attr_name!(RevealNames),
+            FluxAttrKind::HideNames(_) => attr_name!(HideNames),
             FluxAttrKind::Field(_) => attr_name!(Field),
             FluxAttrKind::Constant(_) => attr_name!(Constant),
             FluxAttrKind::StaticSpec(_) => attr_name!(StaticSpec),
