@@ -268,6 +268,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.qualifiers(self)
     }
 
+    /// Return all the (global) axioms defined in the local crate.
+    pub fn axioms(self) -> QueryResult<&'genv [rty::Axiom]> {
+        self.inner.queries.axioms(self)
+    }
+
     /// Return all the qualifiers that apply to an item, including both global and local qualifiers.
     pub fn qualifiers_for(
         self,
@@ -964,6 +969,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn fhir_primop_props(self) -> impl Iterator<Item = &'genv fhir::PrimOpProp<'genv>> {
         self.fhir_crate().items.values().filter_map(|item| {
             if let fhir::FluxItem::PrimOpProp(prop) = item { Some(*prop) } else { None }
+        })
+    }
+
+    pub fn fhir_axioms(self) -> impl Iterator<Item = &'genv fhir::Axiom<'genv>> {
+        self.fhir_crate().items.values().filter_map(|item| {
+            if let fhir::FluxItem::Axiom(axiom) = item { Some(*axiom) } else { None }
         })
     }
 

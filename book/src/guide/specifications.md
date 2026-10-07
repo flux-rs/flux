@@ -578,6 +578,91 @@ that asserts facts over the uninterpreted function
 {{#include ../../../tests/tests/pos/surface/uif01.rs}}
 ```
 
+## Axioms
+
+You can write axioms to state properties about uninterpreted functions:
+
+```text
+axiom <name>(x1: s1, ..., xn: sn) { <expr> }
+```
+
+which says that the `bool`-sorted refinement `<expr>` holds for _all_ values `x1, ..., xn`
+of sorts `s1, ..., sn`. The sorts of the parameters must be written out explicitly.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/axiom00.rs}}
+```
+
+Axioms are passed to the SMT solver as quantified formulas
+
+1. **Axioms are assumed, not checked.** (for now), we will fix this soon.
+
+2. **Axioms are instantiated by triggers.** `flux` uses the applications of
+  uninterpreted functions that occur in the axiom's body as a _pattern_ and
+  the solver _only instantiates_ the axiom when it findsterms matching _all patterns_.
+
+  In the example above the pattern is the pair `modc(y, c)` and `modc(x, c)`,
+  so to relate `modc(x, c)` and `modc(z, c)` the verification condition must
+  also mention the intermediate term `modc(y, c)`, which is why `test` calls
+  `modc(y, c)` even though it does not use the result. (You can inspect the
+  generated axiom and its pattern with `-Fdump-constraint`.)
+
+3. **Indices can elide trigger from the VC.**
+   Calling `modc(y, c)` only helps because `modc` returns the _existential_
+   type `i32{v: v == modc(x, c)}`: each adds a hypothesis `v == modc(..)`
+   to the verification condition, whether or not the result is used.
+   Had we instead given it the _indexed_ type `i32[modc(x, c)]`, `flux`
+   would _substitute_ the index directly into the places where the
+   result is used, so the unused call `modc(y, c)` would be elided
+   and the assertion would fail as
+
+  ```text
+  modc(x, c) == modc(x - c - c, c)
+  ```
+
+  has no pair of terms matching the pattern.
+
+- **What counts as uninterpreted.** Besides functions declared without a body, the pattern
+  includes applications of
+
+  - [hidden](#hiding-and-revealing-function-definitions) spec functions, except when checking
+    a function that `reveal`s them,
+  - the uninterpreted functions `flux` uses for [primitive operations](#extensible-properties-for-primitive-ops)
+    like `&` or `<<` on `int`, written `[&](x, y)` (see below),
+  - the operators made uninterpreted with [`uif_ops`](#uninterpreted-operators), but only when
+    checking a function for which that option is set (see below),
+  - casts between sorts that have no interpretation, and
+  - associated refinements.
+
+  Applications that appear under a `let` or a quantifier inside the body are _not_ used.
+  An axiom whose body has no applications of uninterpreted functions is sent to the solver
+  without a pattern.
+
+- **Axioms are global to the crate.** They are used when checking every function in the crate
+  in which they are defined, but are not (yet) exported to other crates.
+
+- Axioms require a version of `fixpoint` that supports the `axiom` declaration.
+
+### Axioms about Primitive Operations
+
+Axioms can also talk about the uninterpreted functions that `flux` uses for bit-level
+operations on integers, using the same `[op](x, y)` syntax as in
+[properties](#extensible-properties-for-primitive-ops). The application `[&](x, y)` is then
+the pattern for the axiom, so it is instantiated at each `x & y` in the code being checked.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/axiom01.rs}}
+```
+
+Similarly, axioms can recover _some_ of the facts about the operators that are made uninterpreted
+with [`uif_ops`](#uninterpreted-operators). Below, `x * y` and `y * x` are the pattern for the
+axiom when checking `mul_comm`, where `*` is uninterpreted. When checking `mul_two`, where `*`
+keeps its usual meaning, the same axiom is sent to the solver without a pattern.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/axiom02.rs}}
+```
+
 ## Hiding and Revealing Function Definitions
 
 By default all the function definitions are either _inlined_ or sent to the SMT solver

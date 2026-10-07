@@ -7,7 +7,7 @@ use super::{
     StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef,
     VariantRet, WhereBoundPredicate,
 };
-use crate::fhir::{PrimOpProp, QPathExpr, QuantDom, SortDecl, StructKind};
+use crate::fhir::{Axiom, PrimOpProp, QPathExpr, QuantDom, SortDecl, StructKind};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -40,6 +40,10 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_primop_prop(&mut self, prop: &PrimOpProp<'v>) {
         walk_primop_prop(self, prop);
+    }
+
+    fn visit_axiom(&mut self, axiom: &Axiom<'v>) {
+        walk_axiom(self, axiom);
     }
 
     fn visit_node(&mut self, node: &OwnerNode<'v>) {
@@ -224,6 +228,11 @@ fn walk_primop_prop<'v, V: Visitor<'v>>(vis: &mut V, prop: &PrimOpProp<'v>) {
     vis.visit_expr(&prop.body);
 }
 
+fn walk_axiom<'v, V: Visitor<'v>>(vis: &mut V, axiom: &Axiom<'v>) {
+    walk_list!(vis, visit_refine_param, axiom.args);
+    vis.visit_expr(&axiom.body);
+}
+
 fn walk_qualifier<'v, V: Visitor<'v>>(vis: &mut V, qualifier: &Qualifier<'v>) {
     walk_list!(vis, visit_refine_param, qualifier.args);
     vis.visit_expr(&qualifier.expr);
@@ -239,6 +248,9 @@ fn walk_flux_item<'v, V: Visitor<'v>>(vis: &mut V, item: &FluxItem<'v>) {
         }
         FluxItem::PrimOpProp(prop) => {
             vis.visit_primop_prop(prop);
+        }
+        FluxItem::Axiom(axiom) => {
+            vis.visit_axiom(axiom);
         }
         FluxItem::SortDecl(sort_decl) => {
             vis.visit_sort_decl(sort_decl);

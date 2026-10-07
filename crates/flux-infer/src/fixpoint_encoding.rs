@@ -669,6 +669,8 @@ where
             .chain(FIXPOINT_QUALIFIERS.iter().cloned())
             .collect();
 
+        let axioms = self.ecx.axioms_for(def_id, &mut self.scx)?;
+
         // Assuming values should happen after all encoding is done so we are sure we've collected
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
@@ -679,7 +681,7 @@ where
         #[cfg(feature = "suggestions")]
         let flat_constraint_map = make_flat_constraint_map(&constraint);
 
-        // Encode function bodies after qualifiers/assumptions so any functions referenced there
+        // Encode function bodies after qualifiers/axioms/assumptions so any functions referenced there
         // are picked up as dependencies.
         let define_funs = self.ecx.define_funs(def_id, &mut self.scx)?;
 
@@ -730,6 +732,7 @@ where
             define_funs,
             constraint,
             qualifiers,
+            axioms,
             scrape_quals,
             solver,
             data_decls: data_decls.clone(),
@@ -2011,10 +2014,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e2: &rty::Expr,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
-        let uninterpreted = op.is_uninterpreted()
-            || (matches!(self.backend, Backend::Fixpoint)
-                && Self::uif_op(op).is_some_and(|uif_op| self.uif_ops.contains(uif_op)));
-        if uninterpreted {
+        if self.is_uif_bin_op(op) {
             let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
             let args = vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?];
             return Ok(fixpoint::Expr::App(Box::new(func), None, args, None));
@@ -2254,6 +2254,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 }
             })
             .name
+    }
+
+    /// Whether `op` is encoded as an uninterpreted function in this constraint
+    fn is_uif_bin_op(&self, op: &rty::BinOp) -> bool {
+        op.is_uninterpreted()
+            || (matches!(self.backend, Backend::Fixpoint)
+                && Self::uif_op(op).is_some_and(|uif_op| self.uif_ops.contains(uif_op)))
     }
 
     /// The operator (if any) that `op` corresponds to in [`UifOps`]
@@ -2549,18 +2556,25 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .try_collect()
     }
 
+    fn axioms_for(
+        &mut self,
+        def_id: MaybeExternId,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<Vec<fixpoint::Axiom>> {
+        let fun_env = FunEnv::new(self.genv, def_id);
+        self.genv
+            .axioms()?
+            .iter()
+            .map(|axiom| self.axiom_to_fixpoint(axiom, &fun_env, scx))
+            .try_collect()
+    }
+
     fn define_funs(
         &mut self,
         def_id: MaybeExternId,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<Vec<fixpoint::FunDef>> {
-        let reveals: UnordSet<FluxDefId> = self
-            .genv
-            .reveals_for(def_id.local_id())
-            .iter()
-            .copied()
-            .collect();
-        let proven_externally = self.genv.proven_externally(def_id.local_id());
+        let fun_env = FunEnv::new(self.genv, def_id);
         let mut defs = vec![];
 
         // Iterate till encoding the body of functions doesn't require any more functions to be encoded.
@@ -2568,14 +2582,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         while let Some((&did, _)) = self.const_env.fun_decl_map.get_index(idx) {
             idx += 1;
 
-            let revealed = reveals.contains(&did);
-            let uninterpreted = match self.genv.spec_func(did) {
-                rty::SpecFunc::Uif => true,
-                rty::SpecFunc::Defined { hide, .. } => {
-                    hide && !revealed && proven_externally.is_none()
-                }
-            };
-            let def = if uninterpreted {
+            let def = if fun_env.is_uninterpreted(self.genv, did) {
                 self.fun_decl_to_fixpoint(did, scx)
             } else {
                 self.fun_def_to_fixpoint(did, scx)?
@@ -2661,6 +2668,74 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .map(|((name, sort), &is_wildcard)| fixpoint::QualParam { name, sort, is_wildcard })
             .collect();
         Ok(fixpoint::Qualifier { name, args, body })
+    }
+
+    /// Encodes an axiom together with its patterns, which were computed in [`rty::Axiom::new`].
+    /// The only thing we do here is drop the applications of hidden functions that are revealed
+    /// for the item being checked, and the operations that are not in its `uif_ops`, as those
+    /// are not uninterpreted in this constraint.
+    fn axiom_to_fixpoint(
+        &mut self,
+        axiom: &rty::Axiom,
+        fun_env: &FunEnv,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::Axiom> {
+        let name = axiom.def_id.name().to_string();
+        let vars = axiom.body.vars();
+        let rty::AxiomBody { expr, patterns } = axiom.body.skip_binder_ref();
+
+        self.local_var_env.push_layer_with_fresh_names(vars.len());
+        let body = self.expr_to_fixpoint(expr, scx)?;
+        // This is retroactively removing certain applications which are "interpreted"
+        // for this specific Task; this is likely to change with the `retro-hide` mechanism...
+        let mut fixpoint_patterns = vec![];
+        for pattern in patterns {
+            let uninterpreted = match pattern.kind() {
+                rty::ExprKind::App(func, ..)
+                    if let rty::ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind() =>
+                {
+                    fun_env.is_uninterpreted(self.genv, *did)
+                }
+                rty::ExprKind::BinaryOp(op, ..) => self.is_uif_bin_op(op),
+                _ => true,
+            };
+            if uninterpreted {
+                fixpoint_patterns.push(self.expr_to_fixpoint(pattern, scx)?);
+            }
+        }
+        let patterns = fixpoint_patterns;
+        let args = iter::zip(self.local_var_env.pop_layer(), vars)
+            .map(|(name, var)| (name.into(), scx.sort_to_fixpoint(var.expect_sort())))
+            .collect();
+
+        Ok(fixpoint::Axiom { name, args, body, patterns })
+    }
+}
+
+/// Determines which Flux functions are uninterpreted in the constraint generated for an item.
+struct FunEnv {
+    reveals: UnordSet<FluxDefId>,
+    proven_externally: bool,
+}
+
+impl FunEnv {
+    fn new(genv: GlobalEnv, def_id: MaybeExternId) -> Self {
+        let reveals = genv
+            .reveals_for(def_id.local_id())
+            .iter()
+            .copied()
+            .collect();
+        let proven_externally = genv.proven_externally(def_id.local_id()).is_some();
+        Self { reveals, proven_externally }
+    }
+
+    fn is_uninterpreted(&self, genv: GlobalEnv, did: FluxDefId) -> bool {
+        match genv.spec_func(did) {
+            rty::SpecFunc::Uif => true,
+            rty::SpecFunc::Defined { hide, .. } => {
+                hide && !self.reveals.contains(&did) && !self.proven_externally
+            }
+        }
     }
 }
 

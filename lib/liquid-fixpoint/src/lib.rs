@@ -43,8 +43,9 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, FlatConstraint,
-    FunSort, Pred, QualParam, Qualifier, Quantifier, Sort, SortCtor, SortDecl, WKVar,
+    Axiom, BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
+    FlatConstraint, FunSort, Pred, QualParam, Qualifier, Quantifier, Sort, SortCtor, SortDecl,
+    WKVar,
 };
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
@@ -140,6 +141,7 @@ macro_rules! declare_types {
             pub type FunBody = $crate::FunBody<FixpointTypes>;
             pub type Task = $crate::Task<FixpointTypes>;
             pub type Qualifier = $crate::Qualifier<FixpointTypes>;
+            pub type Axiom = $crate::Axiom<FixpointTypes>;
             pub type QualParam = $crate::QualParam<FixpointTypes>;
             pub type Sort = $crate::Sort<FixpointTypes>;
             pub type SortCtor = $crate::SortCtor<FixpointTypes>;
@@ -221,6 +223,7 @@ pub struct Task<T: Types> {
     pub kvars: Vec<KVarDecl<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
+    pub axioms: Vec<Axiom<T>>,
     pub scrape_quals: bool,
     pub solver: SmtSolver,
 }
