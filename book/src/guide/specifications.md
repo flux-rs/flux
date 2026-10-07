@@ -580,8 +580,7 @@ that asserts facts over the uninterpreted function
 
 ## Axioms
 
-Instead of asserting facts about an uninterpreted function one `trusted` signature at
-a time, you can state them once as an **axiom**
+You can write axioms to state properties about uninterpreted functions:
 
 ```text
 axiom <name>(x1: s1, ..., xn: sn) { <expr> }
@@ -594,27 +593,28 @@ of sorts `s1, ..., sn`. The sorts of the parameters must be written out explicit
 {{#include ../../../tests/tests/pos/surface/axiom00.rs}}
 ```
 
-Axioms are passed to the SMT solver as quantified formulas, so there are a few things
-to keep in mind when using them.
+Axioms are passed to the SMT solver as quantified formulas
 
-- **Axioms are assumed, not checked.** Like `trusted` code, an axiom that does not actually
-  hold (e.g. one that is equivalent to `false`) makes verification unsound.
+1. **Axioms are assumed, not checked.** (for now), we will fix this soon.
 
-- **Axioms are instantiated by triggers.** The solver does not try all possible values for
-  `x1, ..., xn`. Instead, `flux` uses the applications of uninterpreted functions that occur in
-  the axiom's body as a _pattern_ and the solver only instantiates the axiom when it finds
-  terms matching _all_ of them. In the example above the pattern is the pair `modc(y, c)`
-  and `modc(x, c)`, so to relate `modc(x, c)` and `modc(z, c)` the verification condition
-  must also mention the intermediate term `modc(y, c)`, which is why `test` calls `modc(y, c)`
-  even though it does not use the result. (You can inspect the generated axiom and its
-  pattern with `-Fdump-constraint`.)
+2. **Axioms are instantiated by triggers.** `flux` uses the applications of
+  uninterpreted functions that occur in the axiom's body as a _pattern_ and
+  the solver _only instantiates_ the axiom when it findsterms matching _all patterns_.
 
-- **Make sure the trigger terms survive in the verification condition.** Calling `modc(y, c)`
-  only helps because `modc` returns the _existential_ type `i32{v: v == modc(x, c)}`: each call
-  then adds a hypothesis `v == modc(..)` to the verification condition, whether or not the
-  result is used. Had we instead given it the _indexed_ type `i32[modc(x, c)]`, `flux` would
-  substitute the index directly into the places where the result is used, so the unused call
-  `modc(y, c)` would leave no trace, and the assertion would fail as
+  In the example above the pattern is the pair `modc(y, c)` and `modc(x, c)`,
+  so to relate `modc(x, c)` and `modc(z, c)` the verification condition must
+  also mention the intermediate term `modc(y, c)`, which is why `test` calls
+  `modc(y, c)` even though it does not use the result. (You can inspect the
+  generated axiom and its pattern with `-Fdump-constraint`.)
+
+3. **Indices can elide trigger from the VC.**
+   Calling `modc(y, c)` only helps because `modc` returns the _existential_
+   type `i32{v: v == modc(x, c)}`: each adds a hypothesis `v == modc(..)`
+   to the verification condition, whether or not the result is used.
+   Had we instead given it the _indexed_ type `i32[modc(x, c)]`, `flux`
+   would _substitute_ the index directly into the places where the
+   result is used, so the unused call `modc(y, c)` would be elided
+   and the assertion would fail as
 
   ```text
   modc(x, c) == modc(x - c - c, c)
