@@ -644,7 +644,7 @@ where
             kvars,
             scx: SortEncodingCtxt::default(),
             genv,
-            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend).with_uif_ops(uif_ops),
+            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend, uif_ops),
             kcx: Default::default(),
             tags: IndexVec::new(),
             // tags_inv: Default::default(),
@@ -1629,6 +1629,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: Option<MaybeExternId>,
         backend: Backend,
+        uif_ops: UifOps,
     ) -> Self {
         Self {
             genv,
@@ -1642,13 +1643,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .with_next_trait_solver(true)
                 .build(TypingMode::non_body_analysis()),
             backend,
-            uif_ops: UifOps::default(),
+            uif_ops,
         }
-    }
-
-    pub fn with_uif_ops(mut self, uif_ops: UifOps) -> Self {
-        self.uif_ops = uif_ops;
-        self
     }
 
     fn def_span(&self) -> Span {
