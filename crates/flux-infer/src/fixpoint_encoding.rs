@@ -103,8 +103,15 @@ pub mod fixpoint {
 
     /// A sort that is opaque to fixpoint and a type parameter in Lean. The name is derived from
     /// the printed sort and is a valid identifier in both.
-    #[derive(Hash, Copy, Clone, Debug, PartialEq, Eq)]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     pub struct OpaqueSort(pub Symbol);
+
+    // Hash the string: a `Symbol`'s index isn't stable across runs, and the task hash is cached.
+    impl std::hash::Hash for OpaqueSort {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            self.0.as_str().hash(state);
+        }
+    }
 
     impl fmt::Display for OpaqueSort {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -479,9 +486,11 @@ impl SortEncodingCtxt {
 
     fn declare_generic_sort(&mut self, name: String, sort: &rty::Sort) -> fixpoint::OpaqueSort {
         let name = Symbol::intern(&name);
-        self.opaque_generic_sorts
+        let prev = self
+            .opaque_generic_sorts
             .entry(name)
             .or_insert_with(|| sort.clone());
+        debug_assert_eq!(prev, sort, "distinct sorts encoded with the same name `{name}`");
         fixpoint::OpaqueSort(name)
     }
 
