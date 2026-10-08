@@ -2292,13 +2292,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let (expr, sort) = self.conv_const(path.span, def_id)?;
                 (expr.at(espan), sort)
             }
-            fhir::Res::Def(DefKind::Ctor(..), ctor_id) => {
+            fhir::Res::Def(DefKind::Ctor(hir::def::CtorOf::Variant, _), ctor_id) => {
+                let variant_id = self.tcx().parent(ctor_id);
+                let enum_id = self.tcx().parent(variant_id);
+                if !genv.adt_sort_def_of(enum_id)?.is_reflected() {
+                    return Err(self
+                        .emit(errors::NonReflectedEnumVariant { span: path.span })
+                        .into());
+                }
                 let Some(sort) = genv.sort_of_def_id(ctor_id).emit(&genv)? else {
                     span_bug!(path.span, "unexpected variant {ctor_id:?}")
                 };
-
-                let variant_id = self.tcx().parent(ctor_id);
-                let enum_id = self.tcx().parent(variant_id);
                 self.hyperlink(path.span, tcx.def_ident_span(variant_id));
                 let idx = variant_idx(self.tcx(), variant_id);
                 (rty::Expr::ctor_enum(enum_id, idx), sort)
@@ -3371,6 +3375,16 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag("cannot determine corresponding unrefined predicate", code = E0999)]
     pub(super) struct FailToMatchPredicates {
+        #[primary_span]
+        pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag("enum variant cannot be used as a refinement value", code = E0999)]
+    #[note(
+        "only variants of enums marked with `#[flux::reflect]` can be used as refinement values"
+    )]
+    pub(super) struct NonReflectedEnumVariant {
         #[primary_span]
         pub span: Span,
     }
