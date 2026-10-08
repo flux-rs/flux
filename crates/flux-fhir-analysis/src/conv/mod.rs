@@ -15,7 +15,6 @@ use flux_common::{
     bug,
     dbg::{self, SpanTrace},
     iter::IterExt,
-    result::ResultExt as _,
     span_bug,
 };
 use flux_middle::{
@@ -2295,14 +2294,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::Res::Def(DefKind::Ctor(hir::def::CtorOf::Variant, _), ctor_id) => {
                 let variant_id = self.tcx().parent(ctor_id);
                 let enum_id = self.tcx().parent(variant_id);
-                if !genv.adt_sort_def_of(enum_id)?.is_reflected() {
+                let sort_def = genv.adt_sort_def_of(enum_id)?;
+                if !sort_def.is_reflected() {
                     return Err(self
                         .emit(errors::NonReflectedEnumVariant { span: path.span })
                         .into());
                 }
-                let Some(sort) = genv.sort_of_def_id(ctor_id).emit(&genv)? else {
-                    span_bug!(path.span, "unexpected variant {ctor_id:?}")
-                };
+                let sort = rty::Sort::App(rty::SortCtor::Adt(sort_def), List::empty());
                 self.hyperlink(path.span, tcx.def_ident_span(variant_id));
                 let idx = variant_idx(self.tcx(), variant_id);
                 (rty::Expr::ctor_enum(enum_id, idx), sort)
