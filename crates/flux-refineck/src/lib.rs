@@ -166,7 +166,7 @@ fn check_body<'genv, 'tcx>(
             .execute_lean_query(cache, MaybeExternId::Local(def_id))
             .emit(&genv)
     } else {
-        let answer = if let Some(deferred) = deferred.as_deref_mut() {
+        let answer = if let Some(deferred) = deferred {
             deferred.push(fixpoint::DeferredQuery::body(
                 infcx_root
                     .save_fixpoint_query(MaybeExternId::Local(def_id), FixpointQueryKind::Body)

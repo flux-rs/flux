@@ -110,7 +110,7 @@ pub fn run(
                             .entry(def_id)
                             .or_default()
                             .0
-                            .push(answer.errors)
+                            .push(answer.errors);
                     }
                     Err(err) => {
                         function_errors.entry(def_id).or_default().1 = true;

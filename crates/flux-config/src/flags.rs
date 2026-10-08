@@ -324,7 +324,7 @@ impl Flags {
             let Some(long) = arg.get_long() else { continue };
             match matches.get_raw(id) {
                 Some(values) => {
-                    out.extend(values.map(|v| format!("-{long}={}", v.to_string_lossy())))
+                    out.extend(values.map(|v| format!("-{long}={}", v.to_string_lossy())));
                 }
                 None => out.push(format!("-{long}")),
             }

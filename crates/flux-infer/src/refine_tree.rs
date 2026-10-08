@@ -73,7 +73,7 @@ impl RefineTree {
             let kind = match &node.kind {
                 NodeKind::Root(params) => NodeKind::Root(params.clone()),
                 NodeKind::ForAll(name, sort, provenance) => {
-                    NodeKind::ForAll(*name, sort.clone(), provenance.clone())
+                    NodeKind::ForAll(*name, sort.clone(), *provenance)
                 }
                 NodeKind::Assumption(pred) => NodeKind::Assumption(pred.fold_with(folder)),
                 NodeKind::Head(pred, tag) => NodeKind::Head(pred.fold_with(folder), *tag),

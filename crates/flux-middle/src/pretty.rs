@@ -321,7 +321,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
                     let name = self
                         .bvar_env
                         .lookup(INNERMOST, BoundVar::from_usize(i))
-                        .or_else(|| {
+                        .or({
                             match kind {
                                 BoundReftKind::Named(name) => Some(*name),
                                 BoundReftKind::Anon => None,
