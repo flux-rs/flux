@@ -117,6 +117,21 @@ impl UnsupportedPosition {
 }
 
 #[derive(Diagnostic)]
+#[diag("invalid ABI: found `{$abi}`", code = E0999)]
+pub(super) struct InvalidAbi {
+    #[primary_span]
+    #[label("invalid ABI")]
+    span: Span,
+    abi: Symbol,
+}
+
+impl InvalidAbi {
+    pub(super) fn new(abi: flux_syntax::surface::Ident) -> Self {
+        Self { span: abi.span, abi: abi.name }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag("invalid use of `_`", code = E0999)]
 pub(super) struct UnsupportedHole {
     #[primary_span]
