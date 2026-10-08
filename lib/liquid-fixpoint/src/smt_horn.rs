@@ -73,7 +73,7 @@ pub fn fmt_smt_horn<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt
         writeln!(f)?;
     }
 
-    for opaque in &task.opaque_sorts {
+    for opaque in &task.generic_sorts {
         writeln!(f, "(declare-sort {} 0)", opaque.display())?;
     }
 

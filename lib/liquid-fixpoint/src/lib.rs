@@ -224,7 +224,7 @@ pub struct Task<T: Types> {
     pub kvars: Vec<KVarDecl<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
-    pub opaque_sorts: Vec<T::Opaque>,
+    pub generic_sorts: Vec<T::Opaque>,
     pub scrape_quals: bool,
     pub solver: SmtSolver,
 }

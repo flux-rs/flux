@@ -814,7 +814,7 @@ where
             scrape_quals,
             solver,
             data_decls: data_decls.clone(),
-            opaque_sorts: self.scx.generic_opaque_sorts(),
+            generic_sorts: self.scx.generic_opaque_sorts(),
         };
         let id = def_id.resolved_id();
         if config::dump_constraint() {
@@ -1070,7 +1070,7 @@ where
             opaque_sorts,
             data_decls: task.data_decls,
             adt_map: self.scx.adt_sorts,
-            type_params: task.opaque_sorts,
+            type_params: task.generic_sorts,
         };
 
         LeanEncoder::encode(

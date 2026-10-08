@@ -92,7 +92,7 @@ where
                     .opaque_generic_sorts
                     .get(name)
                     .cloned()
-                    .ok_or_else(|| FixpointParseError::UnknownOpaqueSort(*name))
+                    .ok_or(FixpointParseError::UnknownOpaqueSort(*name))
             }
             fixpoint::Sort::BitVec(fsort) if let fixpoint::Sort::BvSize(size) = **fsort => {
                 Ok(rty::Sort::BitVec(rty::BvSize::Fixed(size)))
