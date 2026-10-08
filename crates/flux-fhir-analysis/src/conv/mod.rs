@@ -2282,7 +2282,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     fn conv_path_expr(&mut self, env: &mut Env, path: fhir::PathExpr) -> QueryResult<rty::Expr> {
         let genv = self.genv();
-        let tcx = self.genv().tcx();
+        let tcx = genv.tcx();
         let espan = ESpan::new(path.span);
         let (expr, sort) = match path.res {
             fhir::Res::Param(_, id) => (env.lookup(&path).to_expr(), self.results().param_sort(id)),
@@ -2292,17 +2292,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 (expr.at(espan), sort)
             }
             fhir::Res::Def(DefKind::Ctor(hir::def::CtorOf::Variant, _), ctor_id) => {
-                let variant_id = self.tcx().parent(ctor_id);
-                let enum_id = self.tcx().parent(variant_id);
+                let variant_id = tcx.parent(ctor_id);
+                let enum_id = tcx.parent(variant_id);
                 let sort_def = genv.adt_sort_def_of(enum_id)?;
                 if !sort_def.is_reflected() {
                     return Err(self
                         .emit(errors::NonReflectedEnumVariant { span: path.span })
                         .into());
                 }
-                let sort = rty::Sort::App(rty::SortCtor::Adt(sort_def), List::empty());
+                let sort = sort_def.to_sort(&[]);
                 self.hyperlink(path.span, tcx.def_ident_span(variant_id));
-                let idx = variant_idx(self.tcx(), variant_id);
+                let idx = variant_idx(tcx, variant_id);
                 (rty::Expr::ctor_enum(enum_id, idx), sort)
             }
             fhir::Res::Def(DefKind::ConstParam, def_id) => {
