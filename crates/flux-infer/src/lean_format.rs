@@ -54,6 +54,7 @@ pub trait LeanFmt {
 
 pub struct LeanKConstraint<'a> {
     pub theorem_name: &'a str,
+    pub type_params: &'a [fixpoint::OpaqueSort],
     pub kvars: &'a [KVarDecl],
     /// Quantified above `kvars`' existentials so a kvar's solution can depend on them.
     pub const_binds: &'a [fixpoint::Bind],
@@ -404,6 +405,7 @@ impl LeanFmt for Sort {
                     write!(f, "t{v}")
                 }
             }
+            Sort::Opaque(o) => write!(f, "{o}"),
             Sort::BvSize(size) => {
                 panic!("sort BvSize({size}) should only occur as an argument to BitVec")
             }
@@ -689,6 +691,10 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
 
         if self.should_fail {
             write!(f, "¬")?;
+        }
+
+        for param in self.type_params {
+            write!(f, "∀ ({param} : Type) [Inhabited {param}], ")?;
         }
 
         for bind in self.const_binds {

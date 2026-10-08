@@ -87,6 +87,13 @@ where
                     .try_collect()?;
                 Ok(rty::Sort::App(ctor, args))
             }
+            fixpoint::Sort::Opaque(name) => {
+                self.scx
+                    .opaque_generic_sorts
+                    .get(&name.0)
+                    .cloned()
+                    .ok_or_else(|| FixpointParseError::UnknownOpaqueSort(name.0))
+            }
             fixpoint::Sort::BitVec(fsort) if let fixpoint::Sort::BvSize(size) = **fsort => {
                 Ok(rty::Sort::BitVec(rty::BvSize::Fixed(size)))
             }
@@ -541,6 +548,7 @@ pub enum FixpointParseError {
     /// The number of arguments should only ever be 1 for a tuple proj
     ProjArityMismatch(usize),
     NoGlobalVar(fixpoint::GlobalVar),
+    UnknownOpaqueSort(rustc_span::Symbol),
     /// Casts should only have 1 arg
     CastArityMismatch(usize),
     PrimOpArityMismatch(usize),

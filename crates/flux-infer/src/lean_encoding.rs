@@ -1081,6 +1081,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                     WithLeanCtxt {
                         item: lean_format::LeanKConstraint {
                             theorem_name: &vc_name,
+                            type_params: &self.sort_deps.type_params,
                             kvars: &self.kvar_decls,
                             const_binds: &self.constants.const_binds,
                             constr: &self.constraint,
