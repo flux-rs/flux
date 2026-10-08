@@ -126,12 +126,12 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         self,
         typing_env: rustc_middle::ty::TypingEnv<'tcx>,
         alias_reft: &AliasReft,
-    ) -> rty::Lambda {
+    ) -> Option<rty::Lambda> {
         let tcx = self.tcx();
 
-        if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::Sized) {
+        let lambda = if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::Sized) {
             let self_ty = alias_reft.to_rustc_trait_ref(tcx).self_ty();
-            let layout = tcx.layout_of(typing_env.as_query_input(self_ty)).unwrap();
+            let layout = tcx.layout_of(typing_env.as_query_input(self_ty)).ok()?;
             let body = match alias_reft.assoc_id.name() {
                 sym::size_of => rty::Expr::constant(rty::Constant::from(layout.size.bytes())),
                 sym::align_of => rty::Expr::constant(rty::Constant::from(layout.align.abi.bytes())),
@@ -155,6 +155,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
         } else {
             bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id)
-        }
+        };
+        Some(lambda)
     }
 }

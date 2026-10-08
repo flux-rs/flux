@@ -841,10 +841,11 @@ fn normalize_alias_reft<'tcx>(
             Ok((true, e))
         }
         Some(ImplSource::Builtin(BuiltinImplSource::Misc | BuiltinImplSource::Trivial, _)) => {
-            let e = genv
-                .builtin_assoc_reft_body(infcx.typing_env(param_env), alias_reft)
-                .apply(refine_args);
-            Ok((true, e))
+            // The layout may be unknown (e.g., for generic types), in which case we leave it unnormalized
+            match genv.builtin_assoc_reft_body(infcx.typing_env(param_env), alias_reft) {
+                Some(body) => Ok((true, body.apply(refine_args))),
+                None => Ok((false, Expr::alias(alias_reft.clone(), refine_args.clone()))),
+            }
         }
         _ => Ok((false, Expr::alias(alias_reft.clone(), refine_args.clone()))),
     }
