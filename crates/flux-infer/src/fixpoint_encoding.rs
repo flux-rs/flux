@@ -824,11 +824,11 @@ where
                                 &mut suggestion_solver,
                             )
                             .map_err(|err| {
-                                let diagnostic = self.genv.sess().dcx().handle().struct_span_err(
+                                let diagnostic = self.genv.sess().dcx().struct_span_err(
                                     def_span,
                                     format!("failed to compute refinement suggestions: {err:?}"),
                                 );
-                                QueryErr::Emitted(diagnostic.emit())
+                                QueryErr::Emitted(diagnostic.emit_err())
                             })?
                         } else {
                             Default::default()

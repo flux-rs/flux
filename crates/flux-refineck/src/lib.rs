@@ -97,7 +97,7 @@ pub(crate) fn report_fixpoint_queries(
             }
             return Ok(());
         }
-        let mut diag = genv.sess().dcx().handle().create_err(errors::ExpectedNeg {
+        let mut diag = genv.sess().dcx().create_err(errors::ExpectedNeg {
             span: genv.tcx().def_span(local_id),
             def_descr: genv.tcx().def_descr(local_id.to_def_id()),
         });
@@ -105,7 +105,7 @@ pub(crate) fn report_fixpoint_queries(
             add_fn_fix_diagnostic(genv, &mut diag, local_id.to_def_id(), fixes);
             emitted_fixes.insert(local_id.to_def_id());
         }
-        return Err(diag.emit());
+        return Err(diag.emit_err());
     }
     if !has_errors {
         if !fixes.is_empty() && emitted_fixes.insert(local_id.to_def_id()) {
@@ -456,9 +456,9 @@ fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorG
     }))
 }
 
-fn add_fn_fix_diagnostic<'a, G: rustc_errors::EmissionGuarantee>(
+fn add_fn_fix_diagnostic<'a>(
     genv: GlobalEnv<'a, '_>,
-    diag: &mut Diag<'a, G>,
+    diag: &mut Diag<'a>,
     parent_fn: DefId,
     wkvar_instantiations: &UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
 ) {
@@ -519,7 +519,6 @@ pub(crate) fn report_standalone_fn_fix(
     let mut diag = genv
         .sess()
         .dcx()
-        .handle()
         .struct_span_warn(span, "Flux inferred a refinement for this function");
     diag.span_suggestion(span, message, replacement, Applicability::MachineApplicable);
     diag.emit();
