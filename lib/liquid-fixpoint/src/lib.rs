@@ -24,7 +24,6 @@ mod cstr2smt2;
 mod format;
 #[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
 mod graph;
-mod opaque_sorts;
 pub mod parser;
 pub mod sexp;
 pub mod smt_horn;
@@ -70,7 +69,7 @@ pub trait Types {
     type String: FixpointFmt + Hash + Clone + Debug + Eq;
     type Real: FixpointFmt + Hash + Clone + Debug + Eq;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
-    type Opaque: fmt::Display + Hash + Clone + Debug + Eq;
+    type Opaque: Identifier + Hash + Clone + Debug + Eq;
 }
 
 pub trait FixpointFmt: Sized {
@@ -225,6 +224,7 @@ pub struct Task<T: Types> {
     pub kvars: Vec<KVarDecl<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
+    pub opaque_sorts: Vec<T::Opaque>,
     pub scrape_quals: bool,
     pub solver: SmtSolver,
 }

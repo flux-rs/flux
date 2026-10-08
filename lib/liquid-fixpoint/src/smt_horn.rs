@@ -73,8 +73,8 @@ pub fn fmt_smt_horn<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt
         writeln!(f)?;
     }
 
-    for opaque in task.collect_opaque_sorts() {
-        writeln!(f, "(declare-sort {opaque} 0)")?;
+    for opaque in &task.opaque_sorts {
+        writeln!(f, "(declare-sort {} 0)", opaque.display())?;
     }
 
     // Data type declarations
@@ -256,7 +256,7 @@ fn fmt_sort_smt<T: Types>(sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
                 write!(f, ")")
             }
         }
-        Sort::Opaque(o) => write!(f, "{o}"),
+        Sort::Opaque(o) => write!(f, "{}", o.display()),
     }
 }
 

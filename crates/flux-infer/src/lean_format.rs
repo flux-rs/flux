@@ -405,7 +405,7 @@ impl LeanFmt for Sort {
                     write!(f, "t{v}")
                 }
             }
-            Sort::Opaque(o) => write!(f, "{o}"),
+            Sort::Opaque(o) => write!(f, "{}", o.display()),
             Sort::BvSize(size) => {
                 panic!("sort BvSize({size}) should only occur as an argument to BitVec")
             }
@@ -694,6 +694,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
         }
 
         for param in self.type_params {
+            let param = param.display();
             write!(f, "∀ ({param} : Type) [Inhabited {param}], ")?;
         }
 

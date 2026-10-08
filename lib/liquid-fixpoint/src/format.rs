@@ -276,7 +276,7 @@ impl<T: Types> fmt::Display for Sort<T> {
                 }
                 write!(f, ")")
             }
-            Sort::Opaque(o) => write!(f, "{o}"),
+            Sort::Opaque(o) => write!(f, "{}", o.display()),
         }
     }
 }

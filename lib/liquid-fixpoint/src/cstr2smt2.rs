@@ -738,7 +738,7 @@ fn z3_sort<T: Types>(s: &Sort<T>, env: &Env<T>) -> z3::Sort {
                 SortCtor::Data(sort) => env.datatype_lookup(sort).unwrap().clone(),
             }
         }
-        Sort::Opaque(o) => z3::Sort::uninterpreted(z3::Symbol::String(o.to_string())),
+        Sort::Opaque(o) => z3::Sort::uninterpreted(z3::Symbol::String(o.display().to_string())),
         _ => panic!("unhandled sort encountered {:#?}", s),
     }
 }
