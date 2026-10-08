@@ -1344,7 +1344,14 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         for attr in attrs {
             match attr {
                 surface::Attr::Qualifiers(names) => self.resolve_qualifiers(node_id, names),
-                surface::Attr::Reveal(names) => self.resolve_reveals(node_id, names),
+                surface::Attr::Reveal(names) => {
+                    let reveals = self.resolve_func_defs(names);
+                    self.resolver.output.reveal_res_map.insert(node_id, reveals);
+                }
+                surface::Attr::Hide(names) => {
+                    let hides = self.resolve_func_defs(names);
+                    self.resolver.output.hide_res_map.insert(node_id, hides);
+                }
                 surface::Attr::AssumeParametric(names) => {
                     self.resolve_parametric_params(node_id, names);
                 }
@@ -1390,26 +1397,27 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
             .insert(node_id, qualifiers);
     }
 
-    fn resolve_reveals(&mut self, item_id: surface::NodeId, reveal_names: &[Ident]) {
-        let mut reveals = Vec::with_capacity(reveal_names.len());
-        for reveal in reveal_names {
-            match self.resolver.resolve_ident_with_ribs(*reveal, ReftNS) {
+    /// Resolves the names of function definitions in a `#[reveal(...)]` or `#[hide(...)]` attribute
+    fn resolve_func_defs(&mut self, names: &[Ident]) -> Vec<(FluxDefId, Span)> {
+        let mut def_ids = Vec::with_capacity(names.len());
+        for name in names {
+            match self.resolver.resolve_ident_with_ribs(*name, ReftNS) {
                 Ok(fhir::Res::GlobalFunc(kind)) => {
                     if let Some(def_id) = kind.def_id() {
-                        reveals.push(def_id);
+                        def_ids.push((def_id, name.span));
                     } else {
                         self.errors
-                            .emit(errors::UnknownRevealDefinition::new(reveal.span));
+                            .emit(errors::UnknownFuncDefinition::new(name.span));
                     }
                 }
                 Ok(_) | Err(ResolveError::NotFound) => {
                     self.errors
-                        .emit(errors::UnknownRevealDefinition::new(reveal.span));
+                        .emit(errors::UnknownFuncDefinition::new(name.span));
                 }
                 Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
             }
         }
-        self.resolver.output.reveal_res_map.insert(item_id, reveals);
+        def_ids
     }
 
     fn emit_ambiguity_err(&mut self, ambiguity: Ambiguity) {
@@ -1611,12 +1619,12 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag("unknown function definition", code = E0999)]
-    pub(super) struct UnknownRevealDefinition {
+    pub(super) struct UnknownFuncDefinition {
         #[primary_span]
         span: Span,
     }
 
-    impl UnknownRevealDefinition {
+    impl UnknownFuncDefinition {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
         }

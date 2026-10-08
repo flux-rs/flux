@@ -2715,25 +2715,29 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 /// Determines which Flux functions are uninterpreted in the constraint generated for an item.
 struct FunEnv {
     reveals: UnordSet<FluxDefId>,
+    /// Functions hidden for the item (with `#[hide]` on the item)
+    hides: UnordSet<FluxDefId>,
     proven_externally: bool,
 }
 
 impl FunEnv {
     fn new(genv: GlobalEnv, def_id: MaybeExternId) -> Self {
-        let reveals = genv
-            .reveals_for(def_id.local_id())
-            .iter()
-            .copied()
-            .collect();
+        let reveals = genv.reveals_for(def_id.local_id()).collect();
+        let hides = genv.hides_for(def_id.local_id()).collect();
         let proven_externally = genv.proven_externally(def_id.local_id()).is_some();
-        Self { reveals, proven_externally }
+        Self { reveals, hides, proven_externally }
     }
 
+    /// A function is uninterpreted if it has no definition, or if it is hidden (either at its
+    /// definition or for the item) and it is not revealed for the item, unless the item is proven
+    /// externally.
     fn is_uninterpreted(&self, genv: GlobalEnv, did: FluxDefId) -> bool {
         match genv.spec_func(did) {
             rty::SpecFunc::Uif => true,
             rty::SpecFunc::Defined { hide, .. } => {
-                hide && !self.reveals.contains(&did) && !self.proven_externally
+                (hide || self.hides.contains(&did))
+                    && !self.reveals.contains(&did)
+                    && !self.proven_externally
             }
         }
     }

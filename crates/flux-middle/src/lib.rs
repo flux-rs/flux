@@ -525,9 +525,12 @@ pub struct ResolverOutput {
     /// The resolved list of local qualifiers per function.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
     pub qualifier_res_map: UnordMap<NodeId, Vec<def_id::FluxLocalDefId>>,
-    /// The resolved list of local reveals per function
+    /// The resolved list of local reveals per function together with the span where they are named.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
-    pub reveal_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
+    pub reveal_res_map: UnordMap<NodeId, Vec<(def_id::FluxDefId, Span)>>,
+    /// The resolved list of local hides per function together with the span where they are named.
+    /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
+    pub hide_res_map: UnordMap<NodeId, Vec<(def_id::FluxDefId, Span)>>,
     /// The resolved type param `DefId`s for `#[assume_parametric(...)]` per function.
     /// The [`NodeId`] corresponds to the surface item's `node_id`.
     pub parametric_param_res_map: UnordMap<NodeId, Vec<DefId>>,

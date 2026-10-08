@@ -110,14 +110,6 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub allow_uninterpreted_cast: bool,
-    /// Translates _monomorphic_ `defs` functions into SMT `define-fun` instead of inlining them
-    /// away inside `flux`.
-    #[arg(
-        long = flux_arg!("smt-define-fun"),
-        num_args = 0..=1,
-        default_missing_value = "true"
-    )]
-    pub smt_define_fun: bool,
     /// If `strict` checks for over and underflow on arithmetic integer operations,
     /// If `lazy` checks for underflow and loses information if possible overflow,
     /// If `none` (default), it still checks for underflow on unsigned integer subtraction.
@@ -276,7 +268,6 @@ impl Default for Flags {
             fixpoint_timeout: None,
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
-            smt_define_fun: false,
             annots: false,
             timings: false,
             summary: true,
@@ -365,7 +356,6 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "fixpoint-timeout" => parse_opt_u64(&mut flags.fixpoint_timeout, value),
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
-            "smt-define-fun" => parse_bool(&mut flags.smt_define_fun, value),
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
             "summary" => parse_bool(&mut flags.summary, value),

@@ -66,7 +66,10 @@ pub enum Attr {
 pub struct AttrMap<'fhir> {
     pub attrs: &'fhir [Attr],
     pub qualifiers: &'fhir [FluxLocalDefId],
-    pub reveals: &'fhir [FluxDefId],
+    /// The definitions listed in `#[reveal(...)]` together with the span where they are named.
+    pub reveals: &'fhir [(FluxDefId, Span)],
+    /// The definitions listed in `#[hide(...)]` together with the span where they are named.
+    pub hides: &'fhir [(FluxDefId, Span)],
     /// The `DefId`s of type params listed in `#[assume_parametric(...)]`. They match
     /// the `DefId` entries in `generics_of(callee_id)`. These are `DefId`s and not
     /// `LocalDefId`s such that they are correct for extern specs as well.
