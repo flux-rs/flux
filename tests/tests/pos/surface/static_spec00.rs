@@ -21,3 +21,12 @@ static HOG: [u32; 3] = [67, 67, 67];
 pub fn test_hog() -> u32 {
     HOG[0] + HOG[1] + HOG[2]
 }
+
+#[flux::refined_by(x: int)]
+struct Foo {
+    #[flux::field(u32[x])]
+    x: u32,
+}
+
+#[flux::spec(Foo[67])]
+static FOO: Foo = Foo { x: 67 };

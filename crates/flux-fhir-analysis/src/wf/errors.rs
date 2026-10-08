@@ -1,6 +1,6 @@
 use flux_errors::E0999;
 use flux_macros::Diagnostic;
-use flux_middle::{fhir, rty};
+use flux_middle::{def_id::FluxDefId, fhir, rty};
 use rustc_span::{Span, Symbol, symbol::Ident};
 
 #[derive(Diagnostic)]
@@ -334,5 +334,78 @@ pub(super) struct InvalidCast {
 impl InvalidCast {
     pub(super) fn new(span: Span, from: &rty::Sort, to: &rty::Sort) -> Self {
         Self { span, from: format!("{from:?}"), to: format!("{to:?}") }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag("cannot hide inlined definition `{$name}`", code = E0999)]
+pub(super) struct HideInlinedDefinition {
+    #[primary_span]
+    span: Span,
+    name: Symbol,
+}
+
+impl HideInlinedDefinition {
+    pub(super) fn new(span: Span, def_id: FluxDefId) -> Self {
+        Self { span, name: def_id.name() }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag("definition `{$name}` is both hidden and revealed", code = E0999)]
+pub(super) struct HideAndRevealDefinition {
+    #[primary_span]
+    span: Span,
+    name: Symbol,
+}
+
+impl HideAndRevealDefinition {
+    pub(super) fn new(span: Span, def_id: FluxDefId) -> Self {
+        Self { span, name: def_id.name() }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag("cannot reveal uninterpreted function `{$name}`", code = E0999)]
+#[note("uninterpreted functions have no definition")]
+pub(super) struct RevealUninterpretedFunction {
+    #[primary_span]
+    span: Span,
+    name: Symbol,
+}
+
+impl RevealUninterpretedFunction {
+    pub(super) fn new(span: Span, def_id: FluxDefId) -> Self {
+        Self { span, name: def_id.name() }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag("revealing definition `{$name}` has no effect", code = E0999)]
+#[note("`{$name}` is not hidden by default")]
+pub(super) struct RevealNotHiddenDefinition {
+    #[primary_span]
+    span: Span,
+    name: Symbol,
+}
+
+impl RevealNotHiddenDefinition {
+    pub(super) fn new(span: Span, def_id: FluxDefId) -> Self {
+        Self { span, name: def_id.name() }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag("hiding uninterpreted function `{$name}` has no effect", code = E0999)]
+#[note("uninterpreted functions have no definition")]
+pub(super) struct HideUninterpretedFunction {
+    #[primary_span]
+    span: Span,
+    name: Symbol,
+}
+
+impl HideUninterpretedFunction {
+    pub(super) fn new(span: Span, def_id: FluxDefId) -> Self {
+        Self { span, name: def_id.name() }
     }
 }

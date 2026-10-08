@@ -1,7 +1,7 @@
 #![allow(unused)]
 #![flux::defs {
     fn funky(x: int) -> bool {
-        0 < x && (x < 10 && x % 2 == 0) //~ NOTE this is the condition
+        0 < x && (x < 10 && x % 2 == 0)
     }
 
     fn chunky(y:int) -> bool {
@@ -13,10 +13,7 @@
     }
 }]
 
-// NOTE: This test fails when we run with `FLUX_SMT_DEFINE_FUN=1`
-// as errors are reported in some other place than shown below.
-
-#[flux::sig(fn(x: i32{ chunky(x) }))] //~ NOTE inside this call
+#[flux::sig(fn(x: i32{ chunky(x) }))] //~ NOTE this is the condition
 fn assertp(_x: i32) {}
 
 fn test() {

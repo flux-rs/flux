@@ -239,16 +239,25 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         PanicSpec::MightPanic(PanicReason::NotInCallGraph)
     }
 
+    /// The body of a spec function after inlining all or some of the spec functions it
+    /// (transitively) calls. Whether a spec function is inlined is decided by
+    /// [`GlobalEnv::should_inline_fun`] in the current session.
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
-        self.normalized_defns(did.krate()).inlined_body(did)
+        self.inner.queries.inlined_body(self, did)
     }
 
-    pub fn normalized_info(self, did: FluxDefId) -> rty::FuncInfo {
-        self.normalized_defns(did.krate()).func_info(did).clone()
+    pub fn spec_func(self, did: FluxDefId) -> rty::SpecFunc {
+        self.spec_funcs(did.krate()).get(did.index()).clone()
     }
 
-    pub fn normalized_defns(self, krate: CrateNum) -> Rc<rty::NormalizedDefns> {
-        self.inner.queries.normalized_defns(self, krate)
+    /// The rank of a spec function in the topological order of the spec functions of its crate
+    pub fn spec_func_rank(self, did: FluxDefId) -> usize {
+        self.spec_funcs(did.krate()).rank(did.index())
+    }
+
+    /// All the spec functions of a crate in topological order
+    pub fn spec_funcs(self, krate: CrateNum) -> Rc<rty::SpecFuncs> {
+        self.inner.queries.spec_funcs(self, krate)
     }
 
     pub fn prim_rel_for(self, op: &rty::BinOp) -> QueryResult<Option<&'genv rty::PrimRel>> {
@@ -276,8 +285,19 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Return the list of flux function definitions that should be revelaed for item
-    pub fn reveals_for(self, did: LocalDefId) -> &'genv [FluxDefId] {
-        self.fhir_attr_map(did).reveals
+    pub fn reveals_for(self, did: LocalDefId) -> impl Iterator<Item = FluxDefId> + 'genv {
+        self.fhir_attr_map(did)
+            .reveals
+            .iter()
+            .map(|(def_id, _)| *def_id)
+    }
+
+    /// Return the list of flux function definitions that should be hidden for item
+    pub fn hides_for(self, did: LocalDefId) -> impl Iterator<Item = FluxDefId> + 'genv {
+        self.fhir_attr_map(did)
+            .hides
+            .iter()
+            .map(|(def_id, _)| *def_id)
     }
 
     pub fn func_sort(self, def_id: impl IntoQueryKey<FluxDefId>) -> rty::PolyFuncSort {
@@ -288,9 +308,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.func_span(self, def_id.into_query_key())
     }
 
+    /// Whether a (non-hidden) flux-def should be replaced by its body instead of being
+    /// represented as a `define-fun`. We inline all *polymorphic* flux-defs, since they cannot be
+    /// represented as `define-fun` in SMTLIB, but leave all *monomorphic* flux-defs un-inlined.
     pub fn should_inline_fun(self, def_id: FluxDefId) -> bool {
-        let is_poly = self.func_sort(def_id).params().len() > 0;
-        is_poly || !flux_config::smt_define_fun()
+        self.func_sort(def_id).params().len() > 0
     }
 
     pub fn variances_of(self, did: DefId) -> &'tcx [Variance] {
@@ -351,7 +373,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .constant_info(self, def_id.into_query_key())
     }
 
-    pub fn static_info(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::StaticInfo> {
+    /// The type of a static: its spec if it has one, or the default refinement of its rust type.
+    pub fn static_info(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::Ty> {
         self.inner
             .queries
             .static_info(self, def_id.into_query_key())

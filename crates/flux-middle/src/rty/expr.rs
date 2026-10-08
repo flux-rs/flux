@@ -353,10 +353,6 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn prim_val(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        Expr::app(InternalFuncKind::Val(op), List::empty(), List::from_arr([e1.into(), e2.into()]))
-    }
-
     pub fn prim_rel(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
         Expr::app(InternalFuncKind::Rel(op), List::empty(), List::from_arr([e1.into(), e2.into()]))
     }
@@ -502,8 +498,8 @@ impl Expr {
     }
 
     /// Simplify the expression by removing double negations, short-circuiting boolean connectives and
-    /// doing constant folding. Note that we also have [`TypeFoldable::normalize`] which applies beta
-    /// reductions for tuples and abstractions.
+    /// doing constant folding. Note that we also have [`TypeFoldable::reduce`] which inlines spec
+    /// functions and reduces applications and projections.
     ///
     /// Additionally replaces any occurrences of elements in assumed_preds with True.
     pub fn simplify(&self, assumed_preds: &SnapshotMap<Expr, ()>) -> Expr {
@@ -886,6 +882,54 @@ pub enum BinOp {
     BitShr(Sort),
 }
 
+impl BinOp {
+    /// Whether the operation has no interpretation in the logic and must always be encoded as an
+    /// uninterpreted function, i.e., the bitwise operations on `int` (they are interpreted on
+    /// bit vectors).
+    pub fn is_uninterpreted(&self) -> bool {
+        matches!(
+            self,
+            BinOp::BitAnd(Sort::Int)
+                | BinOp::BitOr(Sort::Int)
+                | BinOp::BitXor(Sort::Int)
+                | BinOp::BitShl(Sort::Int)
+                | BinOp::BitShr(Sort::Int)
+        )
+    }
+
+    /// TODO(RJ): bit shady that we're mixing two things here: computing the sort AND determining
+    /// if the operator is uninterpreted...
+    /// The sort `(s, s) -> s` of the uninterpreted function denoting an arithmetic or bitwise
+    /// operation on sort `s`, when it is encoded as such (see [`BinOp::is_uninterpreted`]), or
+    /// `None` for other operations. Ensure this is kept in sync with `prim_op_sort` in `sortck.rs` (on fhir).
+    pub fn uif_sort(&self) -> Option<super::PolyFuncSort> {
+        let sort = match self {
+            BinOp::Add(sort)
+            | BinOp::Sub(sort)
+            | BinOp::Mul(sort)
+            | BinOp::Div(sort)
+            | BinOp::Mod(sort)
+            | BinOp::BitAnd(sort)
+            | BinOp::BitOr(sort)
+            | BinOp::BitXor(sort)
+            | BinOp::BitShl(sort)
+            | BinOp::BitShr(sort) => sort,
+            BinOp::Iff
+            | BinOp::Imp
+            | BinOp::Or
+            | BinOp::And
+            | BinOp::Eq
+            | BinOp::Ne
+            | BinOp::Gt(_)
+            | BinOp::Ge(_)
+            | BinOp::Lt(_)
+            | BinOp::Le(_) => return None,
+        };
+        let fsort = FuncSort::new(vec![sort.clone(), sort.clone()], sort.clone());
+        Some(super::PolyFuncSort::new(List::empty(), fsort))
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Debug, Decodable)]
 pub enum UnOp {
     Not,
@@ -931,8 +975,6 @@ impl Ctor {
 /// to customize primops like `<<` with extra "facts" or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
 #[derive(Debug, Clone, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
 pub enum InternalFuncKind {
-    /// UIF representing the value of a primop
-    Val(BinOp),
     /// UIF representing the relationship of a primop
     Rel(BinOp),
     // Conversions betweeen Sorts
@@ -1768,7 +1810,6 @@ pub(crate) mod pretty {
     impl Pretty for InternalFuncKind {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                InternalFuncKind::Val(op) => w!(cx, f, "[{:?}]", op),
                 InternalFuncKind::Rel(op) => w!(cx, f, "[{:?}]?", op),
                 InternalFuncKind::Cast => w!(cx, f, "cast"),
             }

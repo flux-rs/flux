@@ -478,20 +478,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(rty::Qualifier { def_id: qualifier.def_id, body, wildcards, kind: qualifier.kind })
     }
 
-    pub(crate) fn conv_defn(
-        &mut self,
-        func: &fhir::SpecFunc,
-    ) -> QueryResult<Option<rty::Binder<rty::Expr>>> {
-        if let Some(body) = &func.body {
-            let mut env = Env::new(&[]);
-            env.push_layer(Layer::list(self.results(), 0, func.args));
-            let expr = self.conv_expr(&mut env, body)?;
-            let body =
-                rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(self.genv())?);
-            Ok(Some(body))
-        } else {
-            Ok(None)
-        }
+    pub(crate) fn conv_spec_func(&mut self, func: &fhir::SpecFunc) -> QueryResult<rty::SpecFunc> {
+        let Some(body) = &func.body else { return Ok(rty::SpecFunc::Uif) };
+        let mut env = Env::new(&[]);
+        env.push_layer(Layer::list(self.results(), 0, func.args));
+        let expr = self.conv_expr(&mut env, body)?;
+        let body = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(self.genv())?);
+        Ok(rty::SpecFunc::Defined { body, hide: func.hide })
     }
 
     pub(crate) fn conv_primop_prop(
@@ -2177,7 +2170,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
 
             fhir::ExprKind::PrimApp(op, e1, e2) => {
-                rty::Expr::prim_val(
+                rty::Expr::binary_op(
                     self.conv_primop_val(op),
                     self.conv_expr(env, e1)?,
                     self.conv_expr(env, e2)?,
