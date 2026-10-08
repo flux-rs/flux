@@ -1998,15 +1998,18 @@ pub fn test() {
     bar(c);
 }</code></pre>
 <h2 id="hiding-and-revealing-function-definitions"><a class="header" href="#hiding-and-revealing-function-definitions">Hiding and Revealing Function Definitions</a></h2>
-<p>By default all the function definitions are either <em>inlined</em> or sent to the SMT solver
-as <code>define-fun</code> (when run with <code>FLUX_SMT_DEFINE_FUN=1</code>). Sometimes we want to <em>hide</em> the
-definition because reasoning about those functions can kill the solver -- or the function
+<p>By default all the function definitions are sent to the SMT solver as <code>define-fun</code>
+(polymorphic functions, which cannot be encoded as <code>define-fun</code>, are <em>inlined</em> instead).
+Sometimes we want to <em>hide</em> the definition because reasoning about those functions can kill the solver -- or the function
 is super complex and we just want to reason about it via congruence. For that you can</p>
 <ul>
-<li>use the <code>#[hide]</code> attribute at the spec function definition, to make the function <em>uninterpreted</em> by default, and</li>
+<li>use the <code>#[hide]</code> attribute at the spec function definition, to make the function <em>uninterpreted</em> by default,</li>
 <li>use the <code>#[reveal]</code> attribute at specific Rust function definition, to indicate you
-want to use the actual definition when checking that Rust function.</li>
+want to use the actual definition when checking that Rust function, and</li>
+<li>use the <code>#[hide]</code> attribute at specific Rust function definition, to indicate you
+want to treat a definition as uninterpreted when checking that Rust function.</li>
 </ul>
+<p>Inlined definitions (i.e., polymorphic ones) cannot be hidden.</p>
 <pre><code class="language-rust noplayground">#![flux::defs {
     #[hide]
     fn mod33(n:int) -&gt; int {
@@ -2035,12 +2038,6 @@ pub fn use_foo(n: i32) {
 pub fn bar(xs: &amp;[i32]) -&gt; i32 {
     xs[0] // `foo` as uninterpreted works fine
 }</code></pre>
-<h2 id="spec-functions-in-smtlib"><a class="header" href="#spec-functions-in-smtlib">Spec Functions in SMTLIB</a></h2>
-<p>By default <code>flux</code> inlines all such function definitions.</p>
-<p>Monomorphic functions may <em>optionally</em> be encoded
-as functions in SMT by using the <code>FLUX_SMT_DEFINE_FUN=1</code>
-environment variable. The flag also applies to functions defined in
-dependencies (e.g., <code>flux-core</code>), regardless of the flags used to check them.</p>
 <h2 id="type-holes"><a class="header" href="#type-holes">Type Holes</a></h2>
 <p>You can (sometimes!) use <code>_</code> in the <code>flux</code> signatures to omit the Rust components, e.g.</p>
 <h3 id="function-signatures"><a class="header" href="#function-signatures">Function Signatures</a></h3>
