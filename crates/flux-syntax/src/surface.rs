@@ -669,6 +669,8 @@ pub enum Attr {
     Qualifiers(Vec<Ident>),
     /// A `#[reveal(...)]` attribute
     Reveal(Vec<Ident>),
+    /// A `#[hide(...)]` attribute
+    Hide(Vec<Ident>),
     /// A `#[opts(...)]` attribute
     InferOpts(PartialInferOpts),
     /// A `#[no_panic]` attribute

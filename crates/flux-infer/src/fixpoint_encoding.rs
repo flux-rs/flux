@@ -2504,12 +2504,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         def_id: MaybeExternId,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<Vec<fixpoint::FunDef>> {
-        let reveals: UnordSet<FluxDefId> = self
-            .genv
-            .reveals_for(def_id.local_id())
-            .iter()
-            .copied()
-            .collect();
+        let reveals: UnordSet<FluxDefId> = self.genv.reveals_for(def_id.local_id()).collect();
+        let hides: UnordSet<FluxDefId> = self.genv.hides_for(def_id.local_id()).collect();
         let proven_externally = self.genv.proven_externally(def_id.local_id());
         let mut defs = vec![];
 
@@ -2519,10 +2515,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             idx += 1;
 
             let revealed = reveals.contains(&did);
+            let hidden = hides.contains(&did);
             let uninterpreted = match self.genv.spec_func(did) {
                 rty::SpecFunc::Uif => true,
                 rty::SpecFunc::Defined { hide, .. } => {
-                    hide && !revealed && proven_externally.is_none()
+                    (hide || hidden) && !revealed && proven_externally.is_none()
                 }
             };
             let def = if uninterpreted {
