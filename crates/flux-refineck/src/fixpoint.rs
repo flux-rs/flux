@@ -36,8 +36,6 @@ impl<'genv, 'tcx> DeferredQuery<'genv, 'tcx> {
     }
 }
 
-const MAX_FIXPOINT_ITERATIONS: usize = 32;
-
 pub fn run(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
@@ -46,7 +44,8 @@ pub fn run(
     let mut solutions: FxHashMap<rty::WKVid, rty::Binder<rty::Expr>> = FxHashMap::default();
     let mut final_answers = Vec::new();
 
-    for iteration in 0..MAX_FIXPOINT_ITERATIONS {
+    let max_iterations = config::fixpoint_max_iterations();
+    for iteration in 0..max_iterations {
         let snapshot: UnordMap<_, _> = solutions
             .iter()
             .map(|(wkvid, solution)| (wkvid.clone(), solution.clone()))
@@ -68,7 +67,7 @@ pub fn run(
         if !changed {
             break;
         }
-        if iteration + 1 == MAX_FIXPOINT_ITERATIONS {
+        if iteration + 1 == max_iterations {
             // The retained diagnostics must correspond to the exact fixes we emit.
             let snapshot: UnordMap<_, _> = solutions
                 .iter()

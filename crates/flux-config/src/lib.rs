@@ -174,6 +174,10 @@ pub fn fixpoint_timeout() -> Option<Duration> {
     FLAGS.fixpoint_timeout.map(Duration::from_secs)
 }
 
+pub fn fixpoint_max_iterations() -> usize {
+    FLAGS.fixpoint_max_iterations
+}
+
 pub fn fix_suggestions() -> bool {
     FLAGS.fix_suggestions
 }
