@@ -110,7 +110,13 @@ impl GhostStatements {
                     Some(genv.fn_sig(def_id)?)
                 };
 
-            fold_unfold::add_ghost_statements(&mut stmts, genv, body, fn_sig.as_ref())?;
+            fold_unfold::add_ghost_statements(
+                &mut stmts,
+                genv,
+                def_id.to_def_id(),
+                body,
+                fn_sig.as_ref(),
+            )?;
             points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
             // We only add unblock statements for the main body because borrows in promoted constants
             // have to be live in the main body so they never go out of scope in the promoted body.

@@ -671,7 +671,9 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
 
             let variant = variant
                 .instantiate(this.tcx(), &generic_args, &[])
-                .replace_bound_refts_with(|sort, mode, _| this.fresh_infer_var(sort, mode));
+                .replace_bound_refts_with(|sort, mode, _| this.fresh_infer_var(sort, mode))
+                // Field types may contain projections that are only normalizable after instantiation
+                .deeply_normalize(this)?;
 
             // Check arguments
             for (actual, formal) in iter::zip(fields, variant.fields()) {

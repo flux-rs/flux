@@ -17,7 +17,10 @@ use flux_middle::{
 use flux_rustc_bridge::{ToRustc, lowering::Lower};
 use itertools::izip;
 use rustc_hir::def_id::DefId;
-use rustc_infer::traits::{BuiltinImplSource, Obligation};
+use rustc_infer::{
+    infer::TyCtxtInferExt as _,
+    traits::{BuiltinImplSource, Obligation},
+};
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{TyCtxt, Variance},
@@ -217,7 +220,17 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 // 2. Gather the ProjectionPredicates and solve them see issue-808.rs
                 self.resolve_projection_predicates(&mut subst, impl_def_id)?;
 
-                let args = subst.finish(self.tcx(), generics)?;
+                let mut args = subst.finish(self.tcx(), generics)?;
+
+                // For generic associated types, the GAT's own arguments follow the trait's arguments
+                // in the obligation and must follow the impl's arguments in the substitution.
+                args.extend(
+                    obligation
+                        .args
+                        .iter()
+                        .skip(impl_trait_ref.args.len())
+                        .cloned(),
+                );
 
                 // 3. Get the associated type in the impl block and apply the substitution to it
                 let assoc_type_id = tcx
@@ -745,6 +758,9 @@ fn normalize_projection_ty_with_rustc<'tcx>(
     let tcx = genv.tcx();
     let projection_ty = obligation.to_rustc(tcx).expect_ty();
     let projection_ty = tcx.erase_and_anonymize_regions(projection_ty);
+    // `erase_and_anonymize_regions` leaves escaping bound regions, which rustc can't normalize.
+    let projection_ty =
+        rustc_middle::ty::fold_regions(tcx, projection_ty, |_, _| tcx.lifetimes.re_erased);
     let cause = ObligationCause::dummy();
     let param_env = tcx.param_env(def_id);
 
@@ -769,6 +785,37 @@ fn normalize_projection_ty_with_rustc<'tcx>(
             .refine_ty_or_base(&rustc_ty)?
             .expect_base(),
     ))
+}
+
+/// Normalize an unrefined (rustc-level) type in the param environment of `def_id`.
+///
+/// Unlike types in a MIR body, the declared type of an ADT field is not normalized after substitution.
+/// Regions are erased in the result.
+pub fn normalize_rustc_ty<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
+    def_id: DefId,
+    ty: &flux_rustc_bridge::ty::Ty,
+) -> QueryResult<flux_rustc_bridge::ty::Ty> {
+    let tcx = genv.tcx();
+    let rustc_ty = ty.to_rustc(tcx);
+    if !rustc_ty.has_aliases() {
+        return Ok(ty.clone());
+    }
+    let rustc_ty = tcx.erase_and_anonymize_regions(rustc_ty);
+    let infcx = tcx
+        .infer_ctxt()
+        .with_next_trait_solver(true)
+        .build(rustc_middle::ty::TypingMode::non_body_analysis());
+    let cause = ObligationCause::dummy();
+    let at = infcx.at(&cause, tcx.param_env(def_id));
+    let normalized = deeply_normalize::<rustc_middle::ty::Ty<'tcx>, FulfillmentError>(
+        at,
+        rustc_middle::ty::Unnormalized::new(rustc_ty),
+    )
+    .map_err(|err| query_bug!("{err:?}"))?;
+    normalized
+        .lower(tcx)
+        .map_err(|reason| query_bug!("{reason:?}"))
 }
 
 /// Do one step of normalization, unfolding associated refinements if they are concrete.

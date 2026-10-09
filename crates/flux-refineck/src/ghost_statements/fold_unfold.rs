@@ -1,6 +1,7 @@
 use std::{collections::hash_map::Entry, fmt, iter};
 
 use flux_common::{tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
+use flux_infer::projections::normalize_rustc_ty;
 use flux_middle::{
     PlaceExt as _, def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty,
 };
@@ -27,13 +28,14 @@ use crate::{
 pub(crate) fn add_ghost_statements<'tcx>(
     stmts: &mut GhostStatements,
     genv: GlobalEnv<'_, 'tcx>,
+    def_id: DefId,
     body: &Body<'tcx>,
     fn_sig: Option<&rty::EarlyBinder<rty::PolyFnSig>>,
 ) -> QueryResult {
     let mut bb_envs = UnordMap::default();
-    FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Infer).run(fn_sig)?;
+    FoldUnfoldAnalysis::new(genv, def_id, body, &mut bb_envs, Infer).run(fn_sig)?;
 
-    FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Elaboration { stmts }).run(fn_sig)
+    FoldUnfoldAnalysis::new(genv, def_id, body, &mut bb_envs, Elaboration { stmts }).run(fn_sig)
 }
 
 #[derive(Clone)]
@@ -52,8 +54,13 @@ impl Env {
         }
     }
 
-    fn projection<'a>(&mut self, genv: GlobalEnv, place: &'a Place) -> QueryResult<ProjResult<'a>> {
-        let (node, place, modified) = self.ensure_unfolded(genv, place)?;
+    fn projection<'a>(
+        &mut self,
+        genv: GlobalEnv,
+        def_id: DefId,
+        place: &'a Place,
+    ) -> QueryResult<ProjResult<'a>> {
+        let (node, place, modified) = self.ensure_unfolded(genv, def_id, place)?;
         if modified {
             Ok(ProjResult::Unfold(place))
         } else if node.ensure_folded() {
@@ -63,15 +70,22 @@ impl Env {
         }
     }
 
-    fn downcast(&mut self, genv: GlobalEnv, place: &Place, variant_idx: VariantIdx) -> QueryResult {
-        let (node, ..) = self.ensure_unfolded(genv, place)?;
-        node.downcast(genv, variant_idx)?;
+    fn downcast(
+        &mut self,
+        genv: GlobalEnv,
+        def_id: DefId,
+        place: &Place,
+        variant_idx: VariantIdx,
+    ) -> QueryResult {
+        let (node, ..) = self.ensure_unfolded(genv, def_id, place)?;
+        node.downcast(genv, def_id, variant_idx)?;
         Ok(())
     }
 
     fn ensure_unfolded<'a>(
         &mut self,
         genv: GlobalEnv,
+        def_id: DefId,
         place: &'a Place,
     ) -> QueryResult<(&mut PlaceNode, PlaceRef<'a>, Modified)> {
         let mut node = &mut self.map[place.local];
@@ -81,8 +95,8 @@ impl Env {
             let elem = place.projection[i];
             let (n, m) = match elem {
                 PlaceElem::Deref => node.deref(),
-                PlaceElem::Field(f) => node.field(genv, f)?,
-                PlaceElem::Downcast(_, idx) => node.downcast(genv, idx)?,
+                PlaceElem::Field(f) => node.field(genv, def_id, f)?,
+                PlaceElem::Downcast(_, idx) => node.downcast(genv, def_id, idx)?,
                 PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => break,
             };
             node = n;
@@ -92,10 +106,10 @@ impl Env {
         Ok((node, place.as_ref().truncate(i), modified))
     }
 
-    fn join(&mut self, genv: GlobalEnv, mut other: Env) -> QueryResult<Modified> {
+    fn join(&mut self, genv: GlobalEnv, def_id: DefId, mut other: Env) -> QueryResult<Modified> {
         let mut modified = false;
         for (local, node) in self.map.iter_enumerated_mut() {
-            let (m, _) = node.join(genv, &mut other.map[local], false)?;
+            let (m, _) = node.join(genv, def_id, &mut other.map[local], false)?;
             modified |= m;
         }
         Ok(modified)
@@ -118,6 +132,7 @@ type Modified = bool;
 
 struct FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
+    def_id: DefId,
     body: &'a Body<'tcx>,
     bb_envs: &'a mut UnordMap<BasicBlock, Env>,
     visited: DenseBitSet<BasicBlock>,
@@ -172,7 +187,7 @@ impl Mode for Infer {
         env: &mut Env,
         place: &Place,
     ) -> QueryResult {
-        env.projection(analysis.genv, place)?;
+        env.projection(analysis.genv, analysis.def_id, place)?;
         Ok(())
     }
 
@@ -182,7 +197,9 @@ impl Mode for Infer {
         env: Env,
     ) -> QueryResult<bool> {
         let modified = match analysis.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(analysis.genv, env)?,
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().join(analysis.genv, analysis.def_id, env)?
+            }
             Entry::Vacant(entry) => {
                 entry.insert(env);
                 true
@@ -202,7 +219,7 @@ impl Mode for Elaboration<'_> {
         env: &mut Env,
         place: &Place,
     ) -> QueryResult {
-        match env.projection(analysis.genv, place)? {
+        match env.projection(analysis.genv, analysis.def_id, place)? {
             ProjResult::None => {}
             ProjResult::Fold(place_ref) => {
                 tracked_span_assert_eq!(place_ref, place.as_ref());
@@ -401,7 +418,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
                         // We do not insert unfolds in match arms because they are explicit
                         // unfold points.
                         let mut env = env.clone();
-                        env.downcast(self.genv, &place, variant_idx)?;
+                        env.downcast(self.genv, self.def_id, &place, variant_idx)?;
                         successors.push((env, target));
                     }
                     if remaining.len() == 1 {
@@ -409,7 +426,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
                             .into_iter()
                             .next()
                             .unwrap_or_else(|| tracked_span_bug!());
-                        env.downcast(self.genv, &place, variant_idx)?;
+                        env.downcast(self.genv, self.def_id, &place, variant_idx)?;
                     }
                     successors.push((env, targets.otherwise()));
                 } else {
@@ -462,12 +479,14 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
 impl<'a, 'genv, 'tcx, M> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     pub(crate) fn new(
         genv: GlobalEnv<'genv, 'tcx>,
+        def_id: DefId,
         body: &'a Body<'tcx>,
         bb_envs: &'a mut UnordMap<BasicBlock, Env>,
         mode: M,
     ) -> Self {
         Self {
             genv,
+            def_id,
             body,
             bb_envs,
             discriminants: Default::default(),
@@ -495,6 +514,7 @@ impl PlaceNode {
     fn downcast(
         &mut self,
         genv: GlobalEnv,
+        def_id: DefId,
         idx: VariantIdx,
     ) -> QueryResult<(&mut PlaceNode, Modified)> {
         match self {
@@ -504,7 +524,7 @@ impl PlaceNode {
             }
             PlaceNode::Ty(ty) => {
                 if let TyKind::Adt(adt_def, args) = ty.kind() {
-                    let fields = downcast(genv, adt_def, args, idx)?;
+                    let fields = downcast(genv, def_id, adt_def, args, idx)?;
                     *self = PlaceNode::Downcast(adt_def.clone(), args.clone(), idx, fields);
                     Ok((self, true))
                 } else {
@@ -515,17 +535,26 @@ impl PlaceNode {
         }
     }
 
-    fn field(&mut self, genv: GlobalEnv, f: FieldIdx) -> QueryResult<(&mut PlaceNode, Modified)> {
-        let (fields, unfolded) = self.fields(genv)?;
+    fn field(
+        &mut self,
+        genv: GlobalEnv,
+        def_id: DefId,
+        f: FieldIdx,
+    ) -> QueryResult<(&mut PlaceNode, Modified)> {
+        let (fields, unfolded) = self.fields(genv, def_id)?;
         Ok((&mut fields[f.as_usize()], unfolded))
     }
 
-    fn fields(&mut self, genv: GlobalEnv) -> QueryResult<(&mut Vec<PlaceNode>, bool)> {
+    fn fields(
+        &mut self,
+        genv: GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<(&mut Vec<PlaceNode>, bool)> {
         match self {
             PlaceNode::Ty(ty) => {
                 let fields = match ty.kind() {
                     TyKind::Adt(adt_def, args) => {
-                        let fields = downcast_struct(genv, adt_def, args)?;
+                        let fields = downcast_struct(genv, def_id, adt_def, args)?;
                         *self = PlaceNode::Downcast(
                             adt_def.clone(),
                             args.clone(),
@@ -607,6 +636,7 @@ impl PlaceNode {
     fn join(
         &mut self,
         genv: GlobalEnv,
+        def_id: DefId,
         other: &mut PlaceNode,
         in_mut_ref: bool,
     ) -> QueryResult<(bool, bool)> {
@@ -616,7 +646,7 @@ impl PlaceNode {
         let (fields1, fields2) = match (&mut *self, &mut *other) {
             (PlaceNode::Deref(ty1, node1), PlaceNode::Deref(ty2, node2)) => {
                 debug_assert_eq!(ty1, ty2);
-                return node1.join(genv, node2, in_mut_ref || ty1.is_mut_ref());
+                return node1.join(genv, def_id, node2, in_mut_ref || ty1.is_mut_ref());
             }
             (PlaceNode::Tuple(_, fields1), PlaceNode::Tuple(_, fields2)) => (fields1, fields2),
             (PlaceNode::Closure(.., fields1), PlaceNode::Closure(.., fields2)) => {
@@ -640,7 +670,7 @@ impl PlaceNode {
             }
             (PlaceNode::Ty(_), PlaceNode::Ty(_)) => return Ok((false, false)),
             (PlaceNode::Ty(_), _) => {
-                let (m1, m2) = other.join(genv, self, in_mut_ref)?;
+                let (m1, m2) = other.join(genv, def_id, self, in_mut_ref)?;
                 return Ok((m2, m1));
             }
             (PlaceNode::Deref(ty, _), _) => {
@@ -648,19 +678,19 @@ impl PlaceNode {
                 return Ok((true, false));
             }
             (PlaceNode::Tuple(_, fields1), _) => {
-                let (fields2, m) = other.fields(genv)?;
+                let (fields2, m) = other.fields(genv, def_id)?;
                 modified2 |= m;
                 (fields1, fields2)
             }
             (PlaceNode::Closure(.., fields1), _) | (PlaceNode::Generator(.., fields1), _) => {
-                let (fields2, m) = other.fields(genv)?;
+                let (fields2, m) = other.fields(genv, def_id)?;
                 modified2 |= m;
                 (fields1, fields2)
             }
 
             (PlaceNode::Downcast(adt, args, .., fields1), _) => {
                 if adt.is_struct() && !in_mut_ref {
-                    let (fields2, m) = other.fields(genv)?;
+                    let (fields2, m) = other.fields(genv, def_id)?;
                     modified2 |= m;
                     (fields1, fields2)
                 } else {
@@ -670,7 +700,7 @@ impl PlaceNode {
             }
         };
         for (node1, node2) in iter::zip(fields1, fields2) {
-            let (m1, m2) = node1.join(genv, node2, in_mut_ref)?;
+            let (m1, m2) = node1.join(genv, def_id, node2, in_mut_ref)?;
             modified1 |= m1;
             modified2 |= m2;
         }
@@ -814,6 +844,7 @@ impl PlaceNode {
 
 fn downcast(
     genv: GlobalEnv,
+    def_id: DefId,
     adt_def: &AdtDef,
     args: &GenericArgs,
     variant: VariantIdx,
@@ -824,6 +855,7 @@ fn downcast(
         .iter()
         .map(|field| {
             let ty = genv.lower_type_of(field.did)?.subst(args);
+            let ty = normalize_rustc_ty(genv, def_id, &ty)?;
             QueryResult::Ok(PlaceNode::Ty(ty))
         })
         .try_collect()
@@ -831,6 +863,7 @@ fn downcast(
 
 fn downcast_struct(
     genv: GlobalEnv,
+    def_id: DefId,
     adt_def: &AdtDef,
     args: &GenericArgs,
 ) -> QueryResult<Vec<PlaceNode>> {
@@ -840,6 +873,7 @@ fn downcast_struct(
         .iter()
         .map(|field| {
             let ty = genv.lower_type_of(field.did)?.subst(args);
+            let ty = normalize_rustc_ty(genv, def_id, &ty)?;
             QueryResult::Ok(PlaceNode::Ty(ty))
         })
         .try_collect()

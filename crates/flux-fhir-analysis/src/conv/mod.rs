@@ -1849,7 +1849,26 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult {
         let generics = self.genv().generics_of(def_id)?;
 
-        self.check_generic_arg_count(&generics, def_id, segment)?;
+        // Lifetime arguments cannot be written in a flux path, so they are always elided and inferred.
+        let elided_lifetimes = if segment
+            .args
+            .iter()
+            .any(|arg| matches!(arg, fhir::GenericArg::Lifetime(_)))
+        {
+            0
+        } else {
+            generics
+                .own_params
+                .iter()
+                .filter(|param| matches!(param.kind, rty::GenericParamDefKind::Lifetime))
+                .count()
+        };
+
+        self.check_generic_arg_count(&generics, def_id, segment, elided_lifetimes)?;
+
+        for _ in 0..elided_lifetimes {
+            into.push(rty::GenericArg::Lifetime(self.next_region_hole()));
+        }
 
         let len = into.len();
         for (idx, arg) in segment.args.iter().enumerate() {
@@ -1894,8 +1913,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         generics: &rty::Generics,
         def_id: DefId,
         segment: &fhir::PathSegment,
+        elided_lifetimes: usize,
     ) -> QueryResult {
-        let found = segment.args.len();
+        let found = segment.args.len() + elided_lifetimes;
         let mut param_count = generics.own_params.len();
 
         // The self parameter is not provided explicitly in the path so we skip it
@@ -2506,6 +2526,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::AliasReft { assoc_id: assoc_reft.def_id, args: trait_ref.args }
             }
         };
+        // Holes in an expression have no rust type to be matched against (see `struct_compat`), so
+        // we erase the elided regions.
+        let alias_reft = alias_reft.erase_regions();
         let fsort = alias_reft.fsort(self.genv())?;
         self.0.insert_alias_reft_sort(fhir_id, fsort);
         Ok(alias_reft)
