@@ -503,7 +503,7 @@ fn parse_qualifier_kind(cx: &mut ParseCtxt) -> ParseResult<QualifierKind> {
 
 /// ```text
 /// ⟨qualifier⟩ :=  ⟨ qualifier_kind ⟩?
-///                 qualifier ⟨ident⟩ ( ⟨qualifier_param⟩,* )
+///                 qualifier ⟨ident⟩ ⟨ < ⟨ident⟩,* > ⟩? ( ⟨qualifier_param⟩,* )
 ///                 ⟨block⟩
 /// ```
 fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
@@ -511,6 +511,7 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let kind = parse_qualifier_kind(cx)?;
     cx.expect(kw::Qualifier)?;
     let mut name = parse_ident(cx)?;
+    let sort_vars = opt_angle(cx, Comma, parse_ident)?;
     let (mut params, mut wildcards): (RefineParams, Vec<bool>) =
         parens(cx, Comma, parse_qualifier_param)?
             .into_iter()
@@ -556,7 +557,7 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     }
 
     debug_assert_eq!(params.len(), wildcards.len());
-    Ok(Qualifier { name, params, wildcards, expr, span: cx.mk_span(lo, hi), kind })
+    Ok(Qualifier { name, sort_vars, params, wildcards, expr, span: cx.mk_span(lo, hi), kind })
 }
 
 /// ```text

@@ -1266,6 +1266,10 @@ impl PolyFuncSort {
     }
 
     pub fn instantiate(&self, args: &[SortArg]) -> FuncSort {
+        // Any sort variable in a sort without params is bound by an outer scope
+        if self.params.is_empty() {
+            return self.fsort.clone();
+        }
         self.fsort.fold_with(&mut SortSubst::new(args))
     }
 }
@@ -1434,9 +1438,19 @@ pub enum Ensures {
 #[derive(Debug, TypeVisitable, TypeFoldable)]
 pub struct Qualifier {
     pub def_id: FluxLocalDefId,
+    /// Number of sort variables the qualifier is generic over
+    pub sort_vars: usize,
     pub body: Binder<Expr>,
     pub wildcards: List<bool>,
     pub kind: QualifierKind,
+}
+
+impl Qualifier {
+    /// Replaces the qualifier's sort variables with `sorts`
+    pub fn instantiate_sort_vars(&self, sorts: &[Sort]) -> Qualifier {
+        debug_assert_eq!(sorts.len(), self.sort_vars);
+        self.fold_with(&mut SortSubst::new(sorts))
+    }
 }
 
 #[derive(Debug, TypeFoldable, TypeVisitable, Copy, Clone)]

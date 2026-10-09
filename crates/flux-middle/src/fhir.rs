@@ -158,6 +158,8 @@ pub enum GenericParamKind<'fhir> {
 #[derive(Debug)]
 pub struct Qualifier<'fhir> {
     pub def_id: FluxLocalDefId,
+    /// Number of sort variables the qualifier is generic over
+    pub sort_vars: usize,
     pub args: &'fhir [RefineParam<'fhir>],
     pub wildcards: &'fhir [bool],
     pub expr: Expr<'fhir>,

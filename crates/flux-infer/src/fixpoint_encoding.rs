@@ -493,12 +493,20 @@ impl SortEncodingCtxt {
         }
     }
 
-    /// The opaque sorts encoded so far, sorted by name so the order is deterministic
-    pub fn generic_opaque_sorts(&self) -> Vec<fixpoint::OpaqueSort> {
+    /// The opaque sorts encoded so far with the sort they stand for, sorted by name so the order
+    /// is deterministic
+    pub fn generic_sorts(&self) -> Vec<(fixpoint::OpaqueSort, rty::Sort)> {
         self.opaque_generic_sorts
-            .keys()
-            .copied()
-            .sorted_by_key(|o| o.display().to_string())
+            .iter()
+            .map(|(opaque, sort)| (*opaque, sort.clone()))
+            .sorted_by_key(|(opaque, _)| opaque.display().to_string())
+            .collect()
+    }
+
+    pub fn generic_opaque_sorts(&self) -> Vec<fixpoint::OpaqueSort> {
+        self.generic_sorts()
+            .into_iter()
+            .map(|(opaque, _)| opaque)
             .collect()
     }
 
@@ -2582,10 +2590,30 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         def_id: LocalDefId,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<Vec<fixpoint::Qualifier>> {
-        self.genv
-            .qualifiers_for(def_id)?
-            .map(|qual| self.qualifier_to_fixpoint(qual, scx))
-            .try_collect()
+        // Fixpoint hangs on higher-order polymorphic qualifiers, so we instantiate each sort
+        // variable with every generic sort in the task. Hence a qualifier is only useful in
+        // generic code.
+        let generic_sorts = scx.generic_sorts();
+        let mut res = vec![];
+        for qual in self.genv.qualifiers_for(def_id)? {
+            if qual.sort_vars == 0 {
+                res.push(self.qualifier_to_fixpoint(qual, scx)?);
+                continue;
+            }
+            let instances = (0..qual.sort_vars)
+                .map(|_| generic_sorts.iter())
+                .multi_cartesian_product();
+            for instance in instances {
+                let (opaques, sorts): (Vec<_>, Vec<_>) = instance.into_iter().cloned().unzip();
+                let mut fixpoint_qual =
+                    self.qualifier_to_fixpoint(&qual.instantiate_sort_vars(&sorts), scx)?;
+                for opaque in opaques {
+                    fixpoint_qual.name += &format!("_{}", opaque.display());
+                }
+                res.push(fixpoint_qual);
+            }
+        }
+        Ok(res)
     }
 
     fn define_funs(

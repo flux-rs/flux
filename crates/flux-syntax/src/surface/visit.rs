@@ -236,6 +236,7 @@ pub fn walk_use_tree<V: Visitor>(vis: &mut V, use_tree: &UseTree) {
 
 pub fn walk_qualifier<V: Visitor>(vis: &mut V, qualifier: &Qualifier) {
     vis.visit_ident(qualifier.name);
+    walk_list!(vis, visit_ident, qualifier.sort_vars.iter().copied());
     walk_list!(vis, visit_refine_param, &qualifier.params);
     vis.visit_expr(&qualifier.expr);
 }

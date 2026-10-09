@@ -903,6 +903,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         let kind = Self::desugar_qualifier_kind(qualifier);
         fhir::Qualifier {
             def_id: self.owner,
+            sort_vars: qualifier.sort_vars.len(),
             args: self.desugar_refine_params(&qualifier.params),
             wildcards: self.genv().alloc_slice(&qualifier.wildcards),
             kind,
