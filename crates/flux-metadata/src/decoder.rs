@@ -9,7 +9,7 @@ use std::{
 use flux_common::bug;
 use flux_errors::FluxSession;
 use rustc_data_structures::{fx::FxHashMap, sync::HashMapExt};
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::{
     self, TyCtxt,
     codec::{TyDecoder, forward_all_decoder_methods_to},
@@ -158,6 +158,10 @@ impl BlobDecoder for DecodeContext<'_, '_> {
 
     fn decode_def_index(&mut self) -> DefIndex {
         DefIndex::from_u32(self.read_u32())
+    }
+
+    fn decode_local_def_id(&mut self) -> LocalDefId {
+        self.decode_def_id().expect_local()
     }
 }
 
