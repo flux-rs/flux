@@ -1348,8 +1348,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 fhir::TyKind::Array(self.genv().alloc(ty), len)
             }
             surface::TyKind::BareFn(bare_fn) => {
-                let bare_fn = self.desugar_bare_fn(bare_fn);
-                fhir::TyKind::BareFn(self.genv().alloc(bare_fn))
+                match self.desugar_bare_fn(bare_fn) {
+                    Ok(bare_fn) => fhir::TyKind::BareFn(self.genv().alloc(bare_fn)),
+                    Err(err) => fhir::TyKind::Err(err),
+                }
             }
             surface::TyKind::ImplTrait(_, bounds) => self.desugar_impl_trait(bounds),
             surface::TyKind::Hole => fhir::TyKind::Infer,
@@ -1357,7 +1359,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         fhir::Ty { kind, span }
     }
 
-    fn desugar_bare_fn(&mut self, bare_fn: &surface::BareFnTy) -> fhir::BareFnTy<'genv> {
+    fn desugar_bare_fn(&mut self, bare_fn: &surface::BareFnTy) -> Result<fhir::BareFnTy<'genv>> {
         let inputs = self
             .genv()
             .alloc_slice_fill_iter(bare_fn.inputs.iter().map(|ty| self.desugar_ty(ty)));
@@ -1370,20 +1372,32 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let output = fhir::FnOutput { params: &[], ret, ensures: &[] };
         let decl =
             fhir::FnDecl { requires: &[], inputs, output, span: bare_fn.span, lifted: false };
-        // TODO: support `unsafe` and `extern` fn pointers
+        let safety = match bare_fn.safety {
+            surface::Safety::Safe => hir::Safety::Safe,
+            surface::Safety::Unsafe => hir::Safety::Unsafe,
+        };
+        let abi = match bare_fn.abi {
+            None => rustc_abi::ExternAbi::Rust,
+            Some(abi) => {
+                abi.name
+                    .as_str()
+                    .parse::<rustc_abi::ExternAbi>()
+                    .map_err(|_| self.emit(errors::InvalidAbi::new(abi)))?
+            }
+        };
         let params = self
             .genv()
             .alloc_slice_fill_iter(self.implicit_params_to_params(bare_fn.node_id));
-        fhir::BareFnTy {
+        Ok(fhir::BareFnTy {
             params,
-            safety: hir::Safety::Safe,
-            abi: rustc_abi::ExternAbi::Rust,
+            safety,
+            abi,
             generic_params: &[],
             decl: self.genv().alloc(decl),
             param_idents: self
                 .genv()
                 .alloc_slice_fill_iter(bare_fn.inputs.iter().map(|_| None)),
-        }
+        })
     }
 
     fn desugar_const_arg(&mut self, const_arg: &surface::ConstArg) -> fhir::ConstArg {
