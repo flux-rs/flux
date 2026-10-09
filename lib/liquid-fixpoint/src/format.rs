@@ -93,11 +93,10 @@ impl<T: Types> fmt::Display for KVarDecl<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(var ${} ({}) :self {}) ;; {}",
+            "(var ${} ({}) :self {})",
             self.kvid.display(),
             self.sorts.iter().format(" "),
             self.self_args,
-            self.comment
         )
     }
 }

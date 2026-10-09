@@ -1268,7 +1268,7 @@ impl KVarEncodingCtxt {
                     sorts = vec![fixpoint::Sort::Int];
                 }
 
-                fixpoint::KVarDecl::new(*kvid, sorts, decl.self_args, format!("orig: {kvid:?}"))
+                fixpoint::KVarDecl::new(*kvid, sorts, decl.self_args)
             })
             .collect()
     }
@@ -1448,8 +1448,6 @@ impl KVarGen {
     }
 }
 
-/// A kvar `$k(a0, ...)[b0, ...]` is encoded in the fixpoint constraint as a single kvar
-/// `$k(a0, ..., b0, ...)` whose first `self_args` arguments are self arguments.
 #[derive(Clone)]
 struct KVarDecl {
     /// Number of (flattened) self arguments
