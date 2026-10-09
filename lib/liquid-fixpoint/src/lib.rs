@@ -69,6 +69,7 @@ pub trait Types {
     type String: FixpointFmt + Hash + Clone + Debug + Eq;
     type Real: FixpointFmt + Hash + Clone + Debug + Eq;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
+    type Opaque: Identifier + Hash + Clone + Debug + Eq;
 }
 
 pub trait FixpointFmt: Sized {
@@ -127,6 +128,7 @@ macro_rules! declare_types {
         type String = $str:ty;
         type Real = $real:ty;
         type Tag = $tag:ty;
+        type Opaque = $opaque:ty;
     ) => {
         pub mod fixpoint_generated {
             pub struct FixpointTypes;
@@ -160,6 +162,7 @@ macro_rules! declare_types {
             type String = $str;
             type Real = $real;
             type Tag = $tag;
+            type Opaque = $opaque;
         }
     };
 }
@@ -221,6 +224,7 @@ pub struct Task<T: Types> {
     pub kvars: Vec<KVarDecl<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
+    pub generic_sorts: Vec<T::Opaque>,
     pub scrape_quals: bool,
     pub solver: SmtSolver,
 }

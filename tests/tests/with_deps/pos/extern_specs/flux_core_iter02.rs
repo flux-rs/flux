@@ -6,8 +6,8 @@ extern crate flux_core;
 // by instantiating a *higher-order* qualifier param with the constant for `size`.
 // NOTE: the first param binds the kvar's value variable, so `x` must come first.
 flux_rs::defs! {
-    qualifier SzEqA(iter: int, size: int -> int, i: int, iter0: int) { i + size(iter) == size(iter0) }
-    qualifier SzEqB(i: int, iter: int, size: int -> int, iter0: int) { i + size(iter) == size(iter0) }
+    qualifier SzEqA<T>(iter: T, size: T -> int, i: int, iter0: T) { i + size(iter) == size(iter0) }
+    qualifier SzEqB<T>(i: int, iter: T, size: T -> int, iter0: T) { i + size(iter) == size(iter0) }
 }
 
 #[trusted(reason = "spec")]

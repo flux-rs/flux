@@ -32,7 +32,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
-    FixpointError, FixpointStatus, KVarBind, SmtSolver, VerificationResult,
+    FixpointError, FixpointStatus, Identifier as _, KVarBind, SmtSolver, VerificationResult,
     parser::{FromSexp, ParseError},
     sexp::Parser,
 };
@@ -99,6 +99,46 @@ pub mod fixpoint {
         /// Unique id assigned to each opaque/user sort that needs to be encoded
         /// into fixpoint (see `DataSort::User(OpaqueId)` and `declare_opaque_sort`)
         pub struct OpaqueId {}
+    }
+
+    /// A sort that is opaque to fixpoint and a type parameter in Lean.
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    pub enum OpaqueSort {
+        Param(Symbol),
+        Alias(Symbol),
+    }
+
+    impl OpaqueSort {
+        const PARAM_PREFIX: &'static str = "Param_";
+        const ALIAS_PREFIX: &'static str = "Alias_";
+
+        pub fn parse(name: &str) -> Option<Self> {
+            if let Some(name) = name.strip_prefix(Self::PARAM_PREFIX) {
+                Some(OpaqueSort::Param(Symbol::intern(name)))
+            } else {
+                name.strip_prefix(Self::ALIAS_PREFIX)
+                    .map(|name| OpaqueSort::Alias(Symbol::intern(name)))
+            }
+        }
+    }
+
+    // Hash the strings: a `Symbol`'s index isn't stable across runs, and the task hash is cached.
+    impl std::hash::Hash for OpaqueSort {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            std::mem::discriminant(self).hash(state);
+            match self {
+                OpaqueSort::Param(name) | OpaqueSort::Alias(name) => name.as_str().hash(state),
+            }
+        }
+    }
+
+    impl Identifier for OpaqueSort {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                OpaqueSort::Param(name) => write!(f, "{}{name}", Self::PARAM_PREFIX),
+                OpaqueSort::Alias(name) => write!(f, "{}{name}", Self::ALIAS_PREFIX),
+            }
+        }
     }
 
     #[derive(Hash, Copy, Clone, Debug, PartialEq, Eq)]
@@ -216,6 +256,7 @@ pub mod fixpoint {
         type String = SymStr;
         type Real = SymReal;
         type Tag = super::TagIdx;
+        type Opaque = OpaqueSort;
     }
     pub use fixpoint_generated::*;
 }
@@ -321,6 +362,8 @@ pub struct SortEncodingCtxt {
     adt_sorts: FxIndexSet<DefId>,
     /// Set of all opaque types that need to be defined
     opaque_sorts: FxIndexSet<FluxDefId>,
+    /// The param/alias sorts that are encoded as opaque sorts, by name
+    opaque_generic_sorts: FxIndexMap<fixpoint::OpaqueSort, rty::Sort>,
 }
 
 impl SortEncodingCtxt {
@@ -344,14 +387,27 @@ impl SortEncodingCtxt {
                 )
             }
 
-            // We encode type parameter sorts and (unormalizable) type alias sorts as integers.
             // Well-formedness should ensure values of these sorts are used "opaquely", i.e.
             // the only values of these sorts are variables.
-            rty::Sort::Param(_)
-            | rty::Sort::Alias(rty::AliasTy {
-                kind: rty::AliasKind::Opaque { .. } | rty::AliasKind::Projection { .. },
-                ..
-            }) => fixpoint::Sort::Int,
+            rty::Sort::Param(p) => {
+                let opaque =
+                    fixpoint::OpaqueSort::Param(Symbol::intern(&sanitize(p.name.as_str())));
+                fixpoint::Sort::Opaque(self.declare_generic_sort(opaque, sort))
+            }
+            rty::Sort::Alias(
+                alias_ty @ rty::AliasTy {
+                    kind: rty::AliasKind::Opaque { .. } | rty::AliasKind::Projection { .. },
+                    ..
+                },
+            ) => {
+                let alias_ty =
+                    rty::AliasTy::new(alias_ty.kind, alias_ty.args.clone(), List::empty());
+                let sort = rty::Sort::Alias(alias_ty);
+                let printed = format!("{sort:?}");
+                let name = sanitize(printed.trim_end_matches("::sort"));
+                let opaque = fixpoint::OpaqueSort::Alias(Symbol::intern(&name));
+                fixpoint::Sort::Opaque(self.declare_generic_sort(opaque, &sort))
+            }
             rty::Sort::App(rty::SortCtor::Set, args) => {
                 let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
                 fixpoint::Sort::App(fixpoint::SortCtor::Set, args)
@@ -435,6 +491,41 @@ impl SortEncodingCtxt {
             self.opaque_sorts.insert(def_id);
             opaque_id
         }
+    }
+
+    /// The opaque sorts encoded so far with the sort they stand for, sorted by name so the order
+    /// is deterministic
+    pub fn generic_sorts(&self) -> Vec<(fixpoint::OpaqueSort, rty::Sort)> {
+        self.opaque_generic_sorts
+            .iter()
+            .map(|(opaque, sort)| (*opaque, sort.clone()))
+            .sorted_by_key(|(opaque, _)| opaque.display().to_string())
+            .collect()
+    }
+
+    pub fn generic_opaque_sorts(&self) -> Vec<fixpoint::OpaqueSort> {
+        self.generic_sorts()
+            .into_iter()
+            .map(|(opaque, _)| opaque)
+            .collect()
+    }
+
+    fn declare_generic_sort(
+        &mut self,
+        opaque: fixpoint::OpaqueSort,
+        sort: &rty::Sort,
+    ) -> fixpoint::OpaqueSort {
+        let prev = self
+            .opaque_generic_sorts
+            .entry(opaque)
+            .or_insert_with(|| sort.clone());
+        debug_assert_eq!(
+            prev,
+            sort,
+            "distinct sorts encoded with the same name `{}`",
+            opaque.display()
+        );
+        opaque
     }
 
     pub fn declare_adt(&mut self, did: DefId) -> AdtId {
@@ -731,6 +822,7 @@ where
             scrape_quals,
             solver,
             data_decls: data_decls.clone(),
+            generic_sorts: self.scx.generic_opaque_sorts(),
         };
         let id = def_id.resolved_id();
         if config::dump_constraint() {
@@ -982,8 +1074,12 @@ where
         // FIXME(nilehmann) opaque sorts should be part of the task.
         let opaque_sorts = self.scx.opaque_sorts_to_fixpoint(self.genv);
         let (const_deps, constraint) = self.compute_const_deps(task.constants, task.constraint);
-        let sort_deps =
-            SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
+        let sort_deps = SortDeps {
+            opaque_sorts,
+            data_decls: task.data_decls,
+            adt_map: self.scx.adt_sorts,
+            type_params: task.generic_sorts,
+        };
 
         LeanEncoder::encode(
             self.genv,
@@ -1612,6 +1708,7 @@ pub struct SortDeps {
     pub opaque_sorts: Vec<(FluxDefId, fixpoint::SortDecl)>,
     pub data_decls: Vec<fixpoint::DataDecl>,
     pub adt_map: FxIndexSet<DefId>,
+    pub type_params: Vec<fixpoint::OpaqueSort>,
 }
 
 pub struct ConstDeps {
@@ -2493,10 +2590,30 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         def_id: LocalDefId,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<Vec<fixpoint::Qualifier>> {
-        self.genv
-            .qualifiers_for(def_id)?
-            .map(|qual| self.qualifier_to_fixpoint(qual, scx))
-            .try_collect()
+        // Fixpoint hangs on higher-order polymorphic qualifiers, so we instantiate each sort
+        // variable with every generic sort in the task. Hence a qualifier is only useful in
+        // generic code.
+        let generic_sorts = scx.generic_sorts();
+        let mut res = vec![];
+        for qual in self.genv.qualifiers_for(def_id)? {
+            if qual.sort_vars == 0 {
+                res.push(self.qualifier_to_fixpoint(qual, scx)?);
+                continue;
+            }
+            let instances = (0..qual.sort_vars)
+                .map(|_| generic_sorts.iter())
+                .multi_cartesian_product();
+            for instance in instances {
+                let (opaques, sorts): (Vec<_>, Vec<_>) = instance.into_iter().cloned().unzip();
+                let mut fixpoint_qual =
+                    self.qualifier_to_fixpoint(&qual.instantiate_sort_vars(&sorts), scx)?;
+                for opaque in opaques {
+                    fixpoint_qual.name += &format!("_{}", opaque.display());
+                }
+                res.push(fixpoint_qual);
+            }
+        }
+        Ok(res)
     }
 
     fn define_funs(
@@ -2609,6 +2726,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .collect();
         Ok(fixpoint::Qualifier { name, args, body })
     }
+}
+
+/// Replaces every run of non-alphanumeric characters with `_` so the result is a valid identifier
+fn sanitize(s: &str) -> String {
+    s.split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|part| !part.is_empty())
+        .join("_")
 }
 
 /// The position of `krate` in a topological order of all crates, i.e., every crate comes after all
@@ -2766,6 +2890,11 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt<'_> {
             return Ok(var);
         }
         Err(ParseError::err(format!("Unknown variable: {name}")))
+    }
+
+    fn opaque(&self, name: &str) -> Result<fixpoint::OpaqueSort, ParseError> {
+        fixpoint::OpaqueSort::parse(name)
+            .ok_or_else(|| ParseError::err(format!("Unknown opaque sort: {name}")))
     }
 
     fn sort(&self, name: &str) -> Result<fixpoint::DataSort, ParseError> {

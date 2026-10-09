@@ -68,6 +68,7 @@ pub enum UseTreeKind {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: Ident,
+    pub sort_vars: Vec<Ident>,
     pub params: RefineParams,
     pub wildcards: Vec<bool>,
     pub expr: Expr,
