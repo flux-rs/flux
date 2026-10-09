@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::hash_map::Entry, sync::Arc};
 use flux_common::bug;
 use flux_middle::global_env::GlobalEnv;
 use rustc_data_structures::fx::FxHashMap;
-use rustc_hir::def_id::{DefId, LOCAL_CRATE};
+use rustc_hir::def_id::{DefId, LOCAL_CRATE, LocalDefId};
 use rustc_middle::ty::{self, TyCtxt, codec::TyEncoder};
 use rustc_serialize::{Encodable, Encoder, opaque, opaque::IntEncodedWithFixedSize};
 use rustc_span::{
@@ -193,6 +193,12 @@ impl SpanEncoder for EncodeContext<'_, '_> {
     fn encode_def_id(&mut self, def_id: DefId) {
         def_id.krate.encode(self);
         def_id.index.encode(self);
+    }
+
+    /// A `LocalDefId` is only meaningful within the crate that defines it, so it must be converted
+    /// to a `DefId` before being encoded. See also `DecodeContext::decode_local_def_id`.
+    fn encode_local_def_id(&mut self, def_id: LocalDefId) {
+        bug!("attempted to encode `LocalDefId` {def_id:?} in flux metadata")
     }
 
     fn encode_syntax_context(&mut self, syntax_context: SyntaxContext) {
