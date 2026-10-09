@@ -1185,9 +1185,10 @@ pub enum HoleKind {
 }
 
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
-/// fixpoint makes a difference between the first and the rest of the arguments, the first one being
-/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
-/// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
+/// fixpoint distinguishes a list of leading arguments, the kvar's *self arguments*, from the rest,
+/// which we call the *scope*. Fixpoint only instantiates qualifiers whose first parameter is a self
+/// argument, so a kvar without self arguments can only be solved to `true` or `false`. The number
+/// of self arguments is passed to fixpoint with the `:self` annotation.
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct KVar {
     pub kvid: KVid,
