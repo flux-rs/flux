@@ -61,24 +61,16 @@ pub mod decoding;
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::{def_id::FluxDefId, rty::EarlyReftParam};
+    use flux_middle::{
+        def_id::FluxDefId,
+        rty::{EarlyReftParam, KVid},
+    };
     use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
     use rustc_hir::def_id::DefId;
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
     use rustc_span::Symbol;
-
-    newtype_index! {
-        #[orderable]
-        pub struct KVid {}
-    }
-
-    impl Identifier for KVid {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "k{}", self.as_u32())
-        }
-    }
 
     newtype_index! {
         pub struct LocalVar {}
@@ -267,8 +259,8 @@ impl SolutionTrace {
 
 pub struct ParsedResult {
     pub status: FixpointStatus<TagIdx>,
-    pub solution: FxIndexMap<fixpoint::KVid, FixpointSolution>,
-    pub non_cut_solution: FxIndexMap<fixpoint::KVid, FixpointSolution>,
+    pub solution: FxIndexMap<rty::KVid, FixpointSolution>,
+    pub non_cut_solution: FxIndexMap<rty::KVid, FixpointSolution>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -821,25 +813,21 @@ where
             .solution
             .into_iter()
             .map(|(kvid, sol)| (kvid, self.fixpoint_to_solution(&sol)))
-            .collect_vec();
+            .collect();
 
         let non_cut_solution = result
             .non_cut_solution
             .into_iter()
             .map(|(kvid, sol)| (kvid, self.fixpoint_to_solution(&sol)))
-            .collect_vec();
+            .collect();
 
-        Answer {
-            errors,
-            cut_solution: self.kcx.kvar_solution(cut_solution),
-            non_cut_solution: self.kcx.kvar_solution(non_cut_solution),
-        }
+        Answer { errors, cut_solution, non_cut_solution }
     }
 
     fn parse_kvar_solutions(
         &mut self,
         kvar_binds: &[KVarBind],
-    ) -> FxIndexMap<fixpoint::KVid, FixpointSolution> {
+    ) -> FxIndexMap<rty::KVid, FixpointSolution> {
         kvar_binds
             .iter()
             .map(|b| (parse_kvid(&b.kvar), self.parse_kvar_solution(&b.val)))
@@ -1247,26 +1235,28 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
     }
 }
 
-/// Each [`rty::KVid`] is encoded as a single [`fixpoint::KVid`]. Only kvars that appear in the
-/// constraint are encoded. A [`KVarEncodingCtxt`] assigns them consecutive [`fixpoint::KVid`]s.
+/// The purpose of a [`KVarEncodingCtxt`] is to mark which kvars appear in the constraint,
+/// so we only declare those in fixpoint. Kvars may not be in the constraints because we
+/// optimized them away.
 #[derive(Default)]
 struct KVarEncodingCtxt {
-    /// A map from a [`rty::KVid`] to the [`fixpoint::KVid`] that encodes it.
-    kvids: FxIndexMap<rty::KVid, fixpoint::KVid>,
+    /// The kvars that appear in the constraint
+    kvids: FxIndexSet<rty::KVid>,
 }
 
 impl KVarEncodingCtxt {
-    /// Declares that a kvar has to be encoded into fixpoint and assigns a [`fixpoint::KVid`] to it.
-    fn declare(&mut self, kvid: rty::KVid) -> fixpoint::KVid {
-        let next = fixpoint::KVid::from_usize(self.kvids.len());
-        *self.kvids.entry(kvid).or_insert(next)
+    /// Marks that a kvar appears in the constraint and thus has to be declared in fixpoint
+    fn declare(&mut self, kvid: rty::KVid) -> rty::KVid {
+        self.kvids.insert(kvid);
+        kvid
     }
 
+    /// Returns the declarations of all kvars that appear in the constraint
     fn encode_kvars(&self, kvars: &KVarGen, scx: &mut SortEncodingCtxt) -> Vec<fixpoint::KVarDecl> {
         self.kvids
             .iter()
-            .map(|(orig, kvid)| {
-                let decl = kvars.get(*orig);
+            .map(|kvid| {
+                let decl = kvars.get(*kvid);
                 let mut sorts = decl
                     .sorts
                     .iter()
@@ -1278,20 +1268,8 @@ impl KVarEncodingCtxt {
                     sorts = vec![fixpoint::Sort::Int];
                 }
 
-                fixpoint::KVarDecl::new(*kvid, sorts, decl.self_args, format!("orig: {:?}", orig))
+                fixpoint::KVarDecl::new(*kvid, sorts, decl.self_args, format!("orig: {kvid:?}"))
             })
-            .collect()
-    }
-
-    /// Maps the solution of each [`fixpoint::KVid`] back to the [`rty::KVid`] it encodes.
-    fn kvar_solution(
-        &self,
-        items: Vec<(fixpoint::KVid, rty::Binder<rty::Expr>)>,
-    ) -> FxIndexMap<rty::KVid, rty::Binder<rty::Expr>> {
-        let mut items: HashMap<_, _> = items.into_iter().collect();
-        self.kvids
-            .iter()
-            .filter_map(|(orig, kvid)| Some((*orig, items.remove(kvid)?)))
             .collect()
     }
 }
@@ -2545,11 +2523,11 @@ fn crate_rank(genv: GlobalEnv, krate: CrateNum) -> usize {
         .unwrap_or(usize::MAX)
 }
 
-fn parse_kvid(kvid: &str) -> fixpoint::KVid {
+fn parse_kvid(kvid: &str) -> rty::KVid {
     if kvid.starts_with("k")
         && let Some(kvid) = kvid[1..].parse::<u32>().ok()
     {
-        fixpoint::KVid::from_u32(kvid)
+        rty::KVid::from_u32(kvid)
     } else {
         tracked_span_bug!("unexpected kvar name {kvid}")
     }
@@ -2662,7 +2640,7 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt<'_> {
         fixpoint::Var::Local(self.local_var_env.fresh_name())
     }
 
-    fn kvar(&self, name: &str) -> Result<fixpoint::KVid, ParseError> {
+    fn kvar(&self, name: &str) -> Result<rty::KVid, ParseError> {
         bug!("TODO: SexpParse: kvar: {name}")
     }
 

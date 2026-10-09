@@ -8,7 +8,7 @@ use flux_common::{
 use flux_middle::{
     def_id::FluxDefId,
     global_env::GlobalEnv,
-    rty::{PrettyMap, PrettyVar},
+    rty::{KVid, PrettyMap, PrettyVar},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, Quantifier, ThyFunc};
@@ -23,7 +23,7 @@ use crate::fixpoint_encoding::{
     ClosedSolution, InterpretedConst,
     fixpoint::{
         self, AdtId, BinOp, BinRel, Constant, Constraint, DataDecl, DataField, DataSort, Expr,
-        FunDef, FunSort, GlobalVar, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+        FunDef, FunSort, GlobalVar, KVarDecl, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
     },
 };
 

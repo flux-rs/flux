@@ -1309,6 +1309,12 @@ newtype_index! {
     pub struct KVid {}
 }
 
+impl liquid_fixpoint::Identifier for KVid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "k{}", self.as_u32())
+    }
+}
+
 newtype_index! {
     #[debug_format = "a{}"]
     #[orderable]
