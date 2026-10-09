@@ -15,7 +15,6 @@ use flux_common::{
     bug,
     dbg::{self, SpanTrace},
     iter::IterExt,
-    result::ResultExt as _,
     span_bug,
 };
 use flux_middle::{
@@ -2283,7 +2282,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     fn conv_path_expr(&mut self, env: &mut Env, path: fhir::PathExpr) -> QueryResult<rty::Expr> {
         let genv = self.genv();
-        let tcx = self.genv().tcx();
+        let tcx = genv.tcx();
         let espan = ESpan::new(path.span);
         let (expr, sort) = match path.res {
             fhir::Res::Param(_, id) => (env.lookup(&path).to_expr(), self.results().param_sort(id)),
@@ -2292,15 +2291,18 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let (expr, sort) = self.conv_const(path.span, def_id)?;
                 (expr.at(espan), sort)
             }
-            fhir::Res::Def(DefKind::Ctor(..), ctor_id) => {
-                let Some(sort) = genv.sort_of_def_id(ctor_id).emit(&genv)? else {
-                    span_bug!(path.span, "unexpected variant {ctor_id:?}")
-                };
-
-                let variant_id = self.tcx().parent(ctor_id);
-                let enum_id = self.tcx().parent(variant_id);
+            fhir::Res::Def(DefKind::Ctor(hir::def::CtorOf::Variant, _), ctor_id) => {
+                let variant_id = tcx.parent(ctor_id);
+                let enum_id = tcx.parent(variant_id);
+                let sort_def = genv.adt_sort_def_of(enum_id)?;
+                if !sort_def.is_reflected() {
+                    return Err(self
+                        .emit(errors::NonReflectedEnumVariant { span: path.span })
+                        .into());
+                }
+                let sort = sort_def.to_sort(&[]);
                 self.hyperlink(path.span, tcx.def_ident_span(variant_id));
-                let idx = variant_idx(self.tcx(), variant_id);
+                let idx = variant_idx(tcx, variant_id);
                 (rty::Expr::ctor_enum(enum_id, idx), sort)
             }
             fhir::Res::Def(DefKind::ConstParam, def_id) => {
@@ -3371,6 +3373,16 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag("cannot determine corresponding unrefined predicate", code = E0999)]
     pub(super) struct FailToMatchPredicates {
+        #[primary_span]
+        pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag("enum variant cannot be used as a refinement value", code = E0999)]
+    #[note(
+        "only variants of enums marked with `#[flux::reflect]` can be used as refinement values"
+    )]
+    pub(super) struct NonReflectedEnumVariant {
         #[primary_span]
         pub span: Span,
     }
