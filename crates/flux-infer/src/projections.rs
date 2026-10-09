@@ -29,7 +29,6 @@ use rustc_trait_selection::{
 use rustc_type_ir::TypeVisitableExt;
 
 use crate::{
-    fixpoint_encoding::KVarEncoding,
     infer::{InferCtxtAt, InferResult},
     refine_tree::Scope,
 };
@@ -292,7 +291,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         let oblig_term = actual.term.with_holes().replace_holes(|binders, kind| {
             assert!(kind == rty::HoleKind::Pred);
             let scope = &self.scope;
-            infcx.fresh_kvar_in_scope(binders, scope, KVarEncoding::Conj)
+            infcx.fresh_kvar_in_scope(binders, scope)
         });
 
         // Step 6: subtyping obligation on output

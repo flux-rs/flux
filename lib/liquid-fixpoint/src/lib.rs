@@ -365,8 +365,10 @@ impl CrashInfo {
 pub struct KVarDecl<T: Types> {
     pub kvid: T::KVar,
     pub sorts: Vec<Sort<T>>,
-    #[derive_where(skip)]
-    pub comment: String,
+    /// Number of leading arguments in `sorts` that are self arguments. Fixpoint only instantiates
+    /// qualifiers whose self parameters are bound to self arguments, so a kvar with no self
+    /// arguments can only be solved to `true` or `false`.
+    pub self_args: usize,
 }
 
 impl<T: Types> Task<T> {
@@ -445,8 +447,8 @@ impl<T: Types> Task<T> {
 }
 
 impl<T: Types> KVarDecl<T> {
-    pub fn new(kvid: T::KVar, sorts: Vec<Sort<T>>, comment: String) -> Self {
-        Self { kvid, sorts, comment }
+    pub fn new(kvid: T::KVar, sorts: Vec<Sort<T>>, self_args: usize) -> Self {
+        Self { kvid, sorts, self_args }
     }
 }
 

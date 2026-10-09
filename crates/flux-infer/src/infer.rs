@@ -32,8 +32,7 @@ use rustc_type_ir::Variance::Invariant;
 use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{
-        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key,
-        record_lean_task,
+        Answer, Backend, FixQueryCache, FixpointCtxt, KVarGen, lean_task_key, record_lean_task,
     },
     fn_subtyping::{SubFn, check_fn_subtyping},
     lean_encoding::{hyperlink_proof, log_proof},
@@ -200,14 +199,9 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         }
     }
 
-    pub fn fresh_kvar_in_scope(
-        &self,
-        binders: &[BoundVariableKinds],
-        scope: &Scope,
-        encoding: KVarEncoding,
-    ) -> Expr {
+    pub fn fresh_kvar_in_scope(&self, binders: &[BoundVariableKinds], scope: &Scope) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
-        inner.kvars.fresh(binders, scope.iter(), encoding)
+        inner.kvars.fresh(binders, scope.iter())
     }
 
     pub fn execute_lean_query(
@@ -348,7 +342,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
             InferMode::KVar => {
                 let fsort = sort.expect_func().expect_mono();
                 let vars = fsort.inputs().iter().cloned().map_into().collect();
-                let kvar = self.fresh_kvar(&[vars], KVarEncoding::Single);
+                let kvar = self.fresh_kvar(&[vars]);
                 Expr::abs(Lambda::bind_with_fsort(kvar, fsort))
             }
             InferMode::EVar => self.fresh_evar(),
@@ -361,7 +355,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         kind: HoleKind,
     ) -> Expr {
         match kind {
-            HoleKind::Pred => self.fresh_kvar(binders, KVarEncoding::Conj),
+            HoleKind::Pred => self.fresh_kvar(binders),
             HoleKind::Expr(_) => {
                 // We only use expression holes to infer early param arguments for opaque types
                 // at function calls. These should be well-scoped in the current scope, so we ignore
@@ -372,20 +366,15 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     /// Generate a fresh kvar in the _given_ [`Scope`] (similar method in [`InferCtxtRoot`]).
-    pub fn fresh_kvar_in_scope(
-        &self,
-        binders: &[BoundVariableKinds],
-        scope: &Scope,
-        encoding: KVarEncoding,
-    ) -> Expr {
+    pub fn fresh_kvar_in_scope(&self, binders: &[BoundVariableKinds], scope: &Scope) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
-        inner.kvars.fresh(binders, scope.iter(), encoding)
+        inner.kvars.fresh(binders, scope.iter())
     }
 
     /// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
-    pub fn fresh_kvar(&self, binders: &[BoundVariableKinds], encoding: KVarEncoding) -> Expr {
+    pub fn fresh_kvar(&self, binders: &[BoundVariableKinds]) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
-        inner.kvars.fresh(binders, self.cursor.vars(), encoding)
+        inner.kvars.fresh(binders, self.cursor.vars())
     }
 
     fn fresh_evar(&self) -> Expr {
