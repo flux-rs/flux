@@ -16,10 +16,10 @@ use flux_rustc_bridge::{
 };
 use flux_syntax::{surface, symbols::sym};
 use itertools::Itertools;
+use rustc_attr_ir::LangItem;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_errors::{DiagMessage, Diagnostic};
 use rustc_hir::{
-    attrs::lang_items::LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
