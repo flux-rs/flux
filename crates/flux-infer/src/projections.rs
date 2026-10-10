@@ -9,7 +9,7 @@ use flux_middle::{
         self, AliasKind, AliasReft, AliasTerm, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const,
         ConstKind, EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs,
         Region, Sort, SubsetTy, SubsetTyCtor, Ty, TyKind, TyOrBase,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
+        fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
         refining::Refiner,
         subst::{GenericsSubstDelegate, GenericsSubstFolder},
     },
@@ -602,48 +602,31 @@ impl FallibleTypeFolder for SortNormalizer<'_, '_, '_> {
     }
 }
 
-/// Normalizes projections in `t` using rustc. Normalized projections lose their refinements and
-/// regions are erased, so the result should only be used to compare the unrefined structure of
-/// types. Projections that contain inference variables or escaping bound variables, or that fail
-/// to normalize, are left unchanged.
-pub fn normalize_projections_unrefined<T: TypeFoldable>(
+/// Normalizes `bty` using rustc if it's a projection. The result loses refinements and regions
+/// are erased, so it should only be used to compare the unrefined structure of types. Returns
+/// `None` if `bty` is not a projection, contains inference variables or escaping bound variables,
+/// or doesn't normalize to something different.
+pub fn normalize_projection_unrefined(
     genv: GlobalEnv,
     def_id: DefId,
-    t: &T,
-) -> T {
+    bty: &BaseTy,
+) -> Option<BaseTy> {
+    let BaseTy::Alias(alias_ty @ AliasTy { kind: AliasKind::Projection { .. }, .. }) = bty else {
+        return None;
+    };
+    let alias_term = alias_ty.to_alias_term();
+    let rustc_term = alias_term.to_rustc(genv.tcx());
+    if rustc_term.has_infer() || rustc_term.has_escaping_bound_vars() {
+        return None;
+    }
     let infcx = genv
         .tcx()
         .infer_ctxt()
         .with_next_trait_solver(true)
         .build(TypingMode::non_body_analysis());
-    t.fold_with(&mut UnrefinedNormalizer { def_id, genv, infcx: &infcx })
-}
-
-struct UnrefinedNormalizer<'infcx, 'genv, 'tcx> {
-    def_id: DefId,
-    genv: GlobalEnv<'genv, 'tcx>,
-    infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
-}
-
-impl TypeFolder for UnrefinedNormalizer<'_, '_, '_> {
-    fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
-        if let BaseTy::Alias(alias_ty @ AliasTy { kind: AliasKind::Projection { .. }, .. }) = bty {
-            let alias_term = alias_ty.to_alias_term();
-            let rustc_term = alias_term.to_rustc(self.genv.tcx());
-            if !rustc_term.has_infer()
-                && !rustc_term.has_escaping_bound_vars()
-                && let Ok((true, ctor)) = normalize_projection_ty_with_rustc(
-                    self.genv,
-                    self.def_id,
-                    self.infcx,
-                    &alias_term,
-                )
-            {
-                return ctor.as_bty_skipping_binder().clone();
-            }
-        }
-        bty.super_fold_with(self)
-    }
+    let (changed, ctor) =
+        normalize_projection_ty_with_rustc(genv, def_id, &infcx, &alias_term).ok()?;
+    changed.then(|| ctor.as_bty_skipping_binder().clone())
 }
 
 impl TVarSubst {

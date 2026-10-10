@@ -7,7 +7,7 @@ use std::{fmt, iter};
 
 use flux_common::bug;
 use flux_errors::Errors;
-use flux_infer::projections::normalize_projections_unrefined;
+use flux_infer::projections::normalize_projection_unrefined;
 use flux_middle::{
     def_id::MaybeExternId,
     fhir,
@@ -300,17 +300,18 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
 
     fn zip_bty(&mut self, a: &rty::BaseTy, b: &rty::BaseTy) -> Result<(), Mismatch> {
         self.zip_bty_structurally(a, b).or_else(|err| {
-            // Match the original structure first: normalizing only the hole-free side of a
-            // projection pair can discard the arguments needed to infer holes on the other side.
+            // Projections are compared structurally first so holes in their arguments can be
+            // inferred. On a mismatch, normalize `a` and `b` and retry. Nested types are handled by
+            // the recursive calls.
             let def_id = self.owner_id.resolved_id();
-            let normalized_a = normalize_projections_unrefined(self.genv, def_id, a);
-            let normalized_b = normalize_projections_unrefined(self.genv, def_id, b);
-            if normalized_a == *a && normalized_b == *b {
+            let normalized_a = normalize_projection_unrefined(self.genv, def_id, a);
+            let normalized_b = normalize_projection_unrefined(self.genv, def_id, b);
+            if normalized_a.is_none() && normalized_b.is_none() {
                 return Err(err);
             }
-            // Normalization preserves holes, so a successful retry visits and overwrites any
-            // assignments made by the failed attempt. Only the comparison uses normalized types.
-            self.zip_bty(&normalized_a, &normalized_b)
+            // Projections with holes are never normalized, so a successful retry overwrites every
+            // hole assigned by the failed attempt.
+            self.zip_bty(normalized_a.as_ref().unwrap_or(a), normalized_b.as_ref().unwrap_or(b))
         })
     }
 
