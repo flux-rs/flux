@@ -169,12 +169,13 @@ pub fn qe_and_simplify<T: Types>(
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
+    funs: &Vec<FunDef<T>>,
     datatype_decls: Vec<DataDecl<T>>,
 ) -> Result<Expr<T>, cstr2smt2::Z3DecodeError> {
     // let mut consts = self.constants.clone();
     // consts.extend(free_vars.clone());
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
+    cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, funs, &datatype_decls)
 }
 
 #[cfg(feature = "suggestions")]
@@ -182,10 +183,11 @@ pub fn check_validity<T: Types>(
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
+    funs: &Vec<FunDef<T>>,
     datatype_decls: Vec<DataDecl<T>>,
 ) -> bool {
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::check_validity(constraint, binder_consts, global_consts, &datatype_decls)
+    cstr2smt2::check_validity(constraint, binder_consts, global_consts, funs, &datatype_decls)
 }
 
 #[derive_where(Hash, Clone, Debug)]
@@ -196,7 +198,7 @@ pub struct ConstDecl<T: Types> {
     pub comment: Option<String>,
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct FunDef<T: Types> {
     pub name: T::Var,
     pub sort: FunSort<T>,
@@ -205,7 +207,7 @@ pub struct FunDef<T: Types> {
     pub comment: Option<String>,
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct FunBody<T: Types> {
     pub args: Vec<T::Var>,
     pub expr: Expr<T>,

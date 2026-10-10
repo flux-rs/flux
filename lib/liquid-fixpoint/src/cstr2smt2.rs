@@ -13,7 +13,7 @@ use z3::{
 };
 
 #[cfg(feature = "suggestions")]
-use crate::{ConstDecl, FlatConstraint};
+use crate::{ConstDecl, FlatConstraint, FunDef};
 #[cfg(feature = "rust-fixpoint")]
 use crate::{Constraint, Error, FixpointStatus, Stats};
 use crate::{
@@ -794,6 +794,7 @@ pub fn check_validity<T: Types>(
     cstr: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
+    funs: &Vec<FunDef<T>>,
     datatype_decls: &Vec<DataDecl<T>>,
 ) -> bool {
     let solver = Solver::new();
@@ -813,6 +814,14 @@ pub fn check_validity<T: Types>(
             const_decl.name.clone(),
             new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars),
         )
+    });
+    // Funs might have bodies but we will ignore them, hopefully that's OK?
+    // I imagine there is probably a way to deal with them properly but w/e.
+    funs.iter().for_each(|fun_decl| {
+        vars.insert(
+            fun_decl.name.clone(),
+            new_binding(&fun_decl.name.display().to_string(), &fun_decl.sort.to_sort(), &vars),
+        );
     });
     for (var, sort) in &cstr.binders {
         vars.insert(var.clone(), new_binding(&var.display().to_string(), sort, &vars));
@@ -835,6 +844,7 @@ pub fn qe_and_simplify<T: Types>(
     cstr: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
+    funs: &Vec<FunDef<T>>,
     datatype_decls: &Vec<DataDecl<T>>,
 ) -> Result<Expr<T>, Z3DecodeError> {
     let solver = Solver::new();
@@ -856,6 +866,15 @@ pub fn qe_and_simplify<T: Types>(
         vars.insert(
             const_decl.name.clone(),
             new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars),
+        );
+    });
+    // Funs might have bodies but we will ignore them, hopefully that's OK?
+    // I imagine there is probably a way to deal with them properly but w/e.
+    funs.iter().for_each(|fun_decl| {
+        const_vars.insert(fun_decl.name.clone());
+        vars.insert(
+            fun_decl.name.clone(),
+            new_binding(&fun_decl.name.display().to_string(), &fun_decl.sort.to_sort(), &vars),
         );
     });
     // These are going to be the bound vars, so we declare the free vars above them.
