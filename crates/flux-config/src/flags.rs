@@ -5,7 +5,8 @@ pub use toml::Value;
 use tracing::Level;
 
 use crate::{
-    IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver, UifOps,
+    IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver, SuggestionsZ3,
+    UifOps,
 };
 
 const FLUX_FLAG_PREFIX: &str = "-F";
@@ -92,6 +93,13 @@ pub struct Flags {
         default_value = "z3"
     )]
     pub solver: SmtSolver,
+    /// Z3 backend used for refinement suggestions.
+    #[arg(
+        long = flux_arg!("suggestions-z3"),
+        value_name = "BACKEND",
+        default_value = "process"
+    )]
+    pub suggestions_z3: SuggestionsZ3,
     /// Translates monomorphic `defs` functions into SMT `define-fun` instead of inlining them.
     #[arg(
         long = flux_arg!("smt-define-fun"),
@@ -290,6 +298,7 @@ impl Default for Flags {
             fixpoint_max_iterations: 5,
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
+            suggestions_z3: SuggestionsZ3::default(),
             smt_define_fun: false,
             annots: false,
             timings: false,
@@ -324,7 +333,7 @@ impl Flags {
             let Some(long) = arg.get_long() else { continue };
             match matches.get_raw(id) {
                 Some(values) => {
-                    out.extend(values.map(|v| format!("-{long}={}", v.to_string_lossy())))
+                    out.extend(values.map(|v| format!("-{long}={}", v.to_string_lossy())));
                 }
                 None => out.push(format!("-{long}")),
             }
@@ -383,6 +392,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             }
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
+            "suggestions-z3" => parse_suggestions_z3(&mut flags.suggestions_z3, value),
             "smt-define-fun" => parse_bool(&mut flags.smt_define_fun, value),
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
@@ -565,6 +575,16 @@ fn parse_solver(slot: &mut SmtSolver, v: Option<&str>) -> Result<(), &'static st
             Ok(())
         }
         _ => Err(SmtSolver::ERROR),
+    }
+}
+
+fn parse_suggestions_z3(slot: &mut SuggestionsZ3, v: Option<&str>) -> Result<(), &'static str> {
+    match v {
+        Some(s) => {
+            *slot = s.parse()?;
+            Ok(())
+        }
+        _ => Err(SuggestionsZ3::ERROR),
     }
 }
 

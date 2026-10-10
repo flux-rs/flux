@@ -15,6 +15,7 @@ use crate::{
 
 #[derive(Debug)]
 pub enum SuggestionSolverError {
+    Bindings(String),
     Spawn(String),
     Io(String),
     ProcessFailure { status: Option<i32>, stdout: String, stderr: String, query: String },
@@ -157,13 +158,21 @@ impl Z3Session {
 
 pub(crate) struct ProcessSolver {
     session: Z3Session,
+    last_query: Option<String>,
+    context_declarations: Option<String>,
 }
 
 impl ProcessSolver {
-    pub(crate) fn new() -> Result<Self, SuggestionSolverError> {
+    pub(crate) fn new(track_queries: bool) -> Result<Self, SuggestionSolverError> {
         Ok(Self {
             session: Z3Session::new()?,
+            last_query: track_queries.then(String::new),
+            context_declarations: None,
         })
+    }
+
+    pub(crate) fn last_query(&self) -> &str {
+        self.last_query.as_deref().unwrap_or_default()
     }
 
     pub(crate) fn initialize_context<T: Types>(
@@ -175,6 +184,12 @@ impl ProcessSolver {
         let env = SmtEnv::new(datatype_decls, &[], global_consts, funs, &[]);
         let declarations = env.global_declarations()?;
         self.session.reset(&declarations)?;
+        if self.last_query.is_some() {
+            self.context_declarations = Some(declarations.clone());
+        }
+        if let Some(last_query) = &mut self.last_query {
+            *last_query = format!("(reset)\n{declarations}");
+        }
         Ok(())
     }
 
@@ -186,9 +201,16 @@ impl ProcessSolver {
         funs: &[FunDef<T>],
         datatype_decls: &[DataDecl<T>],
     ) -> Result<bool, SuggestionSolverError> {
+        if let Some(last_query) = &mut self.last_query {
+            last_query.clear();
+        }
         let env =
             SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
         let local_declarations = env.local_declarations()?;
+        if let Some(last_query) = &mut self.last_query {
+            *last_query =
+                format!("(reset)\n{}", self.context_declarations.as_deref().unwrap_or_default());
+        }
         let mut assertions = constraint
             .preconditions()
             .iter()
@@ -200,6 +222,13 @@ impl ProcessSolver {
             writeln!(query, "(assert {assertion})").unwrap();
         }
         query.push_str("(check-sat)\n(pop)\n(pop)");
+        if let Some(last_query) = &mut self.last_query {
+            last_query.push_str(&format!("(push)\n{local_declarations}(push)\n"));
+            for assertion in &assertions {
+                last_query.push_str(&format!("(assert {assertion})\n"));
+            }
+            last_query.push_str("(check-sat)\n(pop)\n(pop)\n");
+        }
         let output = self.session.request(&query)?;
         Ok(matches!(parse_status(&output, &self.session.last_stderr)?, SatStatus::Unsat))
     }
@@ -212,11 +241,21 @@ impl ProcessSolver {
         funs: &[FunDef<T>],
         datatype_decls: &[DataDecl<T>],
     ) -> Result<Expr<T>, SuggestionSolverError> {
+        if let Some(last_query) = &mut self.last_query {
+            last_query.clear();
+        }
         let env =
             SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
         let local_declarations = env.local_declarations()?;
+        if let Some(last_query) = &mut self.last_query {
+            *last_query =
+                format!("(reset)\n{}", self.context_declarations.as_deref().unwrap_or_default());
+        }
         let result = self.qe_and_simplify_in_context(constraint, &env, &local_declarations);
         let pop_result = self.session.request("(pop)");
+        if let Some(last_query) = &mut self.last_query {
+            last_query.push_str("\n(pop)\n");
+        }
         match (result, pop_result) {
             (Err(err), _) => Err(err),
             (Ok(_), Err(err)) => Err(err),
@@ -234,6 +273,9 @@ impl ProcessSolver {
         let query = format!(
             "(push)\n{local_declarations}(push)\n(assert {implication})\n(apply (try-for (then qe nnf) 10000))\n(pop)"
         );
+        if let Some(last_query) = &mut self.last_query {
+            last_query.push_str(&query);
+        }
         let output = self.session.request(&query)?;
         let stderr = self.session.last_stderr.clone();
         if is_timeout(&output) {
@@ -266,6 +308,36 @@ impl ProcessSolver {
             Err(SuggestionSolverError::FailedSanityCheck)
         }
     }
+}
+
+pub(crate) fn equivalent<T: Types>(
+    solver: &mut ProcessSolver,
+    lhs: &Expr<T>,
+    rhs: &Expr<T>,
+    constraint: &FlatConstraint<T>,
+    binder_consts: &[ConstDecl<T>],
+    global_consts: &[ConstDecl<T>],
+    funs: &[FunDef<T>],
+    datatype_decls: &[DataDecl<T>],
+) -> Result<bool, SuggestionSolverError> {
+    let env = SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
+    let local_declarations = env.local_declarations()?;
+    let assumptions = constraint
+        .preconditions()
+        .iter()
+        .map(|pred| env.pred(pred))
+        .collect::<Result<Vec<_>, _>>()?;
+    let assertion = format!("(not (= {} {}))", env.expr(lhs)?, env.expr(rhs)?);
+    let mut query = format!("(push)\n{local_declarations}(push)\n");
+    for assumption in &assumptions {
+        writeln!(query, "(assert {assumption})").unwrap();
+    }
+    writeln!(query, "(assert {assertion})\n(check-sat)\n(pop)\n(pop)").unwrap();
+    if let Some(last_query) = &mut solver.last_query {
+        last_query.push_str(&format!("\n; semantic equivalence check\n{query}"));
+    }
+    let output = solver.session.request(&query)?;
+    Ok(matches!(parse_status(&output, &solver.session.last_stderr)?, SatStatus::Unsat))
 }
 
 impl Drop for Z3Session {

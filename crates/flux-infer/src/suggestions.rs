@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use flux_middle::rty;
 use itertools::Itertools;
-use liquid_fixpoint::{SuggestionSolver, check_validity, qe_and_simplify};
+use liquid_fixpoint::{SuggestionSolver, SuggestionsZ3Backend, check_validity, qe_and_simplify};
 use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
@@ -14,6 +14,20 @@ use crate::{
 };
 
 pub type TagToFlatConstraint = FxIndexMap<TagIdx, fixpoint::FlatConstraint>;
+
+fn suggestions_z3_backend() -> SuggestionsZ3Backend {
+    match flux_config::suggestions_z3() {
+        flux_config::SuggestionsZ3::Bindings => SuggestionsZ3Backend::Bindings,
+        flux_config::SuggestionsZ3::Process => SuggestionsZ3Backend::Process,
+        flux_config::SuggestionsZ3::Compare => SuggestionsZ3Backend::Compare,
+    }
+}
+
+fn record_comparison_events(solver: &mut SuggestionSolver) {
+    for event in solver.take_comparison_events() {
+        flux_middle::metrics::record_suggestion_comparison(event);
+    }
+}
 
 pub(crate) fn make_flat_constraint_map(constraint: &fixpoint::Constraint) -> TagToFlatConstraint {
     constraint
@@ -88,6 +102,7 @@ where
     let mut possible_solutions: PossibleSolutions = Default::default();
     if solver.is_none() {
         *solver = Some(SuggestionSolver::new(
+            suggestions_z3_backend(),
             &suggestion_ctx.const_decls,
             &suggestion_ctx.fun_defs,
             suggestion_ctx.data_decls.clone(),
@@ -113,6 +128,7 @@ where
                 &suggestion_ctx.fun_defs,
                 suggestion_ctx.data_decls.clone(),
             );
+            record_comparison_events(solver);
             if !validity? {
                 valid = false;
                 break;
@@ -167,6 +183,7 @@ where
             &suggestion_ctx.fun_defs,
             suggestion_ctx.data_decls.clone(),
         );
+        record_comparison_events(solver);
         let fallback = head_expr
             .as_ref()
             .and_then(|head| fxctx.fixpoint_to_expr(head).ok())
