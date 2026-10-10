@@ -7,6 +7,7 @@ use std::{fmt, iter};
 
 use flux_common::bug;
 use flux_errors::Errors;
+use flux_infer::projections::normalize_projections_unrefined;
 use flux_middle::{
     def_id::MaybeExternId,
     fhir,
@@ -298,6 +299,22 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     }
 
     fn zip_bty(&mut self, a: &rty::BaseTy, b: &rty::BaseTy) -> Result<(), Mismatch> {
+        self.zip_bty_structurally(a, b).or_else(|err| {
+            // Match the original structure first: normalizing only the hole-free side of a
+            // projection pair can discard the arguments needed to infer holes on the other side.
+            let def_id = self.owner_id.resolved_id();
+            let normalized_a = normalize_projections_unrefined(self.genv, def_id, a);
+            let normalized_b = normalize_projections_unrefined(self.genv, def_id, b);
+            if normalized_a == *a && normalized_b == *b {
+                return Err(err);
+            }
+            // Normalization preserves holes, so a successful retry visits and overwrites any
+            // assignments made by the failed attempt. Only the comparison uses normalized types.
+            self.zip_bty(&normalized_a, &normalized_b)
+        })
+    }
+
+    fn zip_bty_structurally(&mut self, a: &rty::BaseTy, b: &rty::BaseTy) -> Result<(), Mismatch> {
         match (a, b) {
             (rty::BaseTy::Int(ity_a), rty::BaseTy::Int(ity_b)) => {
                 assert_eq_or_incompatible(ity_a, ity_b)
