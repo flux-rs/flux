@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use flux_middle::rty;
 use itertools::Itertools;
-use liquid_fixpoint::{check_validity, qe_and_simplify};
+use liquid_fixpoint::{SuggestionSolver, check_validity, qe_and_simplify};
 use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
@@ -73,21 +73,31 @@ pub(crate) fn find_possible_solutions<'genv, 'tcx, Tag>(
     fxctx: &mut FixpointCtxt<'genv, 'tcx, Tag>,
     tag_idx: TagIdx,
     suggestion_ctx: &SuggestionCtxt,
-) -> PossibleSolutions
+    solver: &mut Option<SuggestionSolver>,
+) -> Result<PossibleSolutions, liquid_fixpoint::SuggestionSolverError>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
     let Some(flat_constraint) = suggestion_ctx.flat_constraints.get(&tag_idx) else {
-        return Default::default();
+        return Ok(Default::default());
     };
     let head_expr = match &flat_constraint.head {
         fixpoint::Pred::Expr(e) => Some(e.clone()),
         _ => None,
     };
     let mut possible_solutions: PossibleSolutions = Default::default();
+    if solver.is_none() {
+        *solver = Some(SuggestionSolver::new(
+            &suggestion_ctx.const_decls,
+            &suggestion_ctx.fun_defs,
+            suggestion_ctx.data_decls.clone(),
+        )?);
+    }
+    let solver = solver.as_mut().unwrap();
     let wkvars_and_constraints = flat_constraint.wkvars_and_constrs();
     for (wkvar, flat_constraint, other_constrs) in wkvars_and_constraints {
-        if !other_constrs.iter().all(|other_constr| {
+        let mut valid = true;
+        for other_constr in other_constrs {
             let binder_consts = other_constr
                 .binders
                 .iter()
@@ -95,14 +105,20 @@ where
                     fixpoint::ConstDecl { name: *var, sort: sort.clone(), comment: None }
                 })
                 .collect_vec();
-            check_validity(
+            let validity = check_validity(
+                solver,
                 &other_constr,
                 &binder_consts,
                 &suggestion_ctx.const_decls,
                 &suggestion_ctx.fun_defs,
                 suggestion_ctx.data_decls.clone(),
-            )
-        }) {
+            );
+            if !validity? {
+                valid = false;
+                break;
+            }
+        }
+        if !valid {
             continue;
         }
         let ConstKey::WKVar(wkvid, self_args) = fxctx
@@ -144,6 +160,7 @@ where
             })
             .collect();
         let result = qe_and_simplify(
+            solver,
             &new_flat_constraint,
             &binder_consts,
             &suggestion_ctx.const_decls,
@@ -177,5 +194,5 @@ where
                 .push(solution);
         }
     }
-    possible_solutions
+    Ok(possible_solutions)
 }

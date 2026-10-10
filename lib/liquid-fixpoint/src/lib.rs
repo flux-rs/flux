@@ -27,6 +27,8 @@ mod graph;
 pub mod parser;
 pub mod sexp;
 pub mod smt_horn;
+#[cfg(feature = "suggestions")]
+mod z3_process;
 
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
@@ -61,6 +63,27 @@ use process_control::{ChildExt, Control};
 use crate::constraint_with_env::ConstraintWithEnv;
 #[cfg(feature = "suggestions")]
 use crate::constraint_with_env::topo_sort_data_declarations;
+#[cfg(feature = "suggestions")]
+pub use crate::z3_process::SuggestionSolverError;
+
+#[cfg(feature = "suggestions")]
+pub struct SuggestionSolver {
+    process: z3_process::ProcessSolver,
+}
+
+#[cfg(feature = "suggestions")]
+impl SuggestionSolver {
+    pub fn new<T: Types>(
+        global_consts: &[ConstDecl<T>],
+        funs: &[FunDef<T>],
+        datatype_decls: Vec<DataDecl<T>>,
+    ) -> Result<Self, SuggestionSolverError> {
+        let mut process = z3_process::ProcessSolver::new()?;
+        let datatype_decls = topo_sort_data_declarations(datatype_decls);
+        process.initialize_context(global_consts, funs, &datatype_decls)?;
+        Ok(Self { process })
+    }
+}
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
@@ -166,28 +189,30 @@ macro_rules! declare_types {
 
 #[cfg(feature = "suggestions")]
 pub fn qe_and_simplify<T: Types>(
+    solver: &mut SuggestionSolver,
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
     funs: &Vec<FunDef<T>>,
     datatype_decls: Vec<DataDecl<T>>,
-) -> Result<Expr<T>, cstr2smt2::Z3DecodeError> {
+) -> Result<Expr<T>, SuggestionSolverError> {
     // let mut consts = self.constants.clone();
     // consts.extend(free_vars.clone());
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, funs, &datatype_decls)
+    solver.process.qe_and_simplify(constraint, binder_consts, global_consts, funs, &datatype_decls)
 }
 
 #[cfg(feature = "suggestions")]
 pub fn check_validity<T: Types>(
+    solver: &mut SuggestionSolver,
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
     funs: &Vec<FunDef<T>>,
     datatype_decls: Vec<DataDecl<T>>,
-) -> bool {
+) -> Result<bool, SuggestionSolverError> {
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::check_validity(constraint, binder_consts, global_consts, funs, &datatype_decls)
+    solver.process.check_validity(constraint, binder_consts, global_consts, funs, &datatype_decls)
 }
 
 #[derive_where(Hash, Clone, Debug)]
