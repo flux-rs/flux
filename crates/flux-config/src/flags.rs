@@ -92,6 +92,13 @@ pub struct Flags {
         default_value = "z3"
     )]
     pub solver: SmtSolver,
+    /// Translates monomorphic `defs` functions into SMT `define-fun` instead of inlining them.
+    #[arg(
+        long = flux_arg!("smt-define-fun"),
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub smt_define_fun: bool,
     /// Enables qualifier scrapping in fixpoint.
     #[arg(
         long = flux_arg!("scrape-quals"),
@@ -283,6 +290,7 @@ impl Default for Flags {
             fixpoint_max_iterations: 5,
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
+            smt_define_fun: false,
             annots: false,
             timings: false,
             summary: true,
@@ -375,6 +383,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             }
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
+            "smt-define-fun" => parse_bool(&mut flags.smt_define_fun, value),
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
             "summary" => parse_bool(&mut flags.summary, value),
