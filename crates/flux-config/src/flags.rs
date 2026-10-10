@@ -103,6 +103,14 @@ pub struct Flags {
     /// killed and an error is reported for the item being checked. Disabled by default.
     #[arg(long = flux_arg!("fixpoint-timeout"), value_name = "SECONDS")]
     pub fixpoint_timeout: Option<u64>,
+    /// Maximum number of verification and inference iterations when `-Ffixpoint` is enabled.
+    #[arg(
+        long = flux_arg!("fixpoint-max-iterations"),
+        value_name = "ITERATIONS",
+        default_value = "5",
+        value_parser = clap::value_parser!(usize)
+    )]
+    pub fixpoint_max_iterations: usize,
     /// Enables uninterpreted casts.
     #[arg(
         long = flux_arg!("allow-uninterpreted-cast"),
@@ -242,6 +250,13 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub fix_suggestions: bool,
+    /// Iteratively replay refinement queries using accumulated weak-kvar suggestions.
+    #[arg(
+        long = flux_arg!("fixpoint"),
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub fixpoint: bool,
 }
 
 impl Default for Flags {
@@ -265,6 +280,7 @@ impl Default for Flags {
             uif_ops: UifOps::default(),
             scrape_quals: false,
             fixpoint_timeout: None,
+            fixpoint_max_iterations: 5,
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
             annots: false,
@@ -282,6 +298,7 @@ impl Default for Flags {
             no_suggestions_default: false,
             rerun_hint: true,
             fix_suggestions: false,
+            fixpoint: false,
         }
     }
 }
@@ -353,6 +370,9 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "uif-ops" => parse_uif_ops(&mut flags.uif_ops, value),
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
             "fixpoint-timeout" => parse_opt_u64(&mut flags.fixpoint_timeout, value),
+            "fixpoint-max-iterations" => {
+                parse_positive_usize(&mut flags.fixpoint_max_iterations, value)
+            }
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
             "annots" => parse_bool(&mut flags.annots, value),
@@ -374,6 +394,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
             "rerun-hint" => parse_bool(&mut flags.rerun_hint, value),
             "fix-suggestions" => parse_bool(&mut flags.fix_suggestions, value),
+            "fixpoint" => parse_bool(&mut flags.fixpoint, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
@@ -455,6 +476,16 @@ fn parse_opt_u64(slot: &mut Option<u64>, v: Option<&str>) -> Result<(), &'static
             Ok(())
         }
         None => Err("expected a non-negative integer"),
+    }
+}
+
+fn parse_positive_usize(slot: &mut usize, v: Option<&str>) -> Result<(), &'static str> {
+    match v.and_then(|s| s.parse().ok()) {
+        Some(n) if n > 0 => {
+            *slot = n;
+            Ok(())
+        }
+        _ => Err("expected a positive integer"),
     }
 }
 
