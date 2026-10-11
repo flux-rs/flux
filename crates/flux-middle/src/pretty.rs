@@ -707,7 +707,7 @@ impl<T: Pretty> fmt::Debug for WithCx<'_, '_, '_, T> {
 impl Pretty for DefId {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if cx.fully_qualified_paths {
-            w!(cx, f, "{}", ^cx.tcx().def_path_str(self))
+            w!(cx, f, "{}", ^cx.tcx().def_path_str(*self))
         } else {
             let path = cx.tcx().def_path(*self);
             w!(cx, f, "{}", ^path.data.last().unwrap().as_sym(false))

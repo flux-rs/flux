@@ -443,6 +443,8 @@ fn fmt_thy_func_smt(thy_func: &ThyFunc, f: &mut fmt::Formatter<'_>) -> fmt::Resu
         ThyFunc::Bv32ToInt => write!(f, "bv2int"),
         ThyFunc::IntToBv64 => write!(f, "(_ int2bv 64)"),
         ThyFunc::Bv64ToInt => write!(f, "bv2int"),
+        ThyFunc::IntToBv128 => write!(f, "(_ int2bv 128)"),
+        ThyFunc::Bv128ToInt => write!(f, "bv2int"),
         ThyFunc::BvUle => write!(f, "bvule"),
         ThyFunc::BvSle => write!(f, "bvsle"),
         ThyFunc::BvUge => write!(f, "bvuge"),

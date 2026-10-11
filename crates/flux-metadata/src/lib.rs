@@ -1,16 +1,17 @@
 #![allow(incomplete_features)]
-#![feature(rustc_private, specialization, if_let_guard)]
+#![feature(rustc_private)]
 
 extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_macros;
-extern crate rustc_metadata;
 extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
+extern crate rustc_structures;
+extern crate rustc_type_ir;
 
 mod decoder;
 mod encoder;
@@ -24,7 +25,6 @@ use std::{hash::Hash, path::PathBuf, rc::Rc};
 use decoder::decode_crate_metadata;
 use derive_where::derive_where;
 use flux_errors::FluxSession;
-use flux_macros::fluent_messages;
 use flux_middle::{
     PanicSpec,
     call_graph::NodeKey,
@@ -52,8 +52,6 @@ use rustc_span::{
 };
 
 pub use crate::encoder::encode_metadata;
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 const METADATA_VERSION: u8 = 0;
 const METADATA_HEADER: &[u8] = &[b'f', b'l', b'u', b'x', 0, 0, 0, METADATA_VERSION];
@@ -170,12 +168,13 @@ pub struct Tables<'tcx, K: Eq + Hash> {
     sort_of_assoc_reft: UnordMap<FluxId<K>, QueryResult<rty::EarlyBinder<rty::FuncSort>>>,
     fn_sig: UnordMap<K, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
+    invariants_of: UnordMap<K, rty::EarlyBinder<rty::List<rty::Invariant>>>,
     constant_info: UnordMap<K, QueryResult<rty::ConstantInfo>>,
-    static_info: UnordMap<K, QueryResult<rty::StaticInfo>>,
+    static_info: UnordMap<K, QueryResult<rty::Ty>>,
     adt_sort_def: UnordMap<K, QueryResult<rty::AdtSortDef>>,
     variants_of: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
-    normalized_defns: Rc<rty::NormalizedDefns>,
+    spec_funcs: Rc<rty::SpecFuncs>,
     flux_module_children: UnordMap<K, Vec<fhir::FluxModChild>>,
     func_sort: UnordMap<FluxId<K>, rty::PolyFuncSort>,
     func_span: UnordMap<FluxId<K>, Span>,
@@ -229,6 +228,7 @@ impl<'tcx> CStore<'tcx> {
         merge_extern_table!(self, tcx, sort_of_assoc_reft, extern_tables);
         merge_extern_table!(self, tcx, fn_sig, extern_tables);
         merge_extern_table!(self, tcx, adt_def, extern_tables);
+        merge_extern_table!(self, tcx, invariants_of, extern_tables);
         merge_extern_table!(self, tcx, adt_sort_def, extern_tables);
         merge_extern_table!(self, tcx, variants_of, extern_tables);
         merge_extern_table!(self, tcx, type_of, extern_tables);
@@ -271,6 +271,10 @@ impl<'tcx> CrateStore<'tcx> for CStore<'tcx> {
 
     fn adt_def(&self, def_id: DefId) -> OptResult<rty::AdtDef> {
         get!(self, adt_def, def_id)
+    }
+
+    fn invariants_of(&self, def_id: DefId) -> Option<rty::EarlyBinder<rty::List<rty::Invariant>>> {
+        get!(self, invariants_of, def_id)
     }
 
     fn adt_sort_def(&self, def_id: DefId) -> OptResult<rty::AdtSortDef> {
@@ -338,12 +342,12 @@ impl<'tcx> CrateStore<'tcx> for CStore<'tcx> {
         get!(self, constant_info, key)
     }
 
-    fn static_info(&self, key: DefId) -> OptResult<rty::StaticInfo> {
+    fn static_info(&self, key: DefId) -> OptResult<rty::Ty> {
         get!(self, static_info, key)
     }
 
-    fn normalized_defns(&self, krate: CrateNum) -> std::rc::Rc<rty::NormalizedDefns> {
-        self.local_tables[&krate].normalized_defns.clone()
+    fn spec_funcs(&self, krate: CrateNum) -> std::rc::Rc<rty::SpecFuncs> {
+        self.local_tables[&krate].spec_funcs.clone()
     }
 
     fn flux_module_children(&self, def_id: DefId) -> Option<&[fhir::FluxModChild]> {
@@ -423,7 +427,7 @@ impl<'tcx> CrateMetadata<'tcx> {
 }
 
 fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, DefIndex>) {
-    tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
+    tables.spec_funcs = genv.spec_funcs(LOCAL_CRATE);
 
     encode_flux_module_children(genv, tables);
     for (def_id, item) in genv.fhir_iter_flux_items() {
@@ -582,6 +586,11 @@ fn encode_def_ids<'tcx, K: Eq + Hash + Copy>(
                 tables
                     .adt_def
                     .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::adt_def));
+                if let Ok(invariants) =
+                    genv.run_query_if_reached(def_id, |genv, def_id| Ok(genv.invariants_of(def_id)))
+                {
+                    tables.invariants_of.insert(key, invariants);
+                }
                 tables
                     .adt_sort_def
                     .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::adt_sort_def_of));
@@ -659,7 +668,7 @@ mod errors {
     use crate::Key;
 
     #[derive(Diagnostic)]
-    #[diag(metadata_duplicate_spec, code = E0999)]
+    #[diag("duplicate spec for {$def_name}", code = E0999)]
     pub(super) struct DuplicateSpec {
         def_name: String,
     }

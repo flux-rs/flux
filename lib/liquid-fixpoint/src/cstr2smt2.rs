@@ -115,7 +115,11 @@ fn const_to_z3<T: Types>(cnst: &Constant<T>) -> ast::Dynamic {
         Constant::Numeral(num) => ast::Int::from_str(&num.to_string()).unwrap().into(),
         Constant::Boolean(b) => ast::Bool::from_bool(*b).into(),
         Constant::String(strconst) => ast::String::from(strconst.display().to_string()).into(),
-        Constant::BitVec(bv, size) => ast::BV::from_u64(*bv as u64, *size).into(),
+        Constant::BitVec(bv, size) => {
+            ast::BV::from_str(*size, &bv.to_string())
+                .expect("valid bit-vector constant")
+                .into()
+        }
         Constant::Real(_) => {
             unimplemented!("real const to z3")
             // from_real_str requires num and denom
@@ -310,6 +314,10 @@ fn thy_func_application_to_z3<T: Types>(
             let arg = expr_to_z3(&args[0], env).as_int().unwrap();
             ast::BV::from_int(&arg, 64).into()
         }
+        ThyFunc::IntToBv128 => {
+            let arg = expr_to_z3(&args[0], env).as_int().unwrap();
+            ast::BV::from_int(&arg, 128).into()
+        }
         ThyFunc::IntToBv8 => {
             let arg = expr_to_z3(&args[0], env).as_int().unwrap();
             ast::BV::from_int(&arg, 8).into()
@@ -319,6 +327,10 @@ fn thy_func_application_to_z3<T: Types>(
             arg.to_int(false).into()
         }
         ThyFunc::Bv64ToInt => {
+            let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
+            arg.to_int(false).into()
+        }
+        ThyFunc::Bv128ToInt => {
             let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
             arg.to_int(false).into()
         }

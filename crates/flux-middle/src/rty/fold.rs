@@ -13,7 +13,7 @@ use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 use super::{
     BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind,
     GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort,
-    SubsetTy, Ty, TyKind, TyOrBase, normalize::Normalizer,
+    SubsetTy, Ty, TyKind, TyOrBase, reduce::Reducer,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -346,9 +346,12 @@ pub trait TypeFoldable: TypeVisitable {
         self.try_fold_with(folder).into_ok()
     }
 
-    /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
-    fn normalize(&self, genv: GlobalEnv) -> Self {
-        self.fold_with(&mut Normalizer::new(genv, None))
+    /// Reduces expressions by
+    /// * inlining calls to spec functions (according to [`GlobalEnv::should_inline_fun`]),
+    /// * applying lambda abstractions to their arguments, and
+    /// * reducing field projections on tuples and constructors.
+    fn reduce(&self, genv: GlobalEnv) -> Self {
+        self.fold_with(&mut Reducer::new(genv))
     }
 
     /// Replaces all [holes] with the result of calling a closure. The closure takes a list with
@@ -591,7 +594,7 @@ impl TypeSuperVisitable for Sort {
             Sort::Tuple(sorts) => sorts.visit_with(visitor),
             Sort::App(_, args) => args.visit_with(visitor),
             Sort::Func(fsort) => fsort.visit_with(visitor),
-            Sort::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
+            Sort::Alias(alias_ty) => alias_ty.visit_with(visitor),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -620,7 +623,7 @@ impl TypeSuperFoldable for Sort {
             Sort::Tuple(sorts) => Sort::tuple(sorts.try_fold_with(folder)?),
             Sort::App(ctor, sorts) => Sort::app(ctor.clone(), sorts.try_fold_with(folder)?),
             Sort::Func(fsort) => Sort::Func(fsort.try_fold_with(folder)?),
-            Sort::Alias(kind, alias_ty) => Sort::Alias(*kind, alias_ty.try_fold_with(folder)?),
+            Sort::Alias(alias_ty) => Sort::Alias(alias_ty.try_fold_with(folder)?),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -890,7 +893,7 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::FnPtr(poly_fn_sig) => poly_fn_sig.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.visit_with(visitor),
-            BaseTy::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
+            BaseTy::Alias(alias_ty) => alias_ty.visit_with(visitor),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
             BaseTy::Coroutine(_, resume_ty, upvars, _) => {
                 resume_ty.visit_with(visitor)?;
@@ -933,7 +936,7 @@ impl TypeSuperFoldable for BaseTy {
             }
             BaseTy::FnPtr(decl) => BaseTy::FnPtr(decl.try_fold_with(folder)?),
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
-            BaseTy::Alias(kind, alias_ty) => BaseTy::Alias(*kind, alias_ty.try_fold_with(folder)?),
+            BaseTy::Alias(alias_ty) => BaseTy::Alias(alias_ty.try_fold_with(folder)?),
             BaseTy::Array(ty, c) => {
                 BaseTy::Array(ty.try_fold_with(folder)?, c.try_fold_with(folder)?)
             }
@@ -1233,4 +1236,6 @@ TrivialTypeTraversalImpls! {
     rustc_abi::ExternAbi,
     rustc_type_ir::ClosureKind,
     flux_rustc_bridge::ty::BoundRegionKind,
+    flux_rustc_bridge::ty::AliasKind,
+    flux_rustc_bridge::ty::AliasTermKind,
 }

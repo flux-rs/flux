@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::Path, process::Command};
 use cargo_metadata::{
     Metadata, MetadataCommand, Package as CargoPackage, PackageId, camino::Utf8PathBuf,
 };
-use flux_config::flags::Flags;
+use flux_config::flags::FluxFlags;
 
 use crate::cargo_style;
 
@@ -105,6 +105,15 @@ impl CargoFluxCommand {
             CargoFluxCommand::Clean(_) => None,
         }
     }
+
+    pub fn rustflags(&self) -> Vec<String> {
+        match self {
+            CargoFluxCommand::Check(opts) | CargoFluxCommand::Build(opts) => {
+                opts.flux_flags.0.clone()
+            }
+            CargoFluxCommand::Clean(_) => vec![],
+        }
+    }
 }
 
 #[derive(clap::Args)]
@@ -122,7 +131,7 @@ pub struct CompileOpts {
     #[command(flatten)]
     manifest: ManifestOptions,
     #[command(flatten)]
-    flux_flags: Flags,
+    flux_flags: FluxFlags,
 
     /// Only check items matching PATTERN (overrides include patterns from cargo.toml or flux.toml).
     ///
@@ -168,7 +177,7 @@ impl CompileOpts {
     }
 
     fn forward_to_metadata(&self, meta: &mut MetadataCommand) {
-        let CompileOpts { features, manifest, fix: _, fix_opts: _, .. } = self;
+        let CompileOpts { features, manifest, .. } = self;
         features.forward_to_metadata(meta);
         manifest.forward_to_metadata(meta);
     }

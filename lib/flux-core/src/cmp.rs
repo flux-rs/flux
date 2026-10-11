@@ -62,7 +62,13 @@ trait PartialOrd<Rhs: PointeeSized = Self>: PointeeSized {
     fn min_res(a: int, b: int, res: int) -> bool { res == min(a, b) }
     fn max_res(a: int, b: int, res: int) -> bool { res == max(a, b) }
 )]
-impl Ord for usize {}
+impl Ord for usize {
+    #[spec(fn(usize[@a], usize[@b]) -> usize[min(a, b)])]
+    fn min(self, other: usize) -> usize;
+
+    #[spec(fn(usize[@a], usize[@b]) -> usize[max(a, b)])]
+    fn max(self, other: usize) -> usize;
+}
 
 #[extern_spec(core::cmp)]
 #[reflect]

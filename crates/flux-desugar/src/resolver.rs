@@ -26,9 +26,9 @@ use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
-    self as hir, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy, def::CtorOf, def_id::CRATE_DEF_ID,
+    self as hir, CRATE_OWNER_ID, ParamName, PrimTy, def::CtorOf, def_id::CRATE_DEF_ID,
 };
-use rustc_middle::{metadata::ModChild, ty::TyCtxt};
+use rustc_middle::{middle::resolve::ModChild, ty::TyCtxt};
 use rustc_span::{Span, Symbol, def_id::DefId, symbol::kw};
 
 use self::refinement_resolver::RefinementResolver;
@@ -273,17 +273,17 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     }
                     continue;
                 }
-                ItemKind::TyAlias(..) => DefKind::TyAlias,
-                ItemKind::Enum(..) => DefKind::Enum,
-                ItemKind::Struct(..) => DefKind::Struct,
-                ItemKind::Union(..) => DefKind::Union,
-                ItemKind::Trait(..) => DefKind::Trait,
-                ItemKind::Mod(..) => DefKind::Mod,
-                ItemKind::Const(..) => DefKind::Const,
                 ItemKind::ForeignMod { items, .. } => {
                     self.define_foreign_items(items);
                     continue;
                 }
+                ItemKind::TyAlias(..)
+                | ItemKind::Enum(..)
+                | ItemKind::Struct(..)
+                | ItemKind::Union(..)
+                | ItemKind::Trait { .. }
+                | ItemKind::Mod(..)
+                | ItemKind::Const(..) => self.genv.def_kind(item.owner_id),
                 _ => continue,
             };
             if let Some(ns) = def_kind.ns().map(Namespace::from)
@@ -419,6 +419,39 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn resolve_path_with_ribs<S: Segment>(
+        &mut self,
+        segments: &[S],
+        ns: Namespace,
+    ) -> std::result::Result<fhir::PartialRes<surface::NodeId>, ResolveError> {
+        let result = self.resolve_path_with_ribs_inner(segments, ns);
+        let fallback = match &result {
+            Ok(res) => matches!(res.full_res(), Some(fhir::Res::Def(DefKind::Mod, _))),
+            Err(ResolveError::NotFound) => true,
+            Err(ResolveError::Ambiguous(_)) => false,
+        };
+        // Retry a primitive when ordinary lookup finds a module or fails.
+        // See: https://github.com/rust-lang/rust/blob/12c4d3f34dcb4715784d2fa0e8443853e0592194/compiler/rustc_resolve/src/late.rs#L5069-L5071
+        if fallback
+            && (ns == TypeNS || (ns == ValueNS && segments.len() > 1))
+            && let Some(first) = segments.first()
+        {
+            let name = first.ident().name;
+            let prim = PrimTy::from_name(name).map(fhir::Res::PrimTy).or_else(|| {
+                fhir::PrimSort::ALL
+                    .into_iter()
+                    .find(|sort| sort.name() == name)
+                    .map(fhir::Res::PrimSort)
+            });
+            if let Some(res) = prim {
+                S::record_segment_res(self, first, res);
+                return Ok(fhir::PartialRes::with_unresolved_segments(res, segments.len() - 1));
+            }
+        }
+        result
+    }
+
+    /// Ordinary path lookup, also used for imports where modules must not become primitives.
+    fn resolve_path_with_ribs_inner<S: Segment>(
         &mut self,
         segments: &[S],
         ns: Namespace,
@@ -613,7 +646,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         // non-prelude glob imports.
         let tcx = self.genv.tcx();
         let curr_mod = self.current_module.to_def_id();
-        self.resolve_path_with_ribs(path.segments, TypeNS)
+        self.resolve_path_with_ribs_inner(path.segments, TypeNS)
             .ok()
             .and_then(|partial_res| partial_res.full_res())
             .and_then(|res| {
@@ -817,9 +850,15 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.genv.tcx()
     }
 
-    fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
+    fn visit_mod(
+        &mut self,
+        module: &'tcx hir::Mod<'tcx>,
+        _s: Span,
+        mod_id: hir::def_id::LocalModId,
+    ) {
+        let owner_id = OwnerId { def_id: mod_id.to_local_def_id() };
         let old_mod = self.current_module;
-        self.current_module = hir_id.expect_owner();
+        self.current_module = owner_id;
         self.push_rib(TypeNS, RibKind::Module);
         self.push_rib(ValueNS, RibKind::Module);
         self.push_rib(ReftNS, RibKind::Module);
@@ -827,13 +866,13 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.define_items(module.item_ids);
 
         // Flux primops and wualifiers are made globally available as if they were defined at the top of the crate
-        if hir_id == CRATE_HIR_ID {
+        if mod_id.is_top_level_module() {
             self.define_flux_global_items();
         }
         // Other items are defined in the module they are declared in.
-        self.define_module_flux_items(hir_id.expect_owner());
+        self.define_module_flux_items(owner_id);
 
-        self.resolve_flux_items(hir_id.expect_owner());
+        self.resolve_flux_items(owner_id);
         hir::intravisit::walk_mod(self, module);
 
         self.pop_rib(ReftNS);
@@ -876,7 +915,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(ValueNS, RibKind::Misc);
 
         match item.kind {
-            ItemKind::Trait(..) => {
+            ItemKind::Trait { .. } => {
                 self.define_generics(def_id);
                 self.define_res_in(
                     fhir::Res::SelfTyParam { trait_: def_id.resolved_id() },
@@ -999,6 +1038,8 @@ pub(crate) enum RibKind {
     /// The input position of an `Fn`-trait bound (e.g. the `T` in `FnMut(T) -> S`). `@` binders are
     /// legal here.
     FnTraitInput,
+    /// The inputs of a fn pointer type (e.g. the `T` in `fn(T) -> S`). `@` binders are legal here.
+    FnPtrInput,
 }
 
 /// The value stored for each binding in a [`Rib`]. Lookups and clash detection are keyed by the
@@ -1173,9 +1214,9 @@ fn visible_module_children(
 
 /// Return true if the item has a `#[prelude_import]` annotation
 fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
-    tcx.hir_attrs(item.hir_id())
-        .iter()
-        .any(|attr| attr.path_matches(&[sym::prelude_import]))
+    tcx.hir_attrs(item.hir_id()).iter().any(|attr| {
+        matches!(attr, hir::Attribute::Parsed(hir::attrs::AttributeKind::PreludeImport))
+    })
 }
 
 /// Abstraction over a "segment" so we can use [`CrateResolver::resolve_path_with_ribs`] with paths
@@ -1295,7 +1336,14 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         for attr in attrs {
             match attr {
                 surface::Attr::Qualifiers(names) => self.resolve_qualifiers(node_id, names),
-                surface::Attr::Reveal(names) => self.resolve_reveals(node_id, names),
+                surface::Attr::Reveal(names) => {
+                    let reveals = self.resolve_func_defs(names);
+                    self.resolver.output.reveal_res_map.insert(node_id, reveals);
+                }
+                surface::Attr::Hide(names) => {
+                    let hides = self.resolve_func_defs(names);
+                    self.resolver.output.hide_res_map.insert(node_id, hides);
+                }
                 surface::Attr::AssumeParametric(names) => {
                     self.resolve_parametric_params(node_id, names);
                 }
@@ -1341,26 +1389,27 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
             .insert(node_id, qualifiers);
     }
 
-    fn resolve_reveals(&mut self, item_id: surface::NodeId, reveal_names: &[Ident]) {
-        let mut reveals = Vec::with_capacity(reveal_names.len());
-        for reveal in reveal_names {
-            match self.resolver.resolve_ident_with_ribs(*reveal, ReftNS) {
+    /// Resolves the names of function definitions in a `#[reveal(...)]` or `#[hide(...)]` attribute
+    fn resolve_func_defs(&mut self, names: &[Ident]) -> Vec<(FluxDefId, Span)> {
+        let mut def_ids = Vec::with_capacity(names.len());
+        for name in names {
+            match self.resolver.resolve_ident_with_ribs(*name, ReftNS) {
                 Ok(fhir::Res::GlobalFunc(kind)) => {
                     if let Some(def_id) = kind.def_id() {
-                        reveals.push(def_id);
+                        def_ids.push((def_id, name.span));
                     } else {
                         self.errors
-                            .emit(errors::UnknownRevealDefinition::new(reveal.span));
+                            .emit(errors::UnknownFuncDefinition::new(name.span));
                     }
                 }
                 Ok(_) | Err(ResolveError::NotFound) => {
                     self.errors
-                        .emit(errors::UnknownRevealDefinition::new(reveal.span));
+                        .emit(errors::UnknownFuncDefinition::new(name.span));
                 }
                 Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
             }
         }
-        self.resolver.output.reveal_res_map.insert(item_id, reveals);
+        def_ids
     }
 
     fn emit_ambiguity_err(&mut self, ambiguity: Ambiguity) {
@@ -1524,10 +1573,10 @@ mod errors {
     /// because it no longer matches the resolution [`Namespace`](flux_middle::fhir::Namespace)
     /// (e.g. sorts are resolved in the type namespace).
     #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_name, code = E0999)]
+    #[diag("cannot find {$kind} `{$name}` in this scope", code = E0999)]
     pub(crate) struct UnresolvedName {
         #[primary_span]
-        #[label]
+        #[label("not found in this scope")]
         pub span: Span,
         pub kind: &'static str,
         pub name: String,
@@ -1538,17 +1587,17 @@ mod errors {
     /// explains, via `reason`, what specifically went wrong at the failing segment (not found,
     /// or found but not a module).
     #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_import, code = E0999)]
+    #[diag("unresolved import `{$name}`", code = E0999)]
     pub(crate) struct UnresolvedImport {
         #[primary_span]
-        #[label]
+        #[label("{$reason}")]
         pub span: Span,
         pub name: String,
         pub reason: String,
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_unknown_qualifier, code = E0999)]
+    #[diag("unknown qualifier", code = E0999)]
     pub(super) struct UnknownQualifier {
         #[primary_span]
         span: Span,
@@ -1561,20 +1610,20 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_unknown_reveal_definition, code = E0999)]
-    pub(super) struct UnknownRevealDefinition {
+    #[diag("unknown function definition", code = E0999)]
+    pub(super) struct UnknownFuncDefinition {
         #[primary_span]
         span: Span,
     }
 
-    impl UnknownRevealDefinition {
+    impl UnknownFuncDefinition {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
         }
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_unknown_parametric_param, code = E0999)]
+    #[diag("unknown type parameter", code = E0999)]
     pub(super) struct UnknownParametricParam {
         #[primary_span]
         span: Span,
@@ -1587,12 +1636,12 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_duplicate_definition, code = E0999)]
+    #[diag("the name `{$name}` is defined multiple times", code = E0999)]
     pub(super) struct DuplicateDefinition {
         #[primary_span]
-        #[label]
+        #[label("`{$name}` redefined here")]
         pub span: Span,
-        #[label(desugar_previous_definition)]
+        #[label("previous definition of `{$name}`")]
         pub previous_definition: Span,
         pub name: Symbol,
     }
@@ -1600,16 +1649,16 @@ mod errors {
     /// A name bound to two different items by two competing glob imports, reported at the first
     /// use of the name (imports themselves are never an error). Mirrors rustc's `E0659`.
     #[derive(Diagnostic)]
-    #[diag(desugar_ambiguous_name, code = E0999)]
-    #[note]
+    #[diag("the name `{$name}` is ambiguous", code = E0999)]
+    #[note("two different items named `{$name}` are in scope through glob imports")]
     pub(super) struct AmbiguousName {
         #[primary_span]
-        #[label]
+        #[label("ambiguous name")]
         span: Span,
         name: Symbol,
-        #[label(desugar_first_candidate)]
+        #[label("`{$name}` could refer to the item imported here")]
         first: Span,
-        #[label(desugar_second_candidate)]
+        #[label("`{$name}` could also refer to the item imported here")]
         second: Option<Span>,
     }
 
@@ -1624,13 +1673,13 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_duplicate_param, code = E0999)]
+    #[diag("identifier `{$name}` is bound more than once in this parameter list", code = E0999)]
     pub(super) struct DuplicateParam {
         #[primary_span]
-        #[label]
+        #[label("used as a parameter more than once")]
         pub span: Span,
         pub name: Symbol,
-        #[label(desugar_first_use)]
+        #[label("first use of `{$name}`")]
         pub first_use: Span,
     }
 }

@@ -33,8 +33,8 @@ pub fn check_invariants(
     // error/warn in case of a mismatch: overflow-checked types can flow to non-checked code but not
     // the other way around.
     let opts = genv.infer_opts(def_id.local_id());
-    adt_def
-        .invariants()
+    genv.invariants_of(def_id)
+        .as_deref()
         .iter_identity()
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
@@ -103,7 +103,7 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(refineck_invalid_invariant, code = E0999)]
+    #[diag("invariant cannot be proven", code = E0999)]
     pub struct Invalid {
         #[primary_span]
         pub span: Span,

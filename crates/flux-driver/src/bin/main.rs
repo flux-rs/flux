@@ -2,7 +2,7 @@
 
 extern crate rustc_driver;
 
-use std::{env, io, process::exit};
+use std::{env, io, process::ExitCode};
 
 use flux_config::{
     self as config,
@@ -10,15 +10,25 @@ use flux_config::{
 };
 use flux_driver::callbacks::FluxCallbacks;
 use flux_middle::metrics;
-use rustc_driver::{EXIT_SUCCESS, catch_with_exit_code, run_compiler};
+use rustc_driver::{catch_fatal_errors, run_compiler};
 
 mod logger;
 
-fn main() -> io::Result<()> {
+fn main() -> ExitCode {
     if !config::verify() {
-        rustc_driver::main();
+        return rustc_driver::main();
     }
 
+    match run() {
+        Ok(exit_code) => exit_code,
+        Err(err) => {
+            eprintln!("error: {err}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run() -> io::Result<ExitCode> {
     logger::install()?;
 
     // Remove all flux arguments
@@ -46,11 +56,11 @@ fn main() -> io::Result<()> {
     args.push("--cfg=flux".to_string());
 
     let start = std::time::Instant::now();
-    let exit_code = catch_with_exit_code(move || {
+    let result = catch_fatal_errors(move || {
         run_compiler(&args, &mut FluxCallbacks);
     });
-    if config::summary() && exit_code == EXIT_SUCCESS {
+    if config::summary() && result.is_ok() {
         metrics::print_summary(start.elapsed())?;
     };
-    exit(exit_code)
+    Ok(if result.is_ok() { ExitCode::SUCCESS } else { ExitCode::FAILURE })
 }

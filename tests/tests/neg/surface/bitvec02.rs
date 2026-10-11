@@ -37,3 +37,28 @@ pub fn test_bv_extensions() {
     assert(r.sign_extend() == u64::MAX);
     assert(r.sign_extend() == 12); //~ ERROR refinement type
 }
+
+#[flux::opaque]
+#[flux::refined_by(v: bitvec<128>)]
+struct Register128 {
+    inner: u128,
+}
+
+impl Register128 {
+    #[flux::sig(fn(u128[@n]) -> Register128[bv_int_to_bv128(n)])]
+    #[flux::trusted]
+    fn new(v: u128) -> Self {
+        Register128 { inner: v }
+    }
+
+    #[flux::sig(fn(&Register128[@n]) -> u128[bv_bv128_to_int(n)])]
+    #[flux::trusted]
+    fn get(&self) -> u128 {
+        self.inner
+    }
+}
+
+pub fn test_bv128_conversion() {
+    let r = Register128::new(u128::MAX);
+    assert(r.get() == 12); //~ ERROR refinement type
+}

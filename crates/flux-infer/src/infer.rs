@@ -32,9 +32,10 @@ use rustc_type_ir::Variance::Invariant;
 use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{
-        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, lean_task_key,
+        Answer, Backend, FixQueryCache, FixpointCtxt, KVarGen, lean_task_key, record_lean_task,
     },
-    lean_encoding::log_proof,
+    fn_subtyping::{SubFn, check_fn_subtyping},
+    lean_encoding::{hyperlink_proof, log_proof},
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
@@ -198,14 +199,9 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         }
     }
 
-    pub fn fresh_kvar_in_scope(
-        &self,
-        binders: &[BoundVariableKinds],
-        scope: &Scope,
-        encoding: KVarEncoding,
-    ) -> Expr {
+    pub fn fresh_kvar_in_scope(&self, binders: &[BoundVariableKinds], scope: &Scope) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
-        inner.kvars.fresh(binders, scope.iter(), encoding)
+        inner.kvars.fresh(binders, scope.iter())
     }
 
     pub fn execute_lean_query(
@@ -224,21 +220,24 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean, self.opts.uif_ops);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
         let (task, _) = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
 
         log_proof(self.genv, def_id)?;
         // Skip re-generation if task is already cached (same hash → same lean files on disk).
-        if config::is_cache_enabled() {
-            let key = lean_task_key(self.genv.tcx(), def_id.resolved_id());
-            let hash = task.hash_with_default();
-            if cache.lookup(&key, hash).is_some() {
-                return Ok(());
+        let key = lean_task_key(self.genv.tcx(), def_id.resolved_id());
+        let hash = task.hash_with_default();
+        let cached = config::is_cache_enabled() && cache.lookup(&key, hash).is_some();
+        if !cached {
+            fcx.generate_lean_files(def_id, task)?;
+            if config::is_cache_enabled() {
+                record_lean_task(cache, key, hash);
             }
         }
-
-        fcx.generate_lean_files(def_id, task)
+        // After generation, so that the proof file exists the first time around.
+        hyperlink_proof(self.genv, def_id);
+        Ok(())
     }
 
     pub fn execute_fixpoint_query(
@@ -272,7 +271,8 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
+        let mut fcx =
+            FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint, self.opts.uif_ops);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
 
         // skip checking trivial constraints
@@ -342,7 +342,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
             InferMode::KVar => {
                 let fsort = sort.expect_func().expect_mono();
                 let vars = fsort.inputs().iter().cloned().map_into().collect();
-                let kvar = self.fresh_kvar(&[vars], KVarEncoding::Single);
+                let kvar = self.fresh_kvar(&[vars]);
                 Expr::abs(Lambda::bind_with_fsort(kvar, fsort))
             }
             InferMode::EVar => self.fresh_evar(),
@@ -355,7 +355,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         kind: HoleKind,
     ) -> Expr {
         match kind {
-            HoleKind::Pred => self.fresh_kvar(binders, KVarEncoding::Conj),
+            HoleKind::Pred => self.fresh_kvar(binders),
             HoleKind::Expr(_) => {
                 // We only use expression holes to infer early param arguments for opaque types
                 // at function calls. These should be well-scoped in the current scope, so we ignore
@@ -366,20 +366,15 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     /// Generate a fresh kvar in the _given_ [`Scope`] (similar method in [`InferCtxtRoot`]).
-    pub fn fresh_kvar_in_scope(
-        &self,
-        binders: &[BoundVariableKinds],
-        scope: &Scope,
-        encoding: KVarEncoding,
-    ) -> Expr {
+    pub fn fresh_kvar_in_scope(&self, binders: &[BoundVariableKinds], scope: &Scope) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
-        inner.kvars.fresh(binders, scope.iter(), encoding)
+        inner.kvars.fresh(binders, scope.iter())
     }
 
     /// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
-    pub fn fresh_kvar(&self, binders: &[BoundVariableKinds], encoding: KVarEncoding) -> Expr {
+    pub fn fresh_kvar(&self, binders: &[BoundVariableKinds]) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
-        inner.kvars.fresh(binders, self.cursor.vars(), encoding)
+        inner.kvars.fresh(binders, self.cursor.vars())
     }
 
     fn fresh_evar(&self) -> Expr {
@@ -403,16 +398,15 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     fn enter_exists<T, U>(
         &mut self,
         t: &Binder<T>,
-        f: impl FnOnce(&mut InferCtxt<'_, 'genv, 'tcx>, T) -> U,
-    ) -> U
+        f: impl FnOnce(&mut InferCtxt<'_, 'genv, 'tcx>, T) -> InferResult<U>,
+    ) -> InferResult<U>
     where
         T: TypeFoldable,
     {
         self.ensure_resolved_evars(|infcx| {
             let t = t.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-            Ok(f(infcx, t))
+            f(infcx, t)
         })
-        .unwrap()
     }
 
     /// Used in conjunction with [`InferCtxt::pop_evar_scope`] to ensure evars are solved at the end
@@ -534,7 +528,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
         self.cursor
-            .assume_invariants(self.genv.tcx(), ty, self.check_overflow);
+            .assume_invariants(self.genv, ty, self.check_overflow);
     }
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
@@ -594,7 +588,7 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
     ) -> InferResult {
         for clause in clauses {
             if let rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
-                let impl_elem = BaseTy::projection(projection_pred.projection_ty)
+                let impl_elem = BaseTy::Alias(projection_pred.projection_term.to_alias_ty())
                     .to_ty()
                     .deeply_normalize(self)?;
                 let term = projection_pred.term.to_ty().deeply_normalize(self)?;
@@ -747,10 +741,53 @@ pub trait LocEnv {
 
     fn unfold_strg_ref(&mut self, infcx: &mut InferCtxt, path: &Path, ty: &Ty) -> InferResult<Loc>;
 
+    /// Temporarily unfolds a `&mut` into a local pointer, see [`crate::fn_subtyping::unfold_local_ptrs`]
+    fn unfold_local_ptr(&mut self, infcx: &mut InferCtxt, bound: &Ty) -> InferResult<Loc>;
+
+    /// Folds all the local pointers created with [`LocEnv::unfold_local_ptr`] back into `&mut`
+    fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult;
+
     fn get(&self, path: &Path) -> Ty;
+
+    fn update_path(&mut self, path: &Path, new_ty: Ty, span: Span);
+
+    fn assume_ensures(&mut self, infcx: &mut InferCtxt, ensures: &[rty::Ensures], span: Span) {
+        for ensure in ensures {
+            match ensure {
+                rty::Ensures::Type(path, updated_ty) => {
+                    let updated_ty = infcx.unpack(updated_ty);
+                    infcx.assume_invariants(&updated_ty);
+                    self.update_path(path, updated_ty, span);
+                }
+                rty::Ensures::Pred(e) => infcx.assume_pred(e),
+            }
+        }
+    }
+
+    fn check_ensures(
+        &mut self,
+        at: &mut InferCtxtAt,
+        ensures: &[rty::Ensures],
+        reason: ConstrReason,
+    ) -> InferResult {
+        for constraint in ensures {
+            match constraint {
+                rty::Ensures::Type(path, ty) => {
+                    let actual_ty = self.get(path).unblocked(); // HACK
+                    at.subtyping(&actual_ty, ty, reason)?;
+                }
+                rty::Ensures::Pred(e) => {
+                    at.check_pred(e, ConstrReason::Ret);
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
-struct DummyEnv;
+/// An environment without locations. Used when relating types that cannot mention locations, e.g.,
+/// the signatures of fn pointers (which cannot have strong references).
+pub(crate) struct DummyEnv;
 
 impl LocEnv for DummyEnv {
     fn ptr_to_ref(
@@ -768,8 +805,21 @@ impl LocEnv for DummyEnv {
         tracked_span_bug!("call to `unfold_str_ref` on `DummyEnv`")
     }
 
+    fn unfold_local_ptr(&mut self, _: &mut InferCtxt, _: &Ty) -> InferResult<Loc> {
+        tracked_span_bug!("call to `unfold_local_ptr` on `DummyEnv`")
+    }
+
+    fn fold_local_ptrs(&mut self, _: &mut InferCtxtAt) -> InferResult {
+        // There are no local pointers to fold
+        Ok(())
+    }
+
     fn get(&self, _: &Path) -> Ty {
         tracked_span_bug!("call to `get` on `DummyEnv`")
+    }
+
+    fn update_path(&mut self, _: &Path, _: Ty, _: Span) {
+        tracked_span_bug!("call to `update_path` on `DummyEnv`");
     }
 }
 
@@ -978,30 +1028,41 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (
-                BaseTy::Alias(AliasKind::Opaque, alias_ty_a),
-                BaseTy::Alias(AliasKind::Opaque, alias_ty_b),
+                BaseTy::Alias(AliasTy {
+                    kind: AliasKind::Opaque { def_id: def_id_a },
+                    args: args_a,
+                    refine_args: refine_args_a,
+                }),
+                BaseTy::Alias(AliasTy {
+                    kind: AliasKind::Opaque { def_id: def_id_b },
+                    args: args_b,
+                    refine_args: refine_args_b,
+                }),
             ) => {
-                debug_assert_eq!(alias_ty_a.def_id, alias_ty_b.def_id);
+                debug_assert_eq!(def_id_a, def_id_b);
 
                 // handle type-args
-                for (ty_a, ty_b) in izip!(alias_ty_a.args.iter(), alias_ty_b.args.iter()) {
+                for (ty_a, ty_b) in izip!(args_a.iter(), args_b.iter()) {
                     self.generic_args(infcx, Invariant, ty_a, ty_b)?;
                 }
 
                 // handle refine-args
-                debug_assert_eq!(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
-                iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
+                debug_assert_eq!(refine_args_a.len(), refine_args_b.len());
+                iter::zip(refine_args_a.iter(), refine_args_b.iter())
                     .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
 
                 Ok(())
             }
-            (_, BaseTy::Alias(AliasKind::Opaque, alias_ty_b)) => {
+            (
+                _,
+                BaseTy::Alias(AliasTy { kind: AliasKind::Opaque { def_id }, args, refine_args }),
+            ) => {
                 // only for when concrete type on LHS and impl-with-bounds on RHS
-                self.handle_opaque_type(infcx, a, alias_ty_b)
+                self.handle_opaque_type(infcx, a, *def_id, args, refine_args)
             }
             (
-                BaseTy::Alias(AliasKind::Projection, alias_ty_a),
-                BaseTy::Alias(AliasKind::Projection, alias_ty_b),
+                BaseTy::Alias(alias_ty_a @ AliasTy { kind: AliasKind::Projection { .. }, .. }),
+                BaseTy::Alias(alias_ty_b @ AliasTy { kind: AliasKind::Projection { .. }, .. }),
             ) => {
                 tracked_span_dbg_assert_eq!(alias_ty_a.erase_regions(), alias_ty_b.erase_regions());
                 Ok(())
@@ -1032,8 +1093,11 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) => {
-                tracked_span_assert_eq!(sig_a.erase_regions(), sig_b.erase_regions());
-                Ok(())
+                if sig_a == sig_b {
+                    return Ok(());
+                }
+                let sub_sig = SubFn::Mono(sig_a.clone());
+                check_fn_subtyping(infcx, &mut DummyEnv, sub_sig, sig_b, self.span)
             }
             (BaseTy::Never, BaseTy::Never) => Ok(()),
             (
@@ -1201,7 +1265,9 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         &mut self,
         infcx: &mut InferCtxt,
         bty: &BaseTy,
-        alias_ty: &AliasTy,
+        opaque_def_id: DefId,
+        opaque_args: &rty::GenericArgs,
+        opaque_refine_args: &rty::RefineArgs,
     ) -> InferResult {
         if let BaseTy::Coroutine(def_id, resume_ty, upvar_tys, args) = bty {
             let obligs = mk_coroutine_obligations(
@@ -1209,23 +1275,26 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 def_id,
                 resume_ty,
                 upvar_tys,
-                &alias_ty.def_id,
+                &opaque_def_id,
                 args.clone(),
             )?;
             self.obligations.extend(obligs);
         } else {
-            let bounds = infcx.genv.item_bounds(alias_ty.def_id)?.instantiate(
+            let bounds = infcx.genv.item_bounds(opaque_def_id)?.instantiate(
                 infcx.tcx(),
-                &alias_ty.args,
-                &alias_ty.refine_args,
+                opaque_args,
+                opaque_refine_args,
             );
             for clause in &bounds {
                 if !clause.kind().vars().is_empty() {
                     Err(query_bug!("handle_opaque_types: clause with bound vars: `{clause:?}`"))?;
                 }
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                    let alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
-                    let ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
+                    let alias_ty = pred
+                        .projection_term
+                        .with_self_ty(bty.to_subset_ty_ctor())
+                        .to_alias_ty();
+                    let ty1 = BaseTy::Alias(alias_ty)
                         .to_ty()
                         .deeply_normalize(&mut infcx.at(self.span))?;
                     let ty2 = pred.term.to_ty();

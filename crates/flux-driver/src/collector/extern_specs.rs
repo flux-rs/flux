@@ -58,7 +58,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             hir::ItemKind::Struct(_, _, variant) => {
                 self.collect_extern_struct(item.owner_id, variant, attrs)
             }
-            hir::ItemKind::Trait(_, _, _, _, _, bounds, items) => {
+            hir::ItemKind::Trait { bounds, items, .. } => {
                 self.collect_extern_trait(item.owner_id, bounds, items, attrs)
             }
             hir::ItemKind::Impl(impl_) => self.collect_extern_impl(item.owner_id, impl_, attrs),
@@ -403,8 +403,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             && let hir::ImplItemKind::Fn { .. } = self.tcx().hir_impl_item(*item_id).kind
             && let Some((clause, _)) = self
                 .tcx()
-                .predicates_of(item_id.owner_id.def_id)
-                .predicates
+                .clauses_of(item_id.owner_id.def_id)
+                .clauses
                 .first()
             && let Some(poly_trait_pred) = clause.as_trait_clause()
             && let Some(trait_pred) = poly_trait_pred.no_bound_vars()
@@ -523,7 +523,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         let tcx = self.tcx();
 
         // Get the self type from the external impl
-        let extern_self_ty = tcx.type_of(extern_impl_id).instantiate_identity();
+        let extern_self_ty = tcx
+            .type_of(extern_impl_id)
+            .instantiate_identity()
+            .skip_norm_wip();
 
         // Compare self types. `local_self_ty` is the user-written self type from the extern
         // spec's trait_ref (not the `__FluxExternImplStruct` wrapper that the macro retargets
@@ -646,7 +649,7 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(driver_malformed_extern_spec, code = E0999)]
+    #[diag("malformed extern_spec, this should never happen if you are using the extern_spec macro. Did you accidentally use the internal flux::extern_spec attribute?", code = E0999)]
     pub(super) struct MalformedExternSpec {
         #[primary_span]
         span: Span,
@@ -659,7 +662,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_invalid_enum_extern_spec, code = E0999)]
+    #[diag("invalid extern_spec for enum: {$reason}", code = E0999)]
     pub(super) struct InvalidEnumExternSpec {
         #[primary_span]
         span: Span,
@@ -673,97 +676,103 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_cannot_resolve_trait_impl, code = E0999)]
-    #[note]
+    #[diag("cannot resolve trait implementation", code = E0999)]
+    #[note("this is probably a bug in Flux")]
     pub(super) struct CannotResolveTraitImpl {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_invalid_impl_block, code = E0999)]
+    #[diag("invalid impl extern spec", code = E0999)]
     pub(super) struct InvalidImplBlock {
         #[primary_span]
-        #[label]
+        #[label("items in this extern spec are not defined in the same extern impl block")]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_item_not_in_trait_impl, code = E0999)]
+    #[diag("invalid extern spec for trait impl", code = E0999)]
     pub(super) struct ItemNotInTraitImpl {
         #[primary_span]
-        #[label]
+        #[label("`{$name}` is not defined in extern trait impl")]
         pub span: Span,
         pub name: String,
-        #[note]
+        #[note("extern trait impl defined here")]
         pub extern_impl_span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_invalid_item_in_inherent_impl, code = E0999)]
+    #[diag("invalid extern spec for inherent impl", code = E0999)]
     pub(super) struct InvalidItemInInherentImpl {
         #[primary_span]
-        #[label]
+        #[label("`{$name}` is not a member of an inherent impl")]
         pub span: Span,
         pub name: String,
-        #[note]
+        #[note("`{$name}` defined here")]
         pub extern_item_span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_item_not_in_trait, code = E0999)]
+    #[diag("invalid extern spec for trait", code = E0999)]
     pub(super) struct ItemNotInTrait {
         #[primary_span]
-        #[label]
+        #[label("`{$name}` is not defined in extern trait")]
         pub span: Span,
         pub name: String,
-        #[note]
+        #[note("extern trait defined here")]
         pub extern_trait_span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_extern_spec_for_local_def, code = E0999)]
+    #[diag("cannot add extern specs to local definition", code = E0999)]
     pub(super) struct ExternSpecForLocalDef {
         #[primary_span]
         pub span: Span,
-        #[help]
+        #[help(
+            "`{$name}` defined here in the same crate, use a detached spec https://flux-rs.github.io/flux/guide/specifications.html?highlight=detached#detached-specifications"
+        )]
         pub local_def_span: Span,
         pub name: String,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_dup_extern_spec, code = E0999)]
+    #[diag("multiple extern specs for `{$name}`", code = E0999)]
     pub(super) struct DupExternSpec {
         #[primary_span]
-        #[label]
+        #[label("extern spec for `{$name}` redefined here")]
         pub span: Span,
-        #[note]
+        #[note("previous extern spec for `{$name}` defined here")]
         pub previous_span: Span,
         pub name: String,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_mismatched_generics, code = E0999)]
-    #[note]
+    #[diag("invalid extern spec for {$def_descr}", code = E0999)]
+    #[note(
+        "extern specs must exactly match the external definition, including the list of generic parameters and their names"
+    )]
     pub(super) struct MismatchedGenerics {
         #[primary_span]
-        #[label]
+        #[label("generic parameters don't match the external {$def_descr}")]
         pub span: Span,
-        #[label(driver_extern_def_label)]
+        #[label("external {$def_descr} found here")]
         pub extern_def: Span,
         pub def_descr: &'static str,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_mismatched_impl_self_ty, code = E0999)]
-    #[note]
+    #[diag("invalid extern spec for trait impl", code = E0999)]
+    #[note(
+        "the self type in an extern spec for a trait impl must exactly match the external implementation"
+    )]
     pub(super) struct MismatchedImplSelfTy {
         #[primary_span]
-        #[label]
+        #[label("self type `{$local_self_ty}` doesn't match the external trait impl")]
         pub span: Span,
         pub local_self_ty: String,
         pub extern_self_ty: String,
-        #[label(driver_extern_impl_label)]
+        #[label("external trait impl has self type `{$extern_self_ty}`")]
         pub extern_impl_span: Span,
     }
 }

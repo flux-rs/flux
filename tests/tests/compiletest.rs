@@ -5,6 +5,7 @@ use std::{env, path::PathBuf, str::FromStr};
 
 use compiletest_rs::{Config, common::Mode};
 use flux_dev::{Suite, default_flags};
+use flux_sysroot::SysrootManifest;
 use itertools::Itertools;
 
 #[derive(Debug)]
@@ -14,6 +15,8 @@ struct Args {
     sysroot: PathBuf,
     /// Which subset of test suites to run.
     suite: Suite,
+    /// Timeout in seconds for each fixpoint query.
+    fixpoint_timeout: Option<u64>,
 }
 
 impl Args {
@@ -22,6 +25,7 @@ impl Args {
         let mut sysroot = None;
         let mut flux_driver = None;
         let mut suite = None;
+        let mut fixpoint_timeout = None;
         for (arg, val) in env::args().tuple_windows() {
             match &arg[..] {
                 "--filter" => filters.push(val.clone()),
@@ -46,6 +50,14 @@ impl Args {
                             .unwrap_or_else(|e| panic!("invalid --suite value `{val}`: {e}")),
                     );
                 }
+                "--fixpoint-timeout" => {
+                    if fixpoint_timeout.is_some() {
+                        panic!("option '--fixpoint-timeout' given more than once");
+                    }
+                    fixpoint_timeout = Some(val.parse().unwrap_or_else(|e| {
+                        panic!("invalid --fixpoint-timeout value `{val}`: {e}")
+                    }));
+                }
                 _ => {}
             }
         }
@@ -63,6 +75,7 @@ impl Args {
             flux_driver: PathBuf::from(flux_driver),
             sysroot: PathBuf::from(sysroot),
             suite,
+            fixpoint_timeout,
         }
     }
 }
@@ -72,7 +85,7 @@ fn test_runner(_: &[&()]) {
     let mut config =
         Config { rustc_path: args.flux_driver, filters: args.filters, ..Config::default() };
 
-    let mut flags = default_flags(&args.sysroot);
+    let mut flags = default_flags(&args.sysroot, SysrootManifest::extern_args(&args.sysroot));
 
     // Pass `--emit=metadata` and `-Ffull-compilation=on` to make sure we emit `.fluxmeta` and
     // other artifacts for tests using `@aux-build`.
@@ -80,6 +93,10 @@ fn test_runner(_: &[&()]) {
 
     // Pass `-Fsummary=off` to disable printing the summary at the end of each test
     flags.extend(["-Fsummary=off".to_string()]);
+
+    if let Some(timeout) = args.fixpoint_timeout {
+        flags.push(format!("-Ffixpoint-timeout={timeout}"));
+    }
 
     config.target_rustcflags = Some(flags.join(" "));
 

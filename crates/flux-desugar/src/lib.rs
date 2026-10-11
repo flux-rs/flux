@@ -1,7 +1,9 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
-#![feature(rustc_private, min_specialization, box_patterns, never_type, unwrap_infallible)]
+#![feature(deref_patterns, rustc_private, min_specialization)]
 
+extern crate rustc_abi;
+extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 
@@ -12,12 +14,9 @@ extern crate rustc_span;
 
 use desugar::RustItemCtxt;
 use flux_common::result::{ErrorCollector, ResultExt};
-use flux_macros::fluent_messages;
 use flux_syntax::surface;
 use itertools::Itertools as _;
 use rustc_data_structures::unord::UnordMap;
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 mod desugar;
 mod errors;
@@ -213,6 +212,7 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
                         surface::Attr::NoSuggestions => Some(fhir::Attr::NoSuggestions),
                         surface::Attr::Qualifiers(_)
                         | surface::Attr::Reveal(_)
+                        | surface::Attr::Hide(_)
                         | surface::Attr::AssumeParametric(_) => None,
                     }
                 })
@@ -224,6 +224,10 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
             .map_or(&[][..], Vec::as_slice),
         reveals: resolver_output
             .reveal_res_map
+            .get(&node_id)
+            .map_or(&[][..], Vec::as_slice),
+        hides: resolver_output
+            .hide_res_map
             .get(&node_id)
             .map_or(&[][..], Vec::as_slice),
         parametric_params: resolver_output

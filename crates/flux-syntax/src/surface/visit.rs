@@ -421,10 +421,17 @@ pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
     vis.visit_indices(&ret.indices);
 }
 
+// Explicit refinement params must be brought into scope *before* the generics, because a
+// `where` clause lives in `generics.predicates` and may mention them, e.g. an `hrn` parameter
+// used in the refinement of an `Fn`-trait bound e.g. tests/tests/pos/abstract_refinements/test05.rs
+// Implicit params (named inputs, `@`/`#` binders) are already pre-collected in `on_fn_sig`
+// before the walk, so only the explicit ones need this.
+
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
     vis.visit_async(&fn_sig.asyncness);
-    vis.visit_generics(&fn_sig.generics);
+
     walk_list!(vis, visit_refine_param, &fn_sig.params);
+    vis.visit_generics(&fn_sig.generics);
     for requires in &fn_sig.requires {
         walk_list!(vis, visit_refine_param, &requires.params);
         vis.visit_expr(&requires.pred);
@@ -557,6 +564,10 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
             vis.visit_const_arg(len);
             vis.visit_ty(ty);
         }
+        TyKind::BareFn(bare_fn) => {
+            walk_list!(vis, visit_ty, &bare_fn.inputs);
+            vis.visit_fn_ret_ty(&bare_fn.output);
+        }
         TyKind::ImplTrait(_node_id, trait_ref) => {
             walk_list!(vis, visit_trait_ref, trait_ref);
         }
@@ -608,7 +619,7 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::Literal(lit) => {
             vis.visit_literal(*lit);
         }
-        ExprKind::BinaryOp(_bin_op, box exprs) => {
+        ExprKind::BinaryOp(_bin_op, deref!(exprs)) => {
             walk_list!(vis, visit_expr, exprs);
         }
         ExprKind::UnaryOp(_un_op, e) => {
@@ -624,7 +635,7 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
             vis.visit_path(path);
             vis.visit_ident(*name);
         }
-        ExprKind::IfThenElse(box exprs) => {
+        ExprKind::IfThenElse(deref!(exprs)) => {
             walk_list!(vis, visit_expr, exprs);
         }
         ExprKind::Constructor(path, exprs) => {

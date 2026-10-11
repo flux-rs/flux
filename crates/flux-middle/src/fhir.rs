@@ -66,7 +66,10 @@ pub enum Attr {
 pub struct AttrMap<'fhir> {
     pub attrs: &'fhir [Attr],
     pub qualifiers: &'fhir [FluxLocalDefId],
-    pub reveals: &'fhir [FluxDefId],
+    /// The definitions listed in `#[reveal(...)]` together with the span where they are named.
+    pub reveals: &'fhir [(FluxDefId, Span)],
+    /// The definitions listed in `#[hide(...)]` together with the span where they are named.
+    pub hides: &'fhir [(FluxDefId, Span)],
     /// The `DefId`s of type params listed in `#[assume_parametric(...)]`. They match
     /// the `DefId` entries in `generics_of(callee_id)`. These are `DefId`s and not
     /// `LocalDefId`s such that they are correct for extern specs as well.
@@ -149,7 +152,7 @@ pub struct GenericParam<'fhir> {
 pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
     Lifetime,
-    Const { ty: Ty<'fhir> },
+    Const { ty: Ty<'fhir>, has_default: bool },
 }
 
 #[derive(Debug)]
@@ -597,6 +600,8 @@ pub enum TyKind<'fhir> {
 }
 
 pub struct BareFnTy<'fhir> {
+    /// Refinement params bound by the fn pointer type, e.g., `n` in `fn(i32[@n]) -> i32[n]`
+    pub params: &'fhir [RefineParam<'fhir>],
     pub safety: Safety,
     pub abi: rustc_abi::ExternAbi,
     pub generic_params: &'fhir [GenericParam<'fhir>],
@@ -871,7 +876,7 @@ pub enum Res<Id = ParamId> {
     Err,
 }
 
-/// Akin to `rustc_middle::metadata::ModChild` but for flux items defined in a module
+/// Akin to `rustc_middle::middle::resolve::ModChild` but for flux items defined in a module
 #[derive(Debug, Clone, Copy, Encodable, Decodable)]
 pub struct FluxModChild {
     pub ident: Ident,
@@ -1276,7 +1281,7 @@ impl<Id> Res<Id> {
 
     pub fn is_box(&self, tcx: TyCtxt) -> bool {
         if let Res::Def(DefKind::Struct, def_id) = self {
-            tcx.adt_def(def_id).is_box()
+            tcx.adt_def(*def_id).is_box()
         } else {
             false
         }

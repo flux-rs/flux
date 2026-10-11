@@ -1,10 +1,12 @@
 use std::{env, path::PathBuf, process, str::FromStr, sync::LazyLock};
 
-use clap::Args;
+use clap::{ArgMatches, Args, Command, FromArgMatches, parser::ValueSource};
 pub use toml::Value;
 use tracing::Level;
 
-use crate::{IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver};
+use crate::{
+    IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver, UifOps,
+};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
@@ -18,62 +20,56 @@ macro_rules! flux_arg {
 pub const EXIT_FAILURE: i32 = 2;
 
 #[derive(Args)]
-#[command(next_help_heading = "Flux-Specific Flags (Not Yet Supported)")]
+#[command(next_help_heading = "Flux-Specific Flags")]
 pub struct Flags {
-    /// Sets the directory to dump data. Defaults to `./log/`.
+    /// Sets the directory to dump data.
     #[arg(
         long = flux_arg!("log-dir"),
         value_name = "PATH",
         default_value = "./log/",
     )]
     pub log_dir: PathBuf,
-    /// Sets the directory to put all the emitted lean definitions and verification conditions. Defaults to `./`.
+    /// Sets the directory to put all the emitted lean definitions and verification conditions.
     #[arg(
         long = flux_arg!("lean-dir"),
         value_name = "PATH",
         default_value = "./"
     )]
     pub lean_dir: PathBuf,
-    /// Name of the lean project. Defaults to `lean_proofs`.
+    /// Name of the lean project.
     #[arg(
         long = flux_arg!("lean-project"),
         value_name = "NAME",
         default_value = "lean_proofs"
     )]
     pub lean_project: String,
-    /// If present, only check files matching the [`IncludePattern`] a glob pattern.
-    #[arg(long = flux_arg!("include"), value_name = "PATTERN", value_parser = panicking_parser)]
+    /// If present, only check files matching the [`IncludePattern`] (a glob pattern).
+    #[arg(long = flux_arg!("include"), value_name = "PATTERN")]
     pub include: Option<IncludePattern>,
     /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
-    #[arg(long = flux_arg!("include-trusted"), value_name = "PATTERN", value_parser = panicking_parser)]
+    #[arg(long = flux_arg!("include-trusted"), value_name = "PATTERN")]
     pub include_trusted: Option<IncludePattern>,
     /// If present, trust items matching [`IncludePattern`]. This implies `-Finclude`
-    #[arg(
-        long = flux_arg!("include-trusted-impl"),
-        value_name = "PATTERN",
-        value_parser = panicking_parser
-    )]
+    #[arg(long = flux_arg!("include-trusted-impl"), value_name = "PATTERN")]
     pub include_trusted_impl: Option<IncludePattern>,
-    /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
-    /// (default `64`).
+    /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy.
     #[arg(
         long = flux_arg!("pointer-width"),
         value_name = "WIDTH",
-        default_value = "64",
-        value_parser = default_pointerwidth
+        default_value = "64"
     )]
     pub pointer_width: PointerWidth,
-    /// If present switches on query caching and saves the cache in the provided path
-    #[arg(long = flux_arg!("cache"), value_name = "PATH", value_parser = panicking_parser)]
+    /// If present, switches on query caching and saves the cache in the provided path
+    #[arg(long = flux_arg!("cache"), value_name = "PATH")]
     pub cache: Option<PathBuf>,
-    /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`]
+    /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`].
     #[arg(
         long = flux_arg!("annots"),
         num_args = 0..=1,
         default_missing_value = "true"
     )]
     pub annots: bool,
-    /// Print statistics about time taken to analyze each fuction. Also dumps a file with the raw
+    /// Print statistics about time taken to analyze each function. Also dumps a file with the raw
     /// times for each function.
     #[arg(
         long = flux_arg!("timings"),
@@ -85,6 +81,7 @@ pub struct Flags {
     #[arg(
         long = flux_arg!("summary"),
         num_args = 0..=1,
+        default_value = "true",
         default_missing_value = "true"
     )]
     pub summary: bool,
@@ -92,75 +89,72 @@ pub struct Flags {
     #[arg(
         long = flux_arg!("solver"),
         value_name = "SOLVER",
-        default_value = "z3",
-        value_parser = default_smtsolver
+        default_value = "z3"
     )]
     pub solver: SmtSolver,
-    /// Enables qualifier scrapping in fixpoint
+    /// Enables qualifier scrapping in fixpoint.
     #[arg(
         long = flux_arg!("scrape-quals"),
         num_args = 0..=1,
         default_missing_value = "true"
     )]
     pub scrape_quals: bool,
-    /// Enables uninterpreted casts
+    /// Timeout in seconds for each fixpoint query. If a query doesn't finish in time, fixpoint is
+    /// killed and an error is reported for the item being checked. Disabled by default.
+    #[arg(long = flux_arg!("fixpoint-timeout"), value_name = "SECONDS")]
+    pub fixpoint_timeout: Option<u64>,
+    /// Enables uninterpreted casts.
     #[arg(
         long = flux_arg!("allow-uninterpreted-cast"),
         num_args = 0..=1,
         default_missing_value = "true"
     )]
     pub allow_uninterpreted_cast: bool,
-    /// Translates _monomorphic_ `defs` functions into SMT `define-fun` instead of inlining them
-    /// away inside `flux`.
-    #[arg(
-        long = flux_arg!("smt-define-fun"),
-        num_args = 0..=1,
-        default_missing_value = "true"
-    )]
-    pub smt_define_fun: bool,
     /// If `strict` checks for over and underflow on arithmetic integer operations,
     /// If `lazy` checks for underflow and loses information if possible overflow,
     /// If `none` (default), it still checks for underflow on unsigned integer subtraction.
     #[arg(
         long = flux_arg!("check-overflow"),
         value_name = "MODE",
-        default_value = "none",
-        value_parser = default_overflowmode
+        default_value = "none"
     )]
     pub check_overflow: OverflowMode,
     /// Whether to allow raw pointer dereferences during refinement checking.
     #[arg(
         long = flux_arg!("allow-raw-deref"),
         value_name = "MODE",
-        default_value = "default",
-        value_parser = default_rawderefmode
+        default_value = "none"
     )]
     pub allow_raw_deref: RawDerefMode,
-    /// Dump constraints generated for each function (debugging)
+    /// Binary operators to encode as uninterpreted functions in the constraints, as a comma
+    /// separated list, e.g., `*,/,%`.
+    #[arg(long = flux_arg!("uif-ops"), value_name = "OPS", default_value = "")]
+    pub uif_ops: UifOps,
+    /// Dump constraints generated for each function (debugging).
     #[arg(
         long = flux_arg!("dump-constraint"),
         num_args = 0..=1,
         default_missing_value = "true"
     )]
     pub dump_constraint: bool,
-    /// Saves the checker's trace (debugging)
-    #[arg(long = flux_arg!("dump-checker-trace"), value_name = "LEVEL", value_parser = panicking_parser)]
+    /// Saves the checker's trace (debugging).
+    #[arg(long = flux_arg!("dump-checker-trace"), value_name = "LEVEL")]
     pub dump_checker_trace: Option<tracing::Level>,
-    /// Saves the `fhir` for each item (debugging)
+    /// Saves the `fhir` for each item (debugging).
     #[arg(
         long = flux_arg!("dump-fhir"),
         num_args = 0..=1,
         default_missing_value = "true"
     )]
     pub dump_fhir: bool,
-    /// Saves the the `fhir` (debugging)
+    /// Saves the the `fhir` (debugging).
     #[arg(
         long = flux_arg!("dump-rty"),
         num_args = 0..=1,
         default_missing_value = "true"
     )]
     pub dump_rty: bool,
-    /// Optimistically keeps running flux even after errors are found to get as many errors as possible
+    /// Optimistically keeps running flux even after errors are found to get as many errors as possible.
     #[arg(
         long = flux_arg!("catch-bugs"),
         num_args = 0..=1,
@@ -173,7 +167,7 @@ pub struct Flags {
     #[arg(
         long = flux_arg!("verify"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true"
     )]
     pub verify: bool,
     /// If `true`, produce artifacts after analysis. This flag is managed by `cargo flux`, so you
@@ -185,34 +179,29 @@ pub struct Flags {
     )]
     pub full_compilation: bool,
     /// Path to the Flux sysroot directory. If not set, the driver infers it from its own binary location.
-    #[arg(long = flux_arg!("sysroot"), value_name = "PATH", value_parser = panicking_parser)]
+    #[arg(long = flux_arg!("sysroot"), value_name = "PATH")]
     pub sysroot: Option<PathBuf>,
     /// If `true`, all code is trusted by default. You can selectively untrust items by marking them with `#[trusted(no)]`. The default value of this flag is `false`, i.e., all code is untrusted by default.
     #[arg(
         long = flux_arg!("trusted"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true"
     )]
     pub trusted_default: bool,
     /// If `true`, all code will be ignored by default. You can selectively unignore items by marking them with `#[ignore(no)]`. The default value of this flag is `false`, i.e., all code is unignored by default.
     #[arg(
         long = flux_arg!("ignore"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true"
     )]
     pub ignore_default: bool,
-    #[arg(
-        long = flux_arg!("lean"),
-        value_name = "MODE",
-        default_value = "default",
-        value_parser = default_leanmode
-    )]
+    #[arg(long = flux_arg!("lean"), value_name = "MODE", default_value = "off")]
     pub lean: LeanMode,
     /// If `true`, every function is implicitly labeled with a `no_panic` by default.
     #[arg(
         long = flux_arg!("no-panic"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true"
     )]
     pub no_panic: bool,
     /// If `true`, automatically inject `flux_core` and `flux_alloc` as force externs using paths
@@ -220,21 +209,21 @@ pub struct Flags {
     #[arg(
         long = flux_arg!("std-extern-specs"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true"
     )]
     pub std_extern_specs: bool,
     /// If `true`, produce more detailed error messages (e.g. condition spans for fold errors).
     #[arg(
         long = flux_arg!("flux-verbose"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true"
     )]
     pub flux_verbose: bool,
     /// If `true`, all code will have suggestions disabled.
     #[arg(
         long = flux_arg!("no-suggestions"),
         num_args = 0..=1,
-        default_missing_value = "false"
+        default_missing_value = "true"
     )]
     pub no_suggestions_default: bool,
     /// If `true` (the default), attach a note to each failing item with a copy-pasteable command to
@@ -242,6 +231,7 @@ pub struct Flags {
     #[arg(
         long = flux_arg!("rerun-hint"),
         num_args = 0..=1,
+        default_value = "true",
         default_missing_value = "true"
     )]
     pub rerun_hint: bool,
@@ -265,10 +255,11 @@ impl Default for Flags {
             cache: None,
             check_overflow: OverflowMode::default(),
             allow_raw_deref: RawDerefMode::default(),
+            uif_ops: UifOps::default(),
             scrape_quals: false,
+            fixpoint_timeout: None,
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
-            smt_define_fun: false,
             annots: false,
             timings: false,
             summary: true,
@@ -284,6 +275,50 @@ impl Default for Flags {
             no_suggestions_default: false,
             rerun_hint: true,
         }
+    }
+}
+
+impl Flags {
+    // Convert this struct into what we'd need to pass in through the environment var
+    pub fn rustflags(matches: &ArgMatches) -> Vec<String> {
+        let spec = Flags::augment_args(Command::new("flux-flags"));
+        let mut out = Vec::new();
+        for arg in spec.get_arguments() {
+            let id = arg.get_id().as_str();
+            if matches.value_source(id) != Some(ValueSource::CommandLine) {
+                continue;
+            }
+            let Some(long) = arg.get_long() else { continue };
+            match matches.get_raw(id) {
+                Some(values) => {
+                    out.extend(values.map(|v| format!("-{long}={}", v.to_string_lossy())))
+                }
+                None => out.push(format!("-{long}")),
+            }
+        }
+        out
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct FluxFlags(pub Vec<String>);
+
+impl FromArgMatches for FluxFlags {
+    fn from_arg_matches(m: &ArgMatches) -> Result<Self, clap::Error> {
+        Ok(FluxFlags(Flags::rustflags(m)))
+    }
+    fn update_from_arg_matches(&mut self, m: &ArgMatches) -> Result<(), clap::Error> {
+        self.0 = Flags::rustflags(m);
+        Ok(())
+    }
+}
+
+impl Args for FluxFlags {
+    fn augment_args(cmd: Command) -> Command {
+        Flags::augment_args(cmd)
+    }
+    fn augment_args_for_update(cmd: Command) -> Command {
+        Flags::augment_args_for_update(cmd)
     }
 }
 
@@ -307,10 +342,11 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "pointer-width" => parse_pointer_width(&mut flags.pointer_width, value),
             "check-overflow" => parse_overflow(&mut flags.check_overflow, value),
             "allow-raw-deref" => parse_raw_deref(&mut flags.allow_raw_deref, value),
+            "uif-ops" => parse_uif_ops(&mut flags.uif_ops, value),
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
+            "fixpoint-timeout" => parse_opt_u64(&mut flags.fixpoint_timeout, value),
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
-            "smt-define-fun" => parse_bool(&mut flags.smt_define_fun, value),
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
             "summary" => parse_bool(&mut flags.summary, value),
@@ -403,6 +439,16 @@ fn parse_string(slot: &mut String, v: Option<&str>) -> Result<(), &'static str> 
     }
 }
 
+fn parse_opt_u64(slot: &mut Option<u64>, v: Option<&str>) -> Result<(), &'static str> {
+    match v.and_then(|s| s.parse().ok()) {
+        Some(n) => {
+            *slot = Some(n);
+            Ok(())
+        }
+        None => Err("expected a non-negative integer"),
+    }
+}
+
 fn parse_path_buf(slot: &mut PathBuf, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
@@ -440,6 +486,16 @@ fn parse_overflow(slot: &mut OverflowMode, v: Option<&str>) -> Result<(), &'stat
             Ok(())
         }
         _ => Err(OverflowMode::ERROR),
+    }
+}
+
+fn parse_uif_ops(slot: &mut UifOps, v: Option<&str>) -> Result<(), &'static str> {
+    match v {
+        Some(s) => {
+            *slot = s.parse()?;
+            Ok(())
+        }
+        _ => Err(UifOps::ERROR),
     }
 }
 
@@ -488,28 +544,4 @@ fn parse_opt_include(slot: &mut Vec<String>, v: Option<&str>) -> Result<(), &'st
         slot.push(include.to_string());
     }
     Ok(())
-}
-
-fn panicking_parser(_s: &str) -> Result<(), String> {
-    panic!("Parsing flux args from cli is not yet supported.");
-}
-
-fn default_pointerwidth(_s: &str) -> Result<PointerWidth, String> {
-    Ok(PointerWidth::default())
-}
-
-fn default_overflowmode(_s: &str) -> Result<OverflowMode, String> {
-    Ok(OverflowMode::default())
-}
-
-fn default_rawderefmode(_s: &str) -> Result<RawDerefMode, String> {
-    Ok(RawDerefMode::default())
-}
-
-fn default_smtsolver(_s: &str) -> Result<SmtSolver, String> {
-    Ok(SmtSolver::default())
-}
-
-fn default_leanmode(_s: &str) -> Result<LeanMode, String> {
-    Ok(LeanMode::default())
 }

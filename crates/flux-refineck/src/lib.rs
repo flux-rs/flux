@@ -2,10 +2,8 @@
 
 #![feature(
     associated_type_defaults,
-    box_patterns,
-    if_let_guard,
+    deref_patterns,
     min_specialization,
-    never_type,
     rustc_private,
     unwrap_infallible
 )]
@@ -39,7 +37,7 @@ use flux_infer::{
     infer::{ConstrReason, SubtypeReason, Tag},
     wkvars::WKVarSubst,
 };
-use flux_macros::fluent_messages;
+use flux_macros::msg;
 use flux_middle::{
     FixpointQueryKind,
     def_id::MaybeExternId,
@@ -54,8 +52,6 @@ use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_span::Span;
 
 use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_statements};
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn report_fixpoint_errors(
     genv: GlobalEnv,
@@ -207,14 +203,12 @@ pub fn check_fn(
 fn call_error<'a>(genv: GlobalEnv<'a, '_>, span: Span, dst_span: Option<ESpan>) -> Diag<'a> {
     genv.sess()
         .dcx()
-        .handle()
         .create_err(errors::RefineError::call(span, dst_span))
 }
 
 fn ret_error<'a>(genv: GlobalEnv<'a, '_>, span: Span, dst_span: Option<ESpan>) -> Diag<'a> {
     genv.sess()
         .dcx()
-        .handle()
         .create_err(errors::RefineError::ret(span, dst_span))
 }
 
@@ -246,65 +240,32 @@ fn report_errors(
             | ConstrReason::Subtype(SubtypeReason::Input)
             | ConstrReason::Subtype(SubtypeReason::Requires)
             | ConstrReason::Predicate => call_error(genv, span, tag.dst_span),
-            ConstrReason::Assign => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::AssignError { span })
-            }
+            ConstrReason::Assign => genv.sess().dcx().create_err(errors::AssignError { span }),
             ConstrReason::Ret
             | ConstrReason::Subtype(SubtypeReason::Output)
             | ConstrReason::Subtype(SubtypeReason::Ensures) => ret_error(genv, span, tag.dst_span),
-            ConstrReason::Div => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::DivError { span })
-            }
-            ConstrReason::Rem => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::RemError { span })
-            }
-            ConstrReason::Goto(_) => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::GotoError { span })
-            }
+            ConstrReason::Div => genv.sess().dcx().create_err(errors::DivError { span }),
+            ConstrReason::Rem => genv.sess().dcx().create_err(errors::RemError { span }),
+            ConstrReason::Goto(_) => genv.sess().dcx().create_err(errors::GotoError { span }),
             ConstrReason::Assert(msg) => {
                 genv.sess()
                     .dcx()
-                    .handle()
                     .create_err(errors::AssertError { span, msg })
             }
             ConstrReason::Fold | ConstrReason::FoldLocal => {
                 genv.sess()
                     .dcx()
-                    .handle()
                     .create_err(errors::FoldError::new(span, tag.dst_span))
             }
-            ConstrReason::Overflow => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::OverflowError { span })
-            }
+            ConstrReason::Overflow => genv.sess().dcx().create_err(errors::OverflowError { span }),
             ConstrReason::Underflow => {
                 genv.sess()
                     .dcx()
-                    .handle()
                     .create_err(errors::UnderflowError { span })
             }
-            ConstrReason::Other => {
-                genv.sess()
-                    .dcx()
-                    .handle()
-                    .create_err(errors::UnknownError { span })
-            }
+            ConstrReason::Other => genv.sess().dcx().create_err(errors::UnknownError { span }),
             ConstrReason::NoPanic(callee, reason) => {
-                genv.sess().dcx().handle().create_err(errors::PanicError {
+                genv.sess().dcx().create_err(errors::PanicError {
                     span,
                     callee: genv.tcx().def_path_debug_str(callee),
                     reason: format!("{:?}", reason),
@@ -323,9 +284,9 @@ fn report_errors(
         if let Some(path) = &log_path {
             err_diag.arg("path", path.display().to_string());
             err_diag.arg("tag", tag_idx.to_string());
-            err_diag.note(crate::fluent_generated::refineck_constraint_log_note);
+            err_diag.note(msg!("log file saved to {$path} (tag: {$tag})"));
         }
-        e = Some(err_diag.emit());
+        e = Some(err_diag.emit_err());
     }
 
     if let Some(e) = e { Err(e) } else { Ok(()) }
@@ -423,38 +384,38 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(refineck_goto_error, code = E0999)]
+    #[diag("error jumping to join point", code = E0999)]
     pub struct GotoError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_assign_error, code = E0999)]
+    #[diag("assignment might be unsafe", code = E0999)]
     pub struct AssignError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Subdiagnostic)]
-    #[note(refineck_condition_span_note)]
+    #[note("this is the condition that cannot be proved")]
     pub(crate) struct ConditionSpanNote {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Subdiagnostic)]
-    #[note(refineck_call_span_note)]
+    #[note("inside this call")]
     pub(crate) struct CallSpanNote {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_refine_error, code = E0999)]
+    #[diag("refinement type error", code = E0999)]
     pub struct RefineError {
         #[primary_span]
-        #[label]
+        #[label("a {$cond} cannot be proved")]
         pub span: Span,
         cond: &'static str,
         #[subdiagnostic]
@@ -485,21 +446,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_div_error, code = E0999)]
+    #[diag("possible division by zero", code = E0999)]
     pub struct DivError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_rem_error, code = E0999)]
+    #[diag("possible remainder with a divisor of zero", code = E0999)]
     pub struct RemError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_assert_error, code = E0999)]
+    #[diag("assertion might fail: {$msg}", code = E0999)]
     pub struct AssertError {
         #[primary_span]
         pub span: Span,
@@ -507,7 +468,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_fold_error, code = E0999)]
+    #[diag("type invariant may not hold (when place is folded)", code = E0999)]
     pub struct FoldError {
         #[primary_span]
         pub span: Span,
@@ -523,28 +484,28 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_overflow_error, code = E0999)]
+    #[diag("arithmetic operation may overflow", code = E0999)]
     pub struct OverflowError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_underflow_error, code = E0999)]
+    #[diag("arithmetic operation may underflow", code = E0999)]
     pub struct UnderflowError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_unknown_error, code = E0999)]
+    #[diag("cannot prove this code safe", code = E0999)]
     pub struct UnknownError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_expected_neg, code = E0999)]
+    #[diag("{$def_descr} marked with `#[should_fail]` didn't produce a refinement type error", code = E0999)]
     pub struct ExpectedNeg {
         #[primary_span]
         pub span: Span,
@@ -552,7 +513,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_panic_error, code = E0999)]
+    #[diag("call to {$callee} may panic: {$reason}", code = E0999)]
     pub(super) struct PanicError {
         #[primary_span]
         pub(super) span: Span,

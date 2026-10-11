@@ -650,6 +650,8 @@ fn parse_thy_func(name: &str) -> Option<ThyFunc> {
         "bv32_to_int" => Some(ThyFunc::Bv32ToInt),
         "int_to_bv64" => Some(ThyFunc::IntToBv64),
         "bv64_to_int" => Some(ThyFunc::Bv64ToInt),
+        "int_to_bv128" => Some(ThyFunc::IntToBv128),
+        "bv128_to_int" => Some(ThyFunc::Bv128ToInt),
 
         // BIT VECTORS - comparisons
         "bvule" => Some(ThyFunc::BvUle),

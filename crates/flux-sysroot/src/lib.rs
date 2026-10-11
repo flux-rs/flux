@@ -1,18 +1,75 @@
 //! Shared sysroot utilities for `flux-bin`, `xtask`, and `tests`.
 
-use std::{collections::BTreeMap, env, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    env,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
-/// Typed representation of `sysroot.toml`.
+/// Index of the sysroot, recording the name every artifact was given when it was copied in.
 ///
-/// Written by `xtask` after building sysroot libraries, read by `flux-driver` at startup to inject
-/// extern specs. Serialization format is left to the caller (`toml` in both cases).
+/// Written by `xtask`; read by `flux`, the test runner, and `flux-driver` to resolve the sysroot
+/// crates by path instead of by name.
 #[derive(Serialize, Deserialize, Default)]
 pub struct SysrootManifest {
     #[serde(default)]
-    pub extern_specs: BTreeMap<String, String>,
+    pub crates: BTreeMap<String, SysrootCrate>,
 }
+
+/// File names are relative to the sysroot directory.
+#[derive(Serialize, Deserialize, Default, Clone)]
+pub struct SysrootCrate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rlib: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rmeta: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fluxmeta: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dylib: Option<String>,
+    /// Whether this crate's specs are injected as force externs under `-Fstd-extern-specs`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub extern_spec: bool,
+}
+
+impl SysrootManifest {
+    fn read(sysroot: &Path) -> Option<Self> {
+        let content = std::fs::read_to_string(sysroot.join(SYSROOT_MANIFEST)).ok()?;
+        toml::from_str(&content).ok()
+    }
+
+    /// Libraries get both their `.rmeta` and their `.rlib`: since cargo stopped embedding
+    /// metadata in rlibs, the former is the only copy of the metadata and the latter is still
+    /// needed to link.
+    pub fn extern_args(sysroot: &Path) -> Vec<String> {
+        let Some(manifest) = Self::read(sysroot) else { return vec![] };
+        let mut args = vec![];
+        for (name, krate) in &manifest.crates {
+            for file in [&krate.rmeta, &krate.rlib, &krate.dylib]
+                .into_iter()
+                .flatten()
+            {
+                args.push("--extern".to_string());
+                args.push(format!("{name}={}", sysroot.join(file).display()));
+            }
+        }
+        args
+    }
+
+    pub fn extern_specs(sysroot: &Path) -> Vec<(String, PathBuf)> {
+        let Some(manifest) = Self::read(sysroot) else { return vec![] };
+        manifest
+            .crates
+            .iter()
+            .filter(|(_, krate)| krate.extern_spec)
+            .filter_map(|(name, krate)| Some((name.clone(), sysroot.join(krate.rmeta.as_ref()?))))
+            .collect()
+    }
+}
+
+pub const SYSROOT_MANIFEST: &str = "sysroot.toml";
 
 /// Name of the environment variable used to override the Flux sysroot location.
 ///

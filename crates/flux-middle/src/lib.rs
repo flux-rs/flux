@@ -1,15 +1,11 @@
 //! This crate contains common type definitions that are used by other crates.
 #![feature(
     associated_type_defaults,
-    box_patterns,
     closure_track_caller,
-    if_let_guard,
     map_try_insert,
     min_specialization,
-    never_type,
     rustc_private,
-    unwrap_infallible,
-    new_range_api
+    unwrap_infallible
 )]
 
 extern crate rustc_abi;
@@ -42,7 +38,6 @@ mod sort_of;
 use std::sync::LazyLock;
 
 use flux_arc_interner::List;
-use flux_macros::fluent_messages;
 pub use flux_rustc_bridge::def_id_to_string;
 use flux_rustc_bridge::{
     mir::{LocalDecls, PlaceElem},
@@ -66,8 +61,6 @@ use rustc_span::{
     def_id::{DefId, LocalDefId},
     symbol::Ident,
 };
-
-fluent_messages! { "../locales/en-US.ftl" }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub enum PanicSpec {
@@ -147,6 +140,8 @@ pub fn name_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<&'static str> 
         ThyFunc::Bv32ToInt => "bv_bv32_to_int",
         ThyFunc::IntToBv64 => "bv_int_to_bv64",
         ThyFunc::Bv64ToInt => "bv_bv64_to_int",
+        ThyFunc::IntToBv128 => "bv_int_to_bv128",
+        ThyFunc::Bv128ToInt => "bv_bv128_to_int",
         ThyFunc::BvUge => "bv_uge",
         ThyFunc::BvSge => "bv_sge",
         ThyFunc::BvUdiv => "bv_udiv",
@@ -255,6 +250,20 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
             rty::PolyFuncSort::new(
                 List::empty(),
                 rty::FuncSort::new(vec![BitVec(BvSize::Fixed(64))], Int),
+            )
+        }
+        ThyFunc::IntToBv128 => {
+            // int -> BitVec<128>
+            rty::PolyFuncSort::new(
+                List::empty(),
+                rty::FuncSort::new(vec![rty::Sort::Int], BitVec(BvSize::Fixed(128))),
+            )
+        }
+        ThyFunc::Bv128ToInt => {
+            // BitVec<128> -> int
+            rty::PolyFuncSort::new(
+                List::empty(),
+                rty::FuncSort::new(vec![BitVec(BvSize::Fixed(128))], Int),
             )
         }
         ThyFunc::BvUdiv
@@ -515,9 +524,12 @@ pub struct ResolverOutput {
     /// The resolved list of local qualifiers per function.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
     pub qualifier_res_map: UnordMap<NodeId, Vec<def_id::FluxLocalDefId>>,
-    /// The resolved list of local reveals per function
+    /// The resolved list of local reveals per function together with the span where they are named.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
-    pub reveal_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
+    pub reveal_res_map: UnordMap<NodeId, Vec<(def_id::FluxDefId, Span)>>,
+    /// The resolved list of local hides per function together with the span where they are named.
+    /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
+    pub hide_res_map: UnordMap<NodeId, Vec<(def_id::FluxDefId, Span)>>,
     /// The resolved type param `DefId`s for `#[assume_parametric(...)]` per function.
     /// The [`NodeId`] corresponds to the surface item's `node_id`.
     pub parametric_param_res_map: UnordMap<NodeId, Vec<DefId>>,

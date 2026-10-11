@@ -8,7 +8,6 @@ edition = "2024"
 
 [workspace.dependencies]
 flux-arc-interner = { path = "./crates/flux-arc-interner", version = "0.1.0" }
-flux-bin = { path = "./crates/flux-bin", version = "0.1.0" }
 flux-dev = { path = "./flux-dev", version = "0.1.0" }
 flux-sysroot = { path = "./crates/flux-sysroot", version = "0.1.0" }
 flux-common = { path = "./crates/flux-common", version = "0.1.0" }
@@ -24,7 +23,6 @@ flux-opt = { path = "./crates/flux-opt", version = "0.1.0" }
 flux-refineck = { path = "./crates/flux-refineck", version = "0.1.0" }
 flux-rustc-bridge = { path = "./crates/flux-rustc-bridge", version = "0.1.0" }
 flux-syntax = { path = "./crates/flux-syntax", version = "0.1.0" }
-tests = { path = "./tests", version = "0.1.0" }
 
 liquid-fixpoint = { path = "./lib/liquid-fixpoint", version = "0.1.0", features = [
     "nightly",
@@ -60,6 +58,8 @@ walkdir = "2.5"
 unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(flux_sysroot)',
     'cfg(flux)',
+    # Set when building rustc itself; used by `rustc_index::newtype_index!`
+    'cfg(bootstrap)',
 ] }
 unused_extern_crates = "warn"
 
@@ -67,15 +67,15 @@ unused_extern_crates = "warn"
 private_intra_doc_links = "allow"
 
 [workspace.lints.clippy]
-cloned-instead-of-copied = "warn"
-disallowed-methods = "deny"
-explicit-into-iter-loop = "warn"
-explicit-iter-loop = "warn"
-implicit-clone = "warn"
-inefficient-to-string = "warn"
-mismatching-type-param-order = "warn"
-new-without-default = "allow"
-semicolon-if-nothing-returned = "warn"
+cloned_instead_of_copied = "warn"
+disallowed_methods = "deny"
+explicit_into_iter_loop = "warn"
+explicit_iter_loop = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+mismatching_type_param_order = "warn"
+new_without_default = "allow"
+semicolon_if_nothing_returned = "warn"
 
 [profile.profiling]
 inherits = "release"

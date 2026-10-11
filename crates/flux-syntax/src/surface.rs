@@ -7,7 +7,7 @@ pub use rustc_ast::{
     Mutability,
     token::{Lit, LitKind},
 };
-use rustc_hash::FxHashSet;
+use rustc_data_structures::fx::FxIndexSet;
 pub use rustc_span::{Span, symbol::Ident};
 use rustc_span::{Symbol, symbol::sym};
 
@@ -493,9 +493,20 @@ pub enum TyKind {
     Constr(Expr, Box<Ty>),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ConstArg),
+    /// A function pointer type, e.g., `fn(i32) -> i32{v: v > 0}`
+    BareFn(Box<BareFnTy>),
     /// The `NodeId` is used to resolve the type to a corresponding `OpaqueTy`
     ImplTrait(NodeId, GenericBounds),
     Hole,
+}
+
+#[derive(Debug)]
+pub struct BareFnTy {
+    /// example `&T[@n]`. `@` binders in the inputs are bound by the fn pointer type itself
+    pub inputs: Vec<Ty>,
+    pub output: FnRetTy,
+    pub node_id: NodeId,
+    pub span: Span,
 }
 
 impl Ty {
@@ -510,6 +521,7 @@ impl Ty {
                     TyKind::Tuple(_)
                     | TyKind::Ref(..)
                     | TyKind::Array(..)
+                    | TyKind::BareFn(..)
                     | TyKind::ImplTrait(..)
                     | TyKind::Hole
                     | TyKind::Base(_) => {
@@ -657,6 +669,8 @@ pub enum Attr {
     Qualifiers(Vec<Ident>),
     /// A `#[reveal(...)]` attribute
     Reveal(Vec<Ident>),
+    /// A `#[hide(...)]` attribute
+    Hide(Vec<Ident>),
     /// A `#[opts(...)]` attribute
     InferOpts(PartialInferOpts),
     /// A `#[no_panic]` attribute
@@ -923,9 +937,11 @@ impl<T, P> Punctuated<T, P> {
 impl Expr {
     /// Collects all free variables in an expression.
     /// A free variable is an `ExprKind::Path` with a single identifier segment.
-    pub fn free_vars(&self) -> FxHashSet<Ident> {
+    ///
+    /// Variables are returned in the order they first appear in the expression.
+    pub fn free_vars(&self) -> FxIndexSet<Ident> {
         struct FreeVarsVisitor {
-            vars: FxHashSet<Ident>,
+            vars: FxIndexSet<Ident>,
         }
 
         impl visit::Visitor for FreeVarsVisitor {
@@ -954,7 +970,7 @@ impl Expr {
             }
         }
 
-        let mut visitor = FreeVarsVisitor { vars: FxHashSet::default() };
+        let mut visitor = FreeVarsVisitor { vars: FxIndexSet::default() };
         visitor.visit_expr(self);
         visitor.vars
     }

@@ -122,7 +122,10 @@ impl TraitImplResolver {
             let trait_ = LookupRes::DefId(*trait_id);
             for impl_id in impl_ids {
                 let poly_trait_ref = tcx.impl_trait_ref(*impl_id);
-                let self_ty = poly_trait_ref.instantiate_identity().self_ty();
+                let self_ty = poly_trait_ref
+                    .instantiate_identity()
+                    .skip_norm_wip()
+                    .self_ty();
                 let self_ty = LookupRes::new(&self_ty);
                 let key = TraitImplKey { trait_, self_ty };
                 items.insert(key, *impl_id);
@@ -271,7 +274,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                 let assoc_items = tcx
                     .inherent_impls(def_id)
                     .iter()
-                    .flat_map(|impl_id| tcx.associated_items(impl_id).in_definition_order());
+                    .flat_map(|impl_id| tcx.associated_items(*impl_id).in_definition_order());
                 self.collect_assoc_methods(
                     inherent_impl.items,
                     assoc_items,

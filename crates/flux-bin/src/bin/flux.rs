@@ -7,6 +7,7 @@ use flux_bin::utils::{
     LIB_PATH, flux_sysroot_dir, get_flux_driver_path, get_rust_lib_path, get_rust_sysroot,
     get_rust_toolchain, prepend_path_to_env_var, print_version_and_exit,
 };
+use flux_sysroot::SysrootManifest;
 
 fn main() -> Result<()> {
     if env::args().any(|arg| arg == "--version" || arg == "-V") {
@@ -23,10 +24,12 @@ fn main() -> Result<()> {
     Command::new(flux_driver_path)
         // Skip the invocation of `flux` itself
         .args(env::args().skip(1))
+        // Transitive deps ignore `--extern`, so they still need a search path.
         .arg("-L")
         .arg(&flux_sysroot)
         .arg(format!("-Fsysroot={}", flux_sysroot.display()))
-        .args(["--extern", "flux_rs", "--extern", "flux_attrs", "-Fverify=on"])
+        .args(SysrootManifest::extern_args(&flux_sysroot))
+        .arg("-Fverify=on")
         .env(LIB_PATH, extended_lib_path)
         .status()?
         .exit_ok()?;

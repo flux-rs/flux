@@ -34,6 +34,7 @@ use std::{
     hash::{Hash, Hasher},
     io,
     str::FromStr,
+    time::Duration,
 };
 #[cfg(not(feature = "rust-fixpoint"))]
 use std::{
@@ -52,6 +53,9 @@ use serde::{Deserialize, Serialize, de};
 
 /// Type alias for qualifier assignments used in constraint solving
 pub type Assignments<'a, T> = HashMap<<T as Types>::KVar, Vec<(&'a Qualifier<T>, Vec<usize>)>>;
+
+#[cfg(not(feature = "rust-fixpoint"))]
+use process_control::{ChildExt, Control};
 
 #[cfg(feature = "rust-fixpoint")]
 use crate::constraint_with_env::ConstraintWithEnv;
@@ -248,12 +252,27 @@ pub enum FixpointStatus<Tag> {
     Crash(CrashInfo),
 }
 
+/// An error that prevented fixpoint from producing a result
+#[derive(Debug)]
+pub enum FixpointError {
+    /// Fixpoint didn't finish within the given timeout and was killed
+    Timeout,
+    Io(io::Error),
+}
+
+impl From<io::Error> for FixpointError {
+    fn from(err: io::Error) -> Self {
+        FixpointError::Io(err)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(tag = "tag", content = "contents")]
 pub enum LeanStatus {
     #[default]
     Invalid,
-    Valid,
+    /// The proof was checked when the user-written lean files had the given digest.
+    Valid(u64),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -346,8 +365,10 @@ impl CrashInfo {
 pub struct KVarDecl<T: Types> {
     pub kvid: T::KVar,
     pub sorts: Vec<Sort<T>>,
-    #[derive_where(skip)]
-    pub comment: String,
+    /// Number of leading arguments in `sorts` that are self arguments. Fixpoint only instantiates
+    /// qualifiers whose self parameters are bound to self arguments, so a kvar with no self
+    /// arguments can only be solved to `true` or `false`.
+    pub self_args: usize,
 }
 
 impl<T: Types> Task<T> {
@@ -357,8 +378,12 @@ impl<T: Types> Task<T> {
         hasher.finish()
     }
 
+    /// Runs the task. The timeout is ignored by the rust implementation.
     #[cfg(feature = "rust-fixpoint")]
-    pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
+    pub fn run(
+        &self,
+        _timeout: Option<Duration>,
+    ) -> Result<VerificationResult<T::Tag>, FixpointError> {
         let mut cstr_with_env = ConstraintWithEnv::new(
             self.data_decls.clone(),
             self.kvars.clone(),
@@ -374,8 +399,13 @@ impl<T: Types> Task<T> {
         })
     }
 
+    /// Runs the task by calling the fixpoint binary. If `timeout` is given and fixpoint doesn't
+    /// finish in time, the process is killed and [`FixpointError::Timeout`] is returned.
     #[cfg(not(feature = "rust-fixpoint"))]
-    pub fn run(&self) -> io::Result<VerificationResult<T::Tag>> {
+    pub fn run(
+        &self,
+        timeout: Option<Duration>,
+    ) -> Result<VerificationResult<T::Tag>, FixpointError> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
@@ -395,7 +425,12 @@ impl<T: Types> Task<T> {
             // Use compact formatting to reduce overhead when communicating with fixpoint
             writeln!(w, "{}", format::CompactTask(self))?;
         }
-        let out = child.wait_with_output()?;
+
+        let mut control = child.controlled_with_output();
+        if let Some(timeout) = timeout {
+            control = control.time_limit(timeout).terminate_for_timeout();
+        }
+        let out = control.wait()?.ok_or(FixpointError::Timeout)?;
 
         serde_json::from_slice(&out.stdout).map_err(|err| {
             // If we fail to parse stdout fixpoint may have outputed something to stderr
@@ -403,17 +438,17 @@ impl<T: Types> Task<T> {
             if !out.stderr.is_empty() {
                 let stderr = std::str::from_utf8(&out.stderr)
                     .unwrap_or("fixpoint exited with a non-zero return code");
-                io::Error::other(stderr)
+                FixpointError::Io(io::Error::other(stderr))
             } else {
-                err.into()
+                FixpointError::Io(err.into())
             }
         })
     }
 }
 
 impl<T: Types> KVarDecl<T> {
-    pub fn new(kvid: T::KVar, sorts: Vec<Sort<T>>, comment: String) -> Self {
-        Self { kvid, sorts, comment }
+    pub fn new(kvid: T::KVar, sorts: Vec<Sort<T>>, self_args: usize) -> Self {
+        Self { kvid, sorts, self_args }
     }
 }
 
@@ -461,6 +496,8 @@ pub enum ThyFunc {
     Bv32ToInt,
     IntToBv64,
     Bv64ToInt,
+    IntToBv128,
+    Bv128ToInt,
     BvUle,
     BvSle,
     BvUge,
@@ -511,7 +548,7 @@ pub enum ThyFunc {
 }
 
 impl ThyFunc {
-    pub const ALL: [ThyFunc; 44] = [
+    pub const ALL: [ThyFunc; 46] = [
         ThyFunc::StrLen,
         ThyFunc::StrConcat,
         ThyFunc::StrPrefixOf,
@@ -523,6 +560,8 @@ impl ThyFunc {
         ThyFunc::Bv32ToInt,
         ThyFunc::IntToBv64,
         ThyFunc::Bv64ToInt,
+        ThyFunc::IntToBv128,
+        ThyFunc::Bv128ToInt,
         ThyFunc::BvAdd,
         ThyFunc::BvNeg,
         ThyFunc::BvSub,
@@ -578,6 +617,8 @@ impl fmt::Display for ThyFunc {
             ThyFunc::Bv8ToInt => write!(f, "bv8_to_int"),
             ThyFunc::IntToBv64 => write!(f, "int_to_bv64"),
             ThyFunc::Bv64ToInt => write!(f, "bv64_to_int"),
+            ThyFunc::IntToBv128 => write!(f, "int_to_bv128"),
+            ThyFunc::Bv128ToInt => write!(f, "bv128_to_int"),
             ThyFunc::BvUle => write!(f, "bvule"),
             ThyFunc::BvSle => write!(f, "bvsle"),
             ThyFunc::BvUge => write!(f, "bvuge"),
@@ -626,6 +667,8 @@ impl FromStr for ThyFunc {
             "bv8_to_int" => Ok(ThyFunc::Bv8ToInt),
             "int_to_bv64" => Ok(ThyFunc::IntToBv64),
             "bv64_to_int" => Ok(ThyFunc::Bv64ToInt),
+            "int_to_bv128" => Ok(ThyFunc::IntToBv128),
+            "bv128_to_int" => Ok(ThyFunc::Bv128ToInt),
             "bvule" => Ok(ThyFunc::BvUle),
             "bvsle" => Ok(ThyFunc::BvSle),
             "bvuge" => Ok(ThyFunc::BvUge),

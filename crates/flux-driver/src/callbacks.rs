@@ -13,7 +13,6 @@ use flux_middle::{
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
-    rty::StaticInfo,
 };
 use flux_refineck as refineck;
 use rustc_borrowck::consumers::ConsumerOptions;
@@ -27,7 +26,7 @@ use rustc_interface::interface::Compiler;
 use rustc_middle::{queries, ty::TyCtxt, util};
 use rustc_session::config::OutputType;
 
-use crate::{DEFAULT_LOCALE_RESOURCES, collector::SpecCollector};
+use crate::collector::SpecCollector;
 
 #[derive(Default)]
 pub struct FluxCallbacks;
@@ -61,11 +60,7 @@ impl FluxCallbacks {
             return;
         }
 
-        let sess = FluxSession::new(
-            &tcx.sess.opts,
-            tcx.sess.psess.clone_source_map(),
-            rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false),
-        );
+        let sess = FluxSession::new(&tcx.sess.opts, tcx.sess.psess.clone_source_map());
 
         let mut providers = Providers::default();
         flux_opt::provide(&mut providers);
@@ -90,13 +85,7 @@ impl FluxCallbacks {
 fn load_extern_specs() -> Vec<(String, std::path::PathBuf)> {
     use flux_sysroot::SysrootManifest;
     let Some(sysroot) = config::sysroot() else { return vec![] };
-    let Ok(content) = std::fs::read_to_string(sysroot.join("sysroot.toml")) else { return vec![] };
-    let Ok(manifest) = toml::from_str::<SysrootManifest>(&content) else { return vec![] };
-    manifest
-        .extern_specs
-        .into_iter()
-        .map(|(name, rmeta)| (name, sysroot.join(&rmeta)))
-        .collect()
+    SysrootManifest::extern_specs(&sysroot)
 }
 
 fn inject_std_extern_specs(config: &mut rustc_interface::interface::Config) {
@@ -140,7 +129,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         tracing::info!("Callbacks::check_wf");
         // Query qualifiers and spec funcs to report wf errors
         let _ = genv.qualifiers().emit(&genv)?;
-        let _ = genv.normalized_defns(LOCAL_CRATE);
+        let _ = genv.spec_funcs(LOCAL_CRATE);
 
         let mut ck = CrateChecker::new(genv);
 
@@ -156,32 +145,45 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         }
 
         let lean_result = if config::lean().is_check() {
-            genv.iter_local_def_id().try_for_each_exhaust(|def_id| {
-                // Skip proof check if not included
-                if !genv.included(genv.maybe_extern_id(def_id)) {
-                    return Ok(());
-                }
-                if genv.proven_externally(def_id).is_some() {
-                    let key = lean_task_key(genv.tcx(), def_id.to_def_id());
+            // A cached proof is only valid if the lean project has not changed since it was checked
+            let digest = if config::is_cache_enabled() {
+                lean_encoding::project_digest(genv).ok()
+            } else {
+                None
+            };
+            let pending = genv
+                .iter_local_def_id()
+                .filter(|def_id| {
+                    // Skip proof check if not included or not proven externally
+                    genv.included(genv.maybe_extern_id(*def_id))
+                        && genv.proven_externally(*def_id).is_some()
+                })
+                .map(|def_id| def_id.to_def_id())
+                .filter(|def_id| {
                     // Skip proof check if previously verified successfully.
-                    if config::is_cache_enabled()
-                        && ck
-                            .cache
-                            .lookup_by_key(&key)
-                            .map(|r| matches!(r.lean_status, LeanStatus::Valid))
-                            .unwrap_or(false)
+                    let key = lean_task_key(genv.tcx(), *def_id);
+                    let cached = ck.cache.lookup_by_key(&key).map(|r| &r.lean_status);
+                    !matches!((cached, digest), (Some(LeanStatus::Valid(d1)), Some(d2)) if *d1 == d2)
+                })
+                .collect::<Vec<_>>();
+            // Check all the pending proofs with a single `lake build`
+            let results = lean_encoding::check_proofs(genv, &pending);
+            pending
+                .iter()
+                .zip(results)
+                .map(|(def_id, result)| {
+                    if result.is_ok()
+                        && let Some(digest) = digest
                     {
-                        return Ok(());
+                        // Mark as valid in cache so future runs skip re-verification.
+                        let key = lean_task_key(genv.tcx(), *def_id);
+                        ck.cache.update_result_by_key(&key, |r| {
+                            r.lean_status = LeanStatus::Valid(digest);
+                        });
                     }
-                    lean_encoding::check_proof(genv, def_id.to_def_id())?;
-                    // Mark as valid in cache so future runs skip re-verification.
-                    ck.cache
-                        .update_result_by_key(&key, |r| r.lean_status = LeanStatus::Valid);
-                    Ok(())
-                } else {
-                    Ok(())
-                }
-            })
+                    result
+                })
+                .try_for_each_exhaust(|result| result)
         } else {
             Ok(())
         };
@@ -306,9 +308,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             DefKind::TyAlias => {}
             DefKind::Trait => {}
             DefKind::Static { .. } => {
-                if let StaticInfo::Known(ty) = genv.static_info(def_id).emit(&genv)?
-                    && let Some(local_id) = def_id.as_local()
+                // Extern (i.e. foreign) statics have no body (initializer) to check
+                if let Some(local_id) = def_id.as_local()
+                    && genv.tcx().hir_node_by_def_id(local_id).body_id().is_some()
                 {
+                    // A static without a spec is checked against the default refinement of its
+                    // type, e.g., to check the field specs of a struct in the initializer.
+                    let ty = genv.static_info(def_id).emit(&genv)?;
                     refineck::check_static(genv, &mut self.cache, local_id, ty)?;
                 }
             }
@@ -354,6 +360,7 @@ fn trigger_queries(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult {
             genv.predicates_of(def_id)?;
             genv.refinement_generics_of(def_id)?;
             genv.adt_def(def_id)?;
+            genv.invariants_of(def_id);
             genv.adt_sort_def_of(def_id)?;
             genv.variants_of(def_id)?;
             genv.type_of(def_id)?;

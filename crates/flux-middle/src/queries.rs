@@ -7,6 +7,7 @@ use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
 use flux_config as config;
 use flux_errors::{E0999, ErrorGuaranteed};
+use flux_macros::msg;
 use flux_rustc_bridge::{
     self, def_id_to_string,
     lowering::{self, Lower, UnsupportedErr},
@@ -16,9 +17,9 @@ use flux_rustc_bridge::{
 use flux_syntax::{surface, symbols::sym};
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
-use rustc_errors::Diagnostic;
+use rustc_errors::{DiagMessage, Diagnostic};
 use rustc_hir::{
-    LangItem,
+    attrs::lang_items::LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
@@ -34,6 +35,7 @@ use crate::{
     global_env::GlobalEnv,
     rty::{
         self, AliasReft, Expr, GenericArg,
+        fold::TypeFoldable,
         refining::{self, Refine, Refiner, refine_generic_param_def},
     },
 };
@@ -173,14 +175,17 @@ pub struct Providers {
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub prim_rel: fn(GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>,
-    pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
+    pub spec_funcs: fn(GlobalEnv) -> rty::SpecFuncs,
     pub func_sort: fn(GlobalEnv, FluxId<MaybeExternId>) -> rty::PolyFuncSort,
     pub func_span: fn(GlobalEnv, FluxId<MaybeExternId>) -> Span,
     pub adt_sort_def_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
+    pub late_bound_refinement_params:
+        for<'genv> fn(GlobalEnv<'genv, '_>, LocalDefId) -> QueryResult<&'genv [fhir::ParamId]>,
     pub adt_def: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtDef>,
+    pub invariants_of: fn(GlobalEnv, MaybeExternId) -> rty::EarlyBinder<List<rty::Invariant>>,
     pub constant_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::ConstantInfo>,
-    pub static_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::StaticInfo>,
+    pub static_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::Ty>,
     pub type_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>>,
     pub variants_of: fn(
         GlobalEnv,
@@ -222,14 +227,16 @@ impl Default for Providers {
             desugar: |_, _| empty_query!(),
             fhir_attr_map: |_, _| empty_query!(),
             fhir_crate: |_| empty_query!(),
-            normalized_defns: |_| empty_query!(),
+            spec_funcs: |_| empty_query!(),
             func_sort: |_, _| empty_query!(),
             func_span: |_, _| empty_query!(),
             qualifiers: |_| empty_query!(),
             prim_rel: |_| empty_query!(),
             adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
+            late_bound_refinement_params: |_, _| empty_query!(),
             adt_def: |_, _| empty_query!(),
+            invariants_of: |_, _| empty_query!(),
             type_of: |_, _| empty_query!(),
             variants_of: |_, _| empty_query!(),
             fn_sig: |_, _| empty_query!(),
@@ -269,16 +276,19 @@ pub struct Queries<'genv, 'tcx> {
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
-    normalized_defns: Cache<CrateNum, Rc<rty::NormalizedDefns>>,
+    spec_funcs: Cache<CrateNum, Rc<rty::SpecFuncs>>,
+    inlined_body: Cache<FluxDefId, rty::Binder<rty::Expr>>,
     func_sort: Cache<FluxDefId, rty::PolyFuncSort>,
     func_span: Cache<FluxDefId, Span>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     prim_rel: OnceCell<QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
+    late_bound_refinement_params: Cache<LocalDefId, QueryResult<&'genv [fhir::ParamId]>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
+    invariants_of: Cache<DefId, rty::EarlyBinder<List<rty::Invariant>>>,
     constant_info: Cache<DefId, QueryResult<rty::ConstantInfo>>,
-    static_info: Cache<DefId, QueryResult<rty::StaticInfo>>,
+    static_info: Cache<DefId, QueryResult<rty::Ty>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
@@ -315,14 +325,17 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_predicates_of: Default::default(),
             lower_type_of: Default::default(),
             lower_fn_sig: Default::default(),
-            normalized_defns: Default::default(),
+            spec_funcs: Default::default(),
+            inlined_body: Default::default(),
             func_sort: Default::default(),
             func_span: Default::default(),
             qualifiers: Default::default(),
             prim_rel: Default::default(),
             adt_sort_def_of: Default::default(),
             check_wf: Default::default(),
+            late_bound_refinement_params: Default::default(),
             adt_def: Default::default(),
+            invariants_of: Default::default(),
             constant_info: Default::default(),
             static_info: Default::default(),
             generics_of: Default::default(),
@@ -400,21 +413,20 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         &items
                             .iter()
                             .filter_map(|item| {
-                                let res;
                                 let ident;
-                                match item {
+                                let res = match item {
                                     surface::FluxItem::FuncDef(func) => {
                                         ident = func.name;
-                                        res = fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
+                                        fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
                                             FluxDefId::new(parent.to_def_id(), ident.name),
-                                        ));
+                                        ))
                                     }
                                     surface::FluxItem::SortDecl(sort) => {
                                         ident = sort.name;
-                                        res = fhir::Res::UserSort(FluxDefId::new(
+                                        fhir::Res::UserSort(FluxDefId::new(
                                             parent.to_def_id(),
                                             ident.name,
-                                        ));
+                                        ))
                                     }
                                     surface::FluxItem::Qualifier(_)
                                     | surface::FluxItem::PrimOpProp(_)
@@ -488,7 +500,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     ) -> QueryResult<ty::GenericPredicates> {
         run_with_cache(&self.lower_predicates_of, def_id, || {
             genv.tcx()
-                .predicates_of(def_id)
+                .clauses_of(def_id)
                 .lower(genv.tcx())
                 .map_err(|err| QueryErr::unsupported(def_id, err))
         })
@@ -500,7 +512,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<ty::EarlyBinder<ty::Ty>> {
         run_with_cache(&self.lower_type_of, def_id, || {
-            let ty = genv.tcx().type_of(def_id).instantiate_identity();
+            let ty = genv
+                .tcx()
+                .type_of(def_id)
+                .instantiate_identity()
+                .skip_norm_wip();
             Ok(ty::EarlyBinder(
                 ty.lower(genv.tcx())
                     .map_err(|err| QueryErr::unsupported(def_id, err.into_err()))?,
@@ -514,7 +530,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
         run_with_cache(&self.lower_fn_sig, def_id, || {
-            let fn_sig = genv.tcx().fn_sig(def_id).instantiate_identity();
+            let fn_sig = genv
+                .tcx()
+                .fn_sig(def_id)
+                .instantiate_identity()
+                .skip_norm_wip();
             Ok(ty::EarlyBinder(
                 fn_sig
                     .lower(genv.tcx())
@@ -523,17 +543,26 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn normalized_defns(
-        &self,
-        genv: GlobalEnv,
-        krate: CrateNum,
-    ) -> Rc<rty::NormalizedDefns> {
-        run_with_cache(&self.normalized_defns, krate, || {
+    pub(crate) fn spec_funcs(&self, genv: GlobalEnv, krate: CrateNum) -> Rc<rty::SpecFuncs> {
+        run_with_cache(&self.spec_funcs, krate, || {
             if krate == LOCAL_CRATE {
-                Rc::new((self.providers.normalized_defns)(genv))
+                Rc::new((self.providers.spec_funcs)(genv))
             } else {
-                genv.cstore().normalized_defns(krate)
+                genv.cstore().spec_funcs(krate)
             }
+        })
+    }
+
+    pub(crate) fn inlined_body(&self, genv: GlobalEnv, did: FluxDefId) -> rty::Binder<rty::Expr> {
+        // We inline spec functions lazily (including those of external crates) in the current
+        // session, so they are inlined according to the flags of the current crate. Inlining a
+        // body recursively inlines (and caches) the bodies of the functions it calls. This
+        // terminates because `spec_funcs` rejects cycles.
+        run_with_cache(&self.inlined_body, did, || {
+            let rty::SpecFunc::Defined { body, .. } = genv.spec_func(did) else {
+                bug!("inlined body of uninterpreted function `{did:?}`")
+            };
+            body.reduce(genv)
         })
     }
 
@@ -637,6 +666,16 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.check_wf, def_id, || (self.providers.check_wf)(genv, def_id))
     }
 
+    pub(crate) fn late_bound_refinement_params(
+        &self,
+        genv: GlobalEnv<'genv, '_>,
+        def_id: LocalDefId,
+    ) -> QueryResult<&'genv [fhir::ParamId]> {
+        run_with_cache(&self.late_bound_refinement_params, def_id, || {
+            (self.providers.late_bound_refinement_params)(genv, def_id)
+        })
+    }
+
     pub(crate) fn constant_info(
         &self,
         genv: GlobalEnv,
@@ -684,18 +723,14 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             .clone()
     }
 
-    pub(crate) fn static_info(
-        &self,
-        genv: GlobalEnv,
-        def_id: DefId,
-    ) -> QueryResult<rty::StaticInfo> {
+    pub(crate) fn static_info(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::Ty> {
         run_with_cache(&self.static_info, def_id, || {
             def_id.dispatch_query(
                 genv,
                 self,
                 |def_id| (self.providers.static_info)(genv, def_id),
                 |def_id| genv.cstore().static_info(def_id),
-                |_def_id| Ok(rty::StaticInfo::Unknown),
+                |def_id| rty::refining::default_static_ty(genv, def_id),
             )
         })
     }
@@ -770,8 +805,24 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| genv.cstore().adt_def(def_id),
                 |def_id| {
                     let adt_def = genv.tcx().adt_def(def_id).lower(genv.tcx());
-                    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, vec![], false))
+                    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, false))
                 },
+            )
+        })
+    }
+
+    pub(crate) fn invariants_of(
+        &self,
+        genv: GlobalEnv,
+        def_id: DefId,
+    ) -> rty::EarlyBinder<List<rty::Invariant>> {
+        run_with_cache(&self.invariants_of, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                self,
+                |def_id| (self.providers.invariants_of)(genv, def_id),
+                |def_id| genv.cstore().invariants_of(def_id),
+                |_| rty::EarlyBinder(List::empty()),
             )
         })
     }
@@ -1194,15 +1245,17 @@ where
     v
 }
 
+const OPAQUE_STRUCT: DiagMessage = msg!("invalid use of opaque struct");
+const MISSING_ASSOC_REFT: DiagMessage =
+    msg!("associated refinement `{$name}` is missing from implementation");
+
 impl<'a> Diagnostic<'a> for QueryErr {
     #[track_caller]
     fn into_diag(
         self,
         dcx: rustc_errors::DiagCtxtHandle<'a>,
         _level: rustc_errors::Level,
-    ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
-        use crate::fluent_generated as fluent;
-
+    ) -> rustc_errors::Diag<'a> {
         rustc_middle::ty::tls::with_opt(
             #[track_caller]
             |tcx| {
@@ -1210,42 +1263,44 @@ impl<'a> Diagnostic<'a> for QueryErr {
                 match self {
                     QueryErr::Unsupported { def_id, err } => {
                         let span = err.span.unwrap_or_else(|| tcx.def_span(def_id));
-                        let mut diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
+                        let mut diag = dcx.struct_span_err(span, msg!("unsupported signature"));
                         diag.code(E0999);
                         diag.note(err.descr);
                         diag
                     }
                     QueryErr::Ignored { def_id } => {
                         let def_span = tcx.def_span(def_id);
-                        let mut diag =
-                            dcx.struct_span_err(def_span, fluent::middle_query_ignored_item);
+                        let mut diag = dcx.struct_span_err(def_span, msg!("use of ignored item"));
                         diag.code(E0999);
                         diag
                     }
                     QueryErr::NotIncluded { def_id } => {
                         let def_span = tcx.def_span(def_id);
-                        let mut diag =
-                            dcx.struct_span_err(def_span, fluent::middle_query_not_included_item);
+                        let mut diag = dcx.struct_span_err(
+                            def_span,
+                            msg!("use of item defined in external crate, but was not included when checking that crate"),
+                        );
                         diag.code(E0999);
                         diag
                     }
                     QueryErr::InvalidGenericArg { def_id } => {
                         let def_span = tcx.def_span(def_id);
-                        let mut diag =
-                            dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
+                        let mut diag = dcx.struct_span_err(
+                            def_span,
+                            msg!("cannot instantiate base generic with opaque type or a type parameter of kind type"),
+                        );
                         diag.code(E0999);
                         diag
                     }
                     QueryErr::MissingAssocReft { impl_id, name, .. } => {
                         let def_span = tcx.def_span(impl_id);
-                        let mut diag =
-                            dcx.struct_span_err(def_span, fluent::middle_query_missing_assoc_reft);
+                        let mut diag = dcx.struct_span_err(def_span, MISSING_ASSOC_REFT);
                         diag.arg("name", name);
                         diag.code(E0999);
                         diag
                     }
                     QueryErr::Bug { def_id, location, msg } => {
-                        let mut diag = dcx.struct_err(fluent::middle_query_bug);
+                        let mut diag = dcx.struct_err(msg!("internal flux error: {$location}"));
                         if let Some(def_id) = def_id {
                             diag.span(tcx.def_span(def_id));
                         }
@@ -1260,8 +1315,7 @@ impl<'a> Diagnostic<'a> for QueryErr {
                     }
                     QueryErr::OpaqueStruct { struct_id } => {
                         let struct_span = tcx.def_span(struct_id);
-                        let mut diag =
-                            dcx.struct_span_err(struct_span, fluent::middle_query_opaque_struct);
+                        let mut diag = dcx.struct_span_err(struct_span, OPAQUE_STRUCT);
                         diag.arg("struct", tcx.def_path_str(struct_id));
                         diag
                     }
@@ -1277,9 +1331,7 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
         self,
         dcx: rustc_errors::DiagCtxtHandle<'a>,
         level: rustc_errors::Level,
-    ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
-        use crate::fluent_generated as fluent;
-
+    ) -> rustc_errors::Diag<'a> {
         rustc_middle::ty::tls::with_opt(
             #[track_caller]
             |tcx| {
@@ -1288,58 +1340,72 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                 let mut diag = match self.err {
                     QueryErr::Unsupported { def_id, err, .. } => {
                         let mut diag =
-                            dcx.struct_span_err(cx_span, fluent::middle_query_unsupported_at);
+                            dcx.struct_span_err(cx_span, msg!("use of unsupported {$kind}"));
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
-                            diag.span_note(def_ident_span, fluent::_subdiag::note);
+                            diag.span_note(
+                                def_ident_span,
+                                msg!("this {$kind} has unsupported features"),
+                            );
                         }
                         diag.note(err.descr);
                         diag
                     }
                     QueryErr::Ignored { def_id } => {
                         let mut diag =
-                            dcx.struct_span_err(cx_span, fluent::middle_query_ignored_at);
+                            dcx.struct_span_err(cx_span, msg!("use of ignored {$kind} `{$name}`"));
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
-                        diag.span_label(cx_span, fluent::_subdiag::label);
+                        diag.span_label(cx_span, msg!("help: try ignoring or trusting this code"));
                         diag
                     }
                     QueryErr::NotIncluded { def_id } => {
-                        let mut diag =
-                            dcx.struct_span_err(cx_span, fluent::middle_query_not_included_at);
+                        let mut diag = dcx.struct_span_err(
+                            cx_span,
+                            msg!("use of {$kind} `{$name}` that was not included when checking external crate"),
+                        );
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
                         let span = tcx
                             .def_ident_span(def_id)
                             .unwrap_or_else(|| tcx.def_span(def_id));
-                        diag.span_help(span, fluent::_subdiag::help);
+                        diag.span_help(
+                            span,
+                            msg!("when checking external crate, include the file or module where the excluded item is defined"),
+                        );
                         diag
                     }
                     QueryErr::MissingAssocReft { name, .. } => {
-                        let mut diag = dcx
-                            .struct_span_err(cx_span, fluent::middle_query_missing_assoc_reft_at);
+                        let mut diag = dcx.struct_span_err(cx_span, MISSING_ASSOC_REFT);
                         diag.arg("name", name);
                         diag.code(E0999);
                         diag
                     }
                     QueryErr::OpaqueStruct { struct_id } => {
-                        let mut diag =
-                            dcx.struct_span_err(cx_span, fluent::middle_query_opaque_struct);
+                        let mut diag = dcx.struct_span_err(cx_span, OPAQUE_STRUCT);
                         diag.arg("struct", tcx.def_path_str(struct_id));
-                        diag.span_label(cx_span, fluent::_subdiag::label);
+                        diag.span_label(
+                            cx_span,
+                            msg!("operation accesses the internal representation of `{$struct}`"),
+                        );
                         if let ErrCtxt::FnCheck(_, fn_def_id) = self.cx {
                             let fn_span = tcx.def_span(fn_def_id);
                             if fn_span.in_derive_expansion() {
                                 // reset message span to use the type definition
                                 diag.span_label(
                                     tcx.def_span(struct_id),
-                                    fluent::middle_query_opaque_struct_derive_help,
+                                    msg!("help: this code was generated by a `#[derive(..)]` and cannot be annotated directly; try annotating this type with `#[flux::trusted_derive]`"),
                                 );
                             } else {
                                 diag.arg("def_kind", tcx.def_descr(fn_def_id.to_def_id()));
-                                diag.span_label(fn_span, fluent::middle_query_opaque_struct_help);
+                                diag.span_label(
+                                    fn_span,
+                                    msg!("help: try annotating this {$def_kind} with `#[trusted]`"),
+                                );
                             }
-                            diag.note(fluent::middle_query_opaque_struct_note);
+                            diag.note(
+                                msg!("opaque structs can only be accessed in trusted code (see <https://flux-rs.github.io/flux/guide/specifications.html#opaque-structs>)"),
+                            );
                         }
                         diag
                     }

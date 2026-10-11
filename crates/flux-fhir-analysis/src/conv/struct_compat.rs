@@ -330,6 +330,11 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.zip_ty(ty_a, ty_b)
             }
             (rty::BaseTy::FnPtr(poly_sig_a), rty::BaseTy::FnPtr(poly_sig_b)) => {
+                // Check that safety and abi of a fn-ptr in a spec (see `desugar_bare_fn`)
+                // matches the rust one, to not refine an `unsafe fn` pointer with a safe one.
+                let (sig_a, sig_b) = (poly_sig_a.skip_binder_ref(), poly_sig_b.skip_binder_ref());
+                assert_eq_or_incompatible(sig_a.safety, sig_b.safety)?;
+                assert_eq_or_incompatible(sig_a.abi, sig_b.abi)?;
                 self.zip_poly_fn_sig(poly_sig_a, poly_sig_b)
                     .map_err(|_| Mismatch::new(poly_sig_a, poly_sig_b))
             }
@@ -340,9 +345,8 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 }
                 Ok(())
             }
-            (rty::BaseTy::Alias(kind_a, aty_a), rty::BaseTy::Alias(kind_b, aty_b)) => {
-                assert_eq_or_incompatible(kind_a, kind_b)?;
-                assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)?;
+            (rty::BaseTy::Alias(aty_a), rty::BaseTy::Alias(aty_b)) => {
+                assert_eq_or_incompatible(aty_a.kind, aty_b.kind)?;
                 assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())?;
                 for (arg_a, arg_b) in iter::zip(&aty_a.args, &aty_b.args) {
                     self.zip_generic_arg(arg_a, arg_b)?;
@@ -430,7 +434,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 assert_eq_or_incompatible(ty_a, ty_b)?;
                 assert_eq_or_incompatible(val_a, val_b)
             }
-            (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) => {
+            (rty::ConstKind::Alias(c1), ty::ConstKind::Alias(c2)) => {
                 assert_eq_or_incompatible(c1, c2)
             }
             _ => Err(Mismatch::new(a, b)),
@@ -651,17 +655,17 @@ mod errors {
     use rustc_span::{DUMMY_SP, Span};
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_incompatible_refinement, code = E0999)]
-    #[note]
+    #[diag("{$def_descr} has an incompatible refinement annotation", code = E0999)]
+    #[note("a refinement annotation must match the unrefined definition structurally")]
     pub(super) struct IncompatibleRefinement<'tcx> {
         #[primary_span]
-        #[label]
+        #[label("expected a refinement of `{$expected_ty}`")]
         span: Span,
-        #[label(fhir_analysis_expected_label)]
+        #[label("unrefined {$def_descr} found here")]
         expected_span: Option<Span>,
         expected_ty: rustc_middle::ty::Ty<'tcx>,
         def_descr: &'static str,
-        #[help(fhir_analysis_async_hint)]
+        #[help("mark the flux signature as `async fn`")]
         async_hint: Option<()>,
     }
 
@@ -806,13 +810,23 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_incompatible_param_count, code = E0999)]
+    #[diag("{$def_descr} has an incompatible refinement annotation", code = E0999)]
     pub(super) struct IncompatibleParamCount {
         #[primary_span]
-        #[label]
+        #[label(
+            "refined signature has {$found} {$found ->
+                [one] parameter
+                *[other] parameters
+            }"
+        )]
         span: Span,
         found: usize,
-        #[label(fhir_analysis_expected_label)]
+        #[label(
+            "unrefined signature has {$expected} {$expected ->
+                [one] parameter
+                *[other] parameters
+            }"
+        )]
         expected_span: Span,
         expected: usize,
         def_descr: &'static str,
@@ -854,13 +868,18 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_field_count_mismatch, code = E0999)]
+    #[diag("variant has an incompatible refinement annotation", code = E0999)]
     pub(super) struct FieldCountMismatch {
         #[primary_span]
-        #[label]
+        #[label(
+            "expected {$expected_fields} {$expected_fields ->
+                [one] field
+                *[other] fields
+            }, found {$fields}"
+        )]
         span: Span,
         fields: usize,
-        #[label(fhir_analysis_expected_label)]
+        #[label("unrefined variant defined here")]
         expected_span: Span,
         expected_fields: usize,
     }

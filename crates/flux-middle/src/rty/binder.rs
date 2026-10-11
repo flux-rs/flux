@@ -169,30 +169,53 @@ where
         mut replace_region: impl FnMut(BoundRegion) -> Region,
         mut replace_expr: impl FnMut(&Sort, InferMode, BoundReftKind) -> Expr,
     ) -> T {
+        self.try_replace_bound_vars(
+            |br| Ok::<_, !>(replace_region(br)),
+            |sort, mode, kind| Ok(replace_expr(sort, mode, kind)),
+        )
+        .into_ok()
+    }
+
+    /// Like [`Binder::replace_bound_vars`] but the callbacks can fail.
+    pub fn try_replace_bound_vars<E>(
+        &self,
+        mut replace_region: impl FnMut(BoundRegion) -> Result<Region, E>,
+        mut replace_expr: impl FnMut(&Sort, InferMode, BoundReftKind) -> Result<Expr, E>,
+    ) -> Result<T, E> {
         let mut exprs = UnordMap::default();
         let mut regions = UnordMap::default();
         let delegate = FnMutDelegate::new(
             |breft| {
-                exprs
-                    .entry(breft.var)
-                    .or_insert_with(|| {
-                        let (sort, mode, kind) = self.vars[breft.var.as_usize()].expect_refine();
-                        replace_expr(sort, mode, kind)
-                    })
-                    .clone()
+                if let Some(expr) = exprs.get(&breft.var) {
+                    return Ok(Expr::clone(expr));
+                }
+                let (sort, mode, kind) = self.vars[breft.var.as_usize()].expect_refine();
+                let expr = replace_expr(sort, mode, kind)?;
+                exprs.insert(breft.var, expr.clone());
+                Ok(expr)
             },
-            |br| *regions.entry(br.var).or_insert_with(|| replace_region(br)),
+            |br| {
+                if let Some(region) = regions.get(&br.var) {
+                    return Ok(*region);
+                }
+                let region = replace_region(br)?;
+                regions.insert(br.var, region);
+                Ok(region)
+            },
         );
 
-        self.value.fold_with(&mut BoundVarReplacer::new(delegate))
+        self.value
+            .try_fold_with(&mut BoundVarReplacer::new(delegate))
     }
 
     pub fn replace_bound_refts(&self, exprs: &[Expr]) -> T {
         let delegate = FnMutDelegate::new(
-            |breft| exprs[breft.var.as_usize()].clone(),
+            |breft| Ok::<_, !>(exprs[breft.var.as_usize()].clone()),
             |br| tracked_span_bug!("unexpected escaping region {br:?}"),
         );
-        self.value.fold_with(&mut BoundVarReplacer::new(delegate))
+        self.value
+            .try_fold_with(&mut BoundVarReplacer::new(delegate))
+            .into_ok()
     }
 
     pub fn replace_bound_reft(&self, expr: &Expr) -> T {

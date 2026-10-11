@@ -1,5 +1,5 @@
 use std::{
-    alloc::{Allocator, Global},
+    alloc::{Allocator, AllocatorClone, Global},
     ops::Deref,
     rc::Rc,
 };
@@ -17,7 +17,7 @@ impl<T, A: Allocator> Deref for Rc<T, A> {
 }
 
 #[extern_spec]
-impl<T, A: Allocator + Clone> Clone for Rc<T, A> {
+impl<T, A: AllocatorClone> Clone for Rc<T, A> {
     #[spec(fn (&Self[@me]) -> Self[me.inner])]
     fn clone(&self) -> Self;
 }
