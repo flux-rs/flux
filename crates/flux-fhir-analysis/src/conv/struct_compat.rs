@@ -122,7 +122,7 @@ impl TypeFolder for &Holes {
         } else {
             // Erase regions from sorts: they don't affect the sort, and a bound region filled into
             // a hole can have an index that's only valid under the binder the sort belongs to.
-            erase_regions_including_bound(&sort.super_fold_with(self))
+            sort.super_fold_with(self).erase_regions_including_bound()
         }
     }
 
@@ -169,16 +169,6 @@ impl TypeFolder for &Holes {
             ct.super_fold_with(self)
         }
     }
-}
-
-fn erase_regions_including_bound<T: TypeFoldable>(t: &T) -> T {
-    struct RegionEraser;
-    impl TypeFolder for RegionEraser {
-        fn fold_region(&mut self, _: &rty::Region) -> rty::Region {
-            rty::ReErased
-        }
-    }
-    t.fold_with(&mut RegionEraser)
 }
 
 impl Holes {
