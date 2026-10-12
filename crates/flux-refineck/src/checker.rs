@@ -12,7 +12,7 @@ use flux_infer::{
     refine_tree::{Marker, RefineCtxtTrace},
 };
 use flux_middle::{
-    PanicReason, PanicSpec,
+    PanicReason, PanicSpec, PlaceExt,
     global_env::GlobalEnv,
     pretty::PrettyCx,
     queries::{QueryErr, QueryResult, try_query},
@@ -1425,7 +1425,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .refine_ty_or_base(ty)
                     .with_span(stmt_span)?
                     .expect_base();
-                raw_ptr_with_size(genv, kind, ctor, infcx, self.checker_id.root_id())
+                let pack = place
+                    .min_pack(genv, &self.body.local_decls)
+                    .with_span(stmt_span)?;
+                raw_ptr_with_size(genv, kind, ctor, infcx, self.checker_id.root_id(), pack)
             }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
@@ -2062,6 +2065,7 @@ fn raw_ptr_with_size<'genv, 'tcx>(
     ctor: SubsetTyCtor,
     infcx: &InferCtxt<'_, 'genv, 'tcx>,
     def_id: LocalDefId,
+    pack: Option<u64>,
 ) -> Result<Ty> {
     let tcx = genv.tcx();
     let param_env = tcx.param_env(def_id);
@@ -2094,10 +2098,19 @@ fn raw_ptr_with_size<'genv, 'tcx>(
         },
         rty::List::empty(),
     );
-    let align_of_expr = Expr::alias(
-        AliasReft { assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::align_of), args },
-        rty::List::empty(),
-    );
+    let align_of_expr = if let Some(pack) = pack {
+        let rustc_pointee = pointee_ty.to_rustc(tcx);
+        let type_align = tcx
+            .layout_of(typing_env.as_query_input(rustc_pointee))
+            .map(|layout| layout.align.abi.bytes())
+            .unwrap_or(1);
+        Expr::constant(Constant::from(pack.min(type_align)))
+    } else {
+        Expr::alias(
+            AliasReft { assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::align_of), args },
+            rty::List::empty(),
+        )
+    };
 
     let pred = Expr::and_from_iter([
         Expr::eq(base, &addr),

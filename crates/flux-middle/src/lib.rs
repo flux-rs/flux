@@ -555,6 +555,22 @@ impl flux_rustc_bridge::mir::Place {
         }
         Ok(false)
     }
+
+    fn min_pack(&self, genv: GlobalEnv, local_decls: &LocalDecls) -> QueryResult<Option<u64>> {
+        let mut place_ty = PlaceTy::from_ty(local_decls[self.local].ty.clone());
+        let mut min_pack = None;
+        for elem in &self.projection {
+            if matches!(elem, PlaceElem::Field(_))
+                && let ty::TyKind::Adt(adt_def, _) = place_ty.ty.kind()
+                && let Some(pack) = genv.tcx().adt_def(adt_def.did()).repr().pack
+            {
+                let b = pack.bytes();
+                min_pack = Some(min_pack.map_or(b, |m: u64| m.min(b)));
+            }
+            place_ty = place_ty.projection_ty(genv, *elem)?;
+        }
+        Ok(min_pack)
+    }
 }
 
 #[derive(Debug)]
