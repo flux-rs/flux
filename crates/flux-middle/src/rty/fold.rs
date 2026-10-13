@@ -413,6 +413,16 @@ pub trait TypeFoldable: TypeVisitable {
         self.fold_with(&mut WithHoles)
     }
 
+    /// Remove all refinements, leaving every underlying [`BaseTy`] trivially refined. For example,
+    /// `Vec<{v. i32[v] | v > 0}>[n]` becomes `{n. Vec<{v. i32[v] | true}>[n] | true}`.
+    ///
+    /// We use this for the pointee of a raw pointer, whose refinements cannot be trusted because
+    /// a raw pointer can be created without a value of the pointee type (e.g. `ptr::cast`) and
+    /// writes through it are not checked.
+    fn strip_refinements(&self) -> Self {
+        self.with_holes().replace_holes(|_, _| Expr::tt())
+    }
+
     fn replace_evars(&self, f: &mut impl FnMut(EVid) -> Option<Expr>) -> Result<Self, EVid> {
         struct Folder<F>(F);
         impl<F: FnMut(EVid) -> Option<Expr>> FallibleTypeFolder for Folder<F> {
