@@ -12,7 +12,7 @@ pub struct RSet<T> {
 // error: internal compiler error: crates/flux-middle/src/rty/subst.rs:353:30: expected base type for generic parameter, found `∃int. { i32[^0#0] | * }`
 impl<T> RSet<T> {
     #[flux::trusted]
-    #[flux::sig(fn() -> RSet<T>[set_empty(0)])]
+    #[flux::sig(fn() -> RSet<T{v: false}>[set_empty(0)])]
     pub fn new() -> RSet<T> {
         let inner = std::collections::HashSet::new();
         RSet { inner }

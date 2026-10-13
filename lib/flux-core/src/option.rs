@@ -30,7 +30,7 @@ impl<T> core::ops::Try for Option<T> {
 /// `Option`-returning function yields `None`.
 #[extern_spec(core::option)]
 impl<T> core::ops::FromResidual<Option<core::convert::Infallible>> for Option<T> {
-    #[spec(fn(Option<core::convert::Infallible>) -> Option<T>[false])]
+    #[spec(fn(Option<core::convert::Infallible>) -> Option<T{v: false}>[false])]
     fn from_residual(residual: Option<core::convert::Infallible>) -> Option<T>;
 }
 
