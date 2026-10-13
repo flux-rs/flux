@@ -2444,13 +2444,20 @@ fn marker_at_dominator<'a>(
     markers: &'a IndexVec<BasicBlock, Option<Marker>>,
     bb: BasicBlock,
 ) -> &'a Marker {
-    let dominator = body
-        .dominators()
-        .immediate_dominator(bb)
-        .unwrap_or_else(|| tracked_span_bug!());
-    markers[dominator]
-        .as_ref()
-        .unwrap_or_else(|| tracked_span_bug!())
+    // The immediate dominator may not have a marker if it is a dummy join block, because we
+    // skip those and jump directly to their successor (see `Checker::is_dummy_join`). In that
+    // case we walk up the dominator tree until we find a block that has been checked.
+    let dominators = body.dominators();
+    let mut bb = bb;
+    loop {
+        let dominator = dominators
+            .immediate_dominator(bb)
+            .unwrap_or_else(|| tracked_span_bug!());
+        if let Some(marker) = &markers[dominator] {
+            return marker;
+        }
+        bb = dominator;
+    }
 }
 
 pub(crate) mod errors {
