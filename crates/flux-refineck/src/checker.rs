@@ -2098,7 +2098,7 @@ fn raw_ptr_with_size<'genv, 'tcx>(
         },
         rty::List::empty(),
     );
-    
+
     let mut align_of_expr = Expr::alias(
         AliasReft { assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::align_of), args },
         rty::List::empty(),
@@ -2109,11 +2109,7 @@ fn raw_ptr_with_size<'genv, 'tcx>(
     // https://doc.rust-lang.org/reference/type-layout.html#r-layout.repr.align-packed
     if let Some(pack) = pack {
         let pack = Expr::constant(Constant::from(pack));
-        align_of_expr = Expr::ite(
-            Expr::le(&pack, &align_of_expr),
-            pack,
-            align_of_expr,
-        );
+        align_of_expr = Expr::ite(Expr::le(&pack, &align_of_expr), pack, align_of_expr);
     }
 
     let pred = Expr::and_from_iter([
