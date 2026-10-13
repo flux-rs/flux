@@ -5,6 +5,9 @@
 
 #[cfg(feature = "nightly")]
 extern crate rustc_data_structures;
+#[cfg(all(test, feature = "nightly"))]
+#[allow(unused_extern_crates)] // Link rustc-private dependencies through rustc_driver.
+extern crate rustc_driver;
 #[cfg(feature = "nightly")]
 extern crate rustc_macros;
 #[cfg(feature = "nightly")]
@@ -46,7 +49,8 @@ pub use constraint::{
     BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FlatConstraint, Pred, Qualifier, Sort, SortCtor, SortDecl, WKVar,
 };
-pub use format_smt::SmtFormatter;
+pub use format_smt::{SmtExprFormatter, SmtFormatter};
+pub use hornspec::HornspecOutput;
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
@@ -373,6 +377,10 @@ impl<T: Types> Task<T> {
 
     fn run_hornspec(&self) -> io::Result<FixpointResult<T::Tag>> {
         hornspec::run_hornspec(self)
+    }
+
+    pub fn run_hornspec_with_output(&self) -> io::Result<HornspecOutput<T::Tag>> {
+        hornspec::run_hornspec_with_output(self)
     }
 
     #[cfg(feature = "rust-fixpoint")]

@@ -976,6 +976,10 @@ where
         all_errors = Vec::new();
         for cstr in &cstrs {
             let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone());
+            #[cfg(feature = "wick")]
+            {
+                fcx.comparison_iteration = Some(i);
+            }
 
             let mut wkvar_subst = WKVarSubst::new(
                 // These solutions correspond to the solutions we got LAST

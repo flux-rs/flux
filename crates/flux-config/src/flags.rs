@@ -22,8 +22,8 @@ pub struct Flags {
     pub cache: Option<PathBuf>,
     /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`]
     pub annots: bool,
-    /// Print statistics about time taken to analyze each fuction. Also dumps a file with the raw
-    /// times for each function.
+    /// Print timing statistics and dump per-function timings and aggregate metrics.
+    /// With wick enabled, also dump Hornspec/Wick solution comparisons.
     pub timings: bool,
     /// Print statistics about number of functions checked, trusted, etc.
     pub summary: bool,
@@ -31,6 +31,10 @@ pub struct Flags {
     pub solver: SmtSolver,
     /// Backend to use for constraint solving. One of `fixpoint` or `hornspec`.
     pub backend: Backend,
+    /// Wall-clock timeout for each Hornspec invocation, in seconds (default 10).
+    pub hornspec_timeout: u64,
+    /// Pass --skip-maximal to Hornspec (default false).
+    pub hornspec_skip_maximal: bool,
     /// Enables qualifier scrapping in fixpoint
     pub scrape_quals: bool,
     /// Enables uninterpreted casts
@@ -98,6 +102,8 @@ impl Default for Flags {
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
             backend: Backend::default(),
+            hornspec_timeout: 10,
+            hornspec_skip_maximal: false,
             smt_define_fun: false,
             annots: false,
             timings: false,
@@ -135,6 +141,8 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
             "backend" => parse_backend(&mut flags.backend, value),
+            "hornspec-timeout" => parse_positive_seconds(&mut flags.hornspec_timeout, value),
+            "hornspec-skip-maximal" => parse_bool(&mut flags.hornspec_skip_maximal, value),
             "smt-define-fun" => parse_bool(&mut flags.smt_define_fun, value),
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
@@ -201,6 +209,15 @@ fn parse_bool(slot: &mut bool, v: Option<&str>) -> Result<(), &'static str> {
             )
         }
     }
+}
+
+fn parse_positive_seconds(slot: &mut u64, v: Option<&str>) -> Result<(), &'static str> {
+    let seconds = v
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|seconds| *seconds > 0 && *seconds <= u64::MAX / 1000)
+        .ok_or("expected a positive integer timeout in seconds")?;
+    *slot = seconds;
+    Ok(())
 }
 
 fn parse_path_buf(slot: &mut PathBuf, v: Option<&str>) -> Result<(), &'static str> {

@@ -333,6 +333,15 @@ fn fmt_guard<T: Types>(guard: &Guard<'_, T>, f: &mut fmt::Formatter<'_>) -> fmt:
 
 pub struct SmtFormatter<'a, T: Types>(pub &'a Task<T>);
 
+/// An expression formatted using the same SMT-LIB syntax as Hornspec inputs.
+pub struct SmtExprFormatter<'a, T: Types>(pub &'a Expr<T>);
+
+impl<T: Types> fmt::Display for SmtExprFormatter<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_expr_smt(self.0, f)
+    }
+}
+
 impl<T: Types> fmt::Display for SmtFormatter<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_smt_task(self.0, f)

@@ -93,6 +93,49 @@ pub fn incr_metric_if(cond: bool, metric: Metric) {
 }
 
 static TIMINGS: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
+static COMPARISONS: Mutex<Vec<serde_json::Value>> = Mutex::new(Vec::new());
+
+#[derive(Serialize)]
+pub struct ItemIdentity {
+    pub crate_name: String,
+    pub def_path: String,
+    pub name: String,
+}
+
+impl ItemIdentity {
+    pub fn new(tcx: TyCtxt, def_id: DefId) -> Self {
+        Self {
+            crate_name: tcx.crate_name(def_id.krate).to_string(),
+            def_path: tcx.def_path_str(def_id),
+            name: tcx
+                .opt_item_name(def_id)
+                .map_or_else(|| tcx.def_path_str(def_id), |name| name.to_string()),
+        }
+    }
+}
+
+pub fn record_comparison(
+    mut comparison: serde_json::Value,
+    artifacts: Vec<(String, String)>,
+) -> io::Result<()> {
+    if config::timings() {
+        let mut comparisons = COMPARISONS.lock().unwrap();
+        let invocation = comparisons.len();
+        comparison["identity"]["invocation"] = invocation.into();
+        let crate_name = comparison["identity"]["crate_name"].as_str().unwrap();
+        let directory = format!("{crate_name}-comparison-artifacts/{invocation}");
+        fs::create_dir_all(config::log_dir().join(&directory))?;
+        let mut references = serde_json::Map::new();
+        for (name, contents) in artifacts {
+            let relative_path = format!("{directory}/{name}");
+            fs::write(config::log_dir().join(&relative_path), contents)?;
+            references.insert(name, relative_path.into());
+        }
+        comparison["artifacts"] = references.into();
+        comparisons.push(comparison);
+    }
+    Ok(())
+}
 
 pub enum TimingKind {
     /// Total time taken to run the complete Flux analysis on the crate
@@ -189,9 +232,11 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     let mut queries = vec![];
     let mut total = Duration::from_secs(0);
     let mut total_reft_hint = Duration::from_secs(0);
+    let mut total_fixpoint = Duration::ZERO;
     let mut hornspec_durations: Vec<Duration> = vec![];
     let mut hornspec_safe: u32 = 0;
     let mut hornspec_timeout: u32 = 0;
+    let mut hornspec_timeout_errors: usize = 0;
     let mut hornspec_total_errors: usize = 0;
     let mut hornspec_solved_errors: usize = 0;
     let mut hornspec_wick_no_hornspec_errors: usize = 0;
@@ -204,6 +249,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
                 functions.push((def_path, timing.duration));
             }
             TimingKind::FixpointQuery(def_id, kind) => {
+                total_fixpoint += timing.duration;
                 let key = kind.task_key(tcx, def_id);
                 queries.push((key, timing.duration));
             }
@@ -231,7 +277,10 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
                 hornspec_solved_errors += hornspec_solved;
                 match outcome {
                     HornspecOutcome::Safe => hornspec_safe += 1,
-                    HornspecOutcome::Timeout => hornspec_timeout += 1,
+                    HornspecOutcome::Timeout => {
+                        hornspec_timeout += 1;
+                        hornspec_timeout_errors += error_count;
+                    }
                     HornspecOutcome::Unsafe => {}
                 }
             }
@@ -247,15 +296,85 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
         &functions,
         total,
         total_reft_hint,
+        total_fixpoint,
         &hornspec_durations,
         hornspec_safe,
         hornspec_timeout,
+        hornspec_timeout_errors,
         hornspec_total_errors,
         hornspec_solved_errors,
         wick_solved_errors,
         hornspec_hornspec_no_wick_errors,
         hornspec_wick_no_hornspec_errors,
     );
+    let total_hornspec: Duration = hornspec_durations.iter().sum();
+    let function_stats = stats(&functions.iter().map(snd).collect_vec());
+    let summary = serde_json::json!({
+        "schema_version": 1,
+        "identity": { "crate_name": tcx.crate_name(LOCAL_CRATE).to_string() },
+        "timing": {
+            "total_ms": ms(total),
+            "wick_ms": ms(total_reft_hint),
+            "fixpoint_ms": ms(total_fixpoint),
+            "functions": {
+                "count": function_stats.count,
+                "min_ms": ms(function_stats.min),
+                "max_ms": ms(function_stats.max),
+                "mean_ms": ms(function_stats.mean),
+                "std_dev_ms": ms(function_stats.standard_deviation),
+                "top_5": functions.iter().take(5).map(|(def_path, time)| {
+                    serde_json::json!({ "identity": { "def_path": def_path }, "time_ms": ms(*time) })
+                }).collect_vec(),
+            },
+        },
+        "functions": {
+            "total": METRICS.get(Metric::FnTotal),
+            "checked": METRICS.get(Metric::FnChecked),
+            "trusted": METRICS.get(Metric::FnTrusted),
+            "ignored": METRICS.get(Metric::FnIgnored),
+            "cached": METRICS.get(Metric::FnCached),
+            "trivial": METRICS.get(Metric::FnTrivial),
+        },
+        "constraints": {
+            "total": METRICS.get(Metric::CsTotal),
+            "errors": METRICS.get(Metric::CsError),
+        },
+        "comparison": {
+            "queries": hornspec_durations.len(),
+            "failing_chcs": hornspec_total_errors,
+            "hornspec": {
+                "configuration": {
+                    "timeout_seconds": config::hornspec_timeout(),
+                    "skip_maximal": config::hornspec_skip_maximal(),
+                },
+                "safe_queries": hornspec_safe,
+                "unsafe_queries": hornspec_durations.len() - hornspec_safe as usize - hornspec_timeout as usize,
+                "timeout_queries": hornspec_timeout,
+                "timeout_chcs": hornspec_timeout_errors,
+                "solved_chcs": hornspec_solved_errors,
+                "solved_without_wick_chcs": hornspec_hornspec_no_wick_errors,
+                "total_ms": ms(total_hornspec),
+                "mean_ms": if hornspec_durations.is_empty() { None } else {
+                    Some(ms(total_hornspec / hornspec_durations.len() as u32))
+                },
+            },
+            "wick": {
+                "solved_chcs": wick_solved_errors,
+                "solved_without_hornspec_chcs": hornspec_wick_no_hornspec_errors,
+            },
+        },
+    });
+    fs::create_dir_all(config::log_dir())?;
+    let crate_name = tcx.crate_name(LOCAL_CRATE);
+    let mut file = fs::File::create(config::log_dir().join(format!("{crate_name}-metrics.json")))?;
+    serde_json::to_writer_pretty(&mut file, &summary)?;
+    let mut file = fs::File::create(
+        config::log_dir().join(format!("{crate_name}-hornspec-comparison.jsonl")),
+    )?;
+    for comparison in std::mem::take(&mut *COMPARISONS.lock().unwrap()) {
+        serde_json::to_writer(&mut file, &comparison)?;
+        writeln!(file)?;
+    }
     dump_timings(
         tcx,
         TimingsDump {
@@ -276,9 +395,11 @@ fn print_report(
     functions: &[(String, Duration)],
     total: Duration,
     total_reft_hint: Duration,
+    total_fixpoint: Duration,
     hornspec_durations: &[Duration],
     hornspec_safe: u32,
     hornspec_timeout: u32,
+    hornspec_timeout_errors: usize,
     hornspec_total_errors: usize,
     hornspec_solved_errors: usize,
     wick_solved_errors: usize,
@@ -290,6 +411,8 @@ fn print_report(
     eprintln!("───────────────────── Timing Report ────────────────────────");
     eprintln!("Total running time: {:>40}", fmt_duration(total));
     eprintln!("Total wick time:    {:>40}", fmt_duration(total_reft_hint));
+    eprintln!("Total fixpoint time:{:>40}", fmt_duration(total_fixpoint));
+    eprintln!("Wick + fixpoint:    {:>40}", fmt_duration(total_reft_hint + total_fixpoint));
     eprintln!("Functions checked:  {:>40}", stats.count);
     eprintln!("Min:                {:>40}", fmt_duration(stats.min));
     eprintln!("Max:                {:>40}", fmt_duration(stats.max));
@@ -306,6 +429,7 @@ fn print_report(
         );
         if hornspec_timeout > 0 {
             eprintln!("Hornspec timeouts:  {:>40}", hornspec_timeout);
+            eprintln!("Hornspec timeouts (CHCs):{:>40}", hornspec_timeout_errors);
         }
         eprintln!("Hornspec errors:    {:>40}", hornspec_total_errors);
         eprintln!(

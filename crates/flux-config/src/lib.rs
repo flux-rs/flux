@@ -98,6 +98,14 @@ fn backend() -> Backend {
     FLAGS.backend
 }
 
+pub fn hornspec_timeout() -> u64 {
+    FLAGS.hornspec_timeout
+}
+
+pub fn hornspec_skip_maximal() -> bool {
+    FLAGS.hornspec_skip_maximal
+}
+
 pub fn catch_bugs() -> bool {
     FLAGS.catch_bugs
 }

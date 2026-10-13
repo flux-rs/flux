@@ -58,6 +58,8 @@ use crate::{
     lean_encoding::LeanEncoder, projections::structurally_normalize_expr,
 };
 
+#[cfg(feature = "wick")]
+mod comparison_log;
 pub mod decoding;
 use crate::refine_tree::BlameAnalysis;
 
@@ -520,6 +522,8 @@ pub struct BlameCtxt {
 }
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
+    #[cfg(feature = "wick")]
+    pub(crate) comparison_iteration: Option<usize>,
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
     kvars: KVarGen,
@@ -556,6 +560,8 @@ where
 {
     pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, kvars: KVarGen) -> Self {
         Self {
+            #[cfg(feature = "wick")]
+            comparison_iteration: None,
             comments: vec![],
             kvars,
             scx: SortEncodingCtxt::default(),
@@ -710,6 +716,8 @@ where
             adt_flatten::flatten_task(t)
         };
 
+        #[cfg(feature = "wick")]
+        let comparison_task = config::timings().then(|| task.clone());
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
 
         #[cfg(feature = "wick")]
@@ -925,18 +933,14 @@ where
                 )
                 .unwrap();
             }
-            let hs_start = std::time::Instant::now();
-            let hs_outcome = match hornspec_task.run() {
-                Ok(r) => {
-                    match r.status {
-                        liquid_fixpoint::FixpointStatus::Safe(_) => metrics::HornspecOutcome::Safe,
-                        liquid_fixpoint::FixpointStatus::Timeout => {
-                            metrics::HornspecOutcome::Timeout
-                        }
-                        _ => metrics::HornspecOutcome::Unsafe,
-                    }
-                }
-                Err(e) => panic!("hornspec failed: {e}"),
+            let hs_output = hornspec_task
+                .run_hornspec_with_output()
+                .unwrap_or_else(|e| panic!("hornspec failed: {e}"));
+            let hs_duration = hs_output.duration;
+            let hs_outcome = match hs_output.result.status {
+                liquid_fixpoint::FixpointStatus::Safe(_) => metrics::HornspecOutcome::Safe,
+                liquid_fixpoint::FixpointStatus::Timeout => metrics::HornspecOutcome::Timeout,
+                _ => metrics::HornspecOutcome::Unsafe,
             };
             // Hornspec solved = all errors in this CHC if hornspec says safe, else 0.
             let hornspec_solved =
@@ -949,8 +953,21 @@ where
                     wick_solved,
                     hornspec_solved,
                 },
-                hs_start.elapsed(),
+                hs_duration,
             );
+            if config::timings() {
+                self.log_comparison(
+                    id,
+                    kind,
+                    errors,
+                    &answer,
+                    &hornspec_task,
+                    comparison_task.as_ref().unwrap(),
+                    &result,
+                    &hs_output,
+                    hs_duration,
+                );
+            }
         }
 
         answer

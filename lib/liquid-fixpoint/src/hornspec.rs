@@ -16,6 +16,7 @@
 use std::{
     io::{self, BufWriter, Write},
     process::{Command, Stdio},
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -24,14 +25,62 @@ use crate::{
     sexp,
 };
 
+/// Complete output of a Hornspec invocation, including information omitted from
+/// the common fixpoint result representation.
+#[derive(serde::Serialize)]
+pub struct HornspecOutput<Tag> {
+    #[serde(skip)]
+    pub result: FixpointResult<Tag>,
+    #[serde(skip)]
+    pub duration: Duration,
+    pub status: String,
+    #[serde(skip)]
+    pub stdout: String,
+    #[serde(skip)]
+    pub stderr: String,
+    pub exit_code: Option<i32>,
+    pub error: Option<String>,
+    pub timeout_ms: u64,
+    pub skip_maximal: bool,
+    pub command: Vec<String>,
+    pub definitions: Vec<HornspecDefinition>,
+}
+
+#[derive(serde::Serialize)]
+pub struct HornspecDefinition {
+    pub name: String,
+    pub parameters: Vec<HornspecParameter>,
+    pub return_sort: String,
+    pub body_smtlib: String,
+    pub declaration_smtlib: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct HornspecParameter {
+    pub name: String,
+    pub sort: String,
+}
+
 /// Run hornspec on the given task and parse the output.
 pub(crate) fn run_hornspec<T: Types>(task: &Task<T>) -> io::Result<FixpointResult<T::Tag>> {
+    Ok(run_hornspec_with_output(task)?.result)
+}
+
+pub(crate) fn run_hornspec_with_output<T: Types>(
+    task: &Task<T>,
+) -> io::Result<HornspecOutput<T::Tag>> {
+    let timeout_seconds = flux_config::hornspec_timeout();
+    let skip_maximal = flux_config::hornspec_skip_maximal();
+    let mut command =
+        vec!["timeout".to_owned(), format!("{timeout_seconds}s"), "hornspec".to_owned()];
+    if skip_maximal {
+        command.push("--skip-maximal".to_owned());
+    }
+    command.push("-".to_owned());
+    let start = Instant::now();
     // Spawn hornspec binary, piping input via stdin
-    let mut child = Command::new("timeout")
-        .arg("5s")
-        .arg("hornspec")
-        .arg("--skip-maximal")
-        .arg("-")
+    let mut child = Command::new(&command[0])
+        .args(&command[1..])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -39,32 +88,105 @@ pub(crate) fn run_hornspec<T: Types>(task: &Task<T>) -> io::Result<FixpointResul
 
     let mut stdin = None;
     std::mem::swap(&mut stdin, &mut child.stdin);
-    {
+    let input_result = {
         let mut w = BufWriter::new(stdin.unwrap());
-        writeln!(&mut w, "{}", SmtFormatter(task))?;
-    }
+        writeln!(&mut w, "{}", SmtFormatter(task)).and_then(|()| w.flush())
+    };
 
     let output = child.wait_with_output()?;
+    let duration = start.elapsed();
+    // Always reap the child, including early solver exits causing a broken pipe.
+    if let Err(error) = input_result
+        && error.kind() != io::ErrorKind::BrokenPipe
+    {
+        return Err(error);
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    if matches!(output.status.code(), Some(125..=127)) {
+        return Err(io::Error::other(format!("failed to launch Hornspec: {stderr}")));
+    }
 
-    // Timeout
-    if output.status.code() == Some(124) {
-        return Ok(FixpointResult {
+    let (status, error) =
+        classify_output(output.status.success(), output.status.code(), &stdout, &stderr);
+    let result = if status == "timeout" {
+        FixpointResult {
             status: FixpointStatus::Timeout,
             solution: vec![],
             non_cuts_solution: vec![],
-        });
+        }
+    } else {
+        parse_hornspec_output(if status == "unknown" { "unknown" } else { &stdout }, task)?
+    };
+    let mut definitions = vec![];
+    if let Some((_, rest)) = stdout.trim().split_once('\n') {
+        let mut parser = sexp::Parser::new(rest);
+        while let Ok(sexpr) = parser.parse() {
+            if let Some(definition) = parse_definition(&sexpr) {
+                definitions.push(definition);
+            }
+        }
     }
+    Ok(HornspecOutput {
+        result,
+        duration,
+        status,
+        stdout,
+        stderr,
+        exit_code: output.status.code(),
+        error,
+        timeout_ms: timeout_seconds * 1000,
+        skip_maximal,
+        command,
+        definitions,
+    })
+}
 
-    if !output.status.success() && output.stdout.is_empty() {
-        let stderr = std::str::from_utf8(&output.stderr)
-            .unwrap_or("hornspec exited with a non-zero return code");
-        return Err(io::Error::other(stderr));
+fn classify_output(
+    success: bool,
+    exit_code: Option<i32>,
+    stdout: &str,
+    stderr: &str,
+) -> (String, Option<String>) {
+    if exit_code == Some(124) {
+        return ("timeout".into(), None);
     }
+    if !success {
+        return (
+            "unknown".into(),
+            Some(format!(
+                "Hornspec exited with {exit_code:?}: {}",
+                stderr.trim().chars().take(1000).collect::<String>()
+            )),
+        );
+    }
+    let status = stdout.split_whitespace().next().unwrap_or_default();
+    if matches!(status, "unsat" | "sat" | "unknown") {
+        (status.into(), None)
+    } else {
+        ("unknown".into(), Some(format!("unexpected Hornspec output status: {status:?}")))
+    }
+}
 
-    let stdout = std::str::from_utf8(&output.stdout)
-        .map_err(|e| io::Error::other(format!("hornspec output is not valid UTF-8: {e}")))?;
-
-    parse_hornspec_output(stdout, task)
+fn parse_definition(sexpr: &sexp::Sexp) -> Option<HornspecDefinition> {
+    let bind = parse_single_define_fun(sexpr)?;
+    let sexp::Sexp::List(items) = sexpr else { return None };
+    let sexp::Sexp::List(parameters) = &items[2] else { return None };
+    let parameters = parameters
+        .iter()
+        .map(|parameter| {
+            let sexp::Sexp::List(pair) = parameter else { return None };
+            let [name, sort] = pair.as_slice() else { return None };
+            Some(HornspecParameter { name: format_sexp(name), sort: format_sexp(sort) })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(HornspecDefinition {
+        name: bind.kvar,
+        parameters,
+        return_sort: format_sexp(&items[3]),
+        body_smtlib: bind.val,
+        declaration_smtlib: format_sexp(sexpr),
+    })
 }
 
 /// Parse hornspec output into a FixpointResult.
@@ -188,5 +310,66 @@ fn format_atom(atom: &sexp::Atom) -> String {
         sexp::Atom::I(i) => i.to_string(),
         sexp::Atom::F(f) => f.to_string(),
         sexp::Atom::B(b) => b.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn definition_preserves_parameter_order_sorts_and_body() {
+        let input = "(define-fun wk$foo$0 ((x Int) (b Bool)) Bool (and (> x 0) b))";
+        let sexpr = sexp::Parser::new(input).parse().unwrap();
+        let definition = parse_definition(&sexpr).unwrap();
+        assert_eq!(definition.name, "wk$foo$0");
+        assert_eq!(definition.parameters.len(), 2);
+        assert_eq!(definition.parameters[0].name, "x");
+        assert_eq!(definition.parameters[0].sort, "Int");
+        assert_eq!(definition.parameters[1].name, "b");
+        assert_eq!(definition.parameters[1].sort, "Bool");
+        assert_eq!(definition.return_sort, "Bool");
+        assert_eq!(definition.body_smtlib, "(and (> x 0) b)");
+        assert_eq!(definition.declaration_smtlib, input);
+    }
+
+    #[test]
+    fn output_serialization_excludes_raw_artifacts_and_internal_result() {
+        let output = HornspecOutput::<String> {
+            result: FixpointResult {
+                status: FixpointStatus::Timeout,
+                solution: vec![],
+                non_cuts_solution: vec![],
+            },
+            duration: Duration::from_secs(5),
+            status: "timeout".into(),
+            stdout: "large stdout".into(),
+            stderr: "large stderr".into(),
+            exit_code: Some(124),
+            error: None,
+            timeout_ms: 5_000,
+            skip_maximal: true,
+            command: vec![],
+            definitions: vec![],
+        };
+        let json = serde_json::to_value(output).unwrap();
+        assert_eq!(json["status"], "timeout");
+        assert_eq!(json["exit_code"], 124);
+        for omitted in ["stdout", "stderr", "result", "duration"] {
+            assert!(json.get(omitted).is_none());
+        }
+    }
+
+    #[test]
+    fn solver_crashes_are_unknown_even_with_partial_safe_output() {
+        for stdout in ["", "unsat\n(define-fun p () Bool true)"] {
+            let (status, error) =
+                classify_output(false, Some(134), stdout, "Assertion `0' failed.");
+            assert_eq!(status, "unknown");
+            assert!(error.unwrap().contains("Assertion `0' failed."));
+        }
+        assert_eq!(classify_output(false, None, "", "killed").0, "unknown");
+        assert_eq!(classify_output(false, Some(124), "", "").0, "timeout");
+        assert_eq!(classify_output(true, Some(0), "unsat\n", "").0, "unsat");
     }
 }
