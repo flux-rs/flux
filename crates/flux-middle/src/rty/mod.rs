@@ -2924,7 +2924,10 @@ fn slice_invariants(genv: GlobalEnv, elem_ty: &Ty, overflow_mode: OverflowMode) 
     let mut invariants = vec![Invariant {
         pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
     }];
-    if !matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
+    if !matches!(
+        overflow_mode,
+        OverflowMode::Strict | OverflowMode::Lazy | OverflowMode::StrictUnder
+    ) {
         return invariants;
     }
 
@@ -2987,7 +2990,10 @@ fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [In
             })
             .collect()
     });
-    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
+    if matches!(
+        overflow_mode,
+        OverflowMode::Strict | OverflowMode::Lazy | OverflowMode::StrictUnder
+    ) {
         &OVERFLOW[&uint_ty]
     } else {
         &*DEFAULT
@@ -3042,7 +3048,10 @@ fn int_invariants(int_ty: IntTy, overflow_mode: OverflowMode) -> &'static [Invar
             })
             .collect()
     });
-    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
+    if matches!(
+        overflow_mode,
+        OverflowMode::Strict | OverflowMode::Lazy | OverflowMode::StrictUnder
+    ) {
         &OVERFLOW[&int_ty]
     } else {
         &DEFAULT
