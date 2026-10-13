@@ -2388,7 +2388,10 @@ fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
     if uint_bit_width(uint_ty) < int_bit_width(int_ty) {
         Ty::indexed(BaseTy::Int(int_ty), idx.clone())
     } else {
-        Ty::int(int_ty)
+        // Value is preserved if it fits in the target type.
+        let guard = Expr::le(idx.clone(), Expr::int_max(int_ty));
+        let eq = Expr::eq(Expr::nu(), idx.clone());
+        Ty::exists_with_constr(BaseTy::Int(int_ty), Expr::implies(guard, eq))
     }
 }
 
