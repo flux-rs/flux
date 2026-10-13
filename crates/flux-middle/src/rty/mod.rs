@@ -1438,19 +1438,9 @@ pub enum Ensures {
 #[derive(Debug, TypeVisitable, TypeFoldable)]
 pub struct Qualifier {
     pub def_id: FluxLocalDefId,
-    /// Number of sort variables the qualifier is generic over
-    pub sort_vars: usize,
     pub body: Binder<Expr>,
     pub wildcards: List<bool>,
     pub kind: QualifierKind,
-}
-
-impl Qualifier {
-    /// Replaces the qualifier's sort variables with `sorts`
-    pub fn instantiate_sort_vars(&self, sorts: &[Sort]) -> Qualifier {
-        debug_assert_eq!(sorts.len(), self.sort_vars);
-        self.fold_with(&mut SortSubst::new(sorts))
-    }
 }
 
 #[derive(Debug, TypeFoldable, TypeVisitable, Copy, Clone)]
