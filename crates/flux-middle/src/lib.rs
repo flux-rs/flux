@@ -556,6 +556,9 @@ impl flux_rustc_bridge::mir::Place {
         Ok(false)
     }
 
+    /// Compute the minimum packedness of all Adts within a Place. For example:
+    /// #[repr(packed(4))] struct Z {}; #[repr(packed(2)] struct X {y: Z}
+    /// When taking a reference to `.y`, this would be the minimum of 4 and 2
     fn min_pack(&self, genv: GlobalEnv, local_decls: &LocalDecls) -> QueryResult<Option<u64>> {
         let mut place_ty = PlaceTy::from_ty(local_decls[self.local].ty.clone());
         let mut min_pack = None;
