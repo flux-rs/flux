@@ -2388,132 +2388,135 @@
 <a href=#2388 id=2388 data-nosnippet>2388</a>    <span class="kw">if </span>uint_bit_width(uint_ty) &lt; int_bit_width(int_ty) {
 <a href=#2389 id=2389 data-nosnippet>2389</a>        Ty::indexed(BaseTy::Int(int_ty), idx.clone())
 <a href=#2390 id=2390 data-nosnippet>2390</a>    } <span class="kw">else </span>{
-<a href=#2391 id=2391 data-nosnippet>2391</a>        Ty::int(int_ty)
-<a href=#2392 id=2392 data-nosnippet>2392</a>    }
-<a href=#2393 id=2393 data-nosnippet>2393</a>}
-<a href=#2394 id=2394 data-nosnippet>2394</a>
-<a href=#2395 id=2395 data-nosnippet>2395</a><span class="kw">fn </span>int_uint_cast(idx: <span class="kw-2">&amp;</span>Expr, int_ty: IntTy, uint_ty: UintTy) -&gt; Ty {
-<a href=#2396 id=2396 data-nosnippet>2396</a>    <span class="kw">let </span>non_neg = Expr::ge(idx.clone(), Expr::zero());
+<a href=#2391 id=2391 data-nosnippet>2391</a>        <span class="comment">// Value is preserved if it fits in the target type.
+<a href=#2392 id=2392 data-nosnippet>2392</a>        </span><span class="kw">let </span>guard = Expr::le(idx.clone(), Expr::int_max(int_ty));
+<a href=#2393 id=2393 data-nosnippet>2393</a>        <span class="kw">let </span>eq = Expr::eq(Expr::nu(), idx.clone());
+<a href=#2394 id=2394 data-nosnippet>2394</a>        Ty::exists_with_constr(BaseTy::Int(int_ty), Expr::implies(guard, eq))
+<a href=#2395 id=2395 data-nosnippet>2395</a>    }
+<a href=#2396 id=2396 data-nosnippet>2396</a>}
 <a href=#2397 id=2397 data-nosnippet>2397</a>
-<a href=#2398 id=2398 data-nosnippet>2398</a>    <span class="kw">let </span>guard: Expr = <span class="kw">if </span>int_bit_width(int_ty) &lt;= uint_bit_width(uint_ty) {
-<a href=#2399 id=2399 data-nosnippet>2399</a>        non_neg
-<a href=#2400 id=2400 data-nosnippet>2400</a>    } <span class="kw">else </span>{
-<a href=#2401 id=2401 data-nosnippet>2401</a>        <span class="comment">// Cast is still possible if the value is known to fit.
-<a href=#2402 id=2402 data-nosnippet>2402</a>        </span><span class="kw">let </span>fits = Expr::le(idx.clone(), Expr::uint_max(uint_ty));
-<a href=#2403 id=2403 data-nosnippet>2403</a>        Expr::and(non_neg, fits)
-<a href=#2404 id=2404 data-nosnippet>2404</a>    };
-<a href=#2405 id=2405 data-nosnippet>2405</a>
-<a href=#2406 id=2406 data-nosnippet>2406</a>    <span class="kw">let </span>eq = Expr::eq(Expr::nu(), idx.clone());
-<a href=#2407 id=2407 data-nosnippet>2407</a>    Ty::exists_with_constr(BaseTy::Uint(uint_ty), Expr::implies(guard, eq))
-<a href=#2408 id=2408 data-nosnippet>2408</a>}
-<a href=#2409 id=2409 data-nosnippet>2409</a>
-<a href=#2410 id=2410 data-nosnippet>2410</a><span class="kw">fn </span>guarded_uint_ty(idx: <span class="kw-2">&amp;</span>Expr, uint_ty: UintTy) -&gt; Ty {
-<a href=#2411 id=2411 data-nosnippet>2411</a>    <span class="comment">// uint_ty2{v: idx &lt;= max_value =&gt; v == idx }
-<a href=#2412 id=2412 data-nosnippet>2412</a>    </span><span class="kw">let </span>max_value = Expr::uint_max(uint_ty);
-<a href=#2413 id=2413 data-nosnippet>2413</a>    <span class="kw">let </span>guard = Expr::le(idx.clone(), max_value);
-<a href=#2414 id=2414 data-nosnippet>2414</a>    <span class="kw">let </span>eq = Expr::eq(Expr::nu(), idx.clone());
-<a href=#2415 id=2415 data-nosnippet>2415</a>    Ty::exists_with_constr(BaseTy::Uint(uint_ty), Expr::implies(guard, eq))
-<a href=#2416 id=2416 data-nosnippet>2416</a>}
-<a href=#2417 id=2417 data-nosnippet>2417</a>
-<a href=#2418 id=2418 data-nosnippet>2418</a><span class="kw">fn </span>uint_uint_cast(idx: <span class="kw-2">&amp;</span>Expr, uint_ty1: UintTy, uint_ty2: UintTy) -&gt; Ty {
-<a href=#2419 id=2419 data-nosnippet>2419</a>    <span class="kw">if </span>uint_bit_width(uint_ty1) &lt;= uint_bit_width(uint_ty2) {
-<a href=#2420 id=2420 data-nosnippet>2420</a>        Ty::indexed(BaseTy::Uint(uint_ty2), idx.clone())
-<a href=#2421 id=2421 data-nosnippet>2421</a>    } <span class="kw">else </span>{
-<a href=#2422 id=2422 data-nosnippet>2422</a>        guarded_uint_ty(idx, uint_ty2)
-<a href=#2423 id=2423 data-nosnippet>2423</a>    }
-<a href=#2424 id=2424 data-nosnippet>2424</a>}
-<a href=#2425 id=2425 data-nosnippet>2425</a>
-<a href=#2426 id=2426 data-nosnippet>2426</a><span class="kw">fn </span>uint_bit_width(uint_ty: UintTy) -&gt; u64 {
-<a href=#2427 id=2427 data-nosnippet>2427</a>    uint_ty
-<a href=#2428 id=2428 data-nosnippet>2428</a>        .bit_width()
-<a href=#2429 id=2429 data-nosnippet>2429</a>        .unwrap_or(config::pointer_width().bits())
-<a href=#2430 id=2430 data-nosnippet>2430</a>}
-<a href=#2431 id=2431 data-nosnippet>2431</a>
-<a href=#2432 id=2432 data-nosnippet>2432</a><span class="kw">fn </span>int_bit_width(int_ty: IntTy) -&gt; u64 {
-<a href=#2433 id=2433 data-nosnippet>2433</a>    int_ty.bit_width().unwrap_or(config::pointer_width().bits())
-<a href=#2434 id=2434 data-nosnippet>2434</a>}
-<a href=#2435 id=2435 data-nosnippet>2435</a>
-<a href=#2436 id=2436 data-nosnippet>2436</a><span class="kw">impl </span>ShapeResult {
-<a href=#2437 id=2437 data-nosnippet>2437</a>    <span class="kw">fn </span>into_bb_envs(
-<a href=#2438 id=2438 data-nosnippet>2438</a>        <span class="self">self</span>,
-<a href=#2439 id=2439 data-nosnippet>2439</a>        infcx: <span class="kw-2">&amp;mut </span>InferCtxtRoot,
-<a href=#2440 id=2440 data-nosnippet>2440</a>        body: <span class="kw-2">&amp;</span>Body,
-<a href=#2441 id=2441 data-nosnippet>2441</a>    ) -&gt; FxHashMap&lt;CheckerId, FxHashMap&lt;BasicBlock, BasicBlockEnv&gt;&gt; {
-<a href=#2442 id=2442 data-nosnippet>2442</a>        <span class="self">self</span>.<span class="number">0
-<a href=#2443 id=2443 data-nosnippet>2443</a>            </span>.into_iter()
-<a href=#2444 id=2444 data-nosnippet>2444</a>            .map(|(checker_id, shapes)| {
-<a href=#2445 id=2445 data-nosnippet>2445</a>                <span class="kw">let </span>bb_envs = shapes
-<a href=#2446 id=2446 data-nosnippet>2446</a>                    .into_iter()
-<a href=#2447 id=2447 data-nosnippet>2447</a>                    .map(|(bb, shape)| (bb, shape.into_bb_env(infcx, body)))
-<a href=#2448 id=2448 data-nosnippet>2448</a>                    .collect();
-<a href=#2449 id=2449 data-nosnippet>2449</a>                (checker_id, bb_envs)
-<a href=#2450 id=2450 data-nosnippet>2450</a>            })
-<a href=#2451 id=2451 data-nosnippet>2451</a>            .collect()
-<a href=#2452 id=2452 data-nosnippet>2452</a>    }
-<a href=#2453 id=2453 data-nosnippet>2453</a>}
-<a href=#2454 id=2454 data-nosnippet>2454</a>
-<a href=#2455 id=2455 data-nosnippet>2455</a><span class="kw">fn </span>marker_at_dominator&lt;<span class="lifetime">'a</span>&gt;(
-<a href=#2456 id=2456 data-nosnippet>2456</a>    body: <span class="kw-2">&amp;</span>Body,
-<a href=#2457 id=2457 data-nosnippet>2457</a>    markers: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>IndexVec&lt;BasicBlock, <span class="prelude-ty">Option</span>&lt;Marker&gt;&gt;,
-<a href=#2458 id=2458 data-nosnippet>2458</a>    bb: BasicBlock,
-<a href=#2459 id=2459 data-nosnippet>2459</a>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Marker {
-<a href=#2460 id=2460 data-nosnippet>2460</a>    <span class="kw">let </span>dominator = body
-<a href=#2461 id=2461 data-nosnippet>2461</a>        .dominators()
-<a href=#2462 id=2462 data-nosnippet>2462</a>        .immediate_dominator(bb)
-<a href=#2463 id=2463 data-nosnippet>2463</a>        .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
-<a href=#2464 id=2464 data-nosnippet>2464</a>    markers[dominator]
-<a href=#2465 id=2465 data-nosnippet>2465</a>        .as_ref()
-<a href=#2466 id=2466 data-nosnippet>2466</a>        .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>())
-<a href=#2467 id=2467 data-nosnippet>2467</a>}
-<a href=#2468 id=2468 data-nosnippet>2468</a>
-<a href=#2469 id=2469 data-nosnippet>2469</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {
-<a href=#2470 id=2470 data-nosnippet>2470</a>    <span class="kw">use </span>flux_errors::{E0999, ErrorGuaranteed};
-<a href=#2471 id=2471 data-nosnippet>2471</a>    <span class="kw">use </span>flux_infer::infer::InferErr;
-<a href=#2472 id=2472 data-nosnippet>2472</a>    <span class="kw">use </span>flux_macros::msg;
-<a href=#2473 id=2473 data-nosnippet>2473</a>    <span class="kw">use </span>flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
-<a href=#2474 id=2474 data-nosnippet>2474</a>    <span class="kw">use </span>rustc_errors::Diagnostic;
-<a href=#2475 id=2475 data-nosnippet>2475</a>    <span class="kw">use </span>rustc_hir::def_id::LocalDefId;
-<a href=#2476 id=2476 data-nosnippet>2476</a>    <span class="kw">use </span>rustc_span::Span;
-<a href=#2477 id=2477 data-nosnippet>2477</a>
-<a href=#2478 id=2478 data-nosnippet>2478</a>    <span class="attr">#[derive(Debug)]
-<a href=#2479 id=2479 data-nosnippet>2479</a>    </span><span class="kw">pub struct </span>CheckerError {
-<a href=#2480 id=2480 data-nosnippet>2480</a>        kind: InferErr,
-<a href=#2481 id=2481 data-nosnippet>2481</a>        span: Span,
-<a href=#2482 id=2482 data-nosnippet>2482</a>    }
-<a href=#2483 id=2483 data-nosnippet>2483</a>
-<a href=#2484 id=2484 data-nosnippet>2484</a>    <span class="kw">impl </span>CheckerError {
-<a href=#2485 id=2485 data-nosnippet>2485</a>        <span class="kw">pub fn </span>emit(<span class="self">self</span>, genv: GlobalEnv, fn_def_id: LocalDefId) -&gt; ErrorGuaranteed {
-<a href=#2486 id=2486 data-nosnippet>2486</a>            <span class="kw">let </span>dcx = genv.sess().dcx();
-<a href=#2487 id=2487 data-nosnippet>2487</a>            <span class="kw">match </span><span class="self">self</span>.kind {
-<a href=#2488 id=2488 data-nosnippet>2488</a>                InferErr::UnsolvedEvar(<span class="kw">_</span>) =&gt; {
-<a href=#2489 id=2489 data-nosnippet>2489</a>                    <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_span_err(
-<a href=#2490 id=2490 data-nosnippet>2490</a>                        <span class="self">self</span>.span,
-<a href=#2491 id=2491 data-nosnippet>2491</a>                        <span class="macro">msg!</span>(<span class="string">"parameter inference error at function call"</span>),
-<a href=#2492 id=2492 data-nosnippet>2492</a>                    );
-<a href=#2493 id=2493 data-nosnippet>2493</a>                    diag.code(E0999);
-<a href=#2494 id=2494 data-nosnippet>2494</a>                    diag.emit_err()
-<a href=#2495 id=2495 data-nosnippet>2495</a>                }
-<a href=#2496 id=2496 data-nosnippet>2496</a>                InferErr::Query(err) =&gt; {
-<a href=#2497 id=2497 data-nosnippet>2497</a>                    <span class="kw">let </span>level = rustc_errors::Level::Error;
-<a href=#2498 id=2498 data-nosnippet>2498</a>                    err.at(ErrCtxt::FnCheck(<span class="self">self</span>.span, fn_def_id))
-<a href=#2499 id=2499 data-nosnippet>2499</a>                        .into_diag(dcx, level)
-<a href=#2500 id=2500 data-nosnippet>2500</a>                        .emit_err()
-<a href=#2501 id=2501 data-nosnippet>2501</a>                }
-<a href=#2502 id=2502 data-nosnippet>2502</a>            }
-<a href=#2503 id=2503 data-nosnippet>2503</a>        }
-<a href=#2504 id=2504 data-nosnippet>2504</a>    }
-<a href=#2505 id=2505 data-nosnippet>2505</a>
-<a href=#2506 id=2506 data-nosnippet>2506</a>    <span class="kw">pub trait </span>ResultExt&lt;T&gt; {
-<a href=#2507 id=2507 data-nosnippet>2507</a>        <span class="kw">fn </span>with_span(<span class="self">self</span>, span: Span) -&gt; <span class="prelude-ty">Result</span>&lt;T, CheckerError&gt;;
-<a href=#2508 id=2508 data-nosnippet>2508</a>    }
-<a href=#2509 id=2509 data-nosnippet>2509</a>
-<a href=#2510 id=2510 data-nosnippet>2510</a>    <span class="kw">impl</span>&lt;T, E&gt; ResultExt&lt;T&gt; <span class="kw">for </span><span class="prelude-ty">Result</span>&lt;T, E&gt;
-<a href=#2511 id=2511 data-nosnippet>2511</a>    <span class="kw">where
-<a href=#2512 id=2512 data-nosnippet>2512</a>        </span>E: Into&lt;InferErr&gt;,
-<a href=#2513 id=2513 data-nosnippet>2513</a>    {
-<a href=#2514 id=2514 data-nosnippet>2514</a>        <span class="kw">fn </span>with_span(<span class="self">self</span>, span: Span) -&gt; <span class="prelude-ty">Result</span>&lt;T, CheckerError&gt; {
-<a href=#2515 id=2515 data-nosnippet>2515</a>            <span class="self">self</span>.map_err(|err| CheckerError { kind: err.into(), span })
-<a href=#2516 id=2516 data-nosnippet>2516</a>        }
-<a href=#2517 id=2517 data-nosnippet>2517</a>    }
-<a href=#2518 id=2518 data-nosnippet>2518</a>}
+<a href=#2398 id=2398 data-nosnippet>2398</a><span class="kw">fn </span>int_uint_cast(idx: <span class="kw-2">&amp;</span>Expr, int_ty: IntTy, uint_ty: UintTy) -&gt; Ty {
+<a href=#2399 id=2399 data-nosnippet>2399</a>    <span class="kw">let </span>non_neg = Expr::ge(idx.clone(), Expr::zero());
+<a href=#2400 id=2400 data-nosnippet>2400</a>
+<a href=#2401 id=2401 data-nosnippet>2401</a>    <span class="kw">let </span>guard: Expr = <span class="kw">if </span>int_bit_width(int_ty) &lt;= uint_bit_width(uint_ty) {
+<a href=#2402 id=2402 data-nosnippet>2402</a>        non_neg
+<a href=#2403 id=2403 data-nosnippet>2403</a>    } <span class="kw">else </span>{
+<a href=#2404 id=2404 data-nosnippet>2404</a>        <span class="comment">// Cast is still possible if the value is known to fit.
+<a href=#2405 id=2405 data-nosnippet>2405</a>        </span><span class="kw">let </span>fits = Expr::le(idx.clone(), Expr::uint_max(uint_ty));
+<a href=#2406 id=2406 data-nosnippet>2406</a>        Expr::and(non_neg, fits)
+<a href=#2407 id=2407 data-nosnippet>2407</a>    };
+<a href=#2408 id=2408 data-nosnippet>2408</a>
+<a href=#2409 id=2409 data-nosnippet>2409</a>    <span class="kw">let </span>eq = Expr::eq(Expr::nu(), idx.clone());
+<a href=#2410 id=2410 data-nosnippet>2410</a>    Ty::exists_with_constr(BaseTy::Uint(uint_ty), Expr::implies(guard, eq))
+<a href=#2411 id=2411 data-nosnippet>2411</a>}
+<a href=#2412 id=2412 data-nosnippet>2412</a>
+<a href=#2413 id=2413 data-nosnippet>2413</a><span class="kw">fn </span>guarded_uint_ty(idx: <span class="kw-2">&amp;</span>Expr, uint_ty: UintTy) -&gt; Ty {
+<a href=#2414 id=2414 data-nosnippet>2414</a>    <span class="comment">// uint_ty2{v: idx &lt;= max_value =&gt; v == idx }
+<a href=#2415 id=2415 data-nosnippet>2415</a>    </span><span class="kw">let </span>max_value = Expr::uint_max(uint_ty);
+<a href=#2416 id=2416 data-nosnippet>2416</a>    <span class="kw">let </span>guard = Expr::le(idx.clone(), max_value);
+<a href=#2417 id=2417 data-nosnippet>2417</a>    <span class="kw">let </span>eq = Expr::eq(Expr::nu(), idx.clone());
+<a href=#2418 id=2418 data-nosnippet>2418</a>    Ty::exists_with_constr(BaseTy::Uint(uint_ty), Expr::implies(guard, eq))
+<a href=#2419 id=2419 data-nosnippet>2419</a>}
+<a href=#2420 id=2420 data-nosnippet>2420</a>
+<a href=#2421 id=2421 data-nosnippet>2421</a><span class="kw">fn </span>uint_uint_cast(idx: <span class="kw-2">&amp;</span>Expr, uint_ty1: UintTy, uint_ty2: UintTy) -&gt; Ty {
+<a href=#2422 id=2422 data-nosnippet>2422</a>    <span class="kw">if </span>uint_bit_width(uint_ty1) &lt;= uint_bit_width(uint_ty2) {
+<a href=#2423 id=2423 data-nosnippet>2423</a>        Ty::indexed(BaseTy::Uint(uint_ty2), idx.clone())
+<a href=#2424 id=2424 data-nosnippet>2424</a>    } <span class="kw">else </span>{
+<a href=#2425 id=2425 data-nosnippet>2425</a>        guarded_uint_ty(idx, uint_ty2)
+<a href=#2426 id=2426 data-nosnippet>2426</a>    }
+<a href=#2427 id=2427 data-nosnippet>2427</a>}
+<a href=#2428 id=2428 data-nosnippet>2428</a>
+<a href=#2429 id=2429 data-nosnippet>2429</a><span class="kw">fn </span>uint_bit_width(uint_ty: UintTy) -&gt; u64 {
+<a href=#2430 id=2430 data-nosnippet>2430</a>    uint_ty
+<a href=#2431 id=2431 data-nosnippet>2431</a>        .bit_width()
+<a href=#2432 id=2432 data-nosnippet>2432</a>        .unwrap_or(config::pointer_width().bits())
+<a href=#2433 id=2433 data-nosnippet>2433</a>}
+<a href=#2434 id=2434 data-nosnippet>2434</a>
+<a href=#2435 id=2435 data-nosnippet>2435</a><span class="kw">fn </span>int_bit_width(int_ty: IntTy) -&gt; u64 {
+<a href=#2436 id=2436 data-nosnippet>2436</a>    int_ty.bit_width().unwrap_or(config::pointer_width().bits())
+<a href=#2437 id=2437 data-nosnippet>2437</a>}
+<a href=#2438 id=2438 data-nosnippet>2438</a>
+<a href=#2439 id=2439 data-nosnippet>2439</a><span class="kw">impl </span>ShapeResult {
+<a href=#2440 id=2440 data-nosnippet>2440</a>    <span class="kw">fn </span>into_bb_envs(
+<a href=#2441 id=2441 data-nosnippet>2441</a>        <span class="self">self</span>,
+<a href=#2442 id=2442 data-nosnippet>2442</a>        infcx: <span class="kw-2">&amp;mut </span>InferCtxtRoot,
+<a href=#2443 id=2443 data-nosnippet>2443</a>        body: <span class="kw-2">&amp;</span>Body,
+<a href=#2444 id=2444 data-nosnippet>2444</a>    ) -&gt; FxHashMap&lt;CheckerId, FxHashMap&lt;BasicBlock, BasicBlockEnv&gt;&gt; {
+<a href=#2445 id=2445 data-nosnippet>2445</a>        <span class="self">self</span>.<span class="number">0
+<a href=#2446 id=2446 data-nosnippet>2446</a>            </span>.into_iter()
+<a href=#2447 id=2447 data-nosnippet>2447</a>            .map(|(checker_id, shapes)| {
+<a href=#2448 id=2448 data-nosnippet>2448</a>                <span class="kw">let </span>bb_envs = shapes
+<a href=#2449 id=2449 data-nosnippet>2449</a>                    .into_iter()
+<a href=#2450 id=2450 data-nosnippet>2450</a>                    .map(|(bb, shape)| (bb, shape.into_bb_env(infcx, body)))
+<a href=#2451 id=2451 data-nosnippet>2451</a>                    .collect();
+<a href=#2452 id=2452 data-nosnippet>2452</a>                (checker_id, bb_envs)
+<a href=#2453 id=2453 data-nosnippet>2453</a>            })
+<a href=#2454 id=2454 data-nosnippet>2454</a>            .collect()
+<a href=#2455 id=2455 data-nosnippet>2455</a>    }
+<a href=#2456 id=2456 data-nosnippet>2456</a>}
+<a href=#2457 id=2457 data-nosnippet>2457</a>
+<a href=#2458 id=2458 data-nosnippet>2458</a><span class="kw">fn </span>marker_at_dominator&lt;<span class="lifetime">'a</span>&gt;(
+<a href=#2459 id=2459 data-nosnippet>2459</a>    body: <span class="kw-2">&amp;</span>Body,
+<a href=#2460 id=2460 data-nosnippet>2460</a>    markers: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>IndexVec&lt;BasicBlock, <span class="prelude-ty">Option</span>&lt;Marker&gt;&gt;,
+<a href=#2461 id=2461 data-nosnippet>2461</a>    bb: BasicBlock,
+<a href=#2462 id=2462 data-nosnippet>2462</a>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Marker {
+<a href=#2463 id=2463 data-nosnippet>2463</a>    <span class="kw">let </span>dominator = body
+<a href=#2464 id=2464 data-nosnippet>2464</a>        .dominators()
+<a href=#2465 id=2465 data-nosnippet>2465</a>        .immediate_dominator(bb)
+<a href=#2466 id=2466 data-nosnippet>2466</a>        .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
+<a href=#2467 id=2467 data-nosnippet>2467</a>    markers[dominator]
+<a href=#2468 id=2468 data-nosnippet>2468</a>        .as_ref()
+<a href=#2469 id=2469 data-nosnippet>2469</a>        .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>())
+<a href=#2470 id=2470 data-nosnippet>2470</a>}
+<a href=#2471 id=2471 data-nosnippet>2471</a>
+<a href=#2472 id=2472 data-nosnippet>2472</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {
+<a href=#2473 id=2473 data-nosnippet>2473</a>    <span class="kw">use </span>flux_errors::{E0999, ErrorGuaranteed};
+<a href=#2474 id=2474 data-nosnippet>2474</a>    <span class="kw">use </span>flux_infer::infer::InferErr;
+<a href=#2475 id=2475 data-nosnippet>2475</a>    <span class="kw">use </span>flux_macros::msg;
+<a href=#2476 id=2476 data-nosnippet>2476</a>    <span class="kw">use </span>flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
+<a href=#2477 id=2477 data-nosnippet>2477</a>    <span class="kw">use </span>rustc_errors::Diagnostic;
+<a href=#2478 id=2478 data-nosnippet>2478</a>    <span class="kw">use </span>rustc_hir::def_id::LocalDefId;
+<a href=#2479 id=2479 data-nosnippet>2479</a>    <span class="kw">use </span>rustc_span::Span;
+<a href=#2480 id=2480 data-nosnippet>2480</a>
+<a href=#2481 id=2481 data-nosnippet>2481</a>    <span class="attr">#[derive(Debug)]
+<a href=#2482 id=2482 data-nosnippet>2482</a>    </span><span class="kw">pub struct </span>CheckerError {
+<a href=#2483 id=2483 data-nosnippet>2483</a>        kind: InferErr,
+<a href=#2484 id=2484 data-nosnippet>2484</a>        span: Span,
+<a href=#2485 id=2485 data-nosnippet>2485</a>    }
+<a href=#2486 id=2486 data-nosnippet>2486</a>
+<a href=#2487 id=2487 data-nosnippet>2487</a>    <span class="kw">impl </span>CheckerError {
+<a href=#2488 id=2488 data-nosnippet>2488</a>        <span class="kw">pub fn </span>emit(<span class="self">self</span>, genv: GlobalEnv, fn_def_id: LocalDefId) -&gt; ErrorGuaranteed {
+<a href=#2489 id=2489 data-nosnippet>2489</a>            <span class="kw">let </span>dcx = genv.sess().dcx();
+<a href=#2490 id=2490 data-nosnippet>2490</a>            <span class="kw">match </span><span class="self">self</span>.kind {
+<a href=#2491 id=2491 data-nosnippet>2491</a>                InferErr::UnsolvedEvar(<span class="kw">_</span>) =&gt; {
+<a href=#2492 id=2492 data-nosnippet>2492</a>                    <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_span_err(
+<a href=#2493 id=2493 data-nosnippet>2493</a>                        <span class="self">self</span>.span,
+<a href=#2494 id=2494 data-nosnippet>2494</a>                        <span class="macro">msg!</span>(<span class="string">"parameter inference error at function call"</span>),
+<a href=#2495 id=2495 data-nosnippet>2495</a>                    );
+<a href=#2496 id=2496 data-nosnippet>2496</a>                    diag.code(E0999);
+<a href=#2497 id=2497 data-nosnippet>2497</a>                    diag.emit_err()
+<a href=#2498 id=2498 data-nosnippet>2498</a>                }
+<a href=#2499 id=2499 data-nosnippet>2499</a>                InferErr::Query(err) =&gt; {
+<a href=#2500 id=2500 data-nosnippet>2500</a>                    <span class="kw">let </span>level = rustc_errors::Level::Error;
+<a href=#2501 id=2501 data-nosnippet>2501</a>                    err.at(ErrCtxt::FnCheck(<span class="self">self</span>.span, fn_def_id))
+<a href=#2502 id=2502 data-nosnippet>2502</a>                        .into_diag(dcx, level)
+<a href=#2503 id=2503 data-nosnippet>2503</a>                        .emit_err()
+<a href=#2504 id=2504 data-nosnippet>2504</a>                }
+<a href=#2505 id=2505 data-nosnippet>2505</a>            }
+<a href=#2506 id=2506 data-nosnippet>2506</a>        }
+<a href=#2507 id=2507 data-nosnippet>2507</a>    }
+<a href=#2508 id=2508 data-nosnippet>2508</a>
+<a href=#2509 id=2509 data-nosnippet>2509</a>    <span class="kw">pub trait </span>ResultExt&lt;T&gt; {
+<a href=#2510 id=2510 data-nosnippet>2510</a>        <span class="kw">fn </span>with_span(<span class="self">self</span>, span: Span) -&gt; <span class="prelude-ty">Result</span>&lt;T, CheckerError&gt;;
+<a href=#2511 id=2511 data-nosnippet>2511</a>    }
+<a href=#2512 id=2512 data-nosnippet>2512</a>
+<a href=#2513 id=2513 data-nosnippet>2513</a>    <span class="kw">impl</span>&lt;T, E&gt; ResultExt&lt;T&gt; <span class="kw">for </span><span class="prelude-ty">Result</span>&lt;T, E&gt;
+<a href=#2514 id=2514 data-nosnippet>2514</a>    <span class="kw">where
+<a href=#2515 id=2515 data-nosnippet>2515</a>        </span>E: Into&lt;InferErr&gt;,
+<a href=#2516 id=2516 data-nosnippet>2516</a>    {
+<a href=#2517 id=2517 data-nosnippet>2517</a>        <span class="kw">fn </span>with_span(<span class="self">self</span>, span: Span) -&gt; <span class="prelude-ty">Result</span>&lt;T, CheckerError&gt; {
+<a href=#2518 id=2518 data-nosnippet>2518</a>            <span class="self">self</span>.map_err(|err| CheckerError { kind: err.into(), span })
+<a href=#2519 id=2519 data-nosnippet>2519</a>        }
+<a href=#2520 id=2520 data-nosnippet>2520</a>    }
+<a href=#2521 id=2521 data-nosnippet>2521</a>}
 </code></pre></div></section></main></body></html>
