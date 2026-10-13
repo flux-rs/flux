@@ -420,7 +420,25 @@ pub trait TypeFoldable: TypeVisitable {
     /// a raw pointer can be created without a value of the pointee type (e.g. `ptr::cast`) and
     /// writes through it are not checked.
     fn strip_refinements(&self) -> Self {
-        self.with_holes().replace_holes(|_, _| Expr::tt())
+        struct StripRefinements;
+
+        impl TypeFolder for StripRefinements {
+            fn fold_ty(&mut self, ty: &Ty) -> Ty {
+                if let Some(bty) = ty.as_bty_skipping_existentials() {
+                    Ty::exists_with_constr(bty.fold_with(self), Expr::tt())
+                } else {
+                    ty.super_fold_with(self)
+                }
+            }
+
+            fn fold_subset_ty(&mut self, constr: &SubsetTy) -> SubsetTy {
+                // Unlike `with_holes`, we must recurse into the base type to strip the
+                // refinements in nested generic arguments, e.g., `Wrap<Wrap<i32{v: v > 0}>>`.
+                SubsetTy::new(constr.bty.fold_with(self), constr.idx.clone(), Expr::tt())
+            }
+        }
+
+        self.fold_with(&mut StripRefinements)
     }
 
     fn replace_evars(&self, f: &mut impl FnMut(EVid) -> Option<Expr>) -> Result<Self, EVid> {
