@@ -562,7 +562,12 @@ impl ExternFn {
             FnCtxt::Trait { trait_ } => quote!(< Self as #trait_ > :: #ident),
             FnCtxt::Free => quote!(#ident),
         };
-        let generic_args = generic_params_to_args(&self.sig.generics.params);
+        // Lifetimes are left for inference
+        let generic_args: Punctuated<GenericArgument, Token![,]> =
+            generic_params_to_args(&self.sig.generics.params)
+                .into_iter()
+                .filter(|arg| !matches!(arg, GenericArgument::Lifetime(_)))
+                .collect();
         let fn_args = fn_params_to_args(&self.sig.inputs);
         if self.sig.unsafety.is_some() {
             self.block = Some(quote!({ unsafe { #fn_path :: <#generic_args> ( #fn_args ) } }));
