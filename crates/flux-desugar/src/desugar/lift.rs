@@ -467,7 +467,13 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             }
         };
 
-        Ok(fhir::PathSegment { res, ident: segment.ident, args, constraints: bindings })
+        Ok(fhir::PathSegment {
+            res,
+            ident: segment.ident,
+            elided_lifetimes: false,
+            args,
+            constraints: bindings,
+        })
     }
 
     fn lift_generic_args(

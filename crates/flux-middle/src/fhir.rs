@@ -713,6 +713,10 @@ impl<'fhir> Path<'fhir> {
 pub struct PathSegment<'fhir> {
     pub ident: Ident,
     pub res: Res,
+    /// Whether the lifetime parameters of the segment are elided in `args` and thus have to be
+    /// inferred. Lifetimes cannot be written in flux paths, so this is always set for them.
+    /// Segments lifted from rust never set it: elided lifetimes are already explicit in hir.
+    pub elided_lifetimes: bool,
     pub args: &'fhir [GenericArg<'fhir>],
     pub constraints: &'fhir [AssocItemConstraint<'fhir>],
 }

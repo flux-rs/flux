@@ -728,6 +728,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             segments: self.genv.alloc_slice_fill_iter([fhir::PathSegment {
                 ident: surface::Ident::new(lang_item.name(), span),
                 res,
+                elided_lifetimes: false,
                 args,
                 constraints,
             }]),
@@ -1195,23 +1196,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
 
     fn desugar_generic_args(
         &mut self,
-        res: Res,
         args: &[surface::GenericArg],
     ) -> (&'genv [fhir::GenericArg<'genv>], &'genv [fhir::AssocItemConstraint<'genv>]) {
         let mut fhir_args = vec![];
         let mut constraints = vec![];
-        if let Res::Def(
-            DefKind::TyAlias | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
-            def_id,
-        ) = res
-        {
-            let generics = self.genv().tcx().generics_of(def_id);
-            for param in &generics.own_params {
-                if let rustc_middle::ty::GenericParamDefKind::Lifetime = param.kind {
-                    fhir_args.push(fhir::GenericArg::Lifetime(self.mk_lft_hole()));
-                }
-            }
-        }
         for arg in args {
             match &arg.kind {
                 surface::GenericArgKind::Type(ty) => {
@@ -1500,8 +1488,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let res = self
             .opt_resolve_path(segment.node_id)
             .map_or(Res::Err, |r| r.expect_full_res());
-        let (args, constraints) = self.desugar_generic_args(res, &segment.args);
-        fhir::PathSegment { ident: segment.ident, res, args, constraints }
+        let (args, constraints) = self.desugar_generic_args(&segment.args);
+        fhir::PathSegment { ident: segment.ident, res, elided_lifetimes: true, args, constraints }
     }
 
     fn desugar_epath_segment(
@@ -1511,7 +1499,13 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let res = self
             .opt_resolve_path(segment.node_id)
             .map_or(Res::Err, |r| r.expect_full_res());
-        fhir::PathSegment { ident: segment.ident, res, args: &[], constraints: &[] }
+        fhir::PathSegment {
+            ident: segment.ident,
+            res,
+            elided_lifetimes: false,
+            args: &[],
+            constraints: &[],
+        }
     }
 
     fn ty_path(&self, qpath: fhir::QPath<'genv>) -> fhir::Ty<'genv> {

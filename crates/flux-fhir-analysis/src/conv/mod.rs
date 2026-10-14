@@ -915,8 +915,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             (res @ fhir::Res::SelfTyParam { .. }, 1) => {
                 let ident = *path.segments.last().unwrap();
-                let assoc_segment =
-                    fhir::PathSegment { args: &[], constraints: &[], ident, res: fhir::Res::Err };
+                let assoc_segment = fhir::PathSegment {
+                    args: &[],
+                    constraints: &[],
+                    ident,
+                    res: fhir::Res::Err,
+                    elided_lifetimes: true,
+                };
                 let mut env = Env::empty();
                 let alias_ty = self.conv_type_relative_type_path(&mut env, res, &assoc_segment)?;
                 return Ok(rty::Sort::Alias(alias_ty));
@@ -1850,6 +1855,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         self.check_generic_arg_count(&generics, def_id, segment)?;
 
+        if segment.elided_lifetimes {
+            for param in &generics.own_params {
+                if let rty::GenericParamDefKind::Lifetime = param.kind {
+                    into.push(rty::GenericArg::Lifetime(self.next_region_hole()));
+                }
+            }
+        }
+
         let len = into.len();
         for (idx, arg) in segment.args.iter().enumerate() {
             let param = generics.param_at(idx + len, self.genv())?;
@@ -1896,6 +1909,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult {
         let found = segment.args.len();
         let mut param_count = generics.own_params.len();
+
+        // Elided lifetimes are not in `segment.args`
+        if segment.elided_lifetimes {
+            param_count -= generics
+                .own_params
+                .iter()
+                .filter(|param| matches!(param.kind, rty::GenericParamDefKind::Lifetime))
+                .count();
+        }
 
         // The self parameter is not provided explicitly in the path so we skip it
         if let DefKind::Trait = self.genv().def_kind(def_id) {
@@ -2510,7 +2532,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         };
         let fsort = alias_reft.fsort(self.genv())?;
         self.0.insert_alias_reft_sort(fhir_id, fsort);
-        Ok(alias_reft)
+        // Regions don't affect refinements and, unlike types, an alias has no rust counterpart
+        // against which to fill the holes created when elaborating its arguments.
+        Ok(alias_reft.erase_regions_including_bound())
     }
 
     pub(crate) fn conv_invariants(
