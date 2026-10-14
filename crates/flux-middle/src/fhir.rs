@@ -609,10 +609,6 @@ pub struct BareFnTy<'fhir> {
     pub param_idents: &'fhir [Option<Ident>],
 }
 
-/// Our surface syntax doesn't have lifetimes. To deal with them we create a *hole* for every lifetime
-/// which we then resolve when we check for structural compatibility against the rust type.
-// This struct usede to be an enum with an extra variant carrying a `resolve_bound_vars::ResolvedArg`
-// that we lifted from `hir`, but we simplified tto just a struct to treat all lifetimes uniformely.
 /// Owner version of [`FluxLocalDefId`]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub enum FluxOwnerId {
