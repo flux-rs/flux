@@ -13,10 +13,6 @@ impl<T> Box<T> {
     fn new(x: T) -> Box<T>;
 }
 
-#[extern_spec(std::mem)]
-#[flux::assume_parametric(T)]
-fn drop<T>(x: T);
-
 #[extern_spec(std::cell)]
 impl<T> std::cell::UnsafeCell<T> {
     #[flux::assume_parametric(T)]
@@ -69,13 +65,13 @@ impl<T> std::ops::FromResidual<Option<std::convert::Infallible>> for Option<T> {
 
 #[extern_spec(std::result)]
 impl<T, E> Result<T, E> {
-    #[flux::assume_parametric(T, E, U, F)]
+    #[flux::assume_parametric(U)]
     fn map<U, F: FnOnce(T) -> U>(self, op: F) -> Result<U, E>;
 }
 
 #[extern_spec(std::result)]
 impl<T, E> std::ops::Try for Result<T, E> {
-    #[flux::assume_parametric(T, E)]
+    #[flux::assume_parametric(T)]
     fn branch(
         self,
     ) -> std::ops::ControlFlow<
@@ -130,9 +126,6 @@ impl<'a, T> Iterator for std::slice::Iter<'a, T> {
 
 #[extern_spec]
 impl<T> [T] {
-    #[flux::assume_parametric(T)]
-    fn len(&self) -> usize;
-
     #[flux::assume_parametric(T)]
     fn first(&self) -> Option<&T>;
 

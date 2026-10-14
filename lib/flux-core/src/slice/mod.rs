@@ -15,7 +15,6 @@ use flux_attrs::*;
 
 #[extern_spec(core::slice)]
 impl<T> [T] {
-    #[assume_parametric(T)]
     #[no_panic]
     #[spec(fn(&Self[@n]) -> usize[n])]
     fn len(&self) -> usize;
@@ -78,7 +77,6 @@ impl<T> [T] {
     #[spec(fn(&Self[@n]) -> Option<(&T, &[T][n - 1])>[n != 0])]
     fn split_last(&self) -> Option<(&T, &[T])>;
 
-    #[assume_parametric(T)]
     #[no_panic]
     #[spec(fn(&Self[@n]) -> Iter<T>[0, n])]
     fn iter(&self) -> Iter<'_, T>;

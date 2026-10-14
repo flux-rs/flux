@@ -38,7 +38,6 @@ enum Opt<T> {
     Some(T),
 }
 
-#[flux::assume_parametric(T)]
 #[flux::trusted]
 #[flux::sig(fn(dest: &strg Link<T>[@n], Link<T>[@m]) -> Link<T>[n] ensures dest: Link<T>[m])]
 fn replace<T>(dest: &mut Link<T>, src: Link<T>) -> Link<T> {
@@ -46,7 +45,6 @@ fn replace<T>(dest: &mut Link<T>, src: Link<T>) -> Link<T> {
 }
 
 impl<T> Link<T> {
-    #[flux::assume_parametric(T)]
     #[flux::sig(fn(&Link<T>[@n]) -> usize[n])]
     fn len(&self) -> usize {
         match self {

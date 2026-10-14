@@ -31,7 +31,6 @@ pub fn null() -> List {
     List::Nil
 }
 
-#[flux::assume_parametric(T)]
 #[flux::sig(fn() -> T requires false)]
 pub fn unreachable<T>() -> T {
     unreachable!()

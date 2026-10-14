@@ -38,11 +38,9 @@ impl<T> core::ops::FromResidual<Option<core::convert::Infallible>> for Option<T>
 
 #[extern_spec]
 impl<T> Option<T> {
-    #[assume_parametric(T)]
     #[sig(fn(&Self[@b]) -> bool[b])]
     const fn is_some(&self) -> bool;
 
-    #[assume_parametric(T)]
     #[sig(fn(&Self[@b]) -> bool[!b])]
     const fn is_none(&self) -> bool;
 

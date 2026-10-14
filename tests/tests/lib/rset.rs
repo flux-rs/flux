@@ -29,7 +29,6 @@ impl<T> RSet<T> {
         self.inner.insert(elem);
     }
 
-    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn(set: &RSet<T>[@s], &T[@elem]) -> bool[set_is_in(elem, s.elems)])]
     pub fn contains(self: &Self, elem: &T) -> bool
@@ -39,7 +38,6 @@ impl<T> RSet<T> {
         self.inner.contains(elem)
     }
 
-    #[flux::assume_parametric(T)]
     #[flux::trusted]
     pub fn iter(self: &Self) -> std::collections::hash_set::Iter<'_, T> {
         self.inner.iter()
@@ -75,7 +73,6 @@ impl<T> RSet<T> {
         RSet { inner }
     }
 
-    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn(&RSet<T>[@self], &RSet<T>[@other]) -> bool[set_subset(self, other)])]
     pub fn subset(&self, other: &RSet<T>) -> bool

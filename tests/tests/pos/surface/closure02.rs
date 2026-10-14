@@ -7,7 +7,7 @@ mod parametric_std;
 mod rvec;
 use rvec::RVec;
 
-#[flux::assume_parametric(S, F, A, B)]
+#[flux::assume_parametric(S, A, B)]
 #[flux::trusted]
 fn smap<S, F, A, B>(s: S, v: Vec<A>, f: F) -> Vec<B>
 where

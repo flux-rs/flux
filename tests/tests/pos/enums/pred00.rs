@@ -84,7 +84,6 @@ impl Pred {
     }
 }
 
-#[flux::assume_parametric(T)]
 #[flux::sig(fn() -> T requires false)]
 fn unreachable<T>() -> T {
     unreachable!()

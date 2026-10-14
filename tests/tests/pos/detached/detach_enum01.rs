@@ -19,10 +19,8 @@ pub enum List<T> {
       Cons(T, Box<List<T>[@n]>) -> List<T>[n+1],
     }
 
-    #[assume_parametric(T)]
     fn nil<T>() -> List<T>[0];
 
-    #[assume_parametric(T)]
     fn cons<T>(h: T, tl: List<T>[@n]) -> List<T>[n+1];
 
 
@@ -42,7 +40,6 @@ pub fn mk_list(n: usize) -> List<usize> {
     if n == 0 { nil() } else { cons(n, mk_list(n - 1)) }
 }
 
-#[flux::assume_parametric(T)]
 #[spec(fn(&List<T>[@n]) -> usize[n])]
 pub fn len<T>(l: &List<T>) -> usize {
     match l {

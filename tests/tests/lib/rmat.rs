@@ -5,7 +5,6 @@ pub struct RMat<T> {
 }
 
 impl<T> RMat<T> {
-    #[flux::assume_parametric(T)]
     #[flux::trusted]
     fn clone(n: usize, elem: T) -> Vec<T>
     where
@@ -18,7 +17,6 @@ impl<T> RMat<T> {
         res
     }
 
-    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn(rows: usize, cols: usize, T) -> RMat<T>[rows, cols])]
     pub fn new(rows: usize, cols: usize, elem: T) -> RMat<T>
@@ -33,14 +31,12 @@ impl<T> RMat<T> {
         Self { inner }
     }
 
-    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn(&RMat<T>[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &T)]
     pub fn get(&self, i: usize, j: usize) -> &T {
         &self.inner[i][j]
     }
 
-    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn(&mut RMat<T>[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &mut T)]
     pub fn get_mut(&mut self, i: usize, j: usize) -> &mut T {

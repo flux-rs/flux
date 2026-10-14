@@ -18,14 +18,12 @@ pub struct RMap<K, V> {
 }
 
 impl<K, V> RMap<K, V> {
-    #[flux::assume_parametric(K, V)]
     #[flux::trusted]
     #[flux::sig(fn() -> RMap<K, V>{m: m.keys == set_empty(0)})]
     pub fn new() -> Self {
         Self { inner: std::collections::HashMap::new() }
     }
 
-    #[flux::assume_parametric(K, V)]
     #[flux::trusted]
     #[flux::sig(fn(self: &strg RMap<K, V>[@m], k: K, v: V)
                 ensures self: RMap<K, V>[set_add(k, m.keys), map_set(m.vals, k, v)])]
@@ -36,7 +34,6 @@ impl<K, V> RMap<K, V> {
         self.inner.insert(k, v);
     }
 
-    #[flux::assume_parametric(K, V)]
     #[flux::trusted]
     #[flux::sig(fn(&RMap<K, V>[@m], &K[@k]) -> Option<&V[map_get(m.vals, k)]>)]
     pub fn get(&self, k: &K) -> Option<&V>
@@ -46,7 +43,6 @@ impl<K, V> RMap<K, V> {
         self.inner.get(k)
     }
 
-    #[flux::assume_parametric(K, V)]
     #[flux::trusted]
     #[flux::sig(fn(&RMap<K,V>[@m], &K[@k]) -> &V[map_get(m.vals, k)] requires set_is_in(k, m.keys))]
     pub fn lookup(&self, k: &K) -> &V
@@ -56,7 +52,6 @@ impl<K, V> RMap<K, V> {
         self.inner.get(k).unwrap()
     }
 
-    #[flux::assume_parametric(K, V)]
     #[flux::trusted]
     #[flux::sig(fn(&RMap<K,V>[@m], &K[@k]) -> bool[set_is_in(k, m.keys)])]
     pub fn contains(&self, k: &K) -> bool

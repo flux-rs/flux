@@ -449,11 +449,6 @@ fn parse_attr(cx: &mut ParseCtxt, attrs: &mut ParsedAttrs) -> ParseResult {
         attrs
             .syntax
             .push(SyntaxAttr::NoPanicIf(parse_expr(cx, true)?));
-    } else if lookahead.advance_if(sym::assume_parametric) {
-        let params = delimited(cx, Parenthesis, |cx| {
-            punctuated_until(cx, Comma, token::CloseParen, parse_ident)
-        })?;
-        attrs.normal.push(Attr::AssumeParametric(params));
     } else {
         return Err(lookahead.into_error());
     };

@@ -2,7 +2,6 @@ use flux_rs::{assert, attrs::*};
 
 extern crate flux_core;
 
-#[flux::assume_parametric(T)]
 #[flux::trusted]
 #[spec(fn(i32{v: false}) -> T)]
 pub fn never<T>(_: i32) -> T {

@@ -30,7 +30,6 @@ impl<T, A: Allocator> Vec<T, A> {
 
 #[extern_spec]
 impl<T, A: Allocator> Vec<T, A> {
-    #[assume_parametric(T)]
     #[spec(fn(&Vec<T, A>[@n]) -> usize[n])]
     fn len(v: &Vec<T, A>) -> usize;
 
@@ -38,7 +37,6 @@ impl<T, A: Allocator> Vec<T, A> {
     #[spec(fn(self: &mut Vec<T, A>[@n]) -> Option<T>[n > 0] ensures self: Vec<T, A>[if n > 0 { n-1 } else { 0 }])]
     fn pop(&mut self) -> Option<T>;
 
-    #[assume_parametric(T)]
     #[spec(fn(self: &Vec<T, A>[@n]) -> bool[n == 0])]
     fn is_empty(&self) -> bool;
 }

@@ -53,7 +53,6 @@ impl<T> NonNull<T> {
     #[spec(fn(NonNull<T>[@base, @addr, @size]) -> *mut[base, addr, size] T)]
     fn as_ptr(self) -> *mut T;
 
-    #[assume_parametric(T)]
     /// Core impl: https://github.com/rust-lang/rust/blob/4b7e3a76d8df78960dc7c65cad43f5da1dac8ade/library/core/src/ptr/non_null.rs#L512
     #[spec(fn(NonNull<T>[@base, @addr, @size]) -> NonNull<U>[base, addr, size])]
     fn cast<U>(self) -> NonNull<U>;
