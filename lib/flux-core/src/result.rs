@@ -17,6 +17,7 @@ enum Result<T, E> {
 /// `Result`'s discriminant.
 #[extern_spec(core::result)]
 impl<T, E> core::ops::Try for Result<T, E> {
+    #[assume_parametric(T, E)]
     #[spec(fn(Result<T, E>[@b]) -> core::ops::ControlFlow<<Result<T, E> as core::ops::Try>::Residual, <Result<T, E> as core::ops::Try>::Output>[b])]
     fn branch(
         self,
@@ -33,17 +34,20 @@ impl<T, E> core::ops::Try for Result<T, E> {
 impl<T, E, F: From<E>> core::ops::FromResidual<Result<core::convert::Infallible, E>>
     for Result<T, F>
 {
+    #[assume_parametric(T)]
     #[spec(fn(Result<core::convert::Infallible, E>) -> Result<T, F>[false])]
     fn from_residual(residual: Result<core::convert::Infallible, E>) -> Result<T, F>;
 }
 
 #[extern_spec]
 impl<T, E> Result<T, E> {
+    #[assume_parametric(T, E)]
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L584
     #[no_panic]
     #[spec(fn(&Self[@b]) -> bool[b])]
     const fn is_ok(&self) -> bool;
 
+    #[assume_parametric(T, E)]
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L631
     #[no_panic]
     #[spec(fn(&Self[@b]) -> bool[!b])]
@@ -86,6 +90,7 @@ impl<T, E> Result<T, E> {
     where
         E: core::fmt::Debug;
 
+    #[assume_parametric(T)]
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L1161
     #[no_panic]
     #[spec(fn(Result<T, E>[true]) -> T)]

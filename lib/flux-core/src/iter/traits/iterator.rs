@@ -33,6 +33,7 @@ trait Iterator {
     where
         Self: Sized;
 
+    #[assume_parametric(B, F)]
     #[spec(
         fn(Self[@s], f: F) -> Map<Self, F>[s]
         where
@@ -53,6 +54,7 @@ trait Iterator {
     where
         Self: Sized;
 
+    #[assume_parametric(F)]
     #[spec(fn(Self[@s], f: F) where F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> () )]
     fn for_each<F>(self, f: F)
     where

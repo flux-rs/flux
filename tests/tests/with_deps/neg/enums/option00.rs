@@ -1,11 +1,13 @@
 extern crate flux_core;
 
+#[flux::assume_parametric(T)]
 #[flux::trusted]
 #[flux::sig(fn(i32{v: false}) -> T)]
 pub fn never<T>(_: i32) -> T {
     loop {}
 }
 
+#[flux::assume_parametric(T)]
 #[flux::sig(fn(x:Option<T>[true]) -> T)]
 pub fn my_unwrap<T>(x: Option<T>) -> T {
     match x {
@@ -14,12 +16,14 @@ pub fn my_unwrap<T>(x: Option<T>) -> T {
     }
 }
 
+#[flux::assume_parametric(T)]
 #[flux::trusted]
 #[flux::sig(fn(T) -> Option<T>[true])]
 fn my_some<T>(x: T) -> Option<T> {
     Option::Some(x)
 }
 
+#[flux::assume_parametric(T)]
 #[flux::trusted]
 #[flux::sig(fn() -> Option<T>[false])]
 fn my_none<T>() -> Option<T> {

@@ -2,12 +2,14 @@ use flux_rs::{assert, attrs::*};
 
 extern crate flux_core;
 
+#[flux::assume_parametric(T)]
 #[flux::trusted]
 #[spec(fn(i32{v: false}) -> T)]
 pub fn never<T>(_: i32) -> T {
     loop {}
 }
 
+#[flux::assume_parametric(T)]
 #[spec(fn(x:Option<T>[true]) -> T)]
 pub fn my_unwrap<T>(x: Option<T>) -> T {
     match x {
@@ -16,6 +18,7 @@ pub fn my_unwrap<T>(x: Option<T>) -> T {
     }
 }
 
+#[flux::assume_parametric(T)]
 #[spec(fn(T) -> Option<T>[true])]
 fn my_some<T>(x: T) -> Option<T> {
     Option::Some(x)

@@ -30,6 +30,7 @@ struct Layout;
 
 #[extern_spec(core::alloc)]
 impl Layout {
+    #[assume_parametric(T)]
     // Core impl: https://github.com/rust-lang/rust/blob/dab8d9d1066c4c95008163c7babf275106ce3f32/library/core/src/alloc/layout.rs#L206-L208
     #[no_panic]
     #[spec(fn() -> Self[T::size_of(), T::align_of()])]
@@ -55,6 +56,7 @@ impl Layout {
     #[spec(fn(&Self[@s, @a]) -> usize[a])]
     const fn align(&self) -> usize;
 
+    #[assume_parametric(T)]
     // Core impl: https://github.com/rust-lang/rust/blob/dab8d9d1066c4c95008163c7babf275106ce3f32/library/core/src/alloc/layout.rs#L559-L589
     #[no_panic]
     #[spec(fn(n: usize) -> Result<Self[n * T::size_of(), T::align_of()],_>[

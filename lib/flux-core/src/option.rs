@@ -17,6 +17,7 @@ enum Option<T> {
 /// `Option`'s discriminant.
 #[extern_spec(core::option)]
 impl<T> core::ops::Try for Option<T> {
+    #[assume_parametric(T)]
     #[spec(fn(Option<T>[@b]) -> core::ops::ControlFlow<<Option<T> as core::ops::Try>::Residual, <Option<T> as core::ops::Try>::Output>[b])]
     fn branch(
         self,
@@ -30,18 +31,22 @@ impl<T> core::ops::Try for Option<T> {
 /// `Option`-returning function yields `None`.
 #[extern_spec(core::option)]
 impl<T> core::ops::FromResidual<Option<core::convert::Infallible>> for Option<T> {
+    #[assume_parametric(T)]
     #[spec(fn(Option<core::convert::Infallible>) -> Option<T>[false])]
     fn from_residual(residual: Option<core::convert::Infallible>) -> Option<T>;
 }
 
 #[extern_spec]
 impl<T> Option<T> {
+    #[assume_parametric(T)]
     #[sig(fn(&Self[@b]) -> bool[b])]
     const fn is_some(&self) -> bool;
 
+    #[assume_parametric(T)]
     #[sig(fn(&Self[@b]) -> bool[!b])]
     const fn is_none(&self) -> bool;
 
+    #[assume_parametric(T)]
     #[no_panic]
     #[sig(fn(Option<T>[true]) -> T)]
     const fn unwrap(self) -> T;

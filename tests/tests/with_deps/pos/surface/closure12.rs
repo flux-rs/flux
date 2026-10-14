@@ -66,6 +66,7 @@ where
     res
 }
 
+#[flux::assume_parametric(F, A)]
 #[spec(fn(n: usize, f:F) -> Vec<A>[n]
        where F: FnMut(usize{v:0<=v && v <n}) -> A)]
 fn fill_vec_index<F, A>(n: usize, mut f: F) -> Vec<A>
