@@ -764,8 +764,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let name = &data_decl.name;
         let mut acc = vec![];
         data_decl.deps(&mut acc);
-        acc.retain(|sort| !matches!(sort, fixpoint::DataSort::Generic(_)));
-        acc.into_iter()
+        non_generic(acc)
+            .into_iter()
             .map(|data_sort| {
                 self.sort_files.get(&data_sort).unwrap_or_else(|| {
                     panic!(
@@ -828,8 +828,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         // 1. Collect the sort dependencies
         let mut sorts = vec![];
         fun_def.sort.deps(&mut sorts);
-        sorts.retain(|sort| !matches!(sort, fixpoint::DataSort::Generic(_)));
-        for data_sort in sorts {
+        for data_sort in non_generic(sorts) {
             res.push(self.sort_file(&data_sort));
         }
 
@@ -891,8 +890,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
             let mut sort_deps = vec![];
             const_decl.sort.deps(&mut sort_deps);
-            sort_deps.retain(|sort| !matches!(sort, fixpoint::DataSort::Generic(_)));
-            for dep in sort_deps {
+            for dep in non_generic(sort_deps) {
                 writeln!(file, "{}", self.sort_file(&dep).import(self.genv))?;
             }
 
@@ -922,8 +920,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
         let mut sort_deps = vec![];
         const_decl.sort.deps(&mut sort_deps);
-        sort_deps.retain(|sort| !matches!(sort, fixpoint::DataSort::Generic(_)));
-        for dep in sort_deps {
+        for dep in non_generic(sort_deps) {
             writeln!(file, "{}", self.sort_file(&dep).import(self.genv))?;
         }
 
@@ -1152,6 +1149,13 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         encoder.run()?;
         Ok(())
     }
+}
+
+/// Drops the generic sorts from the result of a `deps` query. They are type parameters in Lean, so
+/// there is no file to import for them.
+fn non_generic(mut sorts: Vec<fixpoint::DataSort>) -> Vec<fixpoint::DataSort> {
+    sorts.retain(|sort| !sort.is_generic());
+    sorts
 }
 
 /// Hyperlinks the `proven_externally` attribute to the proof's `def` in the proof file, so users

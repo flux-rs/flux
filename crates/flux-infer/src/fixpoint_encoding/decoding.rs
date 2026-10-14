@@ -84,10 +84,10 @@ where
             }
             fixpoint::Sort::App(fixpoint::SortCtor::Data(fixpoint::DataSort::Generic(name)), _) => {
                 self.scx
-                    .opaque_generic_sorts
+                    .generic_sorts
                     .get(name)
                     .cloned()
-                    .ok_or(FixpointParseError::UnknownOpaqueSort(*name))
+                    .ok_or(FixpointParseError::UnknownGenericSort(*name))
             }
             fixpoint::Sort::App(ctor, args) => {
                 let ctor = self.fixpoint_to_sort_ctor(ctor)?;
@@ -551,7 +551,7 @@ pub enum FixpointParseError {
     /// The number of arguments should only ever be 1 for a tuple proj
     ProjArityMismatch(usize),
     NoGlobalVar(fixpoint::GlobalVar),
-    UnknownOpaqueSort(fixpoint::OpaqueSort),
+    UnknownGenericSort(fixpoint::GenericSort),
     /// Casts should only have 1 arg
     CastArityMismatch(usize),
     PrimOpArityMismatch(usize),

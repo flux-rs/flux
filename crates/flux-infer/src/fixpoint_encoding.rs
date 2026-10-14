@@ -103,40 +103,40 @@ pub mod fixpoint {
 
     /// A type parameter or type alias sort, see `DataSort::Generic`
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    pub enum OpaqueSort {
+    pub enum GenericSort {
         Param(Symbol),
         Alias(Symbol),
     }
 
-    impl OpaqueSort {
+    impl GenericSort {
         const PARAM_PREFIX: &'static str = "Param_";
         const ALIAS_PREFIX: &'static str = "Alias_";
 
         pub fn parse(name: &str) -> Option<Self> {
             if let Some(name) = name.strip_prefix(Self::PARAM_PREFIX) {
-                Some(OpaqueSort::Param(Symbol::intern(name)))
+                Some(GenericSort::Param(Symbol::intern(name)))
             } else {
                 name.strip_prefix(Self::ALIAS_PREFIX)
-                    .map(|name| OpaqueSort::Alias(Symbol::intern(name)))
+                    .map(|name| GenericSort::Alias(Symbol::intern(name)))
             }
         }
     }
 
     // Hash the strings: a `Symbol`'s index isn't stable across runs, and the task hash is cached.
-    impl std::hash::Hash for OpaqueSort {
+    impl std::hash::Hash for GenericSort {
         fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
             std::mem::discriminant(self).hash(state);
             match self {
-                OpaqueSort::Param(name) | OpaqueSort::Alias(name) => name.as_str().hash(state),
+                GenericSort::Param(name) | GenericSort::Alias(name) => name.as_str().hash(state),
             }
         }
     }
 
-    impl Identifier for OpaqueSort {
+    impl Identifier for GenericSort {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                OpaqueSort::Param(name) => write!(f, "{}{name}", Self::PARAM_PREFIX),
-                OpaqueSort::Alias(name) => write!(f, "{}{name}", Self::ALIAS_PREFIX),
+                GenericSort::Param(name) => write!(f, "{}{name}", Self::PARAM_PREFIX),
+                GenericSort::Alias(name) => write!(f, "{}{name}", Self::ALIAS_PREFIX),
             }
         }
     }
@@ -206,7 +206,13 @@ pub mod fixpoint {
         Adt(AdtId),
         User(OpaqueId),
         /// A sort that is opaque to fixpoint and a type parameter in Lean
-        Generic(OpaqueSort),
+        Generic(GenericSort),
+    }
+
+    impl DataSort {
+        pub fn is_generic(&self) -> bool {
+            matches!(self, DataSort::Generic(_))
+        }
     }
 
     impl Identifier for DataSort {
@@ -365,7 +371,7 @@ pub struct SortEncodingCtxt {
     /// Set of all opaque types that need to be defined
     opaque_sorts: FxIndexSet<FluxDefId>,
     /// The param/alias sorts that are encoded as opaque sorts, by name
-    opaque_generic_sorts: FxIndexMap<fixpoint::OpaqueSort, rty::Sort>,
+    generic_sorts: FxIndexMap<fixpoint::GenericSort, rty::Sort>,
 }
 
 impl SortEncodingCtxt {
@@ -392,9 +398,9 @@ impl SortEncodingCtxt {
             // Well-formedness should ensure values of these sorts are used "opaquely", i.e.
             // the only values of these sorts are variables.
             rty::Sort::Param(p) => {
-                let opaque =
-                    fixpoint::OpaqueSort::Param(Symbol::intern(&sanitize(p.name.as_str())));
-                self.declare_generic_sort(opaque, sort)
+                let generic =
+                    fixpoint::GenericSort::Param(Symbol::intern(&sanitize(p.name.as_str())));
+                self.declare_generic_sort(generic, sort)
             }
             rty::Sort::Alias(
                 alias_ty @ rty::AliasTy {
@@ -407,8 +413,8 @@ impl SortEncodingCtxt {
                 let sort = rty::Sort::Alias(alias_ty);
                 let printed = format!("{sort:?}");
                 let name = sanitize(printed.trim_end_matches("::sort"));
-                let opaque = fixpoint::OpaqueSort::Alias(Symbol::intern(&name));
-                self.declare_generic_sort(opaque, &sort)
+                let generic = fixpoint::GenericSort::Alias(Symbol::intern(&name));
+                self.declare_generic_sort(generic, &sort)
             }
             rty::Sort::App(rty::SortCtor::Set, args) => {
                 let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
@@ -497,30 +503,30 @@ impl SortEncodingCtxt {
 
     /// The opaque sorts encoded so far, sorted by name so the order is deterministic
     pub fn generic_sorts(&self) -> Vec<fixpoint::DataSort> {
-        self.opaque_generic_sorts
+        self.generic_sorts
             .keys()
             .copied()
-            .sorted_by_key(|opaque| opaque.display().to_string())
+            .sorted_by_key(|generic| generic.display().to_string())
             .map(fixpoint::DataSort::Generic)
             .collect()
     }
 
     fn declare_generic_sort(
         &mut self,
-        opaque: fixpoint::OpaqueSort,
+        generic: fixpoint::GenericSort,
         sort: &rty::Sort,
     ) -> fixpoint::Sort {
         let prev = self
-            .opaque_generic_sorts
-            .entry(opaque)
+            .generic_sorts
+            .entry(generic)
             .or_insert_with(|| sort.clone());
         debug_assert_eq!(
             prev,
             sort,
             "distinct sorts encoded with the same name `{}`",
-            opaque.display()
+            generic.display()
         );
-        fixpoint::Sort::App(fixpoint::SortCtor::Data(fixpoint::DataSort::Generic(opaque)), vec![])
+        fixpoint::Sort::App(fixpoint::SortCtor::Data(fixpoint::DataSort::Generic(generic)), vec![])
     }
 
     pub fn declare_adt(&mut self, did: DefId) -> AdtId {
@@ -2875,7 +2881,7 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt<'_> {
             return Ok(fixpoint::DataSort::User(fixpoint::OpaqueId::from(opaque_id)));
         }
 
-        if let Some(sort) = fixpoint::OpaqueSort::parse(name) {
+        if let Some(sort) = fixpoint::GenericSort::parse(name) {
             return Ok(fixpoint::DataSort::Generic(sort));
         }
 
