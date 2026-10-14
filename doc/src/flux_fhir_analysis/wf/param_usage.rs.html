@@ -213,7 +213,7 @@
 <a href=#213 id=213 data-nosnippet>213</a>
 <a href=#214 id=214 data-nosnippet>214</a>    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;) {
 <a href=#215 id=215 data-nosnippet>215</a>        <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
-<a href=#216 id=216 data-nosnippet>216</a>            fhir::TyKind::StrgRef(<span class="kw">_</span>, loc, ty) =&gt; {
+<a href=#216 id=216 data-nosnippet>216</a>            fhir::TyKind::StrgRef(loc, ty) =&gt; {
 <a href=#217 id=217 data-nosnippet>217</a>                <span class="kw">let </span>(<span class="kw">_</span>, id) = loc.res.expect_param();
 <a href=#218 id=218 data-nosnippet>218</a>                <span class="self">self</span>.xi.insert(id, ());
 <a href=#219 id=219 data-nosnippet>219</a>                <span class="self">self</span>.visit_ty(ty);

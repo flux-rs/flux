@@ -391,7 +391,7 @@
 <a href=#391 id=391 data-nosnippet>391</a>        }
 <a href=#392 id=392 data-nosnippet>392</a>
 <a href=#393 id=393 data-nosnippet>393</a>        <span class="kw">for </span>ty <span class="kw">in </span>fn_decl.inputs {
-<a href=#394 id=394 data-nosnippet>394</a>            <span class="kw">if let </span>fhir::TyKind::StrgRef(<span class="kw">_</span>, loc, <span class="kw">_</span>) = ty.kind
+<a href=#394 id=394 data-nosnippet>394</a>            <span class="kw">if let </span>fhir::TyKind::StrgRef(loc, <span class="kw">_</span>) = ty.kind
 <a href=#395 id=395 data-nosnippet>395</a>                &amp;&amp; <span class="kw">let </span>(<span class="kw">_</span>, id) = loc.res.expect_param()
 <a href=#396 id=396 data-nosnippet>396</a>                &amp;&amp; !output_locs.contains(<span class="kw-2">&amp;</span>id)
 <a href=#397 id=397 data-nosnippet>397</a>            {
@@ -521,7 +521,7 @@
 <a href=#521 id=521 data-nosnippet>521</a>                <span class="self">self</span>.check_expr(idx, <span class="kw-2">&amp;</span>expected);
 <a href=#522 id=522 data-nosnippet>522</a>                <span class="self">self</span>.visit_bty(bty);
 <a href=#523 id=523 data-nosnippet>523</a>            }
-<a href=#524 id=524 data-nosnippet>524</a>            fhir::TyKind::StrgRef(<span class="kw">_</span>, loc, ty) =&gt; {
+<a href=#524 id=524 data-nosnippet>524</a>            fhir::TyKind::StrgRef(loc, ty) =&gt; {
 <a href=#525 id=525 data-nosnippet>525</a>                <span class="self">self</span>.infcx.check_loc(loc).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
 <a href=#526 id=526 data-nosnippet>526</a>                <span class="self">self</span>.visit_ty(ty);
 <a href=#527 id=527 data-nosnippet>527</a>            }
