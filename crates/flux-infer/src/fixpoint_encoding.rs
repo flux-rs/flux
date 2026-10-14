@@ -1069,12 +1069,8 @@ where
         // FIXME(nilehmann) opaque sorts should be part of the task.
         let opaque_sorts = self.scx.opaque_sorts_to_fixpoint(self.genv);
         let (const_deps, constraint) = self.compute_const_deps(task.constants, task.constraint);
-        let sort_deps = SortDeps {
-            opaque_sorts,
-            data_decls: task.data_decls,
-            adt_map: self.scx.adt_sorts,
-            type_params: task.generic_sorts,
-        };
+        let sort_deps =
+            SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
 
         LeanEncoder::encode(
             self.genv,
@@ -1083,6 +1079,7 @@ where
             sort_deps,
             task.define_funs,
             const_deps,
+            task.generic_sorts,
             task.kvars,
             constraint,
         )
@@ -1703,7 +1700,6 @@ pub struct SortDeps {
     pub opaque_sorts: Vec<(FluxDefId, fixpoint::SortDecl)>,
     pub data_decls: Vec<fixpoint::DataDecl>,
     pub adt_map: FxIndexSet<DefId>,
-    pub type_params: Vec<fixpoint::DataSort>,
 }
 
 pub struct ConstDeps {

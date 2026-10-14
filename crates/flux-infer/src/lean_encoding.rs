@@ -589,6 +589,8 @@ pub struct LeanEncoder<'genv, 'tcx> {
     sort_deps: SortDeps,
     fun_deps: Vec<fixpoint::FunDef>,
     constants: ConstDeps,
+    /// Type parameters of the theorem, i.e., the sorts that are opaque to fixpoint
+    generic_sorts: Vec<fixpoint::DataSort>,
     kvar_decls: Vec<fixpoint::KVarDecl>,
     constraint: fixpoint::Constraint,
     sort_files: UnordMap<fixpoint::DataSort, LeanFile>,
@@ -640,6 +642,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         sort_deps: SortDeps,
         fun_deps: Vec<fixpoint::FunDef>,
         constants: ConstDeps,
+        generic_sorts: Vec<fixpoint::DataSort>,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> io::Result<Self> {
@@ -661,6 +664,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             sort_deps,
             fun_deps,
             constants,
+            generic_sorts,
             kvar_decls,
             constraint,
             fun_files: UnordMap::default(),
@@ -1083,7 +1087,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                     WithLeanCtxt {
                         item: lean_format::LeanKConstraint {
                             theorem_name: &vc_name,
-                            type_params: &self.sort_deps.type_params,
+                            type_params: &self.generic_sorts,
                             kvars: &self.kvar_decls,
                             const_binds: &self.constants.const_binds,
                             constr: &self.constraint,
@@ -1130,6 +1134,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         sort_deps: SortDeps,
         fun_deps: Vec<fixpoint::FunDef>,
         constants: ConstDeps,
+        generic_sorts: Vec<fixpoint::DataSort>,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> io::Result<()> {
@@ -1140,6 +1145,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             sort_deps,
             fun_deps,
             constants,
+            generic_sorts,
             kvar_decls,
             constraint,
         )?;
