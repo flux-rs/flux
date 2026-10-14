@@ -1,8 +1,5 @@
 extern crate flux_core;
 
-// The block joining the branches of the `if` is a dummy join that we skip, but it is also the
-// immediate dominator of the loop head.
-
 pub fn test1(b: bool) {
     if b {}
     loop {}
