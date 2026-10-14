@@ -134,10 +134,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             hir::GenericBound::Trait(poly_trait_ref) => {
                 Ok(fhir::GenericBound::Trait(self.lift_poly_trait_ref(*poly_trait_ref)?))
             }
-            hir::GenericBound::Outlives(_) => {
-                let lft = self.mk_lft_hole();
-                Ok(fhir::GenericBound::Outlives(lft))
-            }
+            hir::GenericBound::Outlives(_) => Ok(fhir::GenericBound::Outlives),
             _ => Err(self.emit_unsupported(&format!("unsupported generic bound: `{bound:?}`"))),
         }
     }
@@ -326,7 +323,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             }
             hir::TyKind::Ref(_, ty, mutbl) => {
                 let ty = self.lift_ty(ty);
-                fhir::TyKind::Ref(self.mk_lft_hole(), self.genv.alloc(ty), mutbl)
+                fhir::TyKind::Ref(self.genv.alloc(ty), mutbl)
             }
             hir::TyKind::FnPtr(fn_ptr) => {
                 let bare_fn = self.lift_bare_fn(ty.span, fn_ptr);
@@ -377,10 +374,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
                     self.lift_poly_trait_ref(*poly_trait)
                 });
                 match poly_traits {
-                    Ok(poly_traits) => {
-                        let lft = self.mk_lft_hole();
-                        fhir::TyKind::TraitObject(poly_traits, lft, lt.tag())
-                    }
+                    Ok(poly_traits) => fhir::TyKind::TraitObject(poly_traits, lt.tag()),
                     Err(err) => fhir::TyKind::Err(err),
                 }
             }
@@ -467,37 +461,35 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             }
         };
 
-        Ok(fhir::PathSegment {
-            res,
-            ident: segment.ident,
-            elided_lifetimes: false,
-            args,
-            constraints: bindings,
-        })
+        Ok(fhir::PathSegment { res, ident: segment.ident, args, constraints: bindings })
     }
 
     fn lift_generic_args(
         &mut self,
         args: &[hir::GenericArg<'_>],
     ) -> Result<&'genv [fhir::GenericArg<'genv>]> {
-        try_alloc_slice!(self.genv, args, |arg| {
-            match arg {
-                hir::GenericArg::Lifetime(_) => {
-                    let lft = self.mk_lft_hole();
-                    Ok(fhir::GenericArg::Lifetime(lft))
+        // Lifetime arguments are not represented in fhir. They are always inferred during conversion.
+        try_alloc_slice!(
+            self.genv,
+            cap: args.len(),
+            args.iter().filter_map(|arg| {
+                match arg {
+                    hir::GenericArg::Lifetime(_) => None,
+                    hir::GenericArg::Type(ty) => {
+                        let ty = self.lift_ty(ty.as_unambig_ty());
+                        Some(Ok(fhir::GenericArg::Type(self.genv.alloc(ty))))
+                    }
+                    hir::GenericArg::Const(const_arg) => {
+                        Some(Ok(fhir::GenericArg::Const(
+                            self.lift_const_arg(const_arg.as_unambig_ct()),
+                        )))
+                    }
+                    hir::GenericArg::Infer(_) => {
+                        Some(Err(self.emit_unsupported("unsupported inference generic argument")))
+                    }
                 }
-                hir::GenericArg::Type(ty) => {
-                    let ty = self.lift_ty(ty.as_unambig_ty());
-                    Ok(fhir::GenericArg::Type(self.genv.alloc(ty)))
-                }
-                hir::GenericArg::Const(const_arg) => {
-                    Ok(fhir::GenericArg::Const(self.lift_const_arg(const_arg.as_unambig_ct())))
-                }
-                hir::GenericArg::Infer(_) => {
-                    Err(self.emit_unsupported("unsupported inference generic argument"))
-                }
-            }
-        })
+            })
+        )
     }
 
     fn lift_assoc_item_constraints(

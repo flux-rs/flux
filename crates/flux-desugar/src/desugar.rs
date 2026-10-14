@@ -636,11 +636,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     span: loc.span,
                 };
                 let ty = self.desugar_ty(ty);
-                let kind = fhir::TyKind::StrgRef(
-                    self.mk_lft_hole(),
-                    self.genv.alloc(path),
-                    self.genv.alloc(ty),
-                );
+                let kind = fhir::TyKind::StrgRef(self.genv.alloc(path), self.genv.alloc(ty));
                 fhir::Ty { kind, span }
             }
             surface::FnInput::Ty(bind, ty, node_id) => {
@@ -728,7 +724,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             segments: self.genv.alloc_slice_fill_iter([fhir::PathSegment {
                 ident: surface::Ident::new(lang_item.name(), span),
                 res,
-                elided_lifetimes: false,
                 args,
                 constraints,
             }]),
@@ -1320,7 +1315,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
             surface::TyKind::Ref(mutbl, ty) => {
                 let ty = self.desugar_ty(ty);
-                fhir::TyKind::Ref(self.mk_lft_hole(), self.genv().alloc(ty), *mutbl)
+                fhir::TyKind::Ref(self.genv().alloc(ty), *mutbl)
             }
 
             surface::TyKind::Tuple(tys) => {
@@ -1489,7 +1484,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             .opt_resolve_path(segment.node_id)
             .map_or(Res::Err, |r| r.expect_full_res());
         let (args, constraints) = self.desugar_generic_args(&segment.args);
-        fhir::PathSegment { ident: segment.ident, res, elided_lifetimes: true, args, constraints }
+        fhir::PathSegment { ident: segment.ident, res, args, constraints }
     }
 
     fn desugar_epath_segment(
@@ -1499,13 +1494,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let res = self
             .opt_resolve_path(segment.node_id)
             .map_or(Res::Err, |r| r.expect_full_res());
-        fhir::PathSegment {
-            ident: segment.ident,
-            res,
-            elided_lifetimes: false,
-            args: &[],
-            constraints: &[],
-        }
+        fhir::PathSegment { ident: segment.ident, res, args: &[], constraints: &[] }
     }
 
     fn ty_path(&self, qpath: fhir::QPath<'genv>) -> fhir::Ty<'genv> {
@@ -1513,10 +1502,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             span: qpath.span(),
             kind: fhir::TyKind::BaseTy(fhir::BaseTy::from_qpath(qpath, self.next_fhir_id())),
         }
-    }
-
-    fn mk_lft_hole(&self) -> fhir::Lifetime {
-        fhir::Lifetime(self.next_fhir_id())
     }
 
     fn desugar_indices(&mut self, idxs: &surface::Indices) -> fhir::Expr<'genv> {

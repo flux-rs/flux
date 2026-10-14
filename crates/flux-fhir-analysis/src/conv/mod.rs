@@ -915,13 +915,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             (res @ fhir::Res::SelfTyParam { .. }, 1) => {
                 let ident = *path.segments.last().unwrap();
-                let assoc_segment = fhir::PathSegment {
-                    args: &[],
-                    constraints: &[],
-                    ident,
-                    res: fhir::Res::Err,
-                    elided_lifetimes: true,
-                };
+                let assoc_segment =
+                    fhir::PathSegment { args: &[], constraints: &[], ident, res: fhir::Res::Err };
                 let mut env = Env::empty();
                 let alias_ty = self.conv_type_relative_type_path(&mut env, res, &assoc_segment)?;
                 return Ok(rty::Sort::Alias(alias_ty));
@@ -1124,7 +1119,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         }
                     }
                 }
-                fhir::GenericBound::Outlives(_) => {
+                fhir::GenericBound::Outlives => {
                     let re = self.next_region_hole();
                     clauses.push(rty::Clause::new(
                         List::empty(),
@@ -1263,14 +1258,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     Ok(rty::Ty::exists(rty::Binder::bind_with_vars(ty, sorts)))
                 }
             }
-            fhir::TyKind::StrgRef(_, loc, ty) => {
+            fhir::TyKind::StrgRef(loc, ty) => {
                 let re = self.next_region_hole();
                 let name = loc.name();
                 let loc = self.conv_loc(env, **loc)?;
                 let ty = self.conv_ty(env, ty, name)?;
                 Ok(rty::Ty::strg_ref(re, loc, ty))
             }
-            fhir::TyKind::Ref(_, ty, mutbl) => {
+            fhir::TyKind::Ref(ty, mutbl) => {
                 let region = self.next_region_hole();
                 Ok(rty::Ty::mk_ref(region, self.conv_ty(env, ty, name)?, *mutbl))
             }
@@ -1323,9 +1318,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 Ok(rty::Ty::constr(pred, self.conv_ty(env, ty, name)?))
             }
             fhir::TyKind::OpaqueDef(opaque_ty) => self.conv_opaque_def(opaque_ty),
-            fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
+            fhir::TyKind::TraitObject(trait_bounds, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
-                    self.conv_trait_object(env, trait_bounds, *lft)
+                    self.conv_trait_object(env, trait_bounds)
                 } else {
                     span_bug!(ty.span, "dyn* traits not supported yet")
                 }
@@ -1379,7 +1374,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &mut self,
         env: &mut Env,
         trait_bounds: &[fhir::PolyTraitRef],
-        _: fhir::Lifetime,
     ) -> QueryResult<rty::Ty> {
         // We convert all the trait bounds into existential predicates. Some combinations won't yield
         // valid rust types (e.g., only one regular (non-auto) trait is allowed). We don't detect those
@@ -1855,11 +1849,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         self.check_generic_arg_count(&generics, def_id, segment)?;
 
-        if segment.elided_lifetimes {
-            for param in &generics.own_params {
-                if let rty::GenericParamDefKind::Lifetime = param.kind {
-                    into.push(rty::GenericArg::Lifetime(self.next_region_hole()));
-                }
+        // Lifetime arguments are not represented in fhir, so we always infer them. They come before
+        // type and const arguments in the generics.
+        for param in &generics.own_params {
+            if let rty::GenericParamDefKind::Lifetime = param.kind {
+                into.push(rty::GenericArg::Lifetime(self.next_region_hole()));
             }
         }
 
@@ -1867,7 +1861,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         for (idx, arg) in segment.args.iter().enumerate() {
             let param = generics.param_at(idx + len, self.genv())?;
             let arg = match arg {
-                fhir::GenericArg::Lifetime(_) => rty::GenericArg::Lifetime(self.next_region_hole()),
                 fhir::GenericArg::Type(ty) => self.conv_ty_to_generic_arg(env, &param, ty)?,
                 fhir::GenericArg::Const(cst) => rty::GenericArg::Const(self.conv_const_arg(*cst)),
                 fhir::GenericArg::Infer => {
@@ -1910,14 +1903,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let found = segment.args.len();
         let mut param_count = generics.own_params.len();
 
-        // Elided lifetimes are not in `segment.args`
-        if segment.elided_lifetimes {
-            param_count -= generics
-                .own_params
-                .iter()
-                .filter(|param| matches!(param.kind, rty::GenericParamDefKind::Lifetime))
-                .count();
-        }
+        // Lifetime arguments are not in `segment.args`
+        param_count -= generics
+            .own_params
+            .iter()
+            .filter(|param| matches!(param.kind, rty::GenericParamDefKind::Lifetime))
+            .count();
 
         // The self parameter is not provided explicitly in the path so we skip it
         if let DefKind::Trait = self.genv().def_kind(def_id) {

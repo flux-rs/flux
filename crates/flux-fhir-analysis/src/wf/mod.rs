@@ -391,7 +391,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
         }
 
         for ty in fn_decl.inputs {
-            if let fhir::TyKind::StrgRef(_, loc, _) = ty.kind
+            if let fhir::TyKind::StrgRef(loc, _) = ty.kind
                 && let (_, id) = loc.res.expect_param()
                 && !output_locs.contains(&id)
             {
@@ -521,7 +521,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
                 self.check_expr(idx, &expected);
                 self.visit_bty(bty);
             }
-            fhir::TyKind::StrgRef(_, loc, ty) => {
+            fhir::TyKind::StrgRef(loc, ty) => {
                 self.infcx.check_loc(loc).collect_err(&mut self.errors);
                 self.visit_ty(ty);
             }
