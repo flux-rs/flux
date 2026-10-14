@@ -216,7 +216,17 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 // 2. Gather the ProjectionPredicates and solve them see issue-808.rs
                 self.resolve_projection_predicates(&mut subst, impl_def_id)?;
 
-                let args = subst.finish(self.tcx(), generics)?;
+                let mut args = subst.finish(self.tcx(), generics)?;
+
+                // For generic associated types, the GAT's own arguments follow the trait's arguments
+                // in the obligation and must follow the impl's arguments in the substitution.
+                args.extend(
+                    obligation
+                        .args
+                        .iter()
+                        .skip(impl_trait_ref.args.len())
+                        .cloned(),
+                );
 
                 // 3. Get the associated type in the impl block and apply the substitution to it
                 let assoc_type_id = tcx
