@@ -8,9 +8,9 @@ use core::{
 };
 
 // A block as `allocate`/`grow`/`shrink` return it: at the start of its own allocation,
-// tracked as exactly `size` bytes long, and aligned to `align`.
-#[flux::spec(fn(NonNull<[u8]>[@base, @addr, @size], usize[@lsize], usize[@lalign])
-    requires base == addr && lsize == size && addr % lalign == 0)]
+// tracked as exactly `size` bytes long (also as its slice length), and aligned to `align`.
+#[flux::spec(fn(NonNull<[u8]>[@base, @addr, @size, @meta], usize[@lsize], usize[@lalign])
+    requires base == addr && lsize == size && meta == lsize && addr % lalign == 0)]
 fn check_block(_block: NonNull<[u8]>, _size: usize, _align: usize) {}
 
 // --- allocate ---
@@ -27,6 +27,16 @@ pub fn test_allocate_of<A: Allocator>(a: &A) {
     if let Ok(block) = a.allocate(layout) {
         check_block(block, size_of::<u64>(), align_of::<u64>());
     }
+}
+
+// The length of the returned slice pointer is the requested size, so the block can be viewed as a
+// slice.
+#[flux::spec(fn(&A) -> Option<usize[16]>)]
+pub fn test_allocate_len<A: Allocator>(a: &A) -> Option<usize> {
+    let layout = Layout::from_size_align(16, 8).unwrap();
+    let block = a.allocate(layout).ok()?;
+    let _bytes: &[u8] = unsafe { block.as_ref() };
+    Some(block.len())
 }
 
 // A zero-sized layout still yields a block at the start of an allocation.
@@ -46,7 +56,7 @@ pub fn test_allocate_zeroed<A: Allocator>(a: &A) {
 
 // --- deallocate ---
 
-#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], layout: Layout[@lsize, @lalign])
+#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size, @_meta1], layout: Layout[@lsize, @lalign])
     requires base == addr && lsize == size && addr % lalign == 0)]
 pub unsafe fn test_deallocate<A: Allocator>(a: &A, ptr: NonNull<u8>, layout: Layout) {
     a.deallocate(ptr, layout);
@@ -55,7 +65,7 @@ pub unsafe fn test_deallocate<A: Allocator>(a: &A, ptr: NonNull<u8>, layout: Lay
 // KNOWN APPROXIMATION, not a guarantee: this is UB if the block was allocated with align 16,
 // and Flux accepts it anyway, since `layout_fits` can only check the address against
 // `layout.align()` — see the note on alignment in `flux_core::alloc::allocator`.
-#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], layout: Layout[@lsize, @lalign])
+#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size, @_meta1], layout: Layout[@lsize, @lalign])
     requires base == addr && lsize == size && addr % 16 == 0 && lalign == 8)]
 pub unsafe fn test_deallocate_aligned<A: Allocator>(a: &A, ptr: NonNull<u8>, layout: Layout) {
     a.deallocate(ptr, layout);
@@ -63,7 +73,7 @@ pub unsafe fn test_deallocate_aligned<A: Allocator>(a: &A, ptr: NonNull<u8>, lay
 
 // --- grow ---
 
-#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], old: Layout[@osize, @oalign])
+#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size, @_meta1], old: Layout[@osize, @oalign])
     requires base == addr && osize == size && addr % oalign == 0 && osize <= 32)]
 pub unsafe fn test_grow<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
     let new = Layout::from_size_align(32, 8).unwrap();
@@ -74,7 +84,7 @@ pub unsafe fn test_grow<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
 
 // `new_layout.size() >= old_layout.size()` permits equality, and `new_layout.align()`
 // need not match `old_layout.align()`.
-#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], old: Layout[@osize, @oalign])
+#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size, @_meta1], old: Layout[@osize, @oalign])
     requires base == addr && osize == size && addr % oalign == 0 && osize == 16)]
 pub unsafe fn test_grow_same_size_new_align<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
     let new = Layout::from_size_align(16, 32).unwrap();
@@ -83,7 +93,7 @@ pub unsafe fn test_grow_same_size_new_align<A: Allocator>(a: &A, ptr: NonNull<u8
     }
 }
 
-#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], old: Layout[@osize, @oalign])
+#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size, @_meta1], old: Layout[@osize, @oalign])
     requires base == addr && osize == size && addr % oalign == 0 && osize <= 32)]
 pub unsafe fn test_grow_zeroed<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
     let new = Layout::from_size_align(32, 8).unwrap();
@@ -94,7 +104,7 @@ pub unsafe fn test_grow_zeroed<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layou
 
 // --- shrink ---
 
-#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], old: Layout[@osize, @oalign])
+#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size, @_meta1], old: Layout[@osize, @oalign])
     requires base == addr && osize == size && addr % oalign == 0 && osize >= 8)]
 pub unsafe fn test_shrink<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
     let new = Layout::from_size_align(8, 8).unwrap();
@@ -103,7 +113,7 @@ pub unsafe fn test_shrink<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
     }
 }
 
-#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], old: Layout[@osize, @oalign])
+#[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size, @_meta1], old: Layout[@osize, @oalign])
     requires base == addr && osize == size && addr % oalign == 0 && osize >= 16)]
 pub unsafe fn test_shrink_new_align<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
     let new = Layout::from_size_align(16, 32).unwrap();

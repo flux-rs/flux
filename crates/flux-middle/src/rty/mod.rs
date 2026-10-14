@@ -3071,19 +3071,16 @@ fn slice_invariants(genv: GlobalEnv, elem_ty: &Ty, overflow_mode: OverflowMode) 
         return invariants;
     }
 
-    let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
-    let size_of = Expr::alias(
-        AliasReft {
-            assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::size_of),
-            args: List::from_arr([GenericArg::Base(
-                elem_ty
-                    .with_holes()
-                    .replace_holes(|_, _| Expr::tt())
-                    .as_bty_skipping_existentials()
-                    .expect("slice element type must have a base type")
-                    .to_subset_ty_ctor(),
-            )]),
-        },
+    let elem_ctor = elem_ty
+        .with_holes()
+        .replace_holes(|_, _| Expr::tt())
+        .as_bty_skipping_existentials()
+        .expect("slice element type must have a base type")
+        .to_subset_ty_ctor();
+    let size_of = genv.builtin_alias(
+        LangItem::Sized,
+        sym::size_of,
+        List::from_arr([GenericArg::Base(elem_ctor)]),
         List::empty(),
     );
     // T::size_of() * len <= isize::MAX

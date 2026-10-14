@@ -12,6 +12,12 @@
     fn layout_fits(p: NonNull, l: Layout) -> bool {
         p.base == p.addr && l.size == p.size && p.addr % l.align == 0
     }
+
+    // A block returned by the allocator: it fits `l`, and as a `NonNull<[u8]>` its length (the
+    // pointer metadata) is `l.size`, consistent with tracking the block as exactly `l.size` bytes.
+    fn allocated_block(p: NonNull, l: Layout) -> bool {
+        layout_fits(p, l) && p.meta == l.size
+    }
 })]
 
 // Unused to rustc — `Layout` appears only in `spec` attributes — but Flux resolves the
@@ -29,13 +35,13 @@ trait Allocator {
     /// which under-approximates its extent — see `layout_fits`. Initialization is not
     /// tracked either, so reading out of a freshly allocated block type-checks.
     #[spec(fn(&Self, layout: Layout[@l])
-        -> Result<NonNull<[u8]>{p: layout_fits(p, l)}, AllocError>)]
+        -> Result<NonNull<[u8]>{p: allocated_block(p, l)}, AllocError>)]
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/dab8d9d1066c4c95008163c7babf275106ce3f32/library/core/src/alloc/mod.rs#L150
     /// Same contract as `allocate`; that the block is zeroed is not modelled.
     #[spec(fn(&Self, layout: Layout[@l])
-        -> Result<NonNull<[u8]>{p: layout_fits(p, l)}, AllocError>)]
+        -> Result<NonNull<[u8]>{p: allocated_block(p, l)}, AllocError>)]
     fn allocate_zeroed(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/dab8d9d1066c4c95008163c7babf275106ce3f32/library/core/src/alloc/mod.rs#L166
@@ -55,7 +61,7 @@ trait Allocator {
     ///
     /// Note that `new_layout.align()` need not be the same as `old_layout.align()`.
     #[spec(fn(&Self, ptr: NonNull<u8>[@p], old_layout: Layout[@old], new_layout: Layout[@new])
-        -> Result<NonNull<[u8]>{q: layout_fits(q, new)}, AllocError>
+        -> Result<NonNull<[u8]>{q: allocated_block(q, new)}, AllocError>
         requires layout_fits(p, old) && new.size >= old.size)]
     unsafe fn grow(
         &self,
@@ -67,7 +73,7 @@ trait Allocator {
     /// Core impl: https://github.com/rust-lang/rust/blob/dab8d9d1066c4c95008163c7babf275106ce3f32/library/core/src/alloc/mod.rs#L269
     /// Same contract as `grow`; that the extra capacity is zeroed is not modelled.
     #[spec(fn(&Self, ptr: NonNull<u8>[@p], old_layout: Layout[@old], new_layout: Layout[@new])
-        -> Result<NonNull<[u8]>{q: layout_fits(q, new)}, AllocError>
+        -> Result<NonNull<[u8]>{q: allocated_block(q, new)}, AllocError>
         requires layout_fits(p, old) && new.size >= old.size)]
     unsafe fn grow_zeroed(
         &self,
@@ -84,7 +90,7 @@ trait Allocator {
     ///
     /// Note that `new_layout.align()` need not be the same as `old_layout.align()`.
     #[spec(fn(&Self, ptr: NonNull<u8>[@p], old_layout: Layout[@old], new_layout: Layout[@new])
-        -> Result<NonNull<[u8]>{q: layout_fits(q, new)}, AllocError>
+        -> Result<NonNull<[u8]>{q: allocated_block(q, new)}, AllocError>
         requires layout_fits(p, old) && new.size <= old.size)]
     unsafe fn shrink(
         &self,

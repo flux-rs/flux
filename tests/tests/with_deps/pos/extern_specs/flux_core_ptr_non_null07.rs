@@ -5,7 +5,7 @@ use std::ptr::NonNull;
 
 // --- eq ---
 
-#[flux::spec(fn (ptr: {NonNull<i32>[@base, @addr, @size] | addr >= base && size == 8}))]
+#[flux::spec(fn (ptr: {NonNull<i32>[@base, @addr, @size, @_meta1] | addr >= base && size == 8}))]
 pub fn test_ptr_eq(p: NonNull<i32>) {
     unsafe {
         let p1 = p.add(1);
@@ -14,7 +14,7 @@ pub fn test_ptr_eq(p: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn (ptr: {NonNull<u64>[@base, @addr, @size] | addr >= base && size == 16}))]
+#[flux::spec(fn (ptr: {NonNull<u64>[@base, @addr, @size, @_meta1] | addr >= base && size == 16}))]
 pub fn test_ptr_eq_sym(p: NonNull<u64>) {
     unsafe {
         let p1 = p.add(1);
@@ -23,24 +23,24 @@ pub fn test_ptr_eq_sym(p: NonNull<u64>) {
     }
 }
 
-#[flux::spec(fn(p1: NonNull<f32>[@base, @addr, @size], p2: NonNull<f32>[base, addr, size]))]
+#[flux::spec(fn(p1: NonNull<f32>[@base, @addr, @size, @meta], p2: NonNull<f32>[base, addr, size, meta]))]
 pub fn test_ptr_id_sym(p1: NonNull<f32>, p2: NonNull<f32>) {
     assert(p1 == p2)
 }
 
-#[flux::spec(fn(p1: NonNull<i32>[@base, @addr, @size], p2: NonNull<i32>[base, addr, size]))]
+#[flux::spec(fn(p1: NonNull<i32>[@base, @addr, @size, @meta], p2: NonNull<i32>[base, addr, size, meta]))]
 pub fn test_ptr_id(p1: NonNull<i32>, p2: NonNull<i32>) {
     assert(p1.eq(&p2))
 }
 
-#[flux::spec(fn(p1: NonNull<f32>[@base, @addr, @size],
-                p2: {NonNull<f32>[@base1, addr, @size1] | base != base1 && size != size1}))]
+#[flux::spec(fn(p1: NonNull<f32>[@base, @addr, @size, @_meta1],
+                p2: {NonNull<f32>[@base1, addr, @size1, @_meta2] | base != base1 && size != size1}))]
 pub fn test_ptr_id_sym_addr_only(p1: NonNull<f32>, p2: NonNull<f32>) {
     assert(p1 == p2)
 }
 
-#[flux::spec(fn(p1: NonNull<i32>[@base, @addr, @size],
-                p2: {NonNull<i32>[@base1, addr, @size1] | base != base1 && size != size1}))]
+#[flux::spec(fn(p1: NonNull<i32>[@base, @addr, @size, @_meta1],
+                p2: {NonNull<i32>[@base1, addr, @size1, @_meta2] | base != base1 && size != size1}))]
 pub fn test_ptr_id_addr_only(p1: NonNull<i32>, p2: NonNull<i32>) {
     assert(p1.eq(&p2))
 }
