@@ -1094,9 +1094,8 @@ where
             //     Ok(fixpoint::Constraint::foralls(bindings, mk_implies(assumption, cstr)))
             // }
             rty::ExprKind::KVar(kvar) => {
-                let mut bindings = vec![];
-                let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
-                Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
+                let pred = self.kvar_to_fixpoint(kvar)?;
+                Ok(fixpoint::Constraint::Pred(pred, None))
             }
             rty::ExprKind::WKVar(_wkvar) => {
                 // We don't translate the weak kvar here because we don't want to
@@ -1138,27 +1137,25 @@ where
     pub(crate) fn assumption_to_fixpoint(
         &mut self,
         pred: &rty::Expr,
-    ) -> QueryResult<(Vec<fixpoint::Bind>, Vec<fixpoint::Pred>)> {
-        let mut bindings = vec![];
+    ) -> QueryResult<Vec<fixpoint::Pred>> {
         let mut preds = vec![];
-        self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds)?;
-        Ok((bindings, preds))
+        self.assumption_to_fixpoint_aux(pred, &mut preds)?;
+        Ok(preds)
     }
 
     /// Auxiliary function to merge nested conjunctions in a single predicate
     fn assumption_to_fixpoint_aux(
         &mut self,
         expr: &rty::Expr,
-        bindings: &mut Vec<fixpoint::Bind>,
         preds: &mut Vec<fixpoint::Pred>,
     ) -> QueryResult {
         match expr.kind() {
             rty::ExprKind::BinaryOp(rty::BinOp::And, e1, e2) => {
-                self.assumption_to_fixpoint_aux(e1, bindings, preds)?;
-                self.assumption_to_fixpoint_aux(e2, bindings, preds)?;
+                self.assumption_to_fixpoint_aux(e1, preds)?;
+                self.assumption_to_fixpoint_aux(e2, preds)?;
             }
             rty::ExprKind::KVar(kvar) => {
-                preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
+                preds.push(self.kvar_to_fixpoint(kvar)?);
             }
             rty::ExprKind::WKVar(wkvar) => {
                 preds.push(self.wkvar_to_fixpoint(wkvar)?);
@@ -1170,31 +1167,10 @@ where
         Ok(())
     }
 
-    fn kvar_to_fixpoint(
-        &mut self,
-        kvar: &rty::KVar,
-        bindings: &mut Vec<fixpoint::Bind>,
-    ) -> QueryResult<fixpoint::Pred> {
+    fn kvar_to_fixpoint(&mut self, kvar: &rty::KVar) -> QueryResult<fixpoint::Pred> {
         let kvid = self.kcx.declare(kvar.kvid);
 
         let all_args = self.ecx.exprs_to_fixpoint(&kvar.args, &mut self.scx)?;
-
-        // Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get
-        // around it, we encode `$k()` as ($k 0), or more precisely `(forall ((x int) (= x 0)) ... ($k x)`
-        // after ANF-ing.
-        if all_args.is_empty() {
-            let fresh = self.ecx.local_var_env.fresh_name();
-            let var = fixpoint::Var::Local(fresh);
-            bindings.push(fixpoint::Bind {
-                name: fresh.into(),
-                sort: fixpoint::Sort::Int,
-                preds: vec![fixpoint::Pred::Expr(fixpoint::Expr::eq(
-                    fixpoint::Expr::Var(var),
-                    fixpoint::Expr::int(0),
-                ))],
-            });
-            return Ok(fixpoint::Pred::KVar(kvid, vec![fixpoint::Expr::Var(var)]));
-        }
 
         Ok(fixpoint::Pred::KVar(kvid, all_args))
     }
@@ -1257,16 +1233,11 @@ impl KVarEncodingCtxt {
             .iter()
             .map(|kvid| {
                 let decl = kvars.get(*kvid);
-                let mut sorts = decl
+                let sorts = decl
                     .sorts
                     .iter()
                     .map(|s| scx.sort_to_fixpoint(s))
                     .collect_vec();
-
-                // See comment in `kvar_to_fixpoint`
-                if sorts.is_empty() {
-                    sorts = vec![fixpoint::Sort::Int];
-                }
 
                 fixpoint::KVarDecl::new(*kvid, sorts, decl.self_args)
             })

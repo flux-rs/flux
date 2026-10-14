@@ -505,16 +505,18 @@ impl Node {
                 })?
             }
             NodeKind::Assumption(pred) => {
-                let (mut bindings, preds) = cx.assumption_to_fixpoint(pred)?;
+                let preds = cx.assumption_to_fixpoint(pred)?;
                 let Some(cstr) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };
-                bindings.push(fixpoint::Bind {
-                    name: fixpoint::Var::Underscore,
-                    sort: fixpoint::Sort::Int,
-                    preds,
-                });
-                Some(fixpoint::Constraint::foralls(bindings, cstr))
+                Some(fixpoint::Constraint::ForAll(
+                    fixpoint::Bind {
+                        name: fixpoint::Var::Underscore,
+                        sort: fixpoint::Sort::Int,
+                        preds,
+                    },
+                    Box::new(cstr),
+                ))
             }
             NodeKind::Head(pred, tag) => {
                 Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span))?)
