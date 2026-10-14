@@ -1,5 +1,3 @@
-extern crate flux_core;
-
 pub fn test1(b: bool) {
     if b {}
     loop {}
