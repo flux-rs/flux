@@ -804,8 +804,10 @@ fn generic_params_to_fields(
                 GenericParam::Lifetime(syn::LifetimeParam { lifetime, .. }) => {
                     Some(parse_quote_spanned!(span=> &#lifetime ()))
                 }
+                // Only the last field of a struct can be unsized, so wrap in `PhantomData<T>` to
+                // support unsized type parameters.
                 GenericParam::Type(syn::TypeParam { ident, .. }) => {
-                    Some(parse_quote_spanned!(span=> #ident))
+                    Some(parse_quote_spanned!(span=> ::core::marker::PhantomData<#ident>))
                 }
                 GenericParam::Const(..) => None,
             }
