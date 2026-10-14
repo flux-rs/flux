@@ -143,7 +143,7 @@ pub enum TimingKind {
     /// Time taken to check the body of a function
     CheckFn(LocalDefId),
     /// Time taken to run a single fixpoint query
-    FixpointQuery(DefId, FixpointQueryKind),
+    FixpointQuery(DefId, FixpointQueryKind, bool),
     /// Time taken to generate fixes for a query
     RefinementHint(LocalDefId),
     /// Stats for a CHC that fixpoint failed to verify: hornspec outcome, timing,
@@ -187,6 +187,7 @@ struct FuncTiming {
 struct QueryTiming {
     task_key: String,
     time_ms: ms,
+    used_by_wick: bool,
 }
 
 fn snd<A, B: Copy>(&(_, b): &(A, B)) -> B {
@@ -210,7 +211,7 @@ pub fn refinement_hint_timings() -> (HashMap<DefId, FnTiming>, Duration) {
                 timings.reft_hint += timing.duration;
                 timings.iters += 1;
             }
-            TimingKind::FixpointQuery(def_id, _) => {
+            TimingKind::FixpointQuery(def_id, _, _) => {
                 timings_by_fn.entry(def_id).or_default().query += timing.duration;
             }
             TimingKind::Total => {
@@ -233,6 +234,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     let mut total = Duration::from_secs(0);
     let mut total_reft_hint = Duration::from_secs(0);
     let mut total_fixpoint = Duration::ZERO;
+    let mut wick_fixpoint = Duration::ZERO;
     let mut hornspec_durations: Vec<Duration> = vec![];
     let mut hornspec_safe: u32 = 0;
     let mut hornspec_timeout: u32 = 0;
@@ -248,10 +250,13 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
                 let def_path = tcx.def_path_str(local_def_id);
                 functions.push((def_path, timing.duration));
             }
-            TimingKind::FixpointQuery(def_id, kind) => {
+            TimingKind::FixpointQuery(def_id, kind, used_by_wick) => {
                 total_fixpoint += timing.duration;
+                if used_by_wick {
+                    wick_fixpoint += timing.duration;
+                }
                 let key = kind.task_key(tcx, def_id);
-                queries.push((key, timing.duration));
+                queries.push((key, timing.duration, used_by_wick));
             }
             TimingKind::Total => {
                 total = timing.duration;
@@ -289,7 +294,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
     functions.sort_by_key(snd);
     functions.reverse();
 
-    queries.sort_by_key(snd);
+    queries.sort_by_key(|query| query.1);
     queries.reverse();
 
     print_report(
@@ -297,6 +302,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
         total,
         total_reft_hint,
         total_fixpoint,
+        wick_fixpoint,
         &hornspec_durations,
         hornspec_safe,
         hornspec_timeout,
@@ -316,6 +322,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
             "total_ms": ms(total),
             "wick_ms": ms(total_reft_hint),
             "fixpoint_ms": ms(total_fixpoint),
+            "wick_fixpoint_ms": ms(wick_fixpoint),
             "functions": {
                 "count": function_stats.count,
                 "min_ms": ms(function_stats.min),
@@ -385,7 +392,9 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
                 .collect(),
             queries: queries
                 .into_iter()
-                .map(|(task_key, time)| QueryTiming { task_key, time_ms: ms(time) })
+                .map(|(task_key, time, used_by_wick)| {
+                    QueryTiming { task_key, time_ms: ms(time), used_by_wick }
+                })
                 .collect(),
         },
     )
@@ -396,6 +405,7 @@ fn print_report(
     total: Duration,
     total_reft_hint: Duration,
     total_fixpoint: Duration,
+    wick_fixpoint: Duration,
     hornspec_durations: &[Duration],
     hornspec_safe: u32,
     hornspec_timeout: u32,
@@ -412,7 +422,8 @@ fn print_report(
     eprintln!("Total running time: {:>40}", fmt_duration(total));
     eprintln!("Total wick time:    {:>40}", fmt_duration(total_reft_hint));
     eprintln!("Total fixpoint time:{:>40}", fmt_duration(total_fixpoint));
-    eprintln!("Wick + fixpoint:    {:>40}", fmt_duration(total_reft_hint + total_fixpoint));
+    eprintln!("Fixpoint for Wick:  {:>40}", fmt_duration(wick_fixpoint));
+    eprintln!("Wick + fixpoint:    {:>40}", fmt_duration(total_reft_hint + wick_fixpoint));
     eprintln!("Functions checked:  {:>40}", stats.count);
     eprintln!("Min:                {:>40}", fmt_duration(stats.min));
     eprintln!("Max:                {:>40}", fmt_duration(stats.max));

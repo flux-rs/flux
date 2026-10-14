@@ -1085,10 +1085,17 @@ where
             metrics::incr_metric_if(kind.is_body(), Metric::FnCached);
             return result.clone();
         }
-        let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
-            task.run()
-                .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
-        });
+        let start = std::time::Instant::now();
+        let result = task
+            .run()
+            .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"));
+        let duration = start.elapsed();
+        // Wick consumes failing Fixpoint results, once per task rather than per
+        // failing head. Cache hits return above and add no execution time.
+        let used_by_wick = cfg!(feature = "wick")
+            && matches!(task.backend, liquid_fixpoint::Backend::Fixpoint)
+            && matches!(&result.status, FixpointStatus::Unsafe(_, errors) if !errors.is_empty());
+        metrics::record(TimingKind::FixpointQuery(def_id, kind, used_by_wick), duration);
 
         if config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());
