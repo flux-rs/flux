@@ -1,4 +1,9 @@
 // extern crate flux_core;
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
 use flux_attrs::*;
 
 /*  These tests motivate the `bot-elim` optimization. Before the optimization,

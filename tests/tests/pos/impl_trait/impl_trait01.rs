@@ -1,3 +1,8 @@
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
 #[flux::sig(fn (x:i32) -> impl Iterator<Item = i32{v:x<=v}>)]
 pub fn lib(x: i32) -> impl Iterator<Item = i32> {
     Some(x).into_iter()

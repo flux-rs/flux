@@ -22,6 +22,7 @@ symbols! {
         Map,
         Set,
         addr,
+        assume_parametric,
         base,
         cast,
         int,

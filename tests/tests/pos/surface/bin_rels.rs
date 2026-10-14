@@ -12,18 +12,23 @@ pub fn test00(x: S1) -> bool {
     f(x)
 }
 
+#[flux::assume_parametric(T)]
 #[flux::sig(fn(x: T, y: T{x == y}))]
 fn eq<T>(x: T, y: T) {}
 
+#[flux::assume_parametric(T)]
 #[flux::sig(fn(x: T, y: T{x > y}))]
 fn gt<T>(x: T, y: T) {}
 
+#[flux::assume_parametric(T)]
 #[flux::sig(fn(x: T, y: T{x >= y}))]
 fn ge<T>(x: T, y: T) {}
 
+#[flux::assume_parametric(T)]
 #[flux::sig(fn(x: T, y: T{x < y}))]
 fn lt<T>(x: T, y: T) {}
 
+#[flux::assume_parametric(T)]
 #[flux::sig(fn(x: T, y: T{x <= y}))]
 fn le<T>(x: T, y: T) {}
 

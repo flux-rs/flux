@@ -1,4 +1,9 @@
 // A port from https://drops.dagstuhl.de/storage/00lipics/lipics-vol263-ecoop2023/LIPIcs.ECOOP.2023.17/LIPIcs.ECOOP.2023.17.pdf
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
 
 use std::collections::HashMap;
 

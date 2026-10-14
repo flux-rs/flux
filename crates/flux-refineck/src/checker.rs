@@ -2066,8 +2066,13 @@ fn instantiate_args_for_fun_call(
     callee_id: DefId,
     args: &ty::GenericArgs,
 ) -> QueryResult<Vec<rty::GenericArg>> {
-    let params_in_clauses = collect_params_in_clauses(genv, callee_id);
     let assumed_parametric_params = genv.assume_parametric_params(callee_id);
+    // Calls to `Fn*::call*` only return values produced by the (caller-provided) closure, which is
+    // checked against its refined signature, so they are always parametric.
+    let is_fn_trait_call = genv
+        .tcx()
+        .trait_of_assoc(callee_id)
+        .is_some_and(|trait_id| genv.tcx().fn_trait_kind_from_def_id(trait_id).is_some());
 
     let hole_refiner = Refiner::new_for_item(genv, caller_id, |bty| {
         let sort = bty.sort();
@@ -2086,8 +2091,10 @@ fn instantiate_args_for_fun_call(
         .enumerate()
         .map(|(idx, arg)| {
             let param = callee_generics.param_at(idx, genv)?;
-            let is_parametric = !params_in_clauses.contains(&idx)
-                || assumed_parametric_params.contains(&(idx as u32));
+            // Type params are assumed non-parametric unless explicitly marked with
+            // `#[assume_parametric]`.
+            let is_parametric =
+                is_fn_trait_call || assumed_parametric_params.contains(&(idx as u32));
             let refiner = if is_parametric { &hole_refiner } else { &default_refiner };
             refiner.refine_generic_arg(&param, arg)
         })

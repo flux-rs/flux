@@ -1,3 +1,8 @@
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
 #[flux::sig(fn() -> Vec<i32{v: v >= 0}>)]
 pub fn move_out_of_box() -> Vec<i32> {
     let mut vec = Vec::new();

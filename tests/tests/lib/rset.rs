@@ -11,6 +11,7 @@ pub struct RSet<T> {
 // TODO: (RJ) I get some odd error with `T as spl` / cannot refine if I just remove this annotation!
 // error: internal compiler error: crates/flux-middle/src/rty/subst.rs:353:30: expected base type for generic parameter, found `∃int. { i32[^0#0] | * }`
 impl<T> RSet<T> {
+    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn() -> RSet<T>[set_empty(0)])]
     pub fn new() -> RSet<T> {
@@ -18,6 +19,7 @@ impl<T> RSet<T> {
         RSet { inner }
     }
 
+    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn (set: &strg RSet<T>[@s], elem: T) ensures set: RSet<T>[set_union(set_singleton(elem), s)])]
     pub fn insert(self: &mut Self, elem: T)
@@ -27,6 +29,7 @@ impl<T> RSet<T> {
         self.inner.insert(elem);
     }
 
+    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn(set: &RSet<T>[@s], &T[@elem]) -> bool[set_is_in(elem, s.elems)])]
     pub fn contains(self: &Self, elem: &T) -> bool
@@ -36,6 +39,7 @@ impl<T> RSet<T> {
         self.inner.contains(elem)
     }
 
+    #[flux::assume_parametric(T)]
     #[flux::trusted]
     pub fn iter(self: &Self) -> std::collections::hash_set::Iter<'_, T> {
         self.inner.iter()
@@ -71,6 +75,7 @@ impl<T> RSet<T> {
         RSet { inner }
     }
 
+    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn(&RSet<T>[@self], &RSet<T>[@other]) -> bool[set_subset(self, other)])]
     pub fn subset(&self, other: &RSet<T>) -> bool

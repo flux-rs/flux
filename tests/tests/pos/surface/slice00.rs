@@ -1,3 +1,8 @@
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
 #[flux::sig(fn(&[i32{v : v > 0}]) -> &[i32{v : v >= 0}])]
 fn first_half(slice: &[i32]) -> &[i32] {
     let mid = slice.len() / 2;

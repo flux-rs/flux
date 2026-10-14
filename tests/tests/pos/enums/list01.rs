@@ -3,6 +3,10 @@
     fn set_is_empty(s: Set<int>) -> bool { s == set_empty(0) }
     fn set_emp() -> Set<int> { set_empty(0) }
 }]
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
 
 /// (i32) lists indexed by the _set_ of elements.
 
@@ -27,6 +31,7 @@ pub fn null() -> List {
     List::Nil
 }
 
+#[flux::assume_parametric(T)]
 #[flux::sig(fn() -> T requires false)]
 pub fn unreachable<T>() -> T {
     unreachable!()

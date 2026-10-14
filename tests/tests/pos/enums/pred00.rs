@@ -1,3 +1,8 @@
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
 #[flux::refined_by(is_atom: bool, nnf: bool)]
 #[flux::invariant(is_atom => nnf)]
 pub enum Pred {
@@ -79,6 +84,7 @@ impl Pred {
     }
 }
 
+#[flux::assume_parametric(T)]
 #[flux::sig(fn() -> T requires false)]
 fn unreachable<T>() -> T {
     unreachable!()

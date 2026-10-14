@@ -533,7 +533,11 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         // the impl onto). After `check_generics` has verified param names and indices match,
         // raw Ty equality is sound for the cases we want to catch (concrete type mismatches
         // like `Range<usize>` vs `Range<A>`).
-        if local_self_ty != extern_self_ty {
+        // Regions are compared modulo erasure: the extern spec macro has to name elided lifetimes
+        // (`'_`) in the self type when computing it, so they won't match syntactically.
+        if tcx.erase_and_anonymize_regions(local_self_ty)
+            != tcx.erase_and_anonymize_regions(extern_self_ty)
+        {
             // Emit on the user's impl block (compiletest matches `//~ ERROR` against the
             // primary span line). The dummy `__FluxExternImplStruct` wrapper's self_ty has
             // a macro-generated span that doesn't land on user source.

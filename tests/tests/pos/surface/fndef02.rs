@@ -5,6 +5,7 @@ fn div(x: i32) -> i32 {
     1 / x
 }
 
+#[flux::assume_parametric(A,B)]
 fn apply<A, B>(f: impl FnOnce(A) -> B, x: A) -> B {
     f(x)
 }

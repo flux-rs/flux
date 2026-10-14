@@ -1,4 +1,9 @@
 #![allow(unused)]
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
 
 fn id<T>(x: T) -> T {
     x

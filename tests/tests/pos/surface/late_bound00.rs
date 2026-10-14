@@ -1,5 +1,10 @@
 // Refinement parameters of a function are early bound if they are mentioned in a where-clause or in
 // an opaque type, or if they are locations. All other parameters are late bound.
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
 
 // `n` is late bound
 #[flux::sig(fn(x: i32[@n]) -> i32[n + 1])]
@@ -14,6 +19,7 @@ pub fn inc_twice(x: i32) -> i32 {
 
 // `b` is early bound because it is mentioned in a where-clause and `a` is late bound. Since `b` is
 // declared after `a`, its index among the early bound parameters is different from its position.
+#[flux::assume_parametric(F)]
 #[flux::sig(fn(x: i32[@a], f: F, y: i32[@b]) -> i32{v: v < b}
             where F: FnOnce(i32) -> i32{v: v < b})]
 pub fn call_below<F: FnOnce(i32) -> i32>(x: i32, f: F, _y: i32) -> i32 {

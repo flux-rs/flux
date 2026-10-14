@@ -8,6 +8,7 @@ enum List<'a, T> {
 }
 
 impl<'a, T> List<'a, T> {
+    #[flux::assume_parametric(T)]
     #[flux::sig(fn(&mut List<T>[@n]) -> usize[n])]
     fn len(&mut self) -> usize {
         match self {
@@ -16,6 +17,7 @@ impl<'a, T> List<'a, T> {
         }
     }
 
+    #[flux::assume_parametric(T)]
     #[flux::sig(fn(&mut List<T>[@n], idx: usize{idx < n}) -> &mut T)]
     fn get_mut(&mut self, idx: usize) -> &mut T {
         match self {
@@ -42,6 +44,7 @@ fn test() -> i32 {
     *l2.get_mut(1)
 }
 
+#[flux::assume_parametric(T)]
 #[flux::sig(fn() -> T requires false)]
 fn unreachable<T>() -> T {
     unreachable!()

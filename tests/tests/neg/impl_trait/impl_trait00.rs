@@ -1,3 +1,8 @@
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
 #[flux::sig(fn () -> impl Iterator<Item = i32{v:100<=v}>)]
 pub fn test_fail() -> impl Iterator<Item = i32> {
     Some(10).into_iter() //~ ERROR refinement type

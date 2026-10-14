@@ -320,11 +320,22 @@ fn extern_impl_to_tokens(
     extern_item_impl.prepare();
     let extern_item_impl = extern_item_impl; // no more mutation
 
-    let self_ty = &extern_item_impl.self_ty;
-    let (impl_generics, ty_generics, where_clause) = &extern_item_impl.generics.split_for_impl();
+    // Elided lifetimes (`'_`) in the self type are not allowed in the dummy struct, so we name them
+    // there and add them as extra generic parameters. The retargeted impl keeps them elided (see
+    // `ExternItemImpl::to_tokens`) so its generics still match the external impl.
+    let mut self_ty = (*extern_item_impl.self_ty).clone();
+    let mut namer = NameElidedLifetimes::default();
+    syn::visit_mut::visit_type_mut(&mut namer, &mut self_ty);
+    let mut dummy_generics = extern_item_impl.generics.clone();
+    for (i, lifetime) in namer.lifetimes.iter().enumerate() {
+        dummy_generics
+            .params
+            .insert(i, GenericParam::Lifetime(syn::LifetimeParam::new(lifetime.clone())));
+    }
+    let (impl_generics, ty_generics, where_clause) = &dummy_generics.split_for_impl();
 
     let dummy_ident = &extern_item_impl.dummy_ident;
-    let mut fields = generic_params_to_fields(&extern_item_impl.generics.params);
+    let mut fields = generic_params_to_fields(&dummy_generics.params);
     fields.push(parse_quote!(#self_ty));
 
     let dummy_impl = if let Some((_, trait_, _)) = &extern_item_impl.trait_ {
@@ -433,7 +444,20 @@ impl ToTokens for ExternItemImpl {
         impl_generics.to_tokens(tokens);
 
         self.dummy_ident.to_tokens(tokens);
-        ty_generics.to_tokens(tokens);
+        let elided = count_elided_lifetimes(&self.self_ty);
+        if elided > 0 {
+            let elided = (0..elided).map(|_| quote!('_));
+            let args = self.generics.params.iter().map(|param| {
+                match param {
+                    GenericParam::Lifetime(param) => param.lifetime.to_token_stream(),
+                    GenericParam::Type(param) => param.ident.to_token_stream(),
+                    GenericParam::Const(param) => param.ident.to_token_stream(),
+                }
+            });
+            quote!(<#(#elided,)* #(#args),*>).to_tokens(tokens);
+        } else {
+            ty_generics.to_tokens(tokens);
+        }
 
         where_clause.to_tokens(tokens);
         self.brace_token.surround(tokens, |tokens| {
@@ -805,12 +829,35 @@ fn generic_params_to_fields(
                     Some(parse_quote_spanned!(span=> &#lifetime ()))
                 }
                 GenericParam::Type(syn::TypeParam { ident, .. }) => {
-                    Some(parse_quote_spanned!(span=> #ident))
+                    Some(parse_quote_spanned!(span=> ::core::marker::PhantomData<#ident>))
                 }
                 GenericParam::Const(..) => None,
             }
         })
         .collect()
+}
+
+fn count_elided_lifetimes(ty: &Type) -> usize {
+    let mut ty = ty.clone();
+    let mut namer = NameElidedLifetimes::default();
+    syn::visit_mut::visit_type_mut(&mut namer, &mut ty);
+    namer.lifetimes.len()
+}
+
+/// Replaces every elided lifetime (`'_`) with a fresh named lifetime, collecting the new names.
+#[derive(Default)]
+struct NameElidedLifetimes {
+    lifetimes: Vec<syn::Lifetime>,
+}
+
+impl syn::visit_mut::VisitMut for NameElidedLifetimes {
+    fn visit_lifetime_mut(&mut self, lifetime: &mut syn::Lifetime) {
+        if lifetime.ident == "_" {
+            let name = format!("'__flux_elided{}", self.lifetimes.len());
+            *lifetime = syn::Lifetime::new(&name, lifetime.span());
+            self.lifetimes.push(lifetime.clone());
+        }
+    }
 }
 
 // Cribbed from Prusti's extern_spec_rewriter

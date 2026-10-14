@@ -1,4 +1,9 @@
 // test that we allow moving out of a Box
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
 pub fn mv(b: Box<Option<i32>>) -> Option<i32> {
     *b
 }

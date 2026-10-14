@@ -12,6 +12,7 @@ impl<T> Get for (T,) {
     type Output = T;
 }
 
+#[flux::assume_parametric(T)]
 #[spec(fn(x: (T,)) -> _)]
 fn get<T>(x: (T,)) -> <(T,) as Get>::Output {
     x.0

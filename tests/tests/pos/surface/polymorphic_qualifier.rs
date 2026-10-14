@@ -1,4 +1,9 @@
 #![flux::opts(scrape_quals = true)]
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
 
 #[flux::sig(fn[hrn p: T -> bool](vec: Vec<T{v: p(v)}>, init: T{ p(init) }) -> T{v: p(v)})]
 pub fn maximum<T: Ord>(vec: Vec<T>, init: T) -> T {

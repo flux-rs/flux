@@ -1,3 +1,9 @@
+#![feature(allocator_ext, try_trait_v2)]
+
+#[path = "../../lib/parametric_std.rs"]
+mod parametric_std;
+
+#[flux::assume_parametric(T)]
 #[flux::sig(fn(i32{v: false}) -> T)]
 pub fn never<T>(_: i32) -> T {
     loop {}
