@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use derive_where::derive_where;
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexMap;
+use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
@@ -167,12 +167,15 @@ pub fn topo_sort_data_declarations<T: Types>(datatype_decls: Vec<DataDecl<T>>) -
     for datatype_decl in &datatype_decls {
         datatype_dependencies.insert(datatype_decl.name.clone(), vec![]);
     }
+    let declared: FxIndexSet<T::Sort> = datatype_dependencies.keys().cloned().collect();
     let mut data_decls_by_name = FxIndexMap::default();
     for datatype_decl in datatype_decls {
         for data_constructor in &datatype_decl.ctors {
             for accessor in &data_constructor.fields {
+                // Names without a declaration, e.g., generic sorts, are not dependencies
                 if let Sort::App(ctor, _) = &accessor.sort
                     && let SortCtor::Data(data_ctor) = &ctor
+                    && declared.contains(data_ctor)
                 {
                     datatype_dependencies
                         .get_mut(&datatype_decl.name)

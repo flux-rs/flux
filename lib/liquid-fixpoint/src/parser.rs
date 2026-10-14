@@ -34,7 +34,6 @@ pub trait FromSexp<T: Types> {
     fn kvar(&self, name: &str) -> Result<T::KVar, ParseError>;
     fn string(&self, s: &str) -> Result<T::String, ParseError>;
     fn sort(&self, name: &str) -> Result<T::Sort, ParseError>;
-    fn opaque(&self, name: &str) -> Result<T::Opaque, ParseError>;
     fn into_wrapper(self) -> FromSexpWrapper<T, Self>
     where
         Self: Sized,
@@ -496,8 +495,6 @@ where
                     && let Ok(idx) = s_idx.parse::<usize>()
                 {
                     Ok(Sort::Var(idx))
-                } else if let Ok(opaque) = self.parser.opaque(s) {
-                    Ok(Sort::Opaque(opaque))
                 } else {
                     let ctor = SortCtor::Data(self.parser.sort(s)?);
                     Ok(Sort::App(ctor, vec![]))
@@ -727,7 +724,6 @@ impl Types for StringTypes {
     type Tag = String;
     type String = String;
     type Real = String;
-    type Opaque = String;
 }
 
 impl FromSexp<StringTypes> for StringTypes {
@@ -748,9 +744,5 @@ impl FromSexp<StringTypes> for StringTypes {
 
     fn sort(&self, name: &str) -> Result<String, ParseError> {
         Ok(name.to_string())
-    }
-
-    fn opaque(&self, name: &str) -> Result<String, ParseError> {
-        Err(ParseError::err(format!("Unknown opaque sort: {name}")))
     }
 }

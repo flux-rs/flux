@@ -53,6 +53,9 @@ where
                 let def_id = self.scx.opaque_sorts[opaque_id.as_usize()];
                 Ok(rty::SortCtor::User(def_id))
             }
+            fixpoint::SortCtor::Data(fixpoint::DataSort::Generic(_)) => {
+                unreachable!("generic sorts are handled in `fixpoint_to_sort`")
+            }
             fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id)) => {
                 let def_id = self.scx.adt_sorts[adt_id.as_usize()];
                 let Ok(adt_sort_def) = self.genv.adt_sort_def_of(def_id) else {
@@ -79,6 +82,13 @@ where
                 let poly_sort = rty::PolyFuncSort::new(List::empty(), fsort);
                 Ok(rty::Sort::Func(poly_sort))
             }
+            fixpoint::Sort::App(fixpoint::SortCtor::Data(fixpoint::DataSort::Generic(name)), _) => {
+                self.scx
+                    .opaque_generic_sorts
+                    .get(name)
+                    .cloned()
+                    .ok_or(FixpointParseError::UnknownOpaqueSort(*name))
+            }
             fixpoint::Sort::App(ctor, args) => {
                 let ctor = self.fixpoint_to_sort_ctor(ctor)?;
                 let args = args
@@ -86,13 +96,6 @@ where
                     .map(|fsort| self.fixpoint_to_sort(fsort))
                     .try_collect()?;
                 Ok(rty::Sort::App(ctor, args))
-            }
-            fixpoint::Sort::Opaque(name) => {
-                self.scx
-                    .opaque_generic_sorts
-                    .get(name)
-                    .cloned()
-                    .ok_or(FixpointParseError::UnknownOpaqueSort(*name))
             }
             fixpoint::Sort::BitVec(fsort) if let fixpoint::Sort::BvSize(size) = **fsort => {
                 Ok(rty::Sort::BitVec(rty::BvSize::Fixed(size)))

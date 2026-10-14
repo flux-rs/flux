@@ -256,7 +256,6 @@ fn fmt_sort_smt<T: Types>(sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Re
                 write!(f, ")")
             }
         }
-        Sort::Opaque(o) => write!(f, "{}", o.display()),
     }
 }
 

@@ -344,7 +344,6 @@ pub enum Sort<T: Types> {
     Func(Box<[Self; 2]>),
     Abs(usize, Box<Self>),
     App(SortCtor<T>, Vec<Self>),
-    Opaque(T::Opaque),
 }
 
 impl<T: Types> Sort<T> {

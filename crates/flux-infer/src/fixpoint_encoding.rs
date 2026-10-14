@@ -101,7 +101,7 @@ pub mod fixpoint {
         pub struct OpaqueId {}
     }
 
-    /// A sort that is opaque to fixpoint and a type parameter in Lean.
+    /// A type parameter or type alias sort, see `DataSort::Generic`
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     pub enum OpaqueSort {
         Param(Symbol),
@@ -205,6 +205,8 @@ pub mod fixpoint {
         Tuple(usize),
         Adt(AdtId),
         User(OpaqueId),
+        /// A sort that is opaque to fixpoint and a type parameter in Lean
+        Generic(OpaqueSort),
     }
 
     impl Identifier for DataSort {
@@ -219,6 +221,7 @@ pub mod fixpoint {
                 DataSort::User(opaque_id) => {
                     write!(f, "OpaqueAdt{}", opaque_id.as_u32())
                 }
+                DataSort::Generic(sort) => Identifier::fmt(sort, f),
             }
         }
     }
@@ -256,7 +259,6 @@ pub mod fixpoint {
         type String = SymStr;
         type Real = SymReal;
         type Tag = super::TagIdx;
-        type Opaque = OpaqueSort;
     }
     pub use fixpoint_generated::*;
 }
@@ -392,7 +394,7 @@ impl SortEncodingCtxt {
             rty::Sort::Param(p) => {
                 let opaque =
                     fixpoint::OpaqueSort::Param(Symbol::intern(&sanitize(p.name.as_str())));
-                fixpoint::Sort::Opaque(self.declare_generic_sort(opaque, sort))
+                self.declare_generic_sort(opaque, sort)
             }
             rty::Sort::Alias(
                 alias_ty @ rty::AliasTy {
@@ -406,7 +408,7 @@ impl SortEncodingCtxt {
                 let printed = format!("{sort:?}");
                 let name = sanitize(printed.trim_end_matches("::sort"));
                 let opaque = fixpoint::OpaqueSort::Alias(Symbol::intern(&name));
-                fixpoint::Sort::Opaque(self.declare_generic_sort(opaque, &sort))
+                self.declare_generic_sort(opaque, &sort)
             }
             rty::Sort::App(rty::SortCtor::Set, args) => {
                 let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
@@ -494,11 +496,12 @@ impl SortEncodingCtxt {
     }
 
     /// The opaque sorts encoded so far, sorted by name so the order is deterministic
-    pub fn generic_sorts(&self) -> Vec<fixpoint::OpaqueSort> {
+    pub fn generic_sorts(&self) -> Vec<fixpoint::DataSort> {
         self.opaque_generic_sorts
             .keys()
             .copied()
             .sorted_by_key(|opaque| opaque.display().to_string())
+            .map(fixpoint::DataSort::Generic)
             .collect()
     }
 
@@ -506,7 +509,7 @@ impl SortEncodingCtxt {
         &mut self,
         opaque: fixpoint::OpaqueSort,
         sort: &rty::Sort,
-    ) -> fixpoint::OpaqueSort {
+    ) -> fixpoint::Sort {
         let prev = self
             .opaque_generic_sorts
             .entry(opaque)
@@ -517,7 +520,7 @@ impl SortEncodingCtxt {
             "distinct sorts encoded with the same name `{}`",
             opaque.display()
         );
-        opaque
+        fixpoint::Sort::App(fixpoint::SortCtor::Data(fixpoint::DataSort::Generic(opaque)), vec![])
     }
 
     pub fn declare_adt(&mut self, did: DefId) -> AdtId {
@@ -1700,7 +1703,7 @@ pub struct SortDeps {
     pub opaque_sorts: Vec<(FluxDefId, fixpoint::SortDecl)>,
     pub data_decls: Vec<fixpoint::DataDecl>,
     pub adt_map: FxIndexSet<DefId>,
-    pub type_params: Vec<fixpoint::OpaqueSort>,
+    pub type_params: Vec<fixpoint::DataSort>,
 }
 
 pub struct ConstDeps {
@@ -2864,11 +2867,6 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt<'_> {
         Err(ParseError::err(format!("Unknown variable: {name}")))
     }
 
-    fn opaque(&self, name: &str) -> Result<fixpoint::OpaqueSort, ParseError> {
-        fixpoint::OpaqueSort::parse(name)
-            .ok_or_else(|| ParseError::err(format!("Unknown opaque sort: {name}")))
-    }
-
     fn sort(&self, name: &str) -> Result<fixpoint::DataSort, ParseError> {
         if let Some(idx) = name.strip_prefix("Adt")
             && let Ok(adt_id) = idx.parse::<u32>()
@@ -2879,6 +2877,10 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt<'_> {
             && let Ok(opaque_id) = idx.parse::<u32>()
         {
             return Ok(fixpoint::DataSort::User(fixpoint::OpaqueId::from(opaque_id)));
+        }
+
+        if let Some(sort) = fixpoint::OpaqueSort::parse(name) {
+            return Ok(fixpoint::DataSort::Generic(sort));
         }
 
         Err(ParseError::err(format!("Unknown sort: {name}")))
