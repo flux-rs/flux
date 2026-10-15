@@ -76,7 +76,7 @@ jobs:
       - name: Check tock/kernel
         run: |
           cd tock
-          cargo flux -p cortexm -p rv32i
+          FLUXFLAGS="-Fallow-parametricity" cargo flux -p cortexm -p rv32i
 
   lean-demo:
     strategy:
@@ -125,6 +125,8 @@ jobs:
 
       - name: Run lean demo
         working-directory: flux-to-lean-demo
+        env:
+          FLUXFLAGS: -Fallow-parametricity
         run: |
           bash runlean.sh
 
