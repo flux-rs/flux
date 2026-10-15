@@ -53,6 +53,9 @@ where
                 let def_id = self.scx.opaque_sorts[opaque_id.as_usize()];
                 Ok(rty::SortCtor::User(def_id))
             }
+            fixpoint::SortCtor::Data(fixpoint::DataSort::Generic(_)) => {
+                unreachable!("generic sorts are handled in `fixpoint_to_sort`")
+            }
             fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id)) => {
                 let def_id = self.scx.adt_sorts[adt_id.as_usize()];
                 let Ok(adt_sort_def) = self.genv.adt_sort_def_of(def_id) else {
@@ -78,6 +81,13 @@ where
                 let fsort = rty::FuncSort::new(vec![sort1], sort2);
                 let poly_sort = rty::PolyFuncSort::new(List::empty(), fsort);
                 Ok(rty::Sort::Func(poly_sort))
+            }
+            fixpoint::Sort::App(fixpoint::SortCtor::Data(fixpoint::DataSort::Generic(name)), _) => {
+                self.scx
+                    .generic_sorts
+                    .get(name)
+                    .cloned()
+                    .ok_or(FixpointParseError::UnknownGenericSort(*name))
             }
             fixpoint::Sort::App(ctor, args) => {
                 let ctor = self.fixpoint_to_sort_ctor(ctor)?;
@@ -541,6 +551,7 @@ pub enum FixpointParseError {
     /// The number of arguments should only ever be 1 for a tuple proj
     ProjArityMismatch(usize),
     NoGlobalVar(fixpoint::GlobalVar),
+    UnknownGenericSort(fixpoint::GenericSort),
     /// Casts should only have 1 arg
     CastArityMismatch(usize),
     PrimOpArityMismatch(usize),
