@@ -1,3 +1,4 @@
+#![flux::opts(allow_parametricity)]
 extern crate flux_core;
 
 #[flux::trusted]

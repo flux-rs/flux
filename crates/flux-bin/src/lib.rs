@@ -22,6 +22,8 @@ pub struct FluxMetadata {
     pub uif_ops: Option<UifOps>,
     /// Enable uninterpreted casts
     pub allow_uninterpreted_cast: Option<bool>,
+    /// Assume generic arguments of called functions are parametric
+    pub allow_parametricity: Option<bool>,
     /// Set trusted to trusted
     pub default_trusted: Option<bool>,
     /// Set trusted to ignore
@@ -84,6 +86,9 @@ impl FluxMetadata {
         }
         if let Some(v) = self.allow_uninterpreted_cast {
             flags.push(format!("-Fallow-uninterpreted-cast={v}"));
+        }
+        if let Some(v) = self.allow_parametricity {
+            flags.push(format!("-Fallow-parametricity={v}"));
         }
         if let Some(only_check) = only_check {
             flags.push(format!("-Finclude={only_check}"));

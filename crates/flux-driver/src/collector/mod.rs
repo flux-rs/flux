@@ -1090,12 +1090,22 @@ impl AttrMap {
                         });
                     }
 
-                    // TODO: support types of values other than strings
-                    let value = item.name_value_literal().ok_or_else(|| {
-                        errors::AttrMapErr { span, message: "unsupported value".to_string() }
-                    })?;
+                    // A bare setting name, e.g. `allow_parametricity`, is sugar for `name = true`
+                    let setting = if item.is_word() {
+                        rustc_span::kw::True
+                    } else {
+                        // TODO: support types of values other than strings
+                        item.name_value_literal()
+                            .ok_or_else(|| {
+                                errors::AttrMapErr {
+                                    span,
+                                    message: "unsupported value".to_string(),
+                                }
+                            })?
+                            .symbol
+                    };
 
-                    let setting = AttrMapValue { setting: value.symbol, span: item.span };
+                    let setting = AttrMapValue { setting, span: item.span };
                     self.map.insert(name, setting);
                     return Ok(());
                 }
@@ -1113,6 +1123,7 @@ impl AttrMap {
     fn try_into_infer_opts(&mut self) -> AttrMapErr<PartialInferOpts> {
         let mut infer_opts = PartialInferOpts::default();
         try_read_setting!(self, allow_uninterpreted_cast, bool, infer_opts);
+        try_read_setting!(self, allow_parametricity, bool, infer_opts);
         try_read_setting!(self, check_overflow, OverflowMode, infer_opts);
         try_read_setting!(self, allow_raw_deref, RawDerefMode, infer_opts);
         try_read_setting!(self, scrape_quals, bool, infer_opts);

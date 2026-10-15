@@ -195,6 +195,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             cursor: self.refine_tree.cursor_at_root(),
             inner: &self.inner,
             check_overflow: self.opts.check_overflow,
+            allow_parametricity: self.opts.allow_parametricity,
             allow_raw_deref: self.opts.allow_raw_deref,
         }
     }
@@ -299,6 +300,7 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     pub def_id: DefId,
     pub check_overflow: OverflowMode,
+    pub allow_parametricity: bool,
     pub allow_raw_deref: flux_config::RawDerefMode,
     cursor: Cursor<'infcx>,
     inner: &'infcx RefCell<InferCtxtInner>,

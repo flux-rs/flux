@@ -658,6 +658,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             self.checker_id.root_id().to_def_id(),
                             *resolved_id,
                             &resolved_args.lowered,
+                            infcx.allow_parametricity,
                         )
                         .with_span(terminator_span)?;
                         self.check_call(
@@ -2065,9 +2066,12 @@ fn instantiate_args_for_fun_call(
     caller_id: DefId,
     callee_id: DefId,
     args: &ty::GenericArgs,
+    allow_parametricity: bool,
 ) -> QueryResult<Vec<rty::GenericArg>> {
+    // With `allow_parametricity`, every param that does not appear in a clause is parametric
+    let params_in_clauses = allow_parametricity.then(|| collect_params_in_clauses(genv, callee_id));
     let assumed_parametric_params = genv.assume_parametric_params(callee_id);
-    // For `Fn::call`, `FnMut::call_mut` and `FnOnce::call_once` the generics are `[Self, Args]`.
+    // Special case parametricity for closure calls via `Fn::call`, `FnMut::call_mut` and `FnOnce::call_once` the generics are `[Self, Args]`.
     // We refine `Args` with holes so the refinements of the actual arguments flow into the
     // closure's inputs.
     let is_fn_call = genv.is_fn_call(callee_id);
@@ -2088,7 +2092,10 @@ fn instantiate_args_for_fun_call(
         .enumerate()
         .map(|(idx, arg)| {
             let param = callee_generics.param_at(idx, genv)?;
-            let is_parametric = (is_fn_call && idx == 1)
+            let is_parametric = params_in_clauses
+                .as_ref()
+                .is_some_and(|params| !params.contains(&idx))
+                || (is_fn_call && idx == 1)
                 || assumed_parametric_params.contains(&(idx as u32));
             let refiner = if is_parametric { &hole_refiner } else { &default_refiner };
             refiner.refine_generic_arg(&param, arg)
