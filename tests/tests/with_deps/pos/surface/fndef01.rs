@@ -2,6 +2,7 @@
 
 extern crate flux_core;
 
+#[flux::assume_parametric(T)]
 fn id<T>(x: T) -> T {
     x
 }
