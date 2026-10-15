@@ -1,0 +1,14 @@
+#![flux::opts(scrape_quals = true)]
+
+extern crate flux_alloc;
+
+#[flux::sig(fn[hrn p: T -> bool](vec: Vec<T{v: p(v)}>, init: T{ p(init) }) -> T{v: p(v)})]
+pub fn maximum<T: Ord>(vec: Vec<T>, init: T) -> T {
+    let mut max = init;
+    for v in vec {
+        if let std::cmp::Ordering::Greater = max.cmp(&v) {
+            max = v;
+        }
+    }
+    max
+}

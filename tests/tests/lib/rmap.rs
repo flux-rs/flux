@@ -15,6 +15,7 @@ pub struct RMap<K, V> {
 }
 
 impl<K, V> RMap<K, V> {
+    #[flux::assume_parametric(K, V)]
     #[flux::trusted]
 
     /// #[flux::sig(fn() -> RMap<K, V>{m: true})]   "OK"    i.e. wraps K, V in existential
@@ -23,6 +24,7 @@ impl<K, V> RMap<K, V> {
         Self { inner: std::collections::HashMap::new() }
     }
 
+    #[flux::assume_parametric(K, V)]
     #[flux::trusted]
     #[flux::sig(fn(self: &strg RMap<K,V>[@m], k: K, v: V) ensures self: RMap<K,V>[map_set(m.vals, k, v)])]
     pub fn set(&mut self, k: K, v: V)
@@ -32,6 +34,7 @@ impl<K, V> RMap<K, V> {
         self.inner.insert(k, v);
     }
 
+    #[flux::assume_parametric(K, V)]
     #[flux::trusted]
     #[flux::sig(fn(&RMap<K, V>[@m], &K[@k]) -> Option<&V[map_get(m.vals, k)]>)]
     pub fn get(&self, k: &K) -> Option<&V>

@@ -6,6 +6,7 @@ pub enum Blah {
     MkBlah(i32),
 }
 
+#[assume_parametric(T)]
 pub fn test00<T, F>(f: F) -> T
 where
     F: FnOnce(i32) -> T,

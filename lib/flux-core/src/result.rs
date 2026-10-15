@@ -17,6 +17,7 @@ enum Result<T, E> {
 /// `Result`'s discriminant.
 #[extern_spec(core::result)]
 impl<T, E> core::ops::Try for Result<T, E> {
+    #[assume_parametric(T, E)]
     #[spec(fn(Result<T, E>[@b]) -> core::ops::ControlFlow<<Result<T, E> as core::ops::Try>::Residual, <Result<T, E> as core::ops::Try>::Output>[b])]
     fn branch(
         self,
@@ -33,6 +34,7 @@ impl<T, E> core::ops::Try for Result<T, E> {
 impl<T, E, F: From<E>> core::ops::FromResidual<Result<core::convert::Infallible, E>>
     for Result<T, F>
 {
+    #[assume_parametric(T)]
     #[spec(fn(Result<core::convert::Infallible, E>) -> Result<T, F>[false])]
     fn from_residual(residual: Result<core::convert::Infallible, E>) -> Result<T, F>;
 }
@@ -70,6 +72,7 @@ impl<T, E> Result<T, E> {
     fn as_mut(&mut self) -> Result<&mut T, &mut E>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L799
+    #[assume_parametric(T, E, U, F)]
     #[flux_rs::no_panic_if(F::no_panic())]
     #[spec(fn(Result<T, E>[@b], F) -> Result<U, E>[b] where F: FnOnce(T) -> U)]
     fn map<U, F: FnOnce(T) -> U>(self, op: F) -> Result<U, E>;
@@ -87,6 +90,7 @@ impl<T, E> Result<T, E> {
         E: core::fmt::Debug;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L1161
+    #[assume_parametric(T)]
     #[no_panic]
     #[spec(fn(Result<T, E>[true]) -> T)]
     fn unwrap(self) -> T
