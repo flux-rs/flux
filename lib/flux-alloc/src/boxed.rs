@@ -11,3 +11,10 @@ use flux_attrs::*;
 #[extern_spec(alloc::boxed)]
 #[spec(fn(Box<MaybeUninit<[T; N]>>) -> Vec<T>[N])]
 fn box_assume_init_into_vec_unsafe<T, const N: usize>(b: Box<MaybeUninit<[T; N]>>) -> Vec<T>;
+
+#[extern_spec]
+impl<T> Box<T> {
+    #[assume_parametric(T)]
+    #[spec(fn(T) -> Box<T>)]
+    fn new(x: T) -> Box<T>;
+}

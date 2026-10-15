@@ -9,6 +9,7 @@ enum Option<T> {
     Some(T),
 }
 
+#[flux::assume_parametric(T)]
 #[flux::trusted]
 #[flux::sig(fn(x:Option<T>[true]) -> T)]
 fn my_unwrap<T>(x: Option<T>) -> T {
@@ -18,12 +19,14 @@ fn my_unwrap<T>(x: Option<T>) -> T {
     }
 }
 
+#[flux::assume_parametric(T)]
 #[flux::trusted]
 #[flux::sig(fn(T) -> Option<T>[true])]
 fn my_some<T>(x: T) -> Option<T> {
     Option::Some(x)
 }
 
+#[flux::assume_parametric(T)]
 #[flux::trusted]
 #[flux::sig(fn() -> Option<T>[false])]
 fn my_none<T>() -> Option<T> {

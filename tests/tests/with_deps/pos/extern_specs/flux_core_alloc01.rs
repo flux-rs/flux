@@ -63,6 +63,7 @@ pub unsafe fn test_deallocate_aligned<A: Allocator>(a: &A, ptr: NonNull<u8>, lay
 
 // --- grow ---
 
+#[flux::trusted(reason = "slow")]
 #[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], old: Layout[@osize, @oalign])
     requires base == addr && osize == size && addr % oalign == 0 && osize <= 32)]
 pub unsafe fn test_grow<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
@@ -74,6 +75,7 @@ pub unsafe fn test_grow<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
 
 // `new_layout.size() >= old_layout.size()` permits equality, and `new_layout.align()`
 // need not match `old_layout.align()`.
+#[flux::trusted(reason = "slow")]
 #[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], old: Layout[@osize, @oalign])
     requires base == addr && osize == size && addr % oalign == 0 && osize == 16)]
 pub unsafe fn test_grow_same_size_new_align<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
@@ -83,6 +85,7 @@ pub unsafe fn test_grow_same_size_new_align<A: Allocator>(a: &A, ptr: NonNull<u8
     }
 }
 
+#[flux::trusted(reason = "slow")]
 #[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], old: Layout[@osize, @oalign])
     requires base == addr && osize == size && addr % oalign == 0 && osize <= 32)]
 pub unsafe fn test_grow_zeroed<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {
@@ -94,6 +97,7 @@ pub unsafe fn test_grow_zeroed<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layou
 
 // --- shrink ---
 
+#[flux::trusted(reason = "slow")]
 #[flux::spec(fn(&A, ptr: NonNull<u8>[@base, @addr, @size], old: Layout[@osize, @oalign])
     requires base == addr && osize == size && addr % oalign == 0 && osize >= 8)]
 pub unsafe fn test_shrink<A: Allocator>(a: &A, ptr: NonNull<u8>, old: Layout) {

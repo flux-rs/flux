@@ -21,6 +21,7 @@ impl<'a, T> Iter<'a, T> {
     }
 )]
 impl<'a, T> Iterator for Iter<'a, T> {
+    #[assume_parametric(T)]
     #[no_panic]
     #[spec(fn(self: &mut Iter<T>[@curr_s]) -> Option<_>[curr_s.idx < curr_s.len]
            ensures self: Iter<T>{next_s:
