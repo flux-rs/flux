@@ -359,7 +359,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     fn resolve_flux_items(&mut self, parent: OwnerId) {
         let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
         for item in items {
-            RefinementResolver::resolve_flux_item(self, item).collect_err(&mut self.err);
+            ItemResolver::run(self, MaybeExternId::Local(parent), |item_resolver| {
+                item_resolver.visit_flux_item(item);
+            })
+            .and_then(|()| RefinementResolver::resolve_flux_item(self, item))
+            .collect_err(&mut self.err);
         }
     }
 
