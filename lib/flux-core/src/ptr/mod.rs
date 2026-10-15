@@ -64,26 +64,26 @@ macro_rules! ptr_specs {
         impl<T> *$mutable T {
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
-                    requires in_bounds(p) && count * T::size_of() <= p.size
+                    requires count * T::size_of() == 0 || (in_bounds(p) && count * T::size_of() <= p.size)
                     ensures addr_aligned(p.addr, T::align_of()) => addr_aligned(p.addr + count * T::size_of(), T::align_of())
             )]
             unsafe fn add(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr - count * T::size_of(), p.size + count * T::size_of()] T
-                    requires in_bounds(p) && count * T::size_of() <= p.addr - p.base
+                    requires count * T::size_of() == 0 || (in_bounds(p) && count * T::size_of() <= p.addr - p.base)
                     ensures addr_aligned(p.addr, T::align_of()) => addr_aligned(p.addr - count * T::size_of(), T::align_of())
             )]
             unsafe fn sub(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr + count, p.size - count] T
-                    requires in_bounds(p) && count <= p.size)]
+                    requires count == 0 || (in_bounds(p) && count <= p.size))]
             unsafe fn byte_add(self, count: usize) -> Self;
 
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable[p.base, p.addr - count, p.size + count] T
-                    requires in_bounds(p) && count <= p.addr - p.base)]
+                    requires count == 0 || (in_bounds(p) && count <= p.addr - p.base))]
             unsafe fn byte_sub(self, count: usize) -> Self;
 
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L22
@@ -94,7 +94,7 @@ macro_rules! ptr_specs {
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L349
             #[spec(fn (me: *$mutable[@p] T, count: isize)
                 -> *$mutable[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
-                    requires in_bounds(p) && count * T::size_of() <= p.size && p.addr + count * T::size_of() >= p.base
+                    requires count * T::size_of() == 0 || (in_bounds(p) && count * T::size_of() <= p.size && p.addr + count * T::size_of() >= p.base)
                     ensures addr_aligned(p.addr, T::align_of()) => addr_aligned(p.addr + count * T::size_of(), T::align_of())
             )]
             unsafe fn offset(self, count: isize) -> Self;
@@ -102,7 +102,7 @@ macro_rules! ptr_specs {
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L471
             #[spec(fn (me: *$mutable[@p] T, count: isize)
                 -> *$mutable[p.base, p.addr + count, p.size - count] T
-                    requires in_bounds(p) && count <= p.size && p.addr + count >= p.base)]
+                    requires count == 0 || (in_bounds(p) && count <= p.size && p.addr + count >= p.base))]
             unsafe fn byte_offset(self, count: isize) -> Self;
 
             // - Both `self` and `origin` must be derived from a pointer to the same allocation,
