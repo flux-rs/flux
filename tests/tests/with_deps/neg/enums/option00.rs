@@ -21,7 +21,7 @@ fn my_some<T>(x: T) -> Option<T> {
 }
 
 #[flux::trusted]
-#[flux::sig(fn() -> Option<T>[false])]
+#[flux::sig(fn() -> Option<T{v: false}>[false])]
 fn my_none<T>() -> Option<T> {
     Option::None
 }

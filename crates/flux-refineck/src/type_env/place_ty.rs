@@ -181,7 +181,8 @@ impl PlacesTree {
                         }
                         TyKind::Indexed(BaseTy::RawPtr(deref_ty, _), _) => {
                             is_strg = false;
-                            ty = deref_ty.clone();
+                            // The refinements on the pointee of a raw pointer are not trusted
+                            ty = deref_ty.strip_refinements();
                         }
                         TyKind::Ptr(_, path) => {
                             cursor.change_root(path);
@@ -486,7 +487,9 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             TyKind::Indexed(BaseTy::RawPtr(deref_ty, mutbl), idx)
                 if self.infcx.allow_raw_deref() =>
             {
-                let deref_ty = deref_ty.try_fold_with(self)?;
+                // Strip the refinements before unfolding so we don't assume anything about the
+                // pointee when hoisting (see `lookup_inner`)
+                let deref_ty = deref_ty.strip_refinements().try_fold_with(self)?;
                 Ty::indexed(BaseTy::RawPtr(deref_ty, *mutbl), idx)
             }
             Ref!(re, ty, mutbl) => {

@@ -33,7 +33,7 @@ impl<T, E> core::ops::Try for Result<T, E> {
 impl<T, E, F: From<E>> core::ops::FromResidual<Result<core::convert::Infallible, E>>
     for Result<T, F>
 {
-    #[spec(fn(Result<core::convert::Infallible, E>) -> Result<T, F>[false])]
+    #[spec(fn(Result<core::convert::Infallible, E>) -> Result<T{v: false}, F>[false])]
     fn from_residual(residual: Result<core::convert::Infallible, E>) -> Result<T, F>;
 }
 

@@ -994,11 +994,11 @@ impl<'a, E: LocEnv> Sub<'a, E> {
 
             (BaseTy::RawPtr(ty_a, mut_a), BaseTy::RawPtr(ty_b, mut_b)) => {
                 debug_assert_eq!(mut_a, mut_b);
-                self.tys(infcx, ty_a, ty_b)?;
-                if matches!(mut_a, Mutability::Mut) {
-                    self.tys(infcx, ty_b, ty_a)?;
-                }
-                Ok(())
+                // The refinements on the pointee of a raw pointer are not trusted, i.e., reads
+                // through `*mut A` see `A` with its refinements stripped. Thus we only require the
+                // *stripped* pointee to be a subtype of `ty_b`. For the same reason we don't need
+                // `ty_b <: ty_a` for mutable pointers, as it holds trivially after stripping `ty_a`.
+                self.tys(infcx, &ty_a.strip_refinements(), ty_b)
             }
 
             (BaseTy::Ref(_, ty_a, Mutability::Mut), BaseTy::Ref(_, ty_b, Mutability::Mut)) => {

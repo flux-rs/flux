@@ -24,7 +24,7 @@ pub struct RVec<T> {
 
 impl<T> RVec<T> {
     #[flux::trusted]
-    #[flux::sig(fn() -> RVec<T>[0])]
+    #[flux::sig(fn() -> RVec<T{v: false}>[0])]
     pub fn new() -> Self {
         Self { inner: Vec::new() }
     }

@@ -1,3 +1,12 @@
+use flux_attrs::extern_spec;
+
+// We only infer the refinement of the elements if `new` says they satisfy `false`
+#[extern_spec]
+impl<T> Vec<T> {
+    #[flux::sig(fn() -> Vec<T{v: false}>)]
+    fn new() -> Vec<T>;
+}
+
 #[flux::sig(fn(bool[true]))]
 fn assert(_: bool) {}
 

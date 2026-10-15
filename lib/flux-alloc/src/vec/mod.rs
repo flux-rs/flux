@@ -16,7 +16,7 @@ struct Vec<T, A: Allocator = Global>;
 
 #[extern_spec]
 impl<T> Vec<T> {
-    #[flux::sig(fn() -> Vec<T>[0])]
+    #[flux::sig(fn() -> Vec<T{v: false}>[0])]
     fn new() -> Vec<T>;
 }
 

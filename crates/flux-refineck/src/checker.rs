@@ -2068,6 +2068,7 @@ fn instantiate_args_for_fun_call(
 ) -> QueryResult<Vec<rty::GenericArg>> {
     let params_in_clauses = collect_params_in_clauses(genv, callee_id);
     let assumed_parametric_params = genv.assume_parametric_params(callee_id);
+    let negative_params = collect_negative_params(genv, callee_id);
 
     let hole_refiner = Refiner::new_for_item(genv, caller_id, |bty| {
         let sort = bty.sort();
@@ -2086,8 +2087,13 @@ fn instantiate_args_for_fun_call(
         .enumerate()
         .map(|(idx, arg)| {
             let param = callee_generics.param_at(idx, genv)?;
-            let is_parametric = !params_in_clauses.contains(&idx)
-                || assumed_parametric_params.contains(&(idx as u32));
+            // We only infer the refinement of a parameter if it doesn't appear in a clause and
+            // it occurs negatively in the signature (see `collect_negative_params`)
+            let is_negative = negative_params
+                .as_ref()
+                .is_none_or(|params| params.contains(&idx));
+            let is_parametric = assumed_parametric_params.contains(&(idx as u32))
+                || (!params_in_clauses.contains(&idx) && is_negative);
             let refiner = if is_parametric { &hole_refiner } else { &default_refiner };
             refiner.refine_generic_arg(&param, arg)
         })
@@ -2176,6 +2182,182 @@ fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> UnordSet<usize> 
         clause.visit_with(&mut vis);
     }
     vis.params
+}
+
+/// The polarity at which a type occurs inside a function signature. A type occurs *negatively* if
+/// it is in input position and *positively* if it is in output position. Signs flip when going
+/// under the inputs of a function type, e.g., in `fn(f: fn(A) -> B) -> B`, `A` only occurs
+/// positively but `B` occurs both positively and negatively.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Polarity {
+    Pos,
+    Neg,
+    Both,
+}
+
+impl Polarity {
+    fn flip(self) -> Self {
+        match self {
+            Polarity::Pos => Polarity::Neg,
+            Polarity::Neg => Polarity::Pos,
+            Polarity::Both => Polarity::Both,
+        }
+    }
+}
+
+struct PolarityCollector<'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    neg: UnordSet<usize>,
+    pos: UnordSet<usize>,
+}
+
+impl<'tcx> PolarityCollector<'_, 'tcx> {
+    fn insert(&mut self, idx: u32, polarity: Polarity) {
+        if matches!(polarity, Polarity::Neg | Polarity::Both) {
+            self.neg.insert(idx as usize);
+        }
+        if matches!(polarity, Polarity::Pos | Polarity::Both) {
+            self.pos.insert(idx as usize);
+        }
+    }
+
+    /// The polarity at which the (type) parameter `idx` has been found so far
+    fn polarity_of(&self, idx: u32) -> Option<Polarity> {
+        match (self.neg.contains(&(idx as usize)), self.pos.contains(&(idx as usize))) {
+            (true, true) => Some(Polarity::Both),
+            (true, false) => Some(Polarity::Neg),
+            (false, true) => Some(Polarity::Pos),
+            (false, false) => None,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.neg.len() + self.pos.len()
+    }
+
+    fn walk(&mut self, ty: rustc_middle::ty::Ty<'tcx>, polarity: Polarity) {
+        use rustc_middle::ty::{self, Variance};
+        let tcx = self.genv.tcx();
+        match ty.kind() {
+            ty::Param(param_ty) => self.insert(param_ty.index, polarity),
+            ty::Ref(_, ty, mutbl) | ty::RawPtr(ty, mutbl) => {
+                let polarity = if mutbl.is_mut() { Polarity::Both } else { polarity };
+                self.walk(*ty, polarity);
+            }
+            ty::Slice(ty) | ty::Array(ty, _) | ty::Pat(ty, _) => self.walk(*ty, polarity),
+            ty::Tuple(tys) => {
+                for ty in *tys {
+                    self.walk(ty, polarity);
+                }
+            }
+            ty::FnPtr(sig_tys, _) => {
+                let sig_tys = sig_tys.skip_binder();
+                for ty in sig_tys.inputs() {
+                    self.walk(*ty, polarity.flip());
+                }
+                self.walk(sig_tys.output(), polarity);
+            }
+            ty::Adt(adt_def, args) => {
+                let variances = tcx.variances_of(adt_def.did());
+                for (arg, variance) in iter::zip(*args, variances) {
+                    let Some(ty) = arg.as_type() else { continue };
+                    match variance {
+                        Variance::Covariant => self.walk(ty, polarity),
+                        Variance::Contravariant => self.walk(ty, polarity.flip()),
+                        Variance::Invariant => self.walk(ty, Polarity::Both),
+                        Variance::Bivariant => {}
+                    }
+                }
+            }
+            _ => {
+                // Be lenient with types we don't know how to handle, i.e., consider that every
+                // parameter inside them appears both positively and negatively.
+                for arg in ty.walk() {
+                    if let Some(ty) = arg.as_type()
+                        && let ty::Param(param_ty) = ty.kind()
+                    {
+                        self.insert(param_ty.index, Polarity::Both);
+                    }
+                }
+            }
+        }
+    }
+
+    /// A clause `F: Fn(A) -> B` behaves like having a value of type `fn(A) -> B` at each of the
+    /// positions where `F` occurs.
+    fn walk_fn_trait_clauses(&mut self, def_id: DefId) {
+        let tcx = self.genv.tcx();
+        for (clause, _) in all_predicates_of(tcx, def_id) {
+            if let Some(trait_pred) = clause.as_trait_clause()
+                && tcx.fn_trait_kind_from_def_id(trait_pred.def_id()).is_some()
+            {
+                let trait_ref = trait_pred.skip_binder().trait_ref;
+                if let Some(polarity) = self.polarity_of_self_ty(trait_ref.self_ty()) {
+                    self.walk(trait_ref.args.type_at(1), polarity.flip());
+                }
+            }
+            if let Some(proj_pred) = clause.as_projection_clause()
+                && self.genv.is_fn_output(proj_pred.item_def_id())
+                && let Some(output) = proj_pred.term().skip_binder().as_type()
+                && let Some(polarity) = self.polarity_of_self_ty(proj_pred.skip_binder().self_ty())
+            {
+                self.walk(output, polarity);
+            }
+        }
+    }
+
+    fn polarity_of_self_ty(&self, self_ty: rustc_middle::ty::Ty<'tcx>) -> Option<Polarity> {
+        if let rustc_middle::ty::Param(param_ty) = self_ty.kind() {
+            self.polarity_of(param_ty.index)
+        } else {
+            Some(Polarity::Both)
+        }
+    }
+}
+
+/// Collects the generic parameters that occur *negatively* in the signature of `def_id` (see
+/// [`Polarity`]). Only these parameters can soundly be instantiated with a refinement to be
+/// inferred: the function must have been given a value of the type to produce one, so the
+/// inferred refinement is bounded from below by the arguments at the call site. In contrast,
+/// nothing constrains the refinement of a parameter that only occurs positively, e.g., the `U`
+/// in `fn cast<U>(self: *mut T) -> *mut U`, which would then be inferred to be `false`.
+///
+/// Returns `None` if `def_id` doesn't have a signature we can analyze.
+fn collect_negative_params(genv: GlobalEnv, def_id: DefId) -> Option<UnordSet<usize>> {
+    let tcx = genv.tcx();
+    if !genv.def_kind(def_id).is_fn_like() || tcx.is_closure_like(def_id) {
+        return None;
+    }
+    // The `?` operator desugars into a call to `FromResidual::from_residual` whose output, e.g.
+    // `Option<T>`, mentions a `T` that doesn't appear in the input. The implementations never
+    // produce a `T` so it is fine to infer its refinement, and we need to do it because
+    // otherwise `?` couldn't be used in a function returning an `Option` with a refined payload.
+    let trait_id = tcx
+        .trait_of_assoc(def_id)
+        .or_else(|| Some(tcx.impl_trait_id(tcx.trait_impl_of_assoc(def_id)?)));
+    if trait_id.is_some_and(|trait_id| {
+        tcx.parent(tcx.require_lang_item(LangItem::TryTraitFromResidual, DUMMY_SP)) == trait_id
+    }) {
+        return None;
+    }
+    let fn_sig = tcx.fn_sig(def_id).instantiate_identity().skip_binder();
+
+    let mut collector = PolarityCollector { genv, neg: UnordSet::new(), pos: UnordSet::new() };
+    for ty in fn_sig.inputs() {
+        collector.walk(*ty, Polarity::Neg);
+    }
+    collector.walk(fn_sig.output(), Polarity::Pos);
+
+    // The clauses can make a parameter occur at a new polarity which in turn can affect other
+    // clauses, so we iterate until nothing changes.
+    loop {
+        let len = collector.len();
+        collector.walk_fn_trait_clauses(def_id);
+        if collector.len() == len {
+            break;
+        }
+    }
+    Some(collector.neg)
 }
 
 fn all_predicates_of(
