@@ -163,7 +163,7 @@ denoting arrays of size `20` of non-negative `i32` values.
 ## Refined Slices
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/slice00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/slice00.rs}}
 ```
 
 ```rust,noplayground
@@ -299,7 +299,7 @@ Here is an example of how to use the `opaque` attribute:
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/enums/list00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/enums/list00.rs}}
 ```
 
 ### Invariants on Enums
@@ -632,17 +632,17 @@ You can (sometimes!) use `_` in the `flux` signatures to omit the Rust component
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/closure02.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/closure02.rs}}
 ```
 
 ## Function Pointers
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/fndef00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/fndef00.rs}}
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/surface/fndef01.rs}}
+{{#include ../../../tests/tests/with_deps/pos/surface/fndef01.rs}}
 ```
 
 ```rust,noplayground
@@ -674,11 +674,11 @@ You can (sometimes!) use `_` in the `flux` signatures to omit the Rust component
 ## Impl Trait
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/impl_trait/impl_trait00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/impl_trait/impl_trait00.rs}}
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/impl_trait/impl_trait01.rs}}
+{{#include ../../../tests/tests/with_deps/pos/impl_trait/impl_trait01.rs}}
 ```
 
 ## Dynamic Trait Objects
@@ -708,6 +708,113 @@ You can (sometimes!) use `_` in the `flux` signatures to omit the Rust component
 **Hindley Refinements**
 
 TODO
+
+## Parametricity
+
+When you call a generic function, `flux` has to pick a _refined_ type for each of its
+type arguments. By default, `flux` does **not** assume generic functions are _parametric_:
+a type argument `T := i32` is instantiated with the unrefined `i32`, not with whatever
+refinement the actual argument happens to have. So refinements are _lost_ when values flow
+through a generic function
+
+```rust,noplayground
+{{#include ../../../tests/tests/neg/surface/allow_parametricity00.rs:1:8}}
+```
+
+Here `foo` is called with `T := i32`, so its result is just an `i32` and the fact that
+it is positive is forgotten.
+
+Why not instantiate `T := i32{v: v > 0}`? Because that is only sound if the callee is
+_parametric_ in `T`, i.e. it can only return values of type `T` that it was given. A
+function whose trait bounds let it _create_ values of type `T` breaks this, e.g.
+
+```rust,noplayground
+fn bad<T: Default>(x: T) -> T {
+    T::default()
+}
+```
+
+Instantiating `T := i32{v: v > 0}` at a call `bad(5)` would let `flux` conclude that
+the `0` returned by `bad` is positive.
+
+There are three ways to recover refinements that flow through generic functions.
+
+**NOTE:** The `Args` of closure calls (i.e. `Fn::call`, `FnMut::call_mut` and
+`FnOnce::call_once`) are always treated as parametric, so refinements of the
+actual arguments flow into the closure's inputs.
+
+### Checked: Generic Refinements
+
+The most precise way is to say _how_ the output relates to the inputs, by abstracting
+over a refinement predicate `p` using a [generic refinement](#generic-refinements).
+The signature below says that whatever property `p` holds of the input also holds of the
+output, and `flux` _checks_ that the body actually satisfies this signature.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/assume_parametric00.rs:20:30}}
+```
+
+At the call in `test_parametric`, `flux` infers `p` (here, `v == 42`) so `y` is known
+to be `42`.
+
+### Trusted: `assume_parametric`
+
+You can tell `flux` to _assume_ that a function is parametric in some of its type
+parameters by listing them in an `#[assume_parametric(..)]` attribute. At each call to
+the function, those type arguments are instantiated with refinements _inferred_ at the
+call site, so refinements of the actual arguments flow through to the results
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/assume_parametric00.rs:1:18}}
+```
+
+**NOTE:** The attribute is **trusted**: `flux` does not check that the function is actually
+parametric in the listed parameters. In particular, do not use it for a parameter whose
+trait bounds let the function create values of that type (like `bad` above).
+
+`assume_parametric` can also be used in [extern specs](#extern-specs), and many of the
+specs in `flux-core` and `flux-alloc` use it, e.g. `Option::unwrap`,
+`Option::map`, `Vec::push`, and `Box::new`
+
+```rust,noplayground
+#[extern_spec]
+impl<T> Option<T> {
+    #[assume_parametric(T)]
+    #[no_panic]
+    #[sig(fn(Option<T>[true]) -> T)]
+    const fn unwrap(self) -> T;
+}
+```
+
+### Trusted: `allow_parametricity`
+
+Finally, you can tell `flux` to assume that _every_ function called from some code is
+parametric in _all_ of its type parameters. This is convenient but also **trusted**, and
+for the reasons above it is unsound if any of those callees is not actually parametric.
+Like [checking overflows](#checking-overflows) it can be set
+
+- _globally_ [with a flag](install.md#flux-flags), `-Fallow-parametricity`, or with
+  `allow_parametricity = true` in the `[package.metadata.flux]` table, or
+- _locally_ with an attribute on a function, `impl`, module or crate, e.g.
+  `#[flux::opts(allow_parametricity)]` (short for `#[flux::opts(allow_parametricity = true)]`),
+  as shown below.
+
+The setting applies to the calls made _from_ the annotated code, not to calls _to_ it.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/allow_parametricity00.rs}}
+```
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/allow_parametricity01.rs}}
+```
+
+The innermost setting wins, so `allow_parametricity = false` turns the option back
+off for some code
+
+```rust,noplayground
+{{#include ../../../tests/tests/neg/surface/allow_parametricity00.rs:10:}}
+```
 
 ## Bitvector Refinements
 
@@ -1058,7 +1165,7 @@ as illustrated by the following
 **Enums**
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/detached/detach_enum00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/detached/detach_enum00.rs}}
 ```
 
 **Traits**
@@ -1070,7 +1177,7 @@ as illustrated by the following
 **Inherent Impls**
 
 ```rust,noplayground
-{{#include ../../../tests/tests/pos/detached/detach_impl00.rs}}
+{{#include ../../../tests/tests/with_deps/pos/detached/detach_impl00.rs}}
 ```
 
 **Trait Impls**
