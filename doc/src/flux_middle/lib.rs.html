@@ -530,9 +530,9 @@
 <a href=#530 id=530 data-nosnippet>530</a>    <span class="doccomment">/// The resolved list of local hides per function together with the span where they are named.
 <a href=#531 id=531 data-nosnippet>531</a>    /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
 <a href=#532 id=532 data-nosnippet>532</a>    </span><span class="kw">pub </span>hide_res_map: UnordMap&lt;NodeId, Vec&lt;(def_id::FluxDefId, Span)&gt;&gt;,
-<a href=#533 id=533 data-nosnippet>533</a>    <span class="doccomment">/// The resolved type param `DefId`s for `#[assume_parametric(...)]` per function.
-<a href=#534 id=534 data-nosnippet>534</a>    /// The [`NodeId`] corresponds to the surface item's `node_id`.
-<a href=#535 id=535 data-nosnippet>535</a>    </span><span class="kw">pub </span>parametric_param_res_map: UnordMap&lt;NodeId, Vec&lt;DefId&gt;&gt;,
+<a href=#533 id=533 data-nosnippet>533</a>    <span class="doccomment">/// The resolved type param `DefId`s for `#[assume_parametric(...)]` per item together with
+<a href=#534 id=534 data-nosnippet>534</a>    /// the span where they are named. The [`NodeId`] corresponds to the surface item's `node_id`.
+<a href=#535 id=535 data-nosnippet>535</a>    </span><span class="kw">pub </span>parametric_param_res_map: UnordMap&lt;NodeId, Vec&lt;(DefId, Span)&gt;&gt;,
 <a href=#536 id=536 data-nosnippet>536</a>}
 <a href=#537 id=537 data-nosnippet>537</a>
 <a href=#538 id=538 data-nosnippet>538</a><span class="attr">#[extension(<span class="kw">pub trait </span>PlaceExt)]

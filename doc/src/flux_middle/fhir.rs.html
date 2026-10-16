@@ -70,13 +70,13 @@
 <a href=#70 id=70 data-nosnippet>70</a>    </span><span class="kw">pub </span>reveals: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[(FluxDefId, Span)],
 <a href=#71 id=71 data-nosnippet>71</a>    <span class="doccomment">/// The definitions listed in `#[hide(...)]` together with the span where they are named.
 <a href=#72 id=72 data-nosnippet>72</a>    </span><span class="kw">pub </span>hides: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[(FluxDefId, Span)],
-<a href=#73 id=73 data-nosnippet>73</a>    <span class="doccomment">/// The `DefId`s of type params listed in `#[assume_parametric(...)]`. They match
-<a href=#74 id=74 data-nosnippet>74</a>    /// the `DefId` entries in `generics_of(callee_id)`. These are `DefId`s and not
-<a href=#75 id=75 data-nosnippet>75</a>    /// `LocalDefId`s such that they are correct for extern specs as well.
-<a href=#76 id=76 data-nosnippet>76</a>    </span><span class="kw">pub </span>parametric_params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[DefId],
+<a href=#73 id=73 data-nosnippet>73</a>    <span class="doccomment">/// The `DefId`s of type params listed in `#[assume_parametric(...)]` together with the span
+<a href=#74 id=74 data-nosnippet>74</a>    /// where they are named. They match the `DefId` entries in `generics_of(callee_id)`. These are
+<a href=#75 id=75 data-nosnippet>75</a>    /// `DefId`s and not `LocalDefId`s such that they are correct for extern specs as well.
+<a href=#76 id=76 data-nosnippet>76</a>    </span><span class="kw">pub </span>parametric_params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[(DefId, Span)],
 <a href=#77 id=77 data-nosnippet>77</a>}
 <a href=#78 id=78 data-nosnippet>78</a>
-<a href=#79 id=79 data-nosnippet>79</a><span class="kw">impl </span>AttrMap&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#79 id=79 data-nosnippet>79</a><span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; AttrMap&lt;<span class="lifetime">'fhir</span>&gt; {
 <a href=#80 id=80 data-nosnippet>80</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>proven_externally(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
 <a href=#81 id=81 data-nosnippet>81</a>        <span class="self">self</span>.attrs.iter().find_map(|attr| {
 <a href=#82 id=82 data-nosnippet>82</a>            <span class="kw">if let </span>Attr::ProvenExternally(span) = <span class="kw-2">*</span>attr { <span class="prelude-val">Some</span>(span) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
@@ -123,7 +123,7 @@
 <a href=#123 id=123 data-nosnippet>123</a>        <span class="self">self</span>.attrs.iter().any(|attr| <span class="macro">matches!</span>(attr, Attr::NoPanic))
 <a href=#124 id=124 data-nosnippet>124</a>    }
 <a href=#125 id=125 data-nosnippet>125</a>
-<a href=#126 id=126 data-nosnippet>126</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>parametric_params(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[DefId] {
+<a href=#126 id=126 data-nosnippet>126</a>    <span class="kw">pub fn </span>parametric_params(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[(DefId, Span)] {
 <a href=#127 id=127 data-nosnippet>127</a>        <span class="self">self</span>.parametric_params
 <a href=#128 id=128 data-nosnippet>128</a>    }
 <a href=#129 id=129 data-nosnippet>129</a>
