@@ -559,6 +559,18 @@ pub trait TypeFoldable: TypeVisitable {
 
         self.fold_with(&mut RegionEraser)
     }
+
+    /// Like [`TypeFoldable::erase_regions`], but also erases bound regions.
+    fn erase_regions_including_bound(&self) -> Self {
+        struct RegionEraser;
+        impl TypeFolder for RegionEraser {
+            fn fold_region(&mut self, _: &Region) -> Region {
+                ReErased
+            }
+        }
+
+        self.fold_with(&mut RegionEraser)
+    }
 }
 
 pub trait TypeSuperFoldable: TypeFoldable {

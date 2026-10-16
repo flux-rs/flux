@@ -120,7 +120,9 @@ impl TypeFolder for &Holes {
                 .cloned()
                 .unwrap_or_else(|| bug!("unfilled sort hole {vid:?}"))
         } else {
-            sort.super_fold_with(self)
+            // Erase regions from sorts: they don't affect the sort, and a bound region filled into
+            // a hole can have an index that's only valid under the binder the sort belongs to.
+            sort.super_fold_with(self).erase_regions_including_bound()
         }
     }
 

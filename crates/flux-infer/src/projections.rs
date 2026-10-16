@@ -194,15 +194,22 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 }
             }
             Candidate::UserDefinedImpl(impl_def_id) => {
-                // Given a projection obligation
-                //     <IntoIter<{v. i32[v] | v > 0}, Global> as Iterator>::Item
+                // Given a projection obligation on a generic associated type
+                //     <Wrapper<bool> as Container>::Item<'r, i32[1]>
                 // and the id of a rust impl block
-                //     impl<T, A: Allocator> Iterator for IntoIter<T, A>
+                //     impl<T> Container for Wrapper<T> {
+                //         type Item<'a, U> = (&'a T, U);
+                //     }
+                //
+                // The obligation's args are the trait's args followed by the GAT's own args:
+                //     [Wrapper<bool>, 'r, i32[1]]
+                //      ^^^^^^^^^^^^^  ^^^^^^^^^^
+                //      trait args     GAT args
 
                 // 1. MATCH the self type of the rust impl block and the flux self type of the obligation
                 //    to infer a substitution
-                //        IntoIter<{v. i32[v] | v > 0}, Global> MATCH IntoIter<T, A>
-                //            => {T -> {v. i32[v] | v > 0}, A -> Global}
+                //        Wrapper<bool> MATCH Wrapper<T>
+                //            => {T -> bool}
 
                 let impl_trait_ref = self.genv().impl_trait_ref(impl_def_id)?.skip_binder();
 
@@ -216,9 +223,22 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 // 2. Gather the ProjectionPredicates and solve them see issue-808.rs
                 self.resolve_projection_predicates(&mut subst, impl_def_id)?;
 
-                let args = subst.finish(self.tcx(), generics)?;
+                let mut args = subst.finish(self.tcx(), generics)?;
 
-                // 3. Get the associated type in the impl block and apply the substitution to it
+                // 3. Append the GAT's own args (those after the trait args in the obligation)
+                //        [bool] ++ ['r, i32[1]]
+                //            => [bool, 'r, i32[1]]
+                //    For non-generic associated types there are no leftover args.
+                args.extend(
+                    obligation
+                        .args
+                        .iter()
+                        .skip(impl_trait_ref.args.len())
+                        .cloned(),
+                );
+
+                // 4. Get the associated type in the impl block and apply the substitution to it
+                //        (&'a T, U) => (&'r bool, i32[1])
                 let assoc_type_id = tcx
                     .associated_items(impl_def_id)
                     .in_definition_order()

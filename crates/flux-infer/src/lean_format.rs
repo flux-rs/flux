@@ -655,13 +655,11 @@ impl LeanFmt for Pred {
 
 impl LeanFmt for KVarDecl {
     fn lean_fmt(&self, f: &mut std::fmt::Formatter, cx: &LeanCtxt) -> std::fmt::Result {
-        let sorts = self
-            .sorts
-            .iter()
-            .enumerate()
-            .map(|(i, sort)| format!("(a{i} : {})", WithLeanCtxt { item: sort, cx }))
-            .format(" -> ");
-        write!(f, "∃ {} : {} -> Prop", sanitize_name(&self.kvid.display().to_string()), sorts)
+        write!(f, "∃ {} : ", sanitize_name(&self.kvid.display().to_string()))?;
+        for (i, sort) in self.sorts.iter().enumerate() {
+            write!(f, "(a{i} : {}) -> ", WithLeanCtxt { item: sort, cx })?;
+        }
+        write!(f, "Prop")
     }
 }
 

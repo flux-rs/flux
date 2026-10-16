@@ -12,7 +12,7 @@ use flux_infer::{
     refine_tree::{Marker, RefineCtxtTrace},
 };
 use flux_middle::{
-    PanicReason, PanicSpec,
+    PanicReason, PanicSpec, PlaceExt,
     global_env::GlobalEnv,
     pretty::PrettyCx,
     queries::{QueryErr, QueryResult, try_query},
@@ -38,15 +38,13 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _},
 };
 use itertools::Itertools;
+use rustc_attr_ir::LangItem;
 use rustc_data_structures::{
     graph::dominators::Dominators,
     unord::{UnordMap, UnordSet},
 };
 use rustc_hash::FxHashMap;
-use rustc_hir::{
-    attrs::lang_items::LangItem,
-    def_id::{DefId, LocalDefId},
-};
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::{IndexSlice, bit_set::DenseBitSet};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
@@ -1272,8 +1270,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 span,
             )?;
             self.check_ret(&mut infcx, &mut env, span)
-        } else if let Some(real_target) = self.is_dummy_join(target) {
-            self.check_goto(infcx, env, span, real_target)
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, infcx, env, span, target)? {
                 self.queue.insert(target);
@@ -1282,65 +1278,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         } else {
             self.check_basic_block(infcx, env, target)
         }
-    }
-
-    /// A dummy-join-block is a BasicBlock that has
-    /// 1. MULTIPLE incoming edges,
-    /// 2. SINGLE outgoing edge,
-    /// 3. ONLY no-op statements, and
-    /// 4. NO ghosts statements.
-    ///
-    /// (1) is because we want to avoid "spurious joins"
-    /// but also, without it, we have problems with
-    /// degenerate loops like (e.g. `const_generics/loop.rs`).
-    ///
-    /// We can "skip" such blocks and jump straight to
-    /// the first (transitively reachable) non-dummy
-    /// successor, aka the "real" successor, which allows
-    /// us to avoid emitting KVars for spurious joins.
-    fn is_dummy_join(&self, bb: BasicBlock) -> Option<BasicBlock> {
-        if self.body.is_join_point(bb)
-            && self.body.basic_blocks[bb]
-                .statements
-                .iter()
-                .all(Statement::is_nop)
-            && let Some(TerminatorKind::Goto { target: real_target }) = &self.body.basic_blocks[bb]
-                .terminator
-                .as_ref()
-                .map(|terminator| &terminator.kind)
-            && self.no_ghosts_at(bb, *real_target)
-        {
-            Some(*real_target)
-        } else {
-            None
-        }
-    }
-
-    fn no_ghosts_at(&self, bb: BasicBlock, real_target: BasicBlock) -> bool {
-        let Some(ghosts) = self.inherited.ghost_stmts.get(&self.checker_id) else {
-            return true;
-        };
-
-        let mut res = ghosts
-            .statements_at(Point::Edge(bb, real_target))
-            .next()
-            .is_none();
-
-        let mut location = Location { block: bb, statement_index: 0 };
-        for _ in &self.body.basic_blocks[bb].statements {
-            res = res
-                && ghosts
-                    .statements_at(Point::BeforeLocation(location))
-                    .next()
-                    .is_none();
-            location = location.successor_within_block();
-        }
-        res = res
-            && ghosts
-                .statements_at(Point::BeforeLocation(location))
-                .next()
-                .is_none();
-        res
     }
 
     fn closure_template(
@@ -1498,6 +1435,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .refine_ty_or_base(ty)
                     .with_span(stmt_span)?
                     .expect_base();
+<<<<<<< HEAD
                 // 
             // 
                 if let Some(idx) =
@@ -1511,6 +1449,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 } else {
                     raw_ptr_with_size(genv, kind, ctor, infcx, self.checker_id.root_id())
                 }
+=======
+                let pack = place
+                    .min_pack(genv, &self.body.local_decls)
+                    .with_span(stmt_span)?;
+                raw_ptr_with_size(genv, kind, ctor, infcx, self.checker_id.root_id(), pack)
+>>>>>>> main
             }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
@@ -2206,6 +2150,7 @@ fn raw_ptr_with_size<'genv, 'tcx>(
     ctor: SubsetTyCtor,
     infcx: &InferCtxt<'_, 'genv, 'tcx>,
     def_id: LocalDefId,
+    pack: Option<u64>,
 ) -> Result<Ty> {
     let tcx = genv.tcx();
     let param_env = tcx.param_env(def_id);
@@ -2242,13 +2187,19 @@ fn size_align_of<'genv, 'tcx>(genv: GlobalEnv<'genv, 'tcx>, ctor: &SubsetTyCtor)
         },
         rty::List::empty(),
     );
+<<<<<<< HEAD
     let align_of = Expr::alias(
+=======
+
+    let mut align_of_expr = Expr::alias(
+>>>>>>> main
         AliasReft { assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::align_of), args },
         rty::List::empty(),
     );
     (size_of, align_of)
 }
 
+<<<<<<< HEAD
 /// Assumes the underlying type has the sized trait, and returns a predicate about a pointer to it
 /// aligning the raw pointer indices to its size and alignment
 fn sized_raw_ptr_pred<'genv, 'tcx>(
@@ -2261,6 +2212,17 @@ fn sized_raw_ptr_pred<'genv, 'tcx>(
     let size = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
     let (size_of_expr, align_of_expr) = size_align_of(genv, ctor);
     Expr::and_from_iter([
+=======
+    // When the ref is part of a packed struct, we want to take the minimum of its
+    // alignment and the packedness of the enclosing struct, see the example in:
+    // https://doc.rust-lang.org/reference/type-layout.html#r-layout.repr.align-packed
+    if let Some(pack) = pack {
+        let pack = Expr::constant(Constant::from(pack));
+        align_of_expr = Expr::ite(Expr::le(&pack, &align_of_expr), pack, align_of_expr);
+    }
+
+    let pred = Expr::and_from_iter([
+>>>>>>> main
         Expr::eq(base, &addr),
         Expr::ne(&addr, Expr::zero()),
         Expr::eq(size, size_of_expr),
@@ -2533,7 +2495,10 @@ fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
     if uint_bit_width(uint_ty) < int_bit_width(int_ty) {
         Ty::indexed(BaseTy::Int(int_ty), idx.clone())
     } else {
-        Ty::int(int_ty)
+        // Value is preserved if it fits in the target type.
+        let guard = Expr::le(idx.clone(), Expr::int_max(int_ty));
+        let eq = Expr::eq(Expr::nu(), idx.clone());
+        Ty::exists_with_constr(BaseTy::Int(int_ty), Expr::implies(guard, eq))
     }
 }
 
