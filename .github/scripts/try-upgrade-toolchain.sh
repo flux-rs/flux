@@ -61,7 +61,7 @@ while true; do
   echo "::group::Vtock (nightly-$curr_toolchain)"
   cd ../tock
   cargo flux clean
-  cargo flux -p cortexm -p rv32i
+  FLUXFLAGS="-Fallow-parametricity" cargo flux -p cortexm -p rv32i
   cd ../flux
   echo "::endgroup::"
 

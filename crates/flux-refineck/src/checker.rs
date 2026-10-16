@@ -38,17 +38,14 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 use rustc_attr_ir::LangItem;
-use rustc_data_structures::{
-    graph::dominators::Dominators,
-    unord::{UnordMap, UnordSet},
-};
+use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::{IndexSlice, bit_set::DenseBitSet};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     mir::{Promoted, SwitchTargets},
-    ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
+    ty::TypingMode,
 };
 use rustc_span::{
     DUMMY_SP, Span, Symbol,
@@ -430,7 +427,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         def_id: LocalDefId,
         body_root: &BodyRoot<'tcx>,
     ) -> QueryResult<IndexVec<Promoted, Ty>> {
-        let hole_refiner = Refiner::with_holes(infcx.genv, def_id.into())?;
+        let hole_refiner = Refiner::with_holes(infcx.genv, def_id.into())?
+            .with_parametric_fn_defs(infcx.allow_parametricity);
 
         body_root
             .promoted
@@ -658,6 +656,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             self.checker_id.root_id().to_def_id(),
                             *resolved_id,
                             &resolved_args.lowered,
+                            infcx.allow_parametricity,
                         )
                         .with_span(terminator_span)?;
                         self.check_call(
@@ -1417,6 +1416,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     self.checker_id.root_id().to_def_id(),
                     *def_id,
                     args,
+                    infcx.allow_parametricity,
                 )
                 .with_span(stmt_span)?;
                 self.check_call(infcx, env, stmt_span, None, Some(*def_id), sig, &args, &actuals)
@@ -1982,7 +1982,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn refine_with_holes<T: Refine>(&self, ty: &T) -> QueryResult<<T as Refine>::Output> {
-        ty.refine(&Refiner::with_holes(self.genv, self.checker_id.root_id().to_def_id())?)
+        let root_id = self.checker_id.root_id();
+        let allow_parametricity = self.genv.infer_opts(root_id).allow_parametricity;
+        ty.refine(
+            &Refiner::with_holes(self.genv, root_id.to_def_id())?
+                .with_parametric_fn_defs(allow_parametricity),
+        )
     }
 }
 
@@ -2065,10 +2070,9 @@ fn instantiate_args_for_fun_call(
     caller_id: DefId,
     callee_id: DefId,
     args: &ty::GenericArgs,
+    allow_parametricity: bool,
 ) -> QueryResult<Vec<rty::GenericArg>> {
-    let params_in_clauses = collect_params_in_clauses(genv, callee_id);
-    let assumed_parametric_params = genv.assume_parametric_params(callee_id);
-
+    let parametric_params = genv.parametric_params(callee_id, allow_parametricity);
     let hole_refiner = Refiner::new_for_item(genv, caller_id, |bty| {
         let sort = bty.sort();
         let bty = bty.shift_in_escaping(1);
@@ -2078,7 +2082,8 @@ fn instantiate_args_for_fun_call(
             rty::SubsetTy::trivial(bty, Expr::nu())
         };
         Binder::bind_with_sort(constr, sort)
-    })?;
+    })?
+    .with_parametric_fn_defs(allow_parametricity);
     let default_refiner = Refiner::default_for_item(genv, caller_id)?;
 
     let callee_generics = genv.generics_of(callee_id)?;
@@ -2086,9 +2091,8 @@ fn instantiate_args_for_fun_call(
         .enumerate()
         .map(|(idx, arg)| {
             let param = callee_generics.param_at(idx, genv)?;
-            let is_parametric = !params_in_clauses.contains(&idx)
-                || assumed_parametric_params.contains(&(idx as u32));
-            let refiner = if is_parametric { &hole_refiner } else { &default_refiner };
+            let refiner =
+                if parametric_params.contains(idx) { &hole_refiner } else { &default_refiner };
             refiner.refine_generic_arg(&param, arg)
         })
         .collect()
@@ -2099,11 +2103,13 @@ fn instantiate_args_for_constructor(
     caller_id: DefId,
     adt_id: DefId,
     args: &ty::GenericArgs,
+    allow_parametricity: bool,
 ) -> QueryResult<Vec<rty::GenericArg>> {
-    let params_in_clauses = collect_params_in_clauses(genv, adt_id);
+    let params_in_clauses = genv.params_in_clauses(adt_id);
 
     let adt_generics = genv.generics_of(adt_id)?;
-    let hole_refiner = Refiner::with_holes(genv, caller_id)?;
+    let hole_refiner =
+        Refiner::with_holes(genv, caller_id)?.with_parametric_fn_defs(allow_parametricity);
     let default_refiner = Refiner::default_for_item(genv, caller_id)?;
     args.iter()
         .enumerate()
@@ -2114,83 +2120,6 @@ fn instantiate_args_for_constructor(
             refiner.refine_generic_arg(&param, arg)
         })
         .collect()
-}
-
-fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> UnordSet<usize> {
-    let tcx = genv.tcx();
-    struct Collector {
-        params: UnordSet<usize>,
-    }
-
-    impl rustc_middle::ty::TypeVisitor<TyCtxt<'_>> for Collector {
-        fn visit_ty(&mut self, t: rustc_middle::ty::Ty) {
-            if let rustc_middle::ty::Param(param_ty) = t.kind() {
-                self.params.insert(param_ty.index as usize);
-            }
-            t.super_visit_with(self);
-        }
-    }
-    let mut vis = Collector { params: UnordSet::new() };
-
-    let span = genv.tcx().def_span(def_id);
-    for (clause, _) in all_predicates_of(tcx, def_id) {
-        if let Some(trait_pred) = clause.as_trait_clause() {
-            let trait_id = trait_pred.def_id();
-            let ignore = [
-                LangItem::MetaSized,
-                LangItem::Sized,
-                LangItem::Tuple,
-                LangItem::Copy,
-                LangItem::Destruct,
-            ];
-            if ignore
-                .iter()
-                .any(|lang_item| tcx.require_lang_item(*lang_item, span) == trait_id)
-            {
-                continue;
-            }
-
-            if tcx.fn_trait_kind_from_def_id(trait_id).is_some() {
-                continue;
-            }
-            if tcx.get_diagnostic_item(sym::Hash) == Some(trait_id) {
-                continue;
-            }
-            if tcx.get_diagnostic_item(sym::Eq) == Some(trait_id) {
-                continue;
-            }
-        }
-        if let Some(proj_pred) = clause.as_projection_clause() {
-            let assoc_id = proj_pred.item_def_id();
-            if genv.is_fn_output(assoc_id) {
-                continue;
-            }
-        }
-        if let Some(outlives_pred) = clause.as_type_outlives_clause() {
-            // We skip outlives bounds if they are not 'static. A 'static bound means the type
-            // implements `Any` which makes it unsound to instantiate the argument with refinements.
-            if outlives_pred.skip_binder().1 != tcx.lifetimes.re_static {
-                continue;
-            }
-        }
-        clause.visit_with(&mut vis);
-    }
-    vis.params
-}
-
-fn all_predicates_of(
-    tcx: TyCtxt<'_>,
-    id: DefId,
-) -> impl Iterator<Item = &(rustc_middle::ty::Clause<'_>, Span)> {
-    let mut next_id = Some(id);
-    iter::from_fn(move || {
-        next_id.take().map(|id| {
-            let preds = tcx.clauses_of(id);
-            next_id = preds.parent;
-            preds.clauses.iter()
-        })
-    })
-    .flatten()
 }
 
 impl Mode for ShapeMode {

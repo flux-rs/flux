@@ -85,6 +85,13 @@ pub struct Refiner<'genv, 'tcx> {
     def_id: DefId,
     generics: rty::Generics,
     refine: fn(rty::BaseTy) -> rty::SubsetTyCtor,
+    /// How to refine the generic args of a function item type `FnDef(def_id, args)`. If `None`,
+    /// they get the default refinement. If `Some(allow_parametricity)`, an arg is refined with
+    /// `refine` (e.g., with holes) only if the param is parametric for `def_id` (see
+    /// [`GlobalEnv::parametric_params`]), and with the default refinement otherwise. This
+    /// prevents holes, e.g. from an `#[assume_parametric(F)]`, from leaking into the args of a
+    /// function item passed as `F`, which would make the function parametric.
+    parametric_fn_defs: Option<bool>,
 }
 
 impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
@@ -94,7 +101,14 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         refine: fn(rty::BaseTy) -> rty::SubsetTyCtor,
     ) -> QueryResult<Self> {
         let generics = genv.generics_of(def_id)?;
-        Ok(Self { genv, def_id, generics, refine })
+        Ok(Self { genv, def_id, generics, refine, parametric_fn_defs: None })
+    }
+
+    /// Refine the generic args of function item types using the parametricity of the function.
+    /// See [`Refiner::parametric_fn_defs`]
+    pub fn with_parametric_fn_defs(mut self, allow_parametricity: bool) -> Self {
+        self.parametric_fn_defs = Some(allow_parametricity);
+        self
     }
 
     pub fn default_for_item(genv: GlobalEnv<'genv, 'tcx>, def_id: DefId) -> QueryResult<Self> {
@@ -277,7 +291,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 rty::BaseTy::adt(adt_def, args)
             }
             ty::TyKind::FnDef(def_id, args) => {
-                let args = self.refine_generic_args(*def_id, args)?;
+                let args = self.refine_fn_def_args(*def_id, args)?;
                 rty::BaseTy::fn_def(*def_id, args)
             }
             ty::TyKind::Alias(alias_ty) => {
@@ -307,8 +321,34 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(rty::TyOrBase::Base((self.refine)(bty)))
     }
 
+    fn refine_fn_def_args(
+        &self,
+        def_id: DefId,
+        args: &ty::GenericArgs,
+    ) -> QueryResult<rty::GenericArgs> {
+        let default = self.as_default();
+        let Some(allow_parametricity) = self.parametric_fn_defs else {
+            return default.refine_generic_args(def_id, args);
+        };
+        let parametric_params = self.genv.parametric_params(def_id, allow_parametricity);
+        let generics = self.generics_of(def_id)?;
+        args.iter()
+            .enumerate()
+            .map(|(idx, arg)| {
+                let param = generics.param_at(idx, self.genv)?;
+                let refiner = if parametric_params.contains(idx) { self } else { &default };
+                refiner.refine_generic_arg(&param, arg)
+            })
+            .collect()
+    }
+
     fn as_default(&self) -> Self {
-        Refiner { refine: refine_default, generics: self.generics.clone(), ..*self }
+        Refiner {
+            refine: refine_default,
+            generics: self.generics.clone(),
+            parametric_fn_defs: None,
+            ..*self
+        }
     }
 
     fn adt_def(&self, def_id: DefId) -> QueryResult<rty::AdtDef> {

@@ -24,11 +24,13 @@ impl<T> [T] {
     fn is_empty(&self) -> bool;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L154
+    #[assume_parametric(T)]
     #[no_panic]
     #[spec(fn(&Self[@n]) -> Option<&T>[n != 0])]
     fn first(&self) -> Option<&T>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L177
+    #[assume_parametric(T)]
     #[no_panic]
     #[spec(fn(&mut Self[@n]) -> Option<&mut T>[n != 0])]
     fn first_mut(&mut self) -> Option<&mut T>;
@@ -86,11 +88,13 @@ impl<T> [T] {
     #[spec(fn(&Self[@n], {usize[@size] | size > 0}) -> Windows<T>[n, size])]
     fn windows(&self, size: usize) -> Windows<'_, T>;
 
+    #[assume_parametric(T)]
     #[no_panic]
     #[spec(fn(&Self[@n], mid: usize{mid <= n}) -> (&[T][mid], &[T][n - mid]))]
     fn split_at(&self, mid: usize) -> (&[T], &[T]);
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/slice/mod.rs#L2018
+    #[assume_parametric(T)]
     #[no_panic]
     #[spec(fn(&mut Self[@n], mid: usize{mid <= n}) -> (&mut [T][mid], &mut [T][n - mid]))]
     fn split_at_mut(&mut self, mid: usize) -> (&mut [T], &mut [T]);

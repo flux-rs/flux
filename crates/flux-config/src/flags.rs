@@ -110,6 +110,14 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub allow_uninterpreted_cast: bool,
+    /// Assume every generic argument of a called function is parametric (see
+    /// `#[assume_parametric(..)]`).
+    #[arg(
+        long = flux_arg!("allow-parametricity"),
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub allow_parametricity: bool,
     /// If `strict` checks for over and underflow on arithmetic integer operations,
     /// If `lazy` checks for underflow and loses information if possible overflow,
     /// If `none` (default), it still checks for underflow on unsigned integer subtraction.
@@ -259,6 +267,7 @@ impl Default for Flags {
             scrape_quals: false,
             fixpoint_timeout: None,
             allow_uninterpreted_cast: false,
+            allow_parametricity: false,
             solver: SmtSolver::default(),
             annots: false,
             timings: false,
@@ -346,6 +355,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
             "fixpoint-timeout" => parse_opt_u64(&mut flags.fixpoint_timeout, value),
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
+            "allow-parametricity" => parse_bool(&mut flags.allow_parametricity, value),
             "solver" => parse_solver(&mut flags.solver, value),
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),

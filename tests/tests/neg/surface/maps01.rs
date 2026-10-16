@@ -2,6 +2,13 @@
 mod rmapk;
 use rmapk::RMap;
 
+#[flux_attrs::extern_spec]
+impl<T> Option<T> {
+    #[flux::assume_parametric(T)]
+    #[flux::sig(fn(Option<T>) -> T)]
+    const fn unwrap(self) -> T;
+}
+
 #[flux::sig(fn (bool[true]))]
 fn assert(_b: bool) {}
 
