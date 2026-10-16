@@ -76,7 +76,7 @@ pub struct AttrMap<'fhir> {
     pub parametric_params: &'fhir [DefId],
 }
 
-impl AttrMap<'_> {
+impl<'fhir> AttrMap<'fhir> {
     pub(crate) fn proven_externally(&self) -> Option<Span> {
         self.attrs.iter().find_map(|attr| {
             if let Attr::ProvenExternally(span) = *attr { Some(span) } else { None }
@@ -123,7 +123,7 @@ impl AttrMap<'_> {
         self.attrs.iter().any(|attr| matches!(attr, Attr::NoPanic))
     }
 
-    pub(crate) fn parametric_params(&self) -> &[DefId] {
+    pub fn parametric_params(&self) -> &'fhir [(DefId, Span)] {
         self.parametric_params
     }
 

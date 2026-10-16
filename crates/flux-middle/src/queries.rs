@@ -784,9 +784,18 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| {
                     let tcx = genv.tcx();
                     let generics = tcx.generics_of(def_id);
-                    genv.fhir_attr_map(def_id.local_id())
-                        .parametric_params()
-                        .iter()
+                    let own = genv.fhir_attr_map(def_id.local_id()).parametric_params();
+                    // Associated items inherit the params listed in an `#[assume_parametric(...)]`
+                    // on their generic parent (the enclosing impl or trait).
+                    let inherited = if let Some(parent) = generics.parent
+                        && let Some(parent) = genv.resolve_id(parent).as_maybe_extern()
+                    {
+                        genv.fhir_attr_map(parent.local_id()).parametric_params()
+                    } else {
+                        &[]
+                    };
+                    own.iter()
+                        .chain(inherited)
                         .map(|param_id| generics.param_def_id_to_index(tcx, *param_id).unwrap())
                         .collect()
                 },
