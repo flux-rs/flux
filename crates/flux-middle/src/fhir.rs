@@ -70,10 +70,10 @@ pub struct AttrMap<'fhir> {
     pub reveals: &'fhir [(FluxDefId, Span)],
     /// The definitions listed in `#[hide(...)]` together with the span where they are named.
     pub hides: &'fhir [(FluxDefId, Span)],
-    /// The `DefId`s of type params listed in `#[assume_parametric(...)]`. They match
-    /// the `DefId` entries in `generics_of(callee_id)`. These are `DefId`s and not
-    /// `LocalDefId`s such that they are correct for extern specs as well.
-    pub parametric_params: &'fhir [DefId],
+    /// The `DefId`s of type params listed in `#[assume_parametric(...)]` together with the span
+    /// where they are named. They match the `DefId` entries in `generics_of(callee_id)`. These are
+    /// `DefId`s and not `LocalDefId`s such that they are correct for extern specs as well.
+    pub parametric_params: &'fhir [(DefId, Span)],
 }
 
 impl<'fhir> AttrMap<'fhir> {

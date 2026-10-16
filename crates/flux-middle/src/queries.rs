@@ -796,7 +796,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     };
                     own.iter()
                         .chain(inherited)
-                        .map(|param_id| generics.param_def_id_to_index(tcx, *param_id).unwrap())
+                        .map(|(param_id, _)| {
+                            generics.param_def_id_to_index(tcx, *param_id).unwrap()
+                        })
                         .collect()
                 },
                 |def_id| genv.cstore().assume_parametric_params(def_id),

@@ -104,6 +104,7 @@ pub(crate) fn check_node<'genv>(
 
         wf.check_node(node);
         wf.check_hides_and_reveals(node.owner_id().local_id().def_id);
+        wf.check_redundant_assume_parametric(node.owner_id());
         Ok(())
     })?;
 
@@ -180,6 +181,29 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
             {
                 self.errors
                     .emit(errors::HideAndRevealDefinition::new(span, hidden));
+            }
+        }
+    }
+
+    /// Warns about type params listed in `#[assume_parametric(...)]` that are already listed in the
+    /// `#[assume_parametric(...)]` of the generic parent (the enclosing impl or trait).
+    fn check_redundant_assume_parametric(&mut self, owner_id: MaybeExternId<OwnerId>) {
+        let genv = self.infcx.genv;
+        let Some(parent) = genv.tcx().generics_of(owner_id.resolved_id()).parent else { return };
+        let Some(parent) = genv.resolve_id(parent).as_maybe_extern() else { return };
+        let parent_params = genv.fhir_attr_map(parent.local_id()).parametric_params();
+        for &(param, span) in genv
+            .fhir_attr_map(owner_id.local_id().def_id)
+            .parametric_params()
+        {
+            if let Some(&(_, parent_span)) = parent_params.iter().find(|(p, _)| *p == param) {
+                genv.sess()
+                    .dcx()
+                    .emit_warn(errors::RedundantAssumeParametric::new(
+                        span,
+                        parent_span,
+                        genv.tcx().item_name(param),
+                    ));
             }
         }
     }
