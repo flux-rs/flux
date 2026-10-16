@@ -16,3 +16,17 @@ defs! {
 pub fn test() -> usize {
     8
 }
+
+// A definition nested in a generic item can use paths that don't mention the item's generics
+pub fn nested<T>() {
+    defs! {
+        fn i64_size() -> int {
+            <i64 as Sized>::size_of()
+        }
+    }
+
+    #[spec(fn() -> usize[i64_size()])]
+    fn test() -> usize {
+        8
+    }
+}
