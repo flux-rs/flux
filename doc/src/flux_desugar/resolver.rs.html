@@ -1392,7 +1392,7 @@
 <a href=#1392 id=1392 data-nosnippet>1392</a>        <span class="kw">let </span><span class="kw-2">mut </span>params = Vec::with_capacity(names.len());
 <a href=#1393 id=1393 data-nosnippet>1393</a>        <span class="kw">for </span>name <span class="kw">in </span>names {
 <a href=#1394 id=1394 data-nosnippet>1394</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>def_id) = param_map.get(<span class="kw-2">&amp;</span>name.name) {
-<a href=#1395 id=1395 data-nosnippet>1395</a>                params.push((def_id, name.span));
+<a href=#1395 id=1395 data-nosnippet>1395</a>                params.push(def_id);
 <a href=#1396 id=1396 data-nosnippet>1396</a>            } <span class="kw">else </span>{
 <a href=#1397 id=1397 data-nosnippet>1397</a>                <span class="self">self</span>.errors
 <a href=#1398 id=1398 data-nosnippet>1398</a>                    .emit(errors::UnknownParametricParam::new(name.span));
