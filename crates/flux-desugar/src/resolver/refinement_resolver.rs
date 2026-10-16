@@ -14,8 +14,10 @@ use flux_syntax::{
     surface::{self, FluxItem, Ident, NodeId, visit::Visitor as _},
     walk_list,
 };
-use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
-use rustc_hash::FxHashMap;
+use rustc_data_structures::{
+    fx::FxIndexMap,
+    unord::{UnordMap, UnordSet},
+};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{ErrorGuaranteed, Span};
 
@@ -360,8 +362,10 @@ struct ParamDef {
 
 pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     param_defs: FxIndexMap<NodeId, ParamDef>,
+    /// Parameters referenced in some expression. Used to skip unused
+    /// [`fhir::ParamKind::Colon`]
+    used_params: UnordSet<NodeId>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
-    path_res_map: FxHashMap<NodeId, PartialRes<NodeId>>,
     errors: Errors<'genv>,
 }
 
@@ -408,7 +412,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
         let errors = Errors::new(resolver.genv.sess());
-        Self { resolver, param_defs: Default::default(), path_res_map: Default::default(), errors }
+        Self { resolver, param_defs: Default::default(), used_params: Default::default(), errors }
     }
 
     fn run(self, sort_vars: &[Ident], f: impl FnOnce(&mut ScopedVisitorWrapper<Self>)) -> Result {
@@ -451,10 +455,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     fn resolve_path(&mut self, path: &surface::ExprPath) {
         match self.try_resolve_expr_with_ribs(&path.segments) {
-            Ok(res) => {
-                self.check_unrefined_param(res, path.segments.last().unwrap().ident);
-                self.path_res_map.insert(path.node_id, res);
-            }
+            Ok(res) => self.record_expr_res(path.node_id, res, path.segments.last().unwrap().ident),
             Err(ResolveError::NotFound) => self.emit_unresolved_expr_path(path),
             Err(err) => self.emit_resolve_err(err),
         }
@@ -462,21 +463,21 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     fn resolve_ident(&mut self, ident: Ident, node_id: NodeId) {
         match self.try_resolve_expr_with_ribs(&[ident]) {
-            Ok(res) => {
-                self.check_unrefined_param(res, ident);
-                self.path_res_map.insert(node_id, res);
-            }
+            Ok(res) => self.record_expr_res(node_id, res, ident),
             Err(ResolveError::NotFound) => self.emit_unresolved_ident(ident),
             Err(err) => self.emit_resolve_err(err),
         }
     }
 
-    /// Emit an error if `res` resolved to a param that cannot be refined.
-    /// e.g., `fn(x: &mut i32) -> i32[x]`
-    fn check_unrefined_param(&mut self, res: PartialRes<NodeId>, ident: Ident) {
+    fn record_expr_res(&mut self, node_id: NodeId, res: PartialRes<NodeId>, ident: Ident) {
+        // A param that cannot be refined, e.g., `fn(x: &mut i32) -> i32[x]`
         if let Some(Res::Param(fhir::ParamKind::Error, _)) = res.full_res() {
             self.errors.emit(errors::InvalidUnrefinedParam::new(ident));
         }
+        if let Res::Param(_, param_id) = res.base_res() {
+            self.used_params.insert(param_id);
+        }
+        self.resolver.output.path_res_map.insert(node_id, res);
     }
 
     fn try_resolve_expr_with_ribs<S: Segment>(
@@ -524,46 +525,22 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     pub(crate) fn finish(self) -> Result {
         let param_id_gen = IndexGen::new();
-        let mut params = FxIndexMap::default();
-
-        // Create an `fhir::ParamId` for all parameters used in a path before iterating over
-        // `param_defs` such that we can skip `fhir::ParamKind::Colon` if the param wasn't used
-        for (node_id, res) in self.path_res_map {
-            self.resolver.output.path_res_map.insert(node_id, res);
-            if let Res::Param(_, param_id) = res.base_res() {
-                params
-                    .entry(param_id)
-                    .or_insert_with(|| param_id_gen.fresh());
-            }
-        }
-
-        // At this point, the `params` map contains all parameters that were used in an expression,
-        // so we can safely skip `ParamKind::Colon` if there's no entry for it.
-        for (node_id, param_def) in self.param_defs {
-            let param_id = match param_def.kind {
-                fhir::ParamKind::Colon => {
-                    let Some(param_id) = params.get(&node_id) else { continue };
-                    *param_id
-                }
+        let output = &mut self.resolver.output;
+        for (node_id, def) in self.param_defs {
+            match def.kind {
+                fhir::ParamKind::Colon if !self.used_params.contains(&node_id) => continue,
                 fhir::ParamKind::Error => continue,
-                _ => {
-                    params
-                        .get(&node_id)
-                        .copied()
-                        .unwrap_or_else(|| param_id_gen.fresh())
-                }
-            };
-            let output = &mut self.resolver.output;
+                _ => {}
+            }
             output
                 .param_res_map
-                .insert(node_id, (param_id, param_def.kind));
-
-            if let Some(scope) = param_def.scope {
+                .insert(node_id, (param_id_gen.fresh(), def.kind));
+            if let Some(scope) = def.scope {
                 output
                     .implicit_params
                     .entry(scope)
                     .or_default()
-                    .push((param_def.ident, node_id));
+                    .push((def.ident, node_id));
             }
         }
         self.errors.to_result()
@@ -703,13 +680,9 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
             surface::BaseSort::Path(path) => {
                 self.resolve_sort_path(path);
             }
-            surface::BaseSort::BitVec(_) => {}
-            surface::BaseSort::SortOf(..) => {}
-            surface::BaseSort::Tuple(sorts) => {
-                for sort in sorts {
-                    self.on_base_sort(sort);
-                }
-            }
+            surface::BaseSort::BitVec(_)
+            | surface::BaseSort::SortOf(..)
+            | surface::BaseSort::Tuple(_) => {}
         }
     }
 }
