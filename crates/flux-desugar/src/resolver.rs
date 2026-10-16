@@ -44,7 +44,7 @@ enum ResolveError {
     /// disambiguate. Carries everything needed to emit [`errors::AmbiguousName`], so that callers
     /// deep in the path walk don't have to reconstruct which segment went wrong.
     Ambiguous(Ambiguity),
-    /// The name resolved to a generic parameter (or `Self`) of an item enclosing a flux item.
+    /// The name resolved to a generic parameter (or `Self`) of an outer item.
     OuterGeneric(Span),
 }
 
@@ -56,7 +56,7 @@ impl ResolveError {
         match self {
             Self::NotFound => bug!("unresolved names are reported by the caller"),
             Self::Ambiguous(ambiguity) => emitter.emit(errors::AmbiguousName::new(ambiguity)),
-            Self::OuterGeneric(span) => emitter.emit(errors::OuterGenericInFluxItem { span }),
+            Self::OuterGeneric(span) => emitter.emit(errors::OuterGeneric { span }),
         }
     }
 }
@@ -374,7 +374,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     fn resolve_flux_items(&mut self, parent: OwnerId) {
         let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
         for ns in [TypeNS, ValueNS, ReftNS] {
-            self.push_rib(ns, RibKind::FluxItem);
+            self.push_rib(ns, RibKind::Item);
         }
         for item in items {
             ItemResolver::run(self, MaybeExternId::Local(parent), |item_resolver| {
@@ -585,17 +585,16 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ns: Namespace,
     ) -> std::result::Result<fhir::Res<surface::NodeId>, ResolveError> {
         let mut ribs = self.ribs[ns].iter().rev();
-        let mut crossed_flux_item = false;
+        let mut crossed_item = false;
         while let Some(rib) = ribs.next() {
             // An ambiguous name is still a name: it stops the climb here rather than falling
             // through to outer scopes or the prelude.
             if let Some(name_res) = rib.bindings.get(&ident.name)
                 && let Some(res) = name_res.resolve(ident)
             {
-                // Like a nested rust item, a flux item cannot mention the generic parameters (or
-                // `Self`) of the enclosing item.
+                // Like in rust, nested items cannot mention generics of outer items
                 let res = res.map_err(ResolveError::Ambiguous)?;
-                if crossed_flux_item
+                if crossed_item
                     && matches!(
                         res,
                         fhir::Res::Def(DefKind::TyParam | DefKind::ConstParam, _)
@@ -610,7 +609,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             match rib.kind {
                 // A module boundary stops item resolution.
                 RibKind::Module => break,
-                RibKind::FluxItem => crossed_flux_item = true,
+                RibKind::Item => crossed_item = true,
                 // A variant is a barrier that hides refinement params bound in the `refined_by` *enclosing*
                 // scope, but not other refinement bindings in other scopes (e.g. flux funcs in the parent module).
                 // FIXME: this is skipping potential names defined inside a `const _ = { ... }` or other similar
@@ -978,8 +977,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .maybe_extern_id(item.owner_id.def_id)
             .map(|def_id| OwnerId { def_id });
 
-        self.push_rib(TypeNS, RibKind::Misc);
-        self.push_rib(ValueNS, RibKind::Misc);
+        self.push_rib(TypeNS, RibKind::Item);
+        self.push_rib(ValueNS, RibKind::Item);
 
         match item.kind {
             ItemKind::Trait { .. } => {
@@ -1095,9 +1094,8 @@ pub(crate) enum RibKind {
     Misc,
     /// A module boundary. This is a barrier for item resolution.
     Module,
-    /// A flux item boundary. Generic parameters (and `Self`) of enclosing items are not visible
-    /// past it.
-    FluxItem,
+    /// An item boundary. Generic parameters (and `Self`) of outer items are not visible past it.
+    Item,
     /// A function signature's inputs (arguments and `requires`). `@` binders are legal here.
     FnInput,
     /// A function signature's output (return type and `ensures`). `#` binders are legal here.
@@ -1671,10 +1669,8 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag("can't use generic parameters from outer item", code = E0999)]
-    #[note(
-        "flux definitions cannot mention the generic parameters or `Self` of the enclosing item"
-    )]
-    pub(super) struct OuterGenericInFluxItem {
+    #[note("nested items cannot mention the generic parameters or `Self` of outer items")]
+    pub(super) struct OuterGeneric {
         #[primary_span]
         #[label("use of generic parameter from outer item")]
         pub span: Span,
