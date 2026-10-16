@@ -1110,6 +1110,21 @@ pub(crate) enum RibKind {
     FnPtrInput,
 }
 
+impl RibKind {
+    /// Whether a binder of kind `bind_kind` can appear directly in a scope of this kind.
+    pub(crate) fn allows_binder(self, bind_kind: surface::BindKind) -> bool {
+        match bind_kind {
+            surface::BindKind::At => {
+                matches!(
+                    self,
+                    Self::FnInput | Self::FnTraitInput | Self::FnPtrInput | Self::Variant
+                )
+            }
+            surface::BindKind::Pound => self == Self::FnOutput,
+        }
+    }
+}
+
 /// The value stored for each binding in a [`Rib`]. Lookups and clash detection are keyed by the
 /// name in the [`Rib`]'s map, so all a binding carries is where it came from, for diagnostics that
 /// point at the previous location of a name.

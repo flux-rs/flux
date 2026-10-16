@@ -1,5 +1,3 @@
-use std::ops::ControlFlow;
-
 use flux_common::index::IndexGen;
 use flux_errors::Errors;
 use flux_middle::{
@@ -18,7 +16,6 @@ use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
 };
-use rustc_middle::ty::TyCtxt;
 use rustc_span::{ErrorGuaranteed, Span};
 
 use super::{BindingSource, CrateResolver, ResolveError, RibKind, Segment};
@@ -27,21 +24,18 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(crate) trait ScopedVisitor: Sized {
     fn is_box(&self, segment: &surface::PathSegment) -> bool;
-    fn enter_scope(&mut self, kind: RibKind) -> ControlFlow<()>;
-    fn exit_scope(&mut self) {}
+    /// `node_id` is the [`NodeId`] of the node that owns the implicit params bound directly in
+    /// this scope. It is `Some` for the scopes where implicit params can be bound, i.e., fn inputs,
+    /// fn outputs, variants, fn pointer inputs and fn trait inputs.
+    fn enter_scope(&mut self, kind: RibKind, node_id: Option<NodeId>);
+    fn exit_scope(&mut self);
 
     fn wrap(self) -> ScopedVisitorWrapper<Self> {
         ScopedVisitorWrapper(self)
     }
 
     fn on_implicit_param(&mut self, _ident: Ident, _kind: fhir::ParamKind, _node_id: NodeId) {}
-    fn on_generic_param(&mut self, _param: &surface::GenericParam) {}
     fn on_refine_param(&mut self, _param: &surface::RefineParam) {}
-    fn on_enum_variant(&mut self, _variant: &surface::VariantDef) {}
-    fn on_fn_trait_input(&mut self, _in_arg: &surface::GenericArg, _node_id: NodeId) {}
-    fn on_bare_fn(&mut self, _bare_fn: &surface::BareFnTy) {}
-    fn on_fn_sig(&mut self, _fn_sig: &surface::FnSig) {}
-    fn on_fn_output(&mut self, _output: &surface::FnOutput) {}
     fn on_loc(&mut self, _loc: Ident, _node_id: NodeId) {}
     fn on_path(&mut self, _path: &surface::ExprPath) {}
     fn on_base_sort(&mut self, _sort: &surface::BaseSort) {}
@@ -50,12 +44,10 @@ pub(crate) trait ScopedVisitor: Sized {
 pub(crate) struct ScopedVisitorWrapper<V>(V);
 
 impl<V: ScopedVisitor> ScopedVisitorWrapper<V> {
-    fn with_scope(&mut self, kind: RibKind, f: impl FnOnce(&mut Self)) {
-        let scope = self.0.enter_scope(kind);
-        if let ControlFlow::Continue(_) = scope {
-            f(self);
-            self.0.exit_scope();
-        }
+    fn with_scope(&mut self, kind: RibKind, node_id: Option<NodeId>, f: impl FnOnce(&mut Self)) {
+        self.0.enter_scope(kind, node_id);
+        f(self);
+        self.0.exit_scope();
     }
 }
 
@@ -74,38 +66,33 @@ impl<V> std::ops::DerefMut for ScopedVisitorWrapper<V> {
 
 impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     fn visit_trait_assoc_reft(&mut self, assoc_reft: &surface::TraitAssocReft) {
-        self.with_scope(RibKind::Misc, |this| {
+        self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_trait_assoc_reft(this, assoc_reft);
         });
     }
 
     fn visit_impl_assoc_reft(&mut self, assoc_reft: &surface::ImplAssocReft) {
-        self.with_scope(RibKind::Misc, |this| {
+        self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_impl_assoc_reft(this, assoc_reft);
         });
     }
 
     fn visit_qualifier(&mut self, qualifier: &surface::Qualifier) {
-        self.with_scope(RibKind::Misc, |this| {
+        self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_qualifier(this, qualifier);
         });
     }
 
     fn visit_defn(&mut self, defn: &surface::SpecFunc) {
-        self.with_scope(RibKind::Misc, |this| {
+        self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_defn(this, defn);
         });
     }
 
     fn visit_primop_prop(&mut self, prop: &surface::PrimOpProp) {
-        self.with_scope(RibKind::Misc, |this| {
+        self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_primop_prop(this, prop);
         });
-    }
-
-    fn visit_generic_param(&mut self, param: &surface::GenericParam) {
-        self.on_generic_param(param);
-        surface::visit::walk_generic_param(self, param);
     }
 
     fn visit_refine_param(&mut self, param: &surface::RefineParam) {
@@ -114,26 +101,25 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 
     fn visit_ty_alias(&mut self, ty_alias: &surface::TyAlias) {
-        self.with_scope(RibKind::Misc, |this| {
+        self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_ty_alias(this, ty_alias);
         });
     }
 
     fn visit_struct_def(&mut self, struct_def: &surface::StructDef) {
-        self.with_scope(RibKind::Misc, |this| {
+        self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_struct_def(this, struct_def);
         });
     }
 
     fn visit_enum_def(&mut self, enum_def: &surface::EnumDef) {
-        self.with_scope(RibKind::Misc, |this| {
+        self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_enum_def(this, enum_def);
         });
     }
 
     fn visit_variant(&mut self, variant: &surface::VariantDef) {
-        self.with_scope(RibKind::Variant, |this| {
-            this.on_enum_variant(variant);
+        self.with_scope(RibKind::Variant, Some(variant.node_id), |this| {
             surface::visit::walk_variant(this, variant);
         });
     }
@@ -141,16 +127,15 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     fn visit_trait_ref(&mut self, trait_ref: &surface::TraitRef) {
         match trait_ref.as_fn_trait_ref() {
             Some((in_arg, out_arg)) => {
-                self.with_scope(RibKind::FnTraitInput, |this| {
-                    this.on_fn_trait_input(in_arg, trait_ref.node_id);
+                self.with_scope(RibKind::FnTraitInput, Some(trait_ref.node_id), |this| {
                     surface::visit::walk_generic_arg(this, in_arg);
-                    this.with_scope(RibKind::Misc, |this| {
+                    this.with_scope(RibKind::Misc, None, |this| {
                         surface::visit::walk_generic_arg(this, out_arg);
                     });
                 });
             }
             None => {
-                self.with_scope(RibKind::Misc, |this| {
+                self.with_scope(RibKind::Misc, None, |this| {
                     surface::visit::walk_trait_ref(this, trait_ref);
                 });
             }
@@ -158,27 +143,25 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 
     fn visit_variant_ret(&mut self, ret: &surface::VariantRet) {
-        self.with_scope(RibKind::Misc, |this| {
+        self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_variant_ret(this, ret);
         });
     }
 
     fn visit_generics(&mut self, generics: &surface::Generics) {
-        self.with_scope(RibKind::Misc, |this| {
+        self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_generics(this, generics);
         });
     }
 
     fn visit_fn_sig(&mut self, fn_sig: &surface::FnSig) {
-        self.with_scope(RibKind::FnInput, |this| {
-            this.on_fn_sig(fn_sig);
+        self.with_scope(RibKind::FnInput, Some(fn_sig.node_id), |this| {
             surface::visit::walk_fn_sig(this, fn_sig);
         });
     }
 
     fn visit_fn_output(&mut self, output: &surface::FnOutput) {
-        self.with_scope(RibKind::FnOutput, |this| {
-            this.on_fn_output(output);
+        self.with_scope(RibKind::FnOutput, Some(output.node_id), |this| {
             surface::visit::walk_fn_output(this, output);
         });
     }
@@ -222,7 +205,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                 self.on_implicit_param(*ident, kind, *node_id);
             }
             surface::RefineArg::Abs(..) => {
-                self.with_scope(RibKind::Misc, |this| {
+                self.with_scope(RibKind::Misc, None, |this| {
                     surface::visit::walk_refine_arg(this, arg);
                 });
             }
@@ -232,7 +215,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
     fn visit_path(&mut self, path: &surface::Path) {
         for arg in &path.refine {
-            self.with_scope(RibKind::Misc, |this| this.visit_refine_arg(arg));
+            self.with_scope(RibKind::Misc, None, |this| this.visit_refine_arg(arg));
         }
         walk_list!(self, visit_path_segment, &path.segments);
     }
@@ -243,7 +226,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
             if is_box && i == 0 {
                 self.visit_generic_arg(arg);
             } else {
-                self.with_scope(RibKind::Misc, |this| this.visit_generic_arg(arg));
+                self.with_scope(RibKind::Misc, None, |this| this.visit_generic_arg(arg));
             }
         }
     }
@@ -252,7 +235,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         let node_id = ty.node_id;
         match &ty.kind {
             surface::TyKind::Exists { bind, .. } => {
-                self.with_scope(RibKind::Misc, |this| {
+                self.with_scope(RibKind::Misc, None, |this| {
                     let param = surface::RefineParam {
                         ident: *bind,
                         mode: None,
@@ -265,21 +248,20 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                 });
             }
             surface::TyKind::GeneralExists { .. } => {
-                self.with_scope(RibKind::Misc, |this| {
+                self.with_scope(RibKind::Misc, None, |this| {
                     surface::visit::walk_ty(this, ty);
                 });
             }
             surface::TyKind::BareFn(bare_fn) => {
-                self.with_scope(RibKind::FnPtrInput, |this| {
-                    this.on_bare_fn(bare_fn);
+                self.with_scope(RibKind::FnPtrInput, Some(bare_fn.node_id), |this| {
                     walk_list!(this, visit_ty, &bare_fn.inputs);
-                    this.with_scope(RibKind::Misc, |this| {
+                    this.with_scope(RibKind::Misc, None, |this| {
                         this.visit_fn_ret_ty(&bare_fn.output);
                     });
                 });
             }
             surface::TyKind::Array(..) => {
-                self.with_scope(RibKind::Misc, |this| {
+                self.with_scope(RibKind::Misc, None, |this| {
                     surface::visit::walk_ty(this, ty);
                 });
             }
@@ -290,7 +272,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     fn visit_bty(&mut self, bty: &surface::BaseTy) {
         match &bty.kind {
             surface::BaseTyKind::Slice(_) | surface::BaseTyKind::Ptr(..) => {
-                self.with_scope(RibKind::Misc, |this| {
+                self.with_scope(RibKind::Misc, None, |this| {
                     surface::visit::walk_bty(this, bty);
                 });
             }
@@ -310,46 +292,70 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 }
 
-struct ImplicitParamCollector<'a, 'tcx> {
-    tcx: TyCtxt<'tcx>,
-    path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes<NodeId>>,
-    kind: RibKind,
-    params: Vec<(Ident, fhir::ParamKind, NodeId)>,
+type Binders = UnordMap<NodeId, Vec<(Ident, fhir::ParamKind, NodeId)>>;
+
+/// Collects the implicit params bound in each binder scope (see [`ScopedVisitor::enter_scope`]),
+/// reporting binders used in a position where they are not allowed. Implicit params must be
+/// collected before resolving because they can be used before they are bound in the same scope,
+/// e.g., `fn(x: i32{v: v > n}, n: i32)`.
+struct BinderCollector<'a, 'genv, 'tcx> {
+    resolver: &'a CrateResolver<'genv, 'tcx>,
+    scopes: Vec<(RibKind, Option<NodeId>)>,
+    binders: Binders,
+    errors: Errors<'genv>,
 }
 
-impl<'a, 'tcx> ImplicitParamCollector<'a, 'tcx> {
-    fn new(
-        tcx: TyCtxt<'tcx>,
-        path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes<NodeId>>,
-        kind: RibKind,
-    ) -> Self {
-        Self { tcx, path_res_map, kind, params: vec![] }
-    }
-
+impl<'a, 'genv, 'tcx> BinderCollector<'a, 'genv, 'tcx> {
     fn run(
-        self,
+        resolver: &'a CrateResolver<'genv, 'tcx>,
         f: impl FnOnce(&mut ScopedVisitorWrapper<Self>),
-    ) -> Vec<(Ident, fhir::ParamKind, NodeId)> {
-        let mut wrapped = self.wrap();
-        f(&mut wrapped);
-        wrapped.0.params
+    ) -> Result<Binders> {
+        let errors = Errors::new(resolver.genv.sess());
+        let mut vis = Self { resolver, scopes: vec![], binders: Default::default(), errors }.wrap();
+        f(&mut vis);
+        vis.0.errors.to_result()?;
+        Ok(vis.0.binders)
     }
 }
 
-impl ScopedVisitor for ImplicitParamCollector<'_, '_> {
+impl ScopedVisitor for BinderCollector<'_, '_, '_> {
     fn is_box(&self, segment: &surface::PathSegment) -> bool {
-        self.path_res_map
+        self.resolver
+            .output
+            .path_res_map
             .get(&segment.node_id)
-            .map(|r| r.is_box(self.tcx))
+            .map(|r| r.is_box(self.resolver.genv.tcx()))
             .unwrap_or(false)
     }
 
-    fn enter_scope(&mut self, kind: RibKind) -> ControlFlow<()> {
-        if self.kind == kind { ControlFlow::Continue(()) } else { ControlFlow::Break(()) }
+    fn enter_scope(&mut self, kind: RibKind, node_id: Option<NodeId>) {
+        self.scopes.push((kind, node_id));
     }
 
-    fn on_implicit_param(&mut self, ident: Ident, param: fhir::ParamKind, node_id: NodeId) {
-        self.params.push((ident, param, node_id));
+    fn exit_scope(&mut self) {
+        self.scopes.pop();
+    }
+
+    fn on_implicit_param(&mut self, ident: Ident, param_kind: fhir::ParamKind, param_id: NodeId) {
+        let Some(&(rib_kind, node_id)) = self.scopes.last() else { return };
+        let bind_kind = match param_kind {
+            fhir::ParamKind::At => Some(surface::BindKind::At),
+            fhir::ParamKind::Pound => Some(surface::BindKind::Pound),
+            _ => None,
+        };
+        if let Some(bind_kind) = bind_kind
+            && !rib_kind.allows_binder(bind_kind)
+        {
+            self.errors
+                .emit(errors::IllegalBinder::new(ident.span, bind_kind));
+            return;
+        }
+        if let Some(node_id) = node_id {
+            self.binders
+                .entry(node_id)
+                .or_default()
+                .push((ident, param_kind, param_id));
+        }
     }
 }
 
@@ -365,6 +371,8 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     /// Parameters referenced in some expression. Used to skip unused
     /// [`fhir::ParamKind::Colon`]
     used_params: UnordSet<NodeId>,
+    /// Implicit params to define when entering each binder scope.
+    binders: Binders,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     errors: Errors<'genv>,
 }
@@ -383,36 +391,42 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 return Ok(());
             }
         };
-        Self::new(resolver).run(sort_vars, |r| r.visit_flux_item(item))
+        Self::new(resolver, Default::default()).run(sort_vars, |r| r.visit_flux_item(item))
     }
 
     pub(crate) fn resolve_item(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         item: &surface::Item,
     ) -> Result {
-        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_item(item))?;
-        Self::new(resolver).run(&[], |vis| vis.visit_item(item))
+        let binders = BinderCollector::run(resolver, |vis| vis.visit_item(item))?;
+        Self::new(resolver, binders).run(&[], |vis| vis.visit_item(item))
     }
 
     pub(crate) fn resolve_trait_item(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         item: &surface::TraitItemFn,
     ) -> Result {
-        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_trait_item(item))?;
-        Self::new(resolver).run(&[], |vis| vis.visit_trait_item(item))
+        let binders = BinderCollector::run(resolver, |vis| vis.visit_trait_item(item))?;
+        Self::new(resolver, binders).run(&[], |vis| vis.visit_trait_item(item))
     }
 
     pub(crate) fn resolve_impl_item(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         item: &surface::ImplItemFn,
     ) -> Result {
-        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_impl_item(item))?;
-        Self::new(resolver).run(&[], |vis| vis.visit_impl_item(item))
+        let binders = BinderCollector::run(resolver, |vis| vis.visit_impl_item(item))?;
+        Self::new(resolver, binders).run(&[], |vis| vis.visit_impl_item(item))
     }
 
-    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
+    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, binders: Binders) -> Self {
         let errors = Errors::new(resolver.genv.sess());
-        Self { resolver, param_defs: Default::default(), used_params: Default::default(), errors }
+        Self {
+            resolver,
+            param_defs: Default::default(),
+            used_params: Default::default(),
+            binders,
+            errors,
+        }
     }
 
     fn run(self, sort_vars: &[Ident], f: impl FnOnce(&mut ScopedVisitorWrapper<Self>)) -> Result {
@@ -524,6 +538,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 
     pub(crate) fn finish(self) -> Result {
+        debug_assert!(self.binders.is_empty(), "binder scope not visited during resolution");
         let param_id_gen = IndexGen::new();
         let output = &mut self.resolver.output;
         for (node_id, def) in self.param_defs {
@@ -589,73 +604,17 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
             .unwrap_or(false)
     }
 
-    fn enter_scope(&mut self, kind: RibKind) -> ControlFlow<()> {
+    fn enter_scope(&mut self, kind: RibKind, node_id: Option<NodeId>) {
         self.resolver.push_rib(ReftNS, kind);
-        ControlFlow::Continue(())
+        if let Some(node_id) = node_id {
+            for (ident, param_kind, param_id) in self.binders.remove(&node_id).unwrap_or_default() {
+                self.define_param(ident, param_kind, param_id, Some(node_id));
+            }
+        }
     }
 
     fn exit_scope(&mut self) {
         self.resolver.pop_rib(ReftNS);
-    }
-
-    fn on_fn_trait_input(&mut self, in_arg: &surface::GenericArg, trait_node_id: NodeId) {
-        let params = ImplicitParamCollector::new(
-            self.resolver.genv.tcx(),
-            &self.resolver.output.path_res_map,
-            RibKind::FnTraitInput,
-        )
-        .run(|vis| vis.visit_generic_arg(in_arg));
-        for (ident, kind, node_id) in params {
-            self.define_param(ident, kind, node_id, Some(trait_node_id));
-        }
-    }
-
-    fn on_bare_fn(&mut self, bare_fn: &surface::BareFnTy) {
-        let params = ImplicitParamCollector::new(
-            self.resolver.genv.tcx(),
-            &self.resolver.output.path_res_map,
-            RibKind::FnPtrInput,
-        )
-        .run(|vis| walk_list!(vis, visit_ty, &bare_fn.inputs));
-        for (ident, kind, node_id) in params {
-            self.define_param(ident, kind, node_id, Some(bare_fn.node_id));
-        }
-    }
-
-    fn on_enum_variant(&mut self, variant: &surface::VariantDef) {
-        let params = ImplicitParamCollector::new(
-            self.resolver.genv.tcx(),
-            &self.resolver.output.path_res_map,
-            RibKind::Variant,
-        )
-        .run(|vis| vis.visit_variant(variant));
-        for (ident, kind, node_id) in params {
-            self.define_param(ident, kind, node_id, Some(variant.node_id));
-        }
-    }
-
-    fn on_fn_sig(&mut self, fn_sig: &surface::FnSig) {
-        let params = ImplicitParamCollector::new(
-            self.resolver.genv.tcx(),
-            &self.resolver.output.path_res_map,
-            RibKind::FnInput,
-        )
-        .run(|vis| vis.visit_fn_sig(fn_sig));
-        for (ident, kind, param_id) in params {
-            self.define_param(ident, kind, param_id, Some(fn_sig.node_id));
-        }
-    }
-
-    fn on_fn_output(&mut self, output: &surface::FnOutput) {
-        let params = ImplicitParamCollector::new(
-            self.resolver.genv.tcx(),
-            &self.resolver.output.path_res_map,
-            RibKind::FnOutput,
-        )
-        .run(|vis| vis.visit_fn_output(output));
-        for (ident, kind, param_id) in params {
-            self.define_param(ident, kind, param_id, Some(output.node_id));
-        }
     }
 
     fn on_refine_param(&mut self, param: &surface::RefineParam) {
@@ -683,74 +642,6 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
             surface::BaseSort::BitVec(_)
             | surface::BaseSort::SortOf(..)
             | surface::BaseSort::Tuple(_) => {}
-        }
-    }
-}
-
-struct IllegalBinderVisitor<'a, 'genv, 'tcx> {
-    scopes: Vec<RibKind>,
-    resolver: &'a CrateResolver<'genv, 'tcx>,
-    errors: Errors<'genv>,
-}
-
-impl<'a, 'genv, 'tcx> IllegalBinderVisitor<'a, 'genv, 'tcx> {
-    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
-        let errors = Errors::new(resolver.genv.sess());
-        Self { scopes: vec![], resolver, errors }
-    }
-
-    fn run(self, f: impl FnOnce(&mut ScopedVisitorWrapper<Self>)) -> Result {
-        let mut vis = self.wrap();
-        f(&mut vis);
-        vis.0.errors.to_result()
-    }
-}
-
-impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
-    fn is_box(&self, segment: &surface::PathSegment) -> bool {
-        self.resolver
-            .output
-            .path_res_map
-            .get(&segment.node_id)
-            .map(|r| r.is_box(self.resolver.genv.tcx()))
-            .unwrap_or(false)
-    }
-
-    fn enter_scope(&mut self, kind: RibKind) -> ControlFlow<()> {
-        self.scopes.push(kind);
-        ControlFlow::Continue(())
-    }
-
-    fn exit_scope(&mut self) {
-        self.scopes.pop();
-    }
-
-    fn on_implicit_param(&mut self, ident: Ident, param_kind: fhir::ParamKind, _: NodeId) {
-        let Some(scope_kind) = self.scopes.last() else { return };
-        let (allowed, bind_kind) = match param_kind {
-            fhir::ParamKind::At => {
-                (
-                    matches!(
-                        scope_kind,
-                        RibKind::FnInput
-                            | RibKind::FnTraitInput
-                            | RibKind::FnPtrInput
-                            | RibKind::Variant
-                    ),
-                    surface::BindKind::At,
-                )
-            }
-            fhir::ParamKind::Pound => {
-                (matches!(scope_kind, RibKind::FnOutput), surface::BindKind::Pound)
-            }
-            fhir::ParamKind::Colon
-            | fhir::ParamKind::Loc
-            | fhir::ParamKind::Error
-            | fhir::ParamKind::Explicit(..) => return,
-        };
-        if !allowed {
-            self.errors
-                .emit(errors::IllegalBinder::new(ident.span, bind_kind));
         }
     }
 }
