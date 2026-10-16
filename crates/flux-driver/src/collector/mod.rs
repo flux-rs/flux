@@ -861,6 +861,11 @@ impl FluxAttrs {
         read_flag!(self, Reflect)
     }
 
+    /// The span of the first `#[assume_parametric(...)]` attribute, if any
+    fn assume_parametric_span(&self) -> Option<Span> {
+        Some(self.map.get(attr_name!(AssumeParametric))?.first()?.span)
+    }
+
     fn items(&mut self) -> Vec<surface::FluxItem> {
         read_attrs!(self, Items).into_iter().flatten().collect()
     }

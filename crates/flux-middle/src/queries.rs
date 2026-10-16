@@ -786,11 +786,12 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     let generics = tcx.generics_of(def_id);
                     let own = genv.fhir_attr_map(def_id.local_id()).parametric_params();
                     // Associated items inherit the params listed in an `#[assume_parametric(...)]`
-                    // on their generic parent (the enclosing impl or trait).
+                    // on their generic parent (the enclosing impl or trait). This only applies to
+                    // local parents: the attribute is not allowed on extern spec impls and traits.
                     let inherited = if let Some(parent) = generics.parent
-                        && let Some(parent) = genv.resolve_id(parent).as_maybe_extern()
+                        && let ResolvedDefId::Local(parent) = genv.resolve_id(parent)
                     {
-                        genv.fhir_attr_map(parent.local_id()).parametric_params()
+                        genv.fhir_attr_map(parent).parametric_params()
                     } else {
                         &[]
                     };

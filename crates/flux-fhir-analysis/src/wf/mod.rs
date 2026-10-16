@@ -9,7 +9,7 @@ mod sortck;
 use flux_common::result::{ErrorCollector, ResultExt as _};
 use flux_errors::Errors;
 use flux_middle::{
-    def_id::MaybeExternId,
+    def_id::{MaybeExternId, ResolvedDefId},
     fhir::{self, FhirId, FluxOwnerId, visit::Visitor},
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -190,8 +190,8 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
     fn check_redundant_assume_parametric(&mut self, owner_id: MaybeExternId<OwnerId>) {
         let genv = self.infcx.genv;
         let Some(parent) = genv.tcx().generics_of(owner_id.resolved_id()).parent else { return };
-        let Some(parent) = genv.resolve_id(parent).as_maybe_extern() else { return };
-        let parent_params = genv.fhir_attr_map(parent.local_id()).parametric_params();
+        let ResolvedDefId::Local(parent) = genv.resolve_id(parent) else { return };
+        let parent_params = genv.fhir_attr_map(parent).parametric_params();
         for &(param, span) in genv
             .fhir_attr_map(owner_id.local_id().def_id)
             .parametric_params()

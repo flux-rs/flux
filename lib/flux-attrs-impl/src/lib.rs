@@ -4,7 +4,7 @@ mod extern_spec;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
-    Attribute, ItemEnum, ItemStruct, Token, bracketed, parse::ParseStream, parse_quote,
+    Attribute, ItemEnum, ItemStruct, Token, bracketed, parse::ParseStream, parse_quote_spanned,
     spanned::Spanned,
 };
 
@@ -125,7 +125,10 @@ fn transform_flux_attr(attr: &mut syn::Attribute) {
         }
         return;
     } else if path_is_one_of(path, FLUX_ATTRS) {
-        *path = parse_quote!(flux_tool::#path);
+        // Give `flux_tool` the span of the original path so the attribute keeps pointing at the
+        // user's code instead of the macro invocation.
+        let span = path.span();
+        *path = parse_quote_spanned!(span=> flux_tool::#path);
     }
 }
 

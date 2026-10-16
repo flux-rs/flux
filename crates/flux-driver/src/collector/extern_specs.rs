@@ -171,6 +171,13 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         impl_: &hir::Impl,
         attrs: FluxAttrs,
     ) -> Result {
+        // An impl-level `assume_parametric` would apply to all the methods of the extern impl, not
+        // just the ones listed in the `extern_spec` block. Only allow it on methods.
+        if let Some(span) = attrs.assume_parametric_span() {
+            return Err(
+                self.emit(errors::AssumeParametricOnExternSpec { span, kind: "impl blocks" })
+            );
+        }
         self.inner.collect_impl(impl_id, attrs)?;
 
         let dummy_item = self.item_at(1)?;
@@ -258,6 +265,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         items: &[hir::TraitItemId],
         attrs: FluxAttrs,
     ) -> Result {
+        // See `collect_extern_impl`
+        if let Some(span) = attrs.assume_parametric_span() {
+            return Err(self.emit(errors::AssumeParametricOnExternSpec { span, kind: "traits" }));
+        }
         self.inner.collect_trait(trait_id, attrs)?;
 
         let extern_trait_id = self.extract_extern_id_from_trait(bounds)?;
@@ -681,6 +692,18 @@ mod errors {
     pub(super) struct CannotResolveTraitImpl {
         #[primary_span]
         pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag("`assume_parametric` is not allowed on extern spec {$kind}", code = E0999)]
+    #[note(
+        "the attribute would apply to all the methods of the extern definition, not just the ones listed in this block"
+    )]
+    #[help("annotate the individual methods instead")]
+    pub(super) struct AssumeParametricOnExternSpec {
+        #[primary_span]
+        pub span: Span,
+        pub kind: &'static str,
     }
 
     #[derive(Diagnostic)]
