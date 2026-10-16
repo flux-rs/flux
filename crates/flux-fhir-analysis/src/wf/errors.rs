@@ -409,3 +409,20 @@ impl HideUninterpretedFunction {
         Self { span, name: def_id.name() }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag("`{$name}` is already assumed parametric", code = E0999)]
+pub(super) struct RedundantAssumeParametric {
+    #[primary_span]
+    #[label("redundant `assume_parametric` for `{$name}`")]
+    span: Span,
+    #[label("`{$name}` is already assumed parametric here")]
+    parent_span: Span,
+    name: Symbol,
+}
+
+impl RedundantAssumeParametric {
+    pub(super) fn new(span: Span, parent_span: Span, name: Symbol) -> Self {
+        Self { span, parent_span, name }
+    }
+}

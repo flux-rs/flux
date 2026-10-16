@@ -530,9 +530,9 @@ pub struct ResolverOutput {
     /// The resolved list of local hides per function together with the span where they are named.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
     pub hide_res_map: UnordMap<NodeId, Vec<(def_id::FluxDefId, Span)>>,
-    /// The resolved type param `DefId`s for `#[assume_parametric(...)]` per function.
-    /// The [`NodeId`] corresponds to the surface item's `node_id`.
-    pub parametric_param_res_map: UnordMap<NodeId, Vec<DefId>>,
+    /// The resolved type param `DefId`s for `#[assume_parametric(...)]` per item together with
+    /// the span where they are named. The [`NodeId`] corresponds to the surface item's `node_id`.
+    pub parametric_param_res_map: UnordMap<NodeId, Vec<(DefId, Span)>>,
 }
 
 #[extension(pub trait PlaceExt)]

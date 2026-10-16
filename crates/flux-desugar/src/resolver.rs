@@ -1392,7 +1392,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         let mut params = Vec::with_capacity(names.len());
         for name in names {
             if let Some(&def_id) = param_map.get(&name.name) {
-                params.push(def_id);
+                params.push((def_id, name.span));
             } else {
                 self.errors
                     .emit(errors::UnknownParametricParam::new(name.span));
