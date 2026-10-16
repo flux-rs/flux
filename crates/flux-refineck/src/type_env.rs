@@ -487,6 +487,7 @@ impl BasicBlockEnvShape {
             }
             BaseTy::Slice(ty) => BaseTy::Slice(Self::pack_ty(scope, ty)),
             BaseTy::Ref(r, ty, mutbl) => BaseTy::Ref(*r, Self::pack_ty(scope, ty), *mutbl),
+            BaseTy::RawPtr(ty, mutbl) => BaseTy::RawPtr(Self::pack_ty(scope, ty), *mutbl),
             BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
             BaseTy::Int(_)
             | BaseTy::Param(_)
@@ -494,7 +495,6 @@ impl BasicBlockEnvShape {
             | BaseTy::Bool
             | BaseTy::Float(_)
             | BaseTy::Str
-            | BaseTy::RawPtr(_, _)
             | BaseTy::RawPtrMetadata(_)
             | BaseTy::Char
             | BaseTy::Never
@@ -682,6 +682,10 @@ impl BasicBlockEnvShape {
                 tracked_span_dbg_assert_eq!(r1, r2);
                 tracked_span_dbg_assert_eq!(mutbl1, mutbl2);
                 BaseTy::Ref(*r1, self.join_ty(ty1, ty2), *mutbl1)
+            }
+            (BaseTy::RawPtr(ty1, mutbl1), BaseTy::RawPtr(ty2, mutbl2)) => {
+                tracked_span_dbg_assert_eq!(mutbl1, mutbl2);
+                BaseTy::RawPtr(self.join_ty(ty1, ty2), *mutbl1)
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
                 tracked_span_dbg_assert_eq!(len1, len2);
