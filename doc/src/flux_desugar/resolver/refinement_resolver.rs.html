@@ -445,59 +445,59 @@
 <a href=#445 id=445 data-nosnippet>445</a>        );
 <a href=#446 id=446 data-nosnippet>446</a>    }
 <a href=#447 id=447 data-nosnippet>447</a>
-<a href=#448 id=448 data-nosnippet>448</a>    <span class="kw">fn </span>emit_ambiguity_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ambiguity: <span class="kw">super</span>::Ambiguity) {
-<a href=#449 id=449 data-nosnippet>449</a>        <span class="self">self</span>.errors
-<a href=#450 id=450 data-nosnippet>450</a>            .emit(<span class="kw">super</span>::errors::AmbiguousName::new(ambiguity));
-<a href=#451 id=451 data-nosnippet>451</a>    }
-<a href=#452 id=452 data-nosnippet>452</a>
-<a href=#453 id=453 data-nosnippet>453</a>    <span class="kw">fn </span>resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::ExprPath) {
-<a href=#454 id=454 data-nosnippet>454</a>        <span class="kw">match </span><span class="self">self</span>.try_resolve_expr_with_ribs(<span class="kw-2">&amp;</span>path.segments) {
-<a href=#455 id=455 data-nosnippet>455</a>            <span class="prelude-val">Ok</span>(res) =&gt; {
-<a href=#456 id=456 data-nosnippet>456</a>                <span class="self">self</span>.check_unrefined_param(res, path.segments.last().unwrap().ident);
-<a href=#457 id=457 data-nosnippet>457</a>                <span class="self">self</span>.path_res_map.insert(path.node_id, res);
-<a href=#458 id=458 data-nosnippet>458</a>            }
-<a href=#459 id=459 data-nosnippet>459</a>            <span class="prelude-val">Err</span>(ResolveError::Ambiguous(ambiguity)) =&gt; <span class="self">self</span>.emit_ambiguity_err(ambiguity),
-<a href=#460 id=460 data-nosnippet>460</a>            <span class="prelude-val">Err</span>(ResolveError::NotFound) =&gt; <span class="self">self</span>.emit_unresolved_expr_path(path),
-<a href=#461 id=461 data-nosnippet>461</a>        }
-<a href=#462 id=462 data-nosnippet>462</a>    }
-<a href=#463 id=463 data-nosnippet>463</a>
-<a href=#464 id=464 data-nosnippet>464</a>    <span class="kw">fn </span>resolve_ident(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ident: Ident, node_id: NodeId) {
-<a href=#465 id=465 data-nosnippet>465</a>        <span class="kw">match </span><span class="self">self</span>.try_resolve_expr_with_ribs(<span class="kw-2">&amp;</span>[ident]) {
-<a href=#466 id=466 data-nosnippet>466</a>            <span class="prelude-val">Ok</span>(res) =&gt; {
-<a href=#467 id=467 data-nosnippet>467</a>                <span class="self">self</span>.check_unrefined_param(res, ident);
-<a href=#468 id=468 data-nosnippet>468</a>                <span class="self">self</span>.path_res_map.insert(node_id, res);
-<a href=#469 id=469 data-nosnippet>469</a>            }
-<a href=#470 id=470 data-nosnippet>470</a>            <span class="prelude-val">Err</span>(ResolveError::Ambiguous(ambiguity)) =&gt; <span class="self">self</span>.emit_ambiguity_err(ambiguity),
-<a href=#471 id=471 data-nosnippet>471</a>            <span class="prelude-val">Err</span>(ResolveError::NotFound) =&gt; <span class="self">self</span>.emit_unresolved_ident(ident),
-<a href=#472 id=472 data-nosnippet>472</a>        }
-<a href=#473 id=473 data-nosnippet>473</a>    }
-<a href=#474 id=474 data-nosnippet>474</a>
-<a href=#475 id=475 data-nosnippet>475</a>    <span class="doccomment">/// Emit an error if `res` resolved to a param that cannot be refined.
-<a href=#476 id=476 data-nosnippet>476</a>    /// e.g., `fn(x: &amp;mut i32) -&gt; i32[x]`
-<a href=#477 id=477 data-nosnippet>477</a>    </span><span class="kw">fn </span>check_unrefined_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, res: PartialRes&lt;NodeId&gt;, ident: Ident) {
-<a href=#478 id=478 data-nosnippet>478</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(Res::Param(fhir::ParamKind::Error, <span class="kw">_</span>)) = res.full_res() {
-<a href=#479 id=479 data-nosnippet>479</a>            <span class="self">self</span>.errors.emit(errors::InvalidUnrefinedParam::new(ident));
-<a href=#480 id=480 data-nosnippet>480</a>        }
-<a href=#481 id=481 data-nosnippet>481</a>    }
-<a href=#482 id=482 data-nosnippet>482</a>
-<a href=#483 id=483 data-nosnippet>483</a>    <span class="kw">fn </span>try_resolve_expr_with_ribs&lt;S: Segment&gt;(
-<a href=#484 id=484 data-nosnippet>484</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#485 id=485 data-nosnippet>485</a>        segments: <span class="kw-2">&amp;</span>[S],
-<a href=#486 id=486 data-nosnippet>486</a>    ) -&gt; std::result::Result&lt;PartialRes&lt;NodeId&gt;, ResolveError&gt; {
-<a href=#487 id=487 data-nosnippet>487</a>        <span class="comment">// Try the refinement namespace first so that refinement params (and then flux funcs) take
-<a href=#488 id=488 data-nosnippet>488</a>        // precedence over Rust value/type bindings — in particular, a param shadows a Rust const of
-<a href=#489 id=489 data-nosnippet>489</a>        // the same name.
-<a href=#490 id=490 data-nosnippet>490</a>        //
-<a href=#491 id=491 data-nosnippet>491</a>        // An ambiguity in one namespace doesn't stop us from trying the next: a later namespace
-<a href=#492 id=492 data-nosnippet>492</a>        // may still resolve the name unambiguously, exactly as it would shadow it. But if nothing
-<a href=#493 id=493 data-nosnippet>493</a>        // resolves anywhere, we report the ambiguity rather than "unresolved name", which would
-<a href=#494 id=494 data-nosnippet>494</a>        // point the user at the wrong problem.
-<a href=#495 id=495 data-nosnippet>495</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>ambiguity = <span class="prelude-val">None</span>;
-<a href=#496 id=496 data-nosnippet>496</a>        <span class="kw">for </span>ns <span class="kw">in </span>[ReftNS, ValueNS, TypeNS] {
-<a href=#497 id=497 data-nosnippet>497</a>            <span class="kw">match </span><span class="self">self</span>.resolver.resolve_path_with_ribs(segments, ns) {
-<a href=#498 id=498 data-nosnippet>498</a>                <span class="prelude-val">Ok</span>(partial_res) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(partial_res),
-<a href=#499 id=499 data-nosnippet>499</a>                <span class="prelude-val">Err</span>(ResolveError::Ambiguous(amb)) =&gt; ambiguity = ambiguity.or(<span class="prelude-val">Some</span>(amb)),
-<a href=#500 id=500 data-nosnippet>500</a>                <span class="prelude-val">Err</span>(ResolveError::NotFound) =&gt; {}
+<a href=#448 id=448 data-nosnippet>448</a>    <span class="kw">fn </span>emit_resolve_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: ResolveError) {
+<a href=#449 id=449 data-nosnippet>449</a>        err.emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors);
+<a href=#450 id=450 data-nosnippet>450</a>    }
+<a href=#451 id=451 data-nosnippet>451</a>
+<a href=#452 id=452 data-nosnippet>452</a>    <span class="kw">fn </span>resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::ExprPath) {
+<a href=#453 id=453 data-nosnippet>453</a>        <span class="kw">match </span><span class="self">self</span>.try_resolve_expr_with_ribs(<span class="kw-2">&amp;</span>path.segments) {
+<a href=#454 id=454 data-nosnippet>454</a>            <span class="prelude-val">Ok</span>(res) =&gt; {
+<a href=#455 id=455 data-nosnippet>455</a>                <span class="self">self</span>.check_unrefined_param(res, path.segments.last().unwrap().ident);
+<a href=#456 id=456 data-nosnippet>456</a>                <span class="self">self</span>.path_res_map.insert(path.node_id, res);
+<a href=#457 id=457 data-nosnippet>457</a>            }
+<a href=#458 id=458 data-nosnippet>458</a>            <span class="prelude-val">Err</span>(ResolveError::NotFound) =&gt; <span class="self">self</span>.emit_unresolved_expr_path(path),
+<a href=#459 id=459 data-nosnippet>459</a>            <span class="prelude-val">Err</span>(err) =&gt; <span class="self">self</span>.emit_resolve_err(err),
+<a href=#460 id=460 data-nosnippet>460</a>        }
+<a href=#461 id=461 data-nosnippet>461</a>    }
+<a href=#462 id=462 data-nosnippet>462</a>
+<a href=#463 id=463 data-nosnippet>463</a>    <span class="kw">fn </span>resolve_ident(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ident: Ident, node_id: NodeId) {
+<a href=#464 id=464 data-nosnippet>464</a>        <span class="kw">match </span><span class="self">self</span>.try_resolve_expr_with_ribs(<span class="kw-2">&amp;</span>[ident]) {
+<a href=#465 id=465 data-nosnippet>465</a>            <span class="prelude-val">Ok</span>(res) =&gt; {
+<a href=#466 id=466 data-nosnippet>466</a>                <span class="self">self</span>.check_unrefined_param(res, ident);
+<a href=#467 id=467 data-nosnippet>467</a>                <span class="self">self</span>.path_res_map.insert(node_id, res);
+<a href=#468 id=468 data-nosnippet>468</a>            }
+<a href=#469 id=469 data-nosnippet>469</a>            <span class="prelude-val">Err</span>(ResolveError::NotFound) =&gt; <span class="self">self</span>.emit_unresolved_ident(ident),
+<a href=#470 id=470 data-nosnippet>470</a>            <span class="prelude-val">Err</span>(err) =&gt; <span class="self">self</span>.emit_resolve_err(err),
+<a href=#471 id=471 data-nosnippet>471</a>        }
+<a href=#472 id=472 data-nosnippet>472</a>    }
+<a href=#473 id=473 data-nosnippet>473</a>
+<a href=#474 id=474 data-nosnippet>474</a>    <span class="doccomment">/// Emit an error if `res` resolved to a param that cannot be refined.
+<a href=#475 id=475 data-nosnippet>475</a>    /// e.g., `fn(x: &amp;mut i32) -&gt; i32[x]`
+<a href=#476 id=476 data-nosnippet>476</a>    </span><span class="kw">fn </span>check_unrefined_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, res: PartialRes&lt;NodeId&gt;, ident: Ident) {
+<a href=#477 id=477 data-nosnippet>477</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(Res::Param(fhir::ParamKind::Error, <span class="kw">_</span>)) = res.full_res() {
+<a href=#478 id=478 data-nosnippet>478</a>            <span class="self">self</span>.errors.emit(errors::InvalidUnrefinedParam::new(ident));
+<a href=#479 id=479 data-nosnippet>479</a>        }
+<a href=#480 id=480 data-nosnippet>480</a>    }
+<a href=#481 id=481 data-nosnippet>481</a>
+<a href=#482 id=482 data-nosnippet>482</a>    <span class="kw">fn </span>try_resolve_expr_with_ribs&lt;S: Segment&gt;(
+<a href=#483 id=483 data-nosnippet>483</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#484 id=484 data-nosnippet>484</a>        segments: <span class="kw-2">&amp;</span>[S],
+<a href=#485 id=485 data-nosnippet>485</a>    ) -&gt; std::result::Result&lt;PartialRes&lt;NodeId&gt;, ResolveError&gt; {
+<a href=#486 id=486 data-nosnippet>486</a>        <span class="comment">// Try the refinement namespace first so that refinement params (and then flux funcs) take
+<a href=#487 id=487 data-nosnippet>487</a>        // precedence over Rust value/type bindings — in particular, a param shadows a Rust const of
+<a href=#488 id=488 data-nosnippet>488</a>        // the same name.
+<a href=#489 id=489 data-nosnippet>489</a>        //
+<a href=#490 id=490 data-nosnippet>490</a>        // An ambiguity in one namespace doesn't stop us from trying the next: a later namespace
+<a href=#491 id=491 data-nosnippet>491</a>        // may still resolve the name unambiguously, exactly as it would shadow it. But if nothing
+<a href=#492 id=492 data-nosnippet>492</a>        // resolves anywhere, we report the ambiguity rather than "unresolved name", which would
+<a href=#493 id=493 data-nosnippet>493</a>        // point the user at the wrong problem.
+<a href=#494 id=494 data-nosnippet>494</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>ambiguity = <span class="prelude-val">None</span>;
+<a href=#495 id=495 data-nosnippet>495</a>        <span class="kw">for </span>ns <span class="kw">in </span>[ReftNS, ValueNS, TypeNS] {
+<a href=#496 id=496 data-nosnippet>496</a>            <span class="kw">match </span><span class="self">self</span>.resolver.resolve_path_with_ribs(segments, ns) {
+<a href=#497 id=497 data-nosnippet>497</a>                <span class="prelude-val">Ok</span>(partial_res) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(partial_res),
+<a href=#498 id=498 data-nosnippet>498</a>                <span class="prelude-val">Err</span>(ResolveError::Ambiguous(amb)) =&gt; ambiguity = ambiguity.or(<span class="prelude-val">Some</span>(amb)),
+<a href=#499 id=499 data-nosnippet>499</a>                <span class="prelude-val">Err</span>(ResolveError::NotFound) =&gt; {}
+<a href=#500 id=500 data-nosnippet>500</a>                <span class="prelude-val">Err</span>(err @ ResolveError::OuterGeneric(<span class="kw">_</span>)) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(err),
 <a href=#501 id=501 data-nosnippet>501</a>            }
 <a href=#502 id=502 data-nosnippet>502</a>        }
 <a href=#503 id=503 data-nosnippet>503</a>        <span class="prelude-val">Err</span>(ambiguity.map_or(ResolveError::NotFound, ResolveError::Ambiguous))
@@ -514,8 +514,8 @@
 <a href=#514 id=514 data-nosnippet>514</a>                <span class="self">self</span>.emit_unresolved_sort_path(path);
 <a href=#515 id=515 data-nosnippet>515</a>                PartialRes::new(fhir::Res::Err)
 <a href=#516 id=516 data-nosnippet>516</a>            }
-<a href=#517 id=517 data-nosnippet>517</a>            <span class="prelude-val">Err</span>(ResolveError::Ambiguous(ambiguity)) =&gt; {
-<a href=#518 id=518 data-nosnippet>518</a>                <span class="self">self</span>.emit_ambiguity_err(ambiguity);
+<a href=#517 id=517 data-nosnippet>517</a>            <span class="prelude-val">Err</span>(err) =&gt; {
+<a href=#518 id=518 data-nosnippet>518</a>                <span class="self">self</span>.emit_resolve_err(err);
 <a href=#519 id=519 data-nosnippet>519</a>                PartialRes::new(fhir::Res::Err)
 <a href=#520 id=520 data-nosnippet>520</a>            }
 <a href=#521 id=521 data-nosnippet>521</a>        };
