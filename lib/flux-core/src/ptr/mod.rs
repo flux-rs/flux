@@ -12,7 +12,7 @@
     // validity predicate with no ZST exception: null is never valid, even for
     // zero-sized accesses. Used as a building block for `valid` below.
     fn valid_no_zst(p: ptr, num_bytes: int) -> bool {
-        p.addr != 0 && dereferenceable(p, num_bytes)
+        p.addr > 0 && dereferenceable(p, num_bytes)
     }
 
     // Validity for raw-pointer operations (ptr::read, ptr::write, etc.).
