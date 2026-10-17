@@ -414,10 +414,8 @@ impl<'v, 'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visi
 
 type Binders = UnordMap<NodeId, Vec<(Ident, fhir::ParamKind, NodeId)>>;
 
-/// Collects the implicit params bound in each binder scope (see [`Scope::Binder`]),
-/// reporting binders used in a position where they are not allowed. Implicit params must be
-/// collected before resolving because they can be used before they are bound in the same scope,
-/// e.g., `fn(x: i32{v: v > n}, n: i32)`.
+/// Collects the implicitly scoped params bound in each scope (see [`Scope::Implicit`]),
+/// reporting binders used in a position where they are not allowed.
 pub(crate) struct ImplicitParamCollector<'a, 'genv, 'tcx> {
     resolver: &'a CrateResolver<'genv, 'tcx>,
     /// For each enclosing scope, the kind and node of the binder scope, or `None` if the scope is
