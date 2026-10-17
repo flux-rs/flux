@@ -1985,7 +1985,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         let pred = sized_raw_ptr_pred(self.genv, &ctor, &Expr::nu(), None);
                         Ok(Some(Ty::exists_with_constr(ptr_bty, pred)))
                     } else {
-                        Ok(None)
+                        Err(query_bug!("static mut is not a raw pointer"))
                     }
                 } else {
                     Ok(None)
