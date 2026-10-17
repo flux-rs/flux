@@ -558,7 +558,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     /// When a Place hasn't been handled by special casing for &raw (*ptr) etc,
-    /// and it is being written to or read from, we need to ensure all raw pointers 
+    /// and it is being written to or read from, we need to ensure all raw pointers
     /// that get dereferenced are valid and aligned.
     /// e.g. **p means *p is valid / aligned, as well as **p.
     fn check_raw_ptr_derefs(
@@ -575,7 +575,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             let ptr_place = Place::new(place.local, place.projection[..i].to_vec());
             let val_place = ptr_place.deref();
-            let Some(idx) = place_directly_derefs_raw_ptr(env, infcx, &val_place, span)? else { continue };
+            let Some(idx) = place_directly_derefs_raw_ptr(env, infcx, &val_place, span)? else {
+                continue;
+            };
             let ty = env.lookup_rust_ty(genv, &val_place)?;
             let ctor = self.default_refiner.refine_ty_or_base(&ty)?.expect_base();
             let pred = self.raw_ptr_deref_pred(infcx, ctor, &idx);
@@ -1438,8 +1440,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let pack = place
                     .min_pack(genv, &self.body.local_decls)
                     .with_span(stmt_span)?;
-                if let Some(idx) =
-                    place_directly_derefs_raw_ptr(env, infcx, place, stmt_span).with_span(stmt_span)?
+                if let Some(idx) = place_directly_derefs_raw_ptr(env, infcx, place, stmt_span)
+                    .with_span(stmt_span)?
                 {
                     Ok(Ty::indexed(BaseTy::RawPtr(ctor.to_ty(), kind.to_mutbl_lossy()), idx))
                 } else if place_derefs_raw_ptr(env, infcx, place, stmt_span).with_span(stmt_span)? {
