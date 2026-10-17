@@ -12,7 +12,7 @@ use flux_syntax::{
 use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_span::{ErrorGuaranteed, Span};
 
-use super::{BindingSource, CrateResolver, ResolveError, RibKind, Segment};
+use super::{BindingSource, CrateResolver, ResolveError, RibKind, Segment, errors::UnresolvedName};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -524,15 +524,12 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         }
     }
 
-    fn emit_resolve_err(&mut self, err: ResolveError) {
-        err.emit(&self.errors);
-    }
-
     fn resolve_segments<S: Segment>(&mut self, segments: &[S], node_id: NodeId, span: Span) {
         match self.try_resolve_expr_with_ribs(segments) {
             Ok(res) => self.record_expr_res(node_id, res, segments.last().unwrap().ident()),
-            Err(ResolveError::NotFound) => self.emit_unresolved_expr_path(segments, span),
-            Err(err) => self.emit_resolve_err(err),
+            Err(err) => {
+                err.emit(&self.errors, || UnresolvedName::new(span, segments, "value"));
+            }
         }
     }
 
@@ -578,12 +575,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         // diagnostic) is decided later in `conv_sort_path`.
         let res = match self.resolver.resolve_path_with_ribs(&path.segments, TypeNS) {
             Ok(res) => res,
-            Err(ResolveError::NotFound) => {
-                self.emit_unresolved_sort_path(path);
-                PartialRes::new(fhir::Res::Err)
-            }
             Err(err) => {
-                self.emit_resolve_err(err);
+                err.emit(&self.errors, || UnresolvedName::new(path.span(), &path.segments, "sort"));
                 PartialRes::new(fhir::Res::Err)
             }
         };
@@ -614,27 +607,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 (scope, params)
             }));
         self.errors.to_result()
-    }
-
-    fn emit_unresolved_expr_path<S: Segment>(&mut self, segments: &[S], span: Span) {
-        self.errors.emit(super::errors::UnresolvedName {
-            span,
-            name: Segment::format_iter(segments),
-            kind: "value",
-        });
-    }
-
-    fn emit_unresolved_sort_path(&mut self, path: &surface::SortPath) {
-        self.errors.emit(super::errors::UnresolvedName {
-            span: path
-                .segments
-                .iter()
-                .map(|ident| ident.span)
-                .reduce(Span::to)
-                .unwrap_or_default(),
-            name: Segment::format_iter(&path.segments),
-            kind: "sort",
-        });
     }
 }
 

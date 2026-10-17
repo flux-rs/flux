@@ -342,6 +342,16 @@ pub struct SortPath {
     pub node_id: NodeId,
 }
 
+impl SortPath {
+    pub fn span(&self) -> Span {
+        self.segments
+            .iter()
+            .map(|ident| ident.span)
+            .reduce(Span::to)
+            .unwrap_or_default()
+    }
+}
+
 #[derive(Debug)]
 pub struct Impl {
     pub generics: Option<Generics>,

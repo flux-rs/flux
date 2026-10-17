@@ -49,12 +49,16 @@ enum ResolveError {
 }
 
 impl ResolveError {
-    /// Emits the error. [`ResolveError::NotFound`] must be reported by the caller, which knows what
-    /// was being looked for.
+    /// Emits the error. A [`ResolveError::NotFound`] is reported with the diagnostic built by
+    /// `not_found`, since only the caller knows what was being looked for.
     #[track_caller]
-    fn emit(self, emitter: &impl ErrorEmitter) -> ErrorGuaranteed {
+    fn emit<'a, D: rustc_errors::Diagnostic<'a>>(
+        self,
+        emitter: &'a impl ErrorEmitter,
+        not_found: impl FnOnce() -> D,
+    ) -> ErrorGuaranteed {
         match self {
-            Self::NotFound => bug!("unresolved names are reported by the caller"),
+            Self::NotFound => emitter.emit(not_found()),
             Self::Ambiguous(ambiguity) => emitter.emit(errors::AmbiguousName::new(ambiguity)),
             Self::OuterGeneric(span) => emitter.emit(errors::OuterGeneric { span }),
         }
@@ -408,8 +412,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_item(&mut self, item: &surface::Item, item_id: MaybeExternId<OwnerId>) -> Result {
         ItemResolver::run(self, item_id, |vis| vis.visit_item(item))?;
-        let implicit_params = ImplicitParamCollector::run(self, |vis| vis.visit_item(item))?;
-        RefinementResolver::run(self, implicit_params, |vis| vis.visit_item(item))
+        let params = ImplicitParamCollector::run(self, |vis| vis.visit_item(item))?;
+        RefinementResolver::run(self, params, |vis| vis.visit_item(item))
     }
 
     fn resolve_trait_item(
@@ -418,8 +422,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         item_id: MaybeExternId<OwnerId>,
     ) -> Result {
         ItemResolver::run(self, item_id, |vis| vis.visit_trait_item(item))?;
-        let implicit_params = ImplicitParamCollector::run(self, |vis| vis.visit_trait_item(item))?;
-        RefinementResolver::run(self, implicit_params, |vis| vis.visit_trait_item(item))
+        let params = ImplicitParamCollector::run(self, |vis| vis.visit_trait_item(item))?;
+        RefinementResolver::run(self, params, |vis| vis.visit_trait_item(item))
     }
 
     fn resolve_impl_item(
@@ -428,8 +432,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         item_id: MaybeExternId<OwnerId>,
     ) -> Result {
         ItemResolver::run(self, item_id, |vis| vis.visit_impl_item(item))?;
-        let implicit_params = ImplicitParamCollector::run(self, |vis| vis.visit_impl_item(item))?;
-        RefinementResolver::run(self, implicit_params, |vis| vis.visit_impl_item(item))
+        let params = ImplicitParamCollector::run(self, |vis| vis.visit_impl_item(item))?;
+        RefinementResolver::run(self, params, |vis| vis.visit_impl_item(item))
     }
 
     fn resolve_path_with_ribs<S: Segment>(
@@ -539,12 +543,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             };
             let res = match res {
                 Ok(res) => res,
-                Err(ResolveError::NotFound) => {
-                    self.emit_unresolved_import(ident, resolved_module_id, resolved_prefix);
-                    return vec![];
-                }
                 Err(err) => {
-                    self.emit_resolve_err(err);
+                    self.emit_resolve_err(err, || {
+                        errors::UnresolvedImport::new(ident, resolved_module_id, resolved_prefix)
+                    });
                     return vec![];
                 }
             };
@@ -577,10 +579,17 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         Err(err) => error = error.or(Some(err)),
                     }
                 }
+                if resolutions.is_empty() {
+                    error = error.or(Some(ResolveError::NotFound));
+                }
                 if let Some(err) = error {
-                    self.emit_resolve_err(err);
-                } else if resolutions.is_empty() {
-                    self.emit_unresolved_import(last.ident, resolved_module_id, resolved_prefix);
+                    self.emit_resolve_err(err, || {
+                        errors::UnresolvedImport::new(
+                            last.ident,
+                            resolved_module_id,
+                            resolved_prefix,
+                        )
+                    });
                 }
                 resolutions
             }
@@ -896,23 +905,12 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     #[track_caller]
-    fn emit_unresolved_import(
+    fn emit_resolve_err<D: rustc_errors::Diagnostic<'genv>>(
         &mut self,
-        ident: Ident,
-        module_id: Option<DefId>,
-        resolved_prefix: &[Ident],
+        err: ResolveError,
+        not_found: impl FnOnce() -> D,
     ) {
-        let reason = match module_id {
-            None => "not found in this scope".to_string(),
-            Some(_) => format!("no `{ident}` in `{}`", Segment::format_iter(resolved_prefix)),
-        };
-        let name = Segment::format_iter(resolved_prefix.iter().chain(&[ident]));
-        self.emit(errors::UnresolvedImport { span: ident.span, name, reason });
-    }
-
-    #[track_caller]
-    fn emit_resolve_err(&mut self, err: ResolveError) {
-        self.err.collect(err.emit(self.genv.sess()));
+        self.err.collect(err.emit(self.genv.sess(), not_found));
     }
 
     fn emit_not_a_module(&mut self, ident: Ident, resolved_prefix: &[Ident]) {
@@ -1410,8 +1408,11 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
                     .path_res_map
                     .insert(path.node_id, partial_res);
             }
-            Err(ResolveError::NotFound) => self.emit_unresolved_path(path, ns),
-            Err(err) => self.emit_resolve_err(err),
+            Err(err) => {
+                err.emit(&self.errors, || {
+                    errors::UnresolvedName::new(path.span, &path.segments, ns.descr())
+                });
+            }
         }
     }
 
@@ -1485,26 +1486,16 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
                             .emit(errors::UnknownFuncDefinition::new(name.span));
                     }
                 }
-                Ok(_) | Err(ResolveError::NotFound) => {
+                Ok(_) => {
                     self.errors
                         .emit(errors::UnknownFuncDefinition::new(name.span));
                 }
-                Err(err) => self.emit_resolve_err(err),
+                Err(err) => {
+                    err.emit(&self.errors, || errors::UnknownFuncDefinition::new(name.span));
+                }
             }
         }
         def_ids
-    }
-
-    fn emit_resolve_err(&mut self, err: ResolveError) {
-        err.emit(&self.errors);
-    }
-
-    fn emit_unresolved_path(&mut self, path: &surface::Path, ns: Namespace) {
-        self.errors.emit(errors::UnresolvedName {
-            span: path.span,
-            name: Segment::format_iter(&path.segments),
-            kind: ns.descr(),
-        });
     }
 }
 
@@ -1649,7 +1640,10 @@ fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use rustc_span::{Span, Symbol};
+    use flux_syntax::surface::Ident;
+    use rustc_span::{Span, Symbol, def_id::DefId};
+
+    use super::Segment;
 
     /// A name that could not be resolved. `kind` is the user-facing description of what was being
     /// looked for (`"type"`, `"value"`, `"sort"`, ...); it is passed explicitly by each call site
@@ -1660,9 +1654,15 @@ mod errors {
     pub(crate) struct UnresolvedName {
         #[primary_span]
         #[label("not found in this scope")]
-        pub span: Span,
-        pub kind: &'static str,
-        pub name: String,
+        span: Span,
+        kind: &'static str,
+        name: String,
+    }
+
+    impl UnresolvedName {
+        pub(crate) fn new<S: Segment>(span: Span, segments: &[S], kind: &'static str) -> Self {
+            Self { span, name: Segment::format_iter(segments), kind }
+        }
     }
 
     /// An import path (`flux::use foo::bar::baz`) that could not be resolved. Unlike
@@ -1677,6 +1677,23 @@ mod errors {
         pub span: Span,
         pub name: String,
         pub reason: String,
+    }
+
+    impl UnresolvedImport {
+        /// The import segment `ident` was not found, in `module_id` if the prefix before it
+        /// resolved to one, or in scope otherwise.
+        pub(super) fn new(
+            ident: Ident,
+            module_id: Option<DefId>,
+            resolved_prefix: &[Ident],
+        ) -> Self {
+            let reason = match module_id {
+                None => "not found in this scope".to_string(),
+                Some(_) => format!("no `{ident}` in `{}`", Segment::format_iter(resolved_prefix)),
+            };
+            let name = Segment::format_iter(resolved_prefix.iter().chain(&[ident]));
+            Self { span: ident.span, name, reason }
+        }
     }
 
     #[derive(Diagnostic)]
