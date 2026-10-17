@@ -9,10 +9,7 @@ use flux_syntax::{
     surface::{self, Ident, NodeId, visit::Visitor as _},
     walk_list,
 };
-use rustc_data_structures::{
-    fx::FxIndexMap,
-    unord::{UnordMap, UnordSet},
-};
+use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_span::{ErrorGuaranteed, Span};
 
 use super::{BindingSource, CrateResolver, ResolveError, RibKind, Segment};
@@ -412,7 +409,14 @@ impl<'v, 'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visi
     }
 }
 
-type Binders = UnordMap<NodeId, Vec<(Ident, fhir::ParamKind, NodeId)>>;
+#[derive(Clone, Copy)]
+pub(crate) struct ParamDef {
+    ident: Ident,
+    kind: fhir::ParamKind,
+    param_id: NodeId,
+}
+
+pub(crate) type ImplicitParams = UnordMap<NodeId, Vec<ParamDef>>;
 
 /// Collects the implicitly scoped params bound in each scope (see [`Scope::Implicit`]),
 /// reporting binders used in a position where they are not allowed.
@@ -421,7 +425,7 @@ pub(crate) struct ImplicitParamCollector<'a, 'genv, 'tcx> {
     /// For each enclosing scope, the kind and node of the binder scope, or `None` if the scope is
     /// not a binder scope.
     scopes: Vec<Option<(BinderKind, NodeId)>>,
-    binders: Binders,
+    implicit_params: ImplicitParams,
     errors: Errors<'genv>,
 }
 
@@ -429,12 +433,13 @@ impl<'a, 'genv, 'tcx> ImplicitParamCollector<'a, 'genv, 'tcx> {
     pub(crate) fn run(
         resolver: &'a CrateResolver<'genv, 'tcx>,
         f: impl FnOnce(&mut ScopedVisitorWrapper<Self>),
-    ) -> Result<Binders> {
+    ) -> Result<ImplicitParams> {
         let errors = Errors::new(resolver.genv.sess());
-        let mut vis = Self { resolver, scopes: vec![], binders: Default::default(), errors }.wrap();
+        let mut vis =
+            Self { resolver, scopes: vec![], implicit_params: Default::default(), errors }.wrap();
         f(&mut vis);
         vis.0.errors.to_result()?;
-        Ok(vis.0.binders)
+        Ok(vis.0.implicit_params)
     }
 }
 
@@ -455,9 +460,9 @@ impl<'genv, 'tcx> ScopedVisitor<'genv, 'tcx> for ImplicitParamCollector<'_, 'gen
         self.scopes.pop();
     }
 
-    fn on_implicit_param(&mut self, ident: Ident, param_kind: fhir::ParamKind, param_id: NodeId) {
+    fn on_implicit_param(&mut self, ident: Ident, kind: fhir::ParamKind, param_id: NodeId) {
         let Some(&binder_scope) = self.scopes.last() else { return };
-        let bind_kind = match param_kind {
+        let bind_kind = match kind {
             fhir::ParamKind::At => Some(surface::BindKind::At),
             fhir::ParamKind::Pound => Some(surface::BindKind::Pound),
             _ => None,
@@ -470,51 +475,44 @@ impl<'genv, 'tcx> ScopedVisitor<'genv, 'tcx> for ImplicitParamCollector<'_, 'gen
             return;
         }
         if let Some((_, node_id)) = binder_scope {
-            self.binders
+            self.implicit_params
                 .entry(node_id)
                 .or_default()
-                .push((ident, param_kind, param_id));
+                .push(ParamDef { ident, kind, param_id });
         }
     }
 }
 
-#[derive(Clone, Copy)]
-struct ParamDef {
-    ident: Ident,
-    kind: fhir::ParamKind,
-    scope: Option<NodeId>,
-}
-
 pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
-    param_defs: FxIndexMap<NodeId, ParamDef>,
+    param_defs: Vec<ParamDef>,
     /// Parameters referenced in some expression. Used to skip unused
     /// [`fhir::ParamKind::Colon`]
     used_params: UnordSet<NodeId>,
     /// Implicit params to define when entering each binder scope.
-    binders: Binders,
+    implicit_params: ImplicitParams,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     errors: Errors<'genv>,
 }
 
 impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
-    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, binders: Binders) -> Self {
+    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, implicit_params: ImplicitParams) -> Self {
         let errors = Errors::new(resolver.genv.sess());
         Self {
             resolver,
             param_defs: Default::default(),
             used_params: Default::default(),
-            binders,
+            implicit_params,
             errors,
         }
     }
 
     pub(crate) fn run(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        binders: Binders,
+        implicit_params: ImplicitParams,
         sort_vars: &[Ident],
         f: impl FnOnce(&mut ScopedVisitorWrapper<Self>),
     ) -> Result {
-        let this = Self::new(resolver, binders);
+        let this = Self::new(resolver, implicit_params);
         // Sort variables share the type namespace with sorts/types (see [`fhir::Namespace`]).
         this.resolver.push_rib(TypeNS, RibKind::Misc);
         for (idx, ident) in sort_vars.iter().enumerate() {
@@ -531,31 +529,22 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         wrapper.0.finish()
     }
 
-    fn define_param(
-        &mut self,
-        ident: Ident,
-        kind: fhir::ParamKind,
-        param_id: NodeId,
-        scope: Option<NodeId>,
-    ) {
-        self.param_defs
-            .insert(param_id, ParamDef { ident, kind, scope });
-
+    fn define_param(&mut self, def: ParamDef) {
+        self.param_defs.push(def);
         self.resolver.define_res_in(
-            Res::Param(kind, param_id),
+            Res::Param(def.kind, def.param_id),
             ReftNS,
-            BindingSource::Explicit(ident),
+            BindingSource::Explicit(def.ident),
         );
     }
 
     fn define_explicit_params(&mut self, params: &[surface::RefineParam]) {
         for param in params {
-            self.define_param(
-                param.ident,
-                fhir::ParamKind::Explicit(param.mode.map(Into::into)),
-                param.node_id,
-                None,
-            );
+            self.define_param(ParamDef {
+                ident: param.ident,
+                kind: fhir::ParamKind::Explicit(param.mode.map(Into::into)),
+                param_id: param.node_id,
+            });
         }
     }
 
@@ -634,26 +623,28 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 
     pub(crate) fn finish(self) -> Result {
-        debug_assert!(self.binders.is_empty(), "binder scope not visited during resolution");
         let param_id_gen = IndexGen::new();
         let output = &mut self.resolver.output;
-        for (node_id, def) in self.param_defs {
+        for def in self.param_defs {
             match def.kind {
-                fhir::ParamKind::Colon if !self.used_params.contains(&node_id) => continue,
+                fhir::ParamKind::Colon if !self.used_params.contains(&def.param_id) => continue,
                 fhir::ParamKind::Error => continue,
                 _ => {}
             }
             output
                 .param_res_map
-                .insert(node_id, (param_id_gen.fresh(), def.kind));
-            if let Some(scope) = def.scope {
-                output
-                    .implicit_params
-                    .entry(scope)
-                    .or_default()
-                    .push((def.ident, node_id));
-            }
+                .insert(def.param_id, (param_id_gen.fresh(), def.kind));
         }
+        output
+            .implicit_params
+            .extend_unord(self.implicit_params.into_items().map(|(scope, params)| {
+                let params = params
+                    .into_iter()
+                    .filter(|def| output.param_res_map.contains_key(&def.param_id))
+                    .map(|def| (def.ident, def.param_id))
+                    .collect();
+                (scope, params)
+            }));
         self.errors.to_result()
     }
 
@@ -696,10 +687,13 @@ impl<'genv, 'tcx> ScopedVisitor<'genv, 'tcx> for RefinementResolver<'_, 'genv, '
         match scope {
             Scope::Implicit { kind, node_id, params } => {
                 self.resolver.push_rib(ReftNS, kind.rib_kind());
-                for (ident, param_kind, param_id) in
-                    self.binders.remove(node_id).unwrap_or_default()
+                for def in self
+                    .implicit_params
+                    .get(node_id)
+                    .cloned()
+                    .unwrap_or_default()
                 {
-                    self.define_param(ident, param_kind, param_id, Some(*node_id));
+                    self.define_param(def);
                 }
                 self.define_explicit_params(params);
             }

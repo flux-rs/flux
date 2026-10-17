@@ -402,8 +402,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_item(&mut self, item: &surface::Item, item_id: MaybeExternId<OwnerId>) -> Result {
         ItemResolver::run(self, item_id, |vis| vis.visit_item(item))?;
-        let binders = ImplicitParamCollector::run(self, |vis| vis.visit_item(item))?;
-        RefinementResolver::run(self, binders, &[], |vis| vis.visit_item(item))
+        let implicit_params = ImplicitParamCollector::run(self, |vis| vis.visit_item(item))?;
+        RefinementResolver::run(self, implicit_params, &[], |vis| vis.visit_item(item))
     }
 
     fn resolve_trait_item(
@@ -412,8 +412,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         item_id: MaybeExternId<OwnerId>,
     ) -> Result {
         ItemResolver::run(self, item_id, |vis| vis.visit_trait_item(item))?;
-        let binders = ImplicitParamCollector::run(self, |vis| vis.visit_trait_item(item))?;
-        RefinementResolver::run(self, binders, &[], |vis| vis.visit_trait_item(item))
+        let implicit_params = ImplicitParamCollector::run(self, |vis| vis.visit_trait_item(item))?;
+        RefinementResolver::run(self, implicit_params, &[], |vis| vis.visit_trait_item(item))
     }
 
     fn resolve_impl_item(
@@ -422,8 +422,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         item_id: MaybeExternId<OwnerId>,
     ) -> Result {
         ItemResolver::run(self, item_id, |vis| vis.visit_impl_item(item))?;
-        let binders = ImplicitParamCollector::run(self, |vis| vis.visit_impl_item(item))?;
-        RefinementResolver::run(self, binders, &[], |vis| vis.visit_impl_item(item))
+        let implicit_params = ImplicitParamCollector::run(self, |vis| vis.visit_impl_item(item))?;
+        RefinementResolver::run(self, implicit_params, &[], |vis| vis.visit_impl_item(item))
     }
 
     fn resolve_path_with_ribs<S: Segment>(
