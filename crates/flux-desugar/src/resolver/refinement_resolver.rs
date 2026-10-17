@@ -1,12 +1,9 @@
 use flux_common::index::IndexGen;
 use flux_errors::Errors;
-use flux_middle::{
-    ResolverOutput,
-    fhir::{
-        self,
-        Namespace::{ReftNS, TypeNS, ValueNS},
-        PartialRes, Res,
-    },
+use flux_middle::fhir::{
+    self,
+    Namespace::{ReftNS, TypeNS, ValueNS},
+    PartialRes, Res,
 };
 use flux_syntax::{
     surface::{self, FluxItem, Ident, NodeId, visit::Visitor as _},
@@ -22,11 +19,20 @@ use super::{BindingSource, CrateResolver, ResolveError, RibKind, Segment};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) trait ScopedVisitor: Sized {
-    fn is_box(&self, segment: &surface::PathSegment) -> bool;
-    /// `node_id` is the [`NodeId`] of the node that owns the implicit params bound directly in
-    /// this scope. It is `Some` for the scopes where implicit params can be bound, i.e., fn inputs,
-    /// fn outputs, variants, fn pointer inputs and fn trait inputs.
+pub(crate) trait ScopedVisitor<'genv, 'tcx: 'genv>: Sized {
+    fn resolver(&self) -> &CrateResolver<'genv, 'tcx>;
+
+    fn is_box(&self, segment: &surface::PathSegment) -> bool {
+        self.resolver()
+            .output
+            .path_res_map
+            .get(&segment.node_id)
+            .map(|r| r.is_box(self.resolver().genv.tcx()))
+            .unwrap_or(false)
+    }
+
+    /// `node_id` is the [`NodeId`] of the node introduced the implicit param, e.g., an
+    /// `FnInput`.
     fn enter_scope(&mut self, kind: RibKind, node_id: Option<NodeId>);
     fn exit_scope(&mut self);
 
@@ -43,7 +49,7 @@ pub(crate) trait ScopedVisitor: Sized {
 
 pub(crate) struct ScopedVisitorWrapper<V>(V);
 
-impl<V: ScopedVisitor> ScopedVisitorWrapper<V> {
+impl<'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> ScopedVisitorWrapper<V> {
     fn with_scope(&mut self, kind: RibKind, node_id: Option<NodeId>, f: impl FnOnce(&mut Self)) {
         self.0.enter_scope(kind, node_id);
         f(self);
@@ -64,7 +70,9 @@ impl<V> std::ops::DerefMut for ScopedVisitorWrapper<V> {
     }
 }
 
-impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
+impl<'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visitor
+    for ScopedVisitorWrapper<V>
+{
     fn visit_trait_assoc_reft(&mut self, assoc_reft: &surface::TraitAssocReft) {
         self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_trait_assoc_reft(this, assoc_reft);
@@ -318,14 +326,9 @@ impl<'a, 'genv, 'tcx> BinderCollector<'a, 'genv, 'tcx> {
     }
 }
 
-impl ScopedVisitor for BinderCollector<'_, '_, '_> {
-    fn is_box(&self, segment: &surface::PathSegment) -> bool {
+impl<'genv, 'tcx> ScopedVisitor<'genv, 'tcx> for BinderCollector<'_, 'genv, 'tcx> {
+    fn resolver(&self) -> &CrateResolver<'genv, 'tcx> {
         self.resolver
-            .output
-            .path_res_map
-            .get(&segment.node_id)
-            .map(|r| r.is_box(self.resolver.genv.tcx()))
-            .unwrap_or(false)
     }
 
     fn enter_scope(&mut self, kind: RibKind, node_id: Option<NodeId>) {
@@ -561,10 +564,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.errors.to_result()
     }
 
-    fn resolver_output(&self) -> &ResolverOutput {
-        &self.resolver.output
-    }
-
     fn emit_unresolved_ident(&mut self, ident: Ident) {
         self.errors.emit(super::errors::UnresolvedName {
             span: ident.span,
@@ -595,13 +594,9 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 }
 
-impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
-    fn is_box(&self, segment: &surface::PathSegment) -> bool {
-        self.resolver_output()
-            .path_res_map
-            .get(&segment.node_id)
-            .map(|r| r.is_box(self.resolver.genv.tcx()))
-            .unwrap_or(false)
+impl<'genv, 'tcx> ScopedVisitor<'genv, 'tcx> for RefinementResolver<'_, 'genv, 'tcx> {
+    fn resolver(&self) -> &CrateResolver<'genv, 'tcx> {
+        self.resolver
     }
 
     fn enter_scope(&mut self, kind: RibKind, node_id: Option<NodeId>) {
