@@ -575,11 +575,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             let ptr_place = Place::new(place.local, place.projection[..i].to_vec());
             let val_place = ptr_place.deref();
-            let Some(idx) = place_derefs_raw_ptr_idx(env, infcx, &val_place, span)? else { continue };
+            let Some(idx) = place_directly_derefs_raw_ptr(env, infcx, &val_place, span)? else { continue };
             let ty = env.lookup_rust_ty(genv, &val_place)?;
             let ctor = self.default_refiner.refine_ty_or_base(&ty)?.expect_base();
             let pred = self.raw_ptr_deref_pred(infcx, ctor, &idx);
-            infcx.at(span).check_pred(pred, ConstrReason::Other);
+            infcx.at(span).check_pred(pred, ConstrReason::Predicate);
         }
         Ok(())
     }
@@ -602,18 +602,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let addr = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
         let size = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
         let non_null_in_bounds = Expr::and_from_iter([
-            Expr::ne(&addr, Expr::zero()),
+            Expr::gt(&addr, Expr::zero()),
             Expr::ge(&addr, &base),
             Expr::ge(&size, Expr::zero()),
         ]);
         if !pointee_ty.to_rustc(tcx).is_sized(tcx, typing_env) {
             return non_null_in_bounds;
         }
-        let (size_of_expr, align_of_expr) = size_align_of(genv, &ctor);
+        let (size_of_expr, align_of_expr) = size_align_of(genv, &ctor, None);
         let valid = Expr::or(
             Expr::eq(&size_of_expr, Expr::zero()),
             Expr::and_from_iter([
-                Expr::ne(&addr, Expr::zero()),
+                Expr::gt(&addr, Expr::zero()),
                 Expr::ge(&addr, &base),
                 Expr::le(&size_of_expr, &size),
                 Expr::ge(&size, Expr::zero()),
@@ -1435,11 +1435,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .refine_ty_or_base(ty)
                     .with_span(stmt_span)?
                     .expect_base();
-<<<<<<< HEAD
-                // 
-            // 
+                let pack = place
+                    .min_pack(genv, &self.body.local_decls)
+                    .with_span(stmt_span)?;
                 if let Some(idx) =
-                    place_derefs_raw_ptr_idx(env, infcx, place, stmt_span).with_span(stmt_span)?
+                    place_directly_derefs_raw_ptr(env, infcx, place, stmt_span).with_span(stmt_span)?
                 {
                     Ok(Ty::indexed(BaseTy::RawPtr(ctor.to_ty(), kind.to_mutbl_lossy()), idx))
                 } else if place_derefs_raw_ptr(env, infcx, place, stmt_span).with_span(stmt_span)? {
@@ -1447,14 +1447,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     let indexed = Ty::indexed(bty, Expr::nu());
                     Ok(Ty::exists(Binder::bind_with_sort(indexed, Sort::RawPtr)))
                 } else {
-                    raw_ptr_with_size(genv, kind, ctor, infcx, self.checker_id.root_id())
+                    raw_ptr_with_size(genv, kind, ctor, infcx, self.checker_id.root_id(), pack)
                 }
-=======
-                let pack = place
-                    .min_pack(genv, &self.body.local_decls)
-                    .with_span(stmt_span)?;
-                raw_ptr_with_size(genv, kind, ctor, infcx, self.checker_id.root_id(), pack)
->>>>>>> main
             }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
@@ -1986,8 +1980,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             .refine_ty_or_base(&pointee_ty)?
                             .expect_base();
                         let ptr_bty = BaseTy::RawPtr(ctor.to_ty(), *mutbl);
-                        // Static mut's are also always sized
-                        let pred = sized_raw_ptr_pred(self.genv, &ctor, &Expr::nu());
+                        // Static mut's are also always sized. Note that we don't need to
+                        // compute packedness here, since this can't be a pointer to a field
+                        let pred = sized_raw_ptr_pred(self.genv, &ctor, &Expr::nu(), None);
                         Ok(Some(Ty::exists_with_constr(ptr_bty, pred)))
                     } else {
                         Ok(None)
@@ -2095,8 +2090,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 }
 
 /// If a Place is of the form: *p or *(s.p), return the index of the pointer.
-/// Note that this does not match (*p).f, where p points to a struct. 
-fn place_derefs_raw_ptr_idx<'genv, 'tcx>(
+/// Note that this does not match (*p).f, where p points to a struct.
+/// Doubly note that taking the addr of (*p).f doesn't actually do any loads,
+/// but since we don't necessarily know where .f is, we can't return a proper
+/// pointer to it. Code will have to be rewritten to take the address of p,
+/// then use .add() with the field's offset.
+fn place_directly_derefs_raw_ptr<'genv, 'tcx>(
     env: &mut TypeEnv,
     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
     place: &Place,
@@ -2127,7 +2126,7 @@ fn place_derefs_raw_ptr<'genv, 'tcx>(
             continue;
         }
         let val_place = Place::new(place.local, place.projection[..=i].to_vec());
-        if place_derefs_raw_ptr_idx(env, infcx, &val_place, span)?.is_some() {
+        if place_directly_derefs_raw_ptr(env, infcx, &val_place, span)?.is_some() {
             return Ok(true);
         }
     }
@@ -2167,17 +2166,21 @@ fn raw_ptr_with_size<'genv, 'tcx>(
     if !has_sized {
         let base = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
         let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
-        let pred = Expr::and(Expr::eq(base, &addr), Expr::ne(&addr, Expr::zero()));
+        let pred = Expr::and(Expr::eq(base, &addr), Expr::gt(&addr, Expr::zero()));
 
         let ty = Ty::exists_with_constr(bty, pred);
         return Ok(ty);
     }
 
-    let ty = Ty::exists_with_constr(bty, sized_raw_ptr_pred(genv, &ctor, &nu));
+    let ty = Ty::exists_with_constr(bty, sized_raw_ptr_pred(genv, &ctor, &nu, pack));
     Ok(ty)
 }
 
-fn size_align_of<'genv, 'tcx>(genv: GlobalEnv<'genv, 'tcx>, ctor: &SubsetTyCtor) -> (Expr, Expr) {
+fn size_align_of<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
+    ctor: &SubsetTyCtor,
+    pack: Option<u64>,
+) -> (Expr, Expr) {
     let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
     let args = rty::List::from_arr([GenericArg::Base(ctor.clone())]);
     let size_of = Expr::alias(
@@ -2187,44 +2190,35 @@ fn size_align_of<'genv, 'tcx>(genv: GlobalEnv<'genv, 'tcx>, ctor: &SubsetTyCtor)
         },
         rty::List::empty(),
     );
-<<<<<<< HEAD
-    let align_of = Expr::alias(
-=======
-
-    let mut align_of_expr = Expr::alias(
->>>>>>> main
+    let mut align_of = Expr::alias(
         AliasReft { assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::align_of), args },
         rty::List::empty(),
     );
+    // When the ref is part of a packed struct, we want to take the minimum of its
+    // alignment and the packedness of the enclosing struct, see the example in:
+    // https://doc.rust-lang.org/reference/type-layout.html#r-layout.repr.align-packed
+    if let Some(pack) = pack {
+        let pack = Expr::constant(Constant::from(pack));
+        align_of = Expr::ite(Expr::le(&pack, &align_of), pack, align_of);
+    }
     (size_of, align_of)
 }
 
-<<<<<<< HEAD
 /// Assumes the underlying type has the sized trait, and returns a predicate about a pointer to it
 /// aligning the raw pointer indices to its size and alignment
 fn sized_raw_ptr_pred<'genv, 'tcx>(
     genv: GlobalEnv<'genv, 'tcx>,
     ctor: &SubsetTyCtor,
     idx: &Expr,
+    pack: Option<u64>,
 ) -> Expr {
     let base = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
     let addr = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
     let size = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
-    let (size_of_expr, align_of_expr) = size_align_of(genv, ctor);
+    let (size_of_expr, align_of_expr) = size_align_of(genv, ctor, pack);
     Expr::and_from_iter([
-=======
-    // When the ref is part of a packed struct, we want to take the minimum of its
-    // alignment and the packedness of the enclosing struct, see the example in:
-    // https://doc.rust-lang.org/reference/type-layout.html#r-layout.repr.align-packed
-    if let Some(pack) = pack {
-        let pack = Expr::constant(Constant::from(pack));
-        align_of_expr = Expr::ite(Expr::le(&pack, &align_of_expr), pack, align_of_expr);
-    }
-
-    let pred = Expr::and_from_iter([
->>>>>>> main
         Expr::eq(base, &addr),
-        Expr::ne(&addr, Expr::zero()),
+        Expr::gt(&addr, Expr::zero()),
         Expr::eq(size, size_of_expr),
         Expr::eq(Expr::binary_op(BinOp::Mod(Sort::Int), addr, align_of_expr), Expr::zero()),
     ])

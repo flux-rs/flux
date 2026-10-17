@@ -1,3 +1,5 @@
+#![flux::opts(allow_raw_deref = "ok")]
+
 extern crate flux_core;
 
 #[repr(C, packed)]
@@ -167,4 +169,18 @@ pub fn test_read_const_packed_union() {
     let u = PackedUnion { a: 1 };
     let x: *const i32 = std::ptr::addr_of!(u.a);
     unsafe { x.read() }; //~ ERROR refinement type error
+}
+
+#[repr(C, packed(1))]
+struct A {
+    a: u8,
+    b: i32,
+}
+
+static mut A: A = A { a: 0, b: 1 };
+
+pub fn test_write_static_mut_packed1() {
+    let x: *mut i32 = unsafe { std::ptr::addr_of_mut!(A.b) };
+    unsafe { std::ptr::write(x, 4) }; //~ ERROR refinement type error
+    //~^ ERROR refinement type error
 }
