@@ -64,15 +64,6 @@ impl BinderKind {
 pub(crate) trait ScopedVisitor<'genv, 'tcx: 'genv>: Sized {
     fn resolver(&self) -> &CrateResolver<'genv, 'tcx>;
 
-    fn is_box(&self, segment: &surface::PathSegment) -> bool {
-        self.resolver()
-            .output
-            .path_res_map
-            .get(&segment.node_id)
-            .map(|r| r.is_box(self.resolver().genv.tcx()))
-            .unwrap_or(false)
-    }
-
     fn enter_scope(&mut self, scope: &Scope);
     fn exit_scope(&mut self, scope: &Scope);
 
@@ -93,6 +84,15 @@ impl<'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> ScopedVisitorWrapper<V> 
         self.0.enter_scope(&scope);
         f(self);
         self.0.exit_scope(&scope);
+    }
+
+    fn is_box(&self, segment: &surface::PathSegment) -> bool {
+        self.resolver()
+            .output
+            .path_res_map
+            .get(&segment.node_id)
+            .map(|r| r.is_box(self.resolver().genv.tcx()))
+            .unwrap_or(false)
     }
 
     /// Each `let` declaration opens a scope that covers the following declarations and the body,
@@ -514,6 +514,17 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         );
     }
 
+    fn define_implicit_params(&mut self, node_id: NodeId) {
+        for def in self
+            .implicit_params
+            .get(&node_id)
+            .cloned()
+            .unwrap_or_default()
+        {
+            self.define_param(def);
+        }
+    }
+
     fn define_explicit_params(&mut self, params: &[surface::RefineParam]) {
         for param in params {
             self.define_param(ParamDef {
@@ -616,18 +627,11 @@ impl<'genv, 'tcx> ScopedVisitor<'genv, 'tcx> for RefinementResolver<'_, 'genv, '
     }
 
     fn enter_scope(&mut self, scope: &Scope) {
-        match scope {
+        match *scope {
             Scope::Implicit { kind, node_id, params } => {
                 self.resolver.push_rib(ReftNS, kind.rib_kind());
-                for def in self
-                    .implicit_params
-                    .get(node_id)
-                    .cloned()
-                    .unwrap_or_default()
-                {
-                    self.define_param(def);
-                }
                 self.define_explicit_params(params);
+                self.define_implicit_params(node_id);
             }
             Scope::Explicit(params) => {
                 self.resolver.push_rib(ReftNS, RibKind::Misc);
