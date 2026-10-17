@@ -395,15 +395,21 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             return Ok(());
         }
         ItemResolver::run(self, parent, |vis| vis.visit_flux_item(item))?;
-        RefinementResolver::run(self, Default::default(), item.sort_vars(), |vis| {
-            vis.visit_flux_item(item)
-        })
+        // Sort variables share the type namespace with sorts/types (see [`fhir::Namespace`]).
+        self.push_rib(TypeNS, RibKind::Misc);
+        for (idx, ident) in item.sort_vars().iter().enumerate() {
+            self.define_res_in(fhir::Res::SortParam(idx), TypeNS, BindingSource::Explicit(*ident));
+        }
+        let result =
+            RefinementResolver::run(self, Default::default(), |vis| vis.visit_flux_item(item));
+        self.pop_rib(TypeNS);
+        result
     }
 
     fn resolve_item(&mut self, item: &surface::Item, item_id: MaybeExternId<OwnerId>) -> Result {
         ItemResolver::run(self, item_id, |vis| vis.visit_item(item))?;
         let implicit_params = ImplicitParamCollector::run(self, |vis| vis.visit_item(item))?;
-        RefinementResolver::run(self, implicit_params, &[], |vis| vis.visit_item(item))
+        RefinementResolver::run(self, implicit_params, |vis| vis.visit_item(item))
     }
 
     fn resolve_trait_item(
@@ -413,7 +419,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     ) -> Result {
         ItemResolver::run(self, item_id, |vis| vis.visit_trait_item(item))?;
         let implicit_params = ImplicitParamCollector::run(self, |vis| vis.visit_trait_item(item))?;
-        RefinementResolver::run(self, implicit_params, &[], |vis| vis.visit_trait_item(item))
+        RefinementResolver::run(self, implicit_params, |vis| vis.visit_trait_item(item))
     }
 
     fn resolve_impl_item(
@@ -423,7 +429,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     ) -> Result {
         ItemResolver::run(self, item_id, |vis| vis.visit_impl_item(item))?;
         let implicit_params = ImplicitParamCollector::run(self, |vis| vis.visit_impl_item(item))?;
-        RefinementResolver::run(self, implicit_params, &[], |vis| vis.visit_impl_item(item))
+        RefinementResolver::run(self, implicit_params, |vis| vis.visit_impl_item(item))
     }
 
     fn resolve_path_with_ribs<S: Segment>(

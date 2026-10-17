@@ -32,16 +32,14 @@ pub(crate) enum Scope<'a> {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum BinderKind {
-    /// A function signature's inputs (arguments and `requires`).
+    /// The inputs of a function: a function signature's arguments and `requires`, the input
+    /// position of an `Fn`-trait bound (e.g. the `T` in `FnMut(T) -> S`), or the inputs of a fn
+    /// pointer type (e.g. the `T` in `fn(T) -> S`).
     FnInput,
     /// A function signature's output (return type and `ensures`).
     FnOutput,
     /// An enum variant.
     Variant,
-    /// The input position of an `Fn`-trait bound (e.g. the `T` in `FnMut(T) -> S`).
-    FnTraitInput,
-    /// The inputs of a fn pointer type (e.g. the `T` in `fn(T) -> S`).
-    FnPtrInput,
 }
 
 impl BinderKind {
@@ -49,10 +47,7 @@ impl BinderKind {
     fn allows(self, bind_kind: surface::BindKind) -> bool {
         match bind_kind {
             surface::BindKind::At => {
-                matches!(
-                    self,
-                    Self::FnInput | Self::FnTraitInput | Self::FnPtrInput | Self::Variant
-                )
+                matches!(self, Self::FnInput | Self::Variant)
             }
             surface::BindKind::Pound => self == Self::FnOutput,
         }
@@ -61,10 +56,7 @@ impl BinderKind {
     fn rib_kind(self) -> RibKind {
         match self {
             BinderKind::Variant => RibKind::Variant,
-            BinderKind::FnInput
-            | BinderKind::FnOutput
-            | BinderKind::FnTraitInput
-            | BinderKind::FnPtrInput => RibKind::Misc,
+            BinderKind::FnInput | BinderKind::FnOutput => RibKind::Misc,
         }
     }
 }
@@ -91,7 +83,7 @@ pub(crate) trait ScopedVisitor<'genv, 'tcx: 'genv>: Sized {
     fn on_implicit_param(&mut self, _ident: Ident, _kind: fhir::ParamKind, _node_id: NodeId) {}
     fn on_loc(&mut self, _loc: Ident, _node_id: NodeId) {}
     fn on_path(&mut self, _path: &surface::ExprPath) {}
-    fn on_base_sort(&mut self, _sort: &surface::BaseSort) {}
+    fn on_sort_path(&mut self, _path: &surface::SortPath) {}
 }
 
 pub(crate) struct ScopedVisitorWrapper<V>(V);
@@ -210,7 +202,7 @@ impl<'v, 'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visi
         match trait_ref.as_fn_trait_ref() {
             Some((in_arg, out_arg)) => {
                 let scope = Scope::Implicit {
-                    kind: BinderKind::FnTraitInput,
+                    kind: BinderKind::FnInput,
                     node_id: trait_ref.node_id,
                     params: &[],
                 };
@@ -353,7 +345,7 @@ impl<'v, 'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visi
             }
             surface::TyKind::BareFn(bare_fn) => {
                 let scope = Scope::Implicit {
-                    kind: BinderKind::FnPtrInput,
+                    kind: BinderKind::FnInput,
                     node_id: bare_fn.node_id,
                     params: &[],
                 };
@@ -403,9 +395,9 @@ impl<'v, 'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visi
         self.on_path(path);
     }
 
-    fn visit_base_sort(&mut self, bsort: &'v surface::BaseSort) {
-        self.on_base_sort(bsort);
-        surface::visit::walk_base_sort(self, bsort);
+    fn visit_sort_path(&mut self, path: &'v surface::SortPath) {
+        self.on_sort_path(path);
+        surface::visit::walk_sort_path(self, path);
     }
 }
 
@@ -495,37 +487,21 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
-    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, implicit_params: ImplicitParams) -> Self {
+    pub(crate) fn run(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        implicit_params: ImplicitParams,
+        f: impl FnOnce(&mut ScopedVisitorWrapper<Self>),
+    ) -> Result {
         let errors = Errors::new(resolver.genv.sess());
-        Self {
+        let mut wrapper = Self {
             resolver,
             param_defs: Default::default(),
             used_params: Default::default(),
             implicit_params,
             errors,
         }
-    }
-
-    pub(crate) fn run(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        implicit_params: ImplicitParams,
-        sort_vars: &[Ident],
-        f: impl FnOnce(&mut ScopedVisitorWrapper<Self>),
-    ) -> Result {
-        let this = Self::new(resolver, implicit_params);
-        // Sort variables share the type namespace with sorts/types (see [`fhir::Namespace`]).
-        this.resolver.push_rib(TypeNS, RibKind::Misc);
-        for (idx, ident) in sort_vars.iter().enumerate() {
-            this.resolver.define_res_in(
-                Res::SortParam(idx),
-                TypeNS,
-                BindingSource::Explicit(*ident),
-            );
-        }
-        let mut wrapper = this.wrap();
+        .wrap();
         f(&mut wrapper);
-        wrapper.resolver.pop_rib(TypeNS);
-
         wrapper.0.finish()
     }
 
@@ -552,18 +528,10 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         err.emit(&self.errors);
     }
 
-    fn resolve_path(&mut self, path: &surface::ExprPath) {
-        match self.try_resolve_expr_with_ribs(&path.segments) {
-            Ok(res) => self.record_expr_res(path.node_id, res, path.segments.last().unwrap().ident),
-            Err(ResolveError::NotFound) => self.emit_unresolved_expr_path(path),
-            Err(err) => self.emit_resolve_err(err),
-        }
-    }
-
-    fn resolve_ident(&mut self, ident: Ident, node_id: NodeId) {
-        match self.try_resolve_expr_with_ribs(&[ident]) {
-            Ok(res) => self.record_expr_res(node_id, res, ident),
-            Err(ResolveError::NotFound) => self.emit_unresolved_ident(ident),
+    fn resolve_segments<S: Segment>(&mut self, segments: &[S], node_id: NodeId, span: Span) {
+        match self.try_resolve_expr_with_ribs(segments) {
+            Ok(res) => self.record_expr_res(node_id, res, segments.last().unwrap().ident()),
+            Err(ResolveError::NotFound) => self.emit_unresolved_expr_path(segments, span),
             Err(err) => self.emit_resolve_err(err),
         }
     }
@@ -622,7 +590,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.resolver.output.path_res_map.insert(path.node_id, res);
     }
 
-    pub(crate) fn finish(self) -> Result {
+    fn finish(self) -> Result {
         let param_id_gen = IndexGen::new();
         let output = &mut self.resolver.output;
         for def in self.param_defs {
@@ -648,18 +616,10 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.errors.to_result()
     }
 
-    fn emit_unresolved_ident(&mut self, ident: Ident) {
+    fn emit_unresolved_expr_path<S: Segment>(&mut self, segments: &[S], span: Span) {
         self.errors.emit(super::errors::UnresolvedName {
-            span: ident.span,
-            name: ident.to_string(),
-            kind: "value",
-        });
-    }
-
-    fn emit_unresolved_expr_path(&mut self, path: &surface::ExprPath) {
-        self.errors.emit(super::errors::UnresolvedName {
-            span: path.span,
-            name: Segment::format_iter(&path.segments),
+            span,
+            name: Segment::format_iter(segments),
             kind: "value",
         });
     }
@@ -714,22 +674,15 @@ impl<'genv, 'tcx> ScopedVisitor<'genv, 'tcx> for RefinementResolver<'_, 'genv, '
     }
 
     fn on_loc(&mut self, loc: Ident, node_id: NodeId) {
-        self.resolve_ident(loc, node_id);
+        self.resolve_segments(&[loc], node_id, loc.span);
     }
 
     fn on_path(&mut self, path: &surface::ExprPath) {
-        self.resolve_path(path);
+        self.resolve_segments(&path.segments, path.node_id, path.span);
     }
 
-    fn on_base_sort(&mut self, sort: &surface::BaseSort) {
-        match sort {
-            surface::BaseSort::Path(path) => {
-                self.resolve_sort_path(path);
-            }
-            surface::BaseSort::BitVec(_)
-            | surface::BaseSort::SortOf(..)
-            | surface::BaseSort::Tuple(_) => {}
-        }
+    fn on_sort_path(&mut self, path: &surface::SortPath) {
+        self.resolve_sort_path(path);
     }
 }
 
