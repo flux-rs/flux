@@ -1111,33 +1111,9 @@ pub(crate) enum RibKind {
     Module,
     /// An item boundary. Generic parameters (and `Self`) of outer items are not visible past it.
     Item,
-    /// A function signature's inputs (arguments and `requires`). `@` binders are legal here.
-    FnInput,
-    /// A function signature's output (return type and `ensures`). `#` binders are legal here.
-    FnOutput,
-    /// An enum variant. `@` binders are legal here. This is a barrier scope because variants
-    /// are nested within `refined_by` params.
+    /// An enum variant. This is a barrier scope because variants are nested within `refined_by`
+    /// params.
     Variant,
-    /// The input position of an `Fn`-trait bound (e.g. the `T` in `FnMut(T) -> S`). `@` binders are
-    /// legal here.
-    FnTraitInput,
-    /// The inputs of a fn pointer type (e.g. the `T` in `fn(T) -> S`). `@` binders are legal here.
-    FnPtrInput,
-}
-
-impl RibKind {
-    /// Whether a binder of kind `bind_kind` can appear directly in a scope of this kind.
-    pub(crate) fn allows_binder(self, bind_kind: surface::BindKind) -> bool {
-        match bind_kind {
-            surface::BindKind::At => {
-                matches!(
-                    self,
-                    Self::FnInput | Self::FnTraitInput | Self::FnPtrInput | Self::Variant
-                )
-            }
-            surface::BindKind::Pound => self == Self::FnOutput,
-        }
-    }
 }
 
 /// The value stored for each binding in a [`Rib`]. Lookups and clash detection are keyed by the

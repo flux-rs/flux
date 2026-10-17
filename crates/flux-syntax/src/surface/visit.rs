@@ -11,9 +11,9 @@ use super::{
     Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstArgKind, ConstantInfo, ConstructorArg,
     Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput,
     FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft,
-    Indices, ItemKind, Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath,
-    SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UseTreeKind,
-    VariantDef, VariantRet, WhereBoundPredicate,
+    Indices, ItemKind, Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Requires, Sort,
+    SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind,
+    UseTreeKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn, UseTree};
 
@@ -128,6 +128,10 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_fn_sig(&mut self, fn_sig: &'v FnSig) {
         walk_fn_sig(self, fn_sig);
+    }
+
+    fn visit_requires(&mut self, requires: &'v Requires) {
+        walk_requires(self, requires);
     }
 
     fn visit_fn_output(&mut self, fn_output: &'v FnOutput) {
@@ -259,6 +263,11 @@ pub fn walk_primop_prop<'v, V: Visitor<'v>>(vis: &mut V, prop: &'v PrimOpProp) {
     vis.visit_ident(prop.name);
     walk_list!(vis, visit_refine_param, &prop.params);
     vis.visit_expr(&prop.body);
+}
+
+pub fn walk_requires<'v, V: Visitor<'v>>(vis: &mut V, requires: &'v Requires) {
+    walk_list!(vis, visit_refine_param, &requires.params);
+    vis.visit_expr(&requires.pred);
 }
 
 pub fn walk_refine_param<'v, V: Visitor<'v>>(vis: &mut V, param: &'v RefineParam) {
@@ -436,10 +445,7 @@ pub fn walk_fn_sig<'v, V: Visitor<'v>>(vis: &mut V, fn_sig: &'v FnSig) {
 
     walk_list!(vis, visit_refine_param, &fn_sig.params);
     vis.visit_generics(&fn_sig.generics);
-    for requires in &fn_sig.requires {
-        walk_list!(vis, visit_refine_param, &requires.params);
-        vis.visit_expr(&requires.pred);
-    }
+    walk_list!(vis, visit_requires, &fn_sig.requires);
     walk_list!(vis, visit_fn_input, &fn_sig.inputs);
     if let Some(no_panic_expr) = &fn_sig.no_panic {
         vis.visit_expr(no_panic_expr);
