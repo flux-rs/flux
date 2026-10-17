@@ -49,6 +49,14 @@ impl FluxItem {
             FluxItem::Use(_) => None,
         }
     }
+
+    pub fn sort_vars(&self) -> &[Ident] {
+        match self {
+            FluxItem::FuncDef(defn) => &defn.sort_vars[..],
+            FluxItem::SortDecl(sort_decl) => &sort_decl.sort_vars[..],
+            FluxItem::Qualifier(_) | FluxItem::PrimOpProp(_) | FluxItem::Use(_) => &[],
+        }
+    }
 }
 
 #[derive(Debug)]

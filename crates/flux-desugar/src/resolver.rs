@@ -31,7 +31,7 @@ use rustc_hir::{
 use rustc_middle::{middle::resolve::ModChild, ty::TyCtxt};
 use rustc_span::{Span, Symbol, def_id::DefId, symbol::kw};
 
-use self::refinement_resolver::RefinementResolver;
+use self::refinement_resolver::{BinderCollector, RefinementResolver};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -377,20 +377,33 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             self.push_rib(ns, RibKind::Item);
         }
         for item in items {
-            ItemResolver::run(self, MaybeExternId::Local(parent), |item_resolver| {
-                item_resolver.visit_flux_item(item);
-            })
-            .and_then(|()| RefinementResolver::resolve_flux_item(self, item))
-            .collect_err(&mut self.err);
+            self.resolve_flux_item(item, MaybeExternId::Local(parent))
+                .collect_err(&mut self.err);
         }
         for ns in [TypeNS, ValueNS, ReftNS] {
             self.pop_rib(ns);
         }
     }
 
+    fn resolve_flux_item(
+        &mut self,
+        item: &surface::FluxItem,
+        parent: MaybeExternId<OwnerId>,
+    ) -> Result {
+        if let surface::FluxItem::Use(_) = item {
+            // Use paths are resolved `CrateResolver::resolve_flux_use_tree`
+            return Ok(());
+        }
+        ItemResolver::run(self, parent, |vis| vis.visit_flux_item(item))?;
+        RefinementResolver::run(self, Default::default(), item.sort_vars(), |vis| {
+            vis.visit_flux_item(item)
+        })
+    }
+
     fn resolve_item(&mut self, item: &surface::Item, item_id: MaybeExternId<OwnerId>) -> Result {
-        ItemResolver::run(self, item_id, |item_resolver| item_resolver.visit_item(item))?;
-        RefinementResolver::resolve_item(self, item)
+        ItemResolver::run(self, item_id, |vis| vis.visit_item(item))?;
+        let binders = BinderCollector::run(self, |vis| vis.visit_item(item))?;
+        RefinementResolver::run(self, binders, &[], |vis| vis.visit_item(item))
     }
 
     fn resolve_trait_item(
@@ -398,8 +411,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         item: &surface::TraitItemFn,
         item_id: MaybeExternId<OwnerId>,
     ) -> Result {
-        ItemResolver::run(self, item_id, |item_resolver| item_resolver.visit_trait_item(item))?;
-        RefinementResolver::resolve_trait_item(self, item)
+        ItemResolver::run(self, item_id, |vis| vis.visit_trait_item(item))?;
+        let binders = BinderCollector::run(self, |vis| vis.visit_trait_item(item))?;
+        RefinementResolver::run(self, binders, &[], |vis| vis.visit_trait_item(item))
     }
 
     fn resolve_impl_item(
@@ -407,8 +421,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         item: &surface::ImplItemFn,
         item_id: MaybeExternId<OwnerId>,
     ) -> Result {
-        ItemResolver::run(self, item_id, |item_resolver| item_resolver.visit_impl_item(item))?;
-        RefinementResolver::resolve_impl_item(self, item)
+        ItemResolver::run(self, item_id, |vis| vis.visit_impl_item(item))?;
+        let binders = BinderCollector::run(self, |vis| vis.visit_impl_item(item))?;
+        RefinementResolver::run(self, binders, &[], |vis| vis.visit_impl_item(item))
     }
 
     fn resolve_path_with_ribs<S: Segment>(

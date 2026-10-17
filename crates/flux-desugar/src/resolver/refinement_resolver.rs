@@ -6,7 +6,7 @@ use flux_middle::fhir::{
     PartialRes, Res,
 };
 use flux_syntax::{
-    surface::{self, FluxItem, Ident, NodeId, visit::Visitor as _},
+    surface::{self, Ident, NodeId},
     walk_list,
 };
 use rustc_data_structures::{
@@ -306,7 +306,7 @@ type Binders = UnordMap<NodeId, Vec<(Ident, fhir::ParamKind, NodeId)>>;
 /// reporting binders used in a position where they are not allowed. Implicit params must be
 /// collected before resolving because they can be used before they are bound in the same scope,
 /// e.g., `fn(x: i32{v: v > n}, n: i32)`.
-struct BinderCollector<'a, 'genv, 'tcx> {
+pub(crate) struct BinderCollector<'a, 'genv, 'tcx> {
     resolver: &'a CrateResolver<'genv, 'tcx>,
     scopes: Vec<(RibKind, Option<NodeId>)>,
     binders: Binders,
@@ -314,7 +314,7 @@ struct BinderCollector<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> BinderCollector<'a, 'genv, 'tcx> {
-    fn run(
+    pub(crate) fn run(
         resolver: &'a CrateResolver<'genv, 'tcx>,
         f: impl FnOnce(&mut ScopedVisitorWrapper<Self>),
     ) -> Result<Binders> {
@@ -381,46 +381,6 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
-    pub(crate) fn resolve_flux_item(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        item: &FluxItem,
-    ) -> Result {
-        let sort_vars = match item {
-            FluxItem::FuncDef(defn) => &defn.sort_vars[..],
-            FluxItem::SortDecl(sort_decl) => &sort_decl.sort_vars[..],
-            FluxItem::Qualifier(_) | FluxItem::PrimOpProp(_) => &[],
-            FluxItem::Use(_) => {
-                // Use paths are resolved `CrateResolver::resolve_use_path`
-                return Ok(());
-            }
-        };
-        Self::new(resolver, Default::default()).run(sort_vars, |r| r.visit_flux_item(item))
-    }
-
-    pub(crate) fn resolve_item(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        item: &surface::Item,
-    ) -> Result {
-        let binders = BinderCollector::run(resolver, |vis| vis.visit_item(item))?;
-        Self::new(resolver, binders).run(&[], |vis| vis.visit_item(item))
-    }
-
-    pub(crate) fn resolve_trait_item(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        item: &surface::TraitItemFn,
-    ) -> Result {
-        let binders = BinderCollector::run(resolver, |vis| vis.visit_trait_item(item))?;
-        Self::new(resolver, binders).run(&[], |vis| vis.visit_trait_item(item))
-    }
-
-    pub(crate) fn resolve_impl_item(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        item: &surface::ImplItemFn,
-    ) -> Result {
-        let binders = BinderCollector::run(resolver, |vis| vis.visit_impl_item(item))?;
-        Self::new(resolver, binders).run(&[], |vis| vis.visit_impl_item(item))
-    }
-
     fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, binders: Binders) -> Self {
         let errors = Errors::new(resolver.genv.sess());
         Self {
@@ -432,17 +392,23 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         }
     }
 
-    fn run(self, sort_vars: &[Ident], f: impl FnOnce(&mut ScopedVisitorWrapper<Self>)) -> Result {
+    pub(crate) fn run(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        binders: Binders,
+        sort_vars: &[Ident],
+        f: impl FnOnce(&mut ScopedVisitorWrapper<Self>),
+    ) -> Result {
+        let this = Self::new(resolver, binders);
         // Sort variables share the type namespace with sorts/types (see [`fhir::Namespace`]).
-        self.resolver.push_rib(TypeNS, RibKind::Misc);
+        this.resolver.push_rib(TypeNS, RibKind::Misc);
         for (idx, ident) in sort_vars.iter().enumerate() {
-            self.resolver.define_res_in(
+            this.resolver.define_res_in(
                 Res::SortParam(idx),
                 TypeNS,
                 BindingSource::Explicit(*ident),
             );
         }
-        let mut wrapper = self.wrap();
+        let mut wrapper = this.wrap();
         f(&mut wrapper);
         wrapper.resolver.pop_rib(TypeNS);
 
