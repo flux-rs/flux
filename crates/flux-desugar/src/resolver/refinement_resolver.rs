@@ -418,7 +418,7 @@ type Binders = UnordMap<NodeId, Vec<(Ident, fhir::ParamKind, NodeId)>>;
 /// reporting binders used in a position where they are not allowed. Implicit params must be
 /// collected before resolving because they can be used before they are bound in the same scope,
 /// e.g., `fn(x: i32{v: v > n}, n: i32)`.
-pub(crate) struct BinderCollector<'a, 'genv, 'tcx> {
+pub(crate) struct ImplicitParamCollector<'a, 'genv, 'tcx> {
     resolver: &'a CrateResolver<'genv, 'tcx>,
     /// For each enclosing scope, the kind and node of the binder scope, or `None` if the scope is
     /// not a binder scope.
@@ -427,7 +427,7 @@ pub(crate) struct BinderCollector<'a, 'genv, 'tcx> {
     errors: Errors<'genv>,
 }
 
-impl<'a, 'genv, 'tcx> BinderCollector<'a, 'genv, 'tcx> {
+impl<'a, 'genv, 'tcx> ImplicitParamCollector<'a, 'genv, 'tcx> {
     pub(crate) fn run(
         resolver: &'a CrateResolver<'genv, 'tcx>,
         f: impl FnOnce(&mut ScopedVisitorWrapper<Self>),
@@ -440,7 +440,7 @@ impl<'a, 'genv, 'tcx> BinderCollector<'a, 'genv, 'tcx> {
     }
 }
 
-impl<'genv, 'tcx> ScopedVisitor<'genv, 'tcx> for BinderCollector<'_, 'genv, 'tcx> {
+impl<'genv, 'tcx> ScopedVisitor<'genv, 'tcx> for ImplicitParamCollector<'_, 'genv, 'tcx> {
     fn resolver(&self) -> &CrateResolver<'genv, 'tcx> {
         self.resolver
     }
