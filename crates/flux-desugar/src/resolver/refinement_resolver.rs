@@ -70,69 +70,69 @@ impl<V> std::ops::DerefMut for ScopedVisitorWrapper<V> {
     }
 }
 
-impl<'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visitor
+impl<'v, 'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visitor<'v>
     for ScopedVisitorWrapper<V>
 {
-    fn visit_trait_assoc_reft(&mut self, assoc_reft: &surface::TraitAssocReft) {
+    fn visit_trait_assoc_reft(&mut self, assoc_reft: &'v surface::TraitAssocReft) {
         self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_trait_assoc_reft(this, assoc_reft);
         });
     }
 
-    fn visit_impl_assoc_reft(&mut self, assoc_reft: &surface::ImplAssocReft) {
+    fn visit_impl_assoc_reft(&mut self, assoc_reft: &'v surface::ImplAssocReft) {
         self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_impl_assoc_reft(this, assoc_reft);
         });
     }
 
-    fn visit_qualifier(&mut self, qualifier: &surface::Qualifier) {
+    fn visit_qualifier(&mut self, qualifier: &'v surface::Qualifier) {
         self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_qualifier(this, qualifier);
         });
     }
 
-    fn visit_defn(&mut self, defn: &surface::SpecFunc) {
+    fn visit_defn(&mut self, defn: &'v surface::SpecFunc) {
         self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_defn(this, defn);
         });
     }
 
-    fn visit_primop_prop(&mut self, prop: &surface::PrimOpProp) {
+    fn visit_primop_prop(&mut self, prop: &'v surface::PrimOpProp) {
         self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_primop_prop(this, prop);
         });
     }
 
-    fn visit_refine_param(&mut self, param: &surface::RefineParam) {
+    fn visit_refine_param(&mut self, param: &'v surface::RefineParam) {
         self.on_refine_param(param);
         surface::visit::walk_refine_param(self, param);
     }
 
-    fn visit_ty_alias(&mut self, ty_alias: &surface::TyAlias) {
+    fn visit_ty_alias(&mut self, ty_alias: &'v surface::TyAlias) {
         self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_ty_alias(this, ty_alias);
         });
     }
 
-    fn visit_struct_def(&mut self, struct_def: &surface::StructDef) {
+    fn visit_struct_def(&mut self, struct_def: &'v surface::StructDef) {
         self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_struct_def(this, struct_def);
         });
     }
 
-    fn visit_enum_def(&mut self, enum_def: &surface::EnumDef) {
+    fn visit_enum_def(&mut self, enum_def: &'v surface::EnumDef) {
         self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_enum_def(this, enum_def);
         });
     }
 
-    fn visit_variant(&mut self, variant: &surface::VariantDef) {
+    fn visit_variant(&mut self, variant: &'v surface::VariantDef) {
         self.with_scope(RibKind::Variant, Some(variant.node_id), |this| {
             surface::visit::walk_variant(this, variant);
         });
     }
 
-    fn visit_trait_ref(&mut self, trait_ref: &surface::TraitRef) {
+    fn visit_trait_ref(&mut self, trait_ref: &'v surface::TraitRef) {
         match trait_ref.as_fn_trait_ref() {
             Some((in_arg, out_arg)) => {
                 self.with_scope(RibKind::FnTraitInput, Some(trait_ref.node_id), |this| {
@@ -150,31 +150,31 @@ impl<'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visitor
         }
     }
 
-    fn visit_variant_ret(&mut self, ret: &surface::VariantRet) {
+    fn visit_variant_ret(&mut self, ret: &'v surface::VariantRet) {
         self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_variant_ret(this, ret);
         });
     }
 
-    fn visit_generics(&mut self, generics: &surface::Generics) {
+    fn visit_generics(&mut self, generics: &'v surface::Generics) {
         self.with_scope(RibKind::Misc, None, |this| {
             surface::visit::walk_generics(this, generics);
         });
     }
 
-    fn visit_fn_sig(&mut self, fn_sig: &surface::FnSig) {
+    fn visit_fn_sig(&mut self, fn_sig: &'v surface::FnSig) {
         self.with_scope(RibKind::FnInput, Some(fn_sig.node_id), |this| {
             surface::visit::walk_fn_sig(this, fn_sig);
         });
     }
 
-    fn visit_fn_output(&mut self, output: &surface::FnOutput) {
+    fn visit_fn_output(&mut self, output: &'v surface::FnOutput) {
         self.with_scope(RibKind::FnOutput, Some(output.node_id), |this| {
             surface::visit::walk_fn_output(this, output);
         });
     }
 
-    fn visit_fn_input(&mut self, arg: &surface::FnInput) {
+    fn visit_fn_input(&mut self, arg: &'v surface::FnInput) {
         match arg {
             surface::FnInput::Constr(bind, _, _, node_id) => {
                 self.on_implicit_param(*bind, fhir::ParamKind::Colon, *node_id);
@@ -196,14 +196,14 @@ impl<'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visitor
         surface::visit::walk_fn_input(self, arg);
     }
 
-    fn visit_ensures(&mut self, constraint: &surface::Ensures) {
+    fn visit_ensures(&mut self, constraint: &'v surface::Ensures) {
         if let surface::Ensures::Type(loc, _, node_id) = constraint {
             self.on_loc(*loc, *node_id);
         }
         surface::visit::walk_ensures(self, constraint);
     }
 
-    fn visit_refine_arg(&mut self, arg: &surface::RefineArg) {
+    fn visit_refine_arg(&mut self, arg: &'v surface::RefineArg) {
         match arg {
             surface::RefineArg::Bind(ident, kind, _, node_id) => {
                 let kind = match kind {
@@ -221,14 +221,14 @@ impl<'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visitor
         }
     }
 
-    fn visit_path(&mut self, path: &surface::Path) {
+    fn visit_path(&mut self, path: &'v surface::Path) {
         for arg in &path.refine {
             self.with_scope(RibKind::Misc, None, |this| this.visit_refine_arg(arg));
         }
         walk_list!(self, visit_path_segment, &path.segments);
     }
 
-    fn visit_path_segment(&mut self, segment: &surface::PathSegment) {
+    fn visit_path_segment(&mut self, segment: &'v surface::PathSegment) {
         let is_box = self.is_box(segment);
         for (i, arg) in segment.args.iter().enumerate() {
             if is_box && i == 0 {
@@ -239,7 +239,7 @@ impl<'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visitor
         }
     }
 
-    fn visit_ty(&mut self, ty: &surface::Ty) {
+    fn visit_ty(&mut self, ty: &'v surface::Ty) {
         let node_id = ty.node_id;
         match &ty.kind {
             surface::TyKind::Exists { bind, .. } => {
@@ -277,7 +277,7 @@ impl<'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visitor
         }
     }
 
-    fn visit_bty(&mut self, bty: &surface::BaseTy) {
+    fn visit_bty(&mut self, bty: &'v surface::BaseTy) {
         match &bty.kind {
             surface::BaseTyKind::Slice(_) | surface::BaseTyKind::Ptr(..) => {
                 self.with_scope(RibKind::Misc, None, |this| {
@@ -290,11 +290,11 @@ impl<'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visitor
         }
     }
 
-    fn visit_path_expr(&mut self, path: &surface::ExprPath) {
+    fn visit_path_expr(&mut self, path: &'v surface::ExprPath) {
         self.on_path(path);
     }
 
-    fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
+    fn visit_base_sort(&mut self, bsort: &'v surface::BaseSort) {
         self.on_base_sort(bsort);
         surface::visit::walk_base_sort(self, bsort);
     }

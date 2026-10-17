@@ -1526,7 +1526,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     }
 }
 
-impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
+impl surface::visit::Visitor<'_> for ItemResolver<'_, '_, '_> {
     fn visit_item(&mut self, item: &surface::Item) {
         self.resolve_attrs(item.node_id, &item.attrs);
         surface::visit::walk_item(self, item);

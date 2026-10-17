@@ -523,7 +523,7 @@ impl Ty {
             is_refined: bool,
         }
         let mut vis = IsRefinedVisitor { is_refined: false };
-        impl visit::Visitor for IsRefinedVisitor {
+        impl visit::Visitor<'_> for IsRefinedVisitor {
             fn visit_ty(&mut self, ty: &Ty) {
                 match &ty.kind {
                     TyKind::Tuple(_)
@@ -952,7 +952,7 @@ impl Expr {
             vars: FxIndexSet<Ident>,
         }
 
-        impl visit::Visitor for FreeVarsVisitor {
+        impl visit::Visitor<'_> for FreeVarsVisitor {
             fn visit_expr(&mut self, expr: &Expr) {
                 match &expr.kind {
                     ExprKind::Path(path) => {

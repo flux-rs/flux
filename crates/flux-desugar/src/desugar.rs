@@ -52,7 +52,7 @@ fn collect_generics_in_params(
         resolver_output: &'a ResolverOutput,
         found: UnordSet<DefId>,
     }
-    impl surface::visit::Visitor for ParamCollector<'_> {
+    impl surface::visit::Visitor<'_> for ParamCollector<'_> {
         fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
             if let surface::BaseSort::Path(path) = bsort {
                 let res = self.resolver_output.path_res_map[&path.node_id];
@@ -80,7 +80,7 @@ fn collect_holes(qself: &surface::Ty, path: &surface::Path) -> Vec<Span> {
     struct HoleCollector {
         holes: Vec<Span>,
     }
-    impl surface::visit::Visitor for HoleCollector {
+    impl surface::visit::Visitor<'_> for HoleCollector {
         fn visit_ty(&mut self, ty: &surface::Ty) {
             if let surface::TyKind::Hole = ty.kind {
                 self.holes.push(ty.span);
