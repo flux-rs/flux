@@ -15,8 +15,10 @@ use rustc_driver::{catch_fatal_errors, compiler_entrypoint};
 mod logger;
 
 fn main() -> ExitCode {
-    if config::fix_suggestions() && !config::suggestions() {
-        eprintln!("error: `-Ffix-suggestions` requires `-Fsuggestions=true`");
+    if (config::iterative_suggestions() || config::fix_suggestions()) && !config::suggestions() {
+        eprintln!(
+            "error: `-Fiterative-suggestions` and `-Ffix-suggestions` require `-Fsuggestions=true`"
+        );
         return ExitCode::FAILURE;
     }
     if !config::verify() {
