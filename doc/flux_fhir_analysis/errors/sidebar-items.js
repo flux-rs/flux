@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["DefinitionCycle","HideInlinedDefinition"]};
+window.SIDEBAR_ITEMS = {"struct":["DefinitionCycle"]};
