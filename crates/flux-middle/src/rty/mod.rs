@@ -255,7 +255,9 @@ impl Generics {
         }
     }
 
-    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<Vec<(ParamConst, Sort)>> {
+    /// Returns the const generic params (including the parent's) together with their sort and
+    /// [`DefId`].
+    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<Vec<(ParamConst, Sort, DefId)>> {
         let mut res = vec![];
         for i in 0..self.count() {
             let param = self.param_at(i, genv)?;
@@ -263,7 +265,7 @@ impl Generics {
                 && let Some(sort) = genv.sort_of_def_id(param.def_id)?
             {
                 let param_const = ParamConst { name: param.name, index: param.index };
-                res.push((param_const, sort));
+                res.push((param_const, sort, param.def_id));
             }
         }
         Ok(res)
