@@ -8,7 +8,6 @@ use flux_common::{
     tracked_span_bug, tracked_span_dbg_assert_eq,
 };
 use flux_infer::{
-    fixpoint_encoding::KVarEncoding,
     infer::{Blocking, ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, InferResult},
     refine_tree::Scope,
 };
@@ -220,7 +219,7 @@ impl<'a> TypeEnv<'a> {
             PtrToRefBound::Infer => {
                 let t2 = t1.with_holes().replace_holes(|sorts, kind| {
                     debug_assert_eq!(kind, HoleKind::Pred);
-                    infcx.fresh_kvar(sorts, KVarEncoding::Conj)
+                    infcx.fresh_kvar(sorts)
                 });
                 infcx.subtyping_with_env(self, &t1, &t2, reason)?;
                 t2
@@ -770,11 +769,7 @@ impl BasicBlockEnvShape {
                     .into_iter()
                     .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
                     .collect_vec();
-                let kvar = infcx.fresh_kvar_in_scope(
-                    std::slice::from_ref(&vars),
-                    &self.scope,
-                    KVarEncoding::Conj,
-                );
+                let kvar = infcx.fresh_kvar_in_scope(std::slice::from_ref(&vars), &self.scope);
                 constrs.push(kvar);
 
                 // Replace remaining holes by fresh kvars
@@ -783,7 +778,7 @@ impl BasicBlockEnvShape {
                     let binders = std::iter::once(vars.clone())
                         .chain(binders.iter().cloned())
                         .collect_vec();
-                    infcx.fresh_kvar_in_scope(&binders, &self.scope, KVarEncoding::Conj)
+                    infcx.fresh_kvar_in_scope(&binders, &self.scope)
                 };
                 bindings.fmap_mut(|_, binding| binding.replace_holes(&mut kvar_gen));
 

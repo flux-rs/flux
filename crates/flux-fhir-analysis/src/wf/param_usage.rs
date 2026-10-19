@@ -213,7 +213,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for ParamUsesChecker<'_, 'genv, '_> {
 
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         match &ty.kind {
-            fhir::TyKind::StrgRef(_, loc, ty) => {
+            fhir::TyKind::StrgRef(loc, ty) => {
                 let (_, id) = loc.res.expect_param();
                 self.xi.insert(id, ());
                 self.visit_ty(ty);

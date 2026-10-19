@@ -438,7 +438,7 @@ fn mk_rem_rules() -> RuleMatcher<2> {
 /// `a & b`
 fn mk_bit_and_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: T) -> { T[E::prim_val(BitAnd(Sort::Int), a, b)] | E::prim_rel(BitAnd(Sort::Int), a, b) }
+        fn(a: T, b: T) -> { T[E::binary_op(BitAnd(Sort::Int), a, b)] | E::prim_rel(BitAnd(Sort::Int), a, b) }
         if T.is_integral()
 
         fn(a: bool, b: bool) -> bool[E::and(a, b)]
@@ -448,7 +448,7 @@ fn mk_bit_and_rules() -> RuleMatcher<2> {
 /// `a | b`
 fn mk_bit_or_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: T) -> { T[E::prim_val(BitOr(Sort::Int), a, b)] | E::prim_rel(BitOr(Sort::Int), a, b) }
+        fn(a: T, b: T) -> { T[E::binary_op(BitOr(Sort::Int), a, b)] | E::prim_rel(BitOr(Sort::Int), a, b) }
         if T.is_integral()
 
         fn(a: bool, b: bool) -> bool[E::or(a, b)]
@@ -458,7 +458,7 @@ fn mk_bit_or_rules() -> RuleMatcher<2> {
 /// `a ^ b`
 fn mk_bit_xor_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: T) -> { T[E::prim_val(BitXor(Sort::Int), a, b)] | E::prim_rel(BitXor(Sort::Int), a, b) }
+        fn(a: T, b: T) -> { T[E::binary_op(BitXor(Sort::Int), a, b)] | E::prim_rel(BitXor(Sort::Int), a, b) }
         if T.is_integral()
     }
 }
@@ -560,7 +560,7 @@ fn mk_gt_rules() -> RuleMatcher<2> {
 /// `a << b`
 fn mk_shl_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: S) -> { T[E::prim_val(BitShl(Sort::Int), a, b)] | E::prim_rel(BitShl(Sort::Int), a, b) }
+        fn(a: T, b: S) -> { T[E::binary_op(BitShl(Sort::Int), a, b)] | E::prim_rel(BitShl(Sort::Int), a, b) }
         if T.is_integral() && S.is_integral()
     }
 }
@@ -568,7 +568,7 @@ fn mk_shl_rules() -> RuleMatcher<2> {
 /// `a >> b`
 fn mk_shr_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: S) -> { T[E::prim_val(BitShr(Sort::Int), a, b)] | E::prim_rel(BitShr(Sort::Int), a, b) }
+        fn(a: T, b: S) -> { T[E::binary_op(BitShr(Sort::Int), a, b)] | E::prim_rel(BitShr(Sort::Int), a, b) }
         if T.is_integral() && S.is_integral()
     }
 }

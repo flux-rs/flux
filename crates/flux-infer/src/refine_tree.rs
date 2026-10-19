@@ -384,7 +384,7 @@ impl Node {
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
                 let pred = match phase {
-                    SimplifyPhase::Full(genv) => pred.normalize(genv).simplify(assumed_preds),
+                    SimplifyPhase::Full(genv) => pred.reduce(genv).simplify(assumed_preds),
                     SimplifyPhase::Partial => pred.clone(),
                 };
                 if pred.is_trivially_true() {
@@ -395,7 +395,7 @@ impl Node {
             }
             NodeKind::Assumption(pred) => {
                 if let SimplifyPhase::Full(genv) = phase {
-                    *pred = pred.normalize(genv).simplify(assumed_preds);
+                    *pred = pred.reduce(genv).simplify(assumed_preds);
                 }
                 pred.visit_conj(|conjunct| {
                     assumed_preds.insert(conjunct.erase_spans(), ());
@@ -505,16 +505,18 @@ impl Node {
                 })?
             }
             NodeKind::Assumption(pred) => {
-                let (mut bindings, preds) = cx.assumption_to_fixpoint(pred)?;
+                let preds = cx.assumption_to_fixpoint(pred)?;
                 let Some(cstr) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };
-                bindings.push(fixpoint::Bind {
-                    name: fixpoint::Var::Underscore,
-                    sort: fixpoint::Sort::Int,
-                    preds,
-                });
-                Some(fixpoint::Constraint::foralls(bindings, cstr))
+                Some(fixpoint::Constraint::ForAll(
+                    fixpoint::Bind {
+                        name: fixpoint::Var::Underscore,
+                        sort: fixpoint::Sort::Int,
+                        preds,
+                    },
+                    Box::new(cstr),
+                ))
             }
             NodeKind::Head(pred, tag) => {
                 Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span))?)
