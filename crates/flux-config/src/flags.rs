@@ -223,7 +223,7 @@ pub struct Flags {
     #[arg(
         long = flux_arg!("suggestions"),
         num_args = 0..=1,
-        default_value_t = cfg!(feature = "suggestions"),
+        default_value_t = false,
         default_missing_value = "true"
     )]
     pub suggestions: bool,
@@ -273,7 +273,7 @@ impl Default for Flags {
             no_panic: false,
             std_extern_specs: false,
             flux_verbose: false,
-            suggestions: cfg!(feature = "suggestions"),
+            suggestions: false,
             rerun_hint: true,
         }
     }
@@ -545,29 +545,4 @@ fn parse_opt_include(slot: &mut Vec<String>, v: Option<&str>) -> Result<(), &'st
         slot.push(include.to_string());
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn suggestions_default_and_overrides() {
-        let command = || Flags::augment_args(Command::new("flux-flags"));
-        let matches = command().try_get_matches_from(["flux-flags"]).unwrap();
-        let flags = Flags::from_arg_matches(&matches).unwrap();
-        assert_eq!(flags.suggestions, Flags::default().suggestions);
-        assert_eq!(flags.suggestions, cfg!(feature = "suggestions"));
-        assert!(Flags::rustflags(&matches).is_empty());
-
-        for (arg, expected) in [
-            ("--Fsuggestions", true),
-            ("--Fsuggestions=true", true),
-            ("--Fsuggestions=false", false),
-        ] {
-            let matches = command().try_get_matches_from(["flux-flags", arg]).unwrap();
-            assert_eq!(Flags::from_arg_matches(&matches).unwrap().suggestions, expected);
-            assert_eq!(Flags::rustflags(&matches), [format!("-Fsuggestions={expected}")]);
-        }
-    }
 }

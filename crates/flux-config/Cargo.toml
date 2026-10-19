@@ -13,9 +13,5 @@ globset.workspace = true
 tracing = "0.1"
 clap.workspace = true
 
-[features]
-# Legacy feature: only selects the default for the runtime suggestions flag.
-suggestions = []
-
 [lints]
 workspace = true

@@ -40,9 +40,5 @@ version = "0.1"
 [package.metadata.rust-analyzer]
 rustc_private = true
 
-[features]
-# Legacy feature: the suggestion engine is always available at runtime.
-suggestions = ["flux-config/suggestions"]
-
 [lints]
 workspace = true
