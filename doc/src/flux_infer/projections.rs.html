@@ -859,11 +859,11 @@
 <a href=#859 id=859 data-nosnippet>859</a>                .apply(refine_args);
 <a href=#860 id=860 data-nosnippet>860</a>            <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, e))
 <a href=#861 id=861 data-nosnippet>861</a>        }
-<a href=#862 id=862 data-nosnippet>862</a>        <span class="prelude-val">Some</span>(ImplSource::Builtin(BuiltinImplSource::Misc | BuiltinImplSource::Trivial, <span class="kw">_</span>)) =&gt; {
-<a href=#863 id=863 data-nosnippet>863</a>            <span class="kw">let </span>e = genv
-<a href=#864 id=864 data-nosnippet>864</a>                .builtin_assoc_reft_body(infcx.typing_env(param_env), alias_reft)
-<a href=#865 id=865 data-nosnippet>865</a>                .apply(refine_args);
-<a href=#866 id=866 data-nosnippet>866</a>            <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, e))
+<a href=#862 id=862 data-nosnippet>862</a>        <span class="prelude-val">Some</span>(ImplSource::Builtin(BuiltinImplSource::Misc | BuiltinImplSource::Trivial, <span class="kw">_</span>))
+<a href=#863 id=863 data-nosnippet>863</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(body) =
+<a href=#864 id=864 data-nosnippet>864</a>                genv.builtin_assoc_reft_body(infcx.typing_env(param_env), alias_reft) =&gt;
+<a href=#865 id=865 data-nosnippet>865</a>        {
+<a href=#866 id=866 data-nosnippet>866</a>            <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, body.apply(refine_args)))
 <a href=#867 id=867 data-nosnippet>867</a>        }
 <a href=#868 id=868 data-nosnippet>868</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>((<span class="bool-val">false</span>, Expr::alias(alias_reft.clone(), refine_args.clone()))),
 <a href=#869 id=869 data-nosnippet>869</a>    }
