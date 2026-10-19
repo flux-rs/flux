@@ -759,17 +759,4 @@ mod errors {
             Self { span, msg }
         }
     }
-
-    #[derive(Diagnostic)]
-    #[diag("inlined definitions cannot be hidden", code = E0999)]
-    pub struct HideInlinedDefinition {
-        #[primary_span]
-        span: Span,
-    }
-
-    impl HideInlinedDefinition {
-        pub(super) fn new(span: Span) -> Self {
-            Self { span }
-        }
-    }
 }
