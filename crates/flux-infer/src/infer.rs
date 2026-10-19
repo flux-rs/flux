@@ -131,7 +131,9 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
     /// ordinary value of the param's type gets when unpacked (e.g., `N >= 0` for `const N: usize`).
     pub fn with_const_generics(mut self, def_id: DefId) -> QueryResult<Self> {
         let tcx = self.genv.tcx();
-        for (pcst, sort, param_def_id) in self.genv.generics_of(def_id)?.const_params(self.genv)? {
+        for (param_const, sort, param_def_id) in
+            self.genv.generics_of(def_id)?.const_params(self.genv)?
+        {
             // The type of a const param is a plain scalar (`usize`, `bool`, ...), so there is
             // nothing to normalize.
             let param_ty = tcx
@@ -145,13 +147,13 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
                 _ => None,
             };
             if let Some(bty) = bty {
-                let idx = Expr::const_generic(pcst);
+                let idx = Expr::const_generic(param_const);
                 self.assumptions.extend(
                     bty.invariants(self.genv, self.opts.check_overflow)
                         .map(|inv| inv.apply(&idx)),
                 );
             }
-            self.params.push((Var::ConstGeneric(pcst), sort));
+            self.params.push((Var::ConstGeneric(param_const), sort));
         }
         Ok(self)
     }
