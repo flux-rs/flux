@@ -4,11 +4,14 @@ use flux_arc_interner::{Internable, Interned};
 use flux_common::index::IndexGen;
 use flux_config as config;
 use rustc_abi::FieldIdx;
-use rustc_data_structures::unord::{UnordMap, UnordSet};
+use rustc_data_structures::{
+    fx::FxHashSet,
+    unord::{UnordMap, UnordSet},
+};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{Pos, Span};
+use rustc_span::{Pos, Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 use serde::Serialize;
 
@@ -311,21 +314,23 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             }
             match var {
                 BoundVariableKind::Region(re) => w!(self, f, "{:?}", re)?,
-                BoundVariableKind::Refine(sort, mode, BoundReftKind::Named(name)) => {
+                BoundVariableKind::Refine(sort, mode, kind) => {
                     if print_infer_mode {
                         w!(self, f, "{}", ^mode.prefix_str())?;
                     }
-                    w!(self, f, "{}", ^name)?;
-                    if !self.hide_sorts {
-                        w!(self, f, ": {:?}", sort)?;
-                    }
-                }
-                BoundVariableKind::Refine(sort, mode, BoundReftKind::Anon) => {
-                    if print_infer_mode {
-                        w!(self, f, "{}", ^mode.prefix_str())?;
-                    }
-                    if let Some(name) = self.bvar_env.lookup(INNERMOST, BoundVar::from_usize(i)) {
-                        w!(self, f, "{:?}", ^name)?;
+                    // There should always be a name here --- and unless
+                    // something is screwy in the env, it should not clash.
+                    let name = self
+                        .bvar_env
+                        .lookup(INNERMOST, BoundVar::from_usize(i))
+                        .or({
+                            match kind {
+                                BoundReftKind::Named(name) => Some(*name),
+                                BoundReftKind::Anon => None,
+                            }
+                        });
+                    if let Some(name) = name {
+                        w!(self, f, "{}", ^name)?;
                     } else {
                         w!(self, f, "_")?;
                     }
@@ -344,24 +349,34 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         breft: BoundReft,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        match breft.kind {
-            BoundReftKind::Anon => {
-                if let Some(name) = self.bvar_env.lookup(debruijn, breft.var) {
-                    w!(self, f, "{name:?}")
-                } else {
+        if let Some(name) = self.bvar_env.lookup(debruijn, breft.var) {
+            w!(self, f, "{}", ^name)
+        } else {
+            // NOTE: This shouldn't happen now that we're careful to set up the
+            // env. Arguably we might want to panic here, but using the
+            // original names is a reasonable fallback (?) --- the anon case is
+            // straight up not machine consumable though.
+            match breft.kind {
+                BoundReftKind::Anon => {
                     w!(self, f, "⭡{}/#{:?}", ^debruijn.as_usize(), ^breft.var)
                 }
-            }
-            BoundReftKind::Named(name) => {
-                w!(self, f, "{name}")
+                BoundReftKind::Named(name) => w!(self, f, "{name}"),
             }
         }
     }
 
-    pub fn with_early_params<R>(&self, f: impl FnOnce() -> R) -> R {
+    pub fn with_early_params<R>(
+        &self,
+        early_params: impl IntoIterator<Item = EarlyReftParam>,
+        f: impl FnOnce() -> R,
+    ) -> R {
         assert!(self.earlyparam_env.borrow().is_none(), "Already in an early param env");
         *self.earlyparam_env.borrow_mut() = Some(UnordSet::new());
+        // Make sure to track the early names as "used" so we can detect any clashes.
+        self.bvar_env
+            .push_used_names(early_params.into_iter().map(|param| param.name));
         let r = f();
+        self.bvar_env.pop_used_names();
         *self.earlyparam_env.borrow_mut() = None;
         r
     }
@@ -409,9 +424,8 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
 }
 
 newtype_index! {
-    /// Name used during pretty printing to format anonymous bound variables
     #[debug_format = "b{}"]
-    pub struct BoundVarName {}
+    struct BoundVarName {}
 }
 
 #[derive(Copy, Clone)]
@@ -422,7 +436,7 @@ pub enum FnRootLayerType {
 
 #[derive(Clone)]
 pub struct FnRootLayerMap {
-    pub name_map: UnordMap<BoundVar, BoundVarName>,
+    pub name_map: UnordMap<BoundVar, Symbol>,
     pub seen_vars: UnordSet<BoundVar>,
     pub layer_type: FnRootLayerType,
 }
@@ -430,6 +444,7 @@ pub struct FnRootLayerMap {
 #[derive(Clone)]
 pub struct BoundVarLayer {
     pub layer_map: BoundVarLayerMap,
+    pub used_names: FxHashSet<Symbol>,
     pub vars_to_remove: UnordSet<BoundVar>,
     pub successfully_removed_vars: UnordSet<BoundVar>,
 }
@@ -461,10 +476,10 @@ impl BoundVarLayer {
 
 #[derive(Clone)]
 pub enum BoundVarLayerMap {
-    LayerMap(UnordMap<BoundVar, BoundVarName>),
+    LayerMap(UnordMap<BoundVar, Symbol>),
     /// We treat vars at the function root differently. The UnordMap
-    /// functions the same as in a regular layer (i.e. giving names to
-    /// anonymous bound vars), but we additionally track a set of
+    /// functions the same as in a regular layer (i.e. assigning names to
+    /// bound vars), but we additionally track a set of
     /// boundvars that have been seen previously.
     ///
     /// This set is used to render a signature like
@@ -481,7 +496,7 @@ pub enum BoundVarLayerMap {
 }
 
 impl BoundVarLayerMap {
-    fn get(&self, bvar: BoundVar) -> Option<BoundVarName> {
+    fn get(&self, bvar: BoundVar) -> Option<Symbol> {
         match self {
             Self::LayerMap(name_map) => name_map,
             Self::FnRootLayerMap(root_layer) => &root_layer.name_map,
@@ -495,6 +510,7 @@ impl BoundVarLayerMap {
 pub struct BoundVarEnv {
     name_gen: IndexGen<BoundVarName>,
     layers: RefCell<Vec<BoundVarLayer>>,
+    used_names: RefCell<Vec<FxHashSet<Symbol>>>,
 }
 
 impl BoundVarEnv {
@@ -541,7 +557,7 @@ impl BoundVarEnv {
         )
     }
 
-    fn lookup(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<BoundVarName> {
+    pub(crate) fn lookup(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<Symbol> {
         let layers = self.layers.borrow();
         layers
             .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
@@ -556,9 +572,25 @@ impl BoundVarEnv {
         is_fn_root_layer: Option<FnRootLayerType>,
     ) {
         let mut name_map = UnordMap::default();
+        let mut used_names = FxHashSet::default();
+        // Before this change, generated names could collide (e.g. an anonymous
+        // `b0` beside a named `b0` --- or even the same `b0` elsewhere).  We
+        // track all names and use freshen_name on conflicts.
+        for names in self.used_names.borrow().iter() {
+            used_names.extend(names.clone());
+        }
+        for layer in self.layers.borrow().iter() {
+            used_names.extend(layer.used_names.clone());
+        }
         for (idx, var) in vars.iter().enumerate() {
-            if let BoundVariableKind::Refine(_, _, BoundReftKind::Anon) = var {
-                name_map.insert(BoundVar::from_usize(idx), self.name_gen.fresh());
+            if let BoundVariableKind::Refine(_, _, kind) = var {
+                // Preserve a source name when available.
+                let preferred = match kind {
+                    BoundReftKind::Named(name) => *name,
+                    BoundReftKind::Anon => Symbol::intern(&format!("{:?}", self.name_gen.fresh())),
+                };
+                let name = freshen_name(preferred, &mut used_names);
+                name_map.insert(BoundVar::from_usize(idx), name);
             }
         }
         let layer_map = if let Some(layer_type) = is_fn_root_layer {
@@ -570,9 +602,23 @@ impl BoundVarEnv {
         } else {
             BoundVarLayerMap::LayerMap(name_map)
         };
-        let layer =
-            BoundVarLayer { layer_map, vars_to_remove, successfully_removed_vars: UnordSet::new() };
+        let layer = BoundVarLayer {
+            layer_map,
+            used_names,
+            vars_to_remove,
+            successfully_removed_vars: UnordSet::new(),
+        };
         self.layers.borrow_mut().push(layer);
+    }
+
+    fn push_used_names(&self, names: impl IntoIterator<Item = Symbol>) {
+        self.used_names
+            .borrow_mut()
+            .push(names.into_iter().collect());
+    }
+
+    fn pop_used_names(&self) {
+        self.used_names.borrow_mut().pop();
     }
 
     pub fn peek_layer(&self) -> Option<BoundVarLayer> {
@@ -582,6 +628,24 @@ impl BoundVarEnv {
     fn pop_layer(&self) -> Option<BoundVarLayer> {
         self.layers.borrow_mut().pop()
     }
+}
+
+fn freshen_name(preferred: Symbol, used: &mut FxHashSet<Symbol>) -> Symbol {
+    if used.insert(preferred) {
+        return preferred;
+    }
+    // We want all names to be unique. Try a suffix until the spelling is
+    // unused (for example, `n`, `n_1`, `n_2`).
+    // NOTE: technically freshening takes O(used.size) time,
+    //       but we don't expect this will incur that steep
+    //       of a penalty in general...
+    for suffix in 1.. {
+        let candidate = Symbol::intern(&format!("{preferred}_{suffix}"));
+        if used.insert(candidate) {
+            return candidate;
+        }
+    }
+    unreachable!()
 }
 
 type EarlyParamEnv = UnordSet<EarlyReftParam>;
@@ -707,8 +771,17 @@ impl<T: Pretty> fmt::Debug for WithCx<'_, '_, '_, T> {
 impl Pretty for DefId {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if cx.fully_qualified_paths {
-            w!(cx, f, "{}", ^cx.tcx().def_path_str(*self))
+            // Local paths also need `crate::`: a module-relative path can resolve
+            // differently at the insertion site of a generated signature.
+            w!(cx, f, "{}", ^rustc_middle::ty::print::with_crate_prefix!(cx.tcx().def_path_str(*self)))
         } else {
+            // Fully qualified paths are necessary to ensure that we don't
+            // mistakenly shadow, e.g. a DefId for `std::vec::Vec` prints as
+            // `Vec` which might clash if the crate has imported `use
+            // crate::shadow::Vec` (or straight up fail to import).
+            //
+            // Be careful about disabling fully_qualified_paths for any
+            // machine-generated suggestions.
             let path = cx.tcx().def_path(*self);
             w!(cx, f, "{}", ^path.data.last().unwrap().as_sym(false))
         }
