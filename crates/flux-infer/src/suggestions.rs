@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use flux_middle::rty;
 use itertools::Itertools;
-use liquid_fixpoint::{check_validity, qe_and_simplify};
+use liquid_fixpoint::{SuggestionSolver, check_validity, qe_and_simplify};
 use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
@@ -26,7 +26,7 @@ pub(crate) fn make_flat_constraint_map(constraint: &fixpoint::Constraint) -> Tag
             if let Some(tag) = flat_constraint.tag
                 && !matches!(flat_constraint.head, fixpoint::Pred::KVar(..))
             {
-                Some((tag.clone(), flat_constraint))
+                Some((tag, flat_constraint))
             } else {
                 None
             }
@@ -51,15 +51,15 @@ pub(crate) fn subst_fixpoint_solutions(
             {
                 assert!(var_sorts.len() == args.len());
                 let subst = args
-                    .into_iter()
+                    .iter()
                     .zip(var_sorts.iter())
-                    .map(|(arg, (subst_var, _))| (subst_var.clone(), arg.clone()))
+                    .map(|(arg, (subst_var, _))| (*subst_var, arg.clone()))
                     .collect();
                 let subst_solution = solution.substitute(&subst);
                 subst_solution
                     .as_conjunction()
                     .into_iter()
-                    .map(|expr| fixpoint::Pred::Expr(expr))
+                    .map(fixpoint::Pred::Expr)
                     .collect_vec()
                     .into_iter()
             } else {
@@ -73,21 +73,31 @@ pub(crate) fn find_possible_solutions<'genv, 'tcx, Tag>(
     fxctx: &mut FixpointCtxt<'genv, 'tcx, Tag>,
     tag_idx: TagIdx,
     suggestion_ctx: &SuggestionCtxt,
-) -> PossibleSolutions
+    solver: &mut Option<SuggestionSolver>,
+) -> Result<PossibleSolutions, liquid_fixpoint::SuggestionSolverError>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
     let Some(flat_constraint) = suggestion_ctx.flat_constraints.get(&tag_idx) else {
-        return Default::default();
+        return Ok(Default::default());
     };
     let head_expr = match &flat_constraint.head {
         fixpoint::Pred::Expr(e) => Some(e.clone()),
         _ => None,
     };
     let mut possible_solutions: PossibleSolutions = Default::default();
+    if solver.is_none() {
+        *solver = Some(SuggestionSolver::new(
+            &suggestion_ctx.const_decls,
+            &suggestion_ctx.fun_defs,
+            suggestion_ctx.data_decls.clone(),
+        )?);
+    }
+    let solver = solver.as_mut().unwrap();
     let wkvars_and_constraints = flat_constraint.wkvars_and_constrs();
     for (wkvar, flat_constraint, other_constrs) in wkvars_and_constraints {
-        if !other_constrs.iter().all(|other_constr| {
+        let mut valid = true;
+        for other_constr in other_constrs {
             let binder_consts = other_constr
                 .binders
                 .iter()
@@ -95,13 +105,20 @@ where
                     fixpoint::ConstDecl { name: *var, sort: sort.clone(), comment: None }
                 })
                 .collect_vec();
-            check_validity(
+            let validity = check_validity(
+                solver,
                 &other_constr,
                 &binder_consts,
                 &suggestion_ctx.const_decls,
+                &suggestion_ctx.fun_defs,
                 suggestion_ctx.data_decls.clone(),
-            )
-        }) {
+            );
+            if !validity? {
+                valid = false;
+                break;
+            }
+        }
+        if !valid {
             continue;
         }
         let ConstKey::WKVar(wkvid, self_args) = fxctx
@@ -142,79 +159,42 @@ where
                 if !assumption.is_trivially_true() { Some(assumption) } else { None }
             })
             .collect();
-        match qe_and_simplify(
+        let result = qe_and_simplify(
+            solver,
             &new_flat_constraint,
             &binder_consts,
             &suggestion_ctx.const_decls,
+            &suggestion_ctx.fun_defs,
             suggestion_ctx.data_decls.clone(),
-        ) {
+        );
+        let fallback = |fxctx: &mut FixpointCtxt<'genv, 'tcx, Tag>| {
+            head_expr
+                .as_ref()
+                .and_then(|head| fxctx.fixpoint_to_expr(head).ok())
+                .and_then(|head| {
+                    WKVarInstantiator::try_instantiate_wkvar_args(self_args, &rty_args, &head)
+                })
+        };
+        let solution = match result {
             Ok(fe) => {
                 match fxctx.fixpoint_to_expr(&fe) {
-                    Ok(e) => {
-                        if !e.is_trivially_false() && !e.is_trivially_true() {
-                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(
-                                self_args, &rty_args, &e,
-                            ) {
-                                if fe.total_num_disjuncts() > 3 {
-                                    // NOTE: previously used blame_ctx.expr
-                                    if let Some(binder_e) =
-                                        WKVarInstantiator::try_instantiate_wkvar_args(
-                                            self_args,
-                                            &rty_args,
-                                            &fxctx
-                                                .fixpoint_to_expr(head_expr.as_ref().unwrap())
-                                                .unwrap(),
-                                        )
-                                    {
-                                        possible_solutions
-                                            .entry(wkvid.clone())
-                                            .or_default()
-                                            .push(binder_e);
-                                    }
-                                } else {
-                                    possible_solutions
-                                        .entry(wkvid.clone())
-                                        .or_default()
-                                        .push(binder_e);
-                                }
-                            } else {
-                                // NOTE: previously used blame_ctx.expr
-                                if let Some(binder_e) =
-                                    WKVarInstantiator::try_instantiate_wkvar_args(
-                                        self_args,
-                                        &rty_args,
-                                        &fxctx
-                                            .fixpoint_to_expr(head_expr.as_ref().unwrap())
-                                            .unwrap(),
-                                    )
-                                {
-                                    possible_solutions
-                                        .entry(wkvid.clone())
-                                        .or_default()
-                                        .push(binder_e);
-                                }
-                            }
-                        } else {
-                            // skip trivial solution
-                        }
+                    Ok(expr) if expr.is_trivially_false() || expr.is_trivially_true() => None,
+                    Ok(_) if fe.total_num_disjuncts() > 3 => fallback(fxctx),
+                    Ok(expr) => {
+                        WKVarInstantiator::try_instantiate_wkvar_args(self_args, &rty_args, &expr)
+                            .or_else(|| fallback(fxctx))
                     }
-                    Err(_err) => {}
+                    Err(_) => None,
                 }
             }
-            Err(_err) => {
-                // NOTE: previously used blame_ctx.expr
-                if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(
-                    self_args,
-                    &rty_args,
-                    &fxctx.fixpoint_to_expr(head_expr.as_ref().unwrap()).unwrap(),
-                ) {
-                    possible_solutions
-                        .entry(wkvid.clone())
-                        .or_default()
-                        .push(binder_e);
-                }
-            }
+            Err(_) => fallback(fxctx),
+        };
+        if let Some(solution) = solution {
+            possible_solutions
+                .entry(wkvid.clone())
+                .or_default()
+                .push(solution);
         }
     }
-    possible_solutions
+    Ok(possible_solutions)
 }

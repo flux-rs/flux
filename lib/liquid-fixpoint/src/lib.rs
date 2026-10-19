@@ -5,6 +5,10 @@
 
 #[cfg(feature = "nightly")]
 extern crate rustc_data_structures;
+// Link rustc-private dependencies through the driver dylib in unit tests.
+#[cfg(all(test, feature = "nightly"))]
+#[allow(unused_extern_crates)]
+extern crate rustc_driver;
 #[cfg(feature = "nightly")]
 extern crate rustc_macros;
 #[cfg(feature = "nightly")]
@@ -17,16 +21,16 @@ mod constraint;
 mod constraint_fragments;
 #[cfg(feature = "rust-fixpoint")]
 mod constraint_solving;
-#[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
 mod constraint_with_env;
-#[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
+#[cfg(feature = "rust-fixpoint")]
 mod cstr2smt2;
 mod format;
-#[cfg(any(feature = "rust-fixpoint", feature = "suggestions"))]
 mod graph;
 pub mod parser;
 pub mod sexp;
+mod smt_fmt;
 pub mod smt_horn;
+mod z3_process;
 
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
@@ -59,8 +63,25 @@ use process_control::{ChildExt, Control};
 
 #[cfg(feature = "rust-fixpoint")]
 use crate::constraint_with_env::ConstraintWithEnv;
-#[cfg(feature = "suggestions")]
 use crate::constraint_with_env::topo_sort_data_declarations;
+pub use crate::z3_process::SuggestionSolverError;
+
+pub struct SuggestionSolver {
+    process: z3_process::ProcessSolver,
+}
+
+impl SuggestionSolver {
+    pub fn new<T: Types>(
+        global_consts: &[ConstDecl<T>],
+        funs: &[FunDef<T>],
+        datatype_decls: Vec<DataDecl<T>>,
+    ) -> Result<Self, SuggestionSolverError> {
+        let mut process = z3_process::ProcessSolver::new()?;
+        let datatype_decls = topo_sort_data_declarations(datatype_decls);
+        process.initialize_context(global_consts, funs, &datatype_decls)?;
+        Ok(Self { process })
+    }
+}
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
@@ -164,28 +185,34 @@ macro_rules! declare_types {
     };
 }
 
-#[cfg(feature = "suggestions")]
 pub fn qe_and_simplify<T: Types>(
+    solver: &mut SuggestionSolver,
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
+    funs: &Vec<FunDef<T>>,
     datatype_decls: Vec<DataDecl<T>>,
-) -> Result<Expr<T>, cstr2smt2::Z3DecodeError> {
+) -> Result<Expr<T>, SuggestionSolverError> {
     // let mut consts = self.constants.clone();
     // consts.extend(free_vars.clone());
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::qe_and_simplify(constraint, binder_consts, global_consts, &datatype_decls)
+    solver
+        .process
+        .qe_and_simplify(constraint, binder_consts, global_consts, funs, &datatype_decls)
 }
 
-#[cfg(feature = "suggestions")]
 pub fn check_validity<T: Types>(
+    solver: &mut SuggestionSolver,
     constraint: &FlatConstraint<T>,
     binder_consts: &Vec<ConstDecl<T>>,
     global_consts: &Vec<ConstDecl<T>>,
+    funs: &Vec<FunDef<T>>,
     datatype_decls: Vec<DataDecl<T>>,
-) -> bool {
+) -> Result<bool, SuggestionSolverError> {
     let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    cstr2smt2::check_validity(constraint, binder_consts, global_consts, &datatype_decls)
+    solver
+        .process
+        .check_validity(constraint, binder_consts, global_consts, funs, &datatype_decls)
 }
 
 #[derive_where(Hash, Clone, Debug)]
@@ -196,7 +223,7 @@ pub struct ConstDecl<T: Types> {
     pub comment: Option<String>,
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct FunDef<T: Types> {
     pub name: T::Var,
     pub sort: FunSort<T>,
@@ -205,7 +232,7 @@ pub struct FunDef<T: Types> {
     pub comment: Option<String>,
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct FunBody<T: Types> {
     pub args: Vec<T::Var>,
     pub expr: Expr<T>,

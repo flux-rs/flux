@@ -286,7 +286,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         let (task, suggestion_ctx) =
             fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
         let result = fcx.run_task(cache, def_id, kind, &task)?;
-        Ok(fcx.result_to_answer(result, suggestion_ctx))
+        fcx.result_to_answer(result, suggestion_ctx)
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {

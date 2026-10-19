@@ -198,7 +198,7 @@ impl SpanEncoder for EncodeContext<'_, '_> {
     /// A `LocalDefId` is only meaningful within the crate that defines it, so it must be converted
     /// to a `DefId` before being encoded. See also `DecodeContext::decode_local_def_id`.
     fn encode_local_def_id(&mut self, def_id: LocalDefId) {
-        bug!("attempted to encode `LocalDefId` {def_id:?} in flux metadata")
+        bug!("attempted to encode `LocalDefId` {def_id:?} in flux metadata");
     }
 
     fn encode_syntax_context(&mut self, syntax_context: SyntaxContext) {

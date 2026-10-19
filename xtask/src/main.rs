@@ -25,7 +25,10 @@ xflags::xflags! {
         optional --offline
         /// If true, run cargo build commands with --features rust-fixpiont
         optional --rust-fixpoint
-        /// If true, run cargo build commands with --features suggestions
+        /// Default the runtime `-Fsuggestions` flag to true via --features suggestions.
+        /// Kept for legacy compatibility: we now change behavior just based upon
+        /// the runtime flag `-Fsuggestions=true` and providing this just defaults
+        /// it to `true`.
         optional --suggestions
 
         /// Run regression tests
@@ -425,7 +428,7 @@ struct SysrootConfig {
     profile: Profile,
     /// Whether rust-fixpoint should be enabled to build `flux-driver`
     rust_fixpoint: bool,
-    /// Whether suggestions should be enabled to build `flux-driver`
+    /// Whether the default of the -Fsuggestions flag is true
     suggestions: bool,
     /// Destination path for sysroot artifacts
     dst: PathBuf,
