@@ -60,37 +60,37 @@
 <a href=#60 id=60 data-nosnippet>60</a>    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L652
 <a href=#61 id=61 data-nosnippet>61</a>    </span><span class="attr">#[spec(<span class="kw">fn</span>(NonNull&lt;T&gt;[@base, @addr, @size]</span>, count: usize)
 <a href=#62 id=62 data-nosnippet>62</a>        -&gt; NonNull&lt;T&gt;[base, addr + count * T::size_of(), size - count * T::size_of()]
-<a href=#63 id=63 data-nosnippet>63</a>            requires nn_in_bounds(base, addr, size) &amp;&amp; count * T::size_of() &lt;= size)]
+<a href=#63 id=63 data-nosnippet>63</a>            requires count * T::size_of() == <span class="number">0 </span>|| (nn_in_bounds(base, addr, size) &amp;&amp; count * T::size_of() &lt;= size))]
 <a href=#64 id=64 data-nosnippet>64</a>    <span class="kw">unsafe fn </span>add(<span class="self">self</span>, count: usize) -&gt; <span class="self">Self</span>;
 <a href=#65 id=65 data-nosnippet>65</a>
 <a href=#66 id=66 data-nosnippet>66</a>    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L729
 <a href=#67 id=67 data-nosnippet>67</a>    </span><span class="attr">#[spec(<span class="kw">fn</span>(NonNull&lt;T&gt;[@base, @addr, @size]</span>, count: usize)
 <a href=#68 id=68 data-nosnippet>68</a>        -&gt; NonNull&lt;T&gt;[base, addr - count * T::size_of(), size + count * T::size_of()]
-<a href=#69 id=69 data-nosnippet>69</a>            requires nn_in_bounds(base, addr, size) &amp;&amp; count * T::size_of() &lt;= addr - base &amp;&amp; addr - count * T::size_of() != <span class="number">0</span>)]
+<a href=#69 id=69 data-nosnippet>69</a>            requires count * T::size_of() == <span class="number">0 </span>|| (nn_in_bounds(base, addr, size) &amp;&amp; count * T::size_of() &lt;= addr - base &amp;&amp; addr - count * T::size_of() != <span class="number">0</span>))]
 <a href=#70 id=70 data-nosnippet>70</a>    <span class="kw">unsafe fn </span>sub(<span class="self">self</span>, count: usize) -&gt; <span class="self">Self</span>;
 <a href=#71 id=71 data-nosnippet>71</a>
 <a href=#72 id=72 data-nosnippet>72</a>    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L576
 <a href=#73 id=73 data-nosnippet>73</a>    </span><span class="attr">#[spec(<span class="kw">fn</span>(NonNull&lt;T&gt;[@base, @addr, @size]</span>, count: isize)
 <a href=#74 id=74 data-nosnippet>74</a>        -&gt; NonNull&lt;T&gt;[base, addr + count * T::size_of(), size - count * T::size_of()]
-<a href=#75 id=75 data-nosnippet>75</a>            requires nn_in_bounds(base, addr, size) &amp;&amp; count * T::size_of() &lt;= size &amp;&amp; addr + count * T::size_of() &gt;= base &amp;&amp; addr + count * T::size_of() != <span class="number">0</span>)]
+<a href=#75 id=75 data-nosnippet>75</a>            requires count * T::size_of() == <span class="number">0 </span>|| (nn_in_bounds(base, addr, size) &amp;&amp; count * T::size_of() &lt;= size &amp;&amp; addr + count * T::size_of() &gt;= base &amp;&amp; addr + count * T::size_of() != <span class="number">0</span>))]
 <a href=#76 id=76 data-nosnippet>76</a>    <span class="kw">unsafe fn </span>offset(<span class="self">self</span>, count: isize) -&gt; <span class="self">Self</span>;
 <a href=#77 id=77 data-nosnippet>77</a>
 <a href=#78 id=78 data-nosnippet>78</a>    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L678
 <a href=#79 id=79 data-nosnippet>79</a>    </span><span class="attr">#[spec(<span class="kw">fn</span>(NonNull&lt;T&gt;[@base, @addr, @size]</span>, count: usize)
 <a href=#80 id=80 data-nosnippet>80</a>        -&gt; NonNull&lt;T&gt;[base, addr + count, size - count]
-<a href=#81 id=81 data-nosnippet>81</a>            requires nn_in_bounds(base, addr, size) &amp;&amp; count &lt;= size)]
+<a href=#81 id=81 data-nosnippet>81</a>            requires count == <span class="number">0 </span>|| (nn_in_bounds(base, addr, size) &amp;&amp; count &lt;= size))]
 <a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">unsafe fn </span>byte_add(<span class="self">self</span>, count: usize) -&gt; <span class="self">Self</span>;
 <a href=#83 id=83 data-nosnippet>83</a>
 <a href=#84 id=84 data-nosnippet>84</a>    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L760
 <a href=#85 id=85 data-nosnippet>85</a>    </span><span class="attr">#[spec(<span class="kw">fn</span>(NonNull&lt;T&gt;[@base, @addr, @size]</span>, count: usize)
 <a href=#86 id=86 data-nosnippet>86</a>        -&gt; NonNull&lt;T&gt;[base, addr - count, size + count]
-<a href=#87 id=87 data-nosnippet>87</a>            requires nn_in_bounds(base, addr, size) &amp;&amp; count &lt;= addr - base &amp;&amp; addr - count != <span class="number">0</span>)]
+<a href=#87 id=87 data-nosnippet>87</a>            requires count == <span class="number">0 </span>|| (nn_in_bounds(base, addr, size) &amp;&amp; count &lt;= addr - base &amp;&amp; addr - count != <span class="number">0</span>))]
 <a href=#88 id=88 data-nosnippet>88</a>    <span class="kw">unsafe fn </span>byte_sub(<span class="self">self</span>, count: usize) -&gt; <span class="self">Self</span>;
 <a href=#89 id=89 data-nosnippet>89</a>
 <a href=#90 id=90 data-nosnippet>90</a>    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L602
 <a href=#91 id=91 data-nosnippet>91</a>    </span><span class="attr">#[spec(<span class="kw">fn</span>(NonNull&lt;T&gt;[@base, @addr, @size]</span>, count: isize)
 <a href=#92 id=92 data-nosnippet>92</a>        -&gt; NonNull&lt;T&gt;[base, addr + count, size - count]
-<a href=#93 id=93 data-nosnippet>93</a>            requires nn_in_bounds(base, addr, size) &amp;&amp; count &lt;= size &amp;&amp; addr + count &gt;= base &amp;&amp; addr + count != <span class="number">0</span>)]
+<a href=#93 id=93 data-nosnippet>93</a>            requires count == <span class="number">0 </span>|| (nn_in_bounds(base, addr, size) &amp;&amp; count &lt;= size &amp;&amp; addr + count &gt;= base &amp;&amp; addr + count != <span class="number">0</span>))]
 <a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">unsafe fn </span>byte_offset(<span class="self">self</span>, count: isize) -&gt; <span class="self">Self</span>;
 <a href=#95 id=95 data-nosnippet>95</a>
 <a href=#96 id=96 data-nosnippet>96</a>    <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L858

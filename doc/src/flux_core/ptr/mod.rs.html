@@ -64,26 +64,26 @@
 <a href=#64 id=64 data-nosnippet>64</a>        </span><span class="kw">impl</span>&lt;T&gt; <span class="kw-2">*</span><span class="macro-nonterminal">$mutable </span>T {
 <a href=#65 id=65 data-nosnippet>65</a>            <span class="attr">#[spec(<span class="kw">fn </span>(me: <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[@p] </span>T, count: usize)
 <a href=#66 id=66 data-nosnippet>66</a>                -&gt; <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
-<a href=#67 id=67 data-nosnippet>67</a>                    requires in_bounds(p) &amp;&amp; count * T::size_of() &lt;= p.size
+<a href=#67 id=67 data-nosnippet>67</a>                    requires count * T::size_of() == <span class="number">0 </span>|| (in_bounds(p) &amp;&amp; count * T::size_of() &lt;= p.size)
 <a href=#68 id=68 data-nosnippet>68</a>                    ensures addr_aligned(p.addr, T::align_of()) =&gt; addr_aligned(p.addr + count * T::size_of(), T::align_of())
 <a href=#69 id=69 data-nosnippet>69</a>            )]
 <a href=#70 id=70 data-nosnippet>70</a>            <span class="kw">unsafe fn </span>add(<span class="self">self</span>, count: usize) -&gt; <span class="self">Self</span>;
 <a href=#71 id=71 data-nosnippet>71</a>
 <a href=#72 id=72 data-nosnippet>72</a>            <span class="attr">#[spec(<span class="kw">fn </span>(me: <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[@p] </span>T, count: usize)
 <a href=#73 id=73 data-nosnippet>73</a>                -&gt; <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[p.base, p.addr - count * T::size_of(), p.size + count * T::size_of()] T
-<a href=#74 id=74 data-nosnippet>74</a>                    requires in_bounds(p) &amp;&amp; count * T::size_of() &lt;= p.addr - p.base
+<a href=#74 id=74 data-nosnippet>74</a>                    requires count * T::size_of() == <span class="number">0 </span>|| (in_bounds(p) &amp;&amp; count * T::size_of() &lt;= p.addr - p.base)
 <a href=#75 id=75 data-nosnippet>75</a>                    ensures addr_aligned(p.addr, T::align_of()) =&gt; addr_aligned(p.addr - count * T::size_of(), T::align_of())
 <a href=#76 id=76 data-nosnippet>76</a>            )]
 <a href=#77 id=77 data-nosnippet>77</a>            <span class="kw">unsafe fn </span>sub(<span class="self">self</span>, count: usize) -&gt; <span class="self">Self</span>;
 <a href=#78 id=78 data-nosnippet>78</a>
 <a href=#79 id=79 data-nosnippet>79</a>            <span class="attr">#[spec(<span class="kw">fn </span>(me: <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[@p] </span>T, count: usize)
 <a href=#80 id=80 data-nosnippet>80</a>                -&gt; <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[p.base, p.addr + count, p.size - count] T
-<a href=#81 id=81 data-nosnippet>81</a>                    requires in_bounds(p) &amp;&amp; count &lt;= p.size)]
+<a href=#81 id=81 data-nosnippet>81</a>                    requires count == <span class="number">0 </span>|| (in_bounds(p) &amp;&amp; count &lt;= p.size))]
 <a href=#82 id=82 data-nosnippet>82</a>            <span class="kw">unsafe fn </span>byte_add(<span class="self">self</span>, count: usize) -&gt; <span class="self">Self</span>;
 <a href=#83 id=83 data-nosnippet>83</a>
 <a href=#84 id=84 data-nosnippet>84</a>            <span class="attr">#[spec(<span class="kw">fn </span>(me: <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[@p] </span>T, count: usize)
 <a href=#85 id=85 data-nosnippet>85</a>                -&gt; <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[p.base, p.addr - count, p.size + count] T
-<a href=#86 id=86 data-nosnippet>86</a>                    requires in_bounds(p) &amp;&amp; count &lt;= p.addr - p.base)]
+<a href=#86 id=86 data-nosnippet>86</a>                    requires count == <span class="number">0 </span>|| (in_bounds(p) &amp;&amp; count &lt;= p.addr - p.base))]
 <a href=#87 id=87 data-nosnippet>87</a>            <span class="kw">unsafe fn </span>byte_sub(<span class="self">self</span>, count: usize) -&gt; <span class="self">Self</span>;
 <a href=#88 id=88 data-nosnippet>88</a>
 <a href=#89 id=89 data-nosnippet>89</a>            <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L22
@@ -94,7 +94,7 @@
 <a href=#94 id=94 data-nosnippet>94</a>            <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L349
 <a href=#95 id=95 data-nosnippet>95</a>            </span><span class="attr">#[spec(<span class="kw">fn </span>(me: <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[@p] </span>T, count: isize)
 <a href=#96 id=96 data-nosnippet>96</a>                -&gt; <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[p.base, p.addr + count * T::size_of(), p.size - count * T::size_of()] T
-<a href=#97 id=97 data-nosnippet>97</a>                    requires in_bounds(p) &amp;&amp; count * T::size_of() &lt;= p.size &amp;&amp; p.addr + count * T::size_of() &gt;= p.base
+<a href=#97 id=97 data-nosnippet>97</a>                    requires count * T::size_of() == <span class="number">0 </span>|| (in_bounds(p) &amp;&amp; count * T::size_of() &lt;= p.size &amp;&amp; p.addr + count * T::size_of() &gt;= p.base)
 <a href=#98 id=98 data-nosnippet>98</a>                    ensures addr_aligned(p.addr, T::align_of()) =&gt; addr_aligned(p.addr + count * T::size_of(), T::align_of())
 <a href=#99 id=99 data-nosnippet>99</a>            )]
 <a href=#100 id=100 data-nosnippet>100</a>            <span class="kw">unsafe fn </span>offset(<span class="self">self</span>, count: isize) -&gt; <span class="self">Self</span>;
@@ -102,7 +102,7 @@
 <a href=#102 id=102 data-nosnippet>102</a>            <span class="doccomment">/// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L471
 <a href=#103 id=103 data-nosnippet>103</a>            </span><span class="attr">#[spec(<span class="kw">fn </span>(me: <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[@p] </span>T, count: isize)
 <a href=#104 id=104 data-nosnippet>104</a>                -&gt; <span class="kw-2">*</span><span class="macro-nonterminal">$mutable</span>[p.base, p.addr + count, p.size - count] T
-<a href=#105 id=105 data-nosnippet>105</a>                    requires in_bounds(p) &amp;&amp; count &lt;= p.size &amp;&amp; p.addr + count &gt;= p.base)]
+<a href=#105 id=105 data-nosnippet>105</a>                    requires count == <span class="number">0 </span>|| (in_bounds(p) &amp;&amp; count &lt;= p.size &amp;&amp; p.addr + count &gt;= p.base))]
 <a href=#106 id=106 data-nosnippet>106</a>            <span class="kw">unsafe fn </span>byte_offset(<span class="self">self</span>, count: isize) -&gt; <span class="self">Self</span>;
 <a href=#107 id=107 data-nosnippet>107</a>
 <a href=#108 id=108 data-nosnippet>108</a>            <span class="comment">// - Both `self` and `origin` must be derived from a pointer to the same allocation,
