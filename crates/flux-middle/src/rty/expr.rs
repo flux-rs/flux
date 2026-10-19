@@ -1735,8 +1735,6 @@ impl<T: Pretty> Pretty for FieldBind<T> {
 
 pub(crate) mod pretty {
 
-    use flux_rustc_bridge::def_id_to_string;
-
     use super::*;
     use crate::name_of_thy_func;
 
@@ -1774,18 +1772,32 @@ pub(crate) mod pretty {
                 | BinOp::BitXor(_) => Precedence::Bitvec,
             }
         }
-    }
 
-    impl Precedence {
-        pub fn is_associative(&self) -> bool {
-            !matches!(self, Precedence::Imp | Precedence::Cmp)
+        fn is_associative(&self) -> bool {
+            // Equal-precedence grouping can be omitted for the same associative operator:
+            // `a || (b || c)` and `(a || b) || c` preserve operand order and mean the same thing.
+            matches!(
+                self,
+                BinOp::Or
+                    | BinOp::And
+                    | BinOp::Add(_)
+                    | BinOp::Mul(_)
+                    | BinOp::BitAnd(_)
+                    | BinOp::BitOr(_)
+                    | BinOp::BitXor(_)
+            )
         }
     }
 
     pub fn should_parenthesize(op: &BinOp, child: &Expr) -> bool {
         if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
             child_op.precedence() < op.precedence()
-                || (child_op.precedence() == op.precedence() && !op.precedence().is_associative())
+                // The old printer did not use parens for every equal-precedence
+                // pair, so `a * (b / c)` became `a * b / c`, which reparses as
+                // `(a * b) / c`. Equal precedence is not enough: we need to
+                // be sure that the operators are also equal before we drop parens.
+                || (child_op.precedence() == op.precedence()
+                    && (child_op != op || !op.is_associative()))
         } else {
             false
         }
@@ -1842,7 +1854,16 @@ pub(crate) mod pretty {
             match e.kind() {
                 ExprKind::Var(var) => w!(cx, f, "{:?}", var),
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
-                ExprKind::ConstDefId(did) => w!(cx, f, "{}", ^def_id_to_string(*did)),
+                // If we just serialize the DefId, this can cause import issues.
+                // So instead we just dump the whole path. Ugly but works.
+                ExprKind::ConstDefId(did) => {
+                    w!(
+                        cx,
+                        f,
+                        "{}",
+                        ^rustc_middle::ty::print::with_crate_prefix!(cx.tcx().def_path_str(*did))
+                    )
+                }
                 ExprKind::Constant(c) => w!(cx, f, "{:?}", c),
 
                 ExprKind::BinaryOp(op, e1, e2) => {
@@ -1871,9 +1892,11 @@ pub(crate) mod pretty {
                     }
                 }
                 ExprKind::FieldProj(e, proj) if let ExprKind::Ctor(_, _) = e.kind() => {
-                    // special case to avoid printing `{n:12}.n` as `12.n` but instead, just print `12`
+                    // Print the selected field rather than a constructor followed by a projection.
                     // TODO: maintain an invariant that `FieldProj` never has a Ctor as first argument (as always reduced)
-                    w!(cx, f, "{:?}", e.proj_and_reduce(*proj))
+                    // Put parens around it because otherwise the meaning might change because
+                    // of associativity.
+                    w!(cx, f, "({:?})", e.proj_and_reduce(*proj))
                 }
                 ExprKind::FieldProj(e, proj) => {
                     if e.is_atom() {
@@ -1967,8 +1990,19 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lam) => {
                     w!(cx, f, "{:?}", lam)
                 }
+                // Flux functions have no rustc DefId of their own, so qualify them with their
+                // parent module's full, crate-prefixed path. Printing only `did.name()` could
+                // resolve to an unrelated same-named function at the suggestion's insertion site.
                 ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
-                    w!(cx, f, "{}", ^did.name())
+                    w!(
+                        cx,
+                        f,
+                        "{}::{}",
+                        ^rustc_middle::ty::print::with_crate_prefix!(
+                            cx.tcx().def_path_str(did.parent())
+                        ),
+                        ^did.name()
+                    )
                 }
                 ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                     if let Some(name) = name_of_thy_func(*itf) {
@@ -2273,9 +2307,14 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children: e_d.children, key: None })
                 }
                 ExprKind::FieldProj(e, proj) if let ExprKind::Ctor(_, _) = e.kind() => {
-                    // special case to avoid printing `{n:12}.n` as `12.n` but instead, just print `12`
+                    // Print the selected field rather than a constructor followed by a projection.
                     // TODO: maintain an invariant that `FieldProj` never has a Ctor as first argument (as always reduced)
-                    e.proj_and_reduce(*proj).fmt_nested(cx)
+                    // As in fmt above, emit grouping because the nested text does not carry its
+                    // precedence back to its parent: selected `x + y` under `* z` must not become
+                    // `x + y * z` when this suggestion text is parsed again.
+                    let mut reduced = e.proj_and_reduce(*proj).fmt_nested(cx)?;
+                    reduced.text = format!("({})", reduced.text);
+                    Ok(reduced)
                 }
                 ExprKind::FieldProj(e, proj) => {
                     let e_d = e.fmt_nested(cx)?;
