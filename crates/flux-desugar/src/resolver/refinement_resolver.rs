@@ -101,6 +101,12 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         });
     }
 
+    fn visit_axiom(&mut self, axiom: &surface::Axiom) {
+        self.with_scope(RibKind::Misc, |this| {
+            surface::visit::walk_axiom(this, axiom);
+        });
+    }
+
     fn visit_generic_param(&mut self, param: &surface::GenericParam) {
         self.on_generic_param(param);
         surface::visit::walk_generic_param(self, param);
@@ -373,7 +379,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         let sort_vars = match item {
             FluxItem::FuncDef(defn) => &defn.sort_vars[..],
             FluxItem::SortDecl(sort_decl) => &sort_decl.sort_vars[..],
-            FluxItem::Qualifier(_) | FluxItem::PrimOpProp(_) => &[],
+            FluxItem::Qualifier(_) | FluxItem::PrimOpProp(_) | FluxItem::Axiom(_) => &[],
             FluxItem::Use(_) => {
                 // Use paths are resolved `CrateResolver::resolve_use_path`
                 return Ok(());

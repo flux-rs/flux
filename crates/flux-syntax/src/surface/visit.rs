@@ -16,7 +16,7 @@ use super::{
     VariantDef, VariantRet, WhereBoundPredicate,
 };
 use crate::surface::{
-    FluxItem, ImplItem, ImplItemKind, Item, PrimOpProp, SortDecl, TraitItemFn, UseTree,
+    Axiom, FluxItem, ImplItem, ImplItemKind, Item, PrimOpProp, SortDecl, TraitItemFn, UseTree,
 };
 
 #[macro_export]
@@ -50,6 +50,10 @@ pub trait Visitor: Sized {
 
     fn visit_primop_prop(&mut self, prop: &PrimOpProp) {
         walk_primop_prop(self, prop);
+    }
+
+    fn visit_axiom(&mut self, axiom: &Axiom) {
+        walk_axiom(self, axiom);
     }
 
     fn visit_refine_param(&mut self, param: &RefineParam) {
@@ -220,6 +224,7 @@ pub fn walk_flux_item<V: Visitor>(vis: &mut V, item: &FluxItem) {
         FluxItem::FuncDef(spec_func) => vis.visit_defn(spec_func),
         FluxItem::SortDecl(sort_decl) => vis.visit_sort_decl(sort_decl),
         FluxItem::PrimOpProp(prim_op_prop) => vis.visit_primop_prop(prim_op_prop),
+        FluxItem::Axiom(axiom) => vis.visit_axiom(axiom),
         FluxItem::Use(use_tree) => walk_use_tree(vis, use_tree),
     }
 }
@@ -261,6 +266,12 @@ pub fn walk_primop_prop<V: Visitor>(vis: &mut V, prop: &PrimOpProp) {
     vis.visit_ident(prop.name);
     walk_list!(vis, visit_refine_param, &prop.params);
     vis.visit_expr(&prop.body);
+}
+
+pub fn walk_axiom<V: Visitor>(vis: &mut V, axiom: &Axiom) {
+    vis.visit_ident(axiom.name);
+    walk_list!(vis, visit_refine_param, &axiom.params);
+    vis.visit_expr(&axiom.body);
 }
 
 pub fn walk_refine_param<V: Visitor>(vis: &mut V, param: &RefineParam) {

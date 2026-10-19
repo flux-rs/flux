@@ -36,6 +36,7 @@ pub enum FluxItem {
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
     PrimOpProp(PrimOpProp),
+    Axiom(Axiom),
     Use(UseTree),
 }
 
@@ -46,6 +47,7 @@ impl FluxItem {
             FluxItem::FuncDef(spec_func) => Some(spec_func.name),
             FluxItem::SortDecl(sort_decl) => Some(sort_decl.name),
             FluxItem::PrimOpProp(primop_prop) => Some(primop_prop.name),
+            FluxItem::Axiom(axiom) => Some(axiom.name),
             FluxItem::Use(_) => None,
         }
     }
@@ -109,6 +111,19 @@ pub struct PrimOpProp {
     /// The binders for the inputs of the primop; the output sort is always `Bool`
     pub params: RefineParams,
     /// The actual definition of the property
+    pub body: Expr,
+    pub span: Span,
+}
+
+/// A (global) *axiom*, i.e., a fact (typically about uninterpreted functions) that is assumed to
+/// hold for all values of its parameters; see tests/tests/pos/surface/axiom00.rs
+#[derive(Debug)]
+pub struct Axiom {
+    /// The name of the axiom
+    pub name: Ident,
+    /// The (universally quantified) binders of the axiom
+    pub params: RefineParams,
+    /// The actual definition of the axiom, which must have sort `bool`
     pub body: Expr,
     pub span: Span,
 }
