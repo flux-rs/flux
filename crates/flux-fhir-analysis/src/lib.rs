@@ -14,7 +14,7 @@ extern crate rustc_type_ir;
 
 mod conv;
 mod wf;
-use std::{iter, rc::Rc, sync::Arc};
+use std::{iter, rc::Rc};
 
 use conv::{AfterSortck, ConvPhase, struct_compat};
 use flux_common::{
