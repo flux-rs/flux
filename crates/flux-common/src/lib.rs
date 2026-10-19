@@ -1,4 +1,4 @@
-#![feature(closure_track_caller, never_type, rustc_private, try_blocks, try_trait_v2)]
+#![feature(closure_track_caller, rustc_private, try_blocks, try_trait_v2)]
 
 extern crate rustc_borrowck;
 extern crate rustc_errors;

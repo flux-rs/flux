@@ -1,7 +1,9 @@
 #![feature(variant_count)]
 
 use std::{
-    env, fs, io,
+    env,
+    ffi::OsStr,
+    fs, io,
     mem::variant_count,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
@@ -114,15 +116,11 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    let mut extra = vec![];
-    if cmd.offline {
-        extra.push("--offline");
-    }
     match cmd.subcommand {
         XtaskCmd::Test(args) => test(args, cmd.rust_fixpoint, cmd.suggestions),
         XtaskCmd::LeanBench(args) => lean_bench(args, cmd.rust_fixpoint),
         XtaskCmd::Run(args) => run(args, cmd.rust_fixpoint, cmd.suggestions),
-        XtaskCmd::Install(args) => install(&args, &extra, cmd.rust_fixpoint, cmd.suggestions),
+        XtaskCmd::Install(args) => install(&args, cmd.offline, cmd.rust_fixpoint, cmd.suggestions),
         XtaskCmd::Doc(args) => doc(args),
         XtaskCmd::BuildSysroot(_) => {
             let config = SysrootConfig {
@@ -147,18 +145,16 @@ fn run_tests(
     filter: Option<&str>,
     fixpoint_timeout: Option<u64>,
 ) -> anyhow::Result<()> {
-    let mut cmd = Command::new("cargo");
-    cmd.args(["test", "-p", "tests", "--"])
+    Command::new("cargo")
+        .args(["test", "-p", "tests", "--"])
         .args(["--flux-driver", flux_driver.as_str()])
         .args(["--sysroot".as_ref(), sysroot.as_os_str()])
-        .args(["--suite", suite]);
-    if let Some(filter) = filter {
-        cmd.args(["--filter", filter]);
-    }
-    if let Some(timeout) = fixpoint_timeout {
-        cmd.arg("--fixpoint-timeout").arg(timeout.to_string());
-    }
-    cmd.run()
+        .args(["--suite", suite])
+        .args_if_some(filter, |filter| ["--filter", filter])
+        .args_if_some(fixpoint_timeout, |timeout| {
+            ["--fixpoint-timeout".to_string(), timeout.to_string()]
+        })
+        .run()
 }
 
 fn test(args: Test, rust_fixpoint: bool, suggestions: bool) -> anyhow::Result<()> {
@@ -368,7 +364,7 @@ fn run_inner(
 
 fn install(
     args: &Install,
-    extra: &[&str],
+    offline: bool,
     rust_fixpoint: bool,
     suggestions: bool,
 ) -> anyhow::Result<()> {
@@ -381,9 +377,12 @@ fn install(
         build_libs: BuildLibs { force: false, libs },
     };
     install_sysroot(&config)?;
+    // Pass the toolchain explicitly, otherwise `cargo install` warns that the default toolchain
+    // was implicitly overridden.
     Command::new("cargo")
+        .args_if_some(env::var("RUSTUP_TOOLCHAIN").ok(), |toolchain| [format!("+{toolchain}")])
         .args(["install", "--path", "crates/flux-bin", "--force"])
-        .args(extra)
+        .args_if(offline, ["--offline"])
         .run()
 }
 
@@ -410,15 +409,10 @@ fn build_binary(
     rust_fixpoint: bool,
     suggestions: bool,
 ) -> anyhow::Result<Utf8PathBuf> {
-    let mut args = vec!["build", "--bin", bin, "--profile", profile.as_str()];
-    if rust_fixpoint {
-        args.extend_from_slice(&["--features", "rust-fixpoint"]);
-    }
-    if suggestions {
-        args.extend_from_slice(&["--features", "suggestions"]);
-    }
     Command::new("cargo")
-        .args(&args)
+        .args(["build", "--bin", bin, "--profile", profile.as_str()])
+        .args_if(rust_fixpoint, ["--features", "rust-fixpoint"])
+        .args_if(suggestions, ["--features", "suggestions"])
         .run_with_cargo_metadata()?
         .into_iter()
         .find(|artifact| artifact.target.name == bin && artifact.target.is_kind(TargetKind::Bin))
@@ -691,9 +685,41 @@ fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(src: S, dst: D) -> anyhow::Result<(
 trait CommandExt {
     fn run(&mut self) -> anyhow::Result<()>;
     fn run_with_cargo_metadata(&mut self) -> anyhow::Result<Vec<Artifact>>;
+    /// Add `args` if `cond` is true.
+    fn args_if<I, S>(&mut self, cond: bool, args: I) -> &mut Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>;
+    /// If `opt` is `Some`, add the arguments computed by `f` from its value.
+    fn args_if_some<T, I, S>(&mut self, opt: Option<T>, f: impl FnOnce(T) -> I) -> &mut Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>;
 }
 
 impl CommandExt for Command {
+    fn args_if<I, S>(&mut self, cond: bool, args: I) -> &mut Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        if cond {
+            self.args(args);
+        }
+        self
+    }
+
+    fn args_if_some<T, I, S>(&mut self, opt: Option<T>, f: impl FnOnce(T) -> I) -> &mut Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        if let Some(val) = opt {
+            self.args(f(val));
+        }
+        self
+    }
+
     fn run(&mut self) -> anyhow::Result<()> {
         display_command(self);
         let mut child = self.spawn()?;

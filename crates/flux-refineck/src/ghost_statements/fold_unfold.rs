@@ -300,7 +300,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
 
     fn statement(&mut self, stmt: &Statement, env: &mut Env) -> QueryResult {
         match &stmt.kind {
-            StatementKind::FakeRead(box (FakeReadCause::ForIndex, place)) => {
+            StatementKind::FakeRead(deref!((FakeReadCause::ForIndex, place))) => {
                 M::projection(self, env, place)?;
             }
             StatementKind::Assign(place, rvalue) => {

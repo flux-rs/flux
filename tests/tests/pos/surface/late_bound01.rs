@@ -49,3 +49,20 @@ pub fn call_id_hrn(x: bool) -> bool {
 pub fn call_id_hrn_generic<T: Trait<Assoc = bool>>(x: bool) -> bool {
     T::id_hrn(x)
 }
+
+pub trait Gat {
+    type Assoc<'a>;
+}
+
+pub fn late_bound_lifetime<'a, T: Gat>(_x: T::Assoc<'a>) {}
+
+pub trait Tr {
+    type Assoc;
+}
+
+impl<T> Tr for T {
+    type Assoc = i32;
+}
+
+#[flux::sig(fn(x: <_ as Tr>::Assoc))]
+pub fn late_bound_lifetime_in_hole<'a>(_x: <&'a i32 as Tr>::Assoc) {}

@@ -8,7 +8,7 @@ use flux_common::{
 use flux_middle::{
     def_id::FluxDefId,
     global_env::GlobalEnv,
-    rty::{PrettyMap, PrettyVar},
+    rty::{KVid, PrettyMap, PrettyVar},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, Quantifier, ThyFunc};
@@ -23,7 +23,7 @@ use crate::fixpoint_encoding::{
     ClosedSolution, InterpretedConst,
     fixpoint::{
         self, AdtId, BinOp, BinRel, Constant, Constraint, DataDecl, DataField, DataSort, Expr,
-        FunDef, FunSort, GlobalVar, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+        FunDef, FunSort, GlobalVar, KVarDecl, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
     },
 };
 
@@ -655,13 +655,11 @@ impl LeanFmt for Pred {
 
 impl LeanFmt for KVarDecl {
     fn lean_fmt(&self, f: &mut std::fmt::Formatter, cx: &LeanCtxt) -> std::fmt::Result {
-        let sorts = self
-            .sorts
-            .iter()
-            .enumerate()
-            .map(|(i, sort)| format!("(a{i} : {})", WithLeanCtxt { item: sort, cx }))
-            .format(" -> ");
-        write!(f, "∃ {} : {} -> Prop", sanitize_name(&self.kvid.display().to_string()), sorts)
+        write!(f, "∃ {} : ", sanitize_name(&self.kvid.display().to_string()))?;
+        for (i, sort) in self.sorts.iter().enumerate() {
+            write!(f, "(a{i} : {}) -> ", WithLeanCtxt { item: sort, cx })?;
+        }
+        write!(f, "Prop")
     }
 }
 

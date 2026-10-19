@@ -1,6 +1,7 @@
 #![feature(rustc_private)]
 
 extern crate rustc_ast;
+extern crate rustc_attr_ir;
 extern crate rustc_borrowck;
 extern crate rustc_data_structures;
 extern crate rustc_driver;
