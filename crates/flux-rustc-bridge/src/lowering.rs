@@ -410,7 +410,9 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                     targets: targets.clone(),
                 }
             }
-            rustc_mir::TerminatorKind::Goto { target } => TerminatorKind::Goto { target: *target },
+            rustc_mir::TerminatorKind::Goto { target, .. } => {
+                TerminatorKind::Goto { target: *target }
+            }
             rustc_mir::TerminatorKind::Drop { place, target, unwind, .. } => {
                 TerminatorKind::Drop {
                     place: lower_place(self.tcx, place)

@@ -451,9 +451,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         );
     }
 
-    fn emit_ambiguity_err(&mut self, ambiguity: super::Ambiguity) {
-        self.errors
-            .emit(super::errors::AmbiguousName::new(ambiguity));
+    fn emit_resolve_err(&mut self, err: ResolveError) {
+        err.emit(&self.errors);
     }
 
     fn resolve_path(&mut self, path: &surface::ExprPath) {
@@ -462,8 +461,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 self.check_unrefined_param(res, path.segments.last().unwrap().ident);
                 self.path_res_map.insert(path.node_id, res);
             }
-            Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
             Err(ResolveError::NotFound) => self.emit_unresolved_expr_path(path),
+            Err(err) => self.emit_resolve_err(err),
         }
     }
 
@@ -473,8 +472,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 self.check_unrefined_param(res, ident);
                 self.path_res_map.insert(node_id, res);
             }
-            Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
             Err(ResolveError::NotFound) => self.emit_unresolved_ident(ident),
+            Err(err) => self.emit_resolve_err(err),
         }
     }
 
@@ -504,6 +503,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 Ok(partial_res) => return Ok(partial_res),
                 Err(ResolveError::Ambiguous(amb)) => ambiguity = ambiguity.or(Some(amb)),
                 Err(ResolveError::NotFound) => {}
+                Err(err @ ResolveError::OuterGeneric(_)) => return Err(err),
             }
         }
         Err(ambiguity.map_or(ResolveError::NotFound, ResolveError::Ambiguous))
@@ -520,8 +520,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 self.emit_unresolved_sort_path(path);
                 PartialRes::new(fhir::Res::Err)
             }
-            Err(ResolveError::Ambiguous(ambiguity)) => {
-                self.emit_ambiguity_err(ambiguity);
+            Err(err) => {
+                self.emit_resolve_err(err);
                 PartialRes::new(fhir::Res::Err)
             }
         };

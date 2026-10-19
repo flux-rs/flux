@@ -1,10 +1,8 @@
 //@aux-build:define_fun_aux.rs
-//@compile-flags: -Fsmt-define-fun
 
 // Tests that `define-fun`s for spec functions coming from different crates are emitted in
-// dependency order. With `-Fsmt-define-fun`, `inc3`, `inc2`, and `inc` are all encoded as
-// `define-fun` (even though `define_fun_aux` is checked without the flag). Since `inc3` calls
-// `inc2`, which calls `inc`, the definitions of `inc` and `inc2` must come before the one for
+// dependency order. `inc3`, `inc2`, and `inc` are all encoded as `define-fun`. Since `inc3`
+// calls `inc2`, which calls `inc`, the definitions of `inc` and `inc2` must come before the one for
 // `inc3`, otherwise the SMT solver fails with an unknown constant.
 
 extern crate define_fun_aux;

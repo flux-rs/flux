@@ -4,12 +4,12 @@
     closure_track_caller,
     map_try_insert,
     min_specialization,
-    rustc_private,
-    unwrap_infallible
+    rustc_private
 )]
 
 extern crate rustc_abi;
 extern crate rustc_ast;
+extern crate rustc_attr_ir;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hir;
@@ -524,9 +524,12 @@ pub struct ResolverOutput {
     /// The resolved list of local qualifiers per function.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
     pub qualifier_res_map: UnordMap<NodeId, Vec<def_id::FluxLocalDefId>>,
-    /// The resolved list of local reveals per function
+    /// The resolved list of local reveals per function together with the span where they are named.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
-    pub reveal_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
+    pub reveal_res_map: UnordMap<NodeId, Vec<(def_id::FluxDefId, Span)>>,
+    /// The resolved list of local hides per function together with the span where they are named.
+    /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
+    pub hide_res_map: UnordMap<NodeId, Vec<(def_id::FluxDefId, Span)>>,
     /// The resolved type param `DefId`s for `#[assume_parametric(...)]` per function.
     /// The [`NodeId`] corresponds to the surface item's `node_id`.
     pub parametric_param_res_map: UnordMap<NodeId, Vec<DefId>>,
@@ -551,6 +554,25 @@ impl flux_rustc_bridge::mir::Place {
             place_ty = place_ty.projection_ty(genv, *elem)?;
         }
         Ok(false)
+    }
+
+    /// Compute the minimum packedness of all Adts within a Place. For example:
+    /// #[repr(packed(4))] struct Z {}; #[repr(packed(2)] struct X {y: Z}
+    /// When taking a reference to `.y`, this would be the minimum of 4 and 2
+    fn min_pack(&self, genv: GlobalEnv, local_decls: &LocalDecls) -> QueryResult<Option<u64>> {
+        let mut place_ty = PlaceTy::from_ty(local_decls[self.local].ty.clone());
+        let mut min_pack = None;
+        for elem in &self.projection {
+            if matches!(elem, PlaceElem::Field(_))
+                && let ty::TyKind::Adt(adt_def, _) = place_ty.ty.kind()
+                && let Some(pack) = genv.tcx().adt_def(adt_def.did()).repr().pack
+            {
+                let b = pack.bytes();
+                min_pack = Some(min_pack.map_or(b, |m: u64| m.min(b)));
+            }
+            place_ty = place_ty.projection_ty(genv, *elem)?;
+        }
+        Ok(min_pack)
     }
 }
 

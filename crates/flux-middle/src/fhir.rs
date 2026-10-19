@@ -66,7 +66,10 @@ pub enum Attr {
 pub struct AttrMap<'fhir> {
     pub attrs: &'fhir [Attr],
     pub qualifiers: &'fhir [FluxLocalDefId],
-    pub reveals: &'fhir [FluxDefId],
+    /// The definitions listed in `#[reveal(...)]` together with the span where they are named.
+    pub reveals: &'fhir [(FluxDefId, Span)],
+    /// The definitions listed in `#[hide(...)]` together with the span where they are named.
+    pub hides: &'fhir [(FluxDefId, Span)],
     /// The `DefId`s of type params listed in `#[assume_parametric(...)]`. They match
     /// the `DefId` entries in `generics_of(callee_id)`. These are `DefId`s and not
     /// `LocalDefId`s such that they are correct for extern specs as well.
@@ -368,7 +371,7 @@ pub type GenericBounds<'fhir> = &'fhir [GenericBound<'fhir>];
 #[derive(Debug, Clone, Copy)]
 pub enum GenericBound<'fhir> {
     Trait(PolyTraitRef<'fhir>),
-    Outlives(Lifetime),
+    Outlives,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -586,13 +589,13 @@ pub enum TyKind<'fhir> {
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr<'fhir>, &'fhir Ty<'fhir>),
-    StrgRef(Lifetime, &'fhir PathExpr<'fhir>, &'fhir Ty<'fhir>),
-    Ref(Lifetime, MutTy<'fhir>),
+    StrgRef(&'fhir PathExpr<'fhir>, &'fhir Ty<'fhir>),
+    Ref(&'fhir Ty<'fhir>, Mutability),
     BareFn(&'fhir BareFnTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ConstArg),
     OpaqueDef(&'fhir OpaqueTy<'fhir>),
-    TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
+    TraitObject(&'fhir [PolyTraitRef<'fhir>], TraitObjectSyntax),
     Never,
     Infer,
     Err(ErrorGuaranteed),
@@ -607,22 +610,6 @@ pub struct BareFnTy<'fhir> {
     pub decl: &'fhir FnDecl<'fhir>,
     pub param_idents: &'fhir [Option<Ident>],
 }
-
-#[derive(Clone, Copy)]
-pub struct MutTy<'fhir> {
-    pub ty: &'fhir Ty<'fhir>,
-    pub mutbl: Mutability,
-}
-
-/// Our surface syntax doesn't have lifetimes. To deal with them we create a *hole* for every lifetime
-/// which we then resolve when we check for structural compatibility against the rust type.
-// This struct usede to be an enum with an extra variant carrying a `resolve_bound_vars::ResolvedArg`
-// that we lifted from `hir`, but we simplified tto just a struct to treat all lifetimes uniformely.
-// We are currently not using the `FirHid` so we could potentially remove the struct and remove
-// lifetime from fhir syntax, but we keep it here to mark places in fhir where there ought to be a
-// lifetime.
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct Lifetime(pub FhirId);
 
 /// Owner version of [`FluxLocalDefId`]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
@@ -735,7 +722,6 @@ pub enum AssocItemConstraintKind<'fhir> {
 
 #[derive(Clone, Copy)]
 pub enum GenericArg<'fhir> {
-    Lifetime(Lifetime),
     Type(&'fhir Ty<'fhir>),
     Const(ConstArg),
     Infer,
@@ -1564,9 +1550,9 @@ impl fmt::Debug for Ty<'_> {
                     write!(f, ". {ty:?}}}")
                 }
             }
-            TyKind::StrgRef(_lft, loc, ty) => write!(f, "&strg <{loc:?}: {ty:?}>"),
-            TyKind::Ref(_lft, mut_ty) => {
-                write!(f, "&{}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
+            TyKind::StrgRef(loc, ty) => write!(f, "&strg <{loc:?}: {ty:?}>"),
+            TyKind::Ref(ty, mutbl) => {
+                write!(f, "&{}{:?}", mutbl.prefix_str(), ty)
             }
             TyKind::BareFn(bare_fn_ty) => {
                 write!(f, "{bare_fn_ty:?}")
@@ -1579,7 +1565,7 @@ impl fmt::Debug for Ty<'_> {
             TyKind::OpaqueDef(opaque_ty) => {
                 write!(f, "impl trait <def_id = {:?}>", opaque_ty.def_id.resolved_id(),)
             }
-            TyKind::TraitObject(poly_traits, _lft, _syntax) => {
+            TyKind::TraitObject(poly_traits, _syntax) => {
                 write!(f, "dyn {poly_traits:?}")
             }
             TyKind::Err(_) => write!(f, "err"),
@@ -1600,12 +1586,6 @@ impl fmt::Debug for BareFnTy<'_> {
             )?;
         }
         write!(f, "{:?}", self.decl)
-    }
-}
-
-impl fmt::Debug for Lifetime {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "'_")
     }
 }
 
@@ -1676,7 +1656,6 @@ impl fmt::Debug for GenericArg<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             GenericArg::Type(ty) => write!(f, "{ty:?}"),
-            GenericArg::Lifetime(lft) => write!(f, "{lft:?}"),
             GenericArg::Const(cst) => write!(f, "{cst:?}"),
             GenericArg::Infer => write!(f, "_"),
         }

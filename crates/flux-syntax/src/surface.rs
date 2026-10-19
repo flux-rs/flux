@@ -515,8 +515,19 @@ pub enum TyKind {
     Hole,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Safety {
+    Safe,
+    Unsafe,
+}
+
 #[derive(Debug)]
 pub struct BareFnTy {
+    /// Whether the fn pointer is `unsafe`
+    pub safety: Safety,
+    /// The abi of an `extern "abi" fn` pointer (`extern fn` is `extern "C" fn`), or `None` for the
+    /// default (rust) abi.
+    pub abi: Option<Ident>,
     /// example `&T[@n]`. `@` binders in the inputs are bound by the fn pointer type itself
     pub inputs: Vec<Ty>,
     pub output: FnRetTy,
@@ -684,6 +695,8 @@ pub enum Attr {
     Qualifiers(Vec<Ident>),
     /// A `#[reveal(...)]` attribute
     Reveal(Vec<Ident>),
+    /// A `#[hide(...)]` attribute
+    Hide(Vec<Ident>),
     /// A `#[opts(...)]` attribute
     InferOpts(PartialInferOpts),
     /// A `#[no_panic]` attribute

@@ -7,6 +7,7 @@ extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 
+extern crate rustc_attr_ir;
 extern crate rustc_hir;
 extern crate rustc_hir_pretty;
 extern crate rustc_middle;
@@ -212,6 +213,7 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
                         surface::Attr::NoSuggestions => Some(fhir::Attr::NoSuggestions),
                         surface::Attr::Qualifiers(_)
                         | surface::Attr::Reveal(_)
+                        | surface::Attr::Hide(_)
                         | surface::Attr::AssumeParametric(_) => None,
                     }
                 })
@@ -223,6 +225,10 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
             .map_or(&[][..], Vec::as_slice),
         reveals: resolver_output
             .reveal_res_map
+            .get(&node_id)
+            .map_or(&[][..], Vec::as_slice),
+        hides: resolver_output
+            .hide_res_map
             .get(&node_id)
             .map_or(&[][..], Vec::as_slice),
         parametric_params: resolver_output

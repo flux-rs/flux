@@ -636,11 +636,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     span: loc.span,
                 };
                 let ty = self.desugar_ty(ty);
-                let kind = fhir::TyKind::StrgRef(
-                    self.mk_lft_hole(),
-                    self.genv.alloc(path),
-                    self.genv.alloc(ty),
-                );
+                let kind = fhir::TyKind::StrgRef(self.genv.alloc(path), self.genv.alloc(ty));
                 fhir::Ty { kind, span }
             }
             surface::FnInput::Ty(bind, ty, node_id) => {
@@ -690,7 +686,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> fhir::OpaqueTy<'genv> {
         let output = self.desugar_fn_ret_ty(returns);
         let trait_ref = self.make_lang_item_path(
-            hir::attrs::lang_items::LangItem::Future,
+            rustc_attr_ir::LangItem::Future,
             DUMMY_SP,
             &[],
             self.genv.alloc_slice(&[fhir::AssocItemConstraint {
@@ -713,7 +709,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn make_lang_item_path(
         &mut self,
-        lang_item: hir::attrs::lang_items::LangItem,
+        lang_item: rustc_attr_ir::LangItem,
         span: Span,
         args: &'genv [fhir::GenericArg<'genv>],
         constraints: &'genv [fhir::AssocItemConstraint<'genv>],
@@ -1211,23 +1207,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
 
     fn desugar_generic_args(
         &mut self,
-        res: Res,
         args: &[surface::GenericArg],
     ) -> (&'genv [fhir::GenericArg<'genv>], &'genv [fhir::AssocItemConstraint<'genv>]) {
         let mut fhir_args = vec![];
         let mut constraints = vec![];
-        if let Res::Def(
-            DefKind::TyAlias | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
-            def_id,
-        ) = res
-        {
-            let generics = self.genv().tcx().generics_of(def_id);
-            for param in &generics.own_params {
-                if let rustc_middle::ty::GenericParamDefKind::Lifetime = param.kind {
-                    fhir_args.push(fhir::GenericArg::Lifetime(self.mk_lft_hole()));
-                }
-            }
-        }
         for arg in args {
             match &arg.kind {
                 surface::GenericArgKind::Type(ty) => {
@@ -1348,8 +1331,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
             surface::TyKind::Ref(mutbl, ty) => {
                 let ty = self.desugar_ty(ty);
-                let mut_ty = fhir::MutTy { ty: self.genv().alloc(ty), mutbl: *mutbl };
-                fhir::TyKind::Ref(self.mk_lft_hole(), mut_ty)
+                fhir::TyKind::Ref(self.genv().alloc(ty), *mutbl)
             }
 
             surface::TyKind::Tuple(tys) => {
@@ -1364,8 +1346,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 fhir::TyKind::Array(self.genv().alloc(ty), len)
             }
             surface::TyKind::BareFn(bare_fn) => {
-                let bare_fn = self.desugar_bare_fn(bare_fn);
-                fhir::TyKind::BareFn(self.genv().alloc(bare_fn))
+                match self.desugar_bare_fn(bare_fn) {
+                    Ok(bare_fn) => fhir::TyKind::BareFn(self.genv().alloc(bare_fn)),
+                    Err(err) => fhir::TyKind::Err(err),
+                }
             }
             surface::TyKind::ImplTrait(_, bounds) => self.desugar_impl_trait(bounds),
             surface::TyKind::Hole => fhir::TyKind::Infer,
@@ -1373,7 +1357,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         fhir::Ty { kind, span }
     }
 
-    fn desugar_bare_fn(&mut self, bare_fn: &surface::BareFnTy) -> fhir::BareFnTy<'genv> {
+    fn desugar_bare_fn(&mut self, bare_fn: &surface::BareFnTy) -> Result<fhir::BareFnTy<'genv>> {
         let inputs = self
             .genv()
             .alloc_slice_fill_iter(bare_fn.inputs.iter().map(|ty| self.desugar_ty(ty)));
@@ -1386,20 +1370,32 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let output = fhir::FnOutput { params: &[], ret, ensures: &[] };
         let decl =
             fhir::FnDecl { requires: &[], inputs, output, span: bare_fn.span, lifted: false };
-        // TODO: support `unsafe` and `extern` fn pointers
+        let safety = match bare_fn.safety {
+            surface::Safety::Safe => hir::Safety::Safe,
+            surface::Safety::Unsafe => hir::Safety::Unsafe,
+        };
+        let abi = match bare_fn.abi {
+            None => rustc_abi::ExternAbi::Rust,
+            Some(abi) => {
+                abi.name
+                    .as_str()
+                    .parse::<rustc_abi::ExternAbi>()
+                    .map_err(|_| self.emit(errors::InvalidAbi::new(abi)))?
+            }
+        };
         let params = self
             .genv()
             .alloc_slice_fill_iter(self.implicit_params_to_params(bare_fn.node_id));
-        fhir::BareFnTy {
+        Ok(fhir::BareFnTy {
             params,
-            safety: hir::Safety::Safe,
-            abi: rustc_abi::ExternAbi::Rust,
+            safety,
+            abi,
             generic_params: &[],
             decl: self.genv().alloc(decl),
             param_idents: self
                 .genv()
                 .alloc_slice_fill_iter(bare_fn.inputs.iter().map(|_| None)),
-        }
+        })
     }
 
     fn desugar_const_arg(&mut self, const_arg: &surface::ConstArg) -> fhir::ConstArg {
@@ -1517,7 +1513,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let res = self
             .opt_resolve_path(segment.node_id)
             .map_or(Res::Err, |r| r.expect_full_res());
-        let (args, constraints) = self.desugar_generic_args(res, &segment.args);
+        let (args, constraints) = self.desugar_generic_args(&segment.args);
         fhir::PathSegment { ident: segment.ident, res, args, constraints }
     }
 
@@ -1536,10 +1532,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             span: qpath.span(),
             kind: fhir::TyKind::BaseTy(fhir::BaseTy::from_qpath(qpath, self.next_fhir_id())),
         }
-    }
-
-    fn mk_lft_hole(&self) -> fhir::Lifetime {
-        fhir::Lifetime(self.next_fhir_id())
     }
 
     fn desugar_indices(&mut self, idxs: &surface::Indices) -> fhir::Expr<'genv> {
