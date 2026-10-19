@@ -66,19 +66,18 @@ use crate::constraint_with_env::ConstraintWithEnv;
 use crate::constraint_with_env::topo_sort_data_declarations;
 pub use crate::z3_process::SuggestionSolverError;
 
-pub struct SuggestionSolver {
-    process: z3_process::ProcessSolver,
+pub struct SuggestionSolver<T: Types> {
+    process: z3_process::ProcessSolver<T>,
 }
 
-impl SuggestionSolver {
-    pub fn new<T: Types>(
+impl<T: Types> SuggestionSolver<T> {
+    pub fn new(
         global_consts: &[ConstDecl<T>],
         funs: &[FunDef<T>],
         datatype_decls: Vec<DataDecl<T>>,
     ) -> Result<Self, SuggestionSolverError> {
-        let mut process = z3_process::ProcessSolver::new()?;
         let datatype_decls = topo_sort_data_declarations(datatype_decls);
-        process.initialize_context(global_consts, funs, &datatype_decls)?;
+        let process = z3_process::ProcessSolver::new(global_consts, funs, &datatype_decls)?;
         Ok(Self { process })
     }
 }
@@ -186,33 +185,18 @@ macro_rules! declare_types {
 }
 
 pub fn qe_and_simplify<T: Types>(
-    solver: &mut SuggestionSolver,
+    solver: &mut SuggestionSolver<T>,
     constraint: &FlatConstraint<T>,
-    binder_consts: &Vec<ConstDecl<T>>,
-    global_consts: &Vec<ConstDecl<T>>,
-    funs: &Vec<FunDef<T>>,
-    datatype_decls: Vec<DataDecl<T>>,
+    binder_consts: &[ConstDecl<T>],
 ) -> Result<Expr<T>, SuggestionSolverError> {
-    // let mut consts = self.constants.clone();
-    // consts.extend(free_vars.clone());
-    let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    solver
-        .process
-        .qe_and_simplify(constraint, binder_consts, global_consts, funs, &datatype_decls)
+    solver.process.qe_and_simplify(constraint, binder_consts)
 }
 
 pub fn check_validity<T: Types>(
-    solver: &mut SuggestionSolver,
+    solver: &mut SuggestionSolver<T>,
     constraint: &FlatConstraint<T>,
-    binder_consts: &Vec<ConstDecl<T>>,
-    global_consts: &Vec<ConstDecl<T>>,
-    funs: &Vec<FunDef<T>>,
-    datatype_decls: Vec<DataDecl<T>>,
 ) -> Result<bool, SuggestionSolverError> {
-    let datatype_decls = topo_sort_data_declarations(datatype_decls);
-    solver
-        .process
-        .check_validity(constraint, binder_consts, global_consts, funs, &datatype_decls)
+    solver.process.check_validity(constraint)
 }
 
 #[derive_where(Hash, Clone, Debug)]

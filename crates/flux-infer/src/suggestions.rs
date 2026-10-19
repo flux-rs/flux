@@ -73,7 +73,7 @@ pub(crate) fn find_possible_solutions<'genv, 'tcx, Tag>(
     fxctx: &mut FixpointCtxt<'genv, 'tcx, Tag>,
     tag_idx: TagIdx,
     suggestion_ctx: &SuggestionCtxt,
-    solver: &mut Option<SuggestionSolver>,
+    solver: &mut Option<SuggestionSolver<fixpoint::FixpointTypes>>,
 ) -> Result<PossibleSolutions, liquid_fixpoint::SuggestionSolverError>
 where
     Tag: std::hash::Hash + Eq + Copy,
@@ -98,21 +98,7 @@ where
     for (wkvar, flat_constraint, other_constrs) in wkvars_and_constraints {
         let mut valid = true;
         for other_constr in other_constrs {
-            let binder_consts = other_constr
-                .binders
-                .iter()
-                .map(|(var, sort)| {
-                    fixpoint::ConstDecl { name: *var, sort: sort.clone(), comment: None }
-                })
-                .collect_vec();
-            let validity = check_validity(
-                solver,
-                &other_constr,
-                &binder_consts,
-                &suggestion_ctx.const_decls,
-                &suggestion_ctx.fun_defs,
-                suggestion_ctx.data_decls.clone(),
-            );
+            let validity = check_validity(solver, &other_constr);
             if !validity? {
                 valid = false;
                 break;
@@ -159,14 +145,7 @@ where
                 if !assumption.is_trivially_true() { Some(assumption) } else { None }
             })
             .collect();
-        let result = qe_and_simplify(
-            solver,
-            &new_flat_constraint,
-            &binder_consts,
-            &suggestion_ctx.const_decls,
-            &suggestion_ctx.fun_defs,
-            suggestion_ctx.data_decls.clone(),
-        );
+        let result = qe_and_simplify(solver, &new_flat_constraint, &binder_consts);
         let fallback = |fxctx: &mut FixpointCtxt<'genv, 'tcx, Tag>| {
             head_expr
                 .as_ref()

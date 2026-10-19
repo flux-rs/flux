@@ -154,6 +154,20 @@ impl Z3Session {
         parse_status(&stdout, &self.last_stderr)
     }
 
+    fn scoped<R>(
+        &mut self,
+        setup: &str,
+        f: impl FnOnce(&mut Self) -> Result<R, SuggestionSolverError>,
+    ) -> Result<R, SuggestionSolverError> {
+        self.request(&format!("(push)\n{setup}"))?;
+        let result = f(self);
+        let pop = self.request("(pop)");
+        match result {
+            Err(err) => Err(err),
+            Ok(value) => pop.map(|_| value),
+        }
+    }
+
     fn reset(&mut self, declarations: &str) -> Result<(), SuggestionSolverError> {
         self.request(&format!("(reset)\n{declarations}"))?;
         Ok(())
@@ -165,85 +179,81 @@ impl Z3Session {
     }
 }
 
-pub(crate) struct ProcessSolver {
+pub(crate) struct ProcessSolver<T: Types> {
     session: Z3Session,
+    env: ConstraintGlobalEnv<T>,
 }
 
-impl ProcessSolver {
-    pub(crate) fn new() -> Result<Self, SuggestionSolverError> {
-        Ok(Self { session: Z3Session::new()? })
-    }
-
-    pub(crate) fn initialize_context<T: Types>(
-        &mut self,
+impl<T: Types> ProcessSolver<T> {
+    pub(crate) fn new(
         global_consts: &[ConstDecl<T>],
         funs: &[FunDef<T>],
         datatype_decls: &[DataDecl<T>],
-    ) -> Result<(), SuggestionSolverError> {
-        let env = SmtEnv::new(datatype_decls, &[], global_consts, funs, &[]);
-        let declarations = env.global_declarations()?;
-        self.session.reset(&declarations)?;
-        Ok(())
+    ) -> Result<Self, SuggestionSolverError> {
+        let (env, declarations) = ConstraintGlobalEnv::new(datatype_decls, global_consts, funs)?;
+        let mut session = Z3Session::new()?;
+        session.reset(&declarations)?;
+        Ok(Self { session, env })
     }
 
-    pub(crate) fn check_validity<T: Types>(
+    pub(crate) fn check_validity(
         &mut self,
         constraint: &FlatConstraint<T>,
-        binder_consts: &[ConstDecl<T>],
-        global_consts: &[ConstDecl<T>],
-        funs: &[FunDef<T>],
-        datatype_decls: &[DataDecl<T>],
     ) -> Result<bool, SuggestionSolverError> {
-        let env =
-            SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
-        let local_declarations = env.local_declarations()?;
+        let locals = ConstraintLocalEnv::new(&self.env, &[], &constraint.binders)?;
         let mut assertions = constraint
             .preconditions()
             .iter()
-            .map(|pred| env.pred(pred))
+            .map(|pred| self.env.pred(pred))
             .collect::<Result<Vec<_>, _>>()?;
-        assertions.push(format!("(not {})", env.pred(&constraint.head)?));
-        let mut query = format!("(push)\n{local_declarations}(push)\n");
+        assertions.push(format!("(not {})", self.env.pred(&constraint.head)?));
+        let mut query = format!("(push)\n{}", locals.declarations);
         for assertion in &assertions {
             writeln!(query, "(assert {assertion})").unwrap();
         }
-        query.push_str("(check-sat)\n(pop)\n(pop)");
+        query.push_str("(check-sat)\n(pop)");
         let output = self.session.request(&query)?;
         Ok(matches!(parse_status(&output, &self.session.last_stderr)?, SatStatus::Unsat))
     }
 
-    pub(crate) fn qe_and_simplify<T: Types>(
+    pub(crate) fn qe_and_simplify(
         &mut self,
         constraint: &FlatConstraint<T>,
         binder_consts: &[ConstDecl<T>],
-        global_consts: &[ConstDecl<T>],
-        funs: &[FunDef<T>],
-        datatype_decls: &[DataDecl<T>],
     ) -> Result<Expr<T>, SuggestionSolverError> {
-        let env =
-            SmtEnv::new(datatype_decls, binder_consts, global_consts, funs, &constraint.binders);
-        let local_declarations = env.local_declarations()?;
-        let result = self.qe_and_simplify_in_context(constraint, &env, &local_declarations);
-        let pop_result = self.session.request("(pop)");
-        match (result, pop_result) {
-            (Err(err), _) => Err(err),
-            (Ok(_), Err(err)) => Err(err),
-            (Ok(candidate), Ok(_)) => Ok(candidate),
-        }
+        let locals = ConstraintLocalEnv::new(&self.env, binder_consts, &constraint.binders)?;
+        let assumptions = constraint
+            .preconditions()
+            .iter()
+            .map(|pred| self.env.pred(pred))
+            .collect::<Result<Vec<_>, _>>()?;
+        let body =
+            format!("(=> {} {})", conjunction(&assumptions), self.env.pred(&constraint.head)?);
+        let implication = self.env.quantified_implication(constraint, &body)?;
+        self.session.scoped(&locals.declarations, |session| {
+            Self::qe_and_simplify_in_context(
+                session,
+                &self.env,
+                &locals,
+                &assumptions,
+                &body,
+                &implication,
+            )
+        })
     }
 
-    fn qe_and_simplify_in_context<T: Types>(
-        &mut self,
-        constraint: &FlatConstraint<T>,
-        env: &SmtEnv<'_, T>,
-        local_declarations: &str,
+    fn qe_and_simplify_in_context(
+        session: &mut Z3Session,
+        env: &ConstraintGlobalEnv<T>,
+        locals: &ConstraintLocalEnv<'_, T>,
+        assumptions: &[String],
+        body: &str,
+        implication: &str,
     ) -> Result<Expr<T>, SuggestionSolverError> {
-        let implication = env.quantified_implication(constraint)?;
-        let query = format!(
-            "(push)\n{local_declarations}(push)\n(assert {implication})\n(apply (try-for (then qe nnf) 10000))\n(pop)"
-        );
-        let output = self.session.request(&query)?;
-        let stderr = self.session.last_stderr.clone();
+        let query =
+            format!("(push)\n(assert {implication})\n(apply (try-for (then qe nnf) 10000))\n(pop)");
+        let output = session.request(&query)?;
+        let stderr = session.last_stderr.clone();
         if is_timeout(&output) {
             return Err(SuggestionSolverError::QETimeout);
         }
@@ -251,24 +261,22 @@ impl ProcessSolver {
         let goal = goals.last().ok_or(SuggestionSolverError::NoResults)?;
         let mut candidate = goal
             .iter()
-            .map(|formula| env.decode(formula))
+            .map(|formula| locals.decode(formula))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .min_by_key(Expr::total_num_disjuncts)
             .ok_or(SuggestionSolverError::NoResults)?;
 
-        let base = constraint
-            .preconditions()
-            .iter()
-            .map(|pred| env.pred(pred))
-            .collect::<Result<Vec<_>, _>>()?;
-        if prune_vacuous(&mut candidate, &env, &base, &[], &mut self.session)? {
+        let mut setup = String::new();
+        for assumption in assumptions {
+            writeln!(setup, "(assert {assumption})").unwrap();
+        }
+        if session.scoped(&setup, |session| prune_vacuous(&mut candidate, env, session))? {
             return Ok(Expr::FALSE);
         }
 
-        let sanity =
-            format!("(not (=> {} {}))", env.expr(&candidate)?, env.implication_body(constraint)?);
-        if matches!(self.session.check_sat(&[sanity])?, SatStatus::Unsat) {
+        let sanity = format!("(not (=> {} {body}))", env.expr(&candidate)?);
+        if matches!(session.check_sat(&[sanity])?, SatStatus::Unsat) {
             Ok(candidate)
         } else {
             Err(SuggestionSolverError::FailedSanityCheck)
@@ -286,24 +294,18 @@ impl Drop for Z3Session {
     }
 }
 
-struct SmtEnv<'a, T: Types> {
-    datatype_decls: &'a [DataDecl<T>],
-    binder_consts: &'a [ConstDecl<T>],
-    global_consts: &'a [ConstDecl<T>],
-    funs: &'a [FunDef<T>],
-    binders: &'a [(T::Var, Sort<T>)],
+struct ConstraintGlobalEnv<T: Types> {
     symbols: HashMap<String, T::Var>,
+    declared_names: HashSet<String>,
     encoder: SmtEncoder<T>,
 }
 
-impl<'a, T: Types> SmtEnv<'a, T> {
+impl<T: Types> ConstraintGlobalEnv<T> {
     fn new(
-        datatype_decls: &'a [DataDecl<T>],
-        binder_consts: &'a [ConstDecl<T>],
-        global_consts: &'a [ConstDecl<T>],
-        funs: &'a [FunDef<T>],
-        binders: &'a [(T::Var, Sort<T>)],
-    ) -> Self {
+        datatype_decls: &[DataDecl<T>],
+        global_consts: &[ConstDecl<T>],
+        funs: &[FunDef<T>],
+    ) -> Result<(Self, String), SuggestionSolverError> {
         let mut symbols = HashMap::new();
         for decl in datatype_decls {
             for ctor in &decl.ctors {
@@ -314,62 +316,32 @@ impl<'a, T: Types> SmtEnv<'a, T> {
                 }
             }
         }
-        for decl in binder_consts.iter().chain(global_consts) {
+        for decl in global_consts {
             symbols.insert(decl.name.display().to_string(), decl.name.clone());
         }
         for fun in funs {
             symbols.insert(fun.name.display().to_string(), fun.name.clone());
         }
-        for (name, _) in binders {
-            symbols.insert(name.display().to_string(), name.clone());
-        }
         let encoder = SmtEncoder::new(datatype_decls, SmtOptions::SUGGESTIONS);
-        Self { datatype_decls, binder_consts, global_consts, funs, binders, symbols, encoder }
-    }
-
-    fn global_declarations(&self) -> Result<String, SuggestionSolverError> {
         let mut out = String::new();
-        for decl in self.datatype_decls {
-            self.encoder.write_datatype_decl(&mut out, decl)?;
+        for decl in datatype_decls {
+            encoder.write_datatype_decl(&mut out, decl)?;
         }
 
         let mut declared = HashSet::new();
-        for decl in self.global_consts {
+        for decl in global_consts {
             let name = decl.name.display().to_string();
             if declared.insert(name.clone()) {
-                self.encoder.write_const_decl(&mut out, &name, &decl.sort)?;
+                encoder.write_const_decl(&mut out, &name, &decl.sort)?;
             }
         }
-        for fun in self.funs {
+        for fun in funs {
             let name = fun.name.display().to_string();
             if declared.insert(name.clone()) {
-                self.encoder.write_fun_def(&mut out, fun)?;
+                encoder.write_fun_def(&mut out, fun)?;
             }
         }
-        Ok(out)
-    }
-
-    fn local_declarations(&self) -> Result<String, SuggestionSolverError> {
-        let mut out = String::new();
-        let mut declared: HashSet<String> = self
-            .global_consts
-            .iter()
-            .map(|decl| decl.name.display().to_string())
-            .chain(self.funs.iter().map(|fun| fun.name.display().to_string()))
-            .collect();
-        for decl in self.binder_consts {
-            let name = decl.name.display().to_string();
-            if declared.insert(name.clone()) {
-                self.encoder.write_const_decl(&mut out, &name, &decl.sort)?;
-            }
-        }
-        for (name, sort) in self.binders {
-            let name = name.display().to_string();
-            if declared.insert(name.clone()) {
-                self.encoder.write_const_decl(&mut out, &name, sort)?;
-            }
-        }
-        Ok(out)
+        Ok((Self { symbols, declared_names: declared, encoder }, out))
     }
 
     fn pred(&self, pred: &Pred<T>) -> Result<String, SuggestionSolverError> {
@@ -380,29 +352,62 @@ impl<'a, T: Types> SmtEnv<'a, T> {
         Ok(self.encoder.expr(expr)?)
     }
 
-    fn implication_body(&self, cstr: &FlatConstraint<T>) -> Result<String, SuggestionSolverError> {
-        let assumptions = cstr
-            .preconditions()
-            .iter()
-            .map(|pred| self.pred(pred))
-            .collect::<Result<Vec<_>, _>>()?;
-        let lhs = conjunction(&assumptions);
-        let rhs = self.pred(&cstr.head)?;
-        Ok(format!("(=> {lhs} {rhs})"))
-    }
-
     fn quantified_implication(
         &self,
         cstr: &FlatConstraint<T>,
+        body: &str,
     ) -> Result<String, SuggestionSolverError> {
-        let body = self.implication_body(cstr)?;
-        let mut quantified = body;
+        let mut quantified = body.to_string();
         for (name, sort) in &cstr.binders {
             let mut binder_sort = String::new();
             self.encoder.write_sort(&mut binder_sort, sort)?;
             quantified = format!("(forall (({} {binder_sort})) {quantified})", name.display());
         }
         Ok(quantified)
+    }
+}
+
+/// Declarations active in one constraint's solver scope, and names for decoding its result.
+struct ConstraintLocalEnv<'a, T: Types> {
+    declarations: String,
+    symbols: HashMap<String, T::Var>,
+    global_symbols: &'a HashMap<String, T::Var>,
+}
+
+impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
+    fn new(
+        globals: &'a ConstraintGlobalEnv<T>,
+        binder_consts: &[ConstDecl<T>],
+        binders: &[(T::Var, Sort<T>)],
+    ) -> Result<Self, SuggestionSolverError> {
+        let mut declarations = String::new();
+        let mut declared = HashSet::new();
+        let mut symbols = HashMap::new();
+        for (var, sort) in binder_consts
+            .iter()
+            .map(|decl| (&decl.name, &decl.sort))
+            .chain(binders.iter().map(|(var, sort)| (var, sort)))
+        {
+            let name = var.display().to_string();
+            if !globals.declared_names.contains(&name) && declared.insert(name.clone()) {
+                globals
+                    .encoder
+                    .write_const_decl(&mut declarations, &name, sort)?;
+            }
+            if !globals.symbols.contains_key(&name) {
+                symbols.insert(name, var.clone());
+            }
+        }
+        for (var, _) in binders {
+            symbols.insert(var.display().to_string(), var.clone());
+        }
+        Ok(Self { declarations, symbols, global_symbols: &globals.symbols })
+    }
+
+    fn symbol(&self, name: &str) -> Option<&T::Var> {
+        self.symbols
+            .get(name)
+            .or_else(|| self.global_symbols.get(name))
     }
 
     fn decode(&self, sexp: &Sexp) -> Result<Expr<T>, SuggestionSolverError> {
@@ -429,13 +434,9 @@ impl<'a, T: Types> SmtEnv<'a, T> {
             "true" => Ok(Expr::TRUE),
             "false" => Ok(Expr::FALSE),
             _ => {
-                self.symbols
-                    .get(name)
-                    .cloned()
-                    .map(Expr::Var)
-                    .ok_or_else(|| {
-                        SuggestionSolverError::UnsupportedOutput(format!("unknown symbol `{name}`"))
-                    })
+                self.symbol(name).cloned().map(Expr::Var).ok_or_else(|| {
+                    SuggestionSolverError::UnsupportedOutput(format!("unknown symbol `{name}`"))
+                })
             }
         }
     }
@@ -528,7 +529,7 @@ impl<'a, T: Types> SmtEnv<'a, T> {
                 }))
             }
             name => {
-                let Some(var) = self.symbols.get(name) else {
+                let Some(var) = self.symbol(name) else {
                     return Err(SuggestionSolverError::UnsupportedOutput(format!(
                         "unknown application `{name}`"
                     )));
@@ -562,23 +563,20 @@ fn substitute_sexp(sexp: &Sexp, substitutions: &HashMap<&str, &Sexp>) -> Sexp {
 
 fn prune_vacuous<T: Types>(
     expr: &mut Expr<T>,
-    env: &SmtEnv<'_, T>,
-    base: &[String],
-    siblings: &[Expr<T>],
+    env: &ConstraintGlobalEnv<T>,
     session: &mut Z3Session,
 ) -> Result<bool, SuggestionSolverError> {
     match expr {
         Expr::And(conjuncts) => {
             let copy = conjuncts.clone();
             for (i, conjunct) in conjuncts.iter_mut().enumerate() {
-                let mut nested = siblings.to_vec();
-                nested.extend(
-                    copy.iter()
-                        .enumerate()
-                        .filter(|(j, _)| i != *j)
-                        .map(|(_, expr)| expr.clone()),
-                );
-                if prune_vacuous(conjunct, env, base, &nested, session)? {
+                let mut setup = String::new();
+                for (j, sibling) in copy.iter().enumerate() {
+                    if i != j {
+                        writeln!(setup, "(assert {})", env.expr(sibling)?).unwrap();
+                    }
+                }
+                if session.scoped(&setup, |session| prune_vacuous(conjunct, env, session))? {
                     *expr = Expr::FALSE;
                     return Ok(true);
                 }
@@ -588,7 +586,7 @@ fn prune_vacuous<T: Types>(
         Expr::Or(disjuncts) => {
             let mut kept = Vec::with_capacity(disjuncts.len());
             for mut disjunct in std::mem::take(disjuncts) {
-                if !prune_vacuous(&mut disjunct, env, base, siblings, session)? {
+                if !prune_vacuous(&mut disjunct, env, session)? {
                     kept.push(disjunct);
                 }
             }
@@ -607,14 +605,7 @@ fn prune_vacuous<T: Types>(
                 }
             }
         }
-        _ => {
-            let mut assertions = base.to_vec();
-            for sibling in siblings {
-                assertions.push(env.expr(sibling)?);
-            }
-            assertions.push(env.expr(expr)?);
-            Ok(matches!(session.check_sat(&assertions)?, SatStatus::Unsat))
-        }
+        _ => Ok(matches!(session.check_sat(&[env.expr(expr)?])?, SatStatus::Unsat)),
     }
 }
 
@@ -739,6 +730,37 @@ fn conjunction(assertions: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser::StringTypes;
+
+    #[test]
+    fn pruning_scopes_preserve_siblings_and_cleanup_after_errors() {
+        let mut solver = ProcessSolver::<StringTypes>::new(&[], &[], &[]).unwrap();
+        let equals = |n| Expr::Var("x".into()).eq(Expr::int(n));
+        let constraint = FlatConstraint {
+            binders: vec![("x".into(), Sort::Bool)],
+            assumptions: Default::default(),
+            head: Pred::Expr(Expr::TRUE),
+            tag: None,
+        };
+        let consts = [ConstDecl { name: "x".into(), sort: Sort::Int, comment: None }];
+        let locals = ConstraintLocalEnv::new(&solver.env, &consts, &[]).unwrap();
+        solver
+            .session
+            .scoped(&locals.declarations, |session| {
+                let mut candidate =
+                    Expr::And(vec![Expr::Or(vec![equals(0), equals(1)]), equals(1)]);
+                assert!(!prune_vacuous(&mut candidate, &solver.env, session)?);
+                assert_eq!(candidate, Expr::And(vec![equals(1), equals(1)]));
+                let failed: Result<(), _> =
+                    session.scoped("(assert false)", |_| Err(SuggestionSolverError::NoResults));
+                assert!(matches!(failed, Err(SuggestionSolverError::NoResults)));
+                assert_eq!(session.check_sat(&[])?, SatStatus::Sat);
+                Ok(())
+            })
+            .unwrap();
+        // The same name may have a different sort in the next constraint's scope.
+        assert!(solver.check_validity(&constraint).unwrap());
+    }
 
     #[test]
     fn parses_multiple_goals_and_metadata() {
