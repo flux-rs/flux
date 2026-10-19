@@ -102,6 +102,10 @@ pub fn allow_uninterpreted_cast() -> bool {
     FLAGS.allow_uninterpreted_cast
 }
 
+fn allow_parametricity() -> bool {
+    FLAGS.allow_parametricity
+}
+
 fn scrape_quals() -> bool {
     FLAGS.scrape_quals
 }
@@ -599,6 +603,9 @@ pub struct InferOpts {
     pub solver: SmtSolver,
     /// Whether to allow uninterpreted casts (e.g., from some random `S` to `int`).
     pub allow_uninterpreted_cast: bool,
+    /// Whether to assume every generic argument of a called function is parametric, i.e., refine
+    /// it with a hole instead of only those listed in `#[assume_parametric(..)]`.
+    pub allow_parametricity: bool,
     /// Whether to allow raw pointer dereferences.
     pub allow_raw_deref: RawDerefMode,
     /// Binary operators that are encoded as uninterpreted functions (e.g. to avoid nonlinear arithmetic).
@@ -614,6 +621,7 @@ impl From<PartialInferOpts> for InferOpts {
             allow_uninterpreted_cast: opts
                 .allow_uninterpreted_cast
                 .unwrap_or_else(allow_uninterpreted_cast),
+            allow_parametricity: opts.allow_parametricity.unwrap_or_else(allow_parametricity),
             allow_raw_deref: opts.allow_raw_deref.unwrap_or_else(allow_raw_deref),
             uif_ops: opts.uif_ops.unwrap_or_else(uif_ops),
         }
@@ -626,6 +634,7 @@ pub struct PartialInferOpts {
     pub scrape_quals: Option<bool>,
     pub solver: Option<SmtSolver>,
     pub allow_uninterpreted_cast: Option<bool>,
+    pub allow_parametricity: Option<bool>,
     pub allow_raw_deref: Option<RawDerefMode>,
     pub uif_ops: Option<UifOps>,
 }
@@ -636,6 +645,7 @@ impl PartialInferOpts {
         self.allow_uninterpreted_cast = self
             .allow_uninterpreted_cast
             .or(other.allow_uninterpreted_cast);
+        self.allow_parametricity = self.allow_parametricity.or(other.allow_parametricity);
         self.scrape_quals = self.scrape_quals.or(other.scrape_quals);
         self.solver = self.solver.or(other.solver);
         self.allow_raw_deref = self.allow_raw_deref.or(other.allow_raw_deref);

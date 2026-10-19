@@ -9,6 +9,13 @@ enum Option<T> {
     Some(T),
 }
 
+#[extern_spec(core::option)]
+impl<T> IntoIterator for Option<T> {
+    #[assume_parametric(T)]
+    #[spec(fn(Option<T>) -> core::option::IntoIter<T>)]
+    fn into_iter(self) -> core::option::IntoIter<T>;
+}
+
 /// `?` on an `Option` desugars into `Try::branch` followed by `FromResidual::from_residual`,
 /// routed through a [`core::ops::ControlFlow`]. Without specs for these, the `Some`/`None`
 /// discriminant is dropped crossing the `?`.
@@ -17,6 +24,7 @@ enum Option<T> {
 /// `Option`'s discriminant.
 #[extern_spec(core::option)]
 impl<T> core::ops::Try for Option<T> {
+    #[assume_parametric(T)]
     #[spec(fn(Option<T>[@b]) -> core::ops::ControlFlow<<Option<T> as core::ops::Try>::Residual, <Option<T> as core::ops::Try>::Output>[b])]
     fn branch(
         self,
@@ -30,6 +38,7 @@ impl<T> core::ops::Try for Option<T> {
 /// `Option`-returning function yields `None`.
 #[extern_spec(core::option)]
 impl<T> core::ops::FromResidual<Option<core::convert::Infallible>> for Option<T> {
+    #[assume_parametric(T)]
     #[spec(fn(Option<core::convert::Infallible>) -> Option<T>[false])]
     fn from_residual(residual: Option<core::convert::Infallible>) -> Option<T>;
 }
@@ -42,6 +51,7 @@ impl<T> Option<T> {
     #[sig(fn(&Self[@b]) -> bool[!b])]
     const fn is_none(&self) -> bool;
 
+    #[assume_parametric(T)]
     #[no_panic]
     #[sig(fn(Option<T>[true]) -> T)]
     const fn unwrap(self) -> T;
@@ -111,6 +121,7 @@ impl<T> Option<T> {
     const fn replace(&mut self, value: T) -> Option<T>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1160
+    #[assume_parametric(T, U, F)]
     #[flux_rs::no_panic_if(F::no_panic())]
     #[spec(fn(Option<T>[@b], F) -> Option<U>[b] where F: FnOnce(T) -> U)]
     fn map<U, F: FnOnce(T) -> U>(self, f: F) -> Option<U>;

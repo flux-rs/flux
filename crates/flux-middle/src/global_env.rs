@@ -638,6 +638,89 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         })
     }
 
+    /// The indices of the generic params of `def_id` (and its parents) that appear in a clause,
+    /// ignoring some "harmless" traits (e.g., `Sized`, `Copy`, `Fn*`). Instantiating such a param
+    /// with a refined type is not sound in general because the clause may let the item create
+    /// values of that type (e.g., via `T::default()`).
+    pub fn params_in_clauses(self, def_id: DefId) -> UnordSet<usize> {
+        use rustc_middle::ty::{TypeSuperVisitable, TypeVisitable, TypeVisitor};
+
+        struct Collector {
+            params: UnordSet<usize>,
+        }
+
+        impl TypeVisitor<TyCtxt<'_>> for Collector {
+            fn visit_ty(&mut self, t: rustc_middle::ty::Ty) {
+                if let rustc_middle::ty::Param(param_ty) = t.kind() {
+                    self.params.insert(param_ty.index as usize);
+                }
+                t.super_visit_with(self);
+            }
+        }
+
+        let tcx = self.tcx();
+        let mut vis = Collector { params: UnordSet::new() };
+        let span = tcx.def_span(def_id);
+        let mut next_id = Some(def_id);
+        while let Some(id) = next_id {
+            let preds = tcx.clauses_of(id);
+            next_id = preds.parent;
+            for (clause, _) in preds.clauses {
+                if let Some(trait_pred) = clause.as_trait_clause() {
+                    let trait_id = trait_pred.def_id();
+                    let ignore = [
+                        LangItem::MetaSized,
+                        LangItem::Sized,
+                        LangItem::Tuple,
+                        LangItem::Copy,
+                        LangItem::Destruct,
+                    ];
+                    if ignore
+                        .iter()
+                        .any(|lang_item| tcx.require_lang_item(*lang_item, span) == trait_id)
+                    {
+                        continue;
+                    }
+                    if tcx.fn_trait_kind_from_def_id(trait_id).is_some() {
+                        continue;
+                    }
+                    if tcx.get_diagnostic_item(rustc_span::sym::Hash) == Some(trait_id) {
+                        continue;
+                    }
+                    if tcx.get_diagnostic_item(rustc_span::sym::Eq) == Some(trait_id) {
+                        continue;
+                    }
+                }
+                if let Some(proj_pred) = clause.as_projection_clause() {
+                    let assoc_id = proj_pred.item_def_id();
+                    if self.is_fn_output(assoc_id) {
+                        continue;
+                    }
+                }
+                if let Some(outlives_pred) = clause.as_type_outlives_clause() {
+                    // We skip outlives bounds if they are not 'static. A 'static bound means the
+                    // type implements `Any` which makes it unsound to instantiate the argument
+                    // with refinements.
+                    if outlives_pred.skip_binder().1 != tcx.lifetimes.re_static {
+                        continue;
+                    }
+                }
+                clause.visit_with(&mut vis);
+            }
+        }
+        vis.params
+    }
+
+    /// The generic params of the function `def_id` that are instantiated with holes (i.e., treated
+    /// as parametric) when the function is called or passed as a function item.
+    pub fn parametric_params(self, def_id: DefId, allow_parametricity: bool) -> ParametricParams {
+        ParametricParams {
+            assumed: self.assume_parametric_params(def_id),
+            params_in_clauses: allow_parametricity.then(|| self.params_in_clauses(def_id)),
+            is_fn_call: self.is_fn_call(def_id),
+        }
+    }
+
     /// Iterator over all local def ids that are not an extern spec
     pub fn iter_local_def_id(self) -> impl Iterator<Item = LocalDefId> + use<'tcx, 'genv> {
         self.tcx().iter_local_def_id().filter(move |&local_def_id| {
@@ -1058,4 +1141,27 @@ fn lean_parent_dir(tcx: TyCtxt) -> PathBuf {
         .local_path()
         .unwrap()
         .join(config::lean_dir())
+}
+
+/// See [`GlobalEnv::parametric_params`]
+pub struct ParametricParams {
+    /// The params listed in `#[assume_parametric(..)]`
+    assumed: UnordSet<u32>,
+    /// With `allow_parametricity`, the params that appear in a clause; every *other* param is
+    /// parametric.
+    params_in_clauses: Option<UnordSet<usize>>,
+    /// For `Fn::call`, `FnMut::call_mut` and `FnOnce::call_once` the generics are `[Self, Args]`.
+    /// We refine `Args` with holes so the refinements of the actual arguments flow into the
+    /// closure's inputs.
+    is_fn_call: bool,
+}
+
+impl ParametricParams {
+    pub fn contains(&self, idx: usize) -> bool {
+        self.params_in_clauses
+            .as_ref()
+            .is_some_and(|params_in_clauses| !params_in_clauses.contains(&idx))
+            || (self.is_fn_call && idx == 1)
+            || self.assumed.contains(&(idx as u32))
+    }
 }

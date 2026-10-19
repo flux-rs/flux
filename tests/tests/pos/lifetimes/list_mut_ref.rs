@@ -16,6 +16,7 @@ impl<'a, T> List<'a, T> {
         }
     }
 
+    #[flux::assume_parametric(T)]
     #[flux::sig(fn(&mut List<T>[@n], idx: usize{idx < n}) -> &mut T)]
     fn get_mut(&mut self, idx: usize) -> &mut T {
         match self {
