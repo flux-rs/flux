@@ -1,6 +1,6 @@
 #![feature(step_trait)]
 #![allow(unused)]
-#![feature(allocator_api)]
+#![feature(allocator_ext)]
 
 use std::ops::Index;
 extern crate flux_alloc;

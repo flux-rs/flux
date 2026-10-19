@@ -37,6 +37,7 @@ pub(crate) trait ScopedVisitor: Sized {
     fn on_refine_param(&mut self, _param: &surface::RefineParam) {}
     fn on_enum_variant(&mut self, _variant: &surface::VariantDef) {}
     fn on_fn_trait_input(&mut self, _in_arg: &surface::GenericArg, _node_id: NodeId) {}
+    fn on_bare_fn(&mut self, _bare_fn: &surface::BareFnTy) {}
     fn on_fn_sig(&mut self, _fn_sig: &surface::FnSig) {}
     fn on_fn_output(&mut self, _output: &surface::FnOutput) {}
     fn on_loc(&mut self, _loc: Ident, _node_id: NodeId) {}
@@ -266,6 +267,15 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                     surface::visit::walk_ty(this, ty);
                 });
             }
+            surface::TyKind::BareFn(bare_fn) => {
+                self.with_scope(RibKind::FnPtrInput, |this| {
+                    this.on_bare_fn(bare_fn);
+                    walk_list!(this, visit_ty, &bare_fn.inputs);
+                    this.with_scope(RibKind::Misc, |this| {
+                        this.visit_fn_ret_ty(&bare_fn.output);
+                    });
+                });
+            }
             surface::TyKind::Array(..) => {
                 self.with_scope(RibKind::Misc, |this| {
                     surface::visit::walk_ty(this, ty);
@@ -435,9 +445,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         );
     }
 
-    fn emit_ambiguity_err(&mut self, ambiguity: super::Ambiguity) {
-        self.errors
-            .emit(super::errors::AmbiguousName::new(ambiguity));
+    fn emit_resolve_err(&mut self, err: ResolveError) {
+        err.emit(&self.errors);
     }
 
     fn resolve_path(&mut self, path: &surface::ExprPath) {
@@ -446,8 +455,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 self.check_unrefined_param(res, path.segments.last().unwrap().ident);
                 self.path_res_map.insert(path.node_id, res);
             }
-            Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
             Err(ResolveError::NotFound) => self.emit_unresolved_expr_path(path),
+            Err(err) => self.emit_resolve_err(err),
         }
     }
 
@@ -457,8 +466,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 self.check_unrefined_param(res, ident);
                 self.path_res_map.insert(node_id, res);
             }
-            Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
             Err(ResolveError::NotFound) => self.emit_unresolved_ident(ident),
+            Err(err) => self.emit_resolve_err(err),
         }
     }
 
@@ -488,6 +497,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 Ok(partial_res) => return Ok(partial_res),
                 Err(ResolveError::Ambiguous(amb)) => ambiguity = ambiguity.or(Some(amb)),
                 Err(ResolveError::NotFound) => {}
+                Err(err @ ResolveError::OuterGeneric(_)) => return Err(err),
             }
         }
         Err(ambiguity.map_or(ResolveError::NotFound, ResolveError::Ambiguous))
@@ -504,8 +514,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 self.emit_unresolved_sort_path(path);
                 PartialRes::new(fhir::Res::Err)
             }
-            Err(ResolveError::Ambiguous(ambiguity)) => {
-                self.emit_ambiguity_err(ambiguity);
+            Err(err) => {
+                self.emit_resolve_err(err);
                 PartialRes::new(fhir::Res::Err)
             }
         };
@@ -623,6 +633,18 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
         }
     }
 
+    fn on_bare_fn(&mut self, bare_fn: &surface::BareFnTy) {
+        let params = ImplicitParamCollector::new(
+            self.resolver.genv.tcx(),
+            &self.resolver.output.path_res_map,
+            RibKind::FnPtrInput,
+        )
+        .run(|vis| walk_list!(vis, visit_ty, &bare_fn.inputs));
+        for (ident, kind, node_id) in params {
+            self.define_param(ident, kind, node_id, Some(bare_fn.node_id));
+        }
+    }
+
     fn on_enum_variant(&mut self, variant: &surface::VariantDef) {
         let params = ImplicitParamCollector::new(
             self.resolver.genv.tcx(),
@@ -737,7 +759,10 @@ impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
                 (
                     matches!(
                         scope_kind,
-                        RibKind::FnInput | RibKind::FnTraitInput | RibKind::Variant
+                        RibKind::FnInput
+                            | RibKind::FnTraitInput
+                            | RibKind::FnPtrInput
+                            | RibKind::Variant
                     ),
                     surface::BindKind::At,
                 )

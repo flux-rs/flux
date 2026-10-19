@@ -571,6 +571,10 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
             vis.visit_const_arg(len);
             vis.visit_ty(ty);
         }
+        TyKind::BareFn(bare_fn) => {
+            walk_list!(vis, visit_ty, &bare_fn.inputs);
+            vis.visit_fn_ret_ty(&bare_fn.output);
+        }
         TyKind::ImplTrait(_node_id, trait_ref) => {
             walk_list!(vis, visit_trait_ref, trait_ref);
         }
@@ -622,7 +626,7 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::Literal(lit) => {
             vis.visit_literal(*lit);
         }
-        ExprKind::BinaryOp(_bin_op, box exprs) => {
+        ExprKind::BinaryOp(_bin_op, deref!(exprs)) => {
             walk_list!(vis, visit_expr, exprs);
         }
         ExprKind::UnaryOp(_un_op, e) => {
@@ -638,7 +642,7 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
             vis.visit_path(path);
             vis.visit_ident(*name);
         }
-        ExprKind::IfThenElse(box exprs) => {
+        ExprKind::IfThenElse(deref!(exprs)) => {
             walk_list!(vis, visit_expr, exprs);
         }
         ExprKind::Constructor(path, exprs) => {
