@@ -36,7 +36,7 @@ pub(crate) fn make_flat_constraint_map(constraint: &fixpoint::Constraint) -> Tag
 
 pub(crate) fn subst_fixpoint_solutions(
     flat_constraint: &mut fixpoint::FlatConstraint,
-    fixpoint_solution: &FxIndexMap<fixpoint::KVid, FixpointSolution>,
+    fixpoint_solution: &FxIndexMap<rty::KVid, FixpointSolution>,
 ) {
     flat_constraint.assumptions = flat_constraint
         .assumptions

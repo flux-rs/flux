@@ -9,13 +9,13 @@ use std::{
 use flux_common::bug;
 use flux_errors::FluxSession;
 use rustc_data_structures::{fx::FxHashMap, sync::HashMapExt};
-use rustc_hir::def_id::DefId;
-use rustc_middle::{
-    implement_ty_decoder,
-    ty::{self, TyCtxt, codec::TyDecoder},
+use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_middle::ty::{
+    self, TyCtxt,
+    codec::{TyDecoder, forward_all_decoder_methods_to},
 };
 use rustc_serialize::{
-    Decodable, Decoder as _,
+    Decodable, Decoder,
     opaque::{IntEncodedWithFixedSize, MemDecoder},
 };
 use rustc_session::StableCrateId;
@@ -121,7 +121,9 @@ fn catch_decode<R>(decode: impl FnOnce() -> R) -> Result<R, ()> {
     result.map_err(|_| ())
 }
 
-implement_ty_decoder!(DecodeContext<'a, 'tcx>);
+impl Decoder for DecodeContext<'_, '_> {
+    forward_all_decoder_methods_to!(|self| self.opaque);
+}
 
 impl BlobDecoder for DecodeContext<'_, '_> {
     fn decode_symbol(&mut self) -> Symbol {
@@ -156,6 +158,10 @@ impl BlobDecoder for DecodeContext<'_, '_> {
 
     fn decode_def_index(&mut self) -> DefIndex {
         DefIndex::from_u32(self.read_u32())
+    }
+
+    fn decode_local_def_id(&mut self) -> LocalDefId {
+        bug!("flux metadata never encodes a `LocalDefId`")
     }
 }
 

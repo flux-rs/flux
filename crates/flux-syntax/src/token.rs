@@ -2,7 +2,7 @@ use std::fmt;
 
 pub use TokenKind::*;
 use rustc_ast::token::InvisibleOrigin;
-pub use rustc_ast::token::{Delimiter, IdentIsRaw, Lit, LitKind};
+pub use rustc_ast::token::{Delimiter, IdentKind, Lit, LitKind};
 use rustc_span::{BytePos, Symbol};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -35,7 +35,7 @@ pub enum TokenKind {
     Iff,
     FatArrow,
     Literal(Lit),
-    Ident(Symbol, IdentIsRaw),
+    Ident(Symbol, IdentKind),
     OpenParen,
     CloseParen,
     OpenBrace,
@@ -133,7 +133,7 @@ impl TokenKind {
     }
 
     pub fn is_keyword(self, kw: Symbol) -> bool {
-        matches!(self, TokenKind::Ident(sym, IdentIsRaw::No) if sym == kw)
+        matches!(self, TokenKind::Ident(sym, IdentKind::Normal) if sym == kw)
     }
 
     pub fn is_eof(self) -> bool {

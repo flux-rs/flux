@@ -12,10 +12,6 @@ test = false
 flux-macros.workspace = true
 flux-config.workspace = true
 
-itertools.workspace = true
-rustc-hash.workspace = true
-
-
 [package.metadata.rust-analyzer]
 rustc_private = true
 

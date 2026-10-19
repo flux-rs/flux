@@ -10,7 +10,7 @@ use flux_config::{
 };
 use flux_driver::callbacks::FluxCallbacks;
 use flux_middle::metrics;
-use rustc_driver::{catch_fatal_errors, run_compiler};
+use rustc_driver::{catch_fatal_errors, compiler_entrypoint};
 
 mod logger;
 
@@ -57,7 +57,7 @@ fn run() -> io::Result<ExitCode> {
 
     let start = std::time::Instant::now();
     let result = catch_fatal_errors(move || {
-        run_compiler(&args, &mut FluxCallbacks);
+        compiler_entrypoint(&args, &mut FluxCallbacks);
     });
     if config::summary() && result.is_ok() {
         metrics::print_summary(start.elapsed())?;

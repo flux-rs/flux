@@ -8,10 +8,11 @@ mod binder;
 pub mod canonicalize;
 mod expr;
 pub mod fold;
-pub mod normalize;
 mod pretty;
+pub mod reduce;
 pub mod refining;
 pub mod region_matching;
+mod spec_func;
 pub mod subst;
 use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
@@ -39,11 +40,11 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _, VariantDef},
 };
 use itertools::Itertools;
-pub use normalize::{FuncInfo, NormalizedDefns, local_deps};
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
+use rustc_attr_ir::LangItem;
 use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};
-use rustc_hir::{Safety, attrs::lang_items::LangItem, def_id::DefId};
+use rustc_hir::{Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 pub use rustc_middle::{
@@ -57,6 +58,7 @@ use rustc_middle::{
 use rustc_span::{DUMMY_SP, Span, Symbol, sym, symbol::kw};
 use rustc_type_ir::Upcast as _;
 pub use rustc_type_ir::{INNERMOST, TyVid};
+pub use spec_func::{SpecFunc, SpecFuncs, deps};
 
 use self::fold::TypeFoldable;
 pub use crate::fhir::InferMode;
@@ -1285,13 +1287,6 @@ pub enum ConstantInfo {
     Uninterpreted,
     /// A non-integral constant whose value is specified by the user
     Interpreted(Expr, Sort),
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
-pub enum StaticInfo {
-    Unknown,
-    /// A static item whose type was specified by the user
-    Known(Ty),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -2930,7 +2925,10 @@ fn slice_invariants(genv: GlobalEnv, elem_ty: &Ty, overflow_mode: OverflowMode) 
     let mut invariants = vec![Invariant {
         pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
     }];
-    if !matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
+    if !matches!(
+        overflow_mode,
+        OverflowMode::Strict | OverflowMode::Lazy | OverflowMode::StrictUnder
+    ) {
         return invariants;
     }
 
@@ -2993,7 +2991,10 @@ fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [In
             })
             .collect()
     });
-    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
+    if matches!(
+        overflow_mode,
+        OverflowMode::Strict | OverflowMode::Lazy | OverflowMode::StrictUnder
+    ) {
         &OVERFLOW[&uint_ty]
     } else {
         &*DEFAULT
@@ -3048,7 +3049,10 @@ fn int_invariants(int_ty: IntTy, overflow_mode: OverflowMode) -> &'static [Invar
             })
             .collect()
     });
-    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
+    if matches!(
+        overflow_mode,
+        OverflowMode::Strict | OverflowMode::Lazy | OverflowMode::StrictUnder
+    ) {
         &OVERFLOW[&int_ty]
     } else {
         &DEFAULT
