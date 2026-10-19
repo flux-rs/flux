@@ -579,7 +579,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             let ptr_place = Place::new(place.local, place.projection[..i].to_vec());
             let val_place = ptr_place.deref();
-            let Some(idx) = place_directly_derefs_raw_ptr(env, infcx, &val_place, span)? else {
+            let Some(idx) = env.place_directly_derefs_raw_ptr(infcx, &val_place, span)? else {
                 continue;
             };
             let ty = env.lookup_rust_ty(genv, &val_place)?;
@@ -1444,11 +1444,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let pack = place
                     .min_pack(genv, &self.body.local_decls)
                     .with_span(stmt_span)?;
-                if let Some(idx) = place_directly_derefs_raw_ptr(env, infcx, place, stmt_span)
+                if let Some(idx) = env
+                    .place_directly_derefs_raw_ptr(infcx, place, stmt_span)
                     .with_span(stmt_span)?
                 {
                     Ok(Ty::indexed(BaseTy::RawPtr(ctor.to_ty(), kind.to_mutbl_lossy()), idx))
-                } else if place_derefs_raw_ptr(env, infcx, place, stmt_span).with_span(stmt_span)? {
+                } else if env
+                    .place_derefs_raw_ptr(infcx, place, stmt_span)
+                    .with_span(stmt_span)?
+                {
                     let bty = BaseTy::RawPtr(ctor.to_ty(), kind.to_mutbl_lossy());
                     let indexed = Ty::indexed(bty, Expr::nu());
                     Ok(Ty::exists(Binder::bind_with_sort(indexed, Sort::RawPtr)))
@@ -2093,50 +2097,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn refine_with_holes<T: Refine>(&self, ty: &T) -> QueryResult<<T as Refine>::Output> {
         ty.refine(&Refiner::with_holes(self.genv, self.checker_id.root_id().to_def_id())?)
     }
-}
-
-/// If a Place is of the form: *p or *(s.p), return the index of the pointer.
-/// Note that this does not match (*p).f, where p points to a struct.
-/// Doubly note that taking the addr of (*p).f doesn't actually do any loads,
-/// but since we don't necessarily know where .f is, we can't return a proper
-/// pointer to it. Code will have to be rewritten to take the address of p,
-/// then use .add() with the field's offset.
-fn place_directly_derefs_raw_ptr<'genv, 'tcx>(
-    env: &mut TypeEnv,
-    infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-    place: &Place,
-    span: Span,
-) -> InferResult<Option<Expr>> {
-    if let [prefix @ .., PlaceElem::Deref] = place.projection.as_slice() {
-        let ptr_place = Place::new(place.local, prefix.to_vec());
-        let ptr_ty = env.lookup_place(&mut infcx.at(span), &ptr_place)?;
-        let ptr_ty = infcx.hoister(true).hoist(&ptr_ty);
-        if let TyKind::Indexed(BaseTy::RawPtr(_, _), idx) = ptr_ty.kind() {
-            return Ok(Some(idx.clone()));
-        }
-    }
-    Ok(None)
-}
-
-/// If a Place has a raw pointer dereference anywhere inside of it.
-/// For example, (*p).f has one. This may not be immediately able to be
-/// turned back into a pointer with &raw.
-fn place_derefs_raw_ptr<'genv, 'tcx>(
-    env: &mut TypeEnv,
-    infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-    place: &Place,
-    span: Span,
-) -> InferResult<bool> {
-    for i in 0..place.projection.len() {
-        if !matches!(place.projection[i], PlaceElem::Deref) {
-            continue;
-        }
-        let val_place = Place::new(place.local, place.projection[..=i].to_vec());
-        if place_directly_derefs_raw_ptr(env, infcx, &val_place, span)?.is_some() {
-            return Ok(true);
-        }
-    }
-    Ok(false)
 }
 
 /// Converts a reference into a raw-ptr, tracking size etc.

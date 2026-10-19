@@ -118,6 +118,53 @@ impl<'a> TypeEnv<'a> {
         Ok(result.ty)
     }
 
+    /// If a Place is of the form: *p or *(s.p), return the index of the pointer.
+    /// Note that this does not match (*p).f, where p points to a struct.
+    /// Doubly note that taking the addr of (*p).f doesn't actually do any loads,
+    /// but since we don't necessarily know where .f is, we can't return a proper
+    /// pointer to it. Code will have to be rewritten to take the address of p,
+    /// then use .add() with the field's offset.
+    pub(crate) fn place_directly_derefs_raw_ptr<'genv, 'tcx>(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        place: &Place,
+        span: Span,
+    ) -> InferResult<Option<Expr>> {
+        if let [prefix @ .., PlaceElem::Deref] = place.projection.as_slice() {
+            let ptr_place = Place::new(place.local, prefix.to_vec());
+            let ptr_ty = self.lookup_place(&mut infcx.at(span), &ptr_place)?;
+            let ptr_ty = infcx.hoister(true).hoist(&ptr_ty);
+            if let TyKind::Indexed(BaseTy::RawPtr(_, _), idx) = ptr_ty.kind() {
+                return Ok(Some(idx.clone()));
+            }
+        }
+        Ok(None)
+    }
+
+    /// If a Place has a raw pointer dereference anywhere inside of it.
+    /// For example, (*p).f has one. This may not be immediately able to be
+    /// turned back into a pointer with &raw.
+    pub(crate) fn place_derefs_raw_ptr<'genv, 'tcx>(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        place: &Place,
+        span: Span,
+    ) -> InferResult<bool> {
+        for i in 0..place.projection.len() {
+            if !matches!(place.projection[i], PlaceElem::Deref) {
+                continue;
+            }
+            let val_place = Place::new(place.local, place.projection[..=i].to_vec());
+            if self
+                .place_directly_derefs_raw_ptr(infcx, &val_place, span)?
+                .is_some()
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub(crate) fn get(&self, path: &Path) -> Ty {
         self.bindings.get(path)
     }

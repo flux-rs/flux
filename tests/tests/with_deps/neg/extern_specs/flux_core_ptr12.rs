@@ -56,28 +56,23 @@ pub unsafe fn test_addr_of_field_of_null(p: *mut Pair) {
     }
 }
 
-// Borrow from a pointer
-pub unsafe fn test03_mut(p: *mut i32) -> &'static mut i32 {
+pub unsafe fn test_mut_read_mut_ptr(p: *mut i32) -> &'static mut i32 {
     &mut *p //~ ERROR refinement type error
 }
 
-// Read from a raw mut pointer
-pub unsafe fn test01_mut(p: *mut i32) -> i32 {
+pub unsafe fn test_read_mut_ptr(p: *mut i32) -> i32 {
     *p //~ ERROR refinement type error
 }
 
-// Read from a raw const pointer
-pub unsafe fn test01_const(p: *const i32) -> i32 {
+pub unsafe fn test_read_const_ptr(p: *const i32) -> i32 {
     *p //~ ERROR refinement type error
 }
 
 pub fn test_get_mut(vec: &mut Vec<i32>, off: usize) -> Option<&mut i32> {
     unsafe { Some(&mut *vec.as_mut_ptr().add(off)) } //~ ERROR refinement type error
-    //~| ERROR refinement type error
-    //~| ERROR refinement type error
+                                                     //~| ERROR refinement type error
+                                                     //~| ERROR refinement type error
 }
-
-// Test that we can take a mutable reference to a field accessed through a dereferenced raw pointer
 
 struct Mickey {
     vec: Vec<i32>,
