@@ -603,6 +603,8 @@ pub struct InferOpts {
     pub allow_raw_deref: RawDerefMode,
     /// Binary operators that are encoded as uninterpreted functions (e.g. to avoid nonlinear arithmetic).
     pub uif_ops: UifOps,
+    /// Whether to enable extern specs (e.g., to check validity of raw pointer derefs).
+    pub std_extern_specs: bool,
 }
 
 impl From<PartialInferOpts> for InferOpts {
@@ -616,6 +618,7 @@ impl From<PartialInferOpts> for InferOpts {
                 .unwrap_or_else(allow_uninterpreted_cast),
             allow_raw_deref: opts.allow_raw_deref.unwrap_or_else(allow_raw_deref),
             uif_ops: opts.uif_ops.unwrap_or_else(uif_ops),
+            std_extern_specs: opts.std_extern_specs.unwrap_or_else(std_extern_specs),
         }
     }
 }
@@ -628,6 +631,7 @@ pub struct PartialInferOpts {
     pub allow_uninterpreted_cast: Option<bool>,
     pub allow_raw_deref: Option<RawDerefMode>,
     pub uif_ops: Option<UifOps>,
+    pub std_extern_specs: Option<bool>,
 }
 
 impl PartialInferOpts {
@@ -640,6 +644,7 @@ impl PartialInferOpts {
         self.solver = self.solver.or(other.solver);
         self.allow_raw_deref = self.allow_raw_deref.or(other.allow_raw_deref);
         self.uif_ops = self.uif_ops.or(other.uif_ops);
+        self.std_extern_specs = self.std_extern_specs.or(other.std_extern_specs);
     }
 }
 

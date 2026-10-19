@@ -568,6 +568,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         place: &Place,
         span: Span,
     ) -> InferResult {
+        // When we aren't checking pointer specs, this check is unnecessary
+        if !infcx.std_extern_specs {
+            return Ok(());
+        }
         let genv = self.genv;
         for i in 0..place.projection.len() {
             if !matches!(place.projection[i], PlaceElem::Deref) {

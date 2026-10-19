@@ -10,9 +10,9 @@ pub struct BytesMut {
     data: *mut Mickey,
 }
 
-fn test_field_mut_ref(bytes: BytesMut) {
+fn test(bytes: BytesMut) {
     let foo = bytes.data as *mut Mickey;
     unsafe {
-        let _ = &mut (*foo).vec; //~ ERROR refinement type error
+        let _ = &mut (*foo).vec;
     }
 }

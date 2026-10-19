@@ -1,4 +1,4 @@
-#![flux::opts(allow_raw_deref = "ok")]
+#![flux::opts(allow_raw_deref = "ok", std_extern_specs = "true")]
 
 extern crate flux_core;
 
@@ -41,4 +41,55 @@ pub fn test_create_ref_misaligned_generic<T>(x: *mut T) {
     requires flux_core::ptr::valid(xptr, 4) && flux_core::ptr::aligned_to(xptr, 4))]
 pub fn test_double_deref_invalid_inner(x: *mut *mut i32) {
     let _v: i32 = unsafe { **x }; //~ ERROR refinement type error
+}
+
+pub struct Pair {
+    pub fst: i32,
+    pub snd: i32,
+}
+
+#[flux::spec(fn (p: *mut[@pp] Pair) requires pp.addr == 0)]
+pub unsafe fn test_addr_of_field_of_null(p: *mut Pair) {
+    let q = std::ptr::addr_of_mut!((*p).fst);
+    unsafe {
+        *q = 1; //~ ERROR refinement type error
+    }
+}
+
+// Borrow from a pointer
+pub unsafe fn test03_mut(p: *mut i32) -> &'static mut i32 {
+    &mut *p //~ ERROR refinement type error
+}
+
+// Read from a raw mut pointer
+pub unsafe fn test01_mut(p: *mut i32) -> i32 {
+    *p //~ ERROR refinement type error
+}
+
+// Read from a raw const pointer
+pub unsafe fn test01_const(p: *const i32) -> i32 {
+    *p //~ ERROR refinement type error
+}
+
+pub fn test_get_mut(vec: &mut Vec<i32>, off: usize) -> Option<&mut i32> {
+    unsafe { Some(&mut *vec.as_mut_ptr().add(off)) } //~ ERROR refinement type error
+    //~| ERROR refinement type error
+    //~| ERROR refinement type error
+}
+
+// Test that we can take a mutable reference to a field accessed through a dereferenced raw pointer
+
+struct Mickey {
+    vec: Vec<i32>,
+}
+
+pub struct BytesMut {
+    data: *mut Mickey,
+}
+
+fn test_field_mut_ref(bytes: BytesMut) {
+    let foo = bytes.data as *mut Mickey;
+    unsafe {
+        let _ = &mut (*foo).vec; //~ ERROR refinement type error
+    }
 }

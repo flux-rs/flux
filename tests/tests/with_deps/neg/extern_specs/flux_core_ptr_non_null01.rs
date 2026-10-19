@@ -4,7 +4,7 @@ use std::ptr::NonNull;
 
 // --- add ---
 
-#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size > 8 && addr > 0 && addr % 4 == 0)]
+#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size > 8 && addr != 0 && addr % 4 == 0)]
 pub fn test_add_ex(nn: NonNull<i32>) {
     unsafe {
         let _val0 = std::ptr::read(nn.add(0).as_ptr());
@@ -13,7 +13,7 @@ pub fn test_add_ex(nn: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size == 8 && addr > 0 && addr % 4 == 0)]
+#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size == 8 && addr != 0 && addr % 4 == 0)]
 pub fn test_add_ix(nn: NonNull<i32>) {
     unsafe {
         let _val0 = std::ptr::read(nn.add(0).as_ptr());
@@ -22,7 +22,7 @@ pub fn test_add_ix(nn: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size > 8 && addr > 0 && addr % 4 == 0)]
+#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size > 8 && addr != 0 && addr % 4 == 0)]
 pub fn test_add_mut_ex(nn: NonNull<i32>) {
     unsafe {
         std::ptr::write(nn.add(0).as_ptr(), 10);
@@ -31,7 +31,7 @@ pub fn test_add_mut_ex(nn: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size == 8 && addr > 0 && addr % 4 == 0)]
+#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size == 8 && addr != 0 && addr % 4 == 0)]
 pub fn test_add_mut_ix(nn: NonNull<i32>) {
     unsafe {
         std::ptr::write(nn.add(0).as_ptr(), 10);
