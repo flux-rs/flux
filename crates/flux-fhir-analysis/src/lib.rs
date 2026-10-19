@@ -119,14 +119,6 @@ fn try_spec_funcs(genv: GlobalEnv) -> Result<rty::SpecFuncs, ErrorGuaranteed> {
     let mut errors = Errors::new(genv.sess());
     for (_, item) in genv.fhir_iter_flux_items() {
         let fhir::FluxItem::Func(func) = item else { continue };
-        // Typically, inlined functions are replaced by their body, so there's no way to hide them;
-        // however there is an exception: when the hidden function is ONLY used in a top-level
-        // refinement (so no need to inline) and further where you cannot inline, e.g. because
-        // there is a quantifier. Hence, reverting this check for now:
-        // if func.hide && genv.should_inline_fun(func.def_id.to_def_id()) {
-        //     errors.emit(errors::HideInlinedDefinition::new(func.ident_span));
-        //     continue;
-        // }
         let Some(wfckresults) = wf::check_flux_item(genv, item).collect_err(&mut errors) else {
             continue;
         };
