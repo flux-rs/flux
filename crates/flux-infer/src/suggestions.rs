@@ -122,10 +122,7 @@ where
             .iter()
             .flat_map(|arg| {
                 arg.free_vars().into_iter().filter(|fvar| {
-                    match fvar {
-                        fixpoint::Var::Local(_) | fixpoint::Var::Param(_) => true,
-                        _ => false,
-                    }
+                    matches!(fvar, fixpoint::Var::Local(_) | fixpoint::Var::Param(_))
                 })
             })
             .collect();
