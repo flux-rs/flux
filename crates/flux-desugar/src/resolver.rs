@@ -170,14 +170,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     /// Qualifiers and primop-props are global, so their names are checked for duplicates across
-    /// the whole crate (unlike other flux items, which are scoped per-module via [`Self::define_res_in`]).
+    /// the whole crate (unlike other flux items, which are scoped to the module or block declaring
+    /// them via [`Self::define_res_in`]).
     #[allow(
         clippy::disallowed_methods,
-        reason = "`flux_items_by_parent` is the source of truth for `FluxDefId`"
+        reason = "`flux_items_by_scope` is the source of truth for `FluxDefId`"
     )]
     fn define_flux_global_items(&mut self) {
         let mut definitions = DefinitionMap::default();
-        for decls in self.specs.flux_items_by_parent.values() {
+        for decls in self.specs.flux_items_by_scope.values() {
             for FluxItemDecl { declarer, item } in decls {
                 // We are putting qualifiers and primpops in the same namespace.
                 match item {
@@ -213,12 +214,13 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
+    /// Defines the flux items declared in `scope` (a module or a block) in the innermost rib.
     #[allow(
         clippy::disallowed_methods,
-        reason = "`flux_items_by_parent` is the source of truth for `FluxDefId`"
+        reason = "`flux_items_by_scope` is the source of truth for `FluxDefId`"
     )]
-    fn define_module_flux_items(&mut self, parent: OwnerId) {
-        let Some(decls) = self.specs.flux_items_by_parent.get(&parent) else { return };
+    fn define_flux_items(&mut self, scope: hir::HirId) {
+        let Some(decls) = self.specs.flux_items_by_scope.get(&scope) else { return };
         for FluxItemDecl { declarer, item } in decls {
             match item {
                 surface::FluxItem::Qualifier(_) | surface::FluxItem::PrimOpProp(_) => {
@@ -375,13 +377,13 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    fn resolve_flux_items(&mut self, parent: OwnerId) {
-        let Some(decls) = self.specs.flux_items_by_parent.get(&parent) else { return };
+    fn resolve_flux_items(&mut self, scope: hir::HirId) {
+        let Some(decls) = self.specs.flux_items_by_scope.get(&scope) else { return };
         for ns in [TypeNS, ValueNS, ReftNS] {
             self.push_rib(ns, RibKind::Item);
         }
         for FluxItemDecl { item, .. } in decls {
-            self.resolve_flux_item(item, MaybeExternId::Local(parent))
+            self.resolve_flux_item(item, MaybeExternId::Local(scope.owner))
                 .collect_err(&mut self.err);
         }
         for ns in [TypeNS, ValueNS, ReftNS] {
@@ -958,9 +960,10 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             self.define_flux_global_items();
         }
         // Other items are defined in the module they are declared in.
-        self.define_module_flux_items(owner_id);
+        let scope = hir::HirId::make_owner(owner_id.def_id);
+        self.define_flux_items(scope);
 
-        self.resolve_flux_items(owner_id);
+        self.resolve_flux_items(scope);
         hir::intravisit::walk_mod(self, module);
 
         self.pop_rib(ReftNS);
@@ -970,8 +973,6 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     }
 
     fn visit_block(&mut self, block: &'tcx hir::Block<'tcx>) {
-        let parent = self.genv.tcx().hir_get_parent_item(block.hir_id);
-
         self.push_rib(TypeNS, RibKind::Misc);
         self.push_rib(ValueNS, RibKind::Misc);
         self.push_rib(ReftNS, RibKind::Misc);
@@ -980,9 +981,9 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             if let hir::StmtKind::Item(item_id) = &stmt.kind { Some(item_id) } else { None }
         });
         self.define_items(item_ids);
-        self.define_module_flux_items(parent);
+        self.define_flux_items(block.hir_id);
 
-        self.resolve_flux_items(parent);
+        self.resolve_flux_items(block.hir_id);
         hir::intravisit::walk_block(self, block);
 
         self.pop_rib(ReftNS);

@@ -160,7 +160,7 @@ fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::FluxItem
 
     let mut fhir = fhir::FluxItems::new();
     let mut err: Option<ErrorGuaranteed> = None;
-    for decls in specs.flux_items_by_parent.values() {
+    for decls in specs.flux_items_by_scope.values() {
         for FluxItemDecl { declarer, item } in decls {
             let Some(ident) = item.name() else { continue };
             let def_id = FluxLocalDefId::new(declarer.def_id, ident.name);
