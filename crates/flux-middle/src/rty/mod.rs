@@ -1985,6 +1985,7 @@ impl BaseTy {
             BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_mode).to_vec(),
             BaseTy::Char => char_invariants().to_vec(),
             BaseTy::Slice(ty) => slice_invariants(genv, ty, overflow_mode),
+            BaseTy::RawPtr(..) => raw_ptr_invariants().to_vec(),
             _ => vec![],
         }
         .into_iter()
@@ -2999,6 +3000,27 @@ fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [In
     } else {
         &*DEFAULT
     }
+}
+
+fn raw_ptr_invariants() -> &'static [Invariant] {
+    fn field(field: RawPtrField) -> Expr {
+        Expr::nu().proj_and_reduce(FieldProj::RawPtr { field })
+    }
+
+    static INVARIANTS: LazyLock<[Invariant; 4]> = LazyLock::new(|| {
+        let base = field(RawPtrField::Base);
+        let addr = field(RawPtrField::Addr);
+        let size = field(RawPtrField::Size);
+        let max = Expr::uint_max(UintTy::Usize);
+        [
+            Expr::ge(base, Expr::zero()),
+            Expr::ge(&addr, Expr::zero()),
+            Expr::le(&addr, &max),
+            Expr::le(addr + size, max),
+        ]
+        .map(|pred| Invariant { pred: Binder::bind_with_sort(pred, Sort::RawPtr) })
+    });
+    &*INVARIANTS
 }
 
 fn char_invariants() -> &'static [Invariant] {
