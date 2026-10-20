@@ -15,3 +15,15 @@ pub fn call_extern(f: extern "C" fn(i32) -> i32) -> i32 {
 pub fn call_safe(f: fn(i32) -> i32) -> i32 {
     f(0)
 }
+
+// An `unsafe` spec does not match a safe fn pointer either
+#[flux::spec(fn(f: unsafe fn(i32) -> i32{v: v > 0}) -> i32)] //~ ERROR incompatible refinement
+pub fn call_safe_with_unsafe_spec(f: fn(i32) -> i32) -> i32 {
+    f(0)
+}
+
+// Nor does an `extern "C"` spec match a different abi
+#[flux::spec(fn(f: extern "C" fn(i32) -> i32{v: v > 0}) -> i32)] //~ ERROR incompatible refinement
+pub fn call_system(f: extern "system" fn(i32) -> i32) -> i32 {
+    f(0)
+}

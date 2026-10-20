@@ -4,7 +4,7 @@ use std::collections::hash_map;
 
 use flux_common::{
     bug,
-    result::{ErrorCollector, ResultExt},
+    result::{ErrorCollector, ErrorEmitter, ResultExt},
 };
 use flux_errors::Errors;
 use flux_middle::{
@@ -31,7 +31,7 @@ use rustc_hir::{
 use rustc_middle::{middle::resolve::ModChild, ty::TyCtxt};
 use rustc_span::{Span, Symbol, def_id::DefId, symbol::kw};
 
-use self::refinement_resolver::RefinementResolver;
+use self::refinement_resolver::{ImplicitParamCollector, RefinementResolver};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -44,6 +44,25 @@ enum ResolveError {
     /// disambiguate. Carries everything needed to emit [`errors::AmbiguousName`], so that callers
     /// deep in the path walk don't have to reconstruct which segment went wrong.
     Ambiguous(Ambiguity),
+    /// The name resolved to a generic parameter (or `Self`) of an outer item.
+    OuterGeneric(Span),
+}
+
+impl ResolveError {
+    /// Emits the error. A [`ResolveError::NotFound`] is reported with the diagnostic built by
+    /// `not_found`, since only the caller knows what was being looked for.
+    #[track_caller]
+    fn emit<'a, D: rustc_errors::Diagnostic<'a>>(
+        self,
+        emitter: &'a impl ErrorEmitter,
+        not_found: impl FnOnce() -> D,
+    ) -> ErrorGuaranteed {
+        match self {
+            Self::NotFound => emitter.emit(not_found()),
+            Self::Ambiguous(ambiguity) => emitter.emit(errors::AmbiguousName::new(ambiguity)),
+            Self::OuterGeneric(span) => emitter.emit(errors::OuterGeneric { span }),
+        }
+    }
 }
 
 /// A name that two competing glob imports bind to different items:
@@ -358,14 +377,43 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_flux_items(&mut self, parent: OwnerId) {
         let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
+        for ns in [TypeNS, ValueNS, ReftNS] {
+            self.push_rib(ns, RibKind::Item);
+        }
         for item in items {
-            RefinementResolver::resolve_flux_item(self, item).collect_err(&mut self.err);
+            self.resolve_flux_item(item, MaybeExternId::Local(parent))
+                .collect_err(&mut self.err);
+        }
+        for ns in [TypeNS, ValueNS, ReftNS] {
+            self.pop_rib(ns);
         }
     }
 
+    fn resolve_flux_item(
+        &mut self,
+        item: &surface::FluxItem,
+        parent: MaybeExternId<OwnerId>,
+    ) -> Result {
+        if let surface::FluxItem::Use(_) = item {
+            // Use paths are resolved `CrateResolver::resolve_flux_use_tree`
+            return Ok(());
+        }
+        ItemResolver::run(self, parent, |vis| vis.visit_flux_item(item))?;
+        // Sort variables share the type namespace with sorts/types (see [`fhir::Namespace`]).
+        self.push_rib(TypeNS, RibKind::Misc);
+        for (idx, ident) in item.sort_vars().iter().enumerate() {
+            self.define_res_in(fhir::Res::SortParam(idx), TypeNS, BindingSource::Explicit(*ident));
+        }
+        let result =
+            RefinementResolver::run(self, Default::default(), |vis| vis.visit_flux_item(item));
+        self.pop_rib(TypeNS);
+        result
+    }
+
     fn resolve_item(&mut self, item: &surface::Item, item_id: MaybeExternId<OwnerId>) -> Result {
-        ItemResolver::run(self, item_id, |item_resolver| item_resolver.visit_item(item))?;
-        RefinementResolver::resolve_item(self, item)
+        ItemResolver::run(self, item_id, |vis| vis.visit_item(item))?;
+        let params = ImplicitParamCollector::run(self, |vis| vis.visit_item(item))?;
+        RefinementResolver::run(self, params, |vis| vis.visit_item(item))
     }
 
     fn resolve_trait_item(
@@ -373,8 +421,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         item: &surface::TraitItemFn,
         item_id: MaybeExternId<OwnerId>,
     ) -> Result {
-        ItemResolver::run(self, item_id, |item_resolver| item_resolver.visit_trait_item(item))?;
-        RefinementResolver::resolve_trait_item(self, item)
+        ItemResolver::run(self, item_id, |vis| vis.visit_trait_item(item))?;
+        let params = ImplicitParamCollector::run(self, |vis| vis.visit_trait_item(item))?;
+        RefinementResolver::run(self, params, |vis| vis.visit_trait_item(item))
     }
 
     fn resolve_impl_item(
@@ -382,8 +431,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         item: &surface::ImplItemFn,
         item_id: MaybeExternId<OwnerId>,
     ) -> Result {
-        ItemResolver::run(self, item_id, |item_resolver| item_resolver.visit_impl_item(item))?;
-        RefinementResolver::resolve_impl_item(self, item)
+        ItemResolver::run(self, item_id, |vis| vis.visit_impl_item(item))?;
+        let params = ImplicitParamCollector::run(self, |vis| vis.visit_impl_item(item))?;
+        RefinementResolver::run(self, params, |vis| vis.visit_impl_item(item))
     }
 
     fn resolve_path_with_ribs<S: Segment>(
@@ -395,7 +445,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let fallback = match &result {
             Ok(res) => matches!(res.full_res(), Some(fhir::Res::Def(DefKind::Mod, _))),
             Err(ResolveError::NotFound) => true,
-            Err(ResolveError::Ambiguous(_)) => false,
+            Err(ResolveError::Ambiguous(_) | ResolveError::OuterGeneric(_)) => false,
         };
         // Retry a primitive when ordinary lookup finds a module or fails.
         // See: https://github.com/rust-lang/rust/blob/12c4d3f34dcb4715784d2fa0e8443853e0592194/compiler/rustc_resolve/src/late.rs#L5069-L5071
@@ -493,12 +543,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             };
             let res = match res {
                 Ok(res) => res,
-                Err(ResolveError::NotFound) => {
-                    self.emit_unresolved_import(ident, resolved_module_id, resolved_prefix);
-                    return vec![];
-                }
-                Err(ResolveError::Ambiguous(ambiguity)) => {
-                    self.emit_ambiguity_err(ambiguity);
+                Err(err) => {
+                    self.emit_resolve_err(err, || {
+                        errors::UnresolvedImport::new(ident, resolved_module_id, resolved_prefix)
+                    });
                     return vec![];
                 }
             };
@@ -517,7 +565,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 // An import names an item in every namespace at once, so an ambiguity in any one
                 // of them is an error even if the others resolve. Keeping only the first means one
                 // import is one error.
-                let mut ambiguity = None;
+                let mut error = None;
                 for ns in [TypeNS, ValueNS, ReftNS] {
                     let res = if let Some(module_id) = resolved_module_id {
                         let module = Module::new(ModuleKind::Mod, module_id);
@@ -527,14 +575,21 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     };
                     match res {
                         Ok(res) => resolutions.push((last.ident(), res, ns)),
-                        Err(ResolveError::Ambiguous(amb)) => ambiguity = ambiguity.or(Some(amb)),
                         Err(ResolveError::NotFound) => {}
+                        Err(err) => error = error.or(Some(err)),
                     }
                 }
-                if let Some(ambiguity) = ambiguity {
-                    self.emit_ambiguity_err(ambiguity);
-                } else if resolutions.is_empty() {
-                    self.emit_unresolved_import(last.ident, resolved_module_id, resolved_prefix);
+                if resolutions.is_empty() {
+                    error = error.or(Some(ResolveError::NotFound));
+                }
+                if let Some(err) = error {
+                    self.emit_resolve_err(err, || {
+                        errors::UnresolvedImport::new(
+                            last.ident,
+                            resolved_module_id,
+                            resolved_prefix,
+                        )
+                    });
                 }
                 resolutions
             }
@@ -560,17 +615,31 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ns: Namespace,
     ) -> std::result::Result<fhir::Res<surface::NodeId>, ResolveError> {
         let mut ribs = self.ribs[ns].iter().rev();
+        let mut crossed_item = false;
         while let Some(rib) = ribs.next() {
             // An ambiguous name is still a name: it stops the climb here rather than falling
             // through to outer scopes or the prelude.
             if let Some(name_res) = rib.bindings.get(&ident.name)
                 && let Some(res) = name_res.resolve(ident)
             {
-                return res.map_err(ResolveError::Ambiguous);
+                // Like in rust, nested items cannot mention generics of outer items
+                let res = res.map_err(ResolveError::Ambiguous)?;
+                if crossed_item
+                    && matches!(
+                        res,
+                        fhir::Res::Def(DefKind::TyParam | DefKind::ConstParam, _)
+                            | fhir::Res::SelfTyParam { .. }
+                            | fhir::Res::SelfTyAlias { .. }
+                    )
+                {
+                    return Err(ResolveError::OuterGeneric(ident.span));
+                }
+                return Ok(res);
             }
             match rib.kind {
                 // A module boundary stops item resolution.
                 RibKind::Module => break,
+                RibKind::Item => crossed_item = true,
                 // A variant is a barrier that hides refinement params bound in the `refined_by` *enclosing*
                 // scope, but not other refinement bindings in other scopes (e.g. flux funcs in the parent module).
                 // FIXME: this is skipping potential names defined inside a `const _ = { ... }` or other similar
@@ -586,9 +655,12 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             if let Some(crate_id) = self.crates.get(&ident.name) {
                 return Ok(fhir::Res::Def(DefKind::Mod, *crate_id));
             }
-            // FIXME: `crate` and `super` should only be allowed as the first segment
+            // FIXME: `crate`, `self` and `super` should only be allowed as the first segment
             if ident.name == kw::Crate {
                 return Ok(fhir::Res::Def(DefKind::Mod, CRATE_DEF_ID.to_def_id()));
+            }
+            if ident.name == kw::SelfLower {
+                return Ok(fhir::Res::Def(DefKind::Mod, self.current_module.to_def_id()));
             }
             if ident.name == kw::Super
                 && let Some(parent) = self.genv.tcx().opt_local_parent(self.current_module.def_id)
@@ -836,23 +908,12 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     #[track_caller]
-    fn emit_unresolved_import(
+    fn emit_resolve_err<D: rustc_errors::Diagnostic<'genv>>(
         &mut self,
-        ident: Ident,
-        module_id: Option<DefId>,
-        resolved_prefix: &[Ident],
+        err: ResolveError,
+        not_found: impl FnOnce() -> D,
     ) {
-        let reason = match module_id {
-            None => "not found in this scope".to_string(),
-            Some(_) => format!("no `{ident}` in `{}`", Segment::format_iter(resolved_prefix)),
-        };
-        let name = Segment::format_iter(resolved_prefix.iter().chain(&[ident]));
-        self.emit(errors::UnresolvedImport { span: ident.span, name, reason });
-    }
-
-    #[track_caller]
-    fn emit_ambiguity_err(&mut self, ambiguity: Ambiguity) {
-        self.emit(errors::AmbiguousName::new(ambiguity));
+        self.err.collect(err.emit(self.genv.sess(), not_found));
     }
 
     fn emit_not_a_module(&mut self, ident: Ident, resolved_prefix: &[Ident]) {
@@ -938,8 +999,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .maybe_extern_id(item.owner_id.def_id)
             .map(|def_id| OwnerId { def_id });
 
-        self.push_rib(TypeNS, RibKind::Misc);
-        self.push_rib(ValueNS, RibKind::Misc);
+        self.push_rib(TypeNS, RibKind::Item);
+        self.push_rib(ValueNS, RibKind::Item);
 
         match item.kind {
             ItemKind::Trait { .. } => {
@@ -1001,13 +1062,17 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .maybe_extern_id(impl_item.owner_id.def_id)
             .map(|def_id| OwnerId { def_id });
 
+        // Generics are defined in both namespaces (const params live in the value namespace), so
+        // we need a rib in each to avoid leaking them into sibling items.
         self.push_rib(TypeNS, RibKind::Misc);
+        self.push_rib(ValueNS, RibKind::Misc);
         if let Some(item) = self.specs.get_impl_item(def_id.local_id()) {
             self.define_generics(def_id);
             self.resolve_impl_item(item, def_id)
                 .collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
+        self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }
 
@@ -1017,13 +1082,17 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .maybe_extern_id(trait_item.owner_id.def_id)
             .map(|def_id| OwnerId { def_id });
 
+        // Generics are defined in both namespaces (const params live in the value namespace), so
+        // we need a rib in each to avoid leaking them into sibling items.
         self.push_rib(TypeNS, RibKind::Misc);
+        self.push_rib(ValueNS, RibKind::Misc);
         if let Some(item) = self.specs.get_trait_item(def_id.local_id()) {
             self.define_generics(def_id);
             self.resolve_trait_item(item, def_id)
                 .collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
+        self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }
 }
@@ -1055,18 +1124,11 @@ pub(crate) enum RibKind {
     Misc,
     /// A module boundary. This is a barrier for item resolution.
     Module,
-    /// A function signature's inputs (arguments and `requires`). `@` binders are legal here.
-    FnInput,
-    /// A function signature's output (return type and `ensures`). `#` binders are legal here.
-    FnOutput,
-    /// An enum variant. `@` binders are legal here. This is a barrier scope because variants
-    /// are nested within `refined_by` params.
+    /// An item boundary. Generic parameters (and `Self`) of outer items are not visible past it.
+    Item,
+    /// An enum variant. This is a barrier scope because variants are nested within `refined_by`
+    /// params.
     Variant,
-    /// The input position of an `Fn`-trait bound (e.g. the `T` in `FnMut(T) -> S`). `@` binders are
-    /// legal here.
-    FnTraitInput,
-    /// The inputs of a fn pointer type (e.g. the `T` in `fn(T) -> S`). `@` binders are legal here.
-    FnPtrInput,
 }
 
 /// The value stored for each binding in a [`Rib`]. Lookups and clash detection are keyed by the
@@ -1251,7 +1313,7 @@ fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
 
 /// Abstraction over a "segment" so we can use [`CrateResolver::resolve_path_with_ribs`] with paths
 /// from different sources  (e.g., [`surface::PathSegment`], [`surface::ExprPathSegment`])
-trait Segment: std::fmt::Debug {
+pub(crate) trait Segment: std::fmt::Debug {
     fn record_segment_res(
         resolver: &mut CrateResolver,
         segment: &Self,
@@ -1357,8 +1419,11 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
                     .path_res_map
                     .insert(path.node_id, partial_res);
             }
-            Err(ResolveError::NotFound) => self.emit_unresolved_path(path, ns),
-            Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
+            Err(err) => {
+                err.emit(&self.errors, || {
+                    errors::UnresolvedName::new(path.span, &path.segments, ns.descr())
+                });
+            }
         }
     }
 
@@ -1432,30 +1497,20 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
                             .emit(errors::UnknownFuncDefinition::new(name.span));
                     }
                 }
-                Ok(_) | Err(ResolveError::NotFound) => {
+                Ok(_) => {
                     self.errors
                         .emit(errors::UnknownFuncDefinition::new(name.span));
                 }
-                Err(ResolveError::Ambiguous(ambiguity)) => self.emit_ambiguity_err(ambiguity),
+                Err(err) => {
+                    err.emit(&self.errors, || errors::UnknownFuncDefinition::new(name.span));
+                }
             }
         }
         def_ids
     }
-
-    fn emit_ambiguity_err(&mut self, ambiguity: Ambiguity) {
-        self.errors.emit(errors::AmbiguousName::new(ambiguity));
-    }
-
-    fn emit_unresolved_path(&mut self, path: &surface::Path, ns: Namespace) {
-        self.errors.emit(errors::UnresolvedName {
-            span: path.span,
-            name: Segment::format_iter(&path.segments),
-            kind: ns.descr(),
-        });
-    }
 }
 
-impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
+impl surface::visit::Visitor<'_> for ItemResolver<'_, '_, '_> {
     fn visit_item(&mut self, item: &surface::Item) {
         self.resolve_attrs(item.node_id, &item.attrs);
         surface::visit::walk_item(self, item);
@@ -1495,9 +1550,9 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
             // parsing. We try to resolve that ambiguity by attempting resolution in both the
             // type and value namespaces. If we resolved the path in the value namespace, we
             // transform it into a generic const argument.
-            // A name that is *ambiguous* in a namespace still counts as present there: rerouting
-            // to the other namespace would hide the ambiguity instead of reporting it. The real
-            // diagnostic comes from `resolve_path_in` below.
+            // A name that is *ambiguous* in a namespace, or that is a forbidden outer generic,
+            // still counts as present there: rerouting to the other namespace would hide the error
+            // instead of reporting it. The real diagnostic comes from `resolve_path_in` below.
             let check_ns = |ns| {
                 !matches!(
                     self.resolver.resolve_ident_with_ribs(path.last().ident, ns),
@@ -1596,7 +1651,10 @@ fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use rustc_span::{Span, Symbol};
+    use flux_syntax::surface::Ident;
+    use rustc_span::{Span, Symbol, def_id::DefId};
+
+    use super::Segment;
 
     /// A name that could not be resolved. `kind` is the user-facing description of what was being
     /// looked for (`"type"`, `"value"`, `"sort"`, ...); it is passed explicitly by each call site
@@ -1607,9 +1665,15 @@ mod errors {
     pub(crate) struct UnresolvedName {
         #[primary_span]
         #[label("not found in this scope")]
-        pub span: Span,
-        pub kind: &'static str,
-        pub name: String,
+        span: Span,
+        kind: &'static str,
+        name: String,
+    }
+
+    impl UnresolvedName {
+        pub(crate) fn new<S: Segment>(span: Span, segments: &[S], kind: &'static str) -> Self {
+            Self { span, name: Segment::format_iter(segments), kind }
+        }
     }
 
     /// An import path (`flux::use foo::bar::baz`) that could not be resolved. Unlike
@@ -1624,6 +1688,32 @@ mod errors {
         pub span: Span,
         pub name: String,
         pub reason: String,
+    }
+
+    impl UnresolvedImport {
+        /// The import segment `ident` was not found, in `module_id` if the prefix before it
+        /// resolved to one, or in scope otherwise.
+        pub(super) fn new(
+            ident: Ident,
+            module_id: Option<DefId>,
+            resolved_prefix: &[Ident],
+        ) -> Self {
+            let reason = match module_id {
+                None => "not found in this scope".to_string(),
+                Some(_) => format!("no `{ident}` in `{}`", Segment::format_iter(resolved_prefix)),
+            };
+            let name = Segment::format_iter(resolved_prefix.iter().chain(&[ident]));
+            Self { span: ident.span, name, reason }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag("can't use generic parameters from outer item", code = E0999)]
+    #[note("nested items cannot mention the generic parameters or `Self` of outer items")]
+    pub(super) struct OuterGeneric {
+        #[primary_span]
+        #[label("use of generic parameter from outer item")]
+        pub span: Span,
     }
 
     #[derive(Diagnostic)]
