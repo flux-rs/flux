@@ -15,7 +15,9 @@ use super::{
     SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UseTreeKind,
     VariantDef, VariantRet, WhereBoundPredicate,
 };
-use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn, UseTree};
+use crate::surface::{
+    FluxItem, ImplItem, ImplItemKind, Item, PrimOpProp, SortDecl, TraitItemFn, UseTree,
+};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -70,7 +72,7 @@ pub trait Visitor: Sized {
         walk_trait_item(self, item);
     }
 
-    fn visit_impl_item(&mut self, item: &ImplItemFn) {
+    fn visit_impl_item(&mut self, item: &ImplItem) {
         walk_impl_item(self, item);
     }
 
@@ -305,9 +307,14 @@ pub fn walk_trait_item<V: Visitor>(vis: &mut V, item: &TraitItemFn) {
     }
 }
 
-pub fn walk_impl_item<V: Visitor>(vis: &mut V, item: &ImplItemFn) {
-    if let Some(fn_sig) = item.sig.as_ref() {
-        vis.visit_fn_sig(fn_sig);
+pub fn walk_impl_item<V: Visitor>(vis: &mut V, item: &ImplItem) {
+    match &item.kind {
+        ImplItemKind::Fn(fn_sig) => {
+            if let Some(fn_sig) = fn_sig.as_ref() {
+                vis.visit_fn_sig(fn_sig);
+            }
+        }
+        ImplItemKind::Const(cst) => vis.visit_constant(cst),
     }
 }
 
