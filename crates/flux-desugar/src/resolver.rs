@@ -8,7 +8,7 @@ use flux_common::{
 };
 use flux_errors::Errors;
 use flux_middle::{
-    ResolverOutput, Specs,
+    FluxItemDecl, ResolverOutput, Specs,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
     fhir,
     fhir::{
@@ -177,8 +177,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     )]
     fn define_flux_global_items(&mut self) {
         let mut definitions = DefinitionMap::default();
-        for (parent, items) in &self.specs.flux_items_by_parent {
-            for item in items {
+        for decls in self.specs.flux_items_by_parent.values() {
+            for FluxItemDecl { declarer, item } in decls {
                 // We are putting qualifiers and primpops in the same namespace.
                 match item {
                     surface::FluxItem::Qualifier(qual) => {
@@ -189,7 +189,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                             .collect_err(&mut self.err)
                             .is_some()
                         {
-                            let def_id = FluxLocalDefId::new(parent.def_id, ident.name);
+                            let def_id = FluxLocalDefId::new(declarer.def_id, ident.name);
                             self.qualifiers.insert(ident.name, def_id);
                         }
                     }
@@ -201,7 +201,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                             .collect_err(&mut self.err)
                             .is_some()
                         {
-                            let def_id = FluxDefId::new(parent.def_id.to_def_id(), ident.name);
+                            let def_id = FluxDefId::new(declarer.to_def_id(), ident.name);
                             self.primop_props.insert(ident.name, def_id);
                         }
                     }
@@ -218,14 +218,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         reason = "`flux_items_by_parent` is the source of truth for `FluxDefId`"
     )]
     fn define_module_flux_items(&mut self, parent: OwnerId) {
-        let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
-        for item in items {
+        let Some(decls) = self.specs.flux_items_by_parent.get(&parent) else { return };
+        for FluxItemDecl { declarer, item } in decls {
             match item {
                 surface::FluxItem::Qualifier(_) | surface::FluxItem::PrimOpProp(_) => {
                     // Already registered in `define_global_qualifiers_and_primop_props`.
                 }
                 surface::FluxItem::FuncDef(defn) => {
-                    let def_id = FluxDefId::new(parent.def_id.to_def_id(), defn.name.name);
+                    let def_id = FluxDefId::new(declarer.to_def_id(), defn.name.name);
                     let kind = fhir::SpecFuncKind::Def(def_id);
                     self.define_res_in(
                         fhir::Res::GlobalFunc(kind),
@@ -234,7 +234,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     );
                 }
                 surface::FluxItem::SortDecl(sort_decl) => {
-                    let def_id = FluxDefId::new(parent.def_id.to_def_id(), sort_decl.name.name);
+                    let def_id = FluxDefId::new(declarer.to_def_id(), sort_decl.name.name);
                     self.define_res_in(
                         fhir::Res::UserSort(def_id),
                         TypeNS,
@@ -376,11 +376,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn resolve_flux_items(&mut self, parent: OwnerId) {
-        let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
+        let Some(decls) = self.specs.flux_items_by_parent.get(&parent) else { return };
         for ns in [TypeNS, ValueNS, ReftNS] {
             self.push_rib(ns, RibKind::Item);
         }
-        for item in items {
+        for FluxItemDecl { item, .. } in decls {
             self.resolve_flux_item(item, MaybeExternId::Local(parent))
                 .collect_err(&mut self.err);
         }

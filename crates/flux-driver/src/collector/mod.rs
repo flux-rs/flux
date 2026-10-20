@@ -15,7 +15,7 @@ use flux_config::{
     self as config, OverflowMode, PartialInferOpts, RawDerefMode, SmtSolver, UifOps,
 };
 use flux_errors::{Errors, FluxSession};
-use flux_middle::Specs;
+use flux_middle::{FluxItemDecl, Specs};
 use flux_syntax::{
     ParseResult, ParseSess,
     surface::{self, NodeId, Trusted},
@@ -153,12 +153,18 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::Trait { .. } => self.collect_trait(owner_id, attrs)?,
             ItemKind::Const(.., rhs) => {
                 // The flux-rs macro puts defs as an outer attribute on a `const _: () = { }`. We
-                // consider these defs to be defined in the parent of the const.
+                // consider these defs to be defined in the parent of the const, but declared by
+                // the const, which gives them their identity.
                 self.specs
                     .flux_items_by_parent
                     .entry(self.tcx.hir_get_parent_item(item.hir_id()))
                     .or_default()
-                    .extend(attrs.items());
+                    .extend(
+                        attrs
+                            .items()
+                            .into_iter()
+                            .map(|item| FluxItemDecl { declarer: owner_id, item }),
+                    );
 
                 if attrs.extern_spec()
                     && let hir::ConstItemRhs::Body(body_id) = rhs
@@ -237,7 +243,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             .flux_items_by_parent
             .entry(module_id)
             .or_default()
-            .extend(attrs.items());
+            .extend(
+                attrs
+                    .items()
+                    .into_iter()
+                    .map(|item| FluxItemDecl { declarer: module_id, item }),
+            );
 
         if attrs.has_attrs() {
             let node_id = self.next_node_id();

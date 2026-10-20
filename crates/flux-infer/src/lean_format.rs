@@ -13,11 +13,16 @@ use flux_middle::{
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, Quantifier, ThyFunc};
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
-use rustc_hir::{def::DefKind, def_id::DefId, definitions::DefPathData};
+use rustc_hir::{
+    def::DefKind,
+    def_id::DefId,
+    definitions::{DefPathData, DefPathDataName},
+};
 use rustc_middle::ty::{
     TyCtxt,
     print::{PrintTraitRefExt, with_forced_trimmed_paths},
 };
+use rustc_span::symbol::kw;
 
 use crate::fixpoint_encoding::{
     ClosedSolution, InterpretedConst,
@@ -837,17 +842,29 @@ pub fn def_id_to_pascal_case(def_id: &DefId, tcx: &TyCtxt) -> String {
 /// blocks by their header (e.g., `RawValIter_T_as_Iterator`) instead of by their position in
 /// the enclosing module (`{impl#10}`). Lean names, and hence the names of user proof files,
 /// then stay the same when impl blocks are added, removed or reordered.
+///
+/// Components that would otherwise not be valid in a Lean identifier are rendered as follows:
+/// * A `const _` (e.g., the one `defs!` expands to, which declares flux items) is dropped if it
+///   is the first `const _` in its parent, and rendered as `_n` for the `n`-th one after that,
+///   so items declared by the first (usually the only) `defs!` keep the name of the enclosing
+///   item.
+/// * An anonymous component (e.g., `{closure#0}`) is rendered as `closure_0`.
 fn stable_def_path(tcx: TyCtxt, def_id: DefId) -> String {
     // `DefPath::data` has one component per ancestor, excluding the crate root.
     let mut ancestors = iter::successors(Some(def_id), |id| tcx.opt_parent(*id)).collect_vec();
     ancestors.pop();
     ancestors.reverse();
     iter::zip(ancestors, tcx.def_path(def_id).data)
-        .map(|(id, component)| {
-            if let DefPathData::Impl = component.data {
-                stable_impl_name(tcx, id)
-            } else {
-                component.as_sym(true).to_string()
+        .filter_map(|(id, component)| {
+            match (component.data, component.data.name()) {
+                (DefPathData::Impl, _) => Some(stable_impl_name(tcx, id)),
+                (DefPathData::ValueNs(kw::Underscore), _) => {
+                    (component.disambiguator != 0).then(|| format!("_{}", component.disambiguator))
+                }
+                (_, DefPathDataName::Anon { namespace }) => {
+                    Some(format!("{namespace}_{}", component.disambiguator))
+                }
+                (_, DefPathDataName::Named(_)) => Some(component.as_sym(true).to_string()),
             }
         })
         .join("-")

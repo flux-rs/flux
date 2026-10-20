@@ -412,21 +412,19 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     genv.alloc_slice(
                         &items
                             .iter()
-                            .filter_map(|item| {
+                            .filter_map(|crate::FluxItemDecl { declarer, item }| {
+                                let declarer = declarer.to_def_id();
                                 let ident;
                                 let res = match item {
                                     surface::FluxItem::FuncDef(func) => {
                                         ident = func.name;
                                         fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
-                                            FluxDefId::new(parent.to_def_id(), ident.name),
+                                            FluxDefId::new(declarer, ident.name),
                                         ))
                                     }
                                     surface::FluxItem::SortDecl(sort) => {
                                         ident = sort.name;
-                                        fhir::Res::UserSort(FluxDefId::new(
-                                            parent.to_def_id(),
-                                            ident.name,
-                                        ))
+                                        fhir::Res::UserSort(FluxDefId::new(declarer, ident.name))
                                     }
                                     surface::FluxItem::Qualifier(_)
                                     | surface::FluxItem::PrimOpProp(_)

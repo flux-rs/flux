@@ -24,7 +24,7 @@ mod errors;
 pub mod resolver;
 
 use flux_middle::{
-    ResolverOutput,
+    FluxItemDecl, ResolverOutput,
     def_id::FluxLocalDefId,
     fhir,
     global_env::GlobalEnv,
@@ -160,10 +160,10 @@ fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::FluxItem
 
     let mut fhir = fhir::FluxItems::new();
     let mut err: Option<ErrorGuaranteed> = None;
-    for (parent, items) in &specs.flux_items_by_parent {
-        for item in items {
+    for decls in specs.flux_items_by_parent.values() {
+        for FluxItemDecl { declarer, item } in decls {
             let Some(ident) = item.name() else { continue };
-            let def_id = FluxLocalDefId::new(parent.def_id, ident.name);
+            let def_id = FluxLocalDefId::new(declarer.def_id, ident.name);
             FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
                 fhir.items.insert(def_id, cx.desugar_flux_item(item));
             })
