@@ -10,6 +10,32 @@ use crate::{
     Sort, SortCtor, ThyFunc, Types,
 };
 
+macro_rules! parens {
+    ($out:ident, $body:block) => {{
+        $out.write_char('(')?;
+        $body;
+        $out.write_char(')')
+    }};
+}
+
+fn sexp_list<W, I, F, E>(out: &mut W, items: I, mut write_item: F) -> Result<(), E>
+where
+    W: Write,
+    I: IntoIterator,
+    F: FnMut(&mut W, I::Item) -> Result<(), E>,
+    E: From<fmt::Error>,
+{
+    out.write_char('(')?;
+    for (i, item) in items.into_iter().enumerate() {
+        if i != 0 {
+            out.write_char(' ')?;
+        }
+        write_item(out, item)?;
+    }
+    out.write_char(')')?;
+    Ok(())
+}
+
 #[derive(Clone, Copy, Default)]
 pub(crate) enum FunctionEncoding {
     /// Treat functions as... functions.
@@ -106,37 +132,43 @@ impl<T: Types> SmtEncoder<T> {
             return Ok(());
         }
 
-        write!(out, "(declare-datatypes (({name} {})) (", decl.vars)?;
-        if decl.vars > 0 {
-            write!(out, "(par (")?;
-            for i in 0..decl.vars {
-                if i != 0 {
-                    out.write_char(' ')?;
+        parens!(out, {
+            write!(out, "declare-datatypes (({name} {})) ", decl.vars)?;
+            parens!(out, {
+                if decl.vars > 0 {
+                    parens!(out, {
+                        write!(out, "par ")?;
+                        sexp_list(out, 0..decl.vars, |out, i| write!(out, "T{i}"))?;
+                        out.write_char(' ')?;
+                        self.write_datatype_ctors(out, decl)?;
+                    })?;
+                } else {
+                    self.write_datatype_ctors(out, decl)?;
                 }
-                write!(out, "T{i}")?;
-            }
-            write!(out, ") (")?;
-        } else {
-            out.write_char('(')?;
-        }
-        for (i, ctor) in decl.ctors.iter().enumerate() {
-            if i != 0 {
-                out.write_char(' ')?;
-            }
-            write!(out, "({}", ctor.name.display())?;
-            for field in &ctor.fields {
-                write!(out, " ({} ", field.name.display())?;
-                self.write_sort_in_scope(out, &field.sort, true)?;
-                out.write_char(')')?;
-            }
-            out.write_char(')')?;
-        }
-        if decl.vars > 0 {
-            writeln!(out, "))))")?;
-        } else {
-            writeln!(out, ")))")?;
-        }
+            })?;
+        })?;
+        writeln!(out)?;
         Ok(())
+    }
+
+    fn write_datatype_ctors(
+        &self,
+        out: &mut impl Write,
+        decl: &DataDecl<T>,
+    ) -> Result<(), SmtEncodeError> {
+        sexp_list(out, &decl.ctors, |out, ctor| {
+            parens!(out, {
+                write!(out, "{}", ctor.name.display())?;
+                for field in &ctor.fields {
+                    out.write_char(' ')?;
+                    parens!(out, {
+                        write!(out, "{} ", field.name.display())?;
+                        self.write_sort_in_scope(out, &field.sort, true)?;
+                    })?;
+                }
+            })?;
+            Ok(())
+        })
     }
 
     pub fn write_const_decl(
@@ -146,9 +178,11 @@ impl<T: Types> SmtEncoder<T> {
         sort: &Sort<T>,
     ) -> Result<(), SmtEncodeError> {
         if matches!(self.options.functions, FunctionEncoding::ArrayApproximation) {
-            write!(out, "(declare-const {name} ")?;
-            self.write_sort(out, sort)?;
-            writeln!(out, ")")?;
+            parens!(out, {
+                write!(out, "declare-const {name} ")?;
+                self.write_sort(out, sort)?;
+            })?;
+            writeln!(out)?;
             return Ok(());
         }
 
@@ -166,9 +200,11 @@ impl<T: Types> SmtEncoder<T> {
             )));
         }
         if inputs.is_empty() {
-            write!(out, "(declare-const {name} ")?;
-            self.write_sort(out, output)?;
-            writeln!(out, ")")?;
+            parens!(out, {
+                write!(out, "declare-const {name} ")?;
+                self.write_sort(out, output)?;
+            })?;
+            writeln!(out)?;
         } else {
             self.write_fun_signature(out, name, &inputs, output)?;
         }
@@ -182,16 +218,13 @@ impl<T: Types> SmtEncoder<T> {
         inputs: &[&Sort<T>],
         output: &Sort<T>,
     ) -> Result<(), SmtEncodeError> {
-        write!(out, "(declare-fun {name} (")?;
-        for (i, input) in inputs.iter().enumerate() {
-            if i != 0 {
-                out.write_char(' ')?;
-            }
-            self.write_sort(out, input)?;
-        }
-        write!(out, ") ")?;
-        self.write_sort(out, output)?;
-        writeln!(out, ")")?;
+        parens!(out, {
+            write!(out, "declare-fun {name} ")?;
+            sexp_list(out, inputs, |out, sort| self.write_sort(out, sort))?;
+            out.write_char(' ')?;
+            self.write_sort(out, output)?;
+        })?;
+        writeln!(out)?;
         Ok(())
     }
 
@@ -207,20 +240,21 @@ impl<T: Types> SmtEncoder<T> {
             )));
         }
         if let Some(body) = &fun.body {
-            write!(out, "(define-fun {} (", fun.name.display())?;
-            for (i, (name, sort)) in body.args.iter().zip(&fun.sort.inputs).enumerate() {
-                if i != 0 {
-                    out.write_char(' ')?;
-                }
-                write!(out, "({} ", name.display())?;
-                self.write_sort(out, sort)?;
-                out.write_char(')')?;
-            }
-            write!(out, ") ")?;
-            self.write_sort(out, &fun.sort.output)?;
-            out.write_char(' ')?;
-            self.write_expr(out, &body.expr)?;
-            writeln!(out, ")")?;
+            parens!(out, {
+                write!(out, "define-fun {} ", fun.name.display())?;
+                sexp_list(out, body.args.iter().zip(&fun.sort.inputs), |out, (name, sort)| {
+                    parens!(out, {
+                        write!(out, "{} ", name.display())?;
+                        self.write_sort(out, sort)?;
+                    })?;
+                    Ok::<_, SmtEncodeError>(())
+                })?;
+                out.write_char(' ')?;
+                self.write_sort(out, &fun.sort.output)?;
+                out.write_char(' ')?;
+                self.write_expr(out, &body.expr)?;
+            })?;
+            writeln!(out)?;
         } else {
             let inputs = fun.sort.inputs.iter().collect::<Vec<_>>();
             self.write_fun_signature(
@@ -278,11 +312,12 @@ impl<T: Types> SmtEncoder<T> {
             Sort::Func(parts)
                 if matches!(self.options.functions, FunctionEncoding::ArrayApproximation) =>
             {
-                out.write_str("(Array ")?;
-                self.write_sort_in_scope(out, &parts[0], in_datatype_params)?;
-                out.write_char(' ')?;
-                self.write_sort_in_scope(out, &parts[1], in_datatype_params)?;
-                out.write_char(')')?;
+                parens!(out, {
+                    out.write_str("Array ")?;
+                    self.write_sort_in_scope(out, &parts[0], in_datatype_params)?;
+                    out.write_char(' ')?;
+                    self.write_sort_in_scope(out, &parts[1], in_datatype_params)?;
+                })?;
             }
             Sort::Abs(_, inner)
                 if matches!(self.options.functions, FunctionEncoding::ArrayApproximation) =>
@@ -298,13 +333,13 @@ impl<T: Types> SmtEncoder<T> {
                 if args.is_empty() {
                     self.write_sort_ctor(out, ctor)?;
                 } else {
-                    out.write_char('(')?;
-                    self.write_sort_ctor(out, ctor)?;
-                    for arg in args {
-                        out.write_char(' ')?;
-                        self.write_sort_in_scope(out, arg, in_datatype_params)?;
-                    }
-                    out.write_char(')')?;
+                    parens!(out, {
+                        self.write_sort_ctor(out, ctor)?;
+                        for arg in args {
+                            out.write_char(' ')?;
+                            self.write_sort_in_scope(out, arg, in_datatype_params)?;
+                        }
+                    })?;
                 }
             }
         }
@@ -334,12 +369,13 @@ impl<T: Types> SmtEncoder<T> {
                         if args.is_empty() {
                             write!(out, "{}", kvar.display())?;
                         } else {
-                            write!(out, "({}", kvar.display())?;
-                            for arg in args {
-                                out.write_char(' ')?;
-                                self.write_expr(out, arg)?;
-                            }
-                            out.write_char(')')?;
+                            parens!(out, {
+                                write!(out, "{}", kvar.display())?;
+                                for arg in args {
+                                    out.write_char(' ')?;
+                                    self.write_expr(out, arg)?;
+                                }
+                            })?;
                         }
                         Ok(())
                     }
@@ -393,9 +429,10 @@ impl<T: Types> SmtEncoder<T> {
                 self.write_binary(out, op, &args[0], &args[1])?;
             }
             Expr::Atom(BinRel::Ne, args) => {
-                out.write_str("(not ")?;
-                self.write_binary(out, "=", &args[0], &args[1])?;
-                out.write_char(')')?;
+                parens!(out, {
+                    out.write_str("not ")?;
+                    self.write_binary(out, "=", &args[0], &args[1])?;
+                })?;
             }
             Expr::Atom(rel, args) => {
                 let op = match rel {
@@ -413,20 +450,27 @@ impl<T: Types> SmtEncoder<T> {
             Expr::And(exprs) => self.write_nary(out, "and", exprs, "true")?,
             Expr::Or(exprs) => self.write_nary(out, "or", exprs, "false")?,
             Expr::IfThenElse(args) => {
-                out.write_str("(ite ")?;
-                self.write_expr(out, &args[0])?;
-                out.write_char(' ')?;
-                self.write_expr(out, &args[1])?;
-                out.write_char(' ')?;
-                self.write_expr(out, &args[2])?;
-                out.write_char(')')?;
+                parens!(out, {
+                    out.write_str("ite ")?;
+                    self.write_expr(out, &args[0])?;
+                    out.write_char(' ')?;
+                    self.write_expr(out, &args[1])?;
+                    out.write_char(' ')?;
+                    self.write_expr(out, &args[2])?;
+                })?;
             }
             Expr::Let(name, args) => {
-                write!(out, "(let (({} ", name.display())?;
-                self.write_expr(out, &args[0])?;
-                out.write_str(")) ")?;
-                self.write_expr(out, &args[1])?;
-                out.write_char(')')?;
+                parens!(out, {
+                    out.write_str("let ")?;
+                    parens!(out, {
+                        parens!(out, {
+                            write!(out, "{} ", name.display())?;
+                            self.write_expr(out, &args[0])?;
+                        })?;
+                    })?;
+                    out.write_char(' ')?;
+                    self.write_expr(out, &args[1])?;
+                })?;
             }
             Expr::App(fun, _, args, out_sort) => {
                 if matches!(&**fun, Expr::WKVar(_)) {
@@ -435,20 +479,21 @@ impl<T: Types> SmtEncoder<T> {
                 if args.is_empty() {
                     self.write_application_head(out, fun, out_sort.as_ref())?;
                 } else {
-                    out.write_char('(')?;
-                    self.write_application_head(out, fun, out_sort.as_ref())?;
-                    for arg in args {
-                        out.write_char(' ')?;
-                        self.write_expr(out, arg)?;
-                    }
-                    out.write_char(')')?;
+                    parens!(out, {
+                        self.write_application_head(out, fun, out_sort.as_ref())?;
+                        for arg in args {
+                            out.write_char(' ')?;
+                            self.write_expr(out, arg)?;
+                        }
+                    })?;
                 }
             }
             Expr::ThyFunc(func) => self.write_thy_func(out, *func)?,
             Expr::IsCtor(ctor, inner) => {
-                write!(out, "((_ is {}) ", ctor.display())?;
-                self.write_expr(out, inner)?;
-                out.write_char(')')?;
+                parens!(out, {
+                    write!(out, "(_ is {}) ", ctor.display())?;
+                    self.write_expr(out, inner)?;
+                })?;
             }
             Expr::Quantifier(quantifier, bindings, body) => {
                 if !self.options.allow_quantifiers {
@@ -460,18 +505,18 @@ impl<T: Types> SmtEncoder<T> {
                     Quantifier::Exists => "exists",
                     Quantifier::Forall => "forall",
                 };
-                write!(out, "({quantifier} (")?;
-                for (i, (name, sort)) in bindings.iter().enumerate() {
-                    if i != 0 {
-                        out.write_char(' ')?;
-                    }
-                    write!(out, "({} ", name.display())?;
-                    self.write_sort(out, sort)?;
-                    out.write_char(')')?;
-                }
-                out.write_str(") ")?;
-                self.write_expr(out, body)?;
-                out.write_char(')')?;
+                parens!(out, {
+                    write!(out, "{quantifier} ")?;
+                    sexp_list(out, bindings, |out, (name, sort)| {
+                        parens!(out, {
+                            write!(out, "{} ", name.display())?;
+                            self.write_sort(out, sort)?;
+                        })?;
+                        Ok::<_, SmtEncodeError>(())
+                    })?;
+                    out.write_char(' ')?;
+                    self.write_expr(out, body)?;
+                })?;
             }
         }
         Ok(())
@@ -485,9 +530,10 @@ impl<T: Types> SmtEncoder<T> {
     ) -> Result<(), SmtEncodeError> {
         match fun {
             Expr::Var(name) if self.constructors.contains(name) && out_sort.is_some() => {
-                write!(out, "(as {} ", name.display())?;
-                self.write_sort(out, out_sort.unwrap())?;
-                out.write_char(')')?;
+                parens!(out, {
+                    write!(out, "as {} ", name.display())?;
+                    self.write_sort(out, out_sort.unwrap())?;
+                })?;
             }
             Expr::ThyFunc(ThyFunc::SetEmpty | ThyFunc::MapDefault) => {
                 let sort = out_sort.ok_or_else(|| {
@@ -500,9 +546,10 @@ impl<T: Types> SmtEncoder<T> {
                 } else {
                     "const"
                 };
-                write!(out, "(as {name} ")?;
-                self.write_sort(out, sort)?;
-                out.write_char(')')?;
+                parens!(out, {
+                    write!(out, "as {name} ")?;
+                    self.write_sort(out, sort)?;
+                })?;
             }
             other => self.write_expr(out, other)?,
         }
@@ -515,9 +562,10 @@ impl<T: Types> SmtEncoder<T> {
         op: &str,
         expr: &Expr<T>,
     ) -> Result<(), SmtEncodeError> {
-        write!(out, "({op} ")?;
-        self.write_expr(out, expr)?;
-        out.write_char(')')?;
+        parens!(out, {
+            write!(out, "{op} ")?;
+            self.write_expr(out, expr)?;
+        })?;
         Ok(())
     }
 
@@ -528,11 +576,12 @@ impl<T: Types> SmtEncoder<T> {
         lhs: &Expr<T>,
         rhs: &Expr<T>,
     ) -> Result<(), SmtEncodeError> {
-        write!(out, "({op} ")?;
-        self.write_expr(out, lhs)?;
-        out.write_char(' ')?;
-        self.write_expr(out, rhs)?;
-        out.write_char(')')?;
+        parens!(out, {
+            write!(out, "{op} ")?;
+            self.write_expr(out, lhs)?;
+            out.write_char(' ')?;
+            self.write_expr(out, rhs)?;
+        })?;
         Ok(())
     }
 
@@ -547,12 +596,13 @@ impl<T: Types> SmtEncoder<T> {
             out.write_str(empty)?;
             return Ok(());
         }
-        write!(out, "({op}")?;
-        for expr in exprs {
-            out.write_char(' ')?;
-            self.write_expr(out, expr)?;
-        }
-        out.write_char(')')?;
+        parens!(out, {
+            write!(out, "{op}")?;
+            for expr in exprs {
+                out.write_char(' ')?;
+                self.write_expr(out, expr)?;
+            }
+        })?;
         Ok(())
     }
 

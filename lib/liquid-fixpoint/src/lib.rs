@@ -30,7 +30,8 @@ pub mod parser;
 pub mod sexp;
 mod smt_fmt;
 pub mod smt_horn;
-mod z3_process;
+mod suggestion_solver;
+mod z3_subprocess;
 
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
@@ -63,24 +64,7 @@ use process_control::{ChildExt, Control};
 
 #[cfg(feature = "rust-fixpoint")]
 use crate::constraint_with_env::ConstraintWithEnv;
-use crate::constraint_with_env::topo_sort_data_declarations;
-pub use crate::z3_process::SuggestionSolverError;
-
-pub struct SuggestionSolver<T: Types> {
-    process: z3_process::ProcessSolver<T>,
-}
-
-impl<T: Types> SuggestionSolver<T> {
-    pub fn new(
-        global_consts: &[ConstDecl<T>],
-        funs: &[FunDef<T>],
-        datatype_decls: Vec<DataDecl<T>>,
-    ) -> Result<Self, SuggestionSolverError> {
-        let datatype_decls = topo_sort_data_declarations(datatype_decls);
-        let process = z3_process::ProcessSolver::new(global_consts, funs, &datatype_decls)?;
-        Ok(Self { process })
-    }
-}
+pub use crate::suggestion_solver::{SuggestionSolver, SuggestionSolverError};
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
@@ -189,14 +173,14 @@ pub fn qe_and_simplify<T: Types>(
     constraint: &FlatConstraint<T>,
     binder_consts: &[ConstDecl<T>],
 ) -> Result<Expr<T>, SuggestionSolverError> {
-    solver.process.qe_and_simplify(constraint, binder_consts)
+    solver.qe_and_simplify(constraint, binder_consts)
 }
 
 pub fn check_validity<T: Types>(
     solver: &mut SuggestionSolver<T>,
     constraint: &FlatConstraint<T>,
 ) -> Result<bool, SuggestionSolverError> {
-    solver.process.check_validity(constraint)
+    solver.check_validity(constraint)
 }
 
 #[derive_where(Hash, Clone, Debug)]

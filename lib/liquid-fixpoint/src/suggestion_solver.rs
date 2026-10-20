@@ -1,17 +1,17 @@
+//! Constraint validity checking and quantifier-elimination-based suggestions.
+
 use std::{
     collections::{HashMap, HashSet},
     fmt::Write as _,
-    io::{self, BufRead, BufReader, Read as _, Write as _},
-    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
-    sync::{Arc, Mutex},
-    thread::JoinHandle,
+    io,
 };
 
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, DataDecl, Expr, FlatConstraint, FunDef, Identifier, Pred,
     Sort, Types,
-    sexp::{Atom, Parser, Sexp},
+    sexp::{Atom, Sexp},
     smt_fmt::{SmtEncoder, SmtOptions},
+    z3_subprocess::{SatStatus, Z3Error, Z3Subprocess},
 };
 
 #[derive(Debug)]
@@ -29,129 +29,30 @@ impl From<io::Error> for SuggestionSolverError {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SatStatus {
-    Sat,
-    Unsat,
-    Unknown,
-}
-
-struct Z3Session {
-    child: Child,
-    stdin: Option<ChildStdin>,
-    stdout: BufReader<ChildStdout>,
-    stderr: Arc<Mutex<Vec<u8>>>,
-    stderr_reader: Option<JoinHandle<()>>,
-    request_id: usize,
-}
-
-impl Z3Session {
-    fn new() -> Result<Self, SuggestionSolverError> {
-        let mut child = Command::new("z3")
-            .args(["-smt2", "-in"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-        let stdin = child.stdin.take().expect("Z3 stdin is piped");
-        let stdout = child.stdout.take().expect("Z3 stdout is piped");
-        let mut child_stderr = child.stderr.take().expect("Z3 stderr is piped");
-        let stderr = Arc::new(Mutex::new(Vec::new()));
-        let stderr_buf = Arc::clone(&stderr);
-        let stderr_reader = std::thread::spawn(move || {
-            let mut chunk = [0; 4096];
-            loop {
-                match child_stderr.read(&mut chunk) {
-                    Ok(0) | Err(_) => break,
-                    Ok(len) => stderr_buf.lock().unwrap().extend_from_slice(&chunk[..len]),
-                }
-            }
-        });
-        Ok(Self {
-            child,
-            stdin: Some(stdin),
-            stdout: BufReader::new(stdout),
-            stderr,
-            stderr_reader: Some(stderr_reader),
-            request_id: 0,
-        })
-    }
-
-    fn request(&mut self, commands: &str) -> Result<(String, String), SuggestionSolverError> {
-        let marker = format!("__flux_z3_end_{}__", self.request_id);
-        self.request_id += 1;
-        self.stderr.lock().unwrap().clear();
-        let stdin = self.stdin.as_mut().expect("Z3 stdin is open");
-        writeln!(stdin, "{commands}")?;
-        writeln!(stdin, "(echo \"{marker}\")")?;
-        stdin.flush()?;
-
-        // Look for response marker
-        let mut response = String::new();
-        loop {
-            let mut line = String::new();
-            match self.stdout.read_line(&mut line)? {
-                0 => {
-                    let status = self.child.try_wait()?.and_then(|status| status.code());
-                    let stderr = self.take_stderr();
-                    panic!(
-                        "Z3 closed stdout before the response marker (status {status:?}); stdout: {response:?}; stderr: {stderr:?}"
-                    );
-                }
-                _ if line.trim() == marker => return Ok((response, self.take_stderr())),
-                _ => response.push_str(&line),
-            }
+impl From<Z3Error> for SuggestionSolverError {
+    fn from(err: Z3Error) -> Self {
+        match err {
+            Z3Error::Io(err) => Self::Z3Process(err),
+            Z3Error::Timeout => Self::QETimeout,
         }
-    }
-
-    fn check_sat(&mut self, assertions: &[String]) -> Result<SatStatus, SuggestionSolverError> {
-        let mut commands = String::from("(push)\n");
-        for assertion in assertions {
-            writeln!(commands, "(assert {assertion})").unwrap();
-        }
-        commands.push_str("(check-sat)\n(pop)");
-        let (stdout, stderr) = self.request(&commands)?;
-        parse_status(&stdout, &stderr)
-    }
-
-    fn scoped<R>(
-        &mut self,
-        setup: &str,
-        f: impl FnOnce(&mut Self) -> Result<R, SuggestionSolverError>,
-    ) -> Result<R, SuggestionSolverError> {
-        self.request(&format!("(push)\n{setup}"))?;
-        let result = f(self);
-        let pop = self.request("(pop)");
-        match result {
-            Err(err) => Err(err),
-            Ok(value) => pop.map(|_| value),
-        }
-    }
-
-    fn reset(&mut self, declarations: &str) -> Result<(), SuggestionSolverError> {
-        self.request(&format!("(reset)\n{declarations}"))?;
-        Ok(())
-    }
-
-    fn take_stderr(&self) -> String {
-        let bytes = std::mem::take(&mut *self.stderr.lock().unwrap());
-        String::from_utf8_lossy(&bytes).into_owned()
     }
 }
 
-pub(crate) struct ProcessSolver<T: Types> {
-    session: Z3Session,
+pub struct SuggestionSolver<T: Types> {
+    session: Z3Subprocess,
     env: ConstraintGlobalEnv<T>,
 }
 
-impl<T: Types> ProcessSolver<T> {
-    pub(crate) fn new(
+impl<T: Types> SuggestionSolver<T> {
+    pub fn new(
         global_consts: &[ConstDecl<T>],
         funs: &[FunDef<T>],
-        datatype_decls: &[DataDecl<T>],
+        datatype_decls: Vec<DataDecl<T>>,
     ) -> Result<Self, SuggestionSolverError> {
-        let (env, declarations) = ConstraintGlobalEnv::new(datatype_decls, global_consts, funs)?;
-        let mut session = Z3Session::new()?;
+        let datatype_decls =
+            crate::constraint_with_env::topo_sort_data_declarations(datatype_decls);
+        let (env, declarations) = ConstraintGlobalEnv::new(&datatype_decls, global_consts, funs)?;
+        let mut session = Z3Subprocess::new()?;
         session.reset(&declarations)?;
         Ok(Self { session, env })
     }
@@ -167,13 +68,11 @@ impl<T: Types> ProcessSolver<T> {
             .map(|pred| self.env.pred(pred))
             .collect::<Result<Vec<_>, _>>()?;
         assertions.push(format!("(not {})", self.env.pred(&constraint.head)?));
-        let mut query = format!("(push)\n{}", locals.declarations);
+        let mut setup = locals.declarations;
         for assertion in &assertions {
-            writeln!(query, "(assert {assertion})").unwrap();
+            writeln!(setup, "(assert {assertion})").unwrap();
         }
-        query.push_str("(check-sat)\n(pop)");
-        let (output, stderr) = self.session.request(&query)?;
-        Ok(matches!(parse_status(&output, &stderr)?, SatStatus::Unsat))
+        Ok(matches!(self.session.check_sat(&setup)?, SatStatus::Unsat))
     }
 
     pub(crate) fn qe_and_simplify(
@@ -203,20 +102,15 @@ impl<T: Types> ProcessSolver<T> {
     }
 
     fn qe_and_simplify_in_context(
-        session: &mut Z3Session,
+        session: &mut Z3Subprocess,
         env: &ConstraintGlobalEnv<T>,
         locals: &ConstraintLocalEnv<'_, T>,
         assumptions: &[String],
         body: &str,
         implication: &str,
     ) -> Result<Expr<T>, SuggestionSolverError> {
-        let query =
-            format!("(push)\n(assert {implication})\n(apply (try-for (then qe nnf) 10000))\n(pop)");
-        let (output, stderr) = session.request(&query)?;
-        if is_timeout(&output) {
-            return Err(SuggestionSolverError::QETimeout);
-        }
-        let goals = parse_goals(&output, &stderr);
+        let goals =
+            session.apply(&format!("(assert {implication})"), "(try-for (then qe nnf) 10000)")?;
         let goal = goals.last().ok_or(SuggestionSolverError::NoResults)?;
         let mut candidate = goal
             .iter()
@@ -235,20 +129,10 @@ impl<T: Types> ProcessSolver<T> {
         }
 
         let sanity = format!("(not (=> {} {body}))", env.expr(&candidate)?);
-        if matches!(session.check_sat(&[sanity])?, SatStatus::Unsat) {
+        if matches!(session.check_sat(&format!("(assert {sanity})"))?, SatStatus::Unsat) {
             Ok(candidate)
         } else {
             Err(SuggestionSolverError::FailedSanityCheck)
-        }
-    }
-}
-
-impl Drop for Z3Session {
-    fn drop(&mut self) {
-        self.stdin.take();
-        let _ = self.child.wait();
-        if let Some(reader) = self.stderr_reader.take() {
-            let _ = reader.join();
         }
     }
 }
@@ -416,6 +300,13 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
         };
         match head {
             "let" => {
+                // FIXME: substitution below is not scope-aware. For example,
+                // (let ((x 1)) (let ((x 2)) x)) should decode to 2, but replacing
+                // the outer x also rewrites the inner binding to (let ((1 2)) 1).
+                // A fix must also preserve simultaneous let bindings: in
+                // (let ((x 1)) (let ((x 2) (y x)) y)), y refers to the outer x,
+                // so the result is 1, not 2. Decode all RHSs in the outer scope
+                // before extending the environment for the body.
                 let args = exact_arg(head, args, 2);
                 let Sexp::List(bindings) = &args[0] else {
                     panic!("malformed let bindings in Z3 output: {:?}", args[0]);
@@ -481,16 +372,11 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
                     "mod" => BinOp::Mod,
                     _ => unreachable!(),
                 };
-                let mut args = decoded()?.into_iter().rev();
-                let rhs = args
-                    .next()
-                    .expect("binary operator has at least two arguments");
+                let mut args = decoded()?.into_iter();
                 let lhs = args
                     .next()
                     .expect("binary operator has at least two arguments");
-                Ok(args.fold(Expr::BinaryOp(op, Box::new([lhs, rhs])), |rhs, lhs| {
-                    Expr::BinaryOp(op, Box::new([lhs, rhs]))
-                }))
+                Ok(args.fold(lhs, |lhs, rhs| Expr::BinaryOp(op, Box::new([lhs, rhs]))))
             }
             name => {
                 let var = self
@@ -526,7 +412,7 @@ fn substitute_sexp(sexp: &Sexp, substitutions: &HashMap<&str, &Sexp>) -> Sexp {
 fn prune_vacuous<T: Types>(
     expr: &mut Expr<T>,
     env: &ConstraintGlobalEnv<T>,
-    session: &mut Z3Session,
+    session: &mut Z3Subprocess,
 ) -> Result<bool, SuggestionSolverError> {
     match expr {
         Expr::And(conjuncts) => {
@@ -567,62 +453,13 @@ fn prune_vacuous<T: Types>(
                 }
             }
         }
-        _ => Ok(matches!(session.check_sat(&[env.expr(expr)?])?, SatStatus::Unsat)),
+        _ => {
+            Ok(matches!(
+                session.check_sat(&format!("(assert {})", env.expr(expr)?))?,
+                SatStatus::Unsat
+            ))
+        }
     }
-}
-
-fn parse_status(stdout: &str, stderr: &str) -> Result<SatStatus, SuggestionSolverError> {
-    match stdout.trim() {
-        "sat" => Ok(SatStatus::Sat),
-        "unsat" => Ok(SatStatus::Unsat),
-        "unknown" => Ok(SatStatus::Unknown),
-        _ if is_timeout(stdout) => Err(SuggestionSolverError::QETimeout),
-        _ => panic!("unexpected Z3 status response; stdout: {stdout:?}; stderr: {stderr:?}"),
-    }
-}
-
-fn is_timeout(stdout: &str) -> bool {
-    let output = stdout.trim().to_ascii_lowercase();
-    // Empirically, timeouts look like
-    //
-    //     (error "line 5 column 36: canceled")
-    //     (error "line 5 column 32: push canceled")
-    //
-    // It's possible that we get some other behavior, but also our timeout is
-    // pretty generous and shouldn't be hit so...
-    output.starts_with("(error ") && output.contains("canceled")
-}
-
-fn parse_goals(stdout: &str, stderr: &str) -> Vec<Vec<Sexp>> {
-    let parsed = Parser::new(stdout).parse_all().unwrap_or_else(|err| {
-        panic!("failed to parse Z3 goals response: {err:?}; stdout: {stdout:?}; stderr: {stderr:?}")
-    });
-    let [Sexp::List(items)] = parsed.as_slice() else {
-        panic!("expected one `(goals ...)` response; stdout: {stdout:?}; stderr: {stderr:?}");
-    };
-    if atom_symbol(items.first()) != Some("goals") {
-        panic!(
-            "Z3 goals response does not start with `goals`; stdout: {stdout:?}; stderr: {stderr:?}"
-        );
-    }
-    items[1..]
-        .iter()
-        .map(|goal| {
-            let Sexp::List(entries) = goal else {
-                panic!("Z3 goal response entry is not a list; entry: {goal:?}; stdout: {stdout:?}; stderr: {stderr:?}");
-            };
-            if atom_symbol(entries.first()) != Some("goal") {
-                panic!("expected `(goal ...)` in Z3 goals response; entry: {goal:?}; stdout: {stdout:?}; stderr: {stderr:?}");
-            }
-            let metadata = entries[1..]
-                .iter()
-                .position(|entry| {
-                    atom_symbol(Some(entry)).is_some_and(|name| name.starts_with(':'))
-                })
-                .unwrap_or(entries.len() - 1);
-            entries[1..1 + metadata].to_vec()
-        })
-        .collect()
 }
 
 fn application_head(head: &Sexp) -> &str {
@@ -661,5 +498,40 @@ fn conjunction(assertions: &[String]) -> String {
         [] => "true".to_string(),
         [only] => only.clone(),
         _ => format!("(and {})", assertions.join(" ")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sexp::Parser;
+
+    struct TestTypes;
+
+    impl Types for TestTypes {
+        type Sort = &'static str;
+        type KVar = &'static str;
+        type Var = &'static str;
+        type String = String;
+        type Real = u32;
+        type Tag = String;
+    }
+
+    #[test]
+    fn decode_left_associative_arithmetic() {
+        let globals = ConstraintGlobalEnv::<TestTypes>::new(&[], &[], &[])
+            .unwrap()
+            .0;
+        let locals = ConstraintLocalEnv::new(&globals, &[], &[]).unwrap();
+        for (input, expected) in [
+            ("(- 10 3 2)", "(- (- 10 3) 2)"),
+            ("(div 20 2 2)", "(div (div 20 2) 2)"),
+            ("(- 10)", "(- 10)"),
+            ("(+ 1 2 3)", "(+ (+ 1 2) 3)"),
+        ] {
+            let sexp = Parser::new(input).parse().unwrap();
+            let expr = locals.decode(&sexp).unwrap();
+            assert_eq!(globals.expr(&expr).unwrap(), expected);
+        }
     }
 }
