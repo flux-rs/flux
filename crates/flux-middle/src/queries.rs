@@ -389,7 +389,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
     /// Akin to `rustc_middle::ty::TyCtxt::module_children` but for flux items (`defs!` and
     /// sort declarations) defined directly in a module.
-    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
+    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_scope` is the source of truth")]
     pub(crate) fn flux_module_children(
         &'genv self,
         genv: GlobalEnv<'genv, 'tcx>,
@@ -404,29 +404,27 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     // resolver; `fhir_crate` would create a query cycle). Modules cannot
                     // have extern specs, so `local_id()` is sound.
                     let specs = genv.collect_specs();
-                    let parent = def_id.local_id();
+                    let module = rustc_hir::HirId::make_owner(def_id.local_id());
                     let items = specs
-                        .flux_items_by_parent
-                        .get(&rustc_hir::OwnerId { def_id: parent })
+                        .flux_items_by_scope
+                        .get(&module)
                         .map_or(&[][..], Vec::as_ref);
                     genv.alloc_slice(
                         &items
                             .iter()
-                            .filter_map(|item| {
+                            .filter_map(|crate::FluxItemDecl { declarer, item }| {
+                                let declarer = declarer.to_def_id();
                                 let ident;
                                 let res = match item {
                                     surface::FluxItem::FuncDef(func) => {
                                         ident = func.name;
                                         fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
-                                            FluxDefId::new(parent.to_def_id(), ident.name),
+                                            FluxDefId::new(declarer, ident.name),
                                         ))
                                     }
                                     surface::FluxItem::SortDecl(sort) => {
                                         ident = sort.name;
-                                        fhir::Res::UserSort(FluxDefId::new(
-                                            parent.to_def_id(),
-                                            ident.name,
-                                        ))
+                                        fhir::Res::UserSort(FluxDefId::new(declarer, ident.name))
                                     }
                                     surface::FluxItem::Qualifier(_)
                                     | surface::FluxItem::PrimOpProp(_)

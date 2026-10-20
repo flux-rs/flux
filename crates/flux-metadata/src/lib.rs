@@ -450,18 +450,19 @@ fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, D
     }
 }
 
-#[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
 fn encode_flux_module_children<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     tables: &mut Tables<'tcx, DefIndex>,
 ) {
-    let specs = genv.collect_specs();
-    for parent in specs.flux_items_by_parent.keys() {
-        let children = genv.flux_module_children(parent.def_id.to_def_id());
-        tables
-            .flux_module_children
-            .insert(parent.def_id.local_def_index, children.to_vec());
-    }
+    genv.tcx().hir_for_each_module(|module| {
+        let module = module.to_local_def_id();
+        let children = genv.flux_module_children(module.to_def_id());
+        if !children.is_empty() {
+            tables
+                .flux_module_children
+                .insert(module.local_def_index, children.to_vec());
+        }
+    });
 }
 
 fn encode_def_ids<'tcx, K: Eq + Hash + Copy>(
