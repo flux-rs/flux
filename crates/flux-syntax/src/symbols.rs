@@ -14,7 +14,6 @@ symbols! {
         Strg: "strg",
         Trusted: "trusted",
         Reft: "reft",
-        Invariant: "invariant",
         RefinedBy: "refined_by",
         Axiom: "axiom",
     }
@@ -47,6 +46,9 @@ pub mod kw {
     pub const Local: Symbol = rustc_span::symbol::sym::local;
     pub const Exists: Symbol = rustc_span::symbol::sym::exists;
     pub const Forall: Symbol = rustc_span::symbol::sym::forall;
+
+    // Predefined symbols in rustc that are Flux keywords but are not reserved.
+    pub const Invariant: Symbol = rustc_span::symbol::sym::invariant;
 }
 
 pub mod sym {
