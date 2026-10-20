@@ -54,6 +54,7 @@ pub trait LeanFmt {
 
 pub struct LeanKConstraint<'a> {
     pub theorem_name: &'a str,
+    pub type_params: &'a [fixpoint::DataSort],
     pub kvars: &'a [KVarDecl],
     /// Quantified above `kvars`' existentials so a kvar's solution can depend on them.
     pub const_binds: &'a [fixpoint::Bind],
@@ -107,6 +108,7 @@ impl LeanFmt for DataSort {
                 let (def_id, _) = cx.opaque_adt_map.get(opaque_id.as_usize()).unwrap();
                 write!(f, "{}", snake_case_to_pascal_case(def_id.name().as_str()))
             }
+            DataSort::Generic(sort) => write!(f, "{}", sort.display()),
             DataSort::Tuple(n) => write!(f, "Tupleₓ{}", dbg::as_subscript(n)),
             DataSort::Adt(adt_id) => {
                 let def_id = cx.adt_map.get_index(adt_id.as_usize()).unwrap();
@@ -687,6 +689,11 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
 
         if self.should_fail {
             write!(f, "¬")?;
+        }
+
+        for param in self.type_params {
+            let param = param.display();
+            write!(f, "∀ ({param} : Type) [Inhabited {param}], ")?;
         }
 
         for bind in self.const_binds {

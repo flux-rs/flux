@@ -666,6 +666,11 @@ pub(crate) fn new_datatype<T: Types>(
     sort
 }
 
+/// A data sort without a declaration is uninterpreted
+fn uninterpreted_sort<T: Types>(name: &T::Sort) -> z3::Sort {
+    z3::Sort::uninterpreted(z3::Symbol::String(name.display().to_string()))
+}
+
 pub(crate) fn new_binding<T: Types>(name: &str, sort: &Sort<T>, env: &Env<T>) -> Binding {
     match &sort {
         Sort::Int => Binding::Variable(ast::Int::new_const(name).into()),
@@ -707,10 +712,17 @@ pub(crate) fn new_binding<T: Types>(name: &str, sort: &Sort<T>, env: &Env<T>) ->
                     )
                 }
                 SortCtor::Data(data_ctor) => {
-                    Binding::Variable(
-                        ast::Datatype::new_const(name, env.datatype_lookup(data_ctor).unwrap())
-                            .into(),
-                    )
+                    match env.datatype_lookup(data_ctor) {
+                        Some(datatype) => {
+                            Binding::Variable(ast::Datatype::new_const(name, datatype).into())
+                        }
+                        None => {
+                            Binding::Variable(ast::Dynamic::new_const(
+                                name,
+                                &uninterpreted_sort::<T>(data_ctor),
+                            ))
+                        }
+                    }
                 }
             }
         }
@@ -734,7 +746,11 @@ fn z3_sort<T: Types>(s: &Sort<T>, env: &Env<T>) -> z3::Sort {
             match sort_ctor {
                 SortCtor::Set => z3::Sort::set(&z3_sort(&args[0], env)),
                 SortCtor::Map => z3::Sort::array(&z3_sort(&args[0], env), &z3_sort(&args[1], env)),
-                SortCtor::Data(sort) => env.datatype_lookup(sort).unwrap().clone(),
+                SortCtor::Data(sort) => {
+                    env.datatype_lookup(sort)
+                        .cloned()
+                        .unwrap_or_else(|| uninterpreted_sort::<T>(sort))
+                }
             }
         }
         _ => panic!("unhandled sort encountered {:#?}", s),

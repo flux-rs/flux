@@ -1267,6 +1267,10 @@ impl PolyFuncSort {
     }
 
     pub fn instantiate(&self, args: &[SortArg]) -> FuncSort {
+        // Any sort variable in a sort without params is bound by an outer scope
+        if self.params.is_empty() {
+            return self.fsort.clone();
+        }
         self.fsort.fold_with(&mut SortSubst::new(args))
     }
 }

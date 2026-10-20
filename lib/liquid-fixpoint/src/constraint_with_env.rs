@@ -171,8 +171,10 @@ pub fn topo_sort_data_declarations<T: Types>(datatype_decls: Vec<DataDecl<T>>) -
     for datatype_decl in datatype_decls {
         for data_constructor in &datatype_decl.ctors {
             for accessor in &data_constructor.fields {
+                // Names without a declaration, e.g., generic sorts, are not dependencies
                 if let Sort::App(ctor, _) = &accessor.sort
                     && let SortCtor::Data(data_ctor) = &ctor
+                    && datatype_dependencies.contains_key(data_ctor)
                 {
                     datatype_dependencies
                         .get_mut(&datatype_decl.name)

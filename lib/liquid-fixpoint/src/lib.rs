@@ -221,6 +221,8 @@ pub struct Task<T: Types> {
     pub kvars: Vec<KVarDecl<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
+    /// Sorts that are opaque to the solver, e.g., type parameters
+    pub generic_sorts: Vec<T::Sort>,
     pub scrape_quals: bool,
     pub solver: SmtSolver,
 }

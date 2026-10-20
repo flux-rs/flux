@@ -373,7 +373,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         let sort_vars = match item {
             FluxItem::FuncDef(defn) => &defn.sort_vars[..],
             FluxItem::SortDecl(sort_decl) => &sort_decl.sort_vars[..],
-            FluxItem::Qualifier(_) | FluxItem::PrimOpProp(_) => &[],
+            FluxItem::Qualifier(qualifier) => &qualifier.sort_vars[..],
+            FluxItem::PrimOpProp(_) => &[],
             FluxItem::Use(_) => {
                 // Use paths are resolved `CrateResolver::resolve_use_path`
                 return Ok(());
