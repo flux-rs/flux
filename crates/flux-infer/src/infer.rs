@@ -97,6 +97,8 @@ pub struct InferCtxtRootBuilder<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     opts: InferOpts,
     params: Vec<(Var, Sort)>,
+    /// Facts about `params` assumed for the whole tree, e.g., `N >= 0` for `const N: usize`
+    assumptions: Vec<Expr>,
     infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
     dummy_kvars: bool,
 }
@@ -108,7 +110,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         opts: InferOpts,
     ) -> InferCtxtRootBuilder<'a, 'genv, 'tcx> {
-        InferCtxtRootBuilder { genv: self, infcx, params: vec![], opts, dummy_kvars: false }
+        InferCtxtRootBuilder {
+            genv: self,
+            infcx,
+            params: vec![],
+            assumptions: vec![],
+            opts,
+            dummy_kvars: false,
+        }
     }
 }
 
@@ -118,14 +127,34 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
         self
     }
 
+    /// Adds the const generics of `def_id` to the root scope, assuming the same invariants an
+    /// ordinary value of the param's type gets when unpacked (e.g., `N >= 0` for `const N: usize`).
     pub fn with_const_generics(mut self, def_id: DefId) -> QueryResult<Self> {
-        self.params.extend(
-            self.genv
-                .generics_of(def_id)?
-                .const_params(self.genv)?
-                .into_iter()
-                .map(|(pcst, sort)| (Var::ConstGeneric(pcst), sort)),
-        );
+        let tcx = self.genv.tcx();
+        for (param_const, sort, param_def_id) in
+            self.genv.generics_of(def_id)?.const_params(self.genv)?
+        {
+            // The type of a const param is a plain scalar (`usize`, `bool`, ...), so there is
+            // nothing to normalize.
+            let param_ty = tcx
+                .type_of(param_def_id)
+                .instantiate_identity()
+                .skip_normalization();
+            let bty = match param_ty.kind() {
+                rustc_middle::ty::Uint(uint_ty) => Some(BaseTy::Uint(*uint_ty)),
+                rustc_middle::ty::Int(int_ty) => Some(BaseTy::Int(*int_ty)),
+                rustc_middle::ty::Char => Some(BaseTy::Char),
+                _ => None,
+            };
+            if let Some(bty) = bty {
+                let idx = Expr::const_generic(param_const);
+                self.assumptions.extend(
+                    bty.invariants(self.genv, self.opts.check_overflow)
+                        .map(|inv| inv.apply(&idx)),
+                );
+            }
+            self.params.push((Var::ConstGeneric(param_const), sort));
+        }
         Ok(self)
     }
 
@@ -176,7 +205,7 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
         Ok(InferCtxtRoot {
             genv: self.genv,
             inner: RefCell::new(InferCtxtInner::new(self.dummy_kvars)),
-            refine_tree: RefineTree::new(self.params),
+            refine_tree: RefineTree::new(self.params, self.assumptions),
             opts: self.opts,
         })
     }
