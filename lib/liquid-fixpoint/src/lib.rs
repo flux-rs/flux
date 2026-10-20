@@ -64,7 +64,7 @@ use process_control::{ChildExt, Control};
 #[cfg(feature = "rust-fixpoint")]
 use crate::constraint_with_env::ConstraintWithEnv;
 use crate::constraint_with_env::topo_sort_data_declarations;
-pub use crate::z3_process::{SMTFormatError, SolvingError, SuggestionSolverError, Z3Error};
+pub use crate::z3_process::SuggestionSolverError;
 
 pub struct SuggestionSolver<T: Types> {
     process: z3_process::ProcessSolver<T>,

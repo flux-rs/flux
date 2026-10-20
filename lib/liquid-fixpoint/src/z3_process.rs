@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::Write as _,
-    io::{BufRead, BufReader, Read as _, Write as _},
+    io::{self, BufRead, BufReader, Read as _, Write as _},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{Arc, Mutex},
     thread::JoinHandle,
@@ -11,65 +11,21 @@ use crate::{
     BinOp, BinRel, ConstDecl, Constant, DataDecl, Expr, FlatConstraint, FunDef, Identifier, Pred,
     Sort, Types,
     sexp::{Atom, Parser, Sexp},
-    smt_fmt::{SmtEncodeError, SmtEncoder, SmtOptions},
+    smt_fmt::{SmtEncoder, SmtOptions},
 };
 
 #[derive(Debug)]
 pub enum SuggestionSolverError {
-    Z3(Z3Error),
-    SMTFormat(SMTFormatError),
-    Solving(SolvingError),
-}
-
-#[derive(Debug)]
-pub enum Z3Error {
-    Spawn(String),
-    Io(String),
-    UnexpectedStatus { stdout: String, stderr: String },
-    MalformedResponse { message: String, stdout: String, stderr: String },
-}
-
-#[derive(Debug)]
-pub enum SMTFormatError {
-    Format(String),
-    UnsupportedInput(String),
-    UnsupportedOutput(String),
-}
-
-#[derive(Debug)]
-pub enum SolvingError {
+    Z3Process(io::Error),
+    QETimeout,
     ContainsQuantifier,
     NoResults,
-    QETimeout,
     FailedSanityCheck,
 }
 
-impl From<Z3Error> for SuggestionSolverError {
-    fn from(err: Z3Error) -> Self {
-        Self::Z3(err)
-    }
-}
-
-impl From<SMTFormatError> for SuggestionSolverError {
-    fn from(err: SMTFormatError) -> Self {
-        Self::SMTFormat(err)
-    }
-}
-
-impl From<SolvingError> for SuggestionSolverError {
-    fn from(err: SolvingError) -> Self {
-        Self::Solving(err)
-    }
-}
-
-impl From<SmtEncodeError> for SuggestionSolverError {
-    fn from(err: SmtEncodeError) -> Self {
-        match err {
-            SmtEncodeError::UnsupportedInput(message) => {
-                SMTFormatError::UnsupportedInput(message).into()
-            }
-            SmtEncodeError::Format(err) => SMTFormatError::Format(err.to_string()).into(),
-        }
+impl From<io::Error> for SuggestionSolverError {
+    fn from(err: io::Error) -> Self {
+        Self::Z3Process(err)
     }
 }
 
@@ -86,7 +42,6 @@ struct Z3Session {
     stdout: BufReader<ChildStdout>,
     stderr: Arc<Mutex<Vec<u8>>>,
     stderr_reader: Option<JoinHandle<()>>,
-    last_stderr: String,
     request_id: usize,
 }
 
@@ -97,20 +52,10 @@ impl Z3Session {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|err| Z3Error::Spawn(err.to_string()))?;
-        let stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| Z3Error::Io("Z3 stdin was not piped".to_string()))?;
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| Z3Error::Io("Z3 stdout was not piped".to_string()))?;
-        let mut child_stderr = child
-            .stderr
-            .take()
-            .ok_or_else(|| Z3Error::Io("Z3 stderr was not piped".to_string()))?;
+            .spawn()?;
+        let stdin = child.stdin.take().expect("Z3 stdin is piped");
+        let stdout = child.stdout.take().expect("Z3 stdout is piped");
+        let mut child_stderr = child.stderr.take().expect("Z3 stderr is piped");
         let stderr = Arc::new(Mutex::new(Vec::new()));
         let stderr_buf = Arc::clone(&stderr);
         let stderr_reader = std::thread::spawn(move || {
@@ -128,51 +73,34 @@ impl Z3Session {
             stdout: BufReader::new(stdout),
             stderr,
             stderr_reader: Some(stderr_reader),
-            last_stderr: String::new(),
             request_id: 0,
         })
     }
 
-    fn request(&mut self, commands: &str) -> Result<String, SuggestionSolverError> {
+    fn request(&mut self, commands: &str) -> Result<(String, String), SuggestionSolverError> {
         let marker = format!("__flux_z3_end_{}__", self.request_id);
         self.request_id += 1;
         self.stderr.lock().unwrap().clear();
-        let stdin = self
-            .stdin
-            .as_mut()
-            .ok_or_else(|| Z3Error::Io("Z3 stdin is closed".to_string()))?;
-        writeln!(stdin, "{commands}").map_err(|err| Z3Error::Io(err.to_string()))?;
-        writeln!(stdin, "(echo \"{marker}\")").map_err(|err| Z3Error::Io(err.to_string()))?;
-        stdin.flush().map_err(|err| Z3Error::Io(err.to_string()))?;
+        let stdin = self.stdin.as_mut().expect("Z3 stdin is open");
+        writeln!(stdin, "{commands}")?;
+        writeln!(stdin, "(echo \"{marker}\")")?;
+        stdin.flush()?;
 
+        // Look for response marker
         let mut response = String::new();
         loop {
             let mut line = String::new();
-            let read = self
-                .stdout
-                .read_line(&mut line)
-                .map_err(|err| Z3Error::Io(err.to_string()))?;
-            if read == 0 {
-                let status = self
-                    .child
-                    .try_wait()
-                    .map_err(|err| Z3Error::Io(err.to_string()))?
-                    .and_then(|status| status.code());
-                self.last_stderr = self.take_stderr();
-                return Err(Z3Error::MalformedResponse {
-                    message: format!(
-                        "Z3 closed stdout before the response marker (status {status:?})"
-                    ),
-                    stdout: response,
-                    stderr: self.last_stderr.clone(),
+            match self.stdout.read_line(&mut line)? {
+                0 => {
+                    let status = self.child.try_wait()?.and_then(|status| status.code());
+                    let stderr = self.take_stderr();
+                    panic!(
+                        "Z3 closed stdout before the response marker (status {status:?}); stdout: {response:?}; stderr: {stderr:?}"
+                    );
                 }
-                .into());
+                _ if line.trim() == marker => return Ok((response, self.take_stderr())),
+                _ => response.push_str(&line),
             }
-            if line.trim() == marker {
-                self.last_stderr = self.take_stderr();
-                return Ok(response);
-            }
-            response.push_str(&line);
         }
     }
 
@@ -182,8 +110,8 @@ impl Z3Session {
             writeln!(commands, "(assert {assertion})").unwrap();
         }
         commands.push_str("(check-sat)\n(pop)");
-        let stdout = self.request(&commands)?;
-        parse_status(&stdout, &self.last_stderr)
+        let (stdout, stderr) = self.request(&commands)?;
+        parse_status(&stdout, &stderr)
     }
 
     fn scoped<R>(
@@ -244,8 +172,8 @@ impl<T: Types> ProcessSolver<T> {
             writeln!(query, "(assert {assertion})").unwrap();
         }
         query.push_str("(check-sat)\n(pop)");
-        let output = self.session.request(&query)?;
-        Ok(matches!(parse_status(&output, &self.session.last_stderr)?, SatStatus::Unsat))
+        let (output, stderr) = self.session.request(&query)?;
+        Ok(matches!(parse_status(&output, &stderr)?, SatStatus::Unsat))
     }
 
     pub(crate) fn qe_and_simplify(
@@ -284,20 +212,19 @@ impl<T: Types> ProcessSolver<T> {
     ) -> Result<Expr<T>, SuggestionSolverError> {
         let query =
             format!("(push)\n(assert {implication})\n(apply (try-for (then qe nnf) 10000))\n(pop)");
-        let output = session.request(&query)?;
-        let stderr = session.last_stderr.clone();
+        let (output, stderr) = session.request(&query)?;
         if is_timeout(&output) {
-            return Err(SolvingError::QETimeout.into());
+            return Err(SuggestionSolverError::QETimeout);
         }
-        let goals = parse_goals(&output, &stderr)?;
-        let goal = goals.last().ok_or(SolvingError::NoResults)?;
+        let goals = parse_goals(&output, &stderr);
+        let goal = goals.last().ok_or(SuggestionSolverError::NoResults)?;
         let mut candidate = goal
             .iter()
             .map(|formula| locals.decode(formula))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .min_by_key(Expr::total_num_disjuncts)
-            .ok_or(SolvingError::NoResults)?;
+            .ok_or(SuggestionSolverError::NoResults)?;
 
         let mut setup = String::new();
         for assumption in assumptions {
@@ -311,7 +238,7 @@ impl<T: Types> ProcessSolver<T> {
         if matches!(session.check_sat(&[sanity])?, SatStatus::Unsat) {
             Ok(candidate)
         } else {
-            Err(SolvingError::FailedSanityCheck.into())
+            Err(SuggestionSolverError::FailedSanityCheck)
         }
     }
 }
@@ -357,31 +284,33 @@ impl<T: Types> ConstraintGlobalEnv<T> {
         let encoder = SmtEncoder::new(datatype_decls, SmtOptions::SUGGESTIONS);
         let mut out = String::new();
         for decl in datatype_decls {
-            encoder.write_datatype_decl(&mut out, decl)?;
+            encoder.write_datatype_decl(&mut out, decl).unwrap();
         }
 
         let mut declared = HashSet::new();
         for decl in global_consts {
             let name = decl.name.display().to_string();
             if declared.insert(name.clone()) {
-                encoder.write_const_decl(&mut out, &name, &decl.sort)?;
+                encoder
+                    .write_const_decl(&mut out, &name, &decl.sort)
+                    .unwrap();
             }
         }
         for fun in funs {
             let name = fun.name.display().to_string();
             if declared.insert(name.clone()) {
-                encoder.write_fun_def(&mut out, fun)?;
+                encoder.write_fun_def(&mut out, fun).unwrap();
             }
         }
         Ok((Self { symbols, declared_names: declared, encoder }, out))
     }
 
     fn pred(&self, pred: &Pred<T>) -> Result<String, SuggestionSolverError> {
-        Ok(self.encoder.pred(pred)?)
+        Ok(self.encoder.pred(pred).unwrap())
     }
 
     fn expr(&self, expr: &Expr<T>) -> Result<String, SuggestionSolverError> {
-        Ok(self.encoder.expr(expr)?)
+        Ok(self.encoder.expr(expr).unwrap())
     }
 
     fn quantified_implication(
@@ -392,7 +321,7 @@ impl<T: Types> ConstraintGlobalEnv<T> {
         let mut quantified = body.to_string();
         for (name, sort) in &cstr.binders {
             let mut binder_sort = String::new();
-            self.encoder.write_sort(&mut binder_sort, sort)?;
+            self.encoder.write_sort(&mut binder_sort, sort).unwrap();
             quantified = format!("(forall (({} {binder_sort})) {quantified})", name.display());
         }
         Ok(quantified)
@@ -424,7 +353,8 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
             if !globals.declared_names.contains(&name) && declared.insert(name.clone()) {
                 globals
                     .encoder
-                    .write_const_decl(&mut declarations, &name, sort)?;
+                    .write_const_decl(&mut declarations, &name, sort)
+                    .unwrap();
             }
             if !globals.symbols.contains_key(&name) {
                 symbols.insert(name, var.clone());
@@ -452,10 +382,7 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
                 Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral(value.unsigned_abs())))))
             }
             Sexp::Atom(Atom::S(name)) => self.decode_symbol(name),
-            Sexp::Atom(atom) => {
-                Err(SMTFormatError::UnsupportedOutput(format!("unsupported atom `{atom:?}`"))
-                    .into())
-            }
+            Sexp::Atom(atom) => panic!("unsupported atom in Z3 output: `{atom:?}`"),
             Sexp::List(items) => self.decode_application(items),
         }
     }
@@ -465,20 +392,22 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
             "true" => Ok(Expr::TRUE),
             "false" => Ok(Expr::FALSE),
             _ => {
-                self.symbol(name).cloned().map(Expr::Var).ok_or_else(|| {
-                    SMTFormatError::UnsupportedOutput(format!("unknown symbol `{name}`")).into()
-                })
+                Ok(Expr::Var(
+                    self.symbol(name)
+                        .cloned()
+                        .unwrap_or_else(|| panic!("unknown symbol in Z3 output: `{name}`")),
+                ))
             }
         }
     }
 
     fn decode_application(&self, items: &[Sexp]) -> Result<Expr<T>, SuggestionSolverError> {
         let Some((head, args)) = items.split_first() else {
-            return Err(SMTFormatError::UnsupportedOutput("empty application".to_string()).into());
+            panic!("empty application in Z3 output");
         };
-        let head = application_head(head)?;
+        let head = application_head(head);
         if matches!(head, "forall" | "exists") {
-            return Err(SolvingError::ContainsQuantifier.into());
+            return Err(SuggestionSolverError::ContainsQuantifier);
         }
         let decoded = || {
             args.iter()
@@ -487,26 +416,17 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
         };
         match head {
             "let" => {
-                let args = exact_arg(head, args, 2)?;
+                let args = exact_arg(head, args, 2);
                 let Sexp::List(bindings) = &args[0] else {
-                    return Err(SMTFormatError::UnsupportedOutput(
-                        "malformed let bindings".to_string(),
-                    )
-                    .into());
+                    panic!("malformed let bindings in Z3 output: {:?}", args[0]);
                 };
                 let mut substitutions = HashMap::new();
                 for binding in bindings {
                     let Sexp::List(binding) = binding else {
-                        return Err(SMTFormatError::UnsupportedOutput(
-                            "malformed let binding".to_string(),
-                        )
-                        .into());
+                        panic!("malformed let binding in Z3 output: {binding:?}");
                     };
                     let [Sexp::Atom(Atom::S(name)), value] = binding.as_slice() else {
-                        return Err(SMTFormatError::UnsupportedOutput(
-                            "malformed let binding".to_string(),
-                        )
-                        .into());
+                        panic!("malformed let binding in Z3 output: {binding:?}");
                     };
                     substitutions.insert(name.as_str(), value);
                 }
@@ -514,13 +434,13 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
             }
             "and" => Ok(Expr::And(decoded()?)),
             "or" => Ok(Expr::Or(decoded()?)),
-            "not" => Ok(Expr::Not(Box::new(self.decode(&exact_arg(head, args, 1)?[0])?))),
+            "not" => Ok(Expr::Not(Box::new(self.decode(&exact_arg(head, args, 1)[0])?))),
             "=>" => {
-                let args = exact_arg(head, args, 2)?;
+                let args = exact_arg(head, args, 2);
                 Ok(Expr::Imp(Box::new([self.decode(&args[0])?, self.decode(&args[1])?])))
             }
             "=" => {
-                let args = exact_arg(head, args, 2)?;
+                let args = exact_arg(head, args, 2);
                 Ok(Expr::Atom(
                     BinRel::Eq,
                     Box::new([self.decode(&args[0])?, self.decode(&args[1])?]),
@@ -534,11 +454,11 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
                     ">=" => BinRel::Ge,
                     _ => unreachable!(),
                 };
-                let args = exact_arg(head, args, 2)?;
+                let args = exact_arg(head, args, 2);
                 Ok(Expr::Atom(rel, Box::new([self.decode(&args[0])?, self.decode(&args[1])?])))
             }
             "ite" => {
-                let args = exact_arg(head, args, 3)?;
+                let args = exact_arg(head, args, 3);
                 Ok(Expr::IfThenElse(Box::new([
                     self.decode(&args[0])?,
                     self.decode(&args[1])?,
@@ -547,6 +467,12 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
             }
             "-" if args.len() == 1 => Ok(Expr::Neg(Box::new(self.decode(&args[0])?))),
             "+" | "-" | "*" | "div" | "mod" => {
+                if args.len() < 2 {
+                    panic!(
+                        "expected at least two arguments for `{head}` in Z3 output, got {}",
+                        args.len()
+                    );
+                }
                 let op = match head {
                     "+" => BinOp::Add,
                     "-" => BinOp::Sub,
@@ -556,19 +482,20 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
                     _ => unreachable!(),
                 };
                 let mut args = decoded()?.into_iter().rev();
-                let rhs = args.next().ok_or_else(|| arg_count(head, 0))?;
-                let lhs = args.next().ok_or_else(|| arg_count(head, 1))?;
+                let rhs = args
+                    .next()
+                    .expect("binary operator has at least two arguments");
+                let lhs = args
+                    .next()
+                    .expect("binary operator has at least two arguments");
                 Ok(args.fold(Expr::BinaryOp(op, Box::new([lhs, rhs])), |rhs, lhs| {
                     Expr::BinaryOp(op, Box::new([lhs, rhs]))
                 }))
             }
             name => {
-                let Some(var) = self.symbol(name) else {
-                    return Err(SMTFormatError::UnsupportedOutput(format!(
-                        "unknown application `{name}`"
-                    ))
-                    .into());
-                };
+                let var = self
+                    .symbol(name)
+                    .unwrap_or_else(|| panic!("unknown application in Z3 output: `{name}`"));
                 Ok(Expr::App(Box::new(Expr::Var(var.clone())), None, decoded()?, None))
             }
         }
@@ -649,68 +576,43 @@ fn parse_status(stdout: &str, stderr: &str) -> Result<SatStatus, SuggestionSolve
         "sat" => Ok(SatStatus::Sat),
         "unsat" => Ok(SatStatus::Unsat),
         "unknown" => Ok(SatStatus::Unknown),
-        _ if is_timeout(stdout) => Err(SolvingError::QETimeout.into()),
-        _ => {
-            Err(Z3Error::UnexpectedStatus {
-                stdout: stdout.to_string(),
-                stderr: stderr.to_string(),
-            }
-            .into())
-        }
+        _ if is_timeout(stdout) => Err(SuggestionSolverError::QETimeout),
+        _ => panic!("unexpected Z3 status response; stdout: {stdout:?}; stderr: {stderr:?}"),
     }
 }
 
 fn is_timeout(stdout: &str) -> bool {
-    let output = stdout.to_ascii_lowercase();
-    output.contains("timeout")
-        || output.contains("timed out")
-        || output.contains("canceled")
-        || output.contains(":precision under")
-        || (output.contains("tactic") && output.contains("failed"))
+    let output = stdout.trim().to_ascii_lowercase();
+    // Empirically, timeouts look like
+    //
+    //     (error "line 5 column 36: canceled")
+    //     (error "line 5 column 32: push canceled")
+    //
+    // It's possible that we get some other behavior, but also our timeout is
+    // pretty generous and shouldn't be hit so...
+    output.starts_with("(error ") && output.contains("canceled")
 }
 
-fn parse_goals(stdout: &str, stderr: &str) -> Result<Vec<Vec<Sexp>>, SuggestionSolverError> {
-    let parsed = Parser::new(stdout).parse_all().map_err(|err| {
-        SuggestionSolverError::Z3(Z3Error::MalformedResponse {
-            message: format!("{err:?}"),
-            stdout: stdout.to_string(),
-            stderr: stderr.to_string(),
-        })
-    })?;
+fn parse_goals(stdout: &str, stderr: &str) -> Vec<Vec<Sexp>> {
+    let parsed = Parser::new(stdout).parse_all().unwrap_or_else(|err| {
+        panic!("failed to parse Z3 goals response: {err:?}; stdout: {stdout:?}; stderr: {stderr:?}")
+    });
     let [Sexp::List(items)] = parsed.as_slice() else {
-        return Err(Z3Error::MalformedResponse {
-            message: "expected one `(goals ...)` response".to_string(),
-            stdout: stdout.to_string(),
-            stderr: stderr.to_string(),
-        }
-        .into());
+        panic!("expected one `(goals ...)` response; stdout: {stdout:?}; stderr: {stderr:?}");
     };
     if atom_symbol(items.first()) != Some("goals") {
-        return Err(Z3Error::MalformedResponse {
-            message: "response does not start with `goals`".to_string(),
-            stdout: stdout.to_string(),
-            stderr: stderr.to_string(),
-        }
-        .into());
+        panic!(
+            "Z3 goals response does not start with `goals`; stdout: {stdout:?}; stderr: {stderr:?}"
+        );
     }
     items[1..]
         .iter()
         .map(|goal| {
             let Sexp::List(entries) = goal else {
-                return Err(Z3Error::MalformedResponse {
-                    message: "goal is not a list".to_string(),
-                    stdout: stdout.to_string(),
-                    stderr: stderr.to_string(),
-                }
-                .into());
+                panic!("Z3 goal response entry is not a list; entry: {goal:?}; stdout: {stdout:?}; stderr: {stderr:?}");
             };
             if atom_symbol(entries.first()) != Some("goal") {
-                return Err(Z3Error::MalformedResponse {
-                    message: "expected `(goal ...)`".to_string(),
-                    stdout: stdout.to_string(),
-                    stderr: stderr.to_string(),
-                }
-                .into());
+                panic!("expected `(goal ...)` in Z3 goals response; entry: {goal:?}; stdout: {stdout:?}; stderr: {stderr:?}");
             }
             let metadata = entries[1..]
                 .iter()
@@ -718,23 +620,22 @@ fn parse_goals(stdout: &str, stderr: &str) -> Result<Vec<Vec<Sexp>>, SuggestionS
                     atom_symbol(Some(entry)).is_some_and(|name| name.starts_with(':'))
                 })
                 .unwrap_or(entries.len() - 1);
-            Ok(entries[1..1 + metadata].to_vec())
+            entries[1..1 + metadata].to_vec()
         })
         .collect()
 }
 
-fn application_head(head: &Sexp) -> Result<&str, SuggestionSolverError> {
+fn application_head(head: &Sexp) -> &str {
     if let Sexp::Atom(Atom::S(name)) = head {
-        return Ok(name);
+        return name;
     }
     if let Sexp::List(items) = head
         && atom_symbol(items.first()) == Some("as")
         && let Some(Sexp::Atom(Atom::S(name))) = items.get(1)
     {
-        return Ok(name);
+        return name;
     }
-    Err(SMTFormatError::UnsupportedOutput(format!("unsupported application head `{head:?}`"))
-        .into())
+    panic!("unsupported application head in Z3 output: `{head:?}`")
 }
 
 fn atom_symbol(sexp: Option<&Sexp>) -> Option<&str> {
@@ -744,19 +645,15 @@ fn atom_symbol(sexp: Option<&Sexp>) -> Option<&str> {
     }
 }
 
-fn exact_arg<'a>(
-    operator: &str,
-    args: &'a [Sexp],
-    expected: usize,
-) -> Result<&'a [Sexp], SuggestionSolverError> {
-    if args.len() == expected { Ok(args) } else { Err(arg_count(operator, args.len())) }
-}
-
-fn arg_count(operator: &str, actual: usize) -> SuggestionSolverError {
-    SMTFormatError::UnsupportedOutput(format!(
-        "unexpected argument count for `{operator}`: {actual}"
-    ))
-    .into()
+fn exact_arg<'a>(operator: &str, args: &'a [Sexp], expected: usize) -> &'a [Sexp] {
+    if args.len() == expected {
+        args
+    } else {
+        panic!(
+            "unexpected argument count for `{operator}` in Z3 output: expected {expected}, got {}",
+            args.len()
+        )
+    }
 }
 
 fn conjunction(assertions: &[String]) -> String {

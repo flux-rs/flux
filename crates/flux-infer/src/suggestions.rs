@@ -2,7 +2,11 @@ use std::collections::HashSet;
 
 use flux_middle::rty;
 use itertools::Itertools;
-use liquid_fixpoint::{SuggestionSolver, check_validity, qe_and_simplify};
+use liquid_fixpoint::{
+    SuggestionSolver,
+    SuggestionSolverError::{self, Z3Process},
+    check_validity, qe_and_simplify,
+};
 use rustc_data_structures::fx::FxIndexMap;
 
 use crate::{
@@ -98,8 +102,12 @@ where
     for (wkvar, flat_constraint, other_constrs) in wkvars_and_constraints {
         let mut valid = true;
         for other_constr in other_constrs {
-            let validity = check_validity(solver, &other_constr);
-            if !validity? {
+            let validity = match check_validity(solver, &other_constr) {
+                Ok(b) => b,
+                Err(Z3Process(e)) => panic!("Z3 process returned an error {}", e),
+                Err(_) => false,
+            };
+            if !validity {
                 valid = false;
                 break;
             }
@@ -163,6 +171,8 @@ where
                     Err(_) => None,
                 }
             }
+            Err(SuggestionSolverError::Z3Process(e)) => panic!("Z3 returned an error: {}", e),
+            Err(SuggestionSolverError::FailedSanityCheck) => panic!("Failed sanity check!"),
             Err(_) => fallback(fxctx),
         };
         if let Some(solution) = solution {
