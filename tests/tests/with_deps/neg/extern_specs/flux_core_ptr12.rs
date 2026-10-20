@@ -43,6 +43,14 @@ pub fn test_double_deref_invalid_inner(x: *mut *mut i32) {
     let _v: i32 = unsafe { **x }; //~ ERROR refinement type error
 }
 
+// this requires proving ownership over p
+pub fn test_double_deref_unrefined_inner() {
+    let mut v = 0;
+    let p = &raw mut v;
+    let pp: *const *mut i32 = &raw const p;
+    let _r = unsafe { &mut **pp }; //~ ERROR refinement type error
+}
+
 pub struct Pair {
     pub fst: i32,
     pub snd: i32,

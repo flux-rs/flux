@@ -1984,13 +1984,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     } else if let rustc_middle::ty::RawPtr(pointee, mutbl) = ty.kind()
                         && let Ok(pointee_ty) = pointee.lower(self.genv.tcx())
                     {
-                        // Static mut's are always valid and aligned
+                        // Static muts are always valid and aligned
                         let ctor = self
                             .default_refiner
                             .refine_ty_or_base(&pointee_ty)?
                             .expect_base();
                         let ptr_bty = BaseTy::RawPtr(ctor.to_ty(), *mutbl);
-                        // Static mut's are also always sized. Note that we don't need to
+                        // Static muts are also always sized. Note that we don't need to
                         // compute packedness here, since this can't be a pointer to a field
                         let pred = sized_raw_ptr_pred(self.genv, &ctor, &Expr::nu(), None);
                         Ok(Some(Ty::exists_with_constr(ptr_bty, pred)))
