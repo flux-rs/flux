@@ -49,6 +49,14 @@ impl FluxItem {
             FluxItem::Use(_) => None,
         }
     }
+
+    pub fn sort_vars(&self) -> &[Ident] {
+        match self {
+            FluxItem::FuncDef(defn) => &defn.sort_vars[..],
+            FluxItem::SortDecl(sort_decl) => &sort_decl.sort_vars[..],
+            FluxItem::Qualifier(_) | FluxItem::PrimOpProp(_) | FluxItem::Use(_) => &[],
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -334,6 +342,16 @@ pub struct SortPath {
     pub node_id: NodeId,
 }
 
+impl SortPath {
+    pub fn span(&self) -> Span {
+        self.segments
+            .iter()
+            .map(|ident| ident.span)
+            .reduce(Span::to)
+            .unwrap_or_default()
+    }
+}
+
 #[derive(Debug)]
 pub struct Impl {
     pub generics: Option<Generics>,
@@ -526,7 +544,7 @@ impl Ty {
             is_refined: bool,
         }
         let mut vis = IsRefinedVisitor { is_refined: false };
-        impl visit::Visitor for IsRefinedVisitor {
+        impl visit::Visitor<'_> for IsRefinedVisitor {
             fn visit_ty(&mut self, ty: &Ty) {
                 match &ty.kind {
                     TyKind::Tuple(_)
@@ -955,7 +973,7 @@ impl Expr {
             vars: FxIndexSet<Ident>,
         }
 
-        impl visit::Visitor for FreeVarsVisitor {
+        impl visit::Visitor<'_> for FreeVarsVisitor {
             fn visit_expr(&mut self, expr: &Expr) {
                 match &expr.kind {
                     ExprKind::Path(path) => {
