@@ -72,8 +72,7 @@ pub(crate) trait ScopedVisitor<'genv, 'tcx: 'genv>: Sized {
     }
 
     fn on_implicit_param(&mut self, _ident: Ident, _kind: fhir::ParamKind, _node_id: NodeId) {}
-    fn on_loc(&mut self, _loc: Ident, _node_id: NodeId) {}
-    fn on_path(&mut self, _path: &surface::ExprPath) {}
+    fn on_path<S: Segment>(&mut self, _segments: &[S], _node_id: NodeId, _span: Span) {}
     fn on_sort_path(&mut self, _path: &surface::SortPath) {}
 }
 
@@ -282,7 +281,7 @@ impl<'v, 'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visi
 
     fn visit_ensures(&mut self, constraint: &'v surface::Ensures) {
         if let surface::Ensures::Type(loc, _, node_id) = constraint {
-            self.on_loc(*loc, *node_id);
+            self.on_path(std::slice::from_ref(loc), *node_id, loc.span);
         }
         surface::visit::walk_ensures(self, constraint);
     }
@@ -392,7 +391,7 @@ impl<'v, 'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visi
     }
 
     fn visit_path_expr(&mut self, path: &'v surface::ExprPath) {
-        self.on_path(path);
+        self.on_path(&path.segments, path.node_id, path.span);
     }
 
     fn visit_sort_path(&mut self, path: &'v surface::SortPath) {
@@ -535,7 +534,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         }
     }
 
-    fn resolve_segments<S: Segment>(&mut self, segments: &[S], node_id: NodeId, span: Span) {
+    fn resolve_path<S: Segment>(&mut self, segments: &[S], node_id: NodeId, span: Span) {
         match self.try_resolve_expr_with_ribs(segments) {
             Ok(res) => self.record_expr_res(node_id, res, segments.last().unwrap().ident()),
             Err(err) => {
@@ -649,12 +648,8 @@ impl<'genv, 'tcx> ScopedVisitor<'genv, 'tcx> for RefinementResolver<'_, 'genv, '
         }
     }
 
-    fn on_loc(&mut self, loc: Ident, node_id: NodeId) {
-        self.resolve_segments(&[loc], node_id, loc.span);
-    }
-
-    fn on_path(&mut self, path: &surface::ExprPath) {
-        self.resolve_segments(&path.segments, path.node_id, path.span);
+    fn on_path<S: Segment>(&mut self, segments: &[S], node_id: NodeId, span: Span) {
+        self.resolve_path(segments, node_id, span);
     }
 
     fn on_sort_path(&mut self, path: &surface::SortPath) {

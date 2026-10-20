@@ -1302,7 +1302,7 @@ fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
 
 /// Abstraction over a "segment" so we can use [`CrateResolver::resolve_path_with_ribs`] with paths
 /// from different sources  (e.g., [`surface::PathSegment`], [`surface::ExprPathSegment`])
-trait Segment: std::fmt::Debug {
+pub(crate) trait Segment: std::fmt::Debug {
     fn record_segment_res(
         resolver: &mut CrateResolver,
         segment: &Self,
