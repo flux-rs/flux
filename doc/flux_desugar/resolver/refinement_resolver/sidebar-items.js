@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["errors"],"struct":["IllegalBinderVisitor","ImplicitParamCollector","ParamDef","RefinementResolver","ScopedVisitorWrapper"],"trait":["ScopedVisitor"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"enum":["BinderKind","Scope"],"mod":["errors"],"struct":["ImplicitParamCollector","ParamDef","RefinementResolver","ScopedVisitorWrapper"],"trait":["ScopedVisitor"],"type":["ImplicitParams","Result"]};

@@ -52,7 +52,7 @@
 <a href=#52 id=52 data-nosnippet>52</a>        resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ResolverOutput,
 <a href=#53 id=53 data-nosnippet>53</a>        found: UnordSet&lt;DefId&gt;,
 <a href=#54 id=54 data-nosnippet>54</a>    }
-<a href=#55 id=55 data-nosnippet>55</a>    <span class="kw">impl </span>surface::visit::Visitor <span class="kw">for </span>ParamCollector&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#55 id=55 data-nosnippet>55</a>    <span class="kw">impl </span>surface::visit::Visitor&lt;<span class="lifetime">'_</span>&gt; <span class="kw">for </span>ParamCollector&lt;<span class="lifetime">'_</span>&gt; {
 <a href=#56 id=56 data-nosnippet>56</a>        <span class="kw">fn </span>visit_base_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bsort: <span class="kw-2">&amp;</span>surface::BaseSort) {
 <a href=#57 id=57 data-nosnippet>57</a>            <span class="kw">if let </span>surface::BaseSort::Path(path) = bsort {
 <a href=#58 id=58 data-nosnippet>58</a>                <span class="kw">let </span>res = <span class="self">self</span>.resolver_output.path_res_map[<span class="kw-2">&amp;</span>path.node_id];
@@ -80,7 +80,7 @@
 <a href=#80 id=80 data-nosnippet>80</a>    <span class="kw">struct </span>HoleCollector {
 <a href=#81 id=81 data-nosnippet>81</a>        holes: Vec&lt;Span&gt;,
 <a href=#82 id=82 data-nosnippet>82</a>    }
-<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">impl </span>surface::visit::Visitor <span class="kw">for </span>HoleCollector {
+<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">impl </span>surface::visit::Visitor&lt;<span class="lifetime">'_</span>&gt; <span class="kw">for </span>HoleCollector {
 <a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>surface::Ty) {
 <a href=#85 id=85 data-nosnippet>85</a>            <span class="kw">if let </span>surface::TyKind::Hole = ty.kind {
 <a href=#86 id=86 data-nosnippet>86</a>                <span class="self">self</span>.holes.push(ty.span);
