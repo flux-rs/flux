@@ -592,7 +592,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     /// Returns a predicate that corresponds to valid(p, size_of_underlying) &&
     /// aligned(p, align_of_underlying). This should be exactly the same as the
-    /// conjunction of the valid and aligned functions in the extern spec of core.
+    /// conjunction of the `valid` and `aligned_to` functions in the extern spec of core,
+    /// except that a null pointer is never valid for a raw deref. This is different
+    /// from std::ptr::read/write, which allow for null pointers to ZSTs to be deref'd.
+    /// Derefs of unsized pointees are rejected (the predicate is `false`) because the
+    /// length metadata needed to check them is not tracked.
     fn raw_ptr_deref_pred(
         &self,
         infcx: &InferCtxt<'_, 'genv, 'tcx>,
@@ -607,24 +611,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let base = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
         let addr = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
         let size = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
-        let non_null_in_bounds = Expr::and_from_iter([
-            Expr::gt(&addr, Expr::zero()),
-            Expr::ge(&addr, &base),
-            Expr::ge(&size, Expr::zero()),
-        ]);
         if !pointee_ty.to_rustc(tcx).is_sized(tcx, typing_env) {
-            return non_null_in_bounds;
+            return Expr::ff();
         }
         let (size_of_expr, align_of_expr) = size_align_of(genv, &ctor, None);
-        let valid = Expr::or(
-            Expr::eq(&size_of_expr, Expr::zero()),
-            Expr::and_from_iter([
-                Expr::gt(&addr, Expr::zero()),
-                Expr::ge(&addr, &base),
-                Expr::le(&size_of_expr, &size),
-                Expr::ge(&size, Expr::zero()),
-            ]),
-        );
+        let valid = Expr::and_from_iter([
+            Expr::gt(&addr, Expr::zero()),
+            Expr::ge(&addr, &base),
+            Expr::le(&size_of_expr, &size),
+            Expr::ge(&size, Expr::zero()),
+        ]);
         let aligned =
             Expr::eq(Expr::binary_op(BinOp::Mod(Sort::Int), &addr, align_of_expr), Expr::zero());
         Expr::and(valid, aligned)

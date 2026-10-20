@@ -24,7 +24,7 @@ pub fn test_write_through_projection(h: Holder, v: i32) {
 pub fn test_write_through_copied_ptr(h: Holder) {
     let xcopy: *mut i32 = std::ptr::addr_of_mut!(*h.ptr);
     unsafe { xcopy.write(4) } //~ ERROR refinement type error
-    //~| ERROR refinement type error
+                              //~| ERROR refinement type error
 }
 
 #[flux::spec(fn (x: *mut[@xptr] i32) requires (xptr.addr % 4) != 0)]
@@ -37,8 +37,33 @@ pub fn test_create_ref_misaligned_generic<T>(x: *mut T) {
     let _xref: &T = unsafe { &*x }; //~ ERROR refinement type error
 }
 
+#[flux::spec(fn (x: {*const[@base, @addr, @size] [u32] |
+    addr % 4 == 2 && addr > 0 && addr >= base && size >= 0}))]
+pub fn test_create_unsized_ref_misaligned(x: *const [u32]) {
+    let _r = unsafe { &*x }; //~ ERROR refinement type error
+}
+
+#[flux::spec(fn (x: {*const[@base, @addr, @size] () |
+    addr == 0 && base == 0 && size == 0}))]
+pub fn test_create_null_zst_ref(x: *const ()) {
+    let _r = unsafe { &*x }; //~ ERROR refinement type error
+}
+
+#[flux::spec(fn (x: {*const[@base, @addr, @size] () |
+    addr == 0 && base == 0 && size == 0}))]
+pub fn test_read_null_zst(x: *const ()) {
+    let _v: () = unsafe { *x }; //~ ERROR refinement type error
+}
+
+#[flux::spec(fn (x: {*mut[@base, @addr, @size] () |
+    addr == 0 && base == 0 && size == 0}))]
+pub fn test_write_null_zst(x: *mut ()) {
+    unsafe { *x = () }; //~ ERROR refinement type error
+}
+
 #[flux::spec(fn (x: *mut[@xptr] *mut i32)
-    requires flux_core::ptr::valid(xptr, 4) && flux_core::ptr::aligned_to(xptr, 4))]
+    requires flux_core::ptr::valid(xptr, 4) &&
+        flux_core::ptr::aligned_to(xptr, 4))]
 pub fn test_double_deref_invalid_inner(x: *mut *mut i32) {
     let _v: i32 = unsafe { **x }; //~ ERROR refinement type error
 }
