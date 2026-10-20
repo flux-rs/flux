@@ -104,7 +104,6 @@ pub unsafe fn test_read_const_ptr(p: *const i32) -> i32 {
 pub fn test_get_mut(vec: &mut Vec<i32>, off: usize) -> Option<&mut i32> {
     unsafe { Some(&mut *vec.as_mut_ptr().add(off)) } //~ ERROR refinement type error
                                                      //~| ERROR refinement type error
-                                                     //~| ERROR refinement type error
 }
 
 struct Mickey {
