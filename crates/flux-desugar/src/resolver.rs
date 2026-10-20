@@ -1059,13 +1059,17 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .maybe_extern_id(impl_item.owner_id.def_id)
             .map(|def_id| OwnerId { def_id });
 
+        // Generics are defined in both namespaces (const params live in the value namespace), so
+        // we need a rib in each to avoid leaking them into sibling items.
         self.push_rib(TypeNS, RibKind::Misc);
+        self.push_rib(ValueNS, RibKind::Misc);
         if let Some(item) = self.specs.get_impl_item(def_id.local_id()) {
             self.define_generics(def_id);
             self.resolve_impl_item(item, def_id)
                 .collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
+        self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }
 
@@ -1075,13 +1079,17 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .maybe_extern_id(trait_item.owner_id.def_id)
             .map(|def_id| OwnerId { def_id });
 
+        // Generics are defined in both namespaces (const params live in the value namespace), so
+        // we need a rib in each to avoid leaking them into sibling items.
         self.push_rib(TypeNS, RibKind::Misc);
+        self.push_rib(ValueNS, RibKind::Misc);
         if let Some(item) = self.specs.get_trait_item(def_id.local_id()) {
             self.define_generics(def_id);
             self.resolve_trait_item(item, def_id)
                 .collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
+        self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }
 }
