@@ -655,9 +655,12 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             if let Some(crate_id) = self.crates.get(&ident.name) {
                 return Ok(fhir::Res::Def(DefKind::Mod, *crate_id));
             }
-            // FIXME: `crate` and `super` should only be allowed as the first segment
+            // FIXME: `crate`, `self` and `super` should only be allowed as the first segment
             if ident.name == kw::Crate {
                 return Ok(fhir::Res::Def(DefKind::Mod, CRATE_DEF_ID.to_def_id()));
+            }
+            if ident.name == kw::SelfLower {
+                return Ok(fhir::Res::Def(DefKind::Mod, self.current_module.to_def_id()));
             }
             if ident.name == kw::Super
                 && let Some(parent) = self.genv.tcx().opt_local_parent(self.current_module.def_id)
