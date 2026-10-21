@@ -120,3 +120,11 @@ fn test_field_mut_ref(bytes: BytesMut) {
         let _ = &mut (*foo).vec; //~ ERROR refinement type error
     }
 }
+
+fn x() -> i32 {
+    2
+}
+
+pub unsafe fn test_write_through_call_dest(p: *mut i32) {
+    *p = x(); //~ ERROR refinement type error
+}

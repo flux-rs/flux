@@ -768,6 +768,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let ret = infcx.unpack_at_name(name, &ret);
                 infcx.assume_invariants(&ret);
 
+                self.check_raw_ptr_derefs(infcx, env, destination, terminator_span)
+                    .with_span(terminator_span)?;
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
                     .with_span(terminator_span)?;
 
@@ -1475,6 +1477,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)
             }
             Rvalue::Discriminant(place) => {
+                self.check_raw_ptr_derefs(infcx, env, place, stmt_span)
+                    .with_span(stmt_span)?;
                 let ty = env
                     .lookup_place(&mut infcx.at(stmt_span), place)
                     .with_span(stmt_span)?;
@@ -1975,9 +1979,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     if !self.genv.tcx().is_mutable_static(def_id) {
                         let ty = self.genv.static_info(def_id)?;
                         Ok(Some(Ty::mk_ref(ReErased, ty, Mutability::Not)))
-                    } else if let rustc_middle::ty::RawPtr(pointee, mutbl) = ty.kind()
-                        && let Ok(pointee_ty) = pointee.lower(self.genv.tcx())
-                    {
+                    } else if let rustc_middle::ty::RawPtr(pointee, mutbl) = ty.kind() {
+                        let pointee_ty = pointee
+                            .lower(self.genv.tcx())
+                            .map_err(|err| QueryErr::unsupported(def_id, err.into_err()))?;
                         // Static muts are always valid and aligned
                         let ctor = self
                             .default_refiner

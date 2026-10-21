@@ -130,15 +130,7 @@ impl<'a> TypeEnv<'a> {
         place: &Place,
         span: Span,
     ) -> InferResult<Option<Expr>> {
-        if let [prefix @ .., PlaceElem::Deref] = place.projection.as_slice() {
-            let ptr_place = Place::new(place.local, prefix.to_vec());
-            let ptr_ty = self.lookup_place(&mut infcx.at(span), &ptr_place)?;
-            let ptr_ty = infcx.hoister(true).hoist(&ptr_ty);
-            if let TyKind::Indexed(BaseTy::RawPtr(_, _), idx) = ptr_ty.kind() {
-                return Ok(Some(idx.clone()));
-            }
-        }
-        Ok(None)
+        self.bindings.place_directly_derefs_raw_ptr(infcx, place, span)
     }
 
     /// If a Place has a raw pointer dereference anywhere inside of it.
@@ -150,19 +142,7 @@ impl<'a> TypeEnv<'a> {
         place: &Place,
         span: Span,
     ) -> InferResult<bool> {
-        for i in 0..place.projection.len() {
-            if !matches!(place.projection[i], PlaceElem::Deref) {
-                continue;
-            }
-            let val_place = Place::new(place.local, place.projection[..=i].to_vec());
-            if self
-                .place_directly_derefs_raw_ptr(infcx, &val_place, span)?
-                .is_some()
-            {
-                return Ok(true);
-            }
-        }
-        Ok(false)
+        self.bindings.place_derefs_raw_ptr(infcx, place, span)
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {

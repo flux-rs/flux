@@ -231,7 +231,7 @@ impl PlacesTree {
         Ok(LookupResult { ty, is_strg, cursor, bindings: self })
     }
 
-    pub(crate) fn lookup_unfolding(
+    pub(super) fn lookup_unfolding(
         &mut self,
         infcx: &mut InferCtxt,
         key: &impl LookupKey,
@@ -240,8 +240,66 @@ impl PlacesTree {
         self.lookup_inner(key, Unfold(infcx, span))
     }
 
-    pub(crate) fn lookup(&mut self, key: &impl LookupKey, _span: Span) -> LookupResult<'_> {
+    pub(super) fn lookup(&mut self, key: &impl LookupKey, _span: Span) -> LookupResult<'_> {
         self.lookup_inner(key, NoUnfold).into_ok()
+    }
+
+    /// If a Place is of the form: *p or *(s.p), return the index of the pointer.
+    /// Note that this does not match (*p).f, where p points to a struct.
+    /// Doubly note that taking the addr of (*p).f doesn't actually do any loads,
+    /// but since we don't necessarily know where .f is, we can't return a proper
+    /// pointer to it. Code will have to be rewritten to take the address of p,
+    /// then use .add() with the field's offset.
+    pub(crate) fn place_directly_derefs_raw_ptr(
+        &mut self,
+        infcx: &mut InferCtxt,
+        place: &Place,
+        span: Span,
+    ) -> InferResult<Option<Expr>> {
+        let [prefix @ .., PlaceElem::Deref] = place.projection.as_slice() else {
+            return Ok(None);
+        };
+        let ptr_place = Place::new(place.local, prefix.to_vec());
+        self.lookup_raw_ptr_index(infcx, &ptr_place, span)
+    }
+
+    /// If a Place has a raw pointer dereference anywhere inside of it.
+    /// For example, (*p).f has one. This may not be immediately able to be
+    /// turned back into a pointer with &raw.
+    pub(crate) fn place_derefs_raw_ptr(
+        &mut self,
+        infcx: &mut InferCtxt,
+        place: &Place,
+        span: Span,
+    ) -> InferResult<bool> {
+        for i in place
+            .projection
+            .iter()
+            .positions(|elem| matches!(elem, PlaceElem::Deref))
+        {
+            let ptr_place = Place::new(place.local, place.projection[..i].to_vec());
+            if self
+                .lookup_raw_ptr_index(infcx, &ptr_place, span)?
+                .is_some()
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn lookup_raw_ptr_index(
+        &mut self,
+        infcx: &mut InferCtxt,
+        place: &Place,
+        span: Span,
+    ) -> InferResult<Option<Expr>> {
+        let ty = self.lookup_unfolding(infcx, place, span)?.ty;
+        let ty = infcx.hoister(true).hoist(&ty);
+        let TyKind::Indexed(BaseTy::RawPtr(_, _), idx) = ty.kind() else {
+            return Ok(None);
+        };
+        Ok(Some(idx.clone()))
     }
 
     pub(crate) fn paths(&self) -> Vec<Path> {

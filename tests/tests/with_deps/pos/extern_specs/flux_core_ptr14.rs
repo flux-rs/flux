@@ -58,3 +58,13 @@ pub struct Pair {
 pub unsafe fn test_addr_of_field_no_use(p: *mut Pair) {
     let _q = std::ptr::addr_of_mut!((*p).fst);
 }
+
+fn x() -> i32 {
+    1
+}
+
+#[flux::spec(fn (p: *mut[@pp] i32) requires
+    flux_core::ptr::valid(pp, 4) && flux_core::ptr::aligned_to(pp, 4))]
+pub unsafe fn test_write_through_call_dest(p: *mut i32) {
+    *p = x();
+}
