@@ -28,7 +28,7 @@
 <a href=#28 id=28 data-nosnippet>28</a>
 <a href=#29 id=29 data-nosnippet>29</a><span class="attr">#[extern_spec(core::ptr)]
 <a href=#30 id=30 data-nosnippet>30</a>#[refined_by(base: int, addr: int, size: int)]
-<a href=#31 id=31 data-nosnippet>31</a>#[invariant(addr != <span class="number">0</span>)]
+<a href=#31 id=31 data-nosnippet>31</a>#[invariant(base &gt;= <span class="number">0 </span>&amp;&amp; addr &gt; <span class="number">0 </span>&amp;&amp; addr &lt;= usize::MAX &amp;&amp; addr + size &lt;= usize::MAX)]
 <a href=#32 id=32 data-nosnippet>32</a></span><span class="kw">struct </span>NonNull&lt;T&gt;;
 <a href=#33 id=33 data-nosnippet>33</a>
 <a href=#34 id=34 data-nosnippet>34</a><span class="attr">#[extern_spec(core::ptr)]
