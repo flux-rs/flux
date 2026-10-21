@@ -16,6 +16,7 @@ symbols! {
         Reft: "reft",
         Invariant: "invariant",
         RefinedBy: "refined_by",
+        Axiom: "axiom",
     }
 
     Symbols {
