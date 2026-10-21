@@ -492,8 +492,7 @@ impl Node {
                 };
                 let mut constr = children;
                 if !assumptions.is_empty() {
-                    let preds =
-                        cx.assumption_to_fixpoint(&Expr::and_from_iter(assumptions.clone()))?;
+                    let preds = cx.assumptions_to_fixpoint(assumptions)?;
                     constr = fixpoint::Constraint::ForAll(
                         fixpoint::Bind {
                             name: fixpoint::Var::Underscore,
@@ -534,7 +533,7 @@ impl Node {
                 })?
             }
             NodeKind::Assumption(pred) => {
-                let preds = cx.assumption_to_fixpoint(pred)?;
+                let preds = cx.assumptions_to_fixpoint([pred])?;
                 let Some(cstr) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };

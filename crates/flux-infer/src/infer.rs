@@ -134,8 +134,7 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
         for (param_const, sort, param_def_id) in
             self.genv.generics_of(def_id)?.const_params(self.genv)?
         {
-            // The type of a const param is a plain scalar (`usize`, `bool`, ...), so there is
-            // nothing to normalize.
+            // The implementation only supports scalar const generics where there is no need to normalize.
             let param_ty = tcx
                 .type_of(param_def_id)
                 .instantiate_identity()
