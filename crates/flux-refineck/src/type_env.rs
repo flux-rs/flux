@@ -130,7 +130,8 @@ impl<'a> TypeEnv<'a> {
         place: &Place,
         span: Span,
     ) -> InferResult<Option<Expr>> {
-        self.bindings.place_directly_derefs_raw_ptr(infcx, place, span)
+        self.bindings
+            .place_directly_derefs_raw_ptr(infcx, place, span)
     }
 
     /// If a Place has a raw pointer dereference anywhere inside of it.
