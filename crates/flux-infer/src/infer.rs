@@ -224,7 +224,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             inner: &self.inner,
             check_overflow: self.opts.check_overflow,
             allow_raw_deref: self.opts.allow_raw_deref,
-            std_extern_specs: self.opts.std_extern_specs,
+            check_raw_deref: self.opts.check_raw_deref,
         }
     }
 
@@ -329,7 +329,7 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub def_id: DefId,
     pub check_overflow: OverflowMode,
     pub allow_raw_deref: flux_config::RawDerefMode,
-    pub std_extern_specs: bool,
+    pub check_raw_deref: bool,
     cursor: Cursor<'infcx>,
     inner: &'infcx RefCell<InferCtxtInner>,
 }

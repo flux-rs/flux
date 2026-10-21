@@ -1,4 +1,4 @@
-#![flux::opts(allow_raw_deref = "ok", std_extern_specs = "true")]
+#![flux::opts(allow_raw_deref = "ok", check_raw_deref = "true")]
 
 extern crate flux_core;
 

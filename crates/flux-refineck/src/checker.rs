@@ -568,8 +568,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         place: &Place,
         span: Span,
     ) -> InferResult {
-        // When we aren't checking pointer specs, this check is unnecessary
-        if !infcx.std_extern_specs {
+        if !infcx.check_raw_deref {
             return Ok(());
         }
         let genv = self.genv;
@@ -595,8 +594,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     /// conjunction of the `valid` and `aligned_to` functions in the extern spec of core,
     /// except that a null pointer is never valid for a raw deref. This is different
     /// from std::ptr::read/write, which allow for null pointers to ZSTs to be deref'd.
-    /// Derefs of unsized pointees are rejected (the predicate is `false`) because the
-    /// length metadata needed to check them is not tracked.
     fn raw_ptr_deref_pred(
         &self,
         infcx: &InferCtxt<'_, 'genv, 'tcx>,
@@ -611,6 +608,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let base = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
         let addr = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
         let size = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
+        // We can't prove anything about unsized types yet
         if !pointee_ty.to_rustc(tcx).is_sized(tcx, typing_env) {
             return Expr::ff();
         }

@@ -126,6 +126,13 @@ pub struct Flags {
         default_value = "none"
     )]
     pub allow_raw_deref: RawDerefMode,
+    /// Whether to check raw pointers being dereferences are valid.
+    #[arg(
+        long = flux_arg!("check-raw-deref"),
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub check_raw_deref: bool,
     /// Binary operators to encode as uninterpreted functions in the constraints, as a comma
     /// separated list, e.g., `*,/,%`.
     #[arg(long = flux_arg!("uif-ops"), value_name = "OPS", default_value = "")]
@@ -255,6 +262,7 @@ impl Default for Flags {
             cache: None,
             check_overflow: OverflowMode::default(),
             allow_raw_deref: RawDerefMode::default(),
+            check_raw_deref: false,
             uif_ops: UifOps::default(),
             scrape_quals: false,
             fixpoint_timeout: None,
@@ -342,6 +350,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "pointer-width" => parse_pointer_width(&mut flags.pointer_width, value),
             "check-overflow" => parse_overflow(&mut flags.check_overflow, value),
             "allow-raw-deref" => parse_raw_deref(&mut flags.allow_raw_deref, value),
+            "check-raw-deref" => parse_bool(&mut flags.check_raw_deref, value),
             "uif-ops" => parse_uif_ops(&mut flags.uif_ops, value),
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
             "fixpoint-timeout" => parse_opt_u64(&mut flags.fixpoint_timeout, value),
