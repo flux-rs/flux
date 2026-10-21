@@ -28,7 +28,7 @@ use flux_attrs::*;
 
 #[extern_spec(core::ptr)]
 #[refined_by(base: int, addr: int, size: int)]
-#[invariant(addr > 0)]
+#[invariant(base >= 0 && addr > 0 && addr <= usize::MAX && addr + size <= usize::MAX)]
 struct NonNull<T>;
 
 #[extern_spec(core::ptr)]

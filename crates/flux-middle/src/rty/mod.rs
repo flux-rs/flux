@@ -255,7 +255,9 @@ impl Generics {
         }
     }
 
-    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<Vec<(ParamConst, Sort)>> {
+    /// Returns the const generic params (including the parent's) together with their sort and
+    /// [`DefId`].
+    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<Vec<(ParamConst, Sort, DefId)>> {
         let mut res = vec![];
         for i in 0..self.count() {
             let param = self.param_at(i, genv)?;
@@ -263,7 +265,7 @@ impl Generics {
                 && let Some(sort) = genv.sort_of_def_id(param.def_id)?
             {
                 let param_const = ParamConst { name: param.name, index: param.index };
-                res.push((param_const, sort));
+                res.push((param_const, sort, param.def_id));
             }
         }
         Ok(res)
@@ -1985,6 +1987,7 @@ impl BaseTy {
             BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_mode).to_vec(),
             BaseTy::Char => char_invariants().to_vec(),
             BaseTy::Slice(ty) => slice_invariants(genv, ty, overflow_mode),
+            BaseTy::RawPtr(..) => raw_ptr_invariants().to_vec(),
             _ => vec![],
         }
         .into_iter()
@@ -2999,6 +3002,27 @@ fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [In
     } else {
         &*DEFAULT
     }
+}
+
+fn raw_ptr_invariants() -> &'static [Invariant] {
+    fn field(field: RawPtrField) -> Expr {
+        Expr::nu().proj_and_reduce(FieldProj::RawPtr { field })
+    }
+
+    static INVARIANTS: LazyLock<[Invariant; 4]> = LazyLock::new(|| {
+        let base = field(RawPtrField::Base);
+        let addr = field(RawPtrField::Addr);
+        let size = field(RawPtrField::Size);
+        let max = Expr::uint_max(UintTy::Usize);
+        [
+            Expr::ge(base, Expr::zero()),
+            Expr::ge(&addr, Expr::zero()),
+            Expr::le(&addr, &max),
+            Expr::le(addr + size, max),
+        ]
+        .map(|pred| Invariant { pred: Binder::bind_with_sort(pred, Sort::RawPtr) })
+    });
+    &*INVARIANTS
 }
 
 fn char_invariants() -> &'static [Invariant] {
