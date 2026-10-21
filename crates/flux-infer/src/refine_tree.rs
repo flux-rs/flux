@@ -53,9 +53,13 @@ pub struct RefineTree {
 }
 
 impl RefineTree {
-    pub(crate) fn new(params: Vec<(Var, Sort)>) -> RefineTree {
-        let root =
-            Node { kind: NodeKind::Root(params), nbindings: 0, parent: None, children: vec![] };
+    pub(crate) fn new(params: Vec<(Var, Sort)>, assumptions: Vec<Expr>) -> RefineTree {
+        let root = Node {
+            kind: NodeKind::Root(params, assumptions),
+            nbindings: 0,
+            parent: None,
+            children: vec![],
+        };
         let root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
     }
@@ -319,7 +323,7 @@ impl NodePtr {
             .filter_map(|node| {
                 let node = node.borrow();
                 match &node.kind {
-                    NodeKind::Root(p) => {
+                    NodeKind::Root(p, _) => {
                         params = Some(p.clone());
                         None
                     }
@@ -344,8 +348,9 @@ impl WeakNodePtr {
 }
 
 enum NodeKind {
-    /// List of const and refinement generics
-    Root(Vec<(Var, Sort)>),
+    /// List of const and refinement generics, and facts assumed about them (e.g., `N >= 0` for
+    /// `const N: usize`)
+    Root(Vec<(Var, Sort)>, Vec<Expr>),
     ForAll(Name, Sort, NameProvenance),
     Assumption(Expr),
     Head(Expr, Tag),
@@ -401,6 +406,13 @@ impl Node {
                     assumed_preds.insert(conjunct.erase_spans(), ());
                 });
             }
+            NodeKind::Root(_, assumptions) => {
+                for pred in assumptions {
+                    pred.visit_conj(|conjunct| {
+                        assumed_preds.insert(conjunct.erase_spans(), ());
+                    });
+                }
+            }
             _ => {}
         }
         let is_false_asm =
@@ -419,7 +431,7 @@ impl Node {
             NodeKind::Head(..) | NodeKind::True => {}
             NodeKind::Assumption(_)
             | NodeKind::Trace(_)
-            | NodeKind::Root(_)
+            | NodeKind::Root(..)
             | NodeKind::ForAll(..) => {
                 self.children
                     .extract_if(.., |child| {
@@ -449,7 +461,12 @@ impl Node {
             NodeKind::Trace(trace) => {
                 evars.replace_evars(trace)?;
             }
-            NodeKind::Root(_) | NodeKind::ForAll(..) | NodeKind::True => {}
+            NodeKind::Root(_, assumptions) => {
+                for pred in assumptions {
+                    *pred = evars.replace_evars(pred)?;
+                }
+            }
+            NodeKind::ForAll(..) | NodeKind::True => {}
         }
         Ok(())
     }
@@ -460,7 +477,7 @@ impl Node {
                 children_to_fixpoint(cx, &self.children)?
             }
 
-            NodeKind::Root(params) => {
+            NodeKind::Root(params, assumptions) => {
                 // declare pretty-vars for params
                 for (var, sort) in params {
                     if let Var::EarlyParam(param) = var
@@ -474,6 +491,17 @@ impl Node {
                     return Ok(None);
                 };
                 let mut constr = children;
+                if !assumptions.is_empty() {
+                    let preds = cx.assumptions_to_fixpoint(assumptions)?;
+                    constr = fixpoint::Constraint::ForAll(
+                        fixpoint::Bind {
+                            name: fixpoint::Var::Underscore,
+                            sort: fixpoint::Sort::Int,
+                            preds,
+                        },
+                        Box::new(constr),
+                    );
+                }
                 for (var, sort) in params.iter().rev() {
                     if sort.is_loc() {
                         continue;
@@ -505,7 +533,7 @@ impl Node {
                 })?
             }
             NodeKind::Assumption(pred) => {
-                let preds = cx.assumption_to_fixpoint(pred)?;
+                let preds = cx.assumptions_to_fixpoint([pred])?;
                 let Some(cstr) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };
@@ -636,7 +664,7 @@ mod pretty {
                     w!(cx, f, "@ {:?}", ^trace)?;
                     w!(cx, with_padding(f), "\n{:?}", join!("\n", &node.children))
                 }
-                NodeKind::Root(bindings) => {
+                NodeKind::Root(bindings, assumptions) => {
                     w!(cx, f,
                         "∀ {}.",
                         ^bindings
@@ -645,6 +673,9 @@ mod pretty {
                                 f(&format_args_cx!(cx, "{:?}: {:?}", ^name, sort))
                             })
                     )?;
+                    if !assumptions.is_empty() {
+                        w!(cx, f, " {:?} =>", join!(" ∧ ", assumptions))?;
+                    }
                     fmt_children(&node.children, cx, f)
                 }
                 NodeKind::ForAll(name, sort, _) => {
@@ -717,8 +748,11 @@ mod pretty {
             for node in ParentsIter::new(NodePtr::clone(&self.ptr)) {
                 let n = node.borrow();
                 match &n.kind {
-                    NodeKind::Root(bindings) => {
+                    NodeKind::Root(bindings, assumptions) => {
                         // We reverse here because is reversed again at the end
+                        for pred in assumptions.iter().rev() {
+                            elements.push(format_cx!(cx, "{:?}", pred));
+                        }
                         for (name, sort) in bindings.iter().rev() {
                             elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                         }
@@ -803,7 +837,7 @@ impl RefineCtxtTrace {
                         exprs.push(e.nested_string(cx));
                     });
                 }
-                NodeKind::Root(binds) => {
+                NodeKind::Root(binds, assumptions) => {
                     for (name, sort) in binds {
                         let name = if let Var::EarlyParam(param) = name {
                             cx.pretty_var_env
@@ -814,6 +848,11 @@ impl RefineCtxtTrace {
                         let sort = format_cx!(cx, "{:?}", sort);
                         let bind = RcxBind { name, sort };
                         bindings.push(bind);
+                    }
+                    for e in assumptions {
+                        e.visit_conj(|e| {
+                            exprs.push(e.nested_string(cx));
+                        });
                     }
                 }
                 _ => (),

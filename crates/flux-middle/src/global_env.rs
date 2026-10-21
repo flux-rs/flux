@@ -283,10 +283,24 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         Ok(self.qualifiers()?.iter().filter(move |qual| {
             match qual.kind {
                 QualifierKind::Global => true,
-                QualifierKind::Hint => qual.def_id.parent() == did,
+                QualifierKind::Hint => {
+                    self.flux_item_enclosing_item(qual.def_id.to_def_id()) == did.to_def_id()
+                }
                 QualifierKind::Local => names.contains(&qual.def_id),
             }
         }))
+    }
+
+    /// The item enclosing the declaration of a flux item. This is different from the
+    /// [`FluxDefId::parent`] for flux items declared with `defs!` that use the id of
+    /// the declaring `const _ = { }`.
+    fn flux_item_enclosing_item(self, def_id: FluxDefId) -> DefId {
+        let declarer = def_id.parent();
+        if self.def_kind(declarer) == DefKind::Const {
+            self.tcx().typeck_root_def_id(self.tcx().parent(declarer))
+        } else {
+            declarer
+        }
     }
 
     /// Return the list of flux function definitions that should be revelaed for item

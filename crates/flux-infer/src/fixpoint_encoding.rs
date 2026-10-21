@@ -1137,12 +1137,14 @@ where
     /// predicate and a list of bindings produced by ANF-ing kvars.
     ///
     /// [`fixpoint::Pred`]: liquid_fixpoint::Pred
-    pub(crate) fn assumption_to_fixpoint(
+    pub(crate) fn assumptions_to_fixpoint<'a>(
         &mut self,
-        pred: &rty::Expr,
+        exprs: impl IntoIterator<Item = &'a rty::Expr>,
     ) -> QueryResult<Vec<fixpoint::Pred>> {
         let mut preds = vec![];
-        self.assumption_to_fixpoint_aux(pred, &mut preds)?;
+        for expr in exprs {
+            self.assumption_to_fixpoint_aux(expr, &mut preds)?;
+        }
         Ok(preds)
     }
 
