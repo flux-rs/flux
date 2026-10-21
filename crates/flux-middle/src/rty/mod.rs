@@ -1465,6 +1465,11 @@ pub struct Axiom {
     pub body: Binder<AxiomBody>,
 }
 
+/// The variable (by its position in the axiom's binder) that does not occur in any pattern of an
+/// ill-formed axiom. See [`Axiom::new`].
+#[derive(Debug, Clone, Copy)]
+pub struct UncoveredAxiomVar(pub BoundVar);
+
 #[derive(Debug, TypeVisitable, TypeFoldable)]
 pub struct AxiomBody {
     pub expr: Expr,
@@ -1486,7 +1491,14 @@ impl Axiom {
     /// a `let` or a quantifier) are skipped as they are not valid outside of their binder.
     ///
     /// [reduced]: fold::TypeFoldable::reduce
-    pub fn new(genv: GlobalEnv, def_id: FluxLocalDefId, body: Binder<Expr>) -> Self {
+    ///
+    /// Fails if some variable bound by the axiom does not occur in any of the patterns, as the
+    /// axiom could then never be instantiated.
+    pub fn new(
+        genv: GlobalEnv,
+        def_id: FluxLocalDefId,
+        body: Binder<Expr>,
+    ) -> Result<Self, UncoveredAxiomVar> {
         use fold::{TypeSuperVisitable as _, TypeVisitable as _};
 
         struct Collector<'genv, 'tcx> {
@@ -1551,11 +1563,33 @@ impl Axiom {
             }
         }
 
+        /// Marks the variables of the axiom's binder that occur in a pattern. Patterns never
+        /// contain binders, so the axiom's variables are exactly those at [`INNERMOST`].
+        struct CoverChecker(Vec<bool>);
+
+        impl fold::TypeVisitor for CoverChecker {
+            fn visit_expr(&mut self, expr: &Expr) -> std::ops::ControlFlow<!> {
+                if let ExprKind::Var(Var::Bound(INNERMOST, BoundReft { var, .. })) = expr.kind() {
+                    self.0[var.as_usize()] = true;
+                }
+                expr.super_visit_with(self)
+            }
+        }
+
         let mut collector = Collector { genv, depth: 0, binders: 0, patterns: vec![] };
         let _ = body.skip_binder_ref().visit_with(&mut collector);
+
+        // Every variable of the axiom must occur in some pattern, otherwise the solver
+        // cannot instantiate it.
+        let mut checker = CoverChecker(vec![false; body.vars().len()]);
+        let _ = collector.patterns.visit_with(&mut checker);
+        if let Some(idx) = checker.0.iter().position(|covered| !covered) {
+            return Err(UncoveredAxiomVar(BoundVar::from_usize(idx)));
+        }
+
         let patterns = List::from_vec(collector.patterns);
         let body = body.map(|expr| AxiomBody { expr, patterns });
-        Axiom { def_id, body }
+        Ok(Axiom { def_id, body })
     }
 }
 

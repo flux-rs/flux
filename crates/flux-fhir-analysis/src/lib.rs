@@ -164,7 +164,12 @@ fn axioms(genv: GlobalEnv) -> QueryResult<Vec<rty::Axiom>> {
                 .reduce(genv);
             // The patterns are computed here, *after* reducing the body, so it is only done
             // once (instead of once per query).
-            Ok(rty::Axiom::new(genv, axiom.def_id, body))
+            rty::Axiom::new(genv, axiom.def_id, body).map_err(|rty::UncoveredAxiomVar(var)| {
+                let param = &axiom.args[var.as_usize()];
+                QueryErr::Emitted(
+                    genv.emit(errors::IllFormedAxiom::new(axiom.span, param.span, param.name)),
+                )
+            })
         })
         .try_collect()
 }
@@ -748,7 +753,7 @@ mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_middle::def_id::FluxLocalDefId;
-    use rustc_span::Span;
+    use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
     #[diag("cycle in definitions", code = E0999)]
@@ -757,6 +762,25 @@ mod errors {
         #[label("{$msg}")]
         span: Span,
         msg: String,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag("ill-formed axiom", code = E0999)]
+    #[note(
+        "every variable of an axiom must occur in an application of an uninterpreted function, which is used to instantiate the axiom"
+    )]
+    pub struct IllFormedAxiom {
+        #[primary_span]
+        span: Span,
+        #[label("`{$name}` does not occur in any application (trigger pattern) of the axiom")]
+        param_span: Span,
+        name: Symbol,
+    }
+
+    impl IllFormedAxiom {
+        pub(super) fn new(span: Span, param_span: Span, name: Symbol) -> Self {
+            Self { span, param_span, name }
+        }
     }
 
     impl DefinitionCycle {
