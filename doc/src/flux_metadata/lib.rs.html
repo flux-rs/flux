@@ -445,239 +445,241 @@
 <a href=#445 id=445 data-nosnippet>445</a>                    .sort_decl_param_count
 <a href=#446 id=446 data-nosnippet>446</a>                    .insert(def_id.local_def_index(), genv.sort_decl_param_count(def_id));
 <a href=#447 id=447 data-nosnippet>447</a>            }
-<a href=#448 id=448 data-nosnippet>448</a>            fhir::FluxItem::PrimOpProp(<span class="kw">_</span>) | fhir::FluxItem::Qualifier(<span class="kw">_</span>) =&gt; {}
-<a href=#449 id=449 data-nosnippet>449</a>        }
-<a href=#450 id=450 data-nosnippet>450</a>    }
-<a href=#451 id=451 data-nosnippet>451</a>}
-<a href=#452 id=452 data-nosnippet>452</a>
-<a href=#453 id=453 data-nosnippet>453</a><span class="kw">fn </span>encode_flux_module_children&lt;<span class="lifetime">'tcx</span>&gt;(
-<a href=#454 id=454 data-nosnippet>454</a>    genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
-<a href=#455 id=455 data-nosnippet>455</a>    tables: <span class="kw-2">&amp;mut </span>Tables&lt;<span class="lifetime">'tcx</span>, DefIndex&gt;,
-<a href=#456 id=456 data-nosnippet>456</a>) {
-<a href=#457 id=457 data-nosnippet>457</a>    genv.tcx().hir_for_each_module(|module| {
-<a href=#458 id=458 data-nosnippet>458</a>        <span class="kw">let </span>module = module.to_local_def_id();
-<a href=#459 id=459 data-nosnippet>459</a>        <span class="kw">let </span>children = genv.flux_module_children(module.to_def_id());
-<a href=#460 id=460 data-nosnippet>460</a>        <span class="kw">if </span>!children.is_empty() {
-<a href=#461 id=461 data-nosnippet>461</a>            tables
-<a href=#462 id=462 data-nosnippet>462</a>                .flux_module_children
-<a href=#463 id=463 data-nosnippet>463</a>                .insert(module.local_def_index, children.to_vec());
-<a href=#464 id=464 data-nosnippet>464</a>        }
-<a href=#465 id=465 data-nosnippet>465</a>    });
-<a href=#466 id=466 data-nosnippet>466</a>}
-<a href=#467 id=467 data-nosnippet>467</a>
-<a href=#468 id=468 data-nosnippet>468</a><span class="kw">fn </span>encode_def_ids&lt;<span class="lifetime">'tcx</span>, K: Eq + Hash + Copy&gt;(
-<a href=#469 id=469 data-nosnippet>469</a>    genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
-<a href=#470 id=470 data-nosnippet>470</a>    def_ids: <span class="kw">impl </span>IntoIterator&lt;Item = DefId&gt;,
-<a href=#471 id=471 data-nosnippet>471</a>    tables: <span class="kw-2">&amp;mut </span>Tables&lt;<span class="lifetime">'tcx</span>, K&gt;,
-<a href=#472 id=472 data-nosnippet>472</a>    did_to_key: <span class="kw">fn</span>(DefId) -&gt; K,
-<a href=#473 id=473 data-nosnippet>473</a>    assoc_id_to_key: <span class="kw">fn</span>(FluxDefId) -&gt; FluxId&lt;K&gt;,
-<a href=#474 id=474 data-nosnippet>474</a>) {
-<a href=#475 id=475 data-nosnippet>475</a>    <span class="kw">for </span>def_id <span class="kw">in </span>def_ids {
-<a href=#476 id=476 data-nosnippet>476</a>        <span class="kw">let </span>def_kind = genv.def_kind(def_id);
-<a href=#477 id=477 data-nosnippet>477</a>        <span class="kw">let </span>key = did_to_key(def_id);
-<a href=#478 id=478 data-nosnippet>478</a>
-<a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">match </span>def_kind {
-<a href=#480 id=480 data-nosnippet>480</a>            DefKind::Trait =&gt; {
-<a href=#481 id=481 data-nosnippet>481</a>                tables
-<a href=#482 id=482 data-nosnippet>482</a>                    .generics_of
-<a href=#483 id=483 data-nosnippet>483</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
-<a href=#484 id=484 data-nosnippet>484</a>                tables
-<a href=#485 id=485 data-nosnippet>485</a>                    .predicates_of
-<a href=#486 id=486 data-nosnippet>486</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
-<a href=#487 id=487 data-nosnippet>487</a>                tables.refinement_generics_of.insert(
-<a href=#488 id=488 data-nosnippet>488</a>                    key,
-<a href=#489 id=489 data-nosnippet>489</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
-<a href=#490 id=490 data-nosnippet>490</a>                );
-<a href=#491 id=491 data-nosnippet>491</a>                <span class="kw">let </span>assocs = genv.run_query_if_reached(def_id, GlobalEnv::assoc_refinements_of);
-<a href=#492 id=492 data-nosnippet>492</a>                <span class="kw">if let </span><span class="prelude-val">Ok</span>(assocs) = <span class="kw-2">&amp;</span>assocs {
-<a href=#493 id=493 data-nosnippet>493</a>                    <span class="kw">for </span>assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>assocs.items {
-<a href=#494 id=494 data-nosnippet>494</a>                        <span class="kw">let </span>def_id = assoc_reft.def_id();
-<a href=#495 id=495 data-nosnippet>495</a>                        <span class="kw">let </span>key = assoc_id_to_key(def_id);
-<a href=#496 id=496 data-nosnippet>496</a>                        tables.default_assoc_refinements_def.insert(
-<a href=#497 id=497 data-nosnippet>497</a>                            key,
-<a href=#498 id=498 data-nosnippet>498</a>                            genv.run_query_if_reached(
-<a href=#499 id=499 data-nosnippet>499</a>                                def_id,
-<a href=#500 id=500 data-nosnippet>500</a>                                GlobalEnv::default_assoc_refinement_body,
-<a href=#501 id=501 data-nosnippet>501</a>                            ),
-<a href=#502 id=502 data-nosnippet>502</a>                        );
-<a href=#503 id=503 data-nosnippet>503</a>                        tables.sort_of_assoc_reft.insert(
-<a href=#504 id=504 data-nosnippet>504</a>                            key,
-<a href=#505 id=505 data-nosnippet>505</a>                            genv.run_query_if_reached(def_id, GlobalEnv::sort_of_assoc_reft),
-<a href=#506 id=506 data-nosnippet>506</a>                        );
-<a href=#507 id=507 data-nosnippet>507</a>                    }
-<a href=#508 id=508 data-nosnippet>508</a>                }
-<a href=#509 id=509 data-nosnippet>509</a>                tables.assoc_refinements_of.insert(key, assocs);
-<a href=#510 id=510 data-nosnippet>510</a>            }
-<a href=#511 id=511 data-nosnippet>511</a>            DefKind::Impl { of_trait } =&gt; {
-<a href=#512 id=512 data-nosnippet>512</a>                tables
-<a href=#513 id=513 data-nosnippet>513</a>                    .generics_of
-<a href=#514 id=514 data-nosnippet>514</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
-<a href=#515 id=515 data-nosnippet>515</a>                tables
-<a href=#516 id=516 data-nosnippet>516</a>                    .predicates_of
-<a href=#517 id=517 data-nosnippet>517</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
-<a href=#518 id=518 data-nosnippet>518</a>                tables.refinement_generics_of.insert(
-<a href=#519 id=519 data-nosnippet>519</a>                    key,
-<a href=#520 id=520 data-nosnippet>520</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
-<a href=#521 id=521 data-nosnippet>521</a>                );
-<a href=#522 id=522 data-nosnippet>522</a>
-<a href=#523 id=523 data-nosnippet>523</a>                <span class="kw">if </span>of_trait {
-<a href=#524 id=524 data-nosnippet>524</a>                    <span class="kw">let </span>assocs = genv.run_query_if_reached(def_id, GlobalEnv::assoc_refinements_of);
-<a href=#525 id=525 data-nosnippet>525</a>                    <span class="kw">if let </span><span class="prelude-val">Ok</span>(assocs) = <span class="kw-2">&amp;</span>assocs {
-<a href=#526 id=526 data-nosnippet>526</a>                        <span class="kw">for </span>assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>assocs.items {
-<a href=#527 id=527 data-nosnippet>527</a>                            <span class="kw">let </span>def_id = assoc_reft.def_id();
-<a href=#528 id=528 data-nosnippet>528</a>                            <span class="kw">let </span>key = assoc_id_to_key(def_id);
-<a href=#529 id=529 data-nosnippet>529</a>                            tables.assoc_refinements_def.insert(
-<a href=#530 id=530 data-nosnippet>530</a>                                key,
-<a href=#531 id=531 data-nosnippet>531</a>                                genv.run_query_if_reached(def_id, GlobalEnv::assoc_refinement_body),
-<a href=#532 id=532 data-nosnippet>532</a>                            );
-<a href=#533 id=533 data-nosnippet>533</a>                            tables.sort_of_assoc_reft.insert(
-<a href=#534 id=534 data-nosnippet>534</a>                                key,
-<a href=#535 id=535 data-nosnippet>535</a>                                genv.run_query_if_reached(def_id, GlobalEnv::sort_of_assoc_reft),
-<a href=#536 id=536 data-nosnippet>536</a>                            );
-<a href=#537 id=537 data-nosnippet>537</a>                        }
-<a href=#538 id=538 data-nosnippet>538</a>                    }
-<a href=#539 id=539 data-nosnippet>539</a>                    tables.assoc_refinements_of.insert(key, assocs);
-<a href=#540 id=540 data-nosnippet>540</a>                }
-<a href=#541 id=541 data-nosnippet>541</a>            }
-<a href=#542 id=542 data-nosnippet>542</a>            DefKind::Fn | DefKind::AssocFn =&gt; {
-<a href=#543 id=543 data-nosnippet>543</a>                tables
-<a href=#544 id=544 data-nosnippet>544</a>                    .generics_of
-<a href=#545 id=545 data-nosnippet>545</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
-<a href=#546 id=546 data-nosnippet>546</a>                tables
-<a href=#547 id=547 data-nosnippet>547</a>                    .predicates_of
-<a href=#548 id=548 data-nosnippet>548</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
-<a href=#549 id=549 data-nosnippet>549</a>                tables.refinement_generics_of.insert(
-<a href=#550 id=550 data-nosnippet>550</a>                    key,
-<a href=#551 id=551 data-nosnippet>551</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
-<a href=#552 id=552 data-nosnippet>552</a>                );
-<a href=#553 id=553 data-nosnippet>553</a>                tables
-<a href=#554 id=554 data-nosnippet>554</a>                    .fn_sig
-<a href=#555 id=555 data-nosnippet>555</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::fn_sig));
-<a href=#556 id=556 data-nosnippet>556</a>                tables.no_panic.insert(key, genv.no_panic(def_id));
-<a href=#557 id=557 data-nosnippet>557</a>                tables
-<a href=#558 id=558 data-nosnippet>558</a>                    .assume_parametric_params
-<a href=#559 id=559 data-nosnippet>559</a>                    .insert(key, genv.assume_parametric_params(def_id));
-<a href=#560 id=560 data-nosnippet>560</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = genv.spec_attr_span(def_id) {
-<a href=#561 id=561 data-nosnippet>561</a>                    tables.spec_attr_span.insert(key, span);
-<a href=#562 id=562 data-nosnippet>562</a>                }
-<a href=#563 id=563 data-nosnippet>563</a>            }
-<a href=#564 id=564 data-nosnippet>564</a>            DefKind::Ctor(<span class="kw">_</span>, CtorKind::Fn) =&gt; {
-<a href=#565 id=565 data-nosnippet>565</a>                tables
-<a href=#566 id=566 data-nosnippet>566</a>                    .generics_of
-<a href=#567 id=567 data-nosnippet>567</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
-<a href=#568 id=568 data-nosnippet>568</a>                tables.refinement_generics_of.insert(
-<a href=#569 id=569 data-nosnippet>569</a>                    key,
-<a href=#570 id=570 data-nosnippet>570</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
-<a href=#571 id=571 data-nosnippet>571</a>                );
-<a href=#572 id=572 data-nosnippet>572</a>                tables
-<a href=#573 id=573 data-nosnippet>573</a>                    .fn_sig
-<a href=#574 id=574 data-nosnippet>574</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::fn_sig));
-<a href=#575 id=575 data-nosnippet>575</a>            }
-<a href=#576 id=576 data-nosnippet>576</a>            DefKind::Enum | DefKind::Struct =&gt; {
-<a href=#577 id=577 data-nosnippet>577</a>                tables
-<a href=#578 id=578 data-nosnippet>578</a>                    .generics_of
-<a href=#579 id=579 data-nosnippet>579</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
-<a href=#580 id=580 data-nosnippet>580</a>                tables
-<a href=#581 id=581 data-nosnippet>581</a>                    .predicates_of
-<a href=#582 id=582 data-nosnippet>582</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
-<a href=#583 id=583 data-nosnippet>583</a>                tables.refinement_generics_of.insert(
-<a href=#584 id=584 data-nosnippet>584</a>                    key,
-<a href=#585 id=585 data-nosnippet>585</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
-<a href=#586 id=586 data-nosnippet>586</a>                );
-<a href=#587 id=587 data-nosnippet>587</a>                tables
-<a href=#588 id=588 data-nosnippet>588</a>                    .adt_def
-<a href=#589 id=589 data-nosnippet>589</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::adt_def));
-<a href=#590 id=590 data-nosnippet>590</a>                <span class="kw">if let </span><span class="prelude-val">Ok</span>(invariants) =
-<a href=#591 id=591 data-nosnippet>591</a>                    genv.run_query_if_reached(def_id, |genv, def_id| <span class="prelude-val">Ok</span>(genv.invariants_of(def_id)))
-<a href=#592 id=592 data-nosnippet>592</a>                {
-<a href=#593 id=593 data-nosnippet>593</a>                    tables.invariants_of.insert(key, invariants);
-<a href=#594 id=594 data-nosnippet>594</a>                }
-<a href=#595 id=595 data-nosnippet>595</a>                tables
-<a href=#596 id=596 data-nosnippet>596</a>                    .adt_sort_def
-<a href=#597 id=597 data-nosnippet>597</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::adt_sort_def_of));
-<a href=#598 id=598 data-nosnippet>598</a>                tables
-<a href=#599 id=599 data-nosnippet>599</a>                    .variants_of
-<a href=#600 id=600 data-nosnippet>600</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::variants_of));
-<a href=#601 id=601 data-nosnippet>601</a>                tables
-<a href=#602 id=602 data-nosnippet>602</a>                    .type_of
-<a href=#603 id=603 data-nosnippet>603</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::type_of));
-<a href=#604 id=604 data-nosnippet>604</a>            }
-<a href=#605 id=605 data-nosnippet>605</a>            DefKind::TyAlias =&gt; {
-<a href=#606 id=606 data-nosnippet>606</a>                tables
-<a href=#607 id=607 data-nosnippet>607</a>                    .generics_of
-<a href=#608 id=608 data-nosnippet>608</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
-<a href=#609 id=609 data-nosnippet>609</a>                tables
-<a href=#610 id=610 data-nosnippet>610</a>                    .predicates_of
-<a href=#611 id=611 data-nosnippet>611</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
-<a href=#612 id=612 data-nosnippet>612</a>                tables.refinement_generics_of.insert(
-<a href=#613 id=613 data-nosnippet>613</a>                    key,
-<a href=#614 id=614 data-nosnippet>614</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
-<a href=#615 id=615 data-nosnippet>615</a>                );
-<a href=#616 id=616 data-nosnippet>616</a>                tables
-<a href=#617 id=617 data-nosnippet>617</a>                    .type_of
-<a href=#618 id=618 data-nosnippet>618</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::type_of));
-<a href=#619 id=619 data-nosnippet>619</a>            }
-<a href=#620 id=620 data-nosnippet>620</a>            DefKind::OpaqueTy =&gt; {
-<a href=#621 id=621 data-nosnippet>621</a>                tables
-<a href=#622 id=622 data-nosnippet>622</a>                    .generics_of
-<a href=#623 id=623 data-nosnippet>623</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
-<a href=#624 id=624 data-nosnippet>624</a>                tables
-<a href=#625 id=625 data-nosnippet>625</a>                    .predicates_of
-<a href=#626 id=626 data-nosnippet>626</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
-<a href=#627 id=627 data-nosnippet>627</a>                tables
-<a href=#628 id=628 data-nosnippet>628</a>                    .item_bounds
-<a href=#629 id=629 data-nosnippet>629</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::item_bounds));
-<a href=#630 id=630 data-nosnippet>630</a>                tables.refinement_generics_of.insert(
-<a href=#631 id=631 data-nosnippet>631</a>                    key,
-<a href=#632 id=632 data-nosnippet>632</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
-<a href=#633 id=633 data-nosnippet>633</a>                );
-<a href=#634 id=634 data-nosnippet>634</a>            }
-<a href=#635 id=635 data-nosnippet>635</a>            DefKind::Static { .. } =&gt; {
-<a href=#636 id=636 data-nosnippet>636</a>                tables.static_info.insert(key, genv.static_info(def_id));
-<a href=#637 id=637 data-nosnippet>637</a>            }
-<a href=#638 id=638 data-nosnippet>638</a>            <span class="kw">_ </span>=&gt; {}
-<a href=#639 id=639 data-nosnippet>639</a>        }
-<a href=#640 id=640 data-nosnippet>640</a>    }
-<a href=#641 id=641 data-nosnippet>641</a>}
-<a href=#642 id=642 data-nosnippet>642</a>
-<a href=#643 id=643 data-nosnippet>643</a><span class="kw">pub fn </span>filename_for_metadata(tcx: TyCtxt) -&gt; OutFileName {
-<a href=#644 id=644 data-nosnippet>644</a>    <span class="kw">match </span>rustc_session::output::filename_for_metadata(tcx.sess, tcx.output_filenames(())) {
-<a href=#645 id=645 data-nosnippet>645</a>        OutFileName::Real(path) =&gt; OutFileName::Real(path.with_extension(<span class="string">"fluxmeta"</span>)),
-<a href=#646 id=646 data-nosnippet>646</a>        OutFileName::Stdout =&gt; OutFileName::Stdout,
-<a href=#647 id=647 data-nosnippet>647</a>    }
-<a href=#648 id=648 data-nosnippet>648</a>}
-<a href=#649 id=649 data-nosnippet>649</a>
-<a href=#650 id=650 data-nosnippet>650</a><span class="kw">fn </span>flux_metadata_extern_location(tcx: TyCtxt, crate_num: CrateNum) -&gt; <span class="prelude-ty">Option</span>&lt;PathBuf&gt; {
-<a href=#651 id=651 data-nosnippet>651</a>    <span class="comment">// Since we only save metadata when `--emit=metadata` is passed, we also only load flux metadata
-<a href=#652 id=652 data-nosnippet>652</a>    // when the crate source is a `.rmeta` file.
-<a href=#653 id=653 data-nosnippet>653</a>    </span>tcx.used_crate_source(crate_num)
-<a href=#654 id=654 data-nosnippet>654</a>        .rmeta
-<a href=#655 id=655 data-nosnippet>655</a>        .as_ref()
-<a href=#656 id=656 data-nosnippet>656</a>        .map(|path| path.with_extension(<span class="string">"fluxmeta"</span>))
-<a href=#657 id=657 data-nosnippet>657</a>}
-<a href=#658 id=658 data-nosnippet>658</a>
-<a href=#659 id=659 data-nosnippet>659</a><span class="comment">// Tags for encoding Symbol's
-<a href=#660 id=660 data-nosnippet>660</a></span><span class="kw">const </span>SYMBOL_STR: u8 = <span class="number">0</span>;
-<a href=#661 id=661 data-nosnippet>661</a><span class="kw">const </span>SYMBOL_OFFSET: u8 = <span class="number">1</span>;
-<a href=#662 id=662 data-nosnippet>662</a><span class="kw">const </span>SYMBOL_PREDEFINED: u8 = <span class="number">2</span>;
-<a href=#663 id=663 data-nosnippet>663</a>
-<a href=#664 id=664 data-nosnippet>664</a><span class="kw">mod </span>errors {
-<a href=#665 id=665 data-nosnippet>665</a>    <span class="kw">use </span>flux_errors::E0999;
-<a href=#666 id=666 data-nosnippet>666</a>    <span class="kw">use </span>flux_macros::Diagnostic;
-<a href=#667 id=667 data-nosnippet>667</a>    <span class="kw">use </span>rustc_middle::ty::TyCtxt;
-<a href=#668 id=668 data-nosnippet>668</a>
-<a href=#669 id=669 data-nosnippet>669</a>    <span class="kw">use </span><span class="kw">crate</span>::Key;
+<a href=#448 id=448 data-nosnippet>448</a>            fhir::FluxItem::PrimOpProp(<span class="kw">_</span>)
+<a href=#449 id=449 data-nosnippet>449</a>            | fhir::FluxItem::Axiom(<span class="kw">_</span>)
+<a href=#450 id=450 data-nosnippet>450</a>            | fhir::FluxItem::Qualifier(<span class="kw">_</span>) =&gt; {}
+<a href=#451 id=451 data-nosnippet>451</a>        }
+<a href=#452 id=452 data-nosnippet>452</a>    }
+<a href=#453 id=453 data-nosnippet>453</a>}
+<a href=#454 id=454 data-nosnippet>454</a>
+<a href=#455 id=455 data-nosnippet>455</a><span class="kw">fn </span>encode_flux_module_children&lt;<span class="lifetime">'tcx</span>&gt;(
+<a href=#456 id=456 data-nosnippet>456</a>    genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+<a href=#457 id=457 data-nosnippet>457</a>    tables: <span class="kw-2">&amp;mut </span>Tables&lt;<span class="lifetime">'tcx</span>, DefIndex&gt;,
+<a href=#458 id=458 data-nosnippet>458</a>) {
+<a href=#459 id=459 data-nosnippet>459</a>    genv.tcx().hir_for_each_module(|module| {
+<a href=#460 id=460 data-nosnippet>460</a>        <span class="kw">let </span>module = module.to_local_def_id();
+<a href=#461 id=461 data-nosnippet>461</a>        <span class="kw">let </span>children = genv.flux_module_children(module.to_def_id());
+<a href=#462 id=462 data-nosnippet>462</a>        <span class="kw">if </span>!children.is_empty() {
+<a href=#463 id=463 data-nosnippet>463</a>            tables
+<a href=#464 id=464 data-nosnippet>464</a>                .flux_module_children
+<a href=#465 id=465 data-nosnippet>465</a>                .insert(module.local_def_index, children.to_vec());
+<a href=#466 id=466 data-nosnippet>466</a>        }
+<a href=#467 id=467 data-nosnippet>467</a>    });
+<a href=#468 id=468 data-nosnippet>468</a>}
+<a href=#469 id=469 data-nosnippet>469</a>
+<a href=#470 id=470 data-nosnippet>470</a><span class="kw">fn </span>encode_def_ids&lt;<span class="lifetime">'tcx</span>, K: Eq + Hash + Copy&gt;(
+<a href=#471 id=471 data-nosnippet>471</a>    genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+<a href=#472 id=472 data-nosnippet>472</a>    def_ids: <span class="kw">impl </span>IntoIterator&lt;Item = DefId&gt;,
+<a href=#473 id=473 data-nosnippet>473</a>    tables: <span class="kw-2">&amp;mut </span>Tables&lt;<span class="lifetime">'tcx</span>, K&gt;,
+<a href=#474 id=474 data-nosnippet>474</a>    did_to_key: <span class="kw">fn</span>(DefId) -&gt; K,
+<a href=#475 id=475 data-nosnippet>475</a>    assoc_id_to_key: <span class="kw">fn</span>(FluxDefId) -&gt; FluxId&lt;K&gt;,
+<a href=#476 id=476 data-nosnippet>476</a>) {
+<a href=#477 id=477 data-nosnippet>477</a>    <span class="kw">for </span>def_id <span class="kw">in </span>def_ids {
+<a href=#478 id=478 data-nosnippet>478</a>        <span class="kw">let </span>def_kind = genv.def_kind(def_id);
+<a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">let </span>key = did_to_key(def_id);
+<a href=#480 id=480 data-nosnippet>480</a>
+<a href=#481 id=481 data-nosnippet>481</a>        <span class="kw">match </span>def_kind {
+<a href=#482 id=482 data-nosnippet>482</a>            DefKind::Trait =&gt; {
+<a href=#483 id=483 data-nosnippet>483</a>                tables
+<a href=#484 id=484 data-nosnippet>484</a>                    .generics_of
+<a href=#485 id=485 data-nosnippet>485</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+<a href=#486 id=486 data-nosnippet>486</a>                tables
+<a href=#487 id=487 data-nosnippet>487</a>                    .predicates_of
+<a href=#488 id=488 data-nosnippet>488</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+<a href=#489 id=489 data-nosnippet>489</a>                tables.refinement_generics_of.insert(
+<a href=#490 id=490 data-nosnippet>490</a>                    key,
+<a href=#491 id=491 data-nosnippet>491</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+<a href=#492 id=492 data-nosnippet>492</a>                );
+<a href=#493 id=493 data-nosnippet>493</a>                <span class="kw">let </span>assocs = genv.run_query_if_reached(def_id, GlobalEnv::assoc_refinements_of);
+<a href=#494 id=494 data-nosnippet>494</a>                <span class="kw">if let </span><span class="prelude-val">Ok</span>(assocs) = <span class="kw-2">&amp;</span>assocs {
+<a href=#495 id=495 data-nosnippet>495</a>                    <span class="kw">for </span>assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>assocs.items {
+<a href=#496 id=496 data-nosnippet>496</a>                        <span class="kw">let </span>def_id = assoc_reft.def_id();
+<a href=#497 id=497 data-nosnippet>497</a>                        <span class="kw">let </span>key = assoc_id_to_key(def_id);
+<a href=#498 id=498 data-nosnippet>498</a>                        tables.default_assoc_refinements_def.insert(
+<a href=#499 id=499 data-nosnippet>499</a>                            key,
+<a href=#500 id=500 data-nosnippet>500</a>                            genv.run_query_if_reached(
+<a href=#501 id=501 data-nosnippet>501</a>                                def_id,
+<a href=#502 id=502 data-nosnippet>502</a>                                GlobalEnv::default_assoc_refinement_body,
+<a href=#503 id=503 data-nosnippet>503</a>                            ),
+<a href=#504 id=504 data-nosnippet>504</a>                        );
+<a href=#505 id=505 data-nosnippet>505</a>                        tables.sort_of_assoc_reft.insert(
+<a href=#506 id=506 data-nosnippet>506</a>                            key,
+<a href=#507 id=507 data-nosnippet>507</a>                            genv.run_query_if_reached(def_id, GlobalEnv::sort_of_assoc_reft),
+<a href=#508 id=508 data-nosnippet>508</a>                        );
+<a href=#509 id=509 data-nosnippet>509</a>                    }
+<a href=#510 id=510 data-nosnippet>510</a>                }
+<a href=#511 id=511 data-nosnippet>511</a>                tables.assoc_refinements_of.insert(key, assocs);
+<a href=#512 id=512 data-nosnippet>512</a>            }
+<a href=#513 id=513 data-nosnippet>513</a>            DefKind::Impl { of_trait } =&gt; {
+<a href=#514 id=514 data-nosnippet>514</a>                tables
+<a href=#515 id=515 data-nosnippet>515</a>                    .generics_of
+<a href=#516 id=516 data-nosnippet>516</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+<a href=#517 id=517 data-nosnippet>517</a>                tables
+<a href=#518 id=518 data-nosnippet>518</a>                    .predicates_of
+<a href=#519 id=519 data-nosnippet>519</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+<a href=#520 id=520 data-nosnippet>520</a>                tables.refinement_generics_of.insert(
+<a href=#521 id=521 data-nosnippet>521</a>                    key,
+<a href=#522 id=522 data-nosnippet>522</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+<a href=#523 id=523 data-nosnippet>523</a>                );
+<a href=#524 id=524 data-nosnippet>524</a>
+<a href=#525 id=525 data-nosnippet>525</a>                <span class="kw">if </span>of_trait {
+<a href=#526 id=526 data-nosnippet>526</a>                    <span class="kw">let </span>assocs = genv.run_query_if_reached(def_id, GlobalEnv::assoc_refinements_of);
+<a href=#527 id=527 data-nosnippet>527</a>                    <span class="kw">if let </span><span class="prelude-val">Ok</span>(assocs) = <span class="kw-2">&amp;</span>assocs {
+<a href=#528 id=528 data-nosnippet>528</a>                        <span class="kw">for </span>assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>assocs.items {
+<a href=#529 id=529 data-nosnippet>529</a>                            <span class="kw">let </span>def_id = assoc_reft.def_id();
+<a href=#530 id=530 data-nosnippet>530</a>                            <span class="kw">let </span>key = assoc_id_to_key(def_id);
+<a href=#531 id=531 data-nosnippet>531</a>                            tables.assoc_refinements_def.insert(
+<a href=#532 id=532 data-nosnippet>532</a>                                key,
+<a href=#533 id=533 data-nosnippet>533</a>                                genv.run_query_if_reached(def_id, GlobalEnv::assoc_refinement_body),
+<a href=#534 id=534 data-nosnippet>534</a>                            );
+<a href=#535 id=535 data-nosnippet>535</a>                            tables.sort_of_assoc_reft.insert(
+<a href=#536 id=536 data-nosnippet>536</a>                                key,
+<a href=#537 id=537 data-nosnippet>537</a>                                genv.run_query_if_reached(def_id, GlobalEnv::sort_of_assoc_reft),
+<a href=#538 id=538 data-nosnippet>538</a>                            );
+<a href=#539 id=539 data-nosnippet>539</a>                        }
+<a href=#540 id=540 data-nosnippet>540</a>                    }
+<a href=#541 id=541 data-nosnippet>541</a>                    tables.assoc_refinements_of.insert(key, assocs);
+<a href=#542 id=542 data-nosnippet>542</a>                }
+<a href=#543 id=543 data-nosnippet>543</a>            }
+<a href=#544 id=544 data-nosnippet>544</a>            DefKind::Fn | DefKind::AssocFn =&gt; {
+<a href=#545 id=545 data-nosnippet>545</a>                tables
+<a href=#546 id=546 data-nosnippet>546</a>                    .generics_of
+<a href=#547 id=547 data-nosnippet>547</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+<a href=#548 id=548 data-nosnippet>548</a>                tables
+<a href=#549 id=549 data-nosnippet>549</a>                    .predicates_of
+<a href=#550 id=550 data-nosnippet>550</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+<a href=#551 id=551 data-nosnippet>551</a>                tables.refinement_generics_of.insert(
+<a href=#552 id=552 data-nosnippet>552</a>                    key,
+<a href=#553 id=553 data-nosnippet>553</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+<a href=#554 id=554 data-nosnippet>554</a>                );
+<a href=#555 id=555 data-nosnippet>555</a>                tables
+<a href=#556 id=556 data-nosnippet>556</a>                    .fn_sig
+<a href=#557 id=557 data-nosnippet>557</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::fn_sig));
+<a href=#558 id=558 data-nosnippet>558</a>                tables.no_panic.insert(key, genv.no_panic(def_id));
+<a href=#559 id=559 data-nosnippet>559</a>                tables
+<a href=#560 id=560 data-nosnippet>560</a>                    .assume_parametric_params
+<a href=#561 id=561 data-nosnippet>561</a>                    .insert(key, genv.assume_parametric_params(def_id));
+<a href=#562 id=562 data-nosnippet>562</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = genv.spec_attr_span(def_id) {
+<a href=#563 id=563 data-nosnippet>563</a>                    tables.spec_attr_span.insert(key, span);
+<a href=#564 id=564 data-nosnippet>564</a>                }
+<a href=#565 id=565 data-nosnippet>565</a>            }
+<a href=#566 id=566 data-nosnippet>566</a>            DefKind::Ctor(<span class="kw">_</span>, CtorKind::Fn) =&gt; {
+<a href=#567 id=567 data-nosnippet>567</a>                tables
+<a href=#568 id=568 data-nosnippet>568</a>                    .generics_of
+<a href=#569 id=569 data-nosnippet>569</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+<a href=#570 id=570 data-nosnippet>570</a>                tables.refinement_generics_of.insert(
+<a href=#571 id=571 data-nosnippet>571</a>                    key,
+<a href=#572 id=572 data-nosnippet>572</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+<a href=#573 id=573 data-nosnippet>573</a>                );
+<a href=#574 id=574 data-nosnippet>574</a>                tables
+<a href=#575 id=575 data-nosnippet>575</a>                    .fn_sig
+<a href=#576 id=576 data-nosnippet>576</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::fn_sig));
+<a href=#577 id=577 data-nosnippet>577</a>            }
+<a href=#578 id=578 data-nosnippet>578</a>            DefKind::Enum | DefKind::Struct =&gt; {
+<a href=#579 id=579 data-nosnippet>579</a>                tables
+<a href=#580 id=580 data-nosnippet>580</a>                    .generics_of
+<a href=#581 id=581 data-nosnippet>581</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+<a href=#582 id=582 data-nosnippet>582</a>                tables
+<a href=#583 id=583 data-nosnippet>583</a>                    .predicates_of
+<a href=#584 id=584 data-nosnippet>584</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+<a href=#585 id=585 data-nosnippet>585</a>                tables.refinement_generics_of.insert(
+<a href=#586 id=586 data-nosnippet>586</a>                    key,
+<a href=#587 id=587 data-nosnippet>587</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+<a href=#588 id=588 data-nosnippet>588</a>                );
+<a href=#589 id=589 data-nosnippet>589</a>                tables
+<a href=#590 id=590 data-nosnippet>590</a>                    .adt_def
+<a href=#591 id=591 data-nosnippet>591</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::adt_def));
+<a href=#592 id=592 data-nosnippet>592</a>                <span class="kw">if let </span><span class="prelude-val">Ok</span>(invariants) =
+<a href=#593 id=593 data-nosnippet>593</a>                    genv.run_query_if_reached(def_id, |genv, def_id| <span class="prelude-val">Ok</span>(genv.invariants_of(def_id)))
+<a href=#594 id=594 data-nosnippet>594</a>                {
+<a href=#595 id=595 data-nosnippet>595</a>                    tables.invariants_of.insert(key, invariants);
+<a href=#596 id=596 data-nosnippet>596</a>                }
+<a href=#597 id=597 data-nosnippet>597</a>                tables
+<a href=#598 id=598 data-nosnippet>598</a>                    .adt_sort_def
+<a href=#599 id=599 data-nosnippet>599</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::adt_sort_def_of));
+<a href=#600 id=600 data-nosnippet>600</a>                tables
+<a href=#601 id=601 data-nosnippet>601</a>                    .variants_of
+<a href=#602 id=602 data-nosnippet>602</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::variants_of));
+<a href=#603 id=603 data-nosnippet>603</a>                tables
+<a href=#604 id=604 data-nosnippet>604</a>                    .type_of
+<a href=#605 id=605 data-nosnippet>605</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::type_of));
+<a href=#606 id=606 data-nosnippet>606</a>            }
+<a href=#607 id=607 data-nosnippet>607</a>            DefKind::TyAlias =&gt; {
+<a href=#608 id=608 data-nosnippet>608</a>                tables
+<a href=#609 id=609 data-nosnippet>609</a>                    .generics_of
+<a href=#610 id=610 data-nosnippet>610</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+<a href=#611 id=611 data-nosnippet>611</a>                tables
+<a href=#612 id=612 data-nosnippet>612</a>                    .predicates_of
+<a href=#613 id=613 data-nosnippet>613</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+<a href=#614 id=614 data-nosnippet>614</a>                tables.refinement_generics_of.insert(
+<a href=#615 id=615 data-nosnippet>615</a>                    key,
+<a href=#616 id=616 data-nosnippet>616</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+<a href=#617 id=617 data-nosnippet>617</a>                );
+<a href=#618 id=618 data-nosnippet>618</a>                tables
+<a href=#619 id=619 data-nosnippet>619</a>                    .type_of
+<a href=#620 id=620 data-nosnippet>620</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::type_of));
+<a href=#621 id=621 data-nosnippet>621</a>            }
+<a href=#622 id=622 data-nosnippet>622</a>            DefKind::OpaqueTy =&gt; {
+<a href=#623 id=623 data-nosnippet>623</a>                tables
+<a href=#624 id=624 data-nosnippet>624</a>                    .generics_of
+<a href=#625 id=625 data-nosnippet>625</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
+<a href=#626 id=626 data-nosnippet>626</a>                tables
+<a href=#627 id=627 data-nosnippet>627</a>                    .predicates_of
+<a href=#628 id=628 data-nosnippet>628</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::predicates_of));
+<a href=#629 id=629 data-nosnippet>629</a>                tables
+<a href=#630 id=630 data-nosnippet>630</a>                    .item_bounds
+<a href=#631 id=631 data-nosnippet>631</a>                    .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::item_bounds));
+<a href=#632 id=632 data-nosnippet>632</a>                tables.refinement_generics_of.insert(
+<a href=#633 id=633 data-nosnippet>633</a>                    key,
+<a href=#634 id=634 data-nosnippet>634</a>                    genv.run_query_if_reached(def_id, GlobalEnv::refinement_generics_of),
+<a href=#635 id=635 data-nosnippet>635</a>                );
+<a href=#636 id=636 data-nosnippet>636</a>            }
+<a href=#637 id=637 data-nosnippet>637</a>            DefKind::Static { .. } =&gt; {
+<a href=#638 id=638 data-nosnippet>638</a>                tables.static_info.insert(key, genv.static_info(def_id));
+<a href=#639 id=639 data-nosnippet>639</a>            }
+<a href=#640 id=640 data-nosnippet>640</a>            <span class="kw">_ </span>=&gt; {}
+<a href=#641 id=641 data-nosnippet>641</a>        }
+<a href=#642 id=642 data-nosnippet>642</a>    }
+<a href=#643 id=643 data-nosnippet>643</a>}
+<a href=#644 id=644 data-nosnippet>644</a>
+<a href=#645 id=645 data-nosnippet>645</a><span class="kw">pub fn </span>filename_for_metadata(tcx: TyCtxt) -&gt; OutFileName {
+<a href=#646 id=646 data-nosnippet>646</a>    <span class="kw">match </span>rustc_session::output::filename_for_metadata(tcx.sess, tcx.output_filenames(())) {
+<a href=#647 id=647 data-nosnippet>647</a>        OutFileName::Real(path) =&gt; OutFileName::Real(path.with_extension(<span class="string">"fluxmeta"</span>)),
+<a href=#648 id=648 data-nosnippet>648</a>        OutFileName::Stdout =&gt; OutFileName::Stdout,
+<a href=#649 id=649 data-nosnippet>649</a>    }
+<a href=#650 id=650 data-nosnippet>650</a>}
+<a href=#651 id=651 data-nosnippet>651</a>
+<a href=#652 id=652 data-nosnippet>652</a><span class="kw">fn </span>flux_metadata_extern_location(tcx: TyCtxt, crate_num: CrateNum) -&gt; <span class="prelude-ty">Option</span>&lt;PathBuf&gt; {
+<a href=#653 id=653 data-nosnippet>653</a>    <span class="comment">// Since we only save metadata when `--emit=metadata` is passed, we also only load flux metadata
+<a href=#654 id=654 data-nosnippet>654</a>    // when the crate source is a `.rmeta` file.
+<a href=#655 id=655 data-nosnippet>655</a>    </span>tcx.used_crate_source(crate_num)
+<a href=#656 id=656 data-nosnippet>656</a>        .rmeta
+<a href=#657 id=657 data-nosnippet>657</a>        .as_ref()
+<a href=#658 id=658 data-nosnippet>658</a>        .map(|path| path.with_extension(<span class="string">"fluxmeta"</span>))
+<a href=#659 id=659 data-nosnippet>659</a>}
+<a href=#660 id=660 data-nosnippet>660</a>
+<a href=#661 id=661 data-nosnippet>661</a><span class="comment">// Tags for encoding Symbol's
+<a href=#662 id=662 data-nosnippet>662</a></span><span class="kw">const </span>SYMBOL_STR: u8 = <span class="number">0</span>;
+<a href=#663 id=663 data-nosnippet>663</a><span class="kw">const </span>SYMBOL_OFFSET: u8 = <span class="number">1</span>;
+<a href=#664 id=664 data-nosnippet>664</a><span class="kw">const </span>SYMBOL_PREDEFINED: u8 = <span class="number">2</span>;
+<a href=#665 id=665 data-nosnippet>665</a>
+<a href=#666 id=666 data-nosnippet>666</a><span class="kw">mod </span>errors {
+<a href=#667 id=667 data-nosnippet>667</a>    <span class="kw">use </span>flux_errors::E0999;
+<a href=#668 id=668 data-nosnippet>668</a>    <span class="kw">use </span>flux_macros::Diagnostic;
+<a href=#669 id=669 data-nosnippet>669</a>    <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <a href=#670 id=670 data-nosnippet>670</a>
-<a href=#671 id=671 data-nosnippet>671</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#672 id=672 data-nosnippet>672</a>    #[diag(<span class="string">"duplicate spec for {$def_name}"</span>, code = E0999)]
-<a href=#673 id=673 data-nosnippet>673</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DuplicateSpec {
-<a href=#674 id=674 data-nosnippet>674</a>        def_name: String,
-<a href=#675 id=675 data-nosnippet>675</a>    }
-<a href=#676 id=676 data-nosnippet>676</a>
-<a href=#677 id=677 data-nosnippet>677</a>    <span class="kw">impl </span>DuplicateSpec {
-<a href=#678 id=678 data-nosnippet>678</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(tcx: TyCtxt, key: <span class="kw">impl </span>Key) -&gt; <span class="self">Self </span>{
-<a href=#679 id=679 data-nosnippet>679</a>            <span class="self">Self </span>{ def_name: key.name(tcx) }
-<a href=#680 id=680 data-nosnippet>680</a>        }
-<a href=#681 id=681 data-nosnippet>681</a>    }
-<a href=#682 id=682 data-nosnippet>682</a>}
+<a href=#671 id=671 data-nosnippet>671</a>    <span class="kw">use </span><span class="kw">crate</span>::Key;
+<a href=#672 id=672 data-nosnippet>672</a>
+<a href=#673 id=673 data-nosnippet>673</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#674 id=674 data-nosnippet>674</a>    #[diag(<span class="string">"duplicate spec for {$def_name}"</span>, code = E0999)]
+<a href=#675 id=675 data-nosnippet>675</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DuplicateSpec {
+<a href=#676 id=676 data-nosnippet>676</a>        def_name: String,
+<a href=#677 id=677 data-nosnippet>677</a>    }
+<a href=#678 id=678 data-nosnippet>678</a>
+<a href=#679 id=679 data-nosnippet>679</a>    <span class="kw">impl </span>DuplicateSpec {
+<a href=#680 id=680 data-nosnippet>680</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(tcx: TyCtxt, key: <span class="kw">impl </span>Key) -&gt; <span class="self">Self </span>{
+<a href=#681 id=681 data-nosnippet>681</a>            <span class="self">Self </span>{ def_name: key.name(tcx) }
+<a href=#682 id=682 data-nosnippet>682</a>        }
+<a href=#683 id=683 data-nosnippet>683</a>    }
+<a href=#684 id=684 data-nosnippet>684</a>}
 </code></pre></div></section></main></body></html>

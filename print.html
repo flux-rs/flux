@@ -6157,6 +6157,156 @@ pub fn test() {
     let c = foo(a, b);
     bar(c);
 }</code></pre>
+<h2 id="axioms"><a class="header" href="#axioms">Axioms</a></h2>
+<p>You can write axioms to state properties about uninterpreted functions:</p>
+<pre><code class="language-text">axiom &lt;name&gt;(x1: s1, ..., xn: sn) { &lt;expr&gt; }
+</code></pre>
+<p>which says that the <code>bool</code>-sorted refinement <code>&lt;expr&gt;</code> holds for <em>all</em> values <code>x1, ..., xn</code>
+of sorts <code>s1, ..., sn</code>. The sorts of the parameters must be written out explicitly.</p>
+<pre><code class="language-rust noplayground">// Test that `axiom`s about uninterpreted functions are passed on to the SMT solver
+
+use flux_attrs::*;
+
+defs! {
+    fn modc(x: int, c: int) -&gt; int;
+
+    axiom ModPeriodic(x: int, y: int, c: int) {
+        (c &gt; 0 &amp;&amp; y == x - c) =&gt; modc(y, c) == modc(x, c)
+    }
+}
+
+#[spec(fn(bool[true]))]
+fn assert(_b: bool) {}
+
+#[trusted]
+#[spec(fn(x: i32, c: i32) -&gt; i32{v: v == modc(x, c)})]
+fn modc(x: i32, c: i32) -&gt; i32 {
+    x.rem_euclid(c)
+}
+
+#[spec(fn(x: i32, c: i32{c &gt; 0}))]
+pub fn test(x: i32, c: i32) {
+    let y = x - c;
+    let z = y - c;
+    // the axiom is triggered by pairs of `modc` terms, so the VC must mention `modc(y, c)`
+    let a = modc(x, c);
+    let _b = modc(y, c);
+    let d = modc(z, c);
+    assert(a == d);
+}</code></pre>
+<p>Axioms are passed to the SMT solver as quantified formulas</p>
+<ol>
+<li>
+<p><strong>Axioms are assumed, not checked.</strong> (for now), we will fix this soon.</p>
+</li>
+<li>
+<p><strong>Axioms are instantiated by triggers.</strong> <code>flux</code> uses the applications of
+uninterpreted functions that occur in the axiom's body as a <em>pattern</em> and
+the solver <em>only instantiates</em> the axiom when it findsterms matching <em>all patterns</em>.</p>
+</li>
+</ol>
+<p>In the example above the pattern is the pair <code>modc(y, c)</code> and <code>modc(x, c)</code>,
+so to relate <code>modc(x, c)</code> and <code>modc(z, c)</code> the verification condition must
+also mention the intermediate term <code>modc(y, c)</code>, which is why <code>test</code> calls
+<code>modc(y, c)</code> even though it does not use the result. (You can inspect the
+generated axiom and its pattern with <code>-Fdump-constraint</code>.)</p>
+<ol start="3">
+<li><strong>Indices can elide trigger from the VC.</strong>
+Calling <code>modc(y, c)</code> only helps because <code>modc</code> returns the <em>existential</em>
+type <code>i32{v: v == modc(x, c)}</code>: each adds a hypothesis <code>v == modc(..)</code>
+to the verification condition, whether or not the result is used.
+Had we instead given it the <em>indexed</em> type <code>i32[modc(x, c)]</code>, <code>flux</code>
+would <em>substitute</em> the index directly into the places where the
+result is used, so the unused call <code>modc(y, c)</code> would be elided
+and the assertion would fail as</li>
+</ol>
+<pre><code class="language-text">modc(x, c) == modc(x - c - c, c)
+</code></pre>
+<p>has no pair of terms matching the pattern.</p>
+<ul>
+<li>
+<p><strong>What counts as uninterpreted.</strong> Besides functions declared without a body, the pattern
+includes applications of</p>
+<ul>
+<li><a href="guide/specifications.html#hiding-and-revealing-function-definitions">hidden</a> spec functions, except when checking
+a function that <code>reveal</code>s them,</li>
+<li>the uninterpreted functions <code>flux</code> uses for <a href="guide/specifications.html#extensible-properties-for-primitive-ops">primitive operations</a>
+like <code>&amp;</code> or <code>&lt;&lt;</code> on <code>int</code>, written <code>[&amp;](x, y)</code> (see below),</li>
+<li>the operators made uninterpreted with <a href="guide/specifications.html#uninterpreted-operators"><code>uif_ops</code></a>, but only when
+checking a function for which that option is set (see below),</li>
+<li>casts between sorts that have no interpretation, and</li>
+<li>associated refinements.</li>
+</ul>
+<p>Applications that appear under a <code>let</code> or a quantifier inside the body are <em>not</em> used.
+An axiom whose body has no applications of uninterpreted functions is sent to the solver
+without a pattern.</p>
+</li>
+<li>
+<p><strong>Axioms are global to the crate.</strong> They are used when checking every function in the crate
+in which they are defined, but are not (yet) exported to other crates.</p>
+</li>
+<li>
+<p>Axioms require a version of <code>fixpoint</code> that supports the <code>axiom</code> declaration.</p>
+</li>
+</ul>
+<h3 id="axioms-about-primitive-operations"><a class="header" href="#axioms-about-primitive-operations">Axioms about Primitive Operations</a></h3>
+<p>Axioms can also talk about the uninterpreted functions that <code>flux</code> uses for bit-level
+operations on integers, using the same <code>[op](x, y)</code> syntax as in
+<a href="guide/specifications.html#extensible-properties-for-primitive-ops">properties</a>. The application <code>[&amp;](x, y)</code> is then
+the pattern for the axiom, so it is instantiated at each <code>x &amp; y</code> in the code being checked.</p>
+<pre><code class="language-rust noplayground">// Test that `axiom`s can talk about (and are triggered by) the UIFs for primops like `&amp;`
+
+use flux_attrs::*;
+
+defs! {
+    axiom AndLe(x: int, y: int) {
+        (0 &lt;= x &amp;&amp; 0 &lt;= y) =&gt; [&amp;](x, y) &lt;= y
+    }
+}
+
+#[spec(fn(x: u32, y: u32) -&gt; u32{v: v &lt;= y})]
+pub fn test(x: u32, y: u32) -&gt; u32 {
+    x &amp; y
+}</code></pre>
+<p>Similarly, axioms can recover <em>some</em> of the facts about the operators that are made uninterpreted
+with <a href="guide/specifications.html#uninterpreted-operators"><code>uif_ops</code></a>. Below, <code>x * y</code> and <code>y * x</code> are the pattern for the
+axiom when checking <code>mul_comm</code>, where <code>*</code> is uninterpreted. When checking <code>mul_two</code>, where <code>*</code>
+keeps its usual meaning, the same axiom is sent to the solver without a pattern.</p>
+<p>The <code>[op](x, y)</code> syntax also works for the arithmetic operators (<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code> and <code>%</code> on
+<code>int</code>), where it means the same as <code>x op y</code>, as in <code>ModPosGe</code> below.</p>
+<pre><code class="language-rust noplayground">// Axioms about operations that are made uninterpreted with `uif_ops`
+
+use flux_attrs::*;
+
+defs! {
+    axiom MulComm(x: int, y: int) { x * y == y * x }
+
+
+    // A positive multiple of `c` is at least `c`. Pattern: `x % c`.
+    axiom ModPosGe(x: int, c: int) {
+        (c &gt; 0 &amp;&amp; x &gt; 0 &amp;&amp; [%](x, c) == 0) =&gt; x &gt;= c
+    }
+}
+
+// With `uif_ops = "*"`, `x * y` is an uninterpreted function, so commutativity needs the axiom
+// (which is instantiated using the terms `x * y` and `y * x` as its pattern)
+#[opts(uif_ops = "*")]
+#[spec(fn(x: i32, y: i32) -&gt; i32{v: v == y * x})]
+pub fn mul_comm(x: i32, y: i32) -&gt; i32 {
+    x * y
+}
+
+// Without `uif_ops`, `*` is interpreted, so the axiom is emitted without a pattern
+#[spec(fn(x: i32) -&gt; i32{v: v == x * 2})]
+pub fn mul_two(x: i32) -&gt; i32 {
+    x + x
+}
+
+#[opts(uif_ops = "%")]
+#[spec(fn(x: i32, c: i32) -&gt; bool[true])]
+pub fn mod_pos_ge(x: i32, c: i32) -&gt; bool {
+    if c &gt; 0 &amp;&amp; x &gt; 0 &amp;&amp; x % c == 0 { x &gt;= c } else { true }
+}</code></pre>
 <h2 id="hiding-and-revealing-function-definitions"><a class="header" href="#hiding-and-revealing-function-definitions">Hiding and Revealing Function Definitions</a></h2>
 <p>By default all the function definitions are sent to the SMT solver as <code>define-fun</code>
 (polymorphic functions, which cannot be encoded as <code>define-fun</code>, are <em>inlined</em> instead).
