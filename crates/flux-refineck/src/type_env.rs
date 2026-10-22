@@ -118,6 +118,15 @@ impl<'a> TypeEnv<'a> {
         Ok(result.ty)
     }
 
+    pub(crate) fn raw_ptr_derefs<'genv, 'tcx>(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        place: &Place,
+        span: Span,
+    ) -> InferResult<Vec<(usize, Expr)>> {
+        self.bindings.raw_ptr_derefs(infcx, place, span)
+    }
+
     /// If a Place is of the form: *p or *(s.p), return the index of the pointer.
     /// Note that this does not match (*p).f, where p points to a struct.
     /// Doubly note that taking the addr of (*p).f doesn't actually do any loads,

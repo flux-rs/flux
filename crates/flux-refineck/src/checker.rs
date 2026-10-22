@@ -32,8 +32,8 @@ use flux_rustc_bridge::{
     lowering::Lower,
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
-        ConstOperand, Location, NonDivergingIntrinsic, Operand, Place, PlaceElem, Rvalue,
-        START_BLOCK, Statement, StatementKind, Terminator, TerminatorKind, UnOp,
+        ConstOperand, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK,
+        Statement, StatementKind, Terminator, TerminatorKind, UnOp,
     },
     ty::{self, GenericArgsExt as _},
 };
@@ -572,15 +572,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             return Ok(());
         }
         let genv = self.genv;
-        for i in 0..place.projection.len() {
-            if !matches!(place.projection[i], PlaceElem::Deref) {
-                continue;
-            }
-            let ptr_place = Place::new(place.local, place.projection[..i].to_vec());
-            let val_place = ptr_place.deref();
-            let Some(idx) = env.place_directly_derefs_raw_ptr(infcx, &val_place, span)? else {
-                continue;
-            };
+        for (i, idx) in env.raw_ptr_derefs(infcx, place, span)? {
+            let val_place = Place::new(place.local, place.projection[..=i].to_vec());
             let ty = env.lookup_rust_ty(genv, &val_place)?;
             let ctor = self.default_refiner.refine_ty_or_base(&ty)?.expect_base();
             let pred = self.raw_ptr_deref_pred(infcx, ctor, &idx);

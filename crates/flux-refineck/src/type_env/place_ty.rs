@@ -69,6 +69,8 @@ impl LookupKey for Path {
 pub(super) struct LookupResult<'a> {
     pub ty: Ty,
     pub is_strg: bool,
+    // Location in projection and index of each raw pointer dereference
+    pub raw_ptr_derefs: Vec<(usize, Expr)>,
     cursor: Cursor,
     bindings: &'a mut PlacesTree,
 }
@@ -169,8 +171,10 @@ impl PlacesTree {
         mut mode: M,
     ) -> Result<LookupResult<'_>, M::Error> {
         let mut cursor = self.cursor_for(key);
+        let proj_len = cursor.proj.len();
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
         let mut is_strg = true;
+        let mut raw_ptr_derefs = vec![];
         while let Some(elem) = cursor.next() {
             ty = mode.unpack(&ty);
             match elem {
@@ -179,8 +183,10 @@ impl PlacesTree {
                         TyKind::Indexed(BaseTy::Adt(adt, args), _) if adt.is_box() => {
                             ty = args.box_args().0.clone();
                         }
-                        TyKind::Indexed(BaseTy::RawPtr(deref_ty, _), _) => {
+                        TyKind::Indexed(BaseTy::RawPtr(deref_ty, _), idx) => {
                             is_strg = false;
+                            let i = proj_len - 1 - cursor.pos;
+                            raw_ptr_derefs.push((i, idx.clone()));
                             ty = deref_ty.clone();
                         }
                         TyKind::Ptr(_, path) => {
@@ -228,7 +234,7 @@ impl PlacesTree {
             }
         }
         cursor.reset();
-        Ok(LookupResult { ty, is_strg, cursor, bindings: self })
+        Ok(LookupResult { ty, is_strg, raw_ptr_derefs, cursor, bindings: self })
     }
 
     pub(super) fn lookup_unfolding(
@@ -244,6 +250,23 @@ impl PlacesTree {
         self.lookup_inner(key, NoUnfold).into_ok()
     }
 
+    pub(crate) fn raw_ptr_derefs(
+        &mut self,
+        infcx: &mut InferCtxt,
+        place: &Place,
+        span: Span,
+    ) -> InferResult<Vec<(usize, Expr)>> {
+        let Some(last) = place
+            .projection
+            .iter()
+            .rposition(|elem| matches!(elem, PlaceElem::Deref))
+        else {
+            return Ok(vec![]);
+        };
+        let prefix = Place::new(place.local, place.projection[..=last].to_vec());
+        Ok(self.lookup_unfolding(infcx, &prefix, span)?.raw_ptr_derefs)
+    }
+
     /// If a Place is of the form: *p or *(s.p), return the index of the pointer.
     /// Note that this does not match (*p).f, where p points to a struct.
     /// Doubly note that taking the addr of (*p).f doesn't actually do any loads,
@@ -256,11 +279,13 @@ impl PlacesTree {
         place: &Place,
         span: Span,
     ) -> InferResult<Option<Expr>> {
-        let [prefix @ .., PlaceElem::Deref] = place.projection.as_slice() else {
+        if !matches!(place.projection.last(), Some(PlaceElem::Deref)) {
             return Ok(None);
-        };
-        let ptr_place = Place::new(place.local, prefix.to_vec());
-        self.lookup_raw_ptr_index(infcx, &ptr_place, span)
+        }
+        match self.raw_ptr_derefs(infcx, place, span)?.pop() {
+            Some((i, idx)) if i + 1 == place.projection.len() => Ok(Some(idx)),
+            _ => Ok(None),
+        }
     }
 
     /// If a Place has a raw pointer dereference anywhere inside of it.
@@ -272,34 +297,7 @@ impl PlacesTree {
         place: &Place,
         span: Span,
     ) -> InferResult<bool> {
-        for i in place
-            .projection
-            .iter()
-            .positions(|elem| matches!(elem, PlaceElem::Deref))
-        {
-            let ptr_place = Place::new(place.local, place.projection[..i].to_vec());
-            if self
-                .lookup_raw_ptr_index(infcx, &ptr_place, span)?
-                .is_some()
-            {
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
-
-    fn lookup_raw_ptr_index(
-        &mut self,
-        infcx: &mut InferCtxt,
-        place: &Place,
-        span: Span,
-    ) -> InferResult<Option<Expr>> {
-        let ty = self.lookup_unfolding(infcx, place, span)?.ty;
-        let ty = infcx.hoister(true).hoist(&ty);
-        let TyKind::Indexed(BaseTy::RawPtr(_, _), idx) = ty.kind() else {
-            return Ok(None);
-        };
-        Ok(Some(idx.clone()))
+        Ok(!self.raw_ptr_derefs(infcx, place, span)?.is_empty())
     }
 
     pub(crate) fn paths(&self) -> Vec<Path> {
