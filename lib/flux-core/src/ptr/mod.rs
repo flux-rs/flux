@@ -1,4 +1,6 @@
 #![cfg_attr(flux, flux::defs {
+    use crate::num::wrap_once;
+
     // The memory range [addr, addr + num_bytes) is entirely contained within
     // the pointer's allocation. In our model this is: addr >= base (not before
     // the start) and num_bytes <= size (num_bytes remaining bytes fit before
@@ -41,8 +43,25 @@
     // The pointer itself lies within its allocation: addr >= base and size >= 0.
     // One-past-the-end pointers (size == 0) satisfy this — they are valid
     // starting points for pointer arithmetic but cannot be dereferenced.
-    // Required as a precondition for all pointer arithmetic methods.
+    // Required for nonzero, non-wrapping pointer arithmetic.
     fn in_bounds(p: ptr) -> bool { dereferenceable(p, 0) }
+
+    // NOTE: This uses `wrap_once` rather than the modulus operator, which assumes the
+    // address overshoots by at most one period. This holds because `count` is a single
+    // `usize`/`isize`.
+    fn is_wrapping_byte_offset(p: ptr, count: int, q: ptr) -> bool {
+        q.base == p.base &&
+        q.addr + q.size == p.addr + p.size &&
+        q.addr == wrap_once(p.addr + count, 0, usize::MAX)
+    }
+
+    // NOTE: `count * elem_size` may span multiple address-space periods, so we use modulus
+    // to model wrapping multiplication and addition.
+    fn is_wrapping_offset(p: ptr, count: int, elem_size: int, q: ptr) -> bool {
+        q.base == p.base &&
+        q.addr + q.size == p.addr + p.size &&
+        q.addr == (p.addr + count * elem_size) % (usize::MAX + 1)
+    }
 })]
 /// These specs on `core::ptr` allow flux to enforce 2 safety properties:
 /// 1. Spatial safety: A pointer may only be read or written if pointer is derived from
@@ -142,6 +161,37 @@ macro_rules! ptr_specs {
             /// Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L48
             #[spec(fn(me: *$mutable[@p] T) -> *$mutable[p.base, p.addr, p.size] U)]
             fn cast<U>(self) -> *$mutable U;
+
+            // NOTE: See `is_wrapping_offset` and `is_wrapping_byte_offset`.
+            // Core impl; https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1053
+            #[spec(fn (me: *$mutable[@p] T, count: usize)
+                -> *$mutable{q: is_wrapping_offset(p, count, T::size_of(), q)} T)]
+            fn wrapping_add(self, count: usize) -> Self;
+
+            // Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1132
+            #[spec(fn (me: *$mutable[@p] T, count: usize)
+                -> *$mutable{q: is_wrapping_offset(p, -count, T::size_of(), q)} T)]
+            fn wrapping_sub(self, count: usize) -> Self;
+
+            // Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L463
+            #[spec(fn (me: *$mutable[@p] T, count: isize)
+                -> *$mutable{q: is_wrapping_offset(p, count, T::size_of(), q)} T)]
+            fn wrapping_offset(self, count: isize) -> Self;
+
+            // Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1073
+            #[spec(fn (me: *$mutable[@p] T, count: usize)
+                -> *$mutable{q: is_wrapping_byte_offset(p, count, q)} T)]
+            fn wrapping_byte_add(self, count: usize) -> Self;
+
+            // Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1152
+            #[spec(fn (me: *$mutable[@p] T, count: usize)
+                -> *$mutable{q: is_wrapping_byte_offset(p, -count, q)} T)]
+            fn wrapping_byte_sub(self, count: usize) -> Self;
+
+            // Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L485
+            #[spec(fn (me: *$mutable[@p] T, count: isize)
+                -> *$mutable{q: is_wrapping_byte_offset(p, count, q)} T)]
+            fn wrapping_byte_offset(self, count: isize) -> Self;
 
             $($($extra)*)?
         }
