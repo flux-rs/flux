@@ -163,7 +163,7 @@ macro_rules! ptr_specs {
             fn cast<U>(self) -> *$mutable U;
 
             // NOTE: See `is_wrapping_offset` and `is_wrapping_byte_offset`.
-            // Core impl; https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1053
+            // Core impl: https://github.com/rust-lang/rust/blob/7517636f510adf0a797e10cf655c21c0eb0723fb/library/core/src/ptr/const_ptr.rs#L1053
             #[spec(fn (me: *$mutable[@p] T, count: usize)
                 -> *$mutable{q: is_wrapping_offset(p, count, T::size_of(), q)} T)]
             fn wrapping_add(self, count: usize) -> Self;
