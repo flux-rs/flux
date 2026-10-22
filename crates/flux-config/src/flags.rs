@@ -43,6 +43,13 @@ pub struct Flags {
         default_value = "lean_proofs"
     )]
     pub lean_project: String,
+    /// Lean toolchain for newly created lean projects (e.g. `v4.34.0`).
+    #[arg(
+        long = flux_arg!("lean-version"),
+        value_name = "VERSION",
+        default_value = "v4.34.0"
+    )]
+    pub lean_version: String,
     /// If present, only check files matching the [`IncludePattern`] (a glob pattern).
     #[arg(long = flux_arg!("include"), value_name = "PATTERN")]
     pub include: Option<IncludePattern>,
@@ -243,6 +250,7 @@ impl Default for Flags {
             log_dir: PathBuf::from("./log/"),
             lean_dir: PathBuf::from("./"),
             lean_project: "lean_proofs".to_string(),
+            lean_version: "v4.34.0".to_string(),
             dump_constraint: false,
             dump_checker_trace: None,
             dump_fhir: false,
@@ -334,6 +342,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "log-dir" => parse_path_buf(&mut flags.log_dir, value),
             "lean-dir" => parse_path_buf(&mut flags.lean_dir, value),
             "lean-project" => parse_string(&mut flags.lean_project, value),
+            "lean-version" => parse_string(&mut flags.lean_version, value),
             "dump-constraint" => parse_bool(&mut flags.dump_constraint, value),
             "dump-checker-trace" => parse_opt_level(&mut flags.dump_checker_trace, value),
             "dump-fhir" => parse_bool(&mut flags.dump_fhir, value),
