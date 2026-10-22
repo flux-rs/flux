@@ -1,4 +1,4 @@
-//! Shared SMT-LIB serialization. Query construction and solver protocols live in the callers.
+//! Shared SMTLIB serialization methods
 
 use std::{
     collections::HashSet,

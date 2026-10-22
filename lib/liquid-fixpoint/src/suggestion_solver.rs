@@ -1,4 +1,4 @@
-//! Constraint validity checking and quantifier-elimination-based suggestions.
+//! Validity check + Quantifier Elimination. Used to make suggestions.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -212,7 +212,8 @@ impl<T: Types> ConstraintGlobalEnv<T> {
     }
 }
 
-/// Declarations active in one constraint's solver scope, and names for decoding its result.
+/// Declarations active in a single constraint's solver scope (as a string to
+/// send to Z3), and maps to decode its response back to T.
 struct ConstraintLocalEnv<'a, T: Types> {
     declarations: String,
     symbols: HashMap<String, T::Var>,

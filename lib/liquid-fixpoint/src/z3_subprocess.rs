@@ -1,4 +1,5 @@
-//! Persistent Z3 subprocess communication and SMT-LIB response handling.
+//! Subprocess for interfacing with Z3. We only added enough features to support
+//! [`suggustion_solver.rs`]
 
 use std::{
     io::{self, BufRead, BufReader, Read as _, Write as _},
@@ -83,7 +84,7 @@ impl Z3Subprocess {
         writeln!(stdin, "(echo \"{marker}\")")?;
         stdin.flush()?;
 
-        // The marker delimits the whole batch, including multiline responses and errors.
+        // Use a marker to find the end of Z3's output.
         let mut response = String::new();
         loop {
             let mut line = String::new();
@@ -103,7 +104,6 @@ impl Z3Subprocess {
         }
     }
 
-    /// Execute commands that must succeed silently. Unexpected output is an internal error.
     fn execute(&mut self, commands: &str) -> io::Result<()> {
         let Response { stdout, stderr } = self.request(commands)?;
         assert!(
@@ -113,7 +113,8 @@ impl Z3Subprocess {
         Ok(())
     }
 
-    /// Check satisfiability with temporary declarations and assertions.
+    /// Check satisfiability (setup is a string that is sent to Z3 to be done
+    /// before the check)
     pub(crate) fn check_sat(&mut self, setup: &str) -> Result<SatStatus, Z3Error> {
         let Response { stdout, stderr } =
             self.request(&format!("(push)\n{setup}\n(check-sat)\n(pop)"))?;
@@ -126,7 +127,8 @@ impl Z3Subprocess {
         }
     }
 
-    /// Apply a tactic to temporary assertions, returning the formulas in each goal.
+    /// Apply a tactic (as a string) under a context (setup), returning the
+    /// parsed formulas in each resulting goal.
     pub(crate) fn apply(&mut self, setup: &str, tactic: &str) -> Result<Vec<Vec<Sexp>>, Z3Error> {
         let Response { stdout, stderr } =
             self.request(&format!("(push)\n{setup}\n(apply {tactic})\n(pop)"))?;
@@ -157,7 +159,6 @@ impl Z3Subprocess {
         self.execute(&format!("(reset)\n{declarations}"))
     }
 
-    // Stderr is drained independently; snapshots are best-effort diagnostics, not request framing.
     fn take_stderr(&self) -> String {
         let bytes = std::mem::take(&mut *self.stderr.lock().unwrap());
         String::from_utf8_lossy(&bytes).into_owned()
@@ -176,7 +177,7 @@ impl Drop for Z3Subprocess {
 
 fn is_timeout(stdout: &str) -> bool {
     let output = stdout.trim().to_ascii_lowercase();
-    // A canceled tactic can also leave cancellation errors from subsequent commands in the batch.
+    // This is to the best of my understanding what Z3 outputs.
     output.starts_with("(error ") && output.contains("canceled")
 }
 
