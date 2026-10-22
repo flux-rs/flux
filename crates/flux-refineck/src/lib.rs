@@ -18,6 +18,7 @@ mod checker;
 pub mod compare_impl_item;
 mod ghost_statements;
 pub mod invariants;
+pub mod iterative;
 mod primops;
 mod queue;
 mod type_env;
@@ -60,11 +61,31 @@ pub fn report_fixpoint_errors(
     }
 }
 
-fn check_body(
+pub(crate) fn report_fixpoint_queries(
     genv: GlobalEnv,
+    local_id: LocalDefId,
+    query_errors: Vec<Vec<FixpointCheckError<Tag>>>,
+    query_failed: bool,
+    fixes: &mut FunctionFixes,
+) -> Result<(), ErrorGuaranteed> {
+    if genv.should_fail(local_id) {
+        return if query_failed { Ok(()) } else { report_expected_neg(genv, local_id) };
+    }
+    let mut err = None;
+    for errors in query_errors {
+        if let Err(error) = report_errors(genv, local_id, errors, fixes) {
+            err = Some(error);
+        }
+    }
+    err.map_or(Ok(()), Err)
+}
+
+fn check_body<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
     cache: &mut FixQueryCache,
     def_id: LocalDefId,
     poly_sig: &rty::PolyFnSig,
+    deferred: Option<&mut Vec<iterative::DeferredQuery<'genv, 'tcx>>>,
     fixes: &mut FunctionFixes,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
@@ -102,9 +123,23 @@ fn check_body(
             .execute_lean_query(cache, MaybeExternId::Local(def_id))
             .emit(&genv)
     } else {
-        let answer = infcx_root
-            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
-            .emit(&genv)?;
+        let answer = if let Some(deferred) = deferred {
+            deferred.push(iterative::DeferredQuery::body(
+                infcx_root
+                    .save_fixpoint_query(MaybeExternId::Local(def_id), FixpointQueryKind::Body)
+                    .emit(&genv)?,
+                def_id,
+            ));
+            return Ok(());
+        } else {
+            infcx_root
+                .execute_fixpoint_query(
+                    cache,
+                    MaybeExternId::Local(def_id),
+                    FixpointQueryKind::Body,
+                )
+                .emit(&genv)?
+        };
 
         let tcx = genv.tcx();
         let hir_id = tcx.local_def_id_to_hir_id(def_id);
@@ -116,11 +151,12 @@ fn check_body(
     }
 }
 
-pub fn check_static(
-    genv: GlobalEnv,
+pub fn check_static<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
     cache: &mut FixQueryCache,
     def_id: LocalDefId,
     ty: rty::Ty,
+    deferred: Option<&mut Vec<iterative::DeferredQuery<'genv, 'tcx>>>,
     fixes: &mut FunctionFixes,
 ) -> Result<(), ErrorGuaranteed> {
     // Build a PolyFnSig with no inputs and `ty` as the output
@@ -138,14 +174,15 @@ pub fn check_static(
 
     metrics::incr_metric(Metric::FnChecked, 1);
     metrics::time_it(TimingKind::CheckBody(def_id), || {
-        check_body(genv, cache, def_id, &poly_sig, fixes)
+        check_body(genv, cache, def_id, &poly_sig, deferred, fixes)
     })
 }
 
-pub fn check_fn(
-    genv: GlobalEnv,
+pub fn check_fn<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
     cache: &mut FixQueryCache,
     def_id: LocalDefId,
+    mut deferred: Option<&mut Vec<iterative::DeferredQuery<'genv, 'tcx>>>,
     fixes: &mut FunctionFixes,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
@@ -170,11 +207,24 @@ pub fn check_fn(
         .map_err(|err| err.emit(genv, def_id))?
     {
         tracing::info!("check_fn::refine-subtyping");
-        let answer = infcx_root
-            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
-            .emit(&genv)?;
-        let errors = answer.errors;
-        report_fixpoint_errors(genv, def_id, errors, fixes)?;
+        if let Some(deferred) = deferred.as_deref_mut() {
+            deferred.push(iterative::DeferredQuery::body(
+                infcx_root
+                    .save_fixpoint_query(MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
+                    .emit(&genv)?,
+                def_id,
+            ));
+        } else {
+            let answer = infcx_root
+                .execute_fixpoint_query(
+                    cache,
+                    MaybeExternId::Local(def_id),
+                    FixpointQueryKind::Impl,
+                )
+                .emit(&genv)?;
+            let errors = answer.errors;
+            report_fixpoint_errors(genv, def_id, errors, fixes)?;
+        }
         tracing::info!("check_fn::fixpoint-subtyping");
     }
 
@@ -193,7 +243,7 @@ pub fn check_fn(
             .instantiate_identity();
         let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
 
-        check_body(genv, cache, def_id, &poly_sig, fixes)
+        check_body(genv, cache, def_id, &poly_sig, deferred, fixes)
     })?;
 
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| Ok(()))
@@ -329,8 +379,17 @@ fn report_errors(
 /// A struct used to emit a *single* diag corresponding to *multiple*
 /// suggestions for the same function.
 ///
-/// When run with --fix, collect the final specs to apply to each function.
-/// Cargo fix cannot combine overlapping suggestions, so we combine them here.
+/// It has two use cases so far:
+/// 1. If run with -Fiterative-suggestions, which generates suggestions, assumes them, and
+///    repeats, we use this struct to identify all of the suggestions applied to
+///    functions from check-and-fix runs *before* the last. So the reported
+///    errors to the user are (1) all failures from the *last* run (2) the specs
+///    necessary to reproduce those failures.
+/// 2. If run with --fix, which *applies* suggestions, we use this struct to
+///    collect the final specs we want to apply to all functions. This is
+///    necessary because cargo fix isn't smart enough to combine suggestions on
+///    the same functions, so we do it ourselves. But this output is not meant
+///    to be user-facing.
 #[derive(Default)]
 pub struct FunctionFixes {
     by_fn: FxHashMap<DefId, UnordMap<rty::WKVid, rty::Binder<rty::Expr>>>,
@@ -456,7 +515,13 @@ fn report_standalone_fn_fix(
     fixes: &UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
 ) {
     let (span, replacement, message) = fn_fix_suggestion(genv, parent_fn, fixes);
-    let description = "combined signature suggestion from the above errors";
+    let description = match (config::iterative_suggestions(), config::fix_suggestions()) {
+        (_, false) => "checking assumed this inferred signature",
+        (false, true) => "combined signature suggestion from the above errors",
+        (true, true) => {
+            "combined signature suggestion from the above errors and earlier inference rounds"
+        }
+    };
     let mut diag = genv.sess().dcx().struct_span_warn(span, description);
     diag.span_suggestion(span, message, replacement, Applicability::MachineApplicable);
     diag.emit();
