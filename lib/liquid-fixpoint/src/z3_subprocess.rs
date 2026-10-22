@@ -43,7 +43,7 @@ pub(crate) struct Z3Subprocess {
 }
 
 impl Z3Subprocess {
-    pub(crate) fn new() -> Result<Self, Z3Error> {
+    pub(crate) fn new() -> io::Result<Self> {
         let mut child = Command::new("z3")
             .args(["-smt2", "-in"])
             .stdin(Stdio::piped())
@@ -74,7 +74,7 @@ impl Z3Subprocess {
         })
     }
 
-    fn request(&mut self, commands: &str) -> Result<Response, Z3Error> {
+    fn request(&mut self, commands: &str) -> io::Result<Response> {
         let marker = format!("__flux_z3_end_{}__", self.request_id);
         self.request_id += 1;
         self.stderr.lock().unwrap().clear();
@@ -104,7 +104,7 @@ impl Z3Subprocess {
     }
 
     /// Execute commands that must succeed silently. Unexpected output is an internal error.
-    fn execute(&mut self, commands: &str) -> Result<(), Z3Error> {
+    fn execute(&mut self, commands: &str) -> io::Result<()> {
         let Response { stdout, stderr } = self.request(commands)?;
         assert!(
             stdout.trim().is_empty(),
@@ -142,7 +142,7 @@ impl Z3Subprocess {
         f: impl FnOnce(&mut Self) -> Result<R, E>,
     ) -> Result<R, E>
     where
-        E: From<Z3Error>,
+        E: From<Z3Error> + From<io::Error>,
     {
         self.execute(&format!("(push)\n{setup}"))?;
         let result = f(self);
@@ -153,7 +153,7 @@ impl Z3Subprocess {
         }
     }
 
-    pub(crate) fn reset(&mut self, declarations: &str) -> Result<(), Z3Error> {
+    pub(crate) fn reset(&mut self, declarations: &str) -> io::Result<()> {
         self.execute(&format!("(reset)\n{declarations}"))
     }
 

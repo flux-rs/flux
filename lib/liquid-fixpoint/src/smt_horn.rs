@@ -14,7 +14,7 @@ use std::fmt::{self, Write};
 
 use crate::{
     Constraint, Identifier, KVarDecl, Pred, Sort, Task, Types,
-    smt_fmt::{SmtEncodeError, SmtEncoder, SmtOptions},
+    smt_fmt::{SmtEncoder, SmtOptions},
 };
 
 /// A flattened Horn clause extracted from the constraint tree.
@@ -54,12 +54,10 @@ fn flatten_constraint<'a, T: Types>(
 
 /// Format a task in the SMT-LIB HORN CHC format.
 pub fn fmt_smt_horn<T: Types>(task: &Task<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    // Display cannot expose semantic encoding errors. Preserve the public formatting API,
-    // while keeping structured errors throughout the shared encoder and internal helpers.
-    write_smt_horn(task, f).map_err(|_| fmt::Error)
+    write_smt_horn(task, f)
 }
 
-fn write_smt_horn<T: Types>(task: &Task<T>, out: &mut impl Write) -> Result<(), SmtEncodeError> {
+fn write_smt_horn<T: Types>(task: &Task<T>, out: &mut impl Write) -> fmt::Result {
     let encoder = SmtEncoder::new(&task.data_decls, SmtOptions::HORN);
     writeln!(out, "(set-logic HORN)\n")?;
     for line in &task.comments {
@@ -95,7 +93,7 @@ fn write_kvar_decl<T: Types>(
     encoder: &SmtEncoder<T>,
     kvar: &KVarDecl<T>,
     out: &mut impl Write,
-) -> Result<(), SmtEncodeError> {
+) -> fmt::Result {
     write!(out, "(declare-fun {} (", kvar.kvid.display())?;
     for (i, sort) in kvar.sorts.iter().enumerate() {
         if i != 0 {
@@ -111,7 +109,7 @@ fn write_assert<T: Types>(
     encoder: &SmtEncoder<T>,
     clause: &HornClause<'_, T>,
     out: &mut impl Write,
-) -> Result<(), SmtEncodeError> {
+) -> fmt::Result {
     write!(out, "(assert ")?;
     if !clause.vars.is_empty() {
         write!(out, "(forall (")?;
@@ -159,7 +157,7 @@ fn write_guard_conjunction<T: Types>(
     encoder: &SmtEncoder<T>,
     guards: &[&Pred<T>],
     out: &mut impl Write,
-) -> Result<(), SmtEncodeError> {
+) -> fmt::Result {
     match guards {
         [] => out.write_str("true")?,
         [guard] => encoder.write_pred(out, guard)?,

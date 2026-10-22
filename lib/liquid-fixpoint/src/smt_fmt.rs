@@ -18,12 +18,11 @@ macro_rules! parens {
     }};
 }
 
-fn sexp_list<W, I, F, E>(out: &mut W, items: I, mut write_item: F) -> Result<(), E>
+fn sexp_list<W, I, F>(out: &mut W, items: I, mut write_item: F) -> fmt::Result
 where
     W: Write,
     I: IntoIterator,
-    F: FnMut(&mut W, I::Item) -> Result<(), E>,
-    E: From<fmt::Error>,
+    F: FnMut(&mut W, I::Item) -> fmt::Result,
 {
     out.write_char('(')?;
     for (i, item) in items.into_iter().enumerate() {
@@ -32,8 +31,7 @@ where
         }
         write_item(out, item)?;
     }
-    out.write_char(')')?;
-    Ok(())
+    out.write_char(')')
 }
 
 #[derive(Clone, Copy, Default)]
@@ -47,64 +45,29 @@ pub(crate) enum FunctionEncoding {
 
 #[derive(Clone, Copy)]
 pub(crate) enum PredicateEncoding {
-    /// Encode KVars as relations and panic on WKVars.
+    /// Encode KVars as relations and panic on WKVars (in theory if we wanted it
+    /// to solve the wkvars, we would encode those as relations too).
     Horn,
     /// Panic on KVars and replace WKVars with true.
     Suggestions,
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum UnboundSortVarEncoding {
-    /// Instantiate unbound sort parameters with Int
-    InstantiateAsInt,
-    /// Preserve sort-parameter references as T0, T1, ..., (what smt_horn did before we refactored).
-    /// This does not declare those names; the surrounding encoding must bind or declare them.
-    PreserveNames,
-}
-
-#[derive(Clone, Copy)]
 pub(crate) struct SmtOptions {
     pub functions: FunctionEncoding,
     pub predicates: PredicateEncoding,
-    pub unbound_sort_vars: UnboundSortVarEncoding,
-    pub allow_quantifiers: bool,
 }
 
 impl SmtOptions {
     pub const HORN: Self = Self {
         functions: FunctionEncoding::ArrayApproximation,
         predicates: PredicateEncoding::Horn,
-        unbound_sort_vars: UnboundSortVarEncoding::PreserveNames,
-        allow_quantifiers: false,
     };
 
     pub const SUGGESTIONS: Self = Self {
         functions: FunctionEncoding::FirstOrder,
         predicates: PredicateEncoding::Suggestions,
-        unbound_sort_vars: UnboundSortVarEncoding::InstantiateAsInt,
-        allow_quantifiers: true,
     };
-}
-
-#[derive(Debug)]
-pub(crate) enum SmtEncodeError {
-    Format(fmt::Error),
-    UnsupportedInput(String),
-}
-
-impl From<fmt::Error> for SmtEncodeError {
-    fn from(err: fmt::Error) -> Self {
-        Self::Format(err)
-    }
-}
-
-impl fmt::Display for SmtEncodeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Format(err) => err.fmt(f),
-            Self::UnsupportedInput(message) => f.write_str(message),
-        }
-    }
 }
 
 pub(crate) struct SmtEncoder<T: Types> {
@@ -121,11 +84,7 @@ impl<T: Types> SmtEncoder<T> {
         Self { options, constructors }
     }
 
-    pub fn write_datatype_decl(
-        &self,
-        out: &mut impl Write,
-        decl: &DataDecl<T>,
-    ) -> Result<(), SmtEncodeError> {
+    pub fn write_datatype_decl(&self, out: &mut impl Write, decl: &DataDecl<T>) -> fmt::Result {
         let name = decl.name.display();
         if decl.ctors.is_empty() {
             writeln!(out, "(declare-sort {name} {})", decl.vars)?;
@@ -151,11 +110,7 @@ impl<T: Types> SmtEncoder<T> {
         Ok(())
     }
 
-    fn write_datatype_ctors(
-        &self,
-        out: &mut impl Write,
-        decl: &DataDecl<T>,
-    ) -> Result<(), SmtEncodeError> {
+    fn write_datatype_ctors(&self, out: &mut impl Write, decl: &DataDecl<T>) -> fmt::Result {
         sexp_list(out, &decl.ctors, |out, ctor| {
             parens!(out, {
                 write!(out, "{}", ctor.name.display())?;
@@ -176,7 +131,7 @@ impl<T: Types> SmtEncoder<T> {
         out: &mut impl Write,
         name: &str,
         sort: &Sort<T>,
-    ) -> Result<(), SmtEncodeError> {
+    ) -> fmt::Result {
         if matches!(self.options.functions, FunctionEncoding::ArrayApproximation) {
             parens!(out, {
                 write!(out, "declare-const {name} ")?;
@@ -195,9 +150,7 @@ impl<T: Types> SmtEncoder<T> {
         if matches!(output, Sort::Abs(..))
             || inputs.iter().any(|sort| matches!(sort, Sort::Abs(..)))
         {
-            return Err(SmtEncodeError::UnsupportedInput(format!(
-                "polymorphic function declaration `{name}`"
-            )));
+            panic!("polymorphic function declaration `{name}`");
         }
         if inputs.is_empty() {
             parens!(out, {
@@ -217,7 +170,7 @@ impl<T: Types> SmtEncoder<T> {
         name: &str,
         inputs: &[&Sort<T>],
         output: &Sort<T>,
-    ) -> Result<(), SmtEncodeError> {
+    ) -> fmt::Result {
         parens!(out, {
             write!(out, "declare-fun {name} ")?;
             sexp_list(out, inputs, |out, sort| self.write_sort(out, sort))?;
@@ -228,16 +181,9 @@ impl<T: Types> SmtEncoder<T> {
         Ok(())
     }
 
-    pub fn write_fun_def(
-        &self,
-        out: &mut impl Write,
-        fun: &FunDef<T>,
-    ) -> Result<(), SmtEncodeError> {
+    pub fn write_fun_def(&self, out: &mut impl Write, fun: &FunDef<T>) -> fmt::Result {
         if fun.sort.params > 0 && matches!(self.options.functions, FunctionEncoding::FirstOrder) {
-            return Err(SmtEncodeError::UnsupportedInput(format!(
-                "polymorphic function declaration `{}`",
-                fun.name.display()
-            )));
+            panic!("polymorphic function declaration `{}`", fun.name.display());
         }
         if let Some(body) = &fun.body {
             parens!(out, {
@@ -247,7 +193,7 @@ impl<T: Types> SmtEncoder<T> {
                         write!(out, "{} ", name.display())?;
                         self.write_sort(out, sort)?;
                     })?;
-                    Ok::<_, SmtEncodeError>(())
+                    Ok(())
                 })?;
                 out.write_char(' ')?;
                 self.write_sort(out, &fun.sort.output)?;
@@ -267,7 +213,7 @@ impl<T: Types> SmtEncoder<T> {
         Ok(())
     }
 
-    pub fn write_sort(&self, out: &mut impl Write, sort: &Sort<T>) -> Result<(), SmtEncodeError> {
+    pub fn write_sort(&self, out: &mut impl Write, sort: &Sort<T>) -> fmt::Result {
         self.write_sort_in_scope(out, sort, false)
     }
 
@@ -276,7 +222,7 @@ impl<T: Types> SmtEncoder<T> {
         out: &mut impl Write,
         sort: &Sort<T>,
         in_datatype_params: bool,
-    ) -> Result<(), SmtEncodeError> {
+    ) -> fmt::Result {
         match sort {
             Sort::Int => out.write_str("Int")?,
             Sort::Bool => out.write_str("Bool")?,
@@ -284,31 +230,16 @@ impl<T: Types> SmtEncoder<T> {
             Sort::Str => out.write_str("String")?,
             Sort::BitVec(size) => {
                 let Sort::BvSize(size) = &**size else {
-                    return Err(SmtEncodeError::UnsupportedInput(
-                        "non-constant bit-vector width".to_string(),
-                    ));
+                    panic!("non-constant bit-vector width");
                 };
                 write!(out, "(_ BitVec {size})")?;
             }
             Sort::BvSize(_) => {
-                return Err(SmtEncodeError::UnsupportedInput(
-                    "bit-vector width used as a value sort".to_string(),
-                ));
+                panic!("bit-vector width used as a value sort");
             }
-            // Inside a datatype's `par (T0 ...)` scope, these refer to its bound sort
-            // parameters. For unbound params, we'll only encode as `T0` if the
-            // option is set.
-            Sort::Var(i)
-                if in_datatype_params
-                    || matches!(
-                        self.options.unbound_sort_vars,
-                        UnboundSortVarEncoding::PreserveNames
-                    ) =>
-            {
+            Sort::Var(i) => {
                 write!(out, "T{i}")?;
             }
-            // Instantiate an unbound sort parameter with Int.
-            Sort::Var(_) => out.write_str("Int")?,
             Sort::Func(parts)
                 if matches!(self.options.functions, FunctionEncoding::ArrayApproximation) =>
             {
@@ -325,9 +256,7 @@ impl<T: Types> SmtEncoder<T> {
                 self.write_sort_in_scope(out, inner, in_datatype_params)?;
             }
             Sort::Abs(..) | Sort::Func(_) => {
-                return Err(SmtEncodeError::UnsupportedInput(format!(
-                    "higher-rank or function value sort `{sort:?}`"
-                )));
+                panic!("higher-rank or function value sort `{sort:?}`");
             }
             Sort::App(ctor, args) => {
                 if args.is_empty() {
@@ -354,13 +283,13 @@ impl<T: Types> SmtEncoder<T> {
         }
     }
 
-    pub fn pred(&self, pred: &Pred<T>) -> Result<String, SmtEncodeError> {
+    pub fn pred(&self, pred: &Pred<T>) -> Result<String, fmt::Error> {
         let mut out = String::new();
         self.write_pred(&mut out, pred)?;
         Ok(out)
     }
 
-    pub fn write_pred(&self, out: &mut impl Write, pred: &Pred<T>) -> Result<(), SmtEncodeError> {
+    pub fn write_pred(&self, out: &mut impl Write, pred: &Pred<T>) -> fmt::Result {
         match pred {
             Pred::Expr(expr) => self.write_expr(out, expr),
             Pred::KVar(kvar, args) => {
@@ -380,34 +309,32 @@ impl<T: Types> SmtEncoder<T> {
                         Ok(())
                     }
                     PredicateEncoding::Suggestions => {
-                        Err(SmtEncodeError::UnsupportedInput(
-                            "ordinary KVar in suggestion query".to_string(),
-                        ))
+                        panic!("ordinary KVar in suggestion query")
                     }
                 }
             }
         }
     }
 
-    pub fn expr(&self, expr: &Expr<T>) -> Result<String, SmtEncodeError> {
+    pub fn expr(&self, expr: &Expr<T>) -> Result<String, fmt::Error> {
         let mut out = String::new();
         self.write_expr(&mut out, expr)?;
         Ok(out)
     }
 
-    fn write_weak_kvar(&self, out: &mut impl Write) -> Result<(), SmtEncodeError> {
+    fn write_weak_kvar(&self, out: &mut impl Write) -> fmt::Result {
         match self.options.predicates {
             PredicateEncoding::Suggestions => {
                 out.write_str("true")?;
                 Ok(())
             }
             PredicateEncoding::Horn => {
-                Err(SmtEncodeError::UnsupportedInput("weak KVar in Horn query".to_string()))
+                panic!("weak KVar in Horn query")
             }
         }
     }
 
-    pub fn write_expr(&self, out: &mut impl Write, expr: &Expr<T>) -> Result<(), SmtEncodeError> {
+    pub fn write_expr(&self, out: &mut impl Write, expr: &Expr<T>) -> fmt::Result {
         match expr {
             Expr::Constant(Constant::Numeral(n)) => write!(out, "{n}")?,
             Expr::Constant(Constant::Boolean(b)) => write!(out, "{b}")?,
@@ -496,11 +423,6 @@ impl<T: Types> SmtEncoder<T> {
                 })?;
             }
             Expr::Quantifier(quantifier, bindings, body) => {
-                if !self.options.allow_quantifiers {
-                    return Err(SmtEncodeError::UnsupportedInput(
-                        "quantifier in Horn expression".to_string(),
-                    ));
-                }
                 let quantifier = match quantifier {
                     Quantifier::Exists => "exists",
                     Quantifier::Forall => "forall",
@@ -512,7 +434,7 @@ impl<T: Types> SmtEncoder<T> {
                             write!(out, "{} ", name.display())?;
                             self.write_sort(out, sort)?;
                         })?;
-                        Ok::<_, SmtEncodeError>(())
+                        Ok(())
                     })?;
                     out.write_char(' ')?;
                     self.write_expr(out, body)?;
@@ -527,7 +449,7 @@ impl<T: Types> SmtEncoder<T> {
         out: &mut impl Write,
         fun: &Expr<T>,
         out_sort: Option<&Sort<T>>,
-    ) -> Result<(), SmtEncodeError> {
+    ) -> fmt::Result {
         match fun {
             Expr::Var(name) if self.constructors.contains(name) && out_sort.is_some() => {
                 parens!(out, {
@@ -536,11 +458,9 @@ impl<T: Types> SmtEncoder<T> {
                 })?;
             }
             Expr::ThyFunc(ThyFunc::SetEmpty | ThyFunc::MapDefault) => {
-                let sort = out_sort.ok_or_else(|| {
-                    SmtEncodeError::UnsupportedInput(
-                        "empty set or constant array without an output sort".to_string(),
-                    )
-                })?;
+                let sort = out_sort.unwrap_or_else(|| {
+                    panic!("empty set or constant array without an output sort")
+                });
                 let name = if matches!(fun, Expr::ThyFunc(ThyFunc::SetEmpty)) {
                     "emptyset"
                 } else {
@@ -556,12 +476,7 @@ impl<T: Types> SmtEncoder<T> {
         Ok(())
     }
 
-    fn write_unary(
-        &self,
-        out: &mut impl Write,
-        op: &str,
-        expr: &Expr<T>,
-    ) -> Result<(), SmtEncodeError> {
+    fn write_unary(&self, out: &mut impl Write, op: &str, expr: &Expr<T>) -> fmt::Result {
         parens!(out, {
             write!(out, "{op} ")?;
             self.write_expr(out, expr)?;
@@ -575,7 +490,7 @@ impl<T: Types> SmtEncoder<T> {
         op: &str,
         lhs: &Expr<T>,
         rhs: &Expr<T>,
-    ) -> Result<(), SmtEncodeError> {
+    ) -> fmt::Result {
         parens!(out, {
             write!(out, "{op} ")?;
             self.write_expr(out, lhs)?;
@@ -591,7 +506,7 @@ impl<T: Types> SmtEncoder<T> {
         op: &str,
         exprs: &[Expr<T>],
         empty: &str,
-    ) -> Result<(), SmtEncodeError> {
+    ) -> fmt::Result {
         if exprs.is_empty() {
             out.write_str(empty)?;
             return Ok(());
@@ -606,7 +521,7 @@ impl<T: Types> SmtEncoder<T> {
         Ok(())
     }
 
-    fn write_thy_func(&self, out: &mut impl Write, func: ThyFunc) -> Result<(), SmtEncodeError> {
+    fn write_thy_func(&self, out: &mut impl Write, func: ThyFunc) -> fmt::Result {
         let name = match func {
             ThyFunc::StrLen => "str.len",
             ThyFunc::StrConcat => "str.++",
@@ -652,7 +567,7 @@ impl<T: Types> SmtEncoder<T> {
             ThyFunc::BvUlt => "bvult",
             ThyFunc::BvSlt => "bvslt",
             ThyFunc::SetEmpty => {
-                return Err(SmtEncodeError::UnsupportedInput("unqualified empty set".to_string()));
+                panic!("unqualified empty set");
             }
             ThyFunc::SetSng => "singleton",
             ThyFunc::SetCup => "union",
@@ -661,9 +576,7 @@ impl<T: Types> SmtEncoder<T> {
             ThyFunc::SetMem => "member",
             ThyFunc::SetSub => "subset",
             ThyFunc::MapDefault => {
-                return Err(SmtEncodeError::UnsupportedInput(
-                    "unqualified constant array".to_string(),
-                ));
+                panic!("unqualified constant array");
             }
             ThyFunc::MapSelect => "select",
             ThyFunc::MapStore => "store",
