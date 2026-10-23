@@ -73,6 +73,7 @@ impl SmtOptions {
 pub(crate) struct SmtEncoder<T: Types> {
     options: SmtOptions,
     constructors: HashSet<T::Var>,
+    datatypes: HashSet<T::Sort>,
 }
 
 impl<T: Types> SmtEncoder<T> {
@@ -81,15 +82,13 @@ impl<T: Types> SmtEncoder<T> {
             .iter()
             .flat_map(|decl| decl.ctors.iter().map(|ctor| ctor.name.clone()))
             .collect();
-        Self { options, constructors }
+        let datatypes = data_decls.iter().map(|decl| decl.name.clone()).collect();
+        Self { options, constructors, datatypes }
     }
 
     pub fn write_datatype_decl(&self, out: &mut impl Write, decl: &DataDecl<T>) -> fmt::Result {
         let name = decl.name.display();
-        if decl.ctors.is_empty() {
-            writeln!(out, "(declare-sort {name} {})", decl.vars)?;
-            return Ok(());
-        }
+        assert!(!decl.ctors.is_empty(), "datatype `{name}` has no constructors");
 
         parens!(out, {
             write!(out, "declare-datatypes (({name} {})) ", decl.vars)?;
@@ -257,6 +256,14 @@ impl<T: Types> SmtEncoder<T> {
             }
             Sort::Abs(..) | Sort::Func(_) => {
                 panic!("higher-rank or function value sort `{sort:?}`");
+            }
+            // User opaque sorts are referenced but not declared in the Fixpoint task.
+            // Match Haskell Fixpoint's fallback: erase the entire application (including
+            // type arguments) to Int. This conflates opaque sorts; Flux well-formedness
+            // keeps them distinct before encoding. TODO: carry explicit SortDecls and
+            // emit declare-sort instead. An empty datatype is not an opaque sort.
+            Sort::App(SortCtor::Data(name), _) if !self.datatypes.contains(name) => {
+                out.write_str("Int")?;
             }
             Sort::App(ctor, args) => {
                 if args.is_empty() {

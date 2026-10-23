@@ -173,6 +173,9 @@ pub fn topo_sort_data_declarations<T: Types>(datatype_decls: Vec<DataDecl<T>>) -
             for accessor in &data_constructor.fields {
                 if let Sort::App(ctor, _) = &accessor.sort
                     && let SortCtor::Data(data_ctor) = &ctor
+                    // Undeclared opaque sorts are erased to Int by the SMT encoder,
+                    // so they are not datatype declaration dependencies.
+                    && datatype_dependencies.contains_key(data_ctor)
                 {
                     datatype_dependencies
                         .get_mut(&datatype_decl.name)
