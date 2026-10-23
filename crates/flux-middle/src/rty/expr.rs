@@ -1810,7 +1810,8 @@ pub(crate) mod pretty {
                     w!(cx, f, "{:?}", def_id)
                 }
                 Ctor::Enum(def_id, variant_idx) => {
-                    w!(cx, f, "{:?}::{:?}", def_id, ^variant_idx)
+                    let name = cx.tcx().adt_def(*def_id).variant(*variant_idx).name;
+                    w!(cx, f, "{:?}::{}", def_id, ^name)
                 }
                 Ctor::RawPtr => w!(cx, f, "ptr"),
             }
@@ -1936,11 +1937,11 @@ pub(crate) mod pretty {
                             Ctor::Struct(_) => {
                                 w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", fields))
                             }
-                            Ctor::Enum(_, idx) => {
+                            Ctor::Enum(..) => {
                                 if fields.is_empty() {
-                                    w!(cx, f, "{:?}::{:?}", def_id, ^idx.index())
+                                    w!(cx, f, "{:?}", ctor)
                                 } else {
-                                    w!(cx, f, "{:?}::{:?}({:?})", def_id, ^idx.index(), join!(", ", fields))
+                                    w!(cx, f, "{:?}({:?})", ctor, join!(", ", fields))
                                 }
                             }
                             Ctor::RawPtr => unreachable!(),
@@ -1950,8 +1951,8 @@ pub(crate) mod pretty {
                             Ctor::Struct(_) => {
                                 w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", flds))
                             }
-                            Ctor::Enum(_, idx) => {
-                                w!(cx, f, "{:?}::{:?} {{ {:?} }}", def_id, ^idx, join!(", ", flds))
+                            Ctor::Enum(..) => {
+                                w!(cx, f, "{:?} {{ {:?} }}", ctor, join!(", ", flds))
                             }
                             Ctor::RawPtr => unreachable!(),
                         }
