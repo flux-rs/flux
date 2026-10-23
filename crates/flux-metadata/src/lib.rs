@@ -59,7 +59,7 @@ const METADATA_HEADER: &[u8] = &[b'f', b'l', b'u', b'x', 0, 0, 0, METADATA_VERSI
 
 #[derive(Default)]
 pub struct CStore<'tcx> {
-    local_tables: UnordMap<CrateNum, Tables<'tcx, LocalDefIndex>>,
+    local_tables: UnordMap<CrateNum, Tables<'tcx, DefIndexKey>>,
     extern_tables: Tables<'tcx, DefId>,
 }
 
@@ -110,9 +110,9 @@ impl<E> ContextOrd<E> for ExpnKey {}
 /// Wrapper around [`DefIndex`] used to key the local tables. We need a local type to be able to
 /// implement [`ContextOrd`].
 #[derive(Encodable, Decodable, Eq, PartialEq, Hash, Clone, Copy, Debug)]
-struct LocalDefIndex(DefIndex);
+struct DefIndexKey(DefIndex);
 
-impl<E> ContextOrd<E> for LocalDefIndex {}
+impl<E> ContextOrd<E> for DefIndexKey {}
 
 #[derive(Encodable, Decodable, Clone, Copy)]
 pub struct AbsoluteBytePos(u64);
@@ -129,7 +129,7 @@ impl AbsoluteBytePos {
 
 #[derive(Default, TyEncodable, TyDecodable)]
 pub struct CrateMetadata<'tcx> {
-    local_tables: Tables<'tcx, LocalDefIndex>,
+    local_tables: Tables<'tcx, DefIndexKey>,
     extern_tables: Tables<'tcx, DefId>,
 }
 
@@ -143,14 +143,14 @@ trait Key {
 }
 
 impl Key for DefId {
-    type KeyIndex = LocalDefIndex;
+    type KeyIndex = DefIndexKey;
 
     fn crate_num(self) -> CrateNum {
         self.krate
     }
 
     fn to_index(self) -> Self::KeyIndex {
-        LocalDefIndex(self.index)
+        DefIndexKey(self.index)
     }
 
     fn name(self, tcx: TyCtxt) -> String {
@@ -159,14 +159,14 @@ impl Key for DefId {
 }
 
 impl Key for FluxDefId {
-    type KeyIndex = FluxId<LocalDefIndex>;
+    type KeyIndex = FluxId<DefIndexKey>;
 
     fn crate_num(self) -> CrateNum {
         self.parent().krate
     }
 
     fn to_index(self) -> Self::KeyIndex {
-        self.index().map_parent(LocalDefIndex)
+        self.index().map_parent(DefIndexKey)
     }
 
     fn name(self, tcx: TyCtxt) -> String {
@@ -446,7 +446,7 @@ impl<'tcx> CrateMetadata<'tcx> {
     }
 }
 
-fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, LocalDefIndex>) {
+fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, DefIndexKey>) {
     tables.spec_funcs = genv.spec_funcs(LOCAL_CRATE);
 
     encode_flux_module_children(genv, tables);
@@ -454,17 +454,16 @@ fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, L
         match item {
             fhir::FluxItem::Func(spec_func) => {
                 tables.func_sort.insert(
-                    def_id.local_def_index().map_parent(LocalDefIndex),
+                    def_id.local_def_index().map_parent(DefIndexKey),
                     genv.func_sort(def_id),
                 );
-                tables.func_span.insert(
-                    def_id.local_def_index().map_parent(LocalDefIndex),
-                    spec_func.ident_span,
-                );
+                tables
+                    .func_span
+                    .insert(def_id.local_def_index().map_parent(DefIndexKey), spec_func.ident_span);
             }
             fhir::FluxItem::SortDecl(_sort_decl) => {
                 tables.sort_decl_param_count.insert(
-                    def_id.local_def_index().map_parent(LocalDefIndex),
+                    def_id.local_def_index().map_parent(DefIndexKey),
                     genv.sort_decl_param_count(def_id),
                 );
             }
@@ -477,7 +476,7 @@ fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, L
 
 fn encode_flux_module_children<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
-    tables: &mut Tables<'tcx, LocalDefIndex>,
+    tables: &mut Tables<'tcx, DefIndexKey>,
 ) {
     genv.tcx().hir_for_each_module(|module| {
         let module = module.to_local_def_id();
@@ -485,7 +484,7 @@ fn encode_flux_module_children<'tcx>(
         if !children.is_empty() {
             tables
                 .flux_module_children
-                .insert(LocalDefIndex(module.local_def_index), children.to_vec());
+                .insert(DefIndexKey(module.local_def_index), children.to_vec());
         }
     });
 }
