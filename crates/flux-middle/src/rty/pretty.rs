@@ -121,8 +121,10 @@ impl Pretty for SortCtor {
         match self {
             SortCtor::Set => w!(cx, f, "Set"),
             SortCtor::Map => w!(cx, f, "Map"),
-            // TODO: This might cause import clashes if the user sorts clash,
-            // as the def_id is printed in a short form.
+            // NOTE (CK): This might cause import clashes if the user sorts
+            // clash, as the def_id is printed in a short form.  But I wasn't
+            // able to repro it easily, so for now it should be fine (does this
+            // ever even appear in machine-applicable outputs?)
             SortCtor::User(def_id) => w!(cx, f, "{}", ^def_id.name()),
             SortCtor::Adt(adt_sort_def) => {
                 w!(cx, f, "{:?}", adt_sort_def.did())
