@@ -61,7 +61,7 @@ impl<T: Types> SuggestionSolver<T> {
         &mut self,
         constraint: &FlatConstraint<T>,
     ) -> Result<bool, SuggestionSolverError> {
-        let locals = ConstraintLocalEnv::new(&self.env, &[], &constraint.binders)?;
+        let locals = ConstraintLocalEnv::new(&self.env, &[], &constraint.binders);
         let mut assertions = constraint
             .preconditions()
             .iter()
@@ -80,7 +80,7 @@ impl<T: Types> SuggestionSolver<T> {
         constraint: &FlatConstraint<T>,
         binder_consts: &[ConstDecl<T>],
     ) -> Result<Expr<T>, SuggestionSolverError> {
-        let locals = ConstraintLocalEnv::new(&self.env, binder_consts, &constraint.binders)?;
+        let locals = ConstraintLocalEnv::new(&self.env, binder_consts, &constraint.binders);
         let assumptions = constraint
             .preconditions()
             .iter()
@@ -225,7 +225,7 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
         globals: &'a ConstraintGlobalEnv<T>,
         binder_consts: &[ConstDecl<T>],
         binders: &[(T::Var, Sort<T>)],
-    ) -> Result<Self, SuggestionSolverError> {
+    ) -> Self {
         let mut declarations = String::new();
         let mut declared = HashSet::new();
         let mut symbols = HashMap::new();
@@ -248,7 +248,7 @@ impl<'a, T: Types> ConstraintLocalEnv<'a, T> {
         for (var, _) in binders {
             symbols.insert(var.display().to_string(), var.clone());
         }
-        Ok(Self { declarations, symbols, global_symbols: &globals.symbols })
+        Self { declarations, symbols, global_symbols: &globals.symbols }
     }
 
     fn symbol(&self, name: &str) -> Option<&T::Var> {
