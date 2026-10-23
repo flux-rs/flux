@@ -13,9 +13,9 @@ use flux_config::{self as config, IncludePattern};
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use flux_syntax::symbols::sym;
+use rustc_attr_ir::LangItem;
 use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::{
-    attrs::lang_items::LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LocalDefId},
 };
@@ -239,16 +239,25 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         PanicSpec::MightPanic(PanicReason::NotInCallGraph)
     }
 
+    /// The body of a spec function after inlining all or some of the spec functions it
+    /// (transitively) calls. Whether a spec function is inlined is decided by
+    /// [`GlobalEnv::should_inline_fun`] in the current session.
     pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
-        self.normalized_defns(did.krate()).inlined_body(did)
+        self.inner.queries.inlined_body(self, did)
     }
 
-    pub fn normalized_info(self, did: FluxDefId) -> rty::FuncInfo {
-        self.normalized_defns(did.krate()).func_info(did).clone()
+    pub fn spec_func(self, did: FluxDefId) -> rty::SpecFunc {
+        self.spec_funcs(did.krate()).get(did.index()).clone()
     }
 
-    pub fn normalized_defns(self, krate: CrateNum) -> Rc<rty::NormalizedDefns> {
-        self.inner.queries.normalized_defns(self, krate)
+    /// The rank of a spec function in the topological order of the spec functions of its crate
+    pub fn spec_func_rank(self, did: FluxDefId) -> usize {
+        self.spec_funcs(did.krate()).rank(did.index())
+    }
+
+    /// All the spec functions of a crate in topological order
+    pub fn spec_funcs(self, krate: CrateNum) -> Rc<rty::SpecFuncs> {
+        self.inner.queries.spec_funcs(self, krate)
     }
 
     pub fn prim_rel_for(self, op: &rty::BinOp) -> QueryResult<Option<&'genv rty::PrimRel>> {
@@ -257,6 +266,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {
         self.inner.queries.qualifiers(self)
+    }
+
+    /// Return all the (global) axioms defined in the local crate.
+    pub fn axioms(self) -> QueryResult<&'genv [rty::Axiom]> {
+        self.inner.queries.axioms(self)
     }
 
     /// Return all the qualifiers that apply to an item, including both global and local qualifiers.
@@ -269,15 +283,40 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         Ok(self.qualifiers()?.iter().filter(move |qual| {
             match qual.kind {
                 QualifierKind::Global => true,
-                QualifierKind::Hint => qual.def_id.parent() == did,
+                QualifierKind::Hint => {
+                    self.flux_item_enclosing_item(qual.def_id.to_def_id()) == did.to_def_id()
+                }
                 QualifierKind::Local => names.contains(&qual.def_id),
             }
         }))
     }
 
+    /// The item enclosing the declaration of a flux item. This is different from the
+    /// [`FluxDefId::parent`] for flux items declared with `defs!` that use the id of
+    /// the declaring `const _ = { }`.
+    fn flux_item_enclosing_item(self, def_id: FluxDefId) -> DefId {
+        let declarer = def_id.parent();
+        if self.def_kind(declarer) == DefKind::Const {
+            self.tcx().typeck_root_def_id(self.tcx().parent(declarer))
+        } else {
+            declarer
+        }
+    }
+
     /// Return the list of flux function definitions that should be revelaed for item
-    pub fn reveals_for(self, did: LocalDefId) -> &'genv [FluxDefId] {
-        self.fhir_attr_map(did).reveals
+    pub fn reveals_for(self, did: LocalDefId) -> impl Iterator<Item = FluxDefId> + 'genv {
+        self.fhir_attr_map(did)
+            .reveals
+            .iter()
+            .map(|(def_id, _)| *def_id)
+    }
+
+    /// Return the list of flux function definitions that should be hidden for item
+    pub fn hides_for(self, did: LocalDefId) -> impl Iterator<Item = FluxDefId> + 'genv {
+        self.fhir_attr_map(did)
+            .hides
+            .iter()
+            .map(|(def_id, _)| *def_id)
     }
 
     pub fn func_sort(self, def_id: impl IntoQueryKey<FluxDefId>) -> rty::PolyFuncSort {
@@ -288,9 +327,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.func_span(self, def_id.into_query_key())
     }
 
+    /// Whether a (non-hidden) flux-def should be replaced by its body instead of being
+    /// represented as a `define-fun`. We inline all *polymorphic* flux-defs, since they cannot be
+    /// represented as `define-fun` in SMTLIB, but leave all *monomorphic* flux-defs un-inlined.
     pub fn should_inline_fun(self, def_id: FluxDefId) -> bool {
-        let is_poly = self.func_sort(def_id).params().len() > 0;
-        is_poly || !flux_config::smt_define_fun()
+        self.func_sort(def_id).params().len() > 0
     }
 
     pub fn variances_of(self, did: DefId) -> &'tcx [Variance] {
@@ -336,13 +377,23 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.adt_def(self, def_id.into_query_key())
     }
 
+    pub fn invariants_of(
+        self,
+        def_id: impl IntoQueryKey<DefId>,
+    ) -> rty::EarlyBinder<List<rty::Invariant>> {
+        self.inner
+            .queries
+            .invariants_of(self, def_id.into_query_key())
+    }
+
     pub fn constant_info(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::ConstantInfo> {
         self.inner
             .queries
             .constant_info(self, def_id.into_query_key())
     }
 
-    pub fn static_info(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::StaticInfo> {
+    /// The type of a static: its spec if it has one, or the default refinement of its rust type.
+    pub fn static_info(self, def_id: impl IntoQueryKey<DefId>) -> QueryResult<rty::Ty> {
         self.inner
             .queries
             .static_info(self, def_id.into_query_key())
@@ -362,6 +413,22 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn check_wf(self, def_id: LocalDefId) -> QueryResult<Rc<rty::WfckResults>> {
         self.inner.queries.check_wf(self, def_id)
+    }
+
+    /// The refinement parameters of `def_id` that are *late bound*, i.e., bound in the fn signature
+    /// instead of being part of the item's refinement generics. This is the analog of rustc's
+    /// `is_late_bound_map` for refinement parameters.
+    ///
+    /// A refinement parameter of a fn-like item is late bound unless it is a location or it is
+    /// mentioned in a where-clause or in the bounds of an opaque type. Items that are not fn-like
+    /// have no late bound parameters.
+    pub fn late_bound_refinement_params(
+        self,
+        def_id: LocalDefId,
+    ) -> QueryResult<&'genv [fhir::ParamId]> {
+        self.inner
+            .queries
+            .late_bound_refinement_params(self, def_id)
     }
 
     pub fn impl_trait_ref(self, impl_id: DefId) -> QueryResult<rty::EarlyBinder<rty::TraitRef>> {
@@ -922,6 +989,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         })
     }
 
+    pub fn fhir_axioms(self) -> impl Iterator<Item = &'genv fhir::Axiom<'genv>> {
+        self.fhir_crate().items.values().filter_map(|item| {
+            if let fhir::FluxItem::Axiom(axiom) = item { Some(*axiom) } else { None }
+        })
+    }
+
     pub fn fhir_get_generics(
         self,
         def_id: LocalDefId,
@@ -932,6 +1005,24 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         } else {
             Ok(Some(self.fhir_expect_owner_node(def_id)?.generics()))
         }
+    }
+
+    /// Splits the refinement parameters in the generics of `def_id` into early and late bound
+    /// parameters (in that order) preserving declaration order.
+    /// See [`GlobalEnv::late_bound_refinement_params`].
+    pub fn fhir_split_refinement_params(
+        self,
+        def_id: LocalDefId,
+    ) -> QueryResult<(Vec<fhir::RefineParam<'genv>>, Vec<fhir::RefineParam<'genv>>)> {
+        let Some(generics) = self.fhir_get_generics(def_id)? else {
+            return Ok((vec![], vec![]));
+        };
+        let late_bound = self.late_bound_refinement_params(def_id)?;
+        Ok(generics
+            .refinement_params
+            .iter()
+            .copied()
+            .partition(|param| !late_bound.contains(&param.id)))
     }
 
     pub fn fhir_expect_refinement_kind(

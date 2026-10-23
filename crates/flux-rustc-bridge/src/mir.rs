@@ -573,7 +573,7 @@ impl fmt::Debug for Statement<'_> {
             StatementKind::SetDiscriminant(place, variant_idx) => {
                 write!(f, "discriminant({place:?}) = {variant_idx:?}")
             }
-            StatementKind::FakeRead(box (cause, place)) => {
+            StatementKind::FakeRead(deref!((cause, place))) => {
                 write!(f, "FakeRead({cause:?}, {place:?})")
             }
             StatementKind::AscribeUserType(place, variance) => {

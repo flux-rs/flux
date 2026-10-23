@@ -8,7 +8,7 @@ use crate::{
     ParseCtxt, ParseError, ParseResult,
     surface::BinOp,
     symbols,
-    token::{IdentIsRaw, Token, TokenKind},
+    token::{IdentKind, Token, TokenKind},
 };
 
 /// See [`PeekExpected`]
@@ -64,7 +64,7 @@ pub(crate) struct NonReserved;
 impl Peek for NonReserved {
     fn matches(self, tok: TokenKind, edition: Edition) -> bool {
         match tok {
-            TokenKind::Ident(sym, IdentIsRaw::No) => !symbols::is_reserved(sym, edition),
+            TokenKind::Ident(sym, IdentKind::Normal) => !symbols::is_reserved(sym, edition),
             _ => false,
         }
     }
@@ -128,7 +128,7 @@ impl PeekExpected for LAngle {
 /// Use a [`Symbol`] to match a [`TokenKind::Ident`] equal to it.
 impl Peek for Symbol {
     fn matches(self, tok: TokenKind, _: Edition) -> bool {
-        matches!(tok, TokenKind::Ident(sym, IdentIsRaw::No) if sym == self)
+        matches!(tok, TokenKind::Ident(sym, IdentKind::Normal) if sym == self)
     }
 }
 impl PeekExpected for Symbol {

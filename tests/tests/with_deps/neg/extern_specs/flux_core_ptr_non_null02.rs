@@ -32,7 +32,6 @@ pub fn test_byte_sub_oob(buf: &mut [i32; 2]) {
         let nn1 = nn.byte_add(4);
         std::ptr::write(nn1.byte_sub(8).as_ptr(), 10); //~ ERROR refinement type error
                                                         //~| ERROR refinement type error
-                                                        //~| ERROR refinement type error
     }
 }
 

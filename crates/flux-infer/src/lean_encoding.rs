@@ -16,7 +16,7 @@ use flux_middle::{
     def_id::{FluxDefId, MaybeExternId},
     global_env::GlobalEnv,
     queries::QueryErr,
-    rty::{BinOp, BvSize, PrettyMap, Sort, local_deps},
+    rty::{BinOp, BvSize, PrettyMap, Sort, deps},
 };
 use itertools::Itertools;
 use rustc_data_structures::{
@@ -429,12 +429,12 @@ pub fn check_proofs(genv: GlobalEnv, def_ids: &[DefId]) -> Vec<Result<(), ErrorG
                     .components()
                     .collect();
                 let span = genv.tcx().def_span(*def_id);
-                let mut diag = genv.sess().dcx().handle().struct_span_err(span, msg);
+                let mut diag = genv.sess().dcx().struct_span_err(span, msg);
                 diag.note(format!("proof file: `{}`", path.display()));
                 for note in notes {
                     diag.note(note);
                 }
-                diag.emit()
+                diag.emit_err()
             })
         })
         .collect()
@@ -688,9 +688,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             let fixpoint::Var::Global(_, did) = fun_def.name else {
                 bug!("expected global var with id")
             };
-            let name = self.var_name(&fun_def.name);
-            let file = LeanFile::Fun(name);
-            res.insert(did, file);
+            res.insert(did, self.lean_file_for_fun(fun_def));
         }
         res
     }
@@ -830,10 +828,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
 
         // 2. Collect the fun dependencies
-        if !self.genv.normalized_info(did).uif {
+        if !self.genv.spec_func(did).is_uif() {
             let body = self.genv.inlined_body(did);
-            for dep_id in local_deps(&body) {
-                res.push(self.fun_file(&dep_id.to_def_id()));
+            for dep_id in deps(&body) {
+                res.push(self.fun_file(&dep_id));
             }
         }
 
@@ -1082,6 +1080,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                         item: lean_format::LeanKConstraint {
                             theorem_name: &vc_name,
                             kvars: &self.kvar_decls,
+                            const_binds: &self.constants.const_binds,
                             constr: &self.constraint,
                             should_fail: self
                                 .def_id
@@ -1219,7 +1218,7 @@ pub fn log_proof(genv: GlobalEnv, def_id: MaybeExternId) -> Result<(), ErrorGuar
             let msg =
                 format!("failed to record proof `{}`", proof_name(genv, def_id.resolved_id()));
             let span = genv.tcx().def_span(def_id);
-            QueryErr::Emitted(genv.sess().dcx().handle().struct_span_err(span, msg).emit())
+            QueryErr::Emitted(genv.sess().dcx().struct_span_err(span, msg).emit_err())
         })
         .emit(&genv)?;
     Ok(())

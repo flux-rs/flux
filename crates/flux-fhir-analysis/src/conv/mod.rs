@@ -15,7 +15,6 @@ use flux_common::{
     bug,
     dbg::{self, SpanTrace},
     iter::IterExt,
-    result::ResultExt as _,
     span_bug,
 };
 use flux_middle::{
@@ -478,20 +477,24 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(rty::Qualifier { def_id: qualifier.def_id, body, wildcards, kind: qualifier.kind })
     }
 
-    pub(crate) fn conv_defn(
+    pub(crate) fn conv_spec_func(&mut self, func: &fhir::SpecFunc) -> QueryResult<rty::SpecFunc> {
+        let Some(body) = &func.body else { return Ok(rty::SpecFunc::Uif) };
+        let mut env = Env::new(&[]);
+        env.push_layer(Layer::list(self.results(), 0, func.args));
+        let expr = self.conv_expr(&mut env, body)?;
+        let body = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(self.genv())?);
+        Ok(rty::SpecFunc::Defined { body, hide: func.hide })
+    }
+
+    /// Converts the body of an axiom. Use [`rty::Axiom::new`] to build the axiom after reducing it.
+    pub(crate) fn conv_axiom(
         &mut self,
-        func: &fhir::SpecFunc,
-    ) -> QueryResult<Option<rty::Binder<rty::Expr>>> {
-        if let Some(body) = &func.body {
-            let mut env = Env::new(&[]);
-            env.push_layer(Layer::list(self.results(), 0, func.args));
-            let expr = self.conv_expr(&mut env, body)?;
-            let body =
-                rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(self.genv())?);
-            Ok(Some(body))
-        } else {
-            Ok(None)
-        }
+        axiom: &fhir::Axiom,
+    ) -> QueryResult<rty::Binder<rty::Expr>> {
+        let mut env = Env::new(&[]);
+        env.push_layer(Layer::list(self.results(), 0, axiom.args));
+        let body = self.conv_expr(&mut env, &axiom.body)?;
+        Ok(rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(self.genv())?))
     }
 
     pub(crate) fn conv_primop_prop(
@@ -610,8 +613,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     .collect(),
             );
 
-            let requires = adt_def
-                .invariants()
+            let requires = self
+                .genv()
+                .invariants_of(struct_id)
+                .as_deref()
                 .iter_identity()
                 .map(|inv| inv.apply(&idx))
                 .collect();
@@ -673,9 +678,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 .vars(),
         );
 
-        let generics = self.genv().fhir_get_generics(fn_id.local_id())?.unwrap();
-        let mut env = Env::new(generics.refinement_params);
-        env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
+        let (early_params, late_params) =
+            self.genv().fhir_split_refinement_params(fn_id.local_id())?;
+        let mut env = Env::new(&early_params);
+        env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &late_params));
 
         let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
 
@@ -704,7 +710,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         def_id: MaybeExternId,
         generics: &fhir::Generics,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-        let env = &mut Env::new(generics.refinement_params);
+        let (early_params, _) = self
+            .genv()
+            .fhir_split_refinement_params(def_id.local_id())?;
+        let env = &mut Env::new(&early_params);
 
         let predicates = if let Some(fhir_predicates) = generics.predicates {
             let mut clauses = vec![];
@@ -782,13 +791,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult<rty::Clauses> {
         let def_id = opaque_ty.def_id;
         let parent = self.tcx().local_parent(def_id.local_id());
-        let refparams = &self
-            .genv()
-            .fhir_get_generics(parent)?
-            .unwrap()
-            .refinement_params;
+        let (early_params, _) = self.genv().fhir_split_refinement_params(parent)?;
 
-        let env = &mut Env::new(refparams);
+        let env = &mut Env::new(&early_params);
 
         let args = rty::GenericArg::identity_for_item(self.genv(), def_id.resolved_id())?;
         let alias_ty = rty::AliasTy::new(
@@ -1125,7 +1130,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         }
                     }
                 }
-                fhir::GenericBound::Outlives(_) => {
+                fhir::GenericBound::Outlives => {
                     let re = self.next_region_hole();
                     clauses.push(rty::Clause::new(
                         List::empty(),
@@ -1264,36 +1269,42 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     Ok(rty::Ty::exists(rty::Binder::bind_with_vars(ty, sorts)))
                 }
             }
-            fhir::TyKind::StrgRef(_, loc, ty) => {
+            fhir::TyKind::StrgRef(loc, ty) => {
                 let re = self.next_region_hole();
                 let name = loc.name();
                 let loc = self.conv_loc(env, **loc)?;
                 let ty = self.conv_ty(env, ty, name)?;
                 Ok(rty::Ty::strg_ref(re, loc, ty))
             }
-            fhir::TyKind::Ref(_, fhir::MutTy { ty, mutbl }) => {
+            fhir::TyKind::Ref(ty, mutbl) => {
                 let region = self.next_region_hole();
                 Ok(rty::Ty::mk_ref(region, self.conv_ty(env, ty, name)?, *mutbl))
             }
             fhir::TyKind::BareFn(bare_fn) => {
-                let mut env = Env::empty();
+                // We push a layer on the current `env` (instead of starting from an empty one) so
+                // that refinements in the signature can mention refinement params in scope, e.g.,
+                // `fn(x: usize, f: fn(usize) -> usize{v: v <= x})`. The layer binds the fn pointer's
+                // own refinement params, e.g., `n` in `fn(i32[@n]) -> i32[n]`.
                 env.push_layer(Layer::list(
                     self.results(),
                     bare_fn.generic_params.len() as u32,
-                    &[],
+                    bare_fn.params,
                 ));
                 let fn_sig = self.conv_fn_decl(
-                    &mut env,
+                    env,
                     bare_fn.safety,
                     bare_fn.abi,
                     bare_fn.decl,
                     None,
                     Expr::ff(),
-                )?;
+                );
+                let reft_vars = env.pop_layer().into_bound_vars(self.genv())?;
+                let fn_sig = fn_sig?;
                 let vars = bare_fn
                     .generic_params
                     .iter()
                     .map(|param| self.param_as_bound_var(param))
+                    .chain(reft_vars.iter().cloned().map(Ok))
                     .try_collect()?;
                 let poly_fn_sig = rty::Binder::bind_with_vars(fn_sig, vars);
                 Ok(rty::BaseTy::FnPtr(poly_fn_sig).to_ty())
@@ -1318,9 +1329,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 Ok(rty::Ty::constr(pred, self.conv_ty(env, ty, name)?))
             }
             fhir::TyKind::OpaqueDef(opaque_ty) => self.conv_opaque_def(opaque_ty),
-            fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
+            fhir::TyKind::TraitObject(trait_bounds, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
-                    self.conv_trait_object(env, trait_bounds, *lft)
+                    self.conv_trait_object(env, trait_bounds)
                 } else {
                     span_bug!(ty.span, "dyn* traits not supported yet")
                 }
@@ -1374,7 +1385,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &mut self,
         env: &mut Env,
         trait_bounds: &[fhir::PolyTraitRef],
-        _: fhir::Lifetime,
     ) -> QueryResult<rty::Ty> {
         // We convert all the trait bounds into existential predicates. Some combinations won't yield
         // valid rust types (e.g., only one regular (non-auto) trait is allowed). We don't detect those
@@ -1850,11 +1860,18 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         self.check_generic_arg_count(&generics, def_id, segment)?;
 
+        // Lifetime arguments are not represented in fhir, so we always infer them. They come before
+        // type and const arguments in the generics.
+        for param in &generics.own_params {
+            if let rty::GenericParamDefKind::Lifetime = param.kind {
+                into.push(rty::GenericArg::Lifetime(self.next_region_hole()));
+            }
+        }
+
         let len = into.len();
         for (idx, arg) in segment.args.iter().enumerate() {
             let param = generics.param_at(idx + len, self.genv())?;
             let arg = match arg {
-                fhir::GenericArg::Lifetime(_) => rty::GenericArg::Lifetime(self.next_region_hole()),
                 fhir::GenericArg::Type(ty) => self.conv_ty_to_generic_arg(env, &param, ty)?,
                 fhir::GenericArg::Const(cst) => rty::GenericArg::Const(self.conv_const_arg(*cst)),
                 fhir::GenericArg::Infer => {
@@ -1896,6 +1913,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult {
         let found = segment.args.len();
         let mut param_count = generics.own_params.len();
+
+        // Lifetime arguments are not in `segment.args`
+        param_count -= generics
+            .own_params
+            .iter()
+            .filter(|param| matches!(param.kind, rty::GenericParamDefKind::Lifetime))
+            .count();
 
         // The self parameter is not provided explicitly in the path so we skip it
         if let DefKind::Trait = self.genv().def_kind(def_id) {
@@ -2169,7 +2193,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
 
             fhir::ExprKind::PrimApp(op, e1, e2) => {
-                rty::Expr::prim_val(
+                rty::Expr::binary_op(
                     self.conv_primop_val(op),
                     self.conv_expr(env, e1)?,
                     self.conv_expr(env, e2)?,
@@ -2282,7 +2306,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     fn conv_path_expr(&mut self, env: &mut Env, path: fhir::PathExpr) -> QueryResult<rty::Expr> {
         let genv = self.genv();
-        let tcx = self.genv().tcx();
+        let tcx = genv.tcx();
         let espan = ESpan::new(path.span);
         let (expr, sort) = match path.res {
             fhir::Res::Param(_, id) => (env.lookup(&path).to_expr(), self.results().param_sort(id)),
@@ -2291,15 +2315,18 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let (expr, sort) = self.conv_const(path.span, def_id)?;
                 (expr.at(espan), sort)
             }
-            fhir::Res::Def(DefKind::Ctor(..), ctor_id) => {
-                let Some(sort) = genv.sort_of_def_id(ctor_id).emit(&genv)? else {
-                    span_bug!(path.span, "unexpected variant {ctor_id:?}")
-                };
-
-                let variant_id = self.tcx().parent(ctor_id);
-                let enum_id = self.tcx().parent(variant_id);
+            fhir::Res::Def(DefKind::Ctor(hir::def::CtorOf::Variant, _), ctor_id) => {
+                let variant_id = tcx.parent(ctor_id);
+                let enum_id = tcx.parent(variant_id);
+                let sort_def = genv.adt_sort_def_of(enum_id)?;
+                if !sort_def.is_reflected() {
+                    return Err(self
+                        .emit(errors::NonReflectedEnumVariant { span: path.span })
+                        .into());
+                }
+                let sort = sort_def.to_sort(&[]);
                 self.hyperlink(path.span, tcx.def_ident_span(variant_id));
-                let idx = variant_idx(self.tcx(), variant_id);
+                let idx = variant_idx(tcx, variant_id);
                 (rty::Expr::ctor_enum(enum_id, idx), sort)
             }
             fhir::Res::Def(DefKind::ConstParam, def_id) => {
@@ -2368,6 +2395,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     fn conv_primop_val(&self, op: fhir::BinOp) -> rty::BinOp {
         match op {
+            fhir::BinOp::Add => rty::BinOp::Add(rty::Sort::Int),
+            fhir::BinOp::Sub => rty::BinOp::Sub(rty::Sort::Int),
+            fhir::BinOp::Mul => rty::BinOp::Mul(rty::Sort::Int),
+            fhir::BinOp::Div => rty::BinOp::Div(rty::Sort::Int),
+            fhir::BinOp::Mod => rty::BinOp::Mod(rty::Sort::Int),
             fhir::BinOp::BitAnd => rty::BinOp::BitAnd(rty::Sort::Int),
             fhir::BinOp::BitOr => rty::BinOp::BitOr(rty::Sort::Int),
             fhir::BinOp::BitXor => rty::BinOp::BitXor(rty::Sort::Int),
@@ -2507,7 +2539,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         };
         let fsort = alias_reft.fsort(self.genv())?;
         self.0.insert_alias_reft_sort(fhir_id, fsort);
-        Ok(alias_reft)
+        // Regions don't affect refinements and, unlike types, an alias has no rust counterpart
+        // against which to fill the holes created when elaborating its arguments.
+        Ok(alias_reft.erase_regions_including_bound())
     }
 
     pub(crate) fn conv_invariants(
@@ -3370,6 +3404,16 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag("cannot determine corresponding unrefined predicate", code = E0999)]
     pub(super) struct FailToMatchPredicates {
+        #[primary_span]
+        pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag("enum variant cannot be used as a refinement value", code = E0999)]
+    #[note(
+        "only variants of enums marked with `#[flux::reflect]` can be used as refinement values"
+    )]
+    pub(super) struct NonReflectedEnumVariant {
         #[primary_span]
         pub span: Span,
     }

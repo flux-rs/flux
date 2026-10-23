@@ -71,6 +71,15 @@ fn refine_generic_param_def_kind(
     }
 }
 
+/// The type of a `static` without a flux spec: the default refinement of its rust type. Reads of
+/// such a static use this type too, so e.g. the field specs of a struct are assumed when reading
+/// from the static, and thus must be checked in its initializer.
+pub fn default_static_ty(genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::Ty> {
+    genv.lower_type_of(def_id)?
+        .skip_binder()
+        .refine(&Refiner::default_for_item(genv, def_id)?)
+}
+
 pub struct Refiner<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     def_id: DefId,
