@@ -1774,8 +1774,7 @@ pub(crate) mod pretty {
         }
 
         fn is_associative(&self) -> bool {
-            // Equal-precedence grouping can be omitted for the same associative operator:
-            // `a || (b || c)` and `(a || b) || c` preserve operand order and mean the same thing.
+            // Is the binop associative?
             matches!(
                 self,
                 BinOp::Or
@@ -1893,10 +1892,14 @@ pub(crate) mod pretty {
                     }
                 }
                 ExprKind::FieldProj(e, proj) if let ExprKind::Ctor(_, _) = e.kind() => {
-                    // Print the selected field rather than a constructor followed by a projection.
                     // TODO: maintain an invariant that `FieldProj` never has a Ctor as first argument (as always reduced)
-                    // Put parens around it because otherwise the meaning might change because
-                    // of associativity.
+                    //
+                    // We used to not parenthesize here, but that could cause issues, e.g. with
+                    //     (Value { value: x + y }).value * z == 12
+                    // it would reduce to
+                    //     x + y * z == 12
+                    // Put parens around it because otherwise the meaning might
+                    // change because of associativity.
                     w!(cx, f, "({:?})", e.proj_and_reduce(*proj))
                 }
                 ExprKind::FieldProj(e, proj) => {
@@ -1991,9 +1994,10 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lam) => {
                     w!(cx, f, "{:?}", lam)
                 }
-                // Flux functions have no rustc DefId of their own, so qualify them with their
-                // parent module's full, crate-prefixed path. Printing only `did.name()` could
-                // resolve to an unrelated same-named function at the suggestion's insertion site.
+                // Flux functions have no DefId of their own, so qualify them
+                // with their parent module's full, crate-prefixed path.
+                // Printing only `did.name()` could resolve to an unrelated
+                // function with the same name.
                 ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
                     w!(
                         cx,
@@ -2308,11 +2312,9 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children: e_d.children, key: None })
                 }
                 ExprKind::FieldProj(e, proj) if let ExprKind::Ctor(_, _) = e.kind() => {
-                    // Print the selected field rather than a constructor followed by a projection.
                     // TODO: maintain an invariant that `FieldProj` never has a Ctor as first argument (as always reduced)
-                    // As in fmt above, emit grouping because the nested text does not carry its
-                    // precedence back to its parent: selected `x + y` under `* z` must not become
-                    // `x + y * z` when this suggestion text is parsed again.
+                    // Same reasoning as in the impl for Pretty --- if we don't
+                    // parenthesize we can change the meaning.
                     let mut reduced = e.proj_and_reduce(*proj).fmt_nested(cx)?;
                     reduced.text = format!("({})", reduced.text);
                     Ok(reduced)

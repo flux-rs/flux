@@ -352,7 +352,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         if let Some(name) = self.bvar_env.lookup(debruijn, breft.var) {
             w!(self, f, "{}", ^name)
         } else {
-            // NOTE: This shouldn't happen now that we're careful to set up the
+            // NOTE (CK): This shouldn't happen now that we're careful to set up the
             // env. Arguably we might want to panic here, but using the
             // original names is a reasonable fallback (?) --- the anon case is
             // straight up not machine consumable though.
@@ -771,8 +771,9 @@ impl<T: Pretty> fmt::Debug for WithCx<'_, '_, '_, T> {
 impl Pretty for DefId {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if cx.fully_qualified_paths {
-            // Local paths also need `crate::`: a module-relative path can resolve
-            // differently at the insertion site of a generated signature.
+            // Local paths also need `crate::` because a module-relative path
+            // can resolve differently at the insertion site of a generated
+            // signature.
             w!(cx, f, "{}", ^rustc_middle::ty::print::with_crate_prefix!(cx.tcx().def_path_str(*self)))
         } else {
             // Fully qualified paths are necessary to ensure that we don't
@@ -782,6 +783,9 @@ impl Pretty for DefId {
             //
             // Be careful about disabling fully_qualified_paths for any
             // machine-generated suggestions.
+            //
+            // In theory we should be able to identify from context when it's
+            // safe to use a shorter name, but for now we'll be verbose.
             let path = cx.tcx().def_path(*self);
             w!(cx, f, "{}", ^path.data.last().unwrap().as_sym(false))
         }
