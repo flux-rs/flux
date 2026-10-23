@@ -14,14 +14,17 @@ use flux_middle::{
         self, AliasKind, AliasTy, BaseTy, Binder, BoundReftKind, BoundVariableKinds,
         CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj,
         GenericArg, GenericArgsExt, HoleKind, InferMode, KVid, Lambda, List, Loc, Mutability, Name,
-        NameProvenance, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort,
-        Ty, TyCtor, TyKind, Var,
+        NameProvenance, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty,
+        TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
-        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
+        fold::{
+            FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable,
+            TypeVisitable, TypeVisitor,
+        },
         refining::Refiner,
     },
 };
-use flux_rustc_bridge::{ToRustc, lowering::Lower};
+use flux_rustc_bridge::lowering::Lower;
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
@@ -675,6 +678,16 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         Ok(sub.obligations)
     }
 
+    /// Replaces opaque types defined by the current item with their (refined) hidden type. See
+    /// [`OpaqueRevealer`] for details.
+    pub fn reveal_opaque_types<T: TypeFoldable>(
+        &mut self,
+        t: &T,
+        reason: ConstrReason,
+    ) -> InferResult<T> {
+        t.try_fold_with(&mut OpaqueRevealer { infcx: self, reason })
+    }
+
     // FIXME(nilehmann) this is similar to `Checker::check_call`, but since is used from
     // `place_ty::fold` we cannot use that directly. We should try to unify them, because
     // there are a couple of things missing here (e.g., checking clauses on the struct definition).
@@ -1082,23 +1095,6 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 iter::zip(refine_args_a.iter(), refine_args_b.iter())
                     .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
 
-                let bounds_a =
-                    infcx.genv.item_bounds(*def_id_a)?.instantiate(infcx.tcx(), args_a, refine_args_a);
-                let bounds_b =
-                    infcx.genv.item_bounds(*def_id_b)?.instantiate(infcx.tcx(), args_b, refine_args_b);
-                debug_assert_eq!(bounds_a.len(), bounds_b.len());
-                for (clause_a, clause_b) in iter::zip(&bounds_a, &bounds_b) {
-                    if !clause_a.kind().vars().is_empty() || !clause_b.kind().vars().is_empty() {
-                        Err(query_bug!("opaque-opaque: clause with bound vars"))?;
-                    }
-                    if let (
-                        rty::ClauseKind::Projection(pred_a),
-                        rty::ClauseKind::Projection(pred_b),
-                    ) = (clause_a.kind_skipping_binder(), clause_b.kind_skipping_binder())
-                    {
-                        self.tys(infcx, &pred_a.term.to_ty(), &pred_b.term.to_ty())?;
-                    }
-                }
                 Ok(())
             }
             (
@@ -1107,15 +1103,6 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             ) => {
                 // only for when concrete type on LHS and impl-with-bounds on RHS
                 self.handle_opaque_type(infcx, a, *def_id, args, refine_args)
-            }
-            (BaseTy::Alias(AliasTy { kind: AliasKind::Opaque { def_id }, args, refine_args }), _)
-                if opaque_reveal_eq(infcx.tcx(), *def_id, args, b) =>
-            {
-                if self.reason == ConstrReason::Ret && is_own_opaque(infcx, *def_id) {
-                    Ok(())
-                } else {
-                    self.opaque_subtype_at_use_site(infcx, *def_id, args, refine_args, b)
-                }
             }
             (
                 BaseTy::Alias(alias_ty_a @ AliasTy { kind: AliasKind::Projection { .. }, .. }),
@@ -1186,6 +1173,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let (ty_a, ty_b) = match (a, b) {
             (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => (ty_a.clone(), ty_b.clone()),
             (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => {
+                tracked_span_dbg_assert_eq!(
+                    ctor_a.sort().erase_regions(),
+                    ctor_b.sort().erase_regions()
+                );
                 (ctor_a.to_ty(), ctor_b.to_ty())
             }
             (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => return Ok(()),
@@ -1343,7 +1334,13 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                     Err(query_bug!("handle_opaque_types: clause with bound vars: `{clause:?}`"))?;
                 }
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                    let ty1 = self.normalized_assoc(infcx, &pred, bty)?;
+                    let alias_ty = pred
+                        .projection_term
+                        .with_self_ty(bty.to_subset_ty_ctor())
+                        .to_alias_ty();
+                    let ty1 = BaseTy::Alias(alias_ty)
+                        .to_ty()
+                        .deeply_normalize(&mut infcx.at(self.span))?;
                     let ty2 = pred.term.to_ty();
                     self.tys(infcx, &ty1, &ty2)?;
                 }
@@ -1351,135 +1348,154 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         }
         Ok(())
     }
+}
 
-    fn opaque_subtype_at_use_site(
-        &mut self,
-        infcx: &mut InferCtxt,
-        opaque_def_id: DefId,
-        opaque_args: &rty::GenericArgs,
-        opaque_refine_args: &rty::RefineArgs,
-        b: &BaseTy,
-    ) -> InferResult {
-        let bounds = infcx.genv.item_bounds(opaque_def_id)?.instantiate(
-            infcx.tcx(),
-            opaque_args,
-            opaque_refine_args,
-        );
-        let Some(hidden) = kvar_hidden_for_opaque(infcx, opaque_def_id, opaque_args) else {
-            Err(query_bug!("cannot reveal opaque type `{opaque_def_id:?}`"))?
-        };
-        if matches!(hidden, BaseTy::Coroutine(..)) {
+/// Replaces opaque types defined by the item being checked with their hidden type.
+///
+/// Inside its defining scope, rustc can use a value of an opaque type at its hidden type, e.g.,
+/// pass the result of a recursive call `foo(n - 1)` to a function expecting a `Wrap<i32>`. We
+/// support this by replacing the opaque type with its hidden type refined with fresh kvars. For
+/// each projection bound `<Opaque as Trait>::Assoc == T`, the kvars in `<Hidden as Trait>::Assoc`
+/// are constrained to be equivalent to `T`. Every other kvar is replaced by `true`.
+///
+/// This is done both for the output of calls and for the expected return type of the item being
+/// checked, so a returned value is checked against the same type its uses assume.
+struct OpaqueRevealer<'a, 'b, 'infcx, 'genv, 'tcx> {
+    infcx: &'a mut InferCtxtAt<'b, 'infcx, 'genv, 'tcx>,
+    reason: ConstrReason,
+}
+
+impl FallibleTypeFolder for OpaqueRevealer<'_, '_, '_, '_, '_> {
+    type Error = InferErr;
+
+    fn try_fold_ty(&mut self, ty: &Ty) -> InferResult<Ty> {
+        // Opaque types in signatures are unrefined (e.g., `∃v. Opaque[v]`), so we replace the
+        // entire type, existential included.
+        if let Some(bty) = ty.as_bty_skipping_existentials()
+            && let Some(hidden) = self.reveal(bty)?
+        {
+            return Ok(hidden.to_ty());
+        }
+        ty.try_super_fold_with(self)
+    }
+
+    fn try_fold_generic_arg(&mut self, arg: &GenericArg) -> InferResult<GenericArg> {
+        // The hidden type has a different sort than the opaque type, so we replace the entire
+        // constructor, binder included.
+        if let GenericArg::Base(ctor) = arg
+            && let Some(hidden) = self.reveal(ctor.as_bty_skipping_binder())?
+        {
+            return Ok(GenericArg::Base(hidden));
+        }
+        arg.try_super_fold_with(self)
+    }
+}
+
+impl OpaqueRevealer<'_, '_, '_, '_, '_> {
+    fn reveal(&mut self, bty: &BaseTy) -> InferResult<Option<rty::SubsetTyCtor>> {
+        // Kvars and constraints are generated in the current scope, so we cannot reveal an opaque
+        // type mentioning variables bound inside the type being folded.
+        if let BaseTy::Alias(alias_ty @ AliasTy { kind: AliasKind::Opaque { def_id }, .. }) = bty
+            && !alias_ty.has_escaping_bvars()
+            && self.is_revealable(*def_id)
+            && let Some(hidden) = self.hidden_ty_with_kvars(*def_id, &alias_ty.args)
+        {
+            let bounds = self.infcx.genv.item_bounds(*def_id)?.instantiate(
+                self.infcx.tcx(),
+                &alias_ty.args,
+                &alias_ty.refine_args,
+            );
+            let mut pinned = vec![];
             for clause in &bounds {
                 if !clause.kind().vars().is_empty() {
-                    Err(query_bug!("opaque use-site: clause with bound vars: `{clause:?}`"))?;
+                    Err(query_bug!("reveal opaque type: clause with bound vars: `{clause:?}`"))?;
                 }
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                    let ty_formal_assoc = self.normalized_assoc(infcx, &pred, b)?;
-                    self.tys(infcx, &pred.term.to_ty(), &ty_formal_assoc)?;
+                    let term = pred.term.to_ty().try_fold_with(self)?;
+                    let alias_ty = pred
+                        .projection_term
+                        .with_self_ty(hidden.as_bty_skipping_binder().to_subset_ty_ctor())
+                        .to_alias_ty();
+                    let assoc = BaseTy::Alias(alias_ty)
+                        .to_ty()
+                        .deeply_normalize(self.infcx)?;
+                    pinned.extend(kvids(&assoc));
+                    self.infcx.subtyping(&term, &assoc, self.reason)?;
+                    self.infcx.subtyping(&assoc, &term, self.reason)?;
                 }
             }
-            return Ok(());
+            Ok(Some(hidden.fold_with(&mut TopUnpinned(pinned))))
+        } else {
+            Ok(None)
         }
-        let mut pinned = Vec::new();
-        for clause in &bounds {
-            if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                let ty_assoc = self.normalized_assoc(infcx, &pred, &hidden)?;
-                collect_kvars(&ty_assoc, &mut pinned);
-                self.tys(infcx, &pred.term.to_ty(), &ty_assoc)?;
-                self.tys(infcx, &ty_assoc, &pred.term.to_ty())?;
-            }
-        }
-        let hidden = hidden.fold_with(&mut TopUnpinned { pinned });
-        self.btys(infcx, &hidden, b)
     }
 
-    fn normalized_assoc(
+    /// Whether we are in the defining scope of the opaque type, i.e., whether rustc can see its
+    /// hidden type in the item being checked.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "opaque types and the bodies defining them cannot be extern speced"
+    )]
+    fn is_revealable(&self, opaque_def_id: DefId) -> bool {
+        let tcx = self.infcx.tcx();
+        let root = tcx.typeck_root_def_id(self.infcx.def_id);
+        opaque_def_id
+            .as_local()
+            .zip(root.as_local())
+            .is_some_and(|(opaque, root)| tcx.opaque_types_defined_by(root).contains(&opaque))
+    }
+
+    /// Returns the hidden type of the opaque type refined with fresh kvars. We don't reveal hidden
+    /// types mentioning closures or coroutines and handle them through their bounds instead.
+    fn hidden_ty_with_kvars(
         &mut self,
-        infcx: &mut InferCtxt,
-        pred: &rty::ProjectionPredicate,
-        self_ty: &BaseTy,
-    ) -> QueryResult<rty::Ty> {
-        let alias_ty = pred
-            .projection_term
-            .with_self_ty(self_ty.to_subset_ty_ctor())
-            .to_alias_ty();
-        BaseTy::Alias(alias_ty)
-            .to_ty()
-            .deeply_normalize(&mut infcx.at(self.span))
-    }
-}
-
-fn is_own_opaque(infcx: &InferCtxt, opaque_def_id: DefId) -> bool {
-    infcx.tcx().parent(opaque_def_id) == infcx.def_id
-}
-
-fn opaque_reveal_eq(
-    tcx: TyCtxt<'_>,
-    opaque_def_id: DefId,
-    opaque_args: &rty::GenericArgs,
-    other: &BaseTy,
-) -> bool {
-    let rustc_args = opaque_args.to_rustc(tcx);
-    let hidden = tcx
-        .type_of(opaque_def_id)
-        .instantiate(tcx, rustc_args)
-        .skip_normalization();
-    let other = other.to_rustc(tcx);
-    tcx.erase_and_anonymize_regions(hidden) == tcx.erase_and_anonymize_regions(other)
-}
-
-fn kvar_hidden_for_opaque(
-    infcx: &mut InferCtxt,
-    opaque_def_id: DefId,
-    opaque_args: &rty::GenericArgs,
-) -> Option<BaseTy> {
-    let genv = infcx.genv;
-    let tcx = genv.tcx();
-    let hidden_rustc = tcx
-        .type_of(opaque_def_id)
-        .instantiate(tcx, opaque_args.to_rustc(tcx))
-        .skip_normalization();
-    let hidden_bridge = hidden_rustc.lower(tcx).ok()?;
-    let refiner = Refiner::with_holes(genv, infcx.def_id).ok()?;
-    let ty_or_base = refiner.refine_ty_or_base(&hidden_bridge).ok()?;
-    let ctor = match ty_or_base {
-        rty::TyOrBase::Base(ctor) => ctor,
-        rty::TyOrBase::Ty(ty) => ty.shallow_canonicalize().as_ty_or_base().as_base()?,
-    };
-    let ctor = ctor.replace_holes(|binders, kind| {
-        infcx.fresh_infer_var_for_hole(binders, kind)
-    });
-    Some(ctor.as_bty_skipping_binder().clone())
-}
-
-#[derive(Default)]
-struct KvarCollector {
-    kvids: Vec<KVid>,
-}
-
-impl TypeVisitor for KvarCollector {
-    fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
-        if let ExprKind::KVar(kvar) = expr.kind() {
-            self.kvids.push(kvar.kvid);
+        opaque_def_id: DefId,
+        opaque_args: &rty::GenericArgs,
+    ) -> Option<rty::SubsetTyCtor> {
+        let genv = self.infcx.genv;
+        let tcx = genv.tcx();
+        let hidden = tcx
+            .type_of(opaque_def_id)
+            .instantiate(tcx, opaque_args.to_rustc(tcx))
+            .skip_normalization();
+        if hidden.walk().any(|arg| {
+            arg.as_type()
+                .is_some_and(|ty| ty.is_closure() || ty.is_coroutine() || ty.is_coroutine_closure())
+        }) {
+            return None;
         }
-        expr.super_visit_with(self)
+        let ctor = Refiner::with_holes(genv, self.infcx.def_id)
+            .ok()?
+            .refine_ty_or_base(&hidden.lower(tcx).ok()?)
+            .ok()?
+            .as_base()?;
+        Some(ctor.replace_holes(|binders, kind| self.infcx.fresh_infer_var_for_hole(binders, kind)))
     }
 }
 
-fn collect_kvars(x: &impl TypeVisitable, out: &mut Vec<KVid>) {
-    let mut collector = KvarCollector::default();
-    let _ = x.visit_with(&mut collector);
-    out.extend(collector.kvids);
+fn kvids(t: &impl TypeVisitable) -> Vec<KVid> {
+    struct Collector(Vec<KVid>);
+
+    impl TypeVisitor for Collector {
+        fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
+            if let ExprKind::KVar(kvar) = expr.kind() {
+                self.0.push(kvar.kvid);
+            }
+            expr.super_visit_with(self)
+        }
+    }
+    let mut collector = Collector(vec![]);
+    let _ = t.visit_with(&mut collector);
+    collector.0
 }
 
-struct TopUnpinned {
-    pinned: Vec<KVid>,
-}
+/// Replaces all kvars not in the list with `true`.
+struct TopUnpinned(Vec<KVid>);
 
 impl TypeFolder for TopUnpinned {
     fn fold_expr(&mut self, e: &Expr) -> Expr {
         if let ExprKind::KVar(kvar) = e.kind()
-            && !self.pinned.contains(&kvar.kvid)
+            && !self.0.contains(&kvar.kvid)
         {
             return Expr::tt();
         }

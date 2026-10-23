@@ -67,6 +67,10 @@ pub trait FallibleTypeFolder: Sized {
         constr.try_super_fold_with(self)
     }
 
+    fn try_fold_generic_arg(&mut self, arg: &GenericArg) -> Result<GenericArg, Self::Error> {
+        arg.try_super_fold_with(self)
+    }
+
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, Self::Error> {
         Ok(*re)
     }
@@ -1026,6 +1030,12 @@ impl TypeVisitable for GenericArg {
 
 impl TypeFoldable for GenericArg {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_generic_arg(self)
+    }
+}
+
+impl TypeSuperFoldable for GenericArg {
+    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let arg = match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.try_fold_with(folder)?),
             GenericArg::Base(ctor) => GenericArg::Base(ctor.try_fold_with(folder)?),

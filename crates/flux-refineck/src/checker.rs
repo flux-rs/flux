@@ -741,8 +741,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .fn_sig
                     .output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+                let ret = infcx.reveal_opaque_types(&output.ret, ConstrReason::Ret)?;
                 let obligations =
-                    infcx.subtyping_with_env(env, &ret_place_ty, &output.ret, ConstrReason::Ret)?;
+                    infcx.subtyping_with_env(env, &ret_place_ty, &ret, ConstrReason::Ret)?;
 
                 env.check_ensures(infcx, &output.ensures, ConstrReason::Ret)?;
 
@@ -892,8 +893,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env.assume_ensures(infcx, &output.ensures, span);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
 
+        let ret = infcx
+            .at(span)
+            .reveal_opaque_types(&output.ret, ConstrReason::Call)
+            .with_span(span)?;
+
         Ok(ResolvedCall {
-            output: output.ret,
+            output: ret,
             _early_args: early_refine_args
                 .into_iter()
                 .map(|arg| infcx.fully_resolve_evars(arg))

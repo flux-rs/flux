@@ -139,3 +139,43 @@ pub fn test_rec_multi_bad(n: i32) -> impl Tr2<A = i32> {
     P(n, 5)
 }
 
+// Unpinned refinements in the hidden type are revealed as `true`, so the returned value must be
+// checked against that, e.g., here callers could otherwise call `pos_only` with any `i32`.
+#[flux::sig(fn(x: i32{x > 0}))]
+fn pos_only(_x: i32) {}
+
+fn call_neg(t: (fn(i32),)) {
+    (t.0)(-1)
+}
+
+pub fn test_reveal_fn_ptr(b: bool) -> impl Sized {
+    if b {
+        call_neg(test_reveal_fn_ptr(false));
+    }
+    (pos_only as fn(i32),) //~ ERROR refinement type
+}
+
+// The associated type sits in a contravariant position of the hidden type, so it's not enough to
+// check that the returned value's `Out` is a subtype of the bound.
+pub struct FnArg<T>(fn(T));
+
+pub trait Call {
+    type Out;
+    fn call(&self, x: Self::Out);
+}
+
+impl<T> Call for FnArg<T> {
+    type Out = T;
+    fn call(&self, x: T) {
+        (self.0)(x)
+    }
+}
+
+#[flux::spec(fn() -> impl Call<Out = i32{v: v >= 0}>)]
+pub fn test_reveal_contravariant() -> impl Call<Out = i32> {
+    FnArg(pos_only as fn(i32)) //~ ERROR refinement type
+}
+
+pub fn test_reveal_contravariant_client() {
+    test_reveal_contravariant().call(0);
+}
