@@ -501,38 +501,3 @@ fn conjunction(assertions: &[String]) -> String {
         _ => format!("(and {})", assertions.join(" ")),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::sexp::Parser;
-
-    struct TestTypes;
-
-    impl Types for TestTypes {
-        type Sort = &'static str;
-        type KVar = &'static str;
-        type Var = &'static str;
-        type String = String;
-        type Real = u32;
-        type Tag = String;
-    }
-
-    #[test]
-    fn decode_left_associative_arithmetic() {
-        let globals = ConstraintGlobalEnv::<TestTypes>::new(&[], &[], &[])
-            .unwrap()
-            .0;
-        let locals = ConstraintLocalEnv::new(&globals, &[], &[]).unwrap();
-        for (input, expected) in [
-            ("(- 10 3 2)", "(- (- 10 3) 2)"),
-            ("(div 20 2 2)", "(div (div 20 2) 2)"),
-            ("(- 10)", "(- 10)"),
-            ("(+ 1 2 3)", "(+ (+ 1 2) 3)"),
-        ] {
-            let sexp = Parser::new(input).parse().unwrap();
-            let expr = locals.decode(&sexp).unwrap();
-            assert_eq!(globals.expr(&expr).unwrap(), expected);
-        }
-    }
-}

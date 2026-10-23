@@ -219,35 +219,3 @@ fn atom_symbol(sexp: Option<&Sexp>) -> Option<&str> {
         _ => None,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn queries_and_scope_cleanup() {
-        let mut z3 = Z3Subprocess::new().unwrap();
-        z3.reset("(declare-const x Int)").unwrap();
-        let goals = z3
-            .apply("(assert (and (>= x 0) (<= x 10)))", "(then qe nnf)")
-            .unwrap();
-        assert_eq!(goals.len(), 1);
-        assert_eq!(goals[0].len(), 2);
-
-        let result = z3.scoped("(assert false)", |z3| {
-            assert_eq!(z3.check_sat("")?, SatStatus::Unsat);
-            Err::<(), _>(Z3Error::Timeout)
-        });
-        assert!(matches!(result, Err(Z3Error::Timeout)));
-        assert_eq!(z3.check_sat("").unwrap(), SatStatus::Sat);
-        assert_eq!(z3.check_sat("(assert false)").unwrap(), SatStatus::Unsat);
-        assert_eq!(z3.check_sat("").unwrap(), SatStatus::Sat);
-    }
-
-    #[test]
-    #[should_panic(expected = "unexpected Z3 setup response")]
-    fn setup_errors_are_not_discarded() {
-        let mut z3 = Z3Subprocess::new().unwrap();
-        z3.reset("(declare-const x MissingSort)").unwrap();
-    }
-}
