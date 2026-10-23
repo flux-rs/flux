@@ -51,7 +51,7 @@ impl<T: Types> SuggestionSolver<T> {
     ) -> Result<Self, SuggestionSolverError> {
         let datatype_decls =
             crate::constraint_with_env::topo_sort_data_declarations(datatype_decls);
-        let (env, declarations) = ConstraintGlobalEnv::new(&datatype_decls, global_consts, funs)?;
+        let (env, declarations) = ConstraintGlobalEnv::new(&datatype_decls, global_consts, funs);
         let mut session = Z3Subprocess::new()?;
         session.reset(&declarations)?;
         Ok(Self { session, env })
@@ -66,8 +66,8 @@ impl<T: Types> SuggestionSolver<T> {
             .preconditions()
             .iter()
             .map(|pred| self.env.pred(pred))
-            .collect::<Result<Vec<_>, _>>()?;
-        assertions.push(format!("(not {})", self.env.pred(&constraint.head)?));
+            .collect::<Vec<_>>();
+        assertions.push(format!("(not {})", self.env.pred(&constraint.head)));
         let mut setup = locals.declarations;
         for assertion in &assertions {
             writeln!(setup, "(assert {assertion})").unwrap();
@@ -85,10 +85,10 @@ impl<T: Types> SuggestionSolver<T> {
             .preconditions()
             .iter()
             .map(|pred| self.env.pred(pred))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
         let body =
-            format!("(=> {} {})", conjunction(&assumptions), self.env.pred(&constraint.head)?);
-        let implication = self.env.quantified_implication(constraint, &body)?;
+            format!("(=> {} {})", conjunction(&assumptions), self.env.pred(&constraint.head));
+        let implication = self.env.quantified_implication(constraint, &body);
         self.session.scoped(&locals.declarations, |session| {
             Self::qe_and_simplify_in_context(
                 session,
@@ -128,7 +128,7 @@ impl<T: Types> SuggestionSolver<T> {
             return Ok(Expr::FALSE);
         }
 
-        let sanity = format!("(not (=> {} {body}))", env.expr(&candidate)?);
+        let sanity = format!("(not (=> {} {body}))", env.expr(&candidate));
         if matches!(session.check_sat(&format!("(assert {sanity})"))?, SatStatus::Unsat) {
             Ok(candidate)
         } else {
@@ -148,7 +148,7 @@ impl<T: Types> ConstraintGlobalEnv<T> {
         datatype_decls: &[DataDecl<T>],
         global_consts: &[ConstDecl<T>],
         funs: &[FunDef<T>],
-    ) -> Result<(Self, String), SuggestionSolverError> {
+    ) -> (Self, String) {
         let mut symbols = HashMap::new();
         for decl in datatype_decls {
             for ctor in &decl.ctors {
@@ -186,29 +186,25 @@ impl<T: Types> ConstraintGlobalEnv<T> {
                 encoder.write_fun_def(&mut out, fun).unwrap();
             }
         }
-        Ok((Self { symbols, declared_names: declared, encoder }, out))
+        (Self { symbols, declared_names: declared, encoder }, out)
     }
 
-    fn pred(&self, pred: &Pred<T>) -> Result<String, SuggestionSolverError> {
-        Ok(self.encoder.pred(pred).unwrap())
+    fn pred(&self, pred: &Pred<T>) -> String {
+        self.encoder.pred(pred).unwrap()
     }
 
-    fn expr(&self, expr: &Expr<T>) -> Result<String, SuggestionSolverError> {
-        Ok(self.encoder.expr(expr).unwrap())
+    fn expr(&self, expr: &Expr<T>) -> String {
+        self.encoder.expr(expr).unwrap()
     }
 
-    fn quantified_implication(
-        &self,
-        cstr: &FlatConstraint<T>,
-        body: &str,
-    ) -> Result<String, SuggestionSolverError> {
+    fn quantified_implication(&self, cstr: &FlatConstraint<T>, body: &str) -> String {
         let mut quantified = body.to_string();
         for (name, sort) in &cstr.binders {
             let mut binder_sort = String::new();
             self.encoder.write_sort(&mut binder_sort, sort).unwrap();
             quantified = format!("(forall (({} {binder_sort})) {quantified})", name.display());
         }
-        Ok(quantified)
+        quantified
     }
 }
 
@@ -422,7 +418,7 @@ fn prune_vacuous<T: Types>(
                 let mut setup = String::new();
                 for (j, sibling) in copy.iter().enumerate() {
                     if i != j {
-                        writeln!(setup, "(assert {})", env.expr(sibling)?).unwrap();
+                        writeln!(setup, "(assert {})", env.expr(sibling)).unwrap();
                     }
                 }
                 if session.scoped(&setup, |session| prune_vacuous(conjunct, env, session))? {
@@ -456,7 +452,7 @@ fn prune_vacuous<T: Types>(
         }
         _ => {
             Ok(matches!(
-                session.check_sat(&format!("(assert {})", env.expr(expr)?))?,
+                session.check_sat(&format!("(assert {})", env.expr(expr)))?,
                 SatStatus::Unsat
             ))
         }
