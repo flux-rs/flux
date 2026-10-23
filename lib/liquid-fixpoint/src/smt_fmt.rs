@@ -257,11 +257,9 @@ impl<T: Types> SmtEncoder<T> {
             Sort::Abs(..) | Sort::Func(_) => {
                 panic!("higher-rank or function value sort `{sort:?}`");
             }
-            // User opaque sorts are referenced but not declared in the Fixpoint task.
-            // Match Haskell Fixpoint's fallback: erase the entire application (including
-            // type arguments) to Int. This conflates opaque sorts; Flux well-formedness
-            // keeps them distinct before encoding. TODO: carry explicit SortDecls and
-            // emit declare-sort instead. An empty datatype is not an opaque sort.
+            // If we don't recognize the sort, it is an opaque sort and we fall back to Int.
+            // The Haskell Fixpoint's fappSmtSort (Types/Theories.hs) has the same fallback.
+            // TODO: If/when we patch fixpoint, we should update this to have parity.
             Sort::App(SortCtor::Data(name), _) if !self.datatypes.contains(name) => {
                 out.write_str("Int")?;
             }
