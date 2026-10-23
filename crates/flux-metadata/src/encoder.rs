@@ -14,8 +14,8 @@ use rustc_span::{
 use rustc_structures::CrateType;
 
 use crate::{
-    AbsoluteBytePos, CrateMetadata, EncodedSourceFileId, Footer, METADATA_HEADER, SYMBOL_OFFSET,
-    SYMBOL_PREDEFINED, SYMBOL_STR, SourceFileIndex, TAG_FULL_SPAN, TAG_PARTIAL_SPAN,
+    AbsoluteBytePos, CrateMetadata, EncodedSourceFileId, ExpnKey, Footer, METADATA_HEADER,
+    SYMBOL_OFFSET, SYMBOL_PREDEFINED, SYMBOL_STR, SourceFileIndex, TAG_FULL_SPAN, TAG_PARTIAL_SPAN,
 };
 
 struct EncodeContext<'a, 'tcx> {
@@ -149,16 +149,19 @@ pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
     HygieneEncodeContext::encode(
         &hygiene_ctxt,
         &mut ecx,
-        |encoder, index, ctxt_data| {
+        |encoder, ctxt, ctxt_data| {
             let pos = AbsoluteBytePos::new(encoder.position());
             ctxt_data.encode(encoder);
-            syntax_contexts.insert(index, pos);
+            syntax_contexts.insert(ctxt.as_u32(), pos);
         },
         |encoder, expn_id, data, hash| {
             let pos = AbsoluteBytePos::new(encoder.position());
             data.expect("local expn").encode(encoder);
             hash.encode(encoder);
-            expn_data.insert((tcx.stable_crate_id(expn_id.krate), expn_id.local_id.as_u32()), pos);
+            expn_data.insert(
+                ExpnKey(tcx.stable_crate_id(expn_id.krate), expn_id.local_id.as_u32()),
+                pos,
+            );
         },
     );
 
@@ -202,11 +205,10 @@ impl SpanEncoder for EncodeContext<'_, '_> {
     }
 
     fn encode_syntax_context(&mut self, syntax_context: SyntaxContext) {
-        let idx = self
-            .hygiene_ctxt
+        self.hygiene_ctxt
             .borrow_mut()
-            .get_syntax_ctxt_encoding_index(syntax_context);
-        idx.encode(self);
+            .enqueue_syntax_context_for_encoding(syntax_context);
+        self.emit_u32(syntax_context.as_u32());
     }
 
     fn encode_expn_id(&mut self, expn_id: ExpnId) {
