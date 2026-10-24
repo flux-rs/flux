@@ -1,5 +1,5 @@
 use std::{
-    self, env,
+    self,
     io::{BufWriter, Write},
     process::{Command, exit},
 };
@@ -67,13 +67,8 @@ fn write_cargo_config(
     sysroot: &std::path::Path,
     cargo_flux_cmd: &CargoFluxCommand,
 ) -> anyhow::Result<NamedTempFile> {
-    let flux_flags: Option<Vec<String>> = if let Ok(flags) = env::var("FLUXFLAGS") {
-        Some(flags.split(" ").map(Into::into).collect())
-    } else {
-        None
-    };
-
     let flux_config = FluxConfig::load()?;
+    let global_fluxflags = flux_config.global_fluxflags();
     let targeted_package_ids = cargo_flux_cmd.targeted_package_ids(&metadata);
     let cli_flags = cargo_flux_cmd.rustflags();
 
@@ -117,24 +112,29 @@ incremental = false
 rustflags = [{:?}]
                         "#,
                     package.id,
-                    flux_metadata
-                        .into_flags(
-                            manifest_dir_relative_to_workspace,
-                            cargo_flux_cmd
-                                .only_check()
-                                .filter(|_| targeted_package_ids.contains(&package.id))
-                        )
-                        .iter()
+                    // Like cargo's own flags before rustflags, the flags `cargo flux` sets itself
+                    // come first, so any of them can be overridden.
+                    ["-Fverify=on", "-Ffull-compilation=on", sysroot_flag.as_str()]
+                        .into_iter()
                         .chain(
-                            flux_config
-                                .settings
-                                .to_flags(&metadata.target_directory)
+                            flux_metadata
+                                .into_flags(
+                                    manifest_dir_relative_to_workspace,
+                                    cargo_flux_cmd
+                                        .only_check()
+                                        .filter(|_| targeted_package_ids.contains(&package.id))
+                                )
                                 .iter()
+                                .chain(
+                                    flux_config
+                                        .settings
+                                        .to_flags(&metadata.target_directory)
+                                        .iter()
+                                )
+                                .chain(global_fluxflags.iter())
+                                .chain(cli_flags.iter())
+                                .map(String::as_str)
                         )
-                        .chain(flux_flags.iter().flatten())
-                        .chain(cli_flags.iter())
-                        .map(|s| s.as_str())
-                        .chain(["-Fverify=on", "-Ffull-compilation=on", sysroot_flag.as_str()])
                         .format(", ")
                 )?;
             }

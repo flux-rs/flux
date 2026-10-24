@@ -194,6 +194,14 @@ impl ConfigValue {
         }
     }
 
+    /// Removes `key` if `self` is a table.
+    pub fn remove(&mut self, key: &str) -> Option<ConfigValue> {
+        match self {
+            ConfigValue::Table(entries, _) => entries.remove(key),
+            _ => None,
+        }
+    }
+
     /// Merges values ordered from lowest to highest precedence. Returns `None` if there are none.
     pub fn merge_all(
         values: impl IntoIterator<Item = ConfigValue>,

@@ -17,6 +17,7 @@ mod value;
 
 use std::{env, fs};
 
+use anyhow::Context;
 use cargo_metadata::camino::{Utf8Path, Utf8PathBuf};
 use flux_sysroot::flux_home_dir;
 use serde::Deserialize;
@@ -26,8 +27,41 @@ pub use value::{Located, Location};
 /// The merged content of all configuration files.
 #[derive(Debug, Default)]
 pub struct FluxConfig {
+    pub build: Build,
     pub settings: Settings,
 }
+
+/// The `[build]` table.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct Build {
+    /// Extra flags passed to every package checked by Flux, like cargo's `build.rustflags`.
+    pub fluxflags: Option<StringList>,
+}
+
+/// A list of strings written either as an array or as a space-separated string.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(untagged)]
+pub enum StringList {
+    String(String),
+    List(Vec<String>),
+}
+
+impl StringList {
+    fn into_vec(self) -> Vec<String> {
+        match self {
+            StringList::String(s) => split_space_separated(&s),
+            StringList::List(list) => list,
+        }
+    }
+}
+
+/// Environment variable with flags separated by `0x1f` (ASCII Unit Separator). Takes precedence
+/// over [`FLUXFLAGS`]. Like cargo's `CARGO_ENCODED_RUSTFLAGS`, it allows flags containing spaces.
+pub const FLUX_ENCODED_FLAGS: &str = "FLUX_ENCODED_FLAGS";
+
+/// Environment variable with space-separated flags. Takes precedence over `build.fluxflags`.
+pub const FLUXFLAGS: &str = "FLUXFLAGS";
 
 /// Settings that are translated into flags for the driver.
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -112,6 +146,9 @@ impl TraceLevel {
     }
 }
 
+/// Top-level keys that are not [`Settings`].
+const BUILD_KEY: &str = "build";
+
 impl Settings {
     /// Translates the settings into flags for the driver.
     pub fn to_flags(&self, target_dir: &Utf8Path) -> Vec<String> {
@@ -189,9 +226,46 @@ impl FluxConfig {
         }
     }
 
-    fn from_value(value: ConfigValue) -> anyhow::Result<FluxConfig> {
-        Ok(FluxConfig { settings: value.deserialize_into()? })
+    fn from_value(mut value: ConfigValue) -> anyhow::Result<FluxConfig> {
+        let build: Build = match value.remove(BUILD_KEY) {
+            Some(build) => {
+                build
+                    .deserialize_into()
+                    .context("invalid `[build]` table")?
+            }
+            None => Build::default(),
+        };
+        Ok(FluxConfig { build, settings: value.deserialize_into()? })
     }
+
+    /// Returns the extra flags passed to every package. Following cargo's rules for rustflags,
+    /// they come from the first source that is set among [`FLUX_ENCODED_FLAGS`], [`FLUXFLAGS`] and
+    /// `build.fluxflags`. Sources are not combined.
+    pub fn global_fluxflags(&self) -> Vec<String> {
+        if let Ok(flags) = env::var(FLUX_ENCODED_FLAGS) {
+            if flags.is_empty() {
+                vec![]
+            } else {
+                flags.split('\x1f').map(str::to_string).collect()
+            }
+        } else if let Ok(flags) = env::var(FLUXFLAGS) {
+            split_space_separated(&flags)
+        } else {
+            self.build
+                .fluxflags
+                .clone()
+                .map(StringList::into_vec)
+                .unwrap_or_default()
+        }
+    }
+}
+
+fn split_space_separated(s: &str) -> Vec<String> {
+    s.split(' ')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 /// Returns the configuration files that apply to `cwd`, ordered from highest to lowest
