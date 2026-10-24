@@ -49,7 +49,7 @@ cargo xtask install
 
 This will install two binaries `flux` and `cargo-flux` in your cargo home. These two binaries should be used
 respectively to run Flux on either a single file or on a project using cargo. The installation process will
-also copy some files to `$HOME/.flux`.
+also copy the Flux sysroot (the driver and precompiled libraries) to `$HOME/.flux/sysroot`.
 
 ## Running on a package: `cargo-flux`
 
