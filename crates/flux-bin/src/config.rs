@@ -12,12 +12,17 @@
 //! * Relative paths are resolved relative to the parent of the directory containing the file,
 //!   e.g., a path in `/project/.flux/config.toml` is relative to `/project`.
 //!
+//! Settings can be overridden for specific packages in `[package.<spec>]` tables, where `<spec>`
+//! is a package name, `<name>@<version>`, or `*` for all packages that are not workspace members.
+//! As in cargo's profile overrides, a package's settings are taken from its own table, then from
+//! `[package."*"]`, and then from the top level.
+//!
 
 mod value;
 
-use std::{env, fs};
+use std::{collections::BTreeMap, env, fs};
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use cargo_metadata::camino::{Utf8Path, Utf8PathBuf};
 use flux_sysroot::flux_home_dir;
 use serde::Deserialize;
@@ -28,7 +33,27 @@ pub use value::{Located, Location};
 #[derive(Debug, Default)]
 pub struct FluxConfig {
     pub build: Build,
+    /// Top-level settings, kept untyped to merge them with package overrides. `None` if there are
+    /// no configuration files.
+    settings: Option<ConfigValue>,
+    /// `[package.<spec>]` tables, indexed by spec.
+    packages: BTreeMap<String, PackageOverride>,
+}
+
+/// A `[package.<spec>]` table.
+#[derive(Debug)]
+struct PackageOverride {
+    settings: ConfigValue,
+    fluxflags: Option<Vec<String>>,
+}
+
+/// The configuration of a single package.
+#[derive(Debug)]
+pub struct PackageConfig {
     pub settings: Settings,
+    /// Flags from the package overrides. They are passed before the global flags, like cargo does
+    /// with `rustflags` in profile overrides.
+    pub fluxflags: Vec<String>,
 }
 
 /// The `[build]` table.
@@ -148,6 +173,13 @@ impl TraceLevel {
 
 /// Top-level keys that are not [`Settings`].
 const BUILD_KEY: &str = "build";
+const PACKAGE_KEY: &str = "package";
+
+/// Key for flags in a `[package.<spec>]` table.
+const FLUXFLAGS_KEY: &str = "fluxflags";
+
+/// Spec matching all packages that are not workspace members.
+const ALL_NON_MEMBERS: &str = "*";
 
 impl Settings {
     /// Translates the settings into flags for the driver.
@@ -235,7 +267,80 @@ impl FluxConfig {
             }
             None => Build::default(),
         };
-        Ok(FluxConfig { build, settings: value.deserialize_into()? })
+        let packages = match value.remove(PACKAGE_KEY) {
+            Some(packages) => {
+                let ConfigValue::Table(packages, _) = packages else {
+                    bail!("{}: `package` must be a table", packages.location());
+                };
+                packages
+                    .into_iter()
+                    .map(|(spec, value)| {
+                        let package = PackageOverride::from_value(value)
+                            .with_context(|| format!("invalid `[package.\"{spec}\"]` table"))?;
+                        Ok((spec, package))
+                    })
+                    .collect::<anyhow::Result<_>>()?
+            }
+            None => BTreeMap::new(),
+        };
+        value.clone().deserialize_into::<Settings>()?;
+        Ok(FluxConfig { build, settings: Some(value), packages })
+    }
+
+    /// Returns the configuration for the package `name` at `version`.
+    pub fn for_package(
+        &self,
+        name: &str,
+        version: &str,
+        is_workspace_member: bool,
+    ) -> anyhow::Result<PackageConfig> {
+        let mut matching = self
+            .packages
+            .iter()
+            .filter(|(spec, _)| spec_matches(spec, name, version));
+        let named = matching.next();
+        if let Some((other, _)) = matching.next() {
+            bail!(
+                "multiple `[package]` tables in `.flux/config.toml` match package `{name}`: `{}` and \
+                 `{other}`",
+                named.unwrap().0
+            );
+        }
+        let all_non_members =
+            if is_workspace_member { None } else { self.packages.get(ALL_NON_MEMBERS) };
+
+        // Overrides in increasing order of precedence. Settings are merged field by field.
+        let mut settings: Vec<ConfigValue> = self.settings.iter().cloned().collect();
+        let mut fluxflags = vec![];
+        for package in [all_non_members, named.map(|(_, package)| package)]
+            .into_iter()
+            .flatten()
+        {
+            settings.push(package.settings.clone());
+            if let Some(flags) = &package.fluxflags {
+                fluxflags = flags.clone();
+            }
+        }
+        let settings = match ConfigValue::merge_all(settings)? {
+            Some(settings) => settings.deserialize_into()?,
+            None => Settings::default(),
+        };
+        Ok(PackageConfig { settings, fluxflags })
+    }
+
+    /// Returns the specs of `[package.<spec>]` tables that match none of `packages`, given as pairs
+    /// of name and version.
+    pub fn unmatched_specs(&self, packages: &[(String, String)]) -> Vec<&str> {
+        self.packages
+            .keys()
+            .filter(|spec| {
+                *spec != ALL_NON_MEMBERS
+                    && !packages
+                        .iter()
+                        .any(|(name, version)| spec_matches(spec, name, version))
+            })
+            .map(String::as_str)
+            .collect()
     }
 
     /// Returns the extra flags passed to every package. Following cargo's rules for rustflags,
@@ -257,6 +362,25 @@ impl FluxConfig {
                 .map(StringList::into_vec)
                 .unwrap_or_default()
         }
+    }
+}
+
+impl PackageOverride {
+    fn from_value(mut settings: ConfigValue) -> anyhow::Result<PackageOverride> {
+        let fluxflags = match settings.remove(FLUXFLAGS_KEY) {
+            Some(value) => Some(value.deserialize_into::<StringList>()?.into_vec()),
+            None => None,
+        };
+        settings.clone().deserialize_into::<Settings>()?;
+        Ok(PackageOverride { settings, fluxflags })
+    }
+}
+
+/// Whether `spec` is `name` or `name@version`.
+fn spec_matches(spec: &str, name: &str, version: &str) -> bool {
+    match spec.split_once('@') {
+        Some((spec_name, spec_version)) => spec_name == name && spec_version == version,
+        None => spec == name,
     }
 }
 

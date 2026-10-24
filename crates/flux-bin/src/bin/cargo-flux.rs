@@ -69,6 +69,16 @@ fn write_cargo_config(
 ) -> anyhow::Result<NamedTempFile> {
     let flux_config = FluxConfig::load()?;
     let global_fluxflags = flux_config.global_fluxflags();
+    let package_versions = metadata
+        .packages
+        .iter()
+        .map(|package| (package.name.to_string(), package.version.to_string()))
+        .collect_vec();
+    for spec in flux_config.unmatched_specs(&package_versions) {
+        eprintln!(
+            "warning: `[package.\"{spec}\"]` in `.flux/config.toml` did not match any packages"
+        );
+    }
     let targeted_package_ids = cargo_flux_cmd.targeted_package_ids(&metadata);
     let cli_flags = cargo_flux_cmd.rustflags();
 
@@ -95,6 +105,11 @@ incremental = false
             let flux_metadata = FluxMetadata::from_package(package)?;
 
             if flux_metadata.enabled {
+                let package_config = flux_config.for_package(
+                    &package.name,
+                    &package.version.to_string(),
+                    metadata.workspace_members.contains(&package.id),
+                )?;
                 // For workspace members, cargo sets the workspace's root as the working dir
                 // when running flux. Paths will be relative to that, so we must normalize
                 // glob patterns to be relative to the workspace's root.
@@ -126,11 +141,12 @@ rustflags = [{:?}]
                                 )
                                 .iter()
                                 .chain(
-                                    flux_config
+                                    package_config
                                         .settings
                                         .to_flags(&metadata.target_directory)
                                         .iter()
                                 )
+                                .chain(package_config.fluxflags.iter())
                                 .chain(global_fluxflags.iter())
                                 .chain(cli_flags.iter())
                                 .map(String::as_str)
