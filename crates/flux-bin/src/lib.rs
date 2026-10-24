@@ -4,14 +4,13 @@ use serde::Deserialize;
 
 pub mod cargo_flux_opts;
 pub mod cargo_style;
+pub mod config;
 pub mod utils;
 
 #[derive(Deserialize, Debug, Default)]
 #[serde(default, deny_unknown_fields)]
 pub struct FluxMetadata {
     pub enabled: bool,
-    /// Enables fixpoint query caching. Saves cache files in `target/flux-cache/`
-    pub cache: Option<bool>,
     /// Set the default solver
     pub solver: Option<SmtSolver>,
     /// Enable qualifier scrapping in fixpoint
@@ -40,21 +39,15 @@ pub struct FluxMetadata {
     pub no_panic: Option<bool>,
     /// If present, enables lean mode
     pub lean: Option<LeanMode>,
-    /// If present, dumps the fixpoint constraint to a file
-    pub dump_constraint: Option<bool>,
 }
 
 impl FluxMetadata {
     pub fn into_flags(
         self,
-        target_dir: &Utf8Path,
         include_pattern_prefix: Option<&Utf8Path>,
         only_check: Option<&str>,
     ) -> Vec<String> {
         let mut flags = vec![];
-        if let Some(true) = self.cache {
-            flags.push(format!("-Fcache={}", target_dir.join("flux-cache")));
-        }
         if let Some(v) = self.solver {
             flags.push(format!("-Fsolver={v}"));
         }
@@ -66,9 +59,6 @@ impl FluxMetadata {
         }
         if let Some(v) = self.lean {
             flags.push(format!("-Flean={v}"));
-        }
-        if let Some(v) = self.dump_constraint {
-            flags.push(format!("-Fdump-constraint={v}"));
         }
         if let Some(v) = self.scrape_quals {
             flags.push(format!("-Fscrape-quals={v}"));

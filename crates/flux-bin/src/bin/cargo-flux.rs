@@ -4,12 +4,12 @@ use std::{
     process::{Command, exit},
 };
 
-use anyhow::anyhow;
 use cargo_metadata::{Metadata, camino::Utf8Path};
 use clap::Parser as _;
 use flux_bin::{
     FluxMetadata,
     cargo_flux_opts::{CargoFluxCommand, Cli},
+    config::FluxConfig,
     utils::{
         EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, get_rust_toolchain,
         print_version_and_exit,
@@ -31,7 +31,7 @@ fn main() {
     match run(command) {
         Ok(exit_code) => exit(exit_code),
         Err(e) => {
-            println!("Failed to run `cargo-flux`, error={e}");
+            println!("Failed to run `cargo-flux`, error={e:#}");
             exit(EXIT_ERR)
         }
     };
@@ -73,13 +73,7 @@ fn write_cargo_config(
         None
     };
 
-    let flux_toml = config::Config::builder()
-        .add_source(config::File::with_name("flux.toml").required(false))
-        .build()?;
-
-    if flux_toml.get_bool("enabled").is_ok() {
-        return Err(anyhow!("`enabled` cannot be set in `flux.toml`"));
-    }
+    let flux_config = FluxConfig::load()?;
     let targeted_package_ids = cargo_flux_cmd.targeted_package_ids(&metadata);
     let cli_flags = cargo_flux_cmd.rustflags();
 
@@ -102,13 +96,12 @@ incremental = false
         "#
         )?;
 
-        for package in metadata.packages {
+        for package in &metadata.packages {
             let flux_metadata: FluxMetadata = config::Config::builder()
                 .add_source(FluxMetadataSource::new(
                     package.manifest_path.to_string(),
-                    package.metadata,
+                    package.metadata.clone(),
                 ))
-                .add_source(flux_toml.clone())
                 .build()?
                 .try_deserialize()?;
 
@@ -132,13 +125,18 @@ rustflags = [{:?}]
                     package.id,
                     flux_metadata
                         .into_flags(
-                            &metadata.target_directory,
                             manifest_dir_relative_to_workspace,
                             cargo_flux_cmd
                                 .only_check()
                                 .filter(|_| targeted_package_ids.contains(&package.id))
                         )
                         .iter()
+                        .chain(
+                            flux_config
+                                .settings
+                                .to_flags(&metadata.target_directory)
+                                .iter()
+                        )
                         .chain(flux_flags.iter().flatten())
                         .chain(cli_flags.iter())
                         .map(|s| s.as_str())
