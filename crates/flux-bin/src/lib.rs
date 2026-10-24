@@ -10,7 +10,7 @@ pub mod utils;
 #[serde(default, deny_unknown_fields)]
 pub struct FluxMetadata {
     pub enabled: bool,
-    /// Enables fixpoint query caching. Saves cache in `target/FLUXCACHE`
+    /// Enables fixpoint query caching. Saves cache files in `target/flux-cache/`
     pub cache: Option<bool>,
     /// Set the default solver
     pub solver: Option<SmtSolver>,
@@ -53,7 +53,7 @@ impl FluxMetadata {
     ) -> Vec<String> {
         let mut flags = vec![];
         if let Some(true) = self.cache {
-            flags.push(format!("-Fcache={}", target_dir.join("FLUXCACHE")));
+            flags.push(format!("-Fcache={}", target_dir.join("flux-cache")));
         }
         if let Some(v) = self.solver {
             flags.push(format!("-Fsolver={v}"));

@@ -59,8 +59,8 @@ pub struct Flags {
         default_value = "64"
     )]
     pub pointer_width: PointerWidth,
-    /// If present, switches on query caching and saves the cache in the provided path
-    #[arg(long = flux_arg!("cache"), value_name = "PATH")]
+    /// If present, switches on query caching and saves the cache in the provided directory.
+    #[arg(long = flux_arg!("cache"), value_name = "DIR")]
     pub cache: Option<PathBuf>,
     /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`].
     #[arg(
