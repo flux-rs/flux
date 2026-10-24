@@ -51,6 +51,18 @@ This will install two binaries `flux` and `cargo-flux` in your cargo home. These
 respectively to run Flux on either a single file or on a project using cargo. The installation process will
 also copy the Flux sysroot (the driver and precompiled libraries) to `$HOME/.flux/sysroot`.
 
+## Flux Home
+
+The Flux home is the directory `$HOME/.flux`. Its location can be changed by setting the
+`FLUX_HOME` environment variable. It contains:
+
+- `config.toml` — Your personal [configuration](../reference/config.md), which applies to every
+  invocation of `cargo flux`. It is never modified by Flux.
+- `sysroot/` — The Flux sysroot, i.e., `flux-driver` and the precompiled Flux libraries. It is
+  managed by `cargo xtask install` and `cargo xtask uninstall`, which replace or remove the whole
+  directory, so it is safe to delete. Use the `FLUX_SYSROOT` environment variable to use a sysroot
+  in a different location.
+
 ## Running on a package: `cargo-flux`
 
 The most common way to use Flux is to run it on a Cargo package.
@@ -196,6 +208,13 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
 
 ## Configuration
 
+A package is configured in two places:
+
+- The `[package.metadata.flux]` table in `Cargo.toml` describes properties of the crate, i.e.,
+  _what_ is verified. See [The Manifest Format](../reference/manifest.md).
+- `.flux/config.toml` files control _how_ `cargo flux` runs, e.g., caching, timeouts or extra
+  output. See [Configuration](../reference/config.md).
+
 ### Flux Flags
 
 The `flux` binary accepts configuration flags in the format `-Fname=value`. For boolean flags, the
@@ -209,37 +228,15 @@ flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
 
 For all available flags, see <https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html>
 
-### Cargo Projects
-
-When working with a Cargo project, some of the [flags](#Flux-Flags) can be configured in the
-`[package.metadata.flux]` table in `Cargo.toml`. For example, to enable query caching and set
-`cvc5` as the solver:
-
-```toml
-# Cargo.toml
-[package.metadata.flux]
-enabled = true
-cache = true
-solver = "cvc5"
-```
-
-Additionally, `cargo flux` searches for a configuration file called `flux.toml` with the same format
-as the metadata table. The content of `flux.toml` takes precedence and it's merged with the
-content of the `metadata` table. Note that the content of `flux.toml` will override the `metadata`
-for all crates, including dependencies. This behavior is likely to change in the future as we figure
-out what configurations make sense to have per package and which should only affect the current execution
-of `cargo flux`.
-
-You can see the format of the `metadata` in <https://flux-rs.github.io/flux/doc/flux_bin/struct.FluxMetadata.html>.
-
-### `FLUXFLAGS` Environment Variable
-
-When running `cargo flux`, flags defined in `FLUXFLAGS` will be passed to all `flux` invocations,
-for example, to print timing information for all crates checked by Flux:
+When running `cargo flux`, flags defined in the `FLUXFLAGS` environment variable are passed to all
+packages checked by Flux, for example, to print timing information:
 
 ```console
 FLUXFLAGS="-Ftimings" cargo flux
 ```
+
+See [how flags are combined](../reference/config.md#how-flags-are-combined) for how these flags
+interact with the manifest and the configuration files.
 
 ### Verbose Flag
 
