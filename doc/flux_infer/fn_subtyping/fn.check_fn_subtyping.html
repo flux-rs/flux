@@ -2,7 +2,7 @@
     infcx: &amp;mut <a class="struct" href="../infer/struct.InferCtxt.html" title="struct flux_infer::infer::InferCtxt">InferCtxt</a>&lt;'_, '_, '_&gt;,
     env: &amp;mut impl <a class="trait" href="../infer/trait.LocEnv.html" title="trait flux_infer::infer::LocEnv">LocEnv</a>,
     sub_sig: <a class="enum" href="enum.SubFn.html" title="enum flux_infer::fn_subtyping::SubFn">SubFn</a>,
-    super_sig: &amp;PolyFnSig,
+    super_sig: &amp;<a class="type" href="../../flux_middle/rty/type.PolyFnSig.html" title="type flux_middle::rty::PolyFnSig">PolyFnSig</a>,
     span: Span,
 ) -&gt; <a class="type" href="../infer/type.InferResult.html" title="type flux_infer::infer::InferResult">InferResult</a></code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The function <code>check_fn_subtyping</code> does a function subtyping check between
 the sub-type (T_f) corresponding to the type of <code>def_id</code> @ <code>args</code> and the
