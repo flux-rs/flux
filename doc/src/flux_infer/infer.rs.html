@@ -314,7 +314,7 @@
 <a href=#314 id=314 data-nosnippet>314</a>        <span class="kw">let </span>(task, suggestion_ctx) =
 <a href=#315 id=315 data-nosnippet>315</a>            fcx.create_task(def_id, cstr, <span class="self">self</span>.opts.scrape_quals, backend)<span class="question-mark">?</span>;
 <a href=#316 id=316 data-nosnippet>316</a>        <span class="kw">let </span>result = fcx.run_task(cache, def_id, kind, <span class="kw-2">&amp;</span>task)<span class="question-mark">?</span>;
-<a href=#317 id=317 data-nosnippet>317</a>        <span class="prelude-val">Ok</span>(fcx.result_to_answer(result, suggestion_ctx))
+<a href=#317 id=317 data-nosnippet>317</a>        fcx.result_to_answer(result, suggestion_ctx)
 <a href=#318 id=318 data-nosnippet>318</a>    }
 <a href=#319 id=319 data-nosnippet>319</a>
 <a href=#320 id=320 data-nosnippet>320</a>    <span class="kw">pub fn </span>split(<span class="self">self</span>) -&gt; (RefineTree, KVarGen) {

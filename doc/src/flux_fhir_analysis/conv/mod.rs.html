@@ -2310,7 +2310,7 @@
 <a href=#2310 id=2310 data-nosnippet>2310</a>        <span class="kw">let </span>espan = ESpan::new(path.span);
 <a href=#2311 id=2311 data-nosnippet>2311</a>        <span class="kw">let </span>(expr, sort) = <span class="kw">match </span>path.res {
 <a href=#2312 id=2312 data-nosnippet>2312</a>            fhir::Res::Param(<span class="kw">_</span>, id) =&gt; (env.lookup(<span class="kw-2">&amp;</span>path).to_expr(), <span class="self">self</span>.results().param_sort(id)),
-<a href=#2313 id=2313 data-nosnippet>2313</a>            fhir::Res::Def(DefKind::Const { .. }, def_id) =&gt; {
+<a href=#2313 id=2313 data-nosnippet>2313</a>            fhir::Res::Def(DefKind::Const, def_id) =&gt; {
 <a href=#2314 id=2314 data-nosnippet>2314</a>                <span class="self">self</span>.hyperlink(path.span, tcx.def_ident_span(def_id));
 <a href=#2315 id=2315 data-nosnippet>2315</a>                <span class="kw">let </span>(expr, sort) = <span class="self">self</span>.conv_const(path.span, def_id)<span class="question-mark">?</span>;
 <a href=#2316 id=2316 data-nosnippet>2316</a>                (expr.at(espan), sort)

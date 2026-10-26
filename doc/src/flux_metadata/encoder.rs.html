@@ -201,7 +201,7 @@
 <a href=#201 id=201 data-nosnippet>201</a>    <span class="doccomment">/// A `LocalDefId` is only meaningful within the crate that defines it, so it must be converted
 <a href=#202 id=202 data-nosnippet>202</a>    /// to a `DefId` before being encoded. See also `DecodeContext::decode_local_def_id`.
 <a href=#203 id=203 data-nosnippet>203</a>    </span><span class="kw">fn </span>encode_local_def_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId) {
-<a href=#204 id=204 data-nosnippet>204</a>        <span class="macro">bug!</span>(<span class="string">"attempted to encode `LocalDefId` {def_id:?} in flux metadata"</span>)
+<a href=#204 id=204 data-nosnippet>204</a>        <span class="macro">bug!</span>(<span class="string">"attempted to encode `LocalDefId` {def_id:?} in flux metadata"</span>);
 <a href=#205 id=205 data-nosnippet>205</a>    }
 <a href=#206 id=206 data-nosnippet>206</a>
 <a href=#207 id=207 data-nosnippet>207</a>    <span class="kw">fn </span>encode_syntax_context(<span class="kw-2">&amp;mut </span><span class="self">self</span>, syntax_context: SyntaxContext) {

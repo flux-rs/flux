@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SuggestionSolverError"],"fn":["application_head","atom_symbol","conjunction","exact_arg","prune_vacuous","substitute_sexp"],"struct":["ConstraintGlobalEnv","ConstraintLocalEnv","SuggestionSolver"]};
