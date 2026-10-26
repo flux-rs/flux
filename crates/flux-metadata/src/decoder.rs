@@ -184,7 +184,7 @@ impl SpanDecoder for DecodeContext<'_, '_> {
         rustc_span::hygiene::decode_syntax_context(self, self.hygiene_context, |this, id| {
             // This closure is invoked if we haven't already decoded the data for the `SyntaxContext` we are deserializing.
             // We look up the position of the associated `SyntaxData` and decode it.
-            let pos = syntax_contexts.get(&id).unwrap();
+            let pos = syntax_contexts.get(&id.as_u32()).unwrap();
             this.with_position(pos.to_usize(), SyntaxContextKey::decode)
         })
     }
