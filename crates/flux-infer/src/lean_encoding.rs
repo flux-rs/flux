@@ -726,7 +726,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if !path.exists() {
             Command::new("lake")
                 .current_dir(self.genv.lean_parent_dir())
-                .arg("+v4.28.0")
+                .arg(format!("+{}", config::lean_version()))
                 .arg("new")
                 .arg(project())
                 .arg("lib")
