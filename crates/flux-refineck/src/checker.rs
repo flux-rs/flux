@@ -7,7 +7,10 @@ use flux_common::{
 use flux_config::{self as config, InferOpts};
 use flux_infer::{
     fn_subtyping::{SubFn, check_fn_subtyping, infer_under_mut_ref_hack, unfold_local_ptrs},
-    infer::{ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, LocEnv as _},
+    infer::{
+        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, LocEnv as _,
+        OpaqueObligation,
+    },
     projections::NormalizeExt as _,
     refine_tree::{Marker, RefineCtxtTrace},
 };
@@ -18,9 +21,9 @@ use flux_middle::{
     queries::{QueryErr, QueryResult, try_query},
     query_bug,
     rty::{
-        self, AdtDef, AliasReft, BaseTy, BinOp, Binder, Bool, Clause, Constant,
-        CoroutineObligPredicate, EarlyBinder, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg,
-        GenericArgsExt as _, Int, IntTy, Mutability, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        self, AdtDef, AliasReft, BaseTy, BinOp, Binder, Bool, Clause, Constant, EarlyBinder, Expr,
+        FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability,
+        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReErased,
         Sort, SubsetTyCtor, Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::TypeFoldable,
@@ -741,9 +744,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .fn_sig
                     .output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-                let ret = infcx.reveal_opaque_types(&output.ret, ConstrReason::Ret)?;
-                let obligations =
-                    infcx.subtyping_with_env(env, &ret_place_ty, &ret, ConstrReason::Ret)?;
+                let (ret, mut obligations) =
+                    infcx.reveal_opaque_types(&output.ret, ConstrReason::Ret)?;
+                obligations.extend(infcx.subtyping_with_env(
+                    env,
+                    &ret_place_ty,
+                    &ret,
+                    ConstrReason::Ret,
+                )?);
 
                 env.check_ensures(infcx, &output.ensures, ConstrReason::Ret)?;
 
@@ -751,7 +759,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             })
             .with_span(span)?;
 
-        self.check_coroutine_obligations(infcx, obligations)
+        self.check_opaque_obligations(infcx, obligations, span)
     }
 
     #[expect(clippy::too_many_arguments)]
@@ -893,7 +901,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env.assume_ensures(infcx, &output.ensures, span);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
 
-        let ret = infcx
+        // No obligations here: the callee checked them when returning the value.
+        let (ret, _) = infcx
             .at(span)
             .reveal_opaque_types(&output.ret, ConstrReason::Call)
             .with_span(span)?;
@@ -911,25 +920,37 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         })
     }
 
-    fn check_coroutine_obligations(
+    fn check_opaque_obligations(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        obligs: Vec<Binder<CoroutineObligPredicate>>,
+        obligs: Vec<OpaqueObligation>,
+        span: Span,
     ) -> Result {
         for oblig in obligs {
-            // FIXME(nilehmann) we shouldn't be skipping this binder
-            let oblig = oblig.skip_binder();
+            match oblig {
+                OpaqueObligation::Coroutine(oblig) => {
+                    // FIXME(nilehmann) we shouldn't be skipping this binder
+                    let oblig = oblig.skip_binder();
 
-            #[expect(clippy::disallowed_methods, reason = "coroutines cannot be extern speced")]
-            let def_id = oblig.def_id.expect_local();
-            let span = self.genv.tcx().def_span(def_id);
-            let body = self.genv.mir(def_id).with_span(span)?;
-            Checker::run(
-                infcx.change_item(def_id, &body.infcx),
-                def_id,
-                self.inherited.reborrow(),
-                oblig.to_poly_fn_sig(),
-            )?;
+                    #[expect(
+                        clippy::disallowed_methods,
+                        reason = "coroutines cannot be extern speced"
+                    )]
+                    let def_id = oblig.def_id.expect_local();
+                    let span = self.genv.tcx().def_span(def_id);
+                    let body = self.genv.mir(def_id).with_span(span)?;
+                    Checker::run(
+                        infcx.change_item(def_id, &body.infcx),
+                        def_id,
+                        self.inherited.reborrow(),
+                        oblig.to_poly_fn_sig(),
+                    )?;
+                }
+                OpaqueObligation::FnTrait(pred) => {
+                    let pred = infcx.fully_resolve_evars(&pred);
+                    self.check_fn_trait_clause(infcx, &pred, span)?;
+                }
+            }
         }
         Ok(())
     }
