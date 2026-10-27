@@ -1735,8 +1735,6 @@ impl<T: Pretty> Pretty for FieldBind<T> {
 
 pub(crate) mod pretty {
 
-    use flux_rustc_bridge::def_id_to_string;
-
     use super::*;
     use crate::name_of_thy_func;
 
@@ -1774,18 +1772,31 @@ pub(crate) mod pretty {
                 | BinOp::BitXor(_) => Precedence::Bitvec,
             }
         }
-    }
 
-    impl Precedence {
-        pub fn is_associative(&self) -> bool {
-            !matches!(self, Precedence::Imp | Precedence::Cmp)
+        fn is_associative(&self) -> bool {
+            // Is the binop associative?
+            matches!(
+                self,
+                BinOp::Or
+                    | BinOp::And
+                    | BinOp::Add(_)
+                    | BinOp::Mul(_)
+                    | BinOp::BitAnd(_)
+                    | BinOp::BitOr(_)
+                    | BinOp::BitXor(_)
+            )
         }
     }
 
     pub fn should_parenthesize(op: &BinOp, child: &Expr) -> bool {
         if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
             child_op.precedence() < op.precedence()
-                || (child_op.precedence() == op.precedence() && !op.precedence().is_associative())
+                // The old printer did not use parens for every equal-precedence
+                // pair, so `a * (b / c)` became `a * b / c`, which reparses as
+                // `(a * b) / c`. Equal precedence is not enough: we need to
+                // be sure that the operators are also equal before we drop parens.
+                || (child_op.precedence() == op.precedence()
+                    && (child_op != op || !op.is_associative()))
         } else {
             false
         }
@@ -1798,7 +1809,8 @@ pub(crate) mod pretty {
                     w!(cx, f, "{:?}", def_id)
                 }
                 Ctor::Enum(def_id, variant_idx) => {
-                    w!(cx, f, "{:?}::{:?}", def_id, ^variant_idx)
+                    let name = cx.tcx().adt_def(*def_id).variant(*variant_idx).name;
+                    w!(cx, f, "{:?}::{}", def_id, ^name)
                 }
                 Ctor::RawPtr => w!(cx, f, "ptr"),
             }
@@ -1842,7 +1854,16 @@ pub(crate) mod pretty {
             match e.kind() {
                 ExprKind::Var(var) => w!(cx, f, "{:?}", var),
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
-                ExprKind::ConstDefId(did) => w!(cx, f, "{}", ^def_id_to_string(*did)),
+                // If we just serialize the DefId, this can cause import issues.
+                // So instead we just dump the whole path. Ugly but works.
+                ExprKind::ConstDefId(did) => {
+                    w!(
+                        cx,
+                        f,
+                        "{}",
+                        ^rustc_middle::ty::print::with_crate_prefix!(cx.tcx().def_path_str(*did))
+                    )
+                }
                 ExprKind::Constant(c) => w!(cx, f, "{:?}", c),
 
                 ExprKind::BinaryOp(op, e1, e2) => {
@@ -1871,9 +1892,15 @@ pub(crate) mod pretty {
                     }
                 }
                 ExprKind::FieldProj(e, proj) if let ExprKind::Ctor(_, _) = e.kind() => {
-                    // special case to avoid printing `{n:12}.n` as `12.n` but instead, just print `12`
                     // TODO: maintain an invariant that `FieldProj` never has a Ctor as first argument (as always reduced)
-                    w!(cx, f, "{:?}", e.proj_and_reduce(*proj))
+                    //
+                    // We used to not parenthesize here, but that could cause issues, e.g. with
+                    //     (Value { value: x + y }).value * z == 12
+                    // it would reduce to
+                    //     x + y * z == 12
+                    // Put parens around it because otherwise the meaning might
+                    // change because of associativity.
+                    w!(cx, f, "({:?})", e.proj_and_reduce(*proj))
                 }
                 ExprKind::FieldProj(e, proj) => {
                     if e.is_atom() {
@@ -1913,11 +1940,11 @@ pub(crate) mod pretty {
                             Ctor::Struct(_) => {
                                 w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", fields))
                             }
-                            Ctor::Enum(_, idx) => {
+                            Ctor::Enum(..) => {
                                 if fields.is_empty() {
-                                    w!(cx, f, "{:?}::{:?}", def_id, ^idx.index())
+                                    w!(cx, f, "{:?}", ctor)
                                 } else {
-                                    w!(cx, f, "{:?}::{:?}({:?})", def_id, ^idx.index(), join!(", ", fields))
+                                    w!(cx, f, "{:?}({:?})", ctor, join!(", ", fields))
                                 }
                             }
                             Ctor::RawPtr => unreachable!(),
@@ -1927,8 +1954,8 @@ pub(crate) mod pretty {
                             Ctor::Struct(_) => {
                                 w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", flds))
                             }
-                            Ctor::Enum(_, idx) => {
-                                w!(cx, f, "{:?}::{:?} {{ {:?} }}", def_id, ^idx, join!(", ", flds))
+                            Ctor::Enum(..) => {
+                                w!(cx, f, "{:?} {{ {:?} }}", ctor, join!(", ", flds))
                             }
                             Ctor::RawPtr => unreachable!(),
                         }
@@ -1967,8 +1994,20 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lam) => {
                     w!(cx, f, "{:?}", lam)
                 }
+                // Flux functions have no DefId of their own, so qualify them
+                // with their parent module's full, crate-prefixed path.
+                // Printing only `did.name()` could resolve to an unrelated
+                // function with the same name.
                 ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
-                    w!(cx, f, "{}", ^did.name())
+                    w!(
+                        cx,
+                        f,
+                        "{}::{}",
+                        ^rustc_middle::ty::print::with_crate_prefix!(
+                            cx.tcx().def_path_str(did.parent())
+                        ),
+                        ^did.name()
+                    )
                 }
                 ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                     if let Some(name) = name_of_thy_func(*itf) {
@@ -2273,9 +2312,12 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children: e_d.children, key: None })
                 }
                 ExprKind::FieldProj(e, proj) if let ExprKind::Ctor(_, _) = e.kind() => {
-                    // special case to avoid printing `{n:12}.n` as `12.n` but instead, just print `12`
                     // TODO: maintain an invariant that `FieldProj` never has a Ctor as first argument (as always reduced)
-                    e.proj_and_reduce(*proj).fmt_nested(cx)
+                    // Same reasoning as in the impl for Pretty --- if we don't
+                    // parenthesize we can change the meaning.
+                    let mut reduced = e.proj_and_reduce(*proj).fmt_nested(cx)?;
+                    reduced.text = format!("({})", reduced.text);
+                    Ok(reduced)
                 }
                 ExprKind::FieldProj(e, proj) => {
                     let e_d = e.fmt_nested(cx)?;
