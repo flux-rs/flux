@@ -692,8 +692,9 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 .into_conv_ctxt()
                 .conv_fn_sig(def_id, fhir_fn_sig)?;
             let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-            let mut fn_sig =
-                if config::suggestions() { fn_sig.hoist_input_binders() } else { fn_sig };
+            #[cfg(feature = "suggestions")]
+            let mut fn_sig = fn_sig.hoist_input_binders();
+            #[cfg(feature = "suggestions")]
             // We aren't sure how to handle suggestions for Traits themselves
             // and ForeignItems.
             //
@@ -703,7 +704,7 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             if !genv.no_suggestions(def_id.local_id())
                 && !matches!(fhir_node, fhir::Node::TraitItem(..) | fhir::Node::ForeignItem(..))
             {
-                fn_sig = fn_sig.add_weak_kvars(genv, def_id.resolved_id())?;
+                fn_sig = fn_sig.add_weak_kvars(genv, def_id.local_id().into())?;
             }
 
             if config::dump_rty() {

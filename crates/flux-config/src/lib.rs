@@ -155,8 +155,8 @@ pub fn verbose() -> bool {
     FLAGS.flux_verbose
 }
 
-pub fn suggestions() -> bool {
-    FLAGS.suggestions
+pub fn no_suggestions_default() -> bool {
+    FLAGS.no_suggestions_default
 }
 
 pub fn rerun_hint() -> bool {

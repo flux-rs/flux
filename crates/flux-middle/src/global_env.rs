@@ -866,11 +866,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Same behavior as [`trusted`], but for the `#[no_suggestions]` attribute.
-    /// (overridden to `true` by suggestions being globally disabled).
     pub fn no_suggestions(self, def_id: LocalDefId) -> bool {
-        if !config::suggestions() {
-            return true;
-        }
         self.traverse_parents(def_id, |did| {
             // A parent has no_suggestions, we inherit it
             if self.fhir_attr_map(did).no_suggestions() {
@@ -880,7 +876,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                 None
             }
         })
-        .unwrap_or(false)
+        .unwrap_or_else(config::no_suggestions_default)
     }
 
     /// Whether the item is a dummy item created by the extern spec macro.

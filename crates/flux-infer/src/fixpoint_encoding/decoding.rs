@@ -143,10 +143,7 @@ where
                     fixpoint::Var::Underscore => {
                         unreachable!("Underscore should not appear in exprs")
                     }
-                    fixpoint::Var::Global(_, def_id) => {
-                        Ok(rty::Expr::global_func(SpecFuncKind::Def(*def_id)))
-                    }
-                    fixpoint::Var::Const(global_var, _) => {
+                    fixpoint::Var::Global(global_var, _) | fixpoint::Var::Const(global_var, _) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
                                 ConstKey::RustConst(def_id) => Ok(rty::Expr::const_def_id(*def_id)),
@@ -169,7 +166,7 @@ where
                                 }
                             }
                         } else {
-                            Err(FixpointParseError::NoConst(*global_var))
+                            Err(FixpointParseError::NoGlobalVar(*global_var))
                         }
                     }
                     fixpoint::Var::Local(fname) => {
@@ -312,7 +309,8 @@ where
                             Err(FixpointParseError::UIFRelArityMismatch(fargs.len()))
                         }
                     }
-                    fixpoint::Expr::Var(fixpoint::Var::Const(global_var, _)) => {
+                    fixpoint::Expr::Var(fixpoint::Var::Global(global_var, _))
+                    | fixpoint::Expr::Var(fixpoint::Var::Const(global_var, _)) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
                                 // NOTE: Only a few of these are meaningfully needed,
@@ -361,7 +359,7 @@ where
                                 }
                             }
                         } else {
-                            Err(FixpointParseError::NoConst(*global_var))
+                            Err(FixpointParseError::NoGlobalVar(*global_var))
                         }
                     }
                     fhead => self.fixpoint_app_to_expr(fhead, fargs),
@@ -542,7 +540,7 @@ pub enum FixpointParseError {
     TupleCtorArityMismatch(usize, usize),
     /// The number of arguments should only ever be 1 for a tuple proj
     ProjArityMismatch(usize),
-    NoConst(fixpoint::GlobalVar),
+    NoGlobalVar(fixpoint::GlobalVar),
     /// Casts should only have 1 arg
     CastArityMismatch(usize),
     PrimOpArityMismatch(usize),

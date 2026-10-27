@@ -430,7 +430,7 @@ impl<T: Types> Sort<T> {
     }
 }
 
-#[derive_where(Hash, Debug, Clone)]
+#[derive_where(Hash, Debug)]
 pub struct FunSort<T: Types> {
     pub params: usize,
     pub inputs: Vec<Sort<T>>,
@@ -447,10 +447,6 @@ impl<T: Types> FunSort<T> {
 
     pub fn into_sort(self) -> Sort<T> {
         Sort::mk_func(self.params, self.inputs, self.output)
-    }
-
-    pub fn to_sort(&self) -> Sort<T> {
-        Sort::mk_func(self.params, self.inputs.clone(), self.output.clone())
     }
 }
 

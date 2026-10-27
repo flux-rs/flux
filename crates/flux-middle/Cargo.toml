@@ -37,3 +37,6 @@ rustc_private = true
 
 [lints]
 workspace = true
+
+[features]
+suggestions = []

@@ -47,12 +47,13 @@ use rustc_span::{DUMMY_SP, Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
+#[cfg(feature = "suggestions")]
+use crate::suggestions::{
+    find_possible_solutions, make_flat_constraint_map, subst_fixpoint_solutions,
+};
 use crate::{
-    fixpoint_encoding::fixpoint::FixpointTypes,
-    fixpoint_qualifiers::FIXPOINT_QUALIFIERS,
-    lean_encoding::LeanEncoder,
-    projections::structurally_normalize_expr,
-    suggestions::{find_possible_solutions, make_flat_constraint_map, subst_fixpoint_solutions},
+    fixpoint_encoding::fixpoint::FixpointTypes, fixpoint_qualifiers::FIXPOINT_QUALIFIERS,
+    lean_encoding::LeanEncoder, projections::structurally_normalize_expr,
 };
 
 pub mod decoding;
@@ -611,11 +612,11 @@ pub(crate) fn record_lean_task(cache: &mut FixQueryCache, key: String, hash: u64
     cache.insert(key, hash, result);
 }
 
+#[allow(unused)]
 pub(crate) struct SuggestionCtxt {
     pub(crate) flat_constraints: FxIndexMap<TagIdx, fixpoint::FlatConstraint>,
     pub(crate) const_decls: Vec<fixpoint::ConstDecl>,
     pub(crate) data_decls: Vec<fixpoint::DataDecl>,
-    pub(crate) fun_defs: Vec<fixpoint::FunDef>,
 }
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
@@ -666,8 +667,8 @@ where
         // Track the number of constants before encoding function bodies, so we can detect any
         // new constants introduced during that step.
         let const_count_before_define_funs = self.ecx.const_env.const_map.len();
-        let flat_constraint_map =
-            config::suggestions().then(|| make_flat_constraint_map(&constraint));
+        #[cfg(feature = "suggestions")]
+        let flat_constraint_map = make_flat_constraint_map(&constraint);
 
         // Encode function bodies after qualifiers/axioms/assumptions so any functions referenced there
         // are picked up as dependencies.
@@ -685,13 +686,8 @@ where
         // `define-fun` bodies are included in the task.
         let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
 
-        let constants_without_inequalities = config::suggestions().then(|| {
-            constants
-                .iter()
-                .filter(|decl| !matches!(decl.name, fixpoint::Var::WKVar(..)))
-                .cloned()
-                .collect_vec()
-        });
+        #[cfg(feature = "suggestions")]
+        let constants_without_inequalities = constants.clone();
         // The rust fixpoint implementation does not yet support polymorphic functions.
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
@@ -722,7 +718,7 @@ where
             comments: self.comments.clone(),
             constants,
             kvars,
-            define_funs: define_funs.clone(),
+            define_funs,
             constraint,
             qualifiers,
             axioms,
@@ -735,14 +731,14 @@ where
             dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
         }
 
-        let suggestion_ctx = flat_constraint_map.map(|flat_constraints| {
-            SuggestionCtxt {
-                flat_constraints,
-                const_decls: constants_without_inequalities.unwrap(),
-                data_decls,
-                fun_defs: define_funs,
-            }
+        #[cfg(feature = "suggestions")]
+        let suggestion_ctx = Some(SuggestionCtxt {
+            flat_constraints: flat_constraint_map,
+            const_decls: constants_without_inequalities,
+            data_decls,
         });
+        #[cfg(not(feature = "suggestions"))]
+        let suggestion_ctx = None;
 
         Ok((task, suggestion_ctx))
     }
@@ -760,7 +756,7 @@ where
 
         if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
-            || config::suggestions()
+            || cfg!(feature = "suggestions")
         {
             Ok(ParsedResult {
                 status: result.status,
@@ -779,9 +775,10 @@ where
     pub(crate) fn result_to_answer(
         &mut self,
         result: ParsedResult,
-        mut suggestion_ctx: Option<SuggestionCtxt>,
-    ) -> QueryResult<Answer<Tag>> {
-        if let Some(suggestion_ctx) = suggestion_ctx.as_mut() {
+        #[allow(unused)] mut suggestion_ctx: Option<SuggestionCtxt>,
+    ) -> Answer<Tag> {
+        #[cfg(feature = "suggestions")]
+        suggestion_ctx.as_mut().map(|suggestion_ctx| {
             for constraint in suggestion_ctx.flat_constraints.values_mut() {
                 subst_fixpoint_solutions(constraint, &result.solution);
                 subst_fixpoint_solutions(constraint, &result.non_cut_solution);
@@ -790,37 +787,27 @@ where
                     .assumptions
                     .retain(|assumption| !matches!(assumption, fixpoint::Pred::KVar(..)));
             }
-        }
+        });
         let def_span = self.ecx.def_span();
-        let mut suggestion_solver = None;
         let errors = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
                 metrics::incr_metric(Metric::CsError, errors.len() as u32);
                 let tags = errors.into_iter().map(|err| err.tag).unique().collect_vec();
                 tags.into_iter()
-                    .map(|tag_idx| -> QueryResult<_> {
+                    .map(|tag_idx| {
                         let tag = self.tags[tag_idx];
+                        #[cfg(not(feature = "suggestions"))]
+                        let possible_solutions = Default::default();
+                        #[cfg(feature = "suggestions")]
                         let possible_solutions = if let Some(suggestion_ctx) = &suggestion_ctx {
-                            find_possible_solutions(
-                                self,
-                                tag_idx,
-                                suggestion_ctx,
-                                &mut suggestion_solver,
-                            )
-                            .map_err(|err| {
-                                let diagnostic = self.genv.sess().dcx().struct_span_err(
-                                    def_span,
-                                    format!("failed to compute refinement suggestions: {err:?}"),
-                                );
-                                QueryErr::Emitted(diagnostic.emit_err())
-                            })?
+                            find_possible_solutions(self, tag_idx, &suggestion_ctx)
                         } else {
                             Default::default()
                         };
-                        Ok(FixpointCheckError::new(tag, tag_idx, possible_solutions))
+                        FixpointCheckError::new(tag, tag_idx, possible_solutions)
                     })
-                    .collect::<QueryResult<Vec<_>>>()?
+                    .collect_vec()
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         };
@@ -837,7 +824,7 @@ where
             .map(|(kvid, sol)| (kvid, self.fixpoint_to_solution(&sol)))
             .collect();
 
-        Ok(Answer { errors, cut_solution, non_cut_solution })
+        Answer { errors, cut_solution, non_cut_solution }
     }
 
     fn parse_kvar_solutions(
