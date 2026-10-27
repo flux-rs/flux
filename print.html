@@ -219,7 +219,18 @@ If you are using <code>rustup</code>, no special action is needed as it should i
 </code></pre>
 <p>This will install two binaries <code>flux</code> and <code>cargo-flux</code> in your cargo home. These two binaries should be used
 respectively to run Flux on either a single file or on a project using cargo. The installation process will
-also copy some files to <code>$HOME/.flux</code>.</p>
+also copy the Flux sysroot (the driver and precompiled libraries) to <code>$HOME/.flux/sysroot</code>.</p>
+<h2 id="flux-home"><a class="header" href="#flux-home">Flux Home</a></h2>
+<p>The Flux home is the directory <code>$HOME/.flux</code>. Its location can be changed by setting the
+<code>FLUX_HOME</code> environment variable. It contains:</p>
+<ul>
+<li><code>config.toml</code> — Your personal <a href="guide/../reference/config.html">configuration</a>, which applies to every
+invocation of <code>cargo flux</code>. It is never modified by Flux.</li>
+<li><code>sysroot/</code> — The Flux sysroot, i.e., <code>flux-driver</code> and the precompiled Flux libraries. It is
+managed by <code>cargo xtask install</code> and <code>cargo xtask uninstall</code>, which replace or remove the whole
+directory, so it is safe to delete. Use the <code>FLUX_SYSROOT</code> environment variable to use a sysroot
+in a different location.</li>
+</ul>
 <h2 id="running-on-a-package-cargo-flux"><a class="header" href="#running-on-a-package-cargo-flux">Running on a package: <code>cargo-flux</code></a></h2>
 <p>The most common way to use Flux is to run it on a Cargo package.
 This allows you to check an entire crate in one command, <code>cargo flux</code>.</p>
@@ -320,6 +331,13 @@ hassle you should never execute it directly. Instead, use <code>flux</code> or <
 </code></pre>
 <p><strong>Note:</strong> Make sure to edit the paths in the above snippet to point to the correct locations on your machine.</p>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<p>A package is configured in two places:</p>
+<ul>
+<li>The <code>[package.metadata.flux]</code> table in <code>Cargo.toml</code> describes properties of the crate, i.e.,
+<em>what</em> is verified. See <a href="guide/../reference/manifest.html">The Manifest Format</a>.</li>
+<li><code>.flux/config.toml</code> files control <em>how</em> <code>cargo flux</code> runs, e.g., caching, timeouts or extra
+output. See <a href="guide/../reference/config.html">Configuration</a>.</li>
+</ul>
 <h3 id="flux-flags"><a class="header" href="#flux-flags">Flux Flags</a></h3>
 <p>The <code>flux</code> binary accepts configuration flags in the format <code>-Fname=value</code>. For boolean flags, the
 <code>value</code> can be one of <code>y</code>, <code>yes</code>, <code>on</code>, <code>true</code>, <code>n</code>, <code>no</code>, <code>off</code>, <code>false</code>. Alternatively, the <code>value</code>
@@ -328,28 +346,12 @@ qualifier scraping:</p>
 <pre><code class="language-console">flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
 </code></pre>
 <p>For all available flags, see <a href="https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html">https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html</a></p>
-<h3 id="cargo-projects"><a class="header" href="#cargo-projects">Cargo Projects</a></h3>
-<p>When working with a Cargo project, some of the <a href="guide/install.html#Flux-Flags">flags</a> can be configured in the
-<code>[package.metadata.flux]</code> table in <code>Cargo.toml</code>. For example, to enable query caching and set
-<code>cvc5</code> as the solver:</p>
-<pre><code class="language-toml"># Cargo.toml
-[package.metadata.flux]
-enabled = true
-cache = true
-solver = "cvc5"
-</code></pre>
-<p>Additionally, <code>cargo flux</code> searches for a configuration file called <code>flux.toml</code> with the same format
-as the metadata table. The content of <code>flux.toml</code> takes precedence and it's merged with the
-content of the <code>metadata</code> table. Note that the content of <code>flux.toml</code> will override the <code>metadata</code>
-for all crates, including dependencies. This behavior is likely to change in the future as we figure
-out what configurations make sense to have per package and which should only affect the current execution
-of <code>cargo flux</code>.</p>
-<p>You can see the format of the <code>metadata</code> in <a href="https://flux-rs.github.io/flux/doc/flux_bin/struct.FluxMetadata.html">https://flux-rs.github.io/flux/doc/flux_bin/struct.FluxMetadata.html</a>.</p>
-<h3 id="fluxflags-environment-variable"><a class="header" href="#fluxflags-environment-variable"><code>FLUXFLAGS</code> Environment Variable</a></h3>
-<p>When running <code>cargo flux</code>, flags defined in <code>FLUXFLAGS</code> will be passed to all <code>flux</code> invocations,
-for example, to print timing information for all crates checked by Flux:</p>
+<p>When running <code>cargo flux</code>, flags defined in the <code>FLUXFLAGS</code> environment variable are passed to all
+packages checked by Flux, for example, to print timing information:</p>
 <pre><code class="language-console">FLUXFLAGS="-Ftimings" cargo flux
 </code></pre>
+<p>See <a href="guide/../reference/config.html#how-flags-are-combined">how flags are combined</a> for how these flags
+interact with the manifest and the configuration files.</p>
 <h3 id="verbose-flag"><a class="header" href="#verbose-flag">Verbose Flag</a></h3>
 <p>One particularly useful flag is</p>
 <pre><code class="language-console">FLUXFLAGS="-Fflux-verbose" cargo flux
@@ -8157,7 +8159,9 @@ fn test00() {
 <h2 id="checking-overflows"><a class="header" href="#checking-overflows">Checking Overflows</a></h2>
 <p>You can switch on overflow checking</p>
 <ul>
-<li><em>globally</em> <a href="http://localhost:3000/guide/run.html?highlight=cache#flux-flags">with a flag</a> or</li>
+<li><em>globally</em> <a href="guide/install.html#flux-flags">with a flag</a> or with
+<a href="guide/../reference/manifest.html#check-overflow"><code>check-overflow</code></a> in the <code>[package.metadata.flux]</code>
+table, or</li>
 <li><em>locally</em> with an attribute as shown below</li>
 </ul>
 <pre><code class="language-rust noplayground">const MAX: u32 = u32::MAX;
@@ -8756,7 +8760,7 @@ bitwise operators <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>
 <a href="guide/specifications.html#checking-overflows">checking overflows</a>, it can be set</p>
 <ul>
 <li><em>globally</em> <a href="guide/install.html#flux-flags">with a flag</a>, e.g. <code>-Fuif-ops="*,/"</code>, or with
-<code>uif_ops = "*,/"</code> in the <code>[package.metadata.flux]</code> table (or <code>flux.toml</code>), or</li>
+<a href="guide/../reference/manifest.html#uif-ops"><code>uif-ops = "*,/"</code></a> in the <code>[package.metadata.flux]</code> table, or</li>
 <li><em>locally</em> with an attribute on a function, <code>impl</code>, module or crate, e.g.
 <code>#[flux::opts(uif_ops = "*,/")]</code>, as shown below</li>
 </ul>
@@ -8824,7 +8828,429 @@ pub fn add_one(x: i32) -&gt; i32 {
 <ol class="footnote-definition"><li id="footnote-ignore-shorthand">
 <p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>
 </li>
-</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="the-manifest-format"><a class="header" href="#the-manifest-format">The Manifest Format</a></h1>
+<p>Flux is configured for a package in the <code>[package.metadata.flux]</code> table of its <code>Cargo.toml</code>.
+Cargo itself ignores this table. <code>cargo flux</code> reads it for every package in the dependency graph,
+so a verified dependency is checked with the settings of its own manifest.</p>
+<p>The table describes properties of the crate: <em>what</em> is verified and under which semantics.
+Settings that control <em>how</em> <code>cargo flux</code> runs, e.g., caching or timeouts, live in
+<a href="reference/config.html"><code>.flux/config.toml</code></a> instead.</p>
+<pre><code class="language-toml">[package.metadata.flux]
+enabled = true
+include = ["src/verified/**"]
+check-overflow = "strict"
+no-panic = true
+allow-uninterpreted-cast = false
+allow-raw-deref = "none"
+lean = "off"
+solver = "cvc5"
+scrape-quals = true
+uif-ops = "*,/"
+
+[package.metadata.flux.trusted]
+default = false
+files = ["src/ffi/**"]
+
+[package.metadata.flux.trusted-impl]
+files = ["src/impls/**"]
+
+[package.metadata.flux.ignore]
+default = false
+</code></pre>
+<p>The keys of the table are described below. Keys use kebab-case. Unknown keys are an error.</p>
+<h2 id="enabled"><a class="header" href="#enabled"><code>enabled</code></a></h2>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+</ul>
+<p>Flux only checks a package if <code>enabled</code> is <code>true</code>. Other packages are compiled as usual.</p>
+<h2 id="include"><a class="header" href="#include"><code>include</code></a></h2>
+<ul>
+<li>Type: array of <a href="reference/manifest.html#patterns">patterns</a></li>
+<li>Default: all files</li>
+<li>Flag: <code>-Finclude</code></li>
+</ul>
+<p>If present, only items in files matching one of the patterns are checked. The <code>--only-check</code>
+option of <code>cargo flux</code> replaces these patterns for the packages it targets. See also
+<a href="reference/../guide/specifications.html#include-patterns">Include Patterns</a>.</p>
+<h2 id="check-overflow"><a class="header" href="#check-overflow"><code>check-overflow</code></a></h2>
+<ul>
+<li>Type: string (<code>none</code>, <code>lazy</code>, <code>strict-under</code> or <code>strict</code>)</li>
+<li>Default: <code>none</code></li>
+<li>Flag: <code>-Fcheck-overflow</code></li>
+</ul>
+<p>How arithmetic overflow and underflow are checked. See
+<a href="reference/../guide/specifications.html#checking-overflows">Checking Overflows</a>.</p>
+<h2 id="no-panic"><a class="header" href="#no-panic"><code>no-panic</code></a></h2>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fno-panic</code></li>
+</ul>
+<p>If <code>true</code>, every function is implicitly labeled with <code>no_panic</code>, so the only way a function can
+panic is by calling an external function without this attribute.</p>
+<h2 id="allow-uninterpreted-cast"><a class="header" href="#allow-uninterpreted-cast"><code>allow-uninterpreted-cast</code></a></h2>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fallow-uninterpreted-cast</code></li>
+</ul>
+<p>Allow uninterpreted casts between sorts. See
+<a href="reference/../guide/specifications.html#casting-sorts">Casting Sorts</a>.</p>
+<h2 id="allow-raw-deref"><a class="header" href="#allow-raw-deref"><code>allow-raw-deref</code></a></h2>
+<ul>
+<li>Type: string (<code>none</code> or <code>ok</code>)</li>
+<li>Default: <code>none</code></li>
+<li>Flag: <code>-Fallow-raw-deref</code></li>
+</ul>
+<p>Whether raw pointer dereferences are allowed during refinement checking.</p>
+<h2 id="lean"><a class="header" href="#lean"><code>lean</code></a></h2>
+<ul>
+<li>Type: string (<code>off</code>, <code>emit</code> or <code>check</code>)</li>
+<li>Default: <code>off</code></li>
+<li>Flag: <code>-Flean</code></li>
+</ul>
+<p>With <code>emit</code>, Flux emits Lean definitions and verification conditions for items proven externally.
+With <code>check</code>, it also checks them.</p>
+<h2 id="solver"><a class="header" href="#solver"><code>solver</code></a></h2>
+<ul>
+<li>Type: string (<code>z3</code> or <code>cvc5</code>)</li>
+<li>Default: <code>z3</code></li>
+<li>Flag: <code>-Fsolver</code></li>
+</ul>
+<p>The SMT solver used to verify the crate.</p>
+<h2 id="scrape-quals"><a class="header" href="#scrape-quals"><code>scrape-quals</code></a></h2>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fscrape-quals</code></li>
+</ul>
+<p>Let fixpoint scrape qualifiers from the constraints. See
+<a href="reference/../guide/specifications.html#scraping-qualifiers">Scraping Qualifiers</a>.</p>
+<h2 id="uif-ops"><a class="header" href="#uif-ops"><code>uif-ops</code></a></h2>
+<ul>
+<li>Type: string (a comma separated list of operators)</li>
+<li>Default: none</li>
+<li>Flag: <code>-Fuif-ops</code></li>
+</ul>
+<p>Binary operators encoded as uninterpreted functions in the constraints. See
+<a href="reference/../guide/specifications.html#uninterpreted-operators">Uninterpreted Operators</a>.</p>
+<h2 id="the-trusted-table"><a class="header" href="#the-trusted-table">The <code>trusted</code> table</a></h2>
+<pre><code class="language-toml">[package.metadata.flux.trusted]
+default = false
+files = ["src/ffi/**"]
+</code></pre>
+<ul>
+<li><code>default</code> (boolean, default <code>false</code>, flag <code>-Ftrusted</code>): if <code>true</code>, all code is trusted by default.
+Items can be untrusted with <code>#[trusted(no)]</code>.</li>
+<li><code>files</code> (array of <a href="reference/manifest.html#patterns">patterns</a>, flag <code>-Finclude-trusted</code>): only consider items in files
+matching one of the patterns as trusted.</li>
+</ul>
+<p>See <a href="reference/../guide/specifications.html#ignored-and-trusted-code">Ignored and trusted code</a>.</p>
+<h2 id="the-trusted-impl-table"><a class="header" href="#the-trusted-impl-table">The <code>trusted-impl</code> table</a></h2>
+<pre><code class="language-toml">[package.metadata.flux.trusted-impl]
+files = ["src/impls/**"]
+</code></pre>
+<ul>
+<li><code>files</code> (array of <a href="reference/manifest.html#patterns">patterns</a>, flag <code>-Finclude-trusted-impl</code>): only consider items in
+files matching one of the patterns as <code>trusted_impl</code>.</li>
+</ul>
+<h2 id="the-ignore-table"><a class="header" href="#the-ignore-table">The <code>ignore</code> table</a></h2>
+<pre><code class="language-toml">[package.metadata.flux.ignore]
+default = false
+</code></pre>
+<ul>
+<li><code>default</code> (boolean, default <code>false</code>, flag <code>-Fignore</code>): if <code>true</code>, all code is ignored by default.
+Items can be unignored with <code>#[ignore(no)]</code>.</li>
+</ul>
+<h2 id="patterns"><a class="header" href="#patterns">Patterns</a></h2>
+<p><code>include</code>, <code>trusted.files</code> and <code>trusted-impl.files</code> take patterns of the following forms:</p>
+<ul>
+<li><code>glob:&lt;pattern&gt;</code> or a bare <code>&lt;pattern&gt;</code>: match files by glob, e.g., <code>src/ascii/*.rs</code>.</li>
+<li><code>def:&lt;name&gt;</code>: match items whose name contains <code>&lt;name&gt;</code>.</li>
+<li><code>span:&lt;file&gt;:&lt;line&gt;:&lt;col&gt;</code>: match the item at a source location.</li>
+</ul>
+<p>File paths are relative to the directory containing <code>Cargo.toml</code>.</p>
+<h2 id="overriding-a-property-for-a-single-run"><a class="header" href="#overriding-a-property-for-a-single-run">Overriding a property for a single run</a></h2>
+<p>Crate properties cannot be set in <code>.flux/config.toml</code>. To try a different setting without editing
+the manifest, pass the corresponding flag, e.g.,</p>
+<pre><code class="language-console">FLUXFLAGS="-Fsolver=z3" cargo flux
+</code></pre>
+<p>See <a href="reference/config.html#how-flags-are-combined">how flags are combined</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="configuration-1"><a class="header" href="#configuration-1">Configuration</a></h1>
+<p>This page explains how <code>cargo flux</code> is configured through <code>.flux/config.toml</code> files, which control
+<em>how</em> Flux runs, e.g., caching, timeouts or extra output. Properties of a crate, i.e., <em>what</em> is
+verified, belong in its <a href="reference/manifest.html">manifest</a>.</p>
+<p>The configuration system follows the rules cargo uses for
+<a href="https://doc.rust-lang.org/cargo/reference/config.html"><code>.cargo/config.toml</code></a>.</p>
+<h2 id="hierarchical-structure"><a class="header" href="#hierarchical-structure">Hierarchical structure</a></h2>
+<p><code>cargo flux</code> looks for configuration files in the current directory and all parent directories. If,
+for example, it is invoked in <code>/projects/foo/bar</code>, then the following files are probed for and
+merged in this order:</p>
+<ul>
+<li><code>/projects/foo/bar/.flux/config.toml</code></li>
+<li><code>/projects/foo/.flux/config.toml</code></li>
+<li><code>/projects/.flux/config.toml</code></li>
+<li><code>/.flux/config.toml</code></li>
+<li><code>$FLUX_HOME/config.toml</code>, which defaults to <code>$HOME/.flux/config.toml</code> (see
+<a href="reference/../guide/install.html#flux-home">Flux Home</a>)</li>
+</ul>
+<p>This lets you check in a configuration for a project and keep personal defaults in your home
+directory. The home configuration is not read twice if it is also found among the parent
+directories.</p>
+<p>If a key is set in multiple files, the values are merged. Numbers, strings and booleans from files
+closer to the current directory take precedence, with the home configuration having the lowest
+priority. Tables are merged key by key. Arrays are joined together, with items from higher
+precedence files placed later.</p>
+<h2 id="configuration-format"><a class="header" href="#configuration-format">Configuration format</a></h2>
+<p>Configuration files are written in TOML. The following is an overview of all settings, with
+detailed descriptions below.</p>
+<pre><code class="language-toml">[build]
+fluxflags = ["-Ftimings"]      # extra flags for every package checked by Flux
+
+[cache]
+enabled = true                 # enable fixpoint query caching
+dir = "flux-cache"             # where cache files are saved
+
+[fixpoint]
+timeout = 30                   # timeout in seconds for each fixpoint query
+
+[diagnostics]
+verbose = false                # more detailed error messages
+suggestions = true             # emit suggestions
+rerun-hint = true              # attach a command to re-run each failing item
+
+[stats]
+summary = true                 # print a summary of the items checked
+timings = false                # print the time taken to check each function
+annots = false                 # compute statistics about annotations
+
+[debug]
+log-dir = "log"                # where debug data is dumped
+dump-constraint = false        # dump the fixpoint constraints
+dump-fhir = false              # dump the fhir of each item
+dump-rty = false               # dump the rty of each item
+dump-checker-trace = "info"    # dump the checker's trace at this level
+catch-bugs = false             # keep running after internal errors
+
+[package."*"]                  # overrides for packages that are not workspace members
+stats.summary = false
+
+[package.my-crate]             # overrides for `my-crate`
+fixpoint.timeout = 120
+fluxflags = ["-Fdump-constraint"]
+</code></pre>
+<p>Unknown keys are an error. This includes crate properties, e.g., <code>solver</code>, which can only be set in
+the manifest.</p>
+<h2 id="config-relative-paths"><a class="header" href="#config-relative-paths">Config-relative paths</a></h2>
+<p>Relative paths in a configuration file are resolved against the parent of the directory containing
+the file. For example, <code>cache.dir = "flux-cache"</code> in <code>/my/project/.flux/config.toml</code> resolves to
+<code>/my/project/flux-cache</code>.</p>
+<h2 id="package-overrides"><a class="header" href="#package-overrides">Package overrides</a></h2>
+<p>Settings can be overridden for specific packages with <code>[package.&lt;spec&gt;]</code> tables, similar to cargo's
+<a href="https://doc.rust-lang.org/cargo/reference/profiles.html#overrides">profile overrides</a>. <code>&lt;spec&gt;</code>
+can be:</p>
+<ul>
+<li>a package name, e.g., <code>[package.my-crate]</code>;</li>
+<li>a name and a version, e.g., <code>[package."my-crate@0.1.0"]</code>;</li>
+<li><code>"*"</code>, which matches all packages that are not members of the workspace, e.g., verified
+dependencies.</li>
+</ul>
+<p>A package table can contain any of the settings above, except <code>[build]</code>, plus a
+<a href="reference/config.html#packagespecfluxflags"><code>fluxflags</code></a> key. Settings are merged field by field, in the following
+order of precedence:</p>
+<ol>
+<li>the table matching the package by name or by name and version;</li>
+<li><code>[package."*"]</code>, if the package is not a workspace member;</li>
+<li>the top-level settings.</li>
+</ol>
+<p>A spec that matches no package is reported as a warning. A package matched by more than one table,
+e.g., by both <code>my-crate</code> and <code>my-crate@0.1.0</code>, is an error.</p>
+<h2 id="how-flags-are-combined"><a class="header" href="#how-flags-are-combined">How flags are combined</a></h2>
+<p><code>cargo flux</code> translates the manifest and the configuration into <code>-F</code> flags for each package. Flags
+are passed in the following order, and later flags take precedence:</p>
+<ol>
+<li>flags <code>cargo flux</code> always sets: <code>-Fverify=on</code>, <code>-Ffull-compilation=on</code> and <code>-Fsysroot</code>;</li>
+<li>flags derived from <a href="reference/manifest.html"><code>[package.metadata.flux]</code></a>;</li>
+<li>flags derived from the settings in <code>.flux/config.toml</code>, after applying package overrides;</li>
+<li><a href="reference/config.html#packagespecfluxflags"><code>fluxflags</code></a> from the matching <code>[package.&lt;spec&gt;]</code> table;</li>
+<li>the global flags, taken from the first source that is set among the
+<a href="reference/environment-variables.html"><code>FLUX_ENCODED_FLAGS</code></a> and
+<a href="reference/environment-variables.html"><code>FLUXFLAGS</code></a> environment variables and
+<a href="reference/config.html#buildfluxflags"><code>build.fluxflags</code></a>;</li>
+<li>flags passed on the command line, e.g., <code>--only-check</code>.</li>
+</ol>
+<p>Like cargo's <code>RUSTFLAGS</code>, the sources of global flags are mutually exclusive: setting <code>FLUXFLAGS</code>,
+even to an empty string, ignores <code>build.fluxflags</code>.</p>
+<p>As with <code>RUSTFLAGS</code>, flags in <code>fluxflags</code>, <code>FLUXFLAGS</code> or <code>FLUX_ENCODED_FLAGS</code> are passed as they
+are and can override any earlier flag, including crate properties and the flags <code>cargo flux</code> sets
+itself. Mistakes are reported by Flux when it checks each crate. For the full list of flags, see
+<a href="https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html">https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html</a>.</p>
+<h2 id="configuration-keys"><a class="header" href="#configuration-keys">Configuration keys</a></h2>
+<p>This section documents all configuration keys. Keys with variable parts are written with angle
+brackets, like <code>package.&lt;spec&gt;.fluxflags</code>.</p>
+<h3 id="build"><a class="header" href="#build"><code>[build]</code></a></h3>
+<h4 id="buildfluxflags"><a class="header" href="#buildfluxflags"><code>build.fluxflags</code></a></h4>
+<ul>
+<li>Type: string or array of strings</li>
+<li>Default: none</li>
+<li>Environment: <code>FLUX_ENCODED_FLAGS</code> or <code>FLUXFLAGS</code></li>
+</ul>
+<p>Extra flags passed to every package checked by Flux. The value may be an array of strings or a
+space-separated string. See <a href="reference/config.html#how-flags-are-combined">how flags are combined</a>.</p>
+<h3 id="cache"><a class="header" href="#cache"><code>[cache]</code></a></h3>
+<h4 id="cacheenabled"><a class="header" href="#cacheenabled"><code>cache.enabled</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fcache</code></li>
+</ul>
+<p>Enables fixpoint query caching. Every crate saves its cache in its own file inside
+<a href="reference/config.html#cachedir"><code>cache.dir</code></a>.</p>
+<h4 id="cachedir"><a class="header" href="#cachedir"><code>cache.dir</code></a></h4>
+<ul>
+<li>Type: string (path)</li>
+<li>Default: <code>&lt;target-dir&gt;/flux-cache</code></li>
+</ul>
+<p>The directory where cache files are saved.</p>
+<h3 id="fixpoint"><a class="header" href="#fixpoint"><code>[fixpoint]</code></a></h3>
+<h4 id="fixpointtimeout"><a class="header" href="#fixpointtimeout"><code>fixpoint.timeout</code></a></h4>
+<ul>
+<li>Type: integer (seconds)</li>
+<li>Default: none</li>
+<li>Flag: <code>-Ffixpoint-timeout</code></li>
+</ul>
+<p>Timeout for each fixpoint query. If a query doesn't finish in time, fixpoint is killed and an error
+is reported for the item being checked.</p>
+<h3 id="diagnostics"><a class="header" href="#diagnostics"><code>[diagnostics]</code></a></h3>
+<h4 id="diagnosticsverbose"><a class="header" href="#diagnosticsverbose"><code>diagnostics.verbose</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fflux-verbose</code></li>
+</ul>
+<p>Produce more detailed error messages, e.g., condition spans for fold errors.</p>
+<h4 id="diagnosticssuggestions"><a class="header" href="#diagnosticssuggestions"><code>diagnostics.suggestions</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>true</code></li>
+<li>Flag: <code>-Fno-suggestions</code> (inverted)</li>
+</ul>
+<p>Emit suggestions in diagnostics.</p>
+<h4 id="diagnosticsrerun-hint"><a class="header" href="#diagnosticsrerun-hint"><code>diagnostics.rerun-hint</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>true</code></li>
+<li>Flag: <code>-Frerun-hint</code></li>
+</ul>
+<p>Attach a note to each failing item with a command to re-run the check on just that item.</p>
+<h3 id="stats"><a class="header" href="#stats"><code>[stats]</code></a></h3>
+<h4 id="statssummary"><a class="header" href="#statssummary"><code>stats.summary</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>true</code></li>
+<li>Flag: <code>-Fsummary</code></li>
+</ul>
+<p>Print a summary of the number of functions checked, trusted, etc.</p>
+<h4 id="statstimings"><a class="header" href="#statstimings"><code>stats.timings</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Ftimings</code></li>
+</ul>
+<p>Print the time taken to analyze each function, and dump a file with the raw times.</p>
+<h4 id="statsannots"><a class="header" href="#statsannots"><code>stats.annots</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fannots</code></li>
+</ul>
+<p>Compute statistics about the number and size of annotations, and dump them to
+<a href="reference/config.html#debuglog-dir"><code>debug.log-dir</code></a>.</p>
+<h3 id="debug"><a class="header" href="#debug"><code>[debug]</code></a></h3>
+<h4 id="debuglog-dir"><a class="header" href="#debuglog-dir"><code>debug.log-dir</code></a></h4>
+<ul>
+<li>Type: string (path)</li>
+<li>Default: <code>log</code> in the directory where the driver runs</li>
+<li>Flag: <code>-Flog-dir</code></li>
+</ul>
+<p>The directory where debug data is dumped.</p>
+<h4 id="debugdump-constraint"><a class="header" href="#debugdump-constraint"><code>debug.dump-constraint</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fdump-constraint</code></li>
+</ul>
+<p>Dump the fixpoint constraints generated for each function.</p>
+<h4 id="debugdump-fhir"><a class="header" href="#debugdump-fhir"><code>debug.dump-fhir</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fdump-fhir</code></li>
+</ul>
+<p>Dump the <code>fhir</code> of each item.</p>
+<h4 id="debugdump-rty"><a class="header" href="#debugdump-rty"><code>debug.dump-rty</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fdump-rty</code></li>
+</ul>
+<p>Dump the <code>rty</code> of each item.</p>
+<h4 id="debugdump-checker-trace"><a class="header" href="#debugdump-checker-trace"><code>debug.dump-checker-trace</code></a></h4>
+<ul>
+<li>Type: string (<code>error</code>, <code>warn</code>, <code>info</code>, <code>debug</code> or <code>trace</code>)</li>
+<li>Default: none</li>
+<li>Flag: <code>-Fdump-checker-trace</code></li>
+</ul>
+<p>Dump the checker's trace at the given level.</p>
+<h4 id="debugcatch-bugs"><a class="header" href="#debugcatch-bugs"><code>debug.catch-bugs</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fcatch-bugs</code></li>
+</ul>
+<p>Keep running Flux after internal errors to report as many errors as possible.</p>
+<h3 id="package"><a class="header" href="#package"><code>[package]</code></a></h3>
+<h4 id="packagespecsetting"><a class="header" href="#packagespecsetting"><code>package.&lt;spec&gt;.&lt;setting&gt;</code></a></h4>
+<p>Any of the settings above, except <code>[build]</code>, overridden for the packages matching <code>&lt;spec&gt;</code>.
+Per-package flags go in <a href="reference/config.html#packagespecfluxflags"><code>package.&lt;spec&gt;.fluxflags</code></a> instead of
+<code>build.fluxflags</code>. See <a href="reference/config.html#package-overrides">Package overrides</a>.</p>
+<h4 id="packagespecfluxflags"><a class="header" href="#packagespecfluxflags"><code>package.&lt;spec&gt;.fluxflags</code></a></h4>
+<ul>
+<li>Type: string or array of strings</li>
+<li>Default: none</li>
+</ul>
+<p>Extra flags passed to the packages matching <code>&lt;spec&gt;</code>. The flags of a table matching the package by
+name replace the ones from <code>[package."*"]</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h1>
+<p>Flux reads and sets a number of environment variables. Here is a list of them, organized by when
+Flux interacts with them.</p>
+<h2 id="environment-variables-flux-reads"><a class="header" href="#environment-variables-flux-reads">Environment variables Flux reads</a></h2>
+<ul>
+<li><code>FLUXFLAGS</code> — Space-separated flags passed by <code>cargo flux</code> to every package checked by Flux,
+e.g., <code>FLUXFLAGS="-Ftimings" cargo flux</code>. Replaces
+<a href="reference/config.html#buildfluxflags"><code>build.fluxflags</code></a>. See
+<a href="reference/config.html#how-flags-are-combined">how flags are combined</a>.</li>
+<li><code>FLUX_ENCODED_FLAGS</code> — Like <code>FLUXFLAGS</code>, but flags are separated by the <code>0x1f</code> character (ASCII
+Unit Separator), which allows flags containing spaces. Takes precedence over <code>FLUXFLAGS</code>, like
+cargo's <code>CARGO_ENCODED_RUSTFLAGS</code>.</li>
+<li><code>FLUX_HOME</code> — The Flux home directory, which holds the user configuration
+(<code>$FLUX_HOME/config.toml</code>) and the default sysroot. Defaults to <code>$HOME/.flux</code>. See
+<a href="reference/../guide/install.html#flux-home">Flux Home</a>.</li>
+<li><code>FLUX_SYSROOT</code> — The sysroot used by <code>flux</code> and <code>cargo flux</code>, i.e., the directory containing
+<code>flux-driver</code> and the precompiled Flux libraries. Defaults to <code>$FLUX_HOME/sysroot</code>.</li>
+<li><code>FLUX_DRIVER</code> — Path to the <code>flux-driver</code> binary. Defaults to <code>$FLUX_SYSROOT/flux-driver</code>.</li>
+</ul>
+<h2 id="environment-variables-cargo-flux-sets"><a class="header" href="#environment-variables-cargo-flux-sets">Environment variables <code>cargo flux</code> sets</a></h2>
+<p><code>cargo flux</code> runs cargo with the following variables:</p>
+<ul>
+<li><code>RUSTC</code> — Set to the path of <code>flux-driver</code>, so that cargo runs Flux instead of <code>rustc</code>. It is set
+even if <code>RUSTC</code> is already set.</li>
+<li><code>RUSTC_WRAPPER</code> — Set to an empty value to avoid conflicts with other wrappers.</li>
+</ul>
+<p><code>FLUX_CARGO</code> and <code>FLUX_BUILD_SYSROOT</code> are also set. They are used internally by the driver and
+should not be set manually.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
 <h2 id="backtraces"><a class="header" href="#backtraces">Backtraces</a></h2>
 <p>You can use the usual <code>RUST_BACKTRACE=1</code> environment variable to enable backtraces.
 With the regular <code>release</code> build (<code>cargo x install</code>) you get some backtraces, but

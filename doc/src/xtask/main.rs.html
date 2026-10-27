@@ -53,7 +53,7 @@
 <a href=#53 id=53 data-nosnippet>53</a>            <span class="doccomment">/// Input file
 <a href=#54 id=54 data-nosnippet>54</a>            </span>required input: PathBuf
 <a href=#55 id=55 data-nosnippet>55</a>        }
-<a href=#56 id=56 data-nosnippet>56</a>        <span class="doccomment">/// Install Flux binaries to `~/.cargo/bin` and precompiled libraries and driver to `~/.flux`
+<a href=#56 id=56 data-nosnippet>56</a>        <span class="doccomment">/// Install Flux binaries to `~/.cargo/bin` and precompiled libraries and driver to `~/.flux/sysroot`
 <a href=#57 id=57 data-nosnippet>57</a>        </span>cmd install {
 <a href=#58 id=58 data-nosnippet>58</a>            <span class="doccomment">/// Select build profile for the `flux-driver`, either 'release', 'dev', or 'profiling'. Default 'release'
 <a href=#59 id=59 data-nosnippet>59</a>            </span>optional --profile profile: Profile
@@ -374,392 +374,393 @@
 <a href=#374 id=374 data-nosnippet>374</a>    Command::new(<span class="string">"cargo"</span>)
 <a href=#375 id=375 data-nosnippet>375</a>        .args([<span class="string">"uninstall"</span>, <span class="string">"-p"</span>, <span class="string">"flux-bin"</span>])
 <a href=#376 id=376 data-nosnippet>376</a>        .run()<span class="question-mark">?</span>;
-<a href=#377 id=377 data-nosnippet>377</a>    <span class="macro">eprintln!</span>(<span class="string">"$ rm -rf ~/.flux"</span>);
-<a href=#378 id=378 data-nosnippet>378</a>    remove_path(<span class="kw-2">&amp;</span>default_flux_sysroot_dir())<span class="question-mark">?</span>;
-<a href=#379 id=379 data-nosnippet>379</a>    <span class="prelude-val">Ok</span>(())
-<a href=#380 id=380 data-nosnippet>380</a>}
-<a href=#381 id=381 data-nosnippet>381</a>
-<a href=#382 id=382 data-nosnippet>382</a><span class="kw">fn </span>doc(_args: Doc) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#383 id=383 data-nosnippet>383</a>    Command::new(<span class="string">"cargo"</span>)
-<a href=#384 id=384 data-nosnippet>384</a>        .args([<span class="string">"doc"</span>, <span class="string">"--workspace"</span>, <span class="string">"--document-private-items"</span>, <span class="string">"--no-deps"</span>])
-<a href=#385 id=385 data-nosnippet>385</a>        .env(<span class="string">"RUSTDOCFLAGS"</span>, <span class="string">"-Zunstable-options --enable-index-page"</span>)
-<a href=#386 id=386 data-nosnippet>386</a>        .run()<span class="question-mark">?</span>;
-<a href=#387 id=387 data-nosnippet>387</a>    <span class="prelude-val">Ok</span>(())
-<a href=#388 id=388 data-nosnippet>388</a>}
-<a href=#389 id=389 data-nosnippet>389</a>
-<a href=#390 id=390 data-nosnippet>390</a><span class="kw">fn </span>build_binary(bin: <span class="kw-2">&amp;</span>str, profile: Profile, rust_fixpoint: bool) -&gt; anyhow::Result&lt;Utf8PathBuf&gt; {
-<a href=#391 id=391 data-nosnippet>391</a>    Command::new(<span class="string">"cargo"</span>)
-<a href=#392 id=392 data-nosnippet>392</a>        .args([<span class="string">"build"</span>, <span class="string">"--bin"</span>, bin, <span class="string">"--profile"</span>, profile.as_str()])
-<a href=#393 id=393 data-nosnippet>393</a>        .args_if(rust_fixpoint, [<span class="string">"--features"</span>, <span class="string">"rust-fixpoint"</span>])
-<a href=#394 id=394 data-nosnippet>394</a>        .run_with_cargo_metadata()<span class="question-mark">?
-<a href=#395 id=395 data-nosnippet>395</a>        </span>.into_iter()
-<a href=#396 id=396 data-nosnippet>396</a>        .find(|artifact| artifact.target.name == bin &amp;&amp; artifact.target.is_kind(TargetKind::Bin))
-<a href=#397 id=397 data-nosnippet>397</a>        .and_then(|artifact| artifact.executable)
-<a href=#398 id=398 data-nosnippet>398</a>        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"cannot find binary: `{bin}`"</span>))
-<a href=#399 id=399 data-nosnippet>399</a>}
-<a href=#400 id=400 data-nosnippet>400</a>
-<a href=#401 id=401 data-nosnippet>401</a><span class="kw">struct </span>SysrootConfig {
-<a href=#402 id=402 data-nosnippet>402</a>    <span class="doccomment">/// Profile used to build `flux-driver` and libraries
-<a href=#403 id=403 data-nosnippet>403</a>    </span>profile: Profile,
-<a href=#404 id=404 data-nosnippet>404</a>    <span class="doccomment">/// Whether rust-fixpoint should be enabled to build `flux-driver`
-<a href=#405 id=405 data-nosnippet>405</a>    </span>rust_fixpoint: bool,
-<a href=#406 id=406 data-nosnippet>406</a>    <span class="doccomment">/// Destination path for sysroot artifacts
-<a href=#407 id=407 data-nosnippet>407</a>    </span>dst: PathBuf,
-<a href=#408 id=408 data-nosnippet>408</a>    build_libs: BuildLibs,
-<a href=#409 id=409 data-nosnippet>409</a>}
-<a href=#410 id=410 data-nosnippet>410</a>
-<a href=#411 id=411 data-nosnippet>411</a><span class="kw">struct </span>BuildLibs {
-<a href=#412 id=412 data-nosnippet>412</a>    <span class="doccomment">/// If true, forces a clean build.
-<a href=#413 id=413 data-nosnippet>413</a>    </span>force: bool,
-<a href=#414 id=414 data-nosnippet>414</a>    <span class="doccomment">/// List of libraries to install
-<a href=#415 id=415 data-nosnippet>415</a>    </span>libs: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[FluxLib],
-<a href=#416 id=416 data-nosnippet>416</a>}
-<a href=#417 id=417 data-nosnippet>417</a>
-<a href=#418 id=418 data-nosnippet>418</a><span class="attr">#[allow(clippy::enum_variant_names)]
-<a href=#419 id=419 data-nosnippet>419</a>#[derive(Clone, Copy)]
-<a href=#420 id=420 data-nosnippet>420</a></span><span class="kw">enum </span>FluxLib {
-<a href=#421 id=421 data-nosnippet>421</a>    FluxAlloc,
-<a href=#422 id=422 data-nosnippet>422</a>    FluxAttrs,
-<a href=#423 id=423 data-nosnippet>423</a>    FluxCore,
-<a href=#424 id=424 data-nosnippet>424</a>    FluxRs,
-<a href=#425 id=425 data-nosnippet>425</a>}
-<a href=#426 id=426 data-nosnippet>426</a>
-<a href=#427 id=427 data-nosnippet>427</a><span class="kw">impl </span>FluxLib {
-<a href=#428 id=428 data-nosnippet>428</a>    <span class="kw">const </span>ALL: <span class="kw-2">&amp;</span>[FluxLib] = <span class="kw-2">&amp;</span>[<span class="self">Self</span>::FluxAlloc, <span class="self">Self</span>::FluxAttrs, <span class="self">Self</span>::FluxCore, <span class="self">Self</span>::FluxRs];
-<a href=#429 id=429 data-nosnippet>429</a>
-<a href=#430 id=430 data-nosnippet>430</a>    <span class="kw">const </span>_ASSERT_ALL: () = { <span class="macro">assert!</span>(<span class="self">Self</span>::ALL.len() == variant_count::&lt;<span class="self">Self</span>&gt;()) };
-<a href=#431 id=431 data-nosnippet>431</a>
-<a href=#432 id=432 data-nosnippet>432</a>    <span class="kw">const fn </span>package_name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#433 id=433 data-nosnippet>433</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#434 id=434 data-nosnippet>434</a>            FluxLib::FluxAlloc =&gt; <span class="string">"flux-alloc"</span>,
-<a href=#435 id=435 data-nosnippet>435</a>            FluxLib::FluxAttrs =&gt; <span class="string">"flux-attrs"</span>,
-<a href=#436 id=436 data-nosnippet>436</a>            FluxLib::FluxCore =&gt; <span class="string">"flux-core"</span>,
-<a href=#437 id=437 data-nosnippet>437</a>            FluxLib::FluxRs =&gt; <span class="string">"flux-rs"</span>,
-<a href=#438 id=438 data-nosnippet>438</a>        }
-<a href=#439 id=439 data-nosnippet>439</a>    }
-<a href=#440 id=440 data-nosnippet>440</a>
-<a href=#441 id=441 data-nosnippet>441</a>    <span class="kw">const fn </span>target_name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#442 id=442 data-nosnippet>442</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#443 id=443 data-nosnippet>443</a>            FluxLib::FluxAlloc =&gt; <span class="string">"flux_alloc"</span>,
-<a href=#444 id=444 data-nosnippet>444</a>            FluxLib::FluxAttrs =&gt; <span class="string">"flux_attrs"</span>,
-<a href=#445 id=445 data-nosnippet>445</a>            FluxLib::FluxCore =&gt; <span class="string">"flux_core"</span>,
-<a href=#446 id=446 data-nosnippet>446</a>            FluxLib::FluxRs =&gt; <span class="string">"flux_rs"</span>,
-<a href=#447 id=447 data-nosnippet>447</a>        }
-<a href=#448 id=448 data-nosnippet>448</a>    }
-<a href=#449 id=449 data-nosnippet>449</a>
-<a href=#450 id=450 data-nosnippet>450</a>    <span class="doccomment">/// Whether this lib's specs are injected as force externs under `-Fstd-extern-specs`.
-<a href=#451 id=451 data-nosnippet>451</a>    </span><span class="kw">const fn </span>is_std_extern_spec(<span class="self">self</span>) -&gt; bool {
-<a href=#452 id=452 data-nosnippet>452</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#453 id=453 data-nosnippet>453</a>            FluxLib::FluxCore | FluxLib::FluxAlloc =&gt; <span class="bool-val">true</span>,
-<a href=#454 id=454 data-nosnippet>454</a>            FluxLib::FluxAttrs | FluxLib::FluxRs =&gt; <span class="bool-val">false</span>,
-<a href=#455 id=455 data-nosnippet>455</a>        }
-<a href=#456 id=456 data-nosnippet>456</a>    }
-<a href=#457 id=457 data-nosnippet>457</a>
-<a href=#458 id=458 data-nosnippet>458</a>    <span class="kw">fn </span>from_artifact(artifact: <span class="kw-2">&amp;</span>Artifact) -&gt; <span class="prelude-ty">Option</span>&lt;FluxLib&gt; {
-<a href=#459 id=459 data-nosnippet>459</a>        <span class="self">Self</span>::ALL
-<a href=#460 id=460 data-nosnippet>460</a>            .iter()
-<a href=#461 id=461 data-nosnippet>461</a>            .copied()
-<a href=#462 id=462 data-nosnippet>462</a>            .find(|lib| artifact.target.name == lib.target_name())
-<a href=#463 id=463 data-nosnippet>463</a>    }
-<a href=#464 id=464 data-nosnippet>464</a>}
-<a href=#465 id=465 data-nosnippet>465</a>
-<a href=#466 id=466 data-nosnippet>466</a><span class="kw">fn </span>install_sysroot(config: <span class="kw-2">&amp;</span>SysrootConfig) -&gt; anyhow::Result&lt;Utf8PathBuf&gt; {
-<a href=#467 id=467 data-nosnippet>467</a>    remove_path(<span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
-<a href=#468 id=468 data-nosnippet>468</a>    create_dir(<span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
-<a href=#469 id=469 data-nosnippet>469</a>
-<a href=#470 id=470 data-nosnippet>470</a>    <span class="kw">let </span>flux_driver = build_binary(<span class="string">"flux-driver"</span>, config.profile, config.rust_fixpoint)<span class="question-mark">?</span>;
-<a href=#471 id=471 data-nosnippet>471</a>    copy_file(<span class="kw-2">&amp;</span>flux_driver, <span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
-<a href=#472 id=472 data-nosnippet>472</a>
-<a href=#473 id=473 data-nosnippet>473</a>    <span class="kw">let </span>cargo_flux = build_binary(<span class="string">"cargo-flux"</span>, config.profile, config.rust_fixpoint)<span class="question-mark">?</span>;
-<a href=#474 id=474 data-nosnippet>474</a>
-<a href=#475 id=475 data-nosnippet>475</a>    <span class="kw">if </span>config.build_libs.force {
-<a href=#476 id=476 data-nosnippet>476</a>        Command::new(<span class="kw-2">&amp;</span>cargo_flux)
-<a href=#477 id=477 data-nosnippet>477</a>            .args([<span class="string">"flux"</span>, <span class="string">"clean"</span>])
-<a href=#478 id=478 data-nosnippet>478</a>            .env(FLUX_SYSROOT, <span class="kw-2">&amp;</span>config.dst)
-<a href=#479 id=479 data-nosnippet>479</a>            .run()<span class="question-mark">?</span>;
-<a href=#480 id=480 data-nosnippet>480</a>    }
-<a href=#481 id=481 data-nosnippet>481</a>    <span class="kw">let </span>artifacts = Command::new(<span class="kw-2">&amp;</span>cargo_flux)
-<a href=#482 id=482 data-nosnippet>482</a>        .args([<span class="string">"flux"</span>, <span class="string">"build"</span>])
-<a href=#483 id=483 data-nosnippet>483</a>        .args(
-<a href=#484 id=484 data-nosnippet>484</a>            config
-<a href=#485 id=485 data-nosnippet>485</a>                .build_libs
-<a href=#486 id=486 data-nosnippet>486</a>                .libs
-<a href=#487 id=487 data-nosnippet>487</a>                .iter()
-<a href=#488 id=488 data-nosnippet>488</a>                .flat_map(|lib| [<span class="string">"-p"</span>, lib.package_name()]),
-<a href=#489 id=489 data-nosnippet>489</a>        )
-<a href=#490 id=490 data-nosnippet>490</a>        .env(FLUX_SYSROOT, <span class="kw-2">&amp;</span>config.dst)
-<a href=#491 id=491 data-nosnippet>491</a>        .run_with_cargo_metadata()<span class="question-mark">?</span>;
-<a href=#492 id=492 data-nosnippet>492</a>    <span class="kw">let </span>manifest = copy_artifacts(<span class="kw-2">&amp;</span>artifacts, <span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
-<a href=#493 id=493 data-nosnippet>493</a>    write_sysroot_toml(<span class="kw-2">&amp;</span>manifest, <span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
-<a href=#494 id=494 data-nosnippet>494</a>    <span class="prelude-val">Ok</span>(flux_driver)
-<a href=#495 id=495 data-nosnippet>495</a>}
-<a href=#496 id=496 data-nosnippet>496</a>
-<a href=#497 id=497 data-nosnippet>497</a><span class="kw">fn </span>copy_artifacts(artifacts: <span class="kw-2">&amp;</span>[Artifact], sysroot: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;SysrootManifest&gt; {
-<a href=#498 id=498 data-nosnippet>498</a>    <span class="kw">let </span><span class="kw-2">mut </span>manifest = SysrootManifest::default();
-<a href=#499 id=499 data-nosnippet>499</a>    <span class="kw">for </span>artifact <span class="kw">in </span>artifacts {
-<a href=#500 id=500 data-nosnippet>500</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(lib) = FluxLib::from_artifact(artifact) <span class="kw">else </span>{ <span class="kw">continue </span>};
-<a href=#501 id=501 data-nosnippet>501</a>
-<a href=#502 id=502 data-nosnippet>502</a>        <span class="kw">let </span>entry = manifest
-<a href=#503 id=503 data-nosnippet>503</a>            .crates
-<a href=#504 id=504 data-nosnippet>504</a>            .entry(lib.target_name().to_string())
-<a href=#505 id=505 data-nosnippet>505</a>            .or_default();
-<a href=#506 id=506 data-nosnippet>506</a>        entry.extern_spec = lib.is_std_extern_spec();
-<a href=#507 id=507 data-nosnippet>507</a>
-<a href=#508 id=508 data-nosnippet>508</a>        <span class="kw">for </span>filename <span class="kw">in </span><span class="kw-2">&amp;</span>artifact.filenames {
-<a href=#509 id=509 data-nosnippet>509</a>            copy_artifact(artifact, filename, sysroot, entry)<span class="question-mark">?</span>;
-<a href=#510 id=510 data-nosnippet>510</a>        }
-<a href=#511 id=511 data-nosnippet>511</a>    }
-<a href=#512 id=512 data-nosnippet>512</a>    <span class="prelude-val">Ok</span>(manifest)
-<a href=#513 id=513 data-nosnippet>513</a>}
-<a href=#514 id=514 data-nosnippet>514</a>
-<a href=#515 id=515 data-nosnippet>515</a><span class="kw">fn </span>copy_artifact(
-<a href=#516 id=516 data-nosnippet>516</a>    artifact: <span class="kw-2">&amp;</span>Artifact,
-<a href=#517 id=517 data-nosnippet>517</a>    filename: <span class="kw-2">&amp;</span>Utf8Path,
-<a href=#518 id=518 data-nosnippet>518</a>    dst: <span class="kw-2">&amp;</span>Path,
-<a href=#519 id=519 data-nosnippet>519</a>    entry: <span class="kw-2">&amp;mut </span>SysrootCrate,
-<a href=#520 id=520 data-nosnippet>520</a>) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#521 id=521 data-nosnippet>521</a>    <span class="kw">let </span>name = sysroot_file_name(artifact, filename)<span class="question-mark">?</span>;
-<a href=#522 id=522 data-nosnippet>522</a>    copy_file(filename, dst.join(<span class="kw-2">&amp;</span>name))<span class="question-mark">?</span>;
-<a href=#523 id=523 data-nosnippet>523</a>    record_artifact(entry, <span class="kw-2">&amp;</span>name);
-<a href=#524 id=524 data-nosnippet>524</a>
-<a href=#525 id=525 data-nosnippet>525</a>    <span class="kw">if </span>filename.extension() == <span class="prelude-val">Some</span>(<span class="string">"rmeta"</span>) {
-<a href=#526 id=526 data-nosnippet>526</a>        <span class="comment">// Flux finds its own metadata by swapping the extension on the resolved `.rmeta` path,
-<a href=#527 id=527 data-nosnippet>527</a>        // so the two must travel together.
-<a href=#528 id=528 data-nosnippet>528</a>        </span><span class="kw">let </span>fluxmeta = filename.with_extension(<span class="string">"fluxmeta"</span>);
-<a href=#529 id=529 data-nosnippet>529</a>        <span class="kw">if </span>fluxmeta.exists() {
-<a href=#530 id=530 data-nosnippet>530</a>            <span class="kw">let </span>name = sysroot_file_name(artifact, <span class="kw-2">&amp;</span>fluxmeta)<span class="question-mark">?</span>;
-<a href=#531 id=531 data-nosnippet>531</a>            copy_file(<span class="kw-2">&amp;</span>fluxmeta, dst.join(<span class="kw-2">&amp;</span>name))<span class="question-mark">?</span>;
-<a href=#532 id=532 data-nosnippet>532</a>            record_artifact(entry, <span class="kw-2">&amp;</span>name);
-<a href=#533 id=533 data-nosnippet>533</a>        }
-<a href=#534 id=534 data-nosnippet>534</a>    }
-<a href=#535 id=535 data-nosnippet>535</a>    <span class="prelude-val">Ok</span>(())
-<a href=#536 id=536 data-nosnippet>536</a>}
-<a href=#537 id=537 data-nosnippet>537</a>
-<a href=#538 id=538 data-nosnippet>538</a><span class="kw">fn </span>record_artifact(entry: <span class="kw-2">&amp;mut </span>SysrootCrate, name: <span class="kw-2">&amp;</span>str) {
-<a href=#539 id=539 data-nosnippet>539</a>    <span class="kw">let </span>slot = <span class="kw">match </span>Utf8Path::new(name).extension() {
-<a href=#540 id=540 data-nosnippet>540</a>        <span class="prelude-val">Some</span>(<span class="string">"rlib"</span>) =&gt; <span class="kw-2">&amp;mut </span>entry.rlib,
-<a href=#541 id=541 data-nosnippet>541</a>        <span class="prelude-val">Some</span>(<span class="string">"rmeta"</span>) =&gt; <span class="kw-2">&amp;mut </span>entry.rmeta,
-<a href=#542 id=542 data-nosnippet>542</a>        <span class="prelude-val">Some</span>(<span class="string">"fluxmeta"</span>) =&gt; <span class="kw-2">&amp;mut </span>entry.fluxmeta,
-<a href=#543 id=543 data-nosnippet>543</a>        <span class="comment">// Proc macros are always built for the host. Anything else cargo reports, like `.pdb`
-<a href=#544 id=544 data-nosnippet>544</a>        // debug symbols on Windows, is not a crate.
-<a href=#545 id=545 data-nosnippet>545</a>        </span><span class="prelude-val">Some</span>(extension) <span class="kw">if </span>extension == env::consts::DLL_EXTENSION =&gt; <span class="kw-2">&amp;mut </span>entry.dylib,
-<a href=#546 id=546 data-nosnippet>546</a>        <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
-<a href=#547 id=547 data-nosnippet>547</a>    };
-<a href=#548 id=548 data-nosnippet>548</a>    <span class="kw-2">*</span>slot = <span class="prelude-val">Some</span>(name.to_string());
-<a href=#549 id=549 data-nosnippet>549</a>}
-<a href=#550 id=550 data-nosnippet>550</a>
-<a href=#551 id=551 data-nosnippet>551</a><span class="doccomment">/// Name an artifact gets inside the sysroot.
-<a href=#552 id=552 data-nosnippet>552</a>///
-<a href=#553 id=553 data-nosnippet>553</a>/// Cargo reports an uplifted, hash-free `.rlib` for these crates but a hashed `.rmeta`, and rustc
-<a href=#554 id=554 data-nosnippet>554</a>/// pairs the two by the infix between `lib&lt;crate&gt;` and the extension, so we cannot reuse cargo's
-<a href=#555 id=555 data-nosnippet>555</a>/// names. Naming by crate keeps the pairing intact.
-<a href=#556 id=556 data-nosnippet>556</a></span><span class="kw">fn </span>sysroot_file_name(artifact: <span class="kw-2">&amp;</span>Artifact, filename: <span class="kw-2">&amp;</span>Utf8Path) -&gt; anyhow::Result&lt;String&gt; {
-<a href=#557 id=557 data-nosnippet>557</a>    <span class="kw">let </span>krate = <span class="kw-2">&amp;</span>artifact.target.name;
-<a href=#558 id=558 data-nosnippet>558</a>    <span class="kw">let </span>name = filename
-<a href=#559 id=559 data-nosnippet>559</a>        .file_name()
-<a href=#560 id=560 data-nosnippet>560</a>        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"artifact `{filename}` has no file name"</span>))<span class="question-mark">?</span>;
-<a href=#561 id=561 data-nosnippet>561</a>    <span class="kw">let </span>extension = filename
-<a href=#562 id=562 data-nosnippet>562</a>        .extension()
-<a href=#563 id=563 data-nosnippet>563</a>        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"artifact `{filename}` has no extension"</span>))<span class="question-mark">?</span>;
-<a href=#564 id=564 data-nosnippet>564</a>    <span class="kw">match </span>extension {
-<a href=#565 id=565 data-nosnippet>565</a>        <span class="comment">// rustc hardcodes the `lib` prefix for its own formats on every target.
-<a href=#566 id=566 data-nosnippet>566</a>        </span><span class="string">"rlib" </span>| <span class="string">"rmeta" </span>| <span class="string">"fluxmeta" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="macro">format!</span>(<span class="string">"lib{krate}.{extension}"</span>)),
-<a href=#567 id=567 data-nosnippet>567</a>        <span class="comment">// A dylib's prefix is target-dependent (empty on Windows), so recover it from the name
-<a href=#568 id=568 data-nosnippet>568</a>        // cargo produced.
-<a href=#569 id=569 data-nosnippet>569</a>        </span><span class="kw">_ </span>=&gt; {
-<a href=#570 id=570 data-nosnippet>570</a>            <span class="kw">let </span>prefix = name
-<a href=#571 id=571 data-nosnippet>571</a>                .find(krate.as_str())
-<a href=#572 id=572 data-nosnippet>572</a>                .map(|idx| <span class="kw-2">&amp;</span>name[..idx])
-<a href=#573 id=573 data-nosnippet>573</a>                .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"artifact `{name}` does not mention crate `{krate}`"</span>))<span class="question-mark">?</span>;
-<a href=#574 id=574 data-nosnippet>574</a>            <span class="prelude-val">Ok</span>(<span class="macro">format!</span>(<span class="string">"{prefix}{krate}.{extension}"</span>))
-<a href=#575 id=575 data-nosnippet>575</a>        }
-<a href=#576 id=576 data-nosnippet>576</a>    }
-<a href=#577 id=577 data-nosnippet>577</a>}
-<a href=#578 id=578 data-nosnippet>578</a>
-<a href=#579 id=579 data-nosnippet>579</a><span class="kw">fn </span>write_sysroot_toml(manifest: <span class="kw-2">&amp;</span>SysrootManifest, sysroot: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#580 id=580 data-nosnippet>580</a>    <span class="kw">if </span>manifest.crates.is_empty() {
-<a href=#581 id=581 data-nosnippet>581</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-<a href=#582 id=582 data-nosnippet>582</a>    }
-<a href=#583 id=583 data-nosnippet>583</a>    <span class="kw">let </span>content = toml::to_string(manifest)<span class="question-mark">?</span>;
-<a href=#584 id=584 data-nosnippet>584</a>    <span class="kw">let </span>path = sysroot.join(SYSROOT_MANIFEST);
-<a href=#585 id=585 data-nosnippet>585</a>    <span class="macro">eprintln!</span>(<span class="string">"$ write {}"</span>, path.display());
-<a href=#586 id=586 data-nosnippet>586</a>    fs::write(<span class="kw-2">&amp;</span>path, <span class="kw-2">&amp;</span>content).map_err(|e| <span class="macro">anyhow!</span>(<span class="string">"failed to write `{}`: {e}"</span>, path.display()))
-<a href=#587 id=587 data-nosnippet>587</a>}
-<a href=#588 id=588 data-nosnippet>588</a>
-<a href=#589 id=589 data-nosnippet>589</a><span class="kw">impl </span>Install {
-<a href=#590 id=590 data-nosnippet>590</a>    <span class="kw">fn </span>profile(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Profile {
-<a href=#591 id=591 data-nosnippet>591</a>        <span class="self">self</span>.profile.unwrap_or(Profile::Release)
-<a href=#592 id=592 data-nosnippet>592</a>    }
-<a href=#593 id=593 data-nosnippet>593</a>}
-<a href=#594 id=594 data-nosnippet>594</a>
-<a href=#595 id=595 data-nosnippet>595</a><span class="kw">fn </span>local_sysroot_dir() -&gt; anyhow::Result&lt;PathBuf&gt; {
-<a href=#596 id=596 data-nosnippet>596</a>    <span class="prelude-val">Ok</span>(Path::new(<span class="macro">file!</span>())
-<a href=#597 id=597 data-nosnippet>597</a>        .canonicalize()<span class="question-mark">?
-<a href=#598 id=598 data-nosnippet>598</a>        </span>.ancestors()
-<a href=#599 id=599 data-nosnippet>599</a>        .nth(<span class="number">3</span>)
-<a href=#600 id=600 data-nosnippet>600</a>        .unwrap()
-<a href=#601 id=601 data-nosnippet>601</a>        .join(<span class="string">"sysroot"</span>))
-<a href=#602 id=602 data-nosnippet>602</a>}
-<a href=#603 id=603 data-nosnippet>603</a>
-<a href=#604 id=604 data-nosnippet>604</a><span class="kw">fn </span>check_status(st: ExitStatus) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#605 id=605 data-nosnippet>605</a>    <span class="kw">if </span>st.success() {
-<a href=#606 id=606 data-nosnippet>606</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-<a href=#607 id=607 data-nosnippet>607</a>    }
-<a href=#608 id=608 data-nosnippet>608</a>    <span class="kw">let </span>err = <span class="kw">match </span>st.code() {
-<a href=#609 id=609 data-nosnippet>609</a>        <span class="prelude-val">Some</span>(code) =&gt; <span class="macro">anyhow!</span>(<span class="string">"command exited with non-zero code: {code}"</span>),
-<a href=#610 id=610 data-nosnippet>610</a>        <span class="attr">#[cfg(unix)]
-<a href=#611 id=611 data-nosnippet>611</a>        </span><span class="prelude-val">None </span>=&gt; {
-<a href=#612 id=612 data-nosnippet>612</a>            <span class="kw">use </span>std::os::unix::process::ExitStatusExt;
-<a href=#613 id=613 data-nosnippet>613</a>            <span class="kw">match </span>st.signal() {
-<a href=#614 id=614 data-nosnippet>614</a>                <span class="prelude-val">Some</span>(sig) =&gt; <span class="macro">anyhow!</span>(<span class="string">"command was terminated by a signal: {sig}"</span>),
-<a href=#615 id=615 data-nosnippet>615</a>                <span class="prelude-val">None </span>=&gt; <span class="macro">anyhow!</span>(<span class="string">"command was terminated by a signal"</span>),
-<a href=#616 id=616 data-nosnippet>616</a>            }
-<a href=#617 id=617 data-nosnippet>617</a>        }
-<a href=#618 id=618 data-nosnippet>618</a>        <span class="attr">#[cfg(not(unix))]
-<a href=#619 id=619 data-nosnippet>619</a>        </span><span class="prelude-val">None </span>=&gt; <span class="macro">anyhow!</span>(<span class="string">"command was terminated by a signal"</span>),
-<a href=#620 id=620 data-nosnippet>620</a>    };
-<a href=#621 id=621 data-nosnippet>621</a>    <span class="prelude-val">Err</span>(err)
-<a href=#622 id=622 data-nosnippet>622</a>}
-<a href=#623 id=623 data-nosnippet>623</a>
-<a href=#624 id=624 data-nosnippet>624</a><span class="kw">fn </span>display_command(cmd: <span class="kw-2">&amp;</span>Command) {
-<a href=#625 id=625 data-nosnippet>625</a>    <span class="kw">for </span>var <span class="kw">in </span>cmd.get_envs() {
-<a href=#626 id=626 data-nosnippet>626</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = var.<span class="number">1 </span>{
-<a href=#627 id=627 data-nosnippet>627</a>            <span class="macro">eprintln!</span>(<span class="string">"$ export {}={}"</span>, var.<span class="number">0</span>.display(), val.display());
-<a href=#628 id=628 data-nosnippet>628</a>        }
-<a href=#629 id=629 data-nosnippet>629</a>    }
-<a href=#630 id=630 data-nosnippet>630</a>
-<a href=#631 id=631 data-nosnippet>631</a>    <span class="kw">let </span>prog = cmd.get_program();
-<a href=#632 id=632 data-nosnippet>632</a>    <span class="macro">eprint!</span>(<span class="string">"$ {}"</span>, prog.display());
-<a href=#633 id=633 data-nosnippet>633</a>    <span class="kw">for </span>arg <span class="kw">in </span>cmd.get_args() {
-<a href=#634 id=634 data-nosnippet>634</a>        <span class="macro">eprint!</span>(<span class="string">" {}"</span>, arg.display());
-<a href=#635 id=635 data-nosnippet>635</a>    }
-<a href=#636 id=636 data-nosnippet>636</a>    <span class="macro">eprintln!</span>();
-<a href=#637 id=637 data-nosnippet>637</a>}
-<a href=#638 id=638 data-nosnippet>638</a>
-<a href=#639 id=639 data-nosnippet>639</a><span class="kw">fn </span>copy_file&lt;S: AsRef&lt;Path&gt;, D: AsRef&lt;Path&gt;&gt;(src: S, dst: D) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#640 id=640 data-nosnippet>640</a>    <span class="kw">let </span>src = src.as_ref();
-<a href=#641 id=641 data-nosnippet>641</a>    <span class="kw">let </span>dst = dst.as_ref();
-<a href=#642 id=642 data-nosnippet>642</a>    <span class="macro">eprintln!</span>(<span class="string">"$ cp {} {}"</span>, src.display(), dst.display());
-<a href=#643 id=643 data-nosnippet>643</a>
-<a href=#644 id=644 data-nosnippet>644</a>    <span class="kw">let </span><span class="kw-2">mut </span>_tmp;
-<a href=#645 id=645 data-nosnippet>645</a>    <span class="kw">let </span><span class="kw-2">mut </span>dst = dst;
-<a href=#646 id=646 data-nosnippet>646</a>    <span class="kw">if </span>dst.is_dir() {
-<a href=#647 id=647 data-nosnippet>647</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(file_name) = src.file_name() {
-<a href=#648 id=648 data-nosnippet>648</a>            _tmp = dst.join(file_name);
-<a href=#649 id=649 data-nosnippet>649</a>            dst = <span class="kw-2">&amp;</span>_tmp;
-<a href=#650 id=650 data-nosnippet>650</a>        }
-<a href=#651 id=651 data-nosnippet>651</a>    }
-<a href=#652 id=652 data-nosnippet>652</a>    std::fs::copy(src, dst).map_err(|err| {
-<a href=#653 id=653 data-nosnippet>653</a>        <span class="macro">anyhow!</span>(<span class="string">"failed to copy `{}` to `{}`: {err}"</span>, src.display(), dst.display())
-<a href=#654 id=654 data-nosnippet>654</a>    })<span class="question-mark">?</span>;
-<a href=#655 id=655 data-nosnippet>655</a>
-<a href=#656 id=656 data-nosnippet>656</a>    <span class="prelude-val">Ok</span>(())
-<a href=#657 id=657 data-nosnippet>657</a>}
-<a href=#658 id=658 data-nosnippet>658</a>
-<a href=#659 id=659 data-nosnippet>659</a><span class="kw">trait </span>CommandExt {
-<a href=#660 id=660 data-nosnippet>660</a>    <span class="kw">fn </span>run(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;()&gt;;
-<a href=#661 id=661 data-nosnippet>661</a>    <span class="kw">fn </span>run_with_cargo_metadata(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;Vec&lt;Artifact&gt;&gt;;
-<a href=#662 id=662 data-nosnippet>662</a>    <span class="doccomment">/// Add `args` if `cond` is true.
-<a href=#663 id=663 data-nosnippet>663</a>    </span><span class="kw">fn </span>args_if&lt;I, S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cond: bool, args: I) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self
-<a href=#664 id=664 data-nosnippet>664</a>    </span><span class="kw">where
-<a href=#665 id=665 data-nosnippet>665</a>        </span>I: IntoIterator&lt;Item = S&gt;,
-<a href=#666 id=666 data-nosnippet>666</a>        S: AsRef&lt;OsStr&gt;;
-<a href=#667 id=667 data-nosnippet>667</a>    <span class="doccomment">/// If `opt` is `Some`, add the arguments computed by `f` from its value.
-<a href=#668 id=668 data-nosnippet>668</a>    </span><span class="kw">fn </span>args_if_some&lt;T, I, S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opt: <span class="prelude-ty">Option</span>&lt;T&gt;, f: <span class="kw">impl </span>FnOnce(T) -&gt; I) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self
-<a href=#669 id=669 data-nosnippet>669</a>    </span><span class="kw">where
-<a href=#670 id=670 data-nosnippet>670</a>        </span>I: IntoIterator&lt;Item = S&gt;,
-<a href=#671 id=671 data-nosnippet>671</a>        S: AsRef&lt;OsStr&gt;;
-<a href=#672 id=672 data-nosnippet>672</a>}
-<a href=#673 id=673 data-nosnippet>673</a>
-<a href=#674 id=674 data-nosnippet>674</a><span class="kw">impl </span>CommandExt <span class="kw">for </span>Command {
-<a href=#675 id=675 data-nosnippet>675</a>    <span class="kw">fn </span>args_if&lt;I, S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cond: bool, args: I) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self
-<a href=#676 id=676 data-nosnippet>676</a>    </span><span class="kw">where
-<a href=#677 id=677 data-nosnippet>677</a>        </span>I: IntoIterator&lt;Item = S&gt;,
-<a href=#678 id=678 data-nosnippet>678</a>        S: AsRef&lt;OsStr&gt;,
-<a href=#679 id=679 data-nosnippet>679</a>    {
-<a href=#680 id=680 data-nosnippet>680</a>        <span class="kw">if </span>cond {
-<a href=#681 id=681 data-nosnippet>681</a>            <span class="self">self</span>.args(args);
-<a href=#682 id=682 data-nosnippet>682</a>        }
-<a href=#683 id=683 data-nosnippet>683</a>        <span class="self">self
-<a href=#684 id=684 data-nosnippet>684</a>    </span>}
-<a href=#685 id=685 data-nosnippet>685</a>
-<a href=#686 id=686 data-nosnippet>686</a>    <span class="kw">fn </span>args_if_some&lt;T, I, S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opt: <span class="prelude-ty">Option</span>&lt;T&gt;, f: <span class="kw">impl </span>FnOnce(T) -&gt; I) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self
-<a href=#687 id=687 data-nosnippet>687</a>    </span><span class="kw">where
-<a href=#688 id=688 data-nosnippet>688</a>        </span>I: IntoIterator&lt;Item = S&gt;,
-<a href=#689 id=689 data-nosnippet>689</a>        S: AsRef&lt;OsStr&gt;,
-<a href=#690 id=690 data-nosnippet>690</a>    {
-<a href=#691 id=691 data-nosnippet>691</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = opt {
-<a href=#692 id=692 data-nosnippet>692</a>            <span class="self">self</span>.args(f(val));
-<a href=#693 id=693 data-nosnippet>693</a>        }
-<a href=#694 id=694 data-nosnippet>694</a>        <span class="self">self
-<a href=#695 id=695 data-nosnippet>695</a>    </span>}
-<a href=#696 id=696 data-nosnippet>696</a>
-<a href=#697 id=697 data-nosnippet>697</a>    <span class="kw">fn </span>run(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#698 id=698 data-nosnippet>698</a>        display_command(<span class="self">self</span>);
-<a href=#699 id=699 data-nosnippet>699</a>        <span class="kw">let </span><span class="kw-2">mut </span>child = <span class="self">self</span>.spawn()<span class="question-mark">?</span>;
-<a href=#700 id=700 data-nosnippet>700</a>        check_status(child.wait()<span class="question-mark">?</span>)
-<a href=#701 id=701 data-nosnippet>701</a>    }
-<a href=#702 id=702 data-nosnippet>702</a>
-<a href=#703 id=703 data-nosnippet>703</a>    <span class="kw">fn </span>run_with_cargo_metadata(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;Vec&lt;Artifact&gt;&gt; {
-<a href=#704 id=704 data-nosnippet>704</a>        <span class="self">self</span>.arg(<span class="string">"--message-format=json-render-diagnostics"</span>)
-<a href=#705 id=705 data-nosnippet>705</a>            .stdout(std::process::Stdio::piped());
-<a href=#706 id=706 data-nosnippet>706</a>
-<a href=#707 id=707 data-nosnippet>707</a>        display_command(<span class="self">self</span>);
-<a href=#708 id=708 data-nosnippet>708</a>
-<a href=#709 id=709 data-nosnippet>709</a>        <span class="kw">let </span><span class="kw-2">mut </span>child = <span class="self">self</span>.spawn()<span class="question-mark">?</span>;
-<a href=#710 id=710 data-nosnippet>710</a>
-<a href=#711 id=711 data-nosnippet>711</a>        <span class="kw">let </span><span class="kw-2">mut </span>artifacts = <span class="macro">vec!</span>[];
-<a href=#712 id=712 data-nosnippet>712</a>        <span class="kw">let </span>reader = std::io::BufReader::new(child.stdout.take().unwrap());
-<a href=#713 id=713 data-nosnippet>713</a>        <span class="kw">for </span>message <span class="kw">in </span>cargo_metadata::Message::parse_stream(reader) {
-<a href=#714 id=714 data-nosnippet>714</a>            <span class="kw">match </span>message.unwrap() {
-<a href=#715 id=715 data-nosnippet>715</a>                Message::CompilerMessage(msg) =&gt; {
-<a href=#716 id=716 data-nosnippet>716</a>                    <span class="macro">println!</span>(<span class="string">"{msg}"</span>);
-<a href=#717 id=717 data-nosnippet>717</a>                }
-<a href=#718 id=718 data-nosnippet>718</a>                Message::CompilerArtifact(artifact) =&gt; {
-<a href=#719 id=719 data-nosnippet>719</a>                    artifacts.push(artifact);
-<a href=#720 id=720 data-nosnippet>720</a>                }
-<a href=#721 id=721 data-nosnippet>721</a>                <span class="kw">_ </span>=&gt; (),
-<a href=#722 id=722 data-nosnippet>722</a>            }
-<a href=#723 id=723 data-nosnippet>723</a>        }
-<a href=#724 id=724 data-nosnippet>724</a>
-<a href=#725 id=725 data-nosnippet>725</a>        check_status(child.wait()<span class="question-mark">?</span>)<span class="question-mark">?</span>;
-<a href=#726 id=726 data-nosnippet>726</a>
-<a href=#727 id=727 data-nosnippet>727</a>        <span class="prelude-val">Ok</span>(artifacts)
-<a href=#728 id=728 data-nosnippet>728</a>    }
-<a href=#729 id=729 data-nosnippet>729</a>}
-<a href=#730 id=730 data-nosnippet>730</a>
-<a href=#731 id=731 data-nosnippet>731</a><span class="kw">fn </span>remove_path(path: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#732 id=732 data-nosnippet>732</a>    <span class="kw">match </span>path.metadata() {
-<a href=#733 id=733 data-nosnippet>733</a>        <span class="prelude-val">Ok</span>(meta) =&gt; {
-<a href=#734 id=734 data-nosnippet>734</a>            <span class="kw">if </span>meta.is_dir() { remove_dir_all(path) } <span class="kw">else </span>{ fs::remove_file(path) }
-<a href=#735 id=735 data-nosnippet>735</a>                .map_err(|err| <span class="macro">anyhow!</span>(<span class="string">"failed to remove path `{}`: {err}"</span>, path.display()))
-<a href=#736 id=736 data-nosnippet>736</a>        }
-<a href=#737 id=737 data-nosnippet>737</a>        <span class="prelude-val">Err</span>(err) <span class="kw">if </span>err.kind() == io::ErrorKind::NotFound =&gt; <span class="prelude-val">Ok</span>(()),
-<a href=#738 id=738 data-nosnippet>738</a>        <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"failed to remove path `{}`: {err}"</span>, path.display())),
-<a href=#739 id=739 data-nosnippet>739</a>    }
-<a href=#740 id=740 data-nosnippet>740</a>}
-<a href=#741 id=741 data-nosnippet>741</a>
-<a href=#742 id=742 data-nosnippet>742</a><span class="attr">#[cfg(not(windows))]
-<a href=#743 id=743 data-nosnippet>743</a></span><span class="kw">fn </span>remove_dir_all(path: <span class="kw-2">&amp;</span>Path) -&gt; io::Result&lt;()&gt; {
-<a href=#744 id=744 data-nosnippet>744</a>    std::fs::remove_dir_all(path)
-<a href=#745 id=745 data-nosnippet>745</a>}
-<a href=#746 id=746 data-nosnippet>746</a>
-<a href=#747 id=747 data-nosnippet>747</a><span class="comment">// Copied from xshell
-<a href=#748 id=748 data-nosnippet>748</a></span><span class="attr">#[cfg(windows)]
-<a href=#749 id=749 data-nosnippet>749</a></span><span class="kw">fn </span>remove_dir_all(path: <span class="kw-2">&amp;</span>Path) -&gt; io::Result&lt;()&gt; {
-<a href=#750 id=750 data-nosnippet>750</a>    <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">99 </span>{
-<a href=#751 id=751 data-nosnippet>751</a>        <span class="kw">if </span>fs::remove_dir_all(path).is_ok() {
-<a href=#752 id=752 data-nosnippet>752</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-<a href=#753 id=753 data-nosnippet>753</a>        }
-<a href=#754 id=754 data-nosnippet>754</a>        std::thread::sleep(std::time::Duration::from_millis(<span class="number">10</span>))
-<a href=#755 id=755 data-nosnippet>755</a>    }
-<a href=#756 id=756 data-nosnippet>756</a>    fs::remove_dir_all(path)
-<a href=#757 id=757 data-nosnippet>757</a>}
-<a href=#758 id=758 data-nosnippet>758</a>
-<a href=#759 id=759 data-nosnippet>759</a><span class="kw">fn </span>create_dir(path: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#760 id=760 data-nosnippet>760</a>    <span class="kw">match </span>fs::create_dir_all(path) {
-<a href=#761 id=761 data-nosnippet>761</a>        <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Ok</span>(()),
-<a href=#762 id=762 data-nosnippet>762</a>        <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"failed to create directory `{}`: {err}"</span>, path.display())),
-<a href=#763 id=763 data-nosnippet>763</a>    }
-<a href=#764 id=764 data-nosnippet>764</a>}
+<a href=#377 id=377 data-nosnippet>377</a>    <span class="kw">let </span>sysroot = default_flux_sysroot_dir();
+<a href=#378 id=378 data-nosnippet>378</a>    <span class="macro">eprintln!</span>(<span class="string">"$ rm -rf {}"</span>, sysroot.display());
+<a href=#379 id=379 data-nosnippet>379</a>    remove_path(<span class="kw-2">&amp;</span>sysroot)<span class="question-mark">?</span>;
+<a href=#380 id=380 data-nosnippet>380</a>    <span class="prelude-val">Ok</span>(())
+<a href=#381 id=381 data-nosnippet>381</a>}
+<a href=#382 id=382 data-nosnippet>382</a>
+<a href=#383 id=383 data-nosnippet>383</a><span class="kw">fn </span>doc(_args: Doc) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#384 id=384 data-nosnippet>384</a>    Command::new(<span class="string">"cargo"</span>)
+<a href=#385 id=385 data-nosnippet>385</a>        .args([<span class="string">"doc"</span>, <span class="string">"--workspace"</span>, <span class="string">"--document-private-items"</span>, <span class="string">"--no-deps"</span>])
+<a href=#386 id=386 data-nosnippet>386</a>        .env(<span class="string">"RUSTDOCFLAGS"</span>, <span class="string">"-Zunstable-options --enable-index-page"</span>)
+<a href=#387 id=387 data-nosnippet>387</a>        .run()<span class="question-mark">?</span>;
+<a href=#388 id=388 data-nosnippet>388</a>    <span class="prelude-val">Ok</span>(())
+<a href=#389 id=389 data-nosnippet>389</a>}
+<a href=#390 id=390 data-nosnippet>390</a>
+<a href=#391 id=391 data-nosnippet>391</a><span class="kw">fn </span>build_binary(bin: <span class="kw-2">&amp;</span>str, profile: Profile, rust_fixpoint: bool) -&gt; anyhow::Result&lt;Utf8PathBuf&gt; {
+<a href=#392 id=392 data-nosnippet>392</a>    Command::new(<span class="string">"cargo"</span>)
+<a href=#393 id=393 data-nosnippet>393</a>        .args([<span class="string">"build"</span>, <span class="string">"--bin"</span>, bin, <span class="string">"--profile"</span>, profile.as_str()])
+<a href=#394 id=394 data-nosnippet>394</a>        .args_if(rust_fixpoint, [<span class="string">"--features"</span>, <span class="string">"rust-fixpoint"</span>])
+<a href=#395 id=395 data-nosnippet>395</a>        .run_with_cargo_metadata()<span class="question-mark">?
+<a href=#396 id=396 data-nosnippet>396</a>        </span>.into_iter()
+<a href=#397 id=397 data-nosnippet>397</a>        .find(|artifact| artifact.target.name == bin &amp;&amp; artifact.target.is_kind(TargetKind::Bin))
+<a href=#398 id=398 data-nosnippet>398</a>        .and_then(|artifact| artifact.executable)
+<a href=#399 id=399 data-nosnippet>399</a>        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"cannot find binary: `{bin}`"</span>))
+<a href=#400 id=400 data-nosnippet>400</a>}
+<a href=#401 id=401 data-nosnippet>401</a>
+<a href=#402 id=402 data-nosnippet>402</a><span class="kw">struct </span>SysrootConfig {
+<a href=#403 id=403 data-nosnippet>403</a>    <span class="doccomment">/// Profile used to build `flux-driver` and libraries
+<a href=#404 id=404 data-nosnippet>404</a>    </span>profile: Profile,
+<a href=#405 id=405 data-nosnippet>405</a>    <span class="doccomment">/// Whether rust-fixpoint should be enabled to build `flux-driver`
+<a href=#406 id=406 data-nosnippet>406</a>    </span>rust_fixpoint: bool,
+<a href=#407 id=407 data-nosnippet>407</a>    <span class="doccomment">/// Destination path for sysroot artifacts
+<a href=#408 id=408 data-nosnippet>408</a>    </span>dst: PathBuf,
+<a href=#409 id=409 data-nosnippet>409</a>    build_libs: BuildLibs,
+<a href=#410 id=410 data-nosnippet>410</a>}
+<a href=#411 id=411 data-nosnippet>411</a>
+<a href=#412 id=412 data-nosnippet>412</a><span class="kw">struct </span>BuildLibs {
+<a href=#413 id=413 data-nosnippet>413</a>    <span class="doccomment">/// If true, forces a clean build.
+<a href=#414 id=414 data-nosnippet>414</a>    </span>force: bool,
+<a href=#415 id=415 data-nosnippet>415</a>    <span class="doccomment">/// List of libraries to install
+<a href=#416 id=416 data-nosnippet>416</a>    </span>libs: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[FluxLib],
+<a href=#417 id=417 data-nosnippet>417</a>}
+<a href=#418 id=418 data-nosnippet>418</a>
+<a href=#419 id=419 data-nosnippet>419</a><span class="attr">#[allow(clippy::enum_variant_names)]
+<a href=#420 id=420 data-nosnippet>420</a>#[derive(Clone, Copy)]
+<a href=#421 id=421 data-nosnippet>421</a></span><span class="kw">enum </span>FluxLib {
+<a href=#422 id=422 data-nosnippet>422</a>    FluxAlloc,
+<a href=#423 id=423 data-nosnippet>423</a>    FluxAttrs,
+<a href=#424 id=424 data-nosnippet>424</a>    FluxCore,
+<a href=#425 id=425 data-nosnippet>425</a>    FluxRs,
+<a href=#426 id=426 data-nosnippet>426</a>}
+<a href=#427 id=427 data-nosnippet>427</a>
+<a href=#428 id=428 data-nosnippet>428</a><span class="kw">impl </span>FluxLib {
+<a href=#429 id=429 data-nosnippet>429</a>    <span class="kw">const </span>ALL: <span class="kw-2">&amp;</span>[FluxLib] = <span class="kw-2">&amp;</span>[<span class="self">Self</span>::FluxAlloc, <span class="self">Self</span>::FluxAttrs, <span class="self">Self</span>::FluxCore, <span class="self">Self</span>::FluxRs];
+<a href=#430 id=430 data-nosnippet>430</a>
+<a href=#431 id=431 data-nosnippet>431</a>    <span class="kw">const </span>_ASSERT_ALL: () = { <span class="macro">assert!</span>(<span class="self">Self</span>::ALL.len() == variant_count::&lt;<span class="self">Self</span>&gt;()) };
+<a href=#432 id=432 data-nosnippet>432</a>
+<a href=#433 id=433 data-nosnippet>433</a>    <span class="kw">const fn </span>package_name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#435 id=435 data-nosnippet>435</a>            FluxLib::FluxAlloc =&gt; <span class="string">"flux-alloc"</span>,
+<a href=#436 id=436 data-nosnippet>436</a>            FluxLib::FluxAttrs =&gt; <span class="string">"flux-attrs"</span>,
+<a href=#437 id=437 data-nosnippet>437</a>            FluxLib::FluxCore =&gt; <span class="string">"flux-core"</span>,
+<a href=#438 id=438 data-nosnippet>438</a>            FluxLib::FluxRs =&gt; <span class="string">"flux-rs"</span>,
+<a href=#439 id=439 data-nosnippet>439</a>        }
+<a href=#440 id=440 data-nosnippet>440</a>    }
+<a href=#441 id=441 data-nosnippet>441</a>
+<a href=#442 id=442 data-nosnippet>442</a>    <span class="kw">const fn </span>target_name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#443 id=443 data-nosnippet>443</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#444 id=444 data-nosnippet>444</a>            FluxLib::FluxAlloc =&gt; <span class="string">"flux_alloc"</span>,
+<a href=#445 id=445 data-nosnippet>445</a>            FluxLib::FluxAttrs =&gt; <span class="string">"flux_attrs"</span>,
+<a href=#446 id=446 data-nosnippet>446</a>            FluxLib::FluxCore =&gt; <span class="string">"flux_core"</span>,
+<a href=#447 id=447 data-nosnippet>447</a>            FluxLib::FluxRs =&gt; <span class="string">"flux_rs"</span>,
+<a href=#448 id=448 data-nosnippet>448</a>        }
+<a href=#449 id=449 data-nosnippet>449</a>    }
+<a href=#450 id=450 data-nosnippet>450</a>
+<a href=#451 id=451 data-nosnippet>451</a>    <span class="doccomment">/// Whether this lib's specs are injected as force externs under `-Fstd-extern-specs`.
+<a href=#452 id=452 data-nosnippet>452</a>    </span><span class="kw">const fn </span>is_std_extern_spec(<span class="self">self</span>) -&gt; bool {
+<a href=#453 id=453 data-nosnippet>453</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#454 id=454 data-nosnippet>454</a>            FluxLib::FluxCore | FluxLib::FluxAlloc =&gt; <span class="bool-val">true</span>,
+<a href=#455 id=455 data-nosnippet>455</a>            FluxLib::FluxAttrs | FluxLib::FluxRs =&gt; <span class="bool-val">false</span>,
+<a href=#456 id=456 data-nosnippet>456</a>        }
+<a href=#457 id=457 data-nosnippet>457</a>    }
+<a href=#458 id=458 data-nosnippet>458</a>
+<a href=#459 id=459 data-nosnippet>459</a>    <span class="kw">fn </span>from_artifact(artifact: <span class="kw-2">&amp;</span>Artifact) -&gt; <span class="prelude-ty">Option</span>&lt;FluxLib&gt; {
+<a href=#460 id=460 data-nosnippet>460</a>        <span class="self">Self</span>::ALL
+<a href=#461 id=461 data-nosnippet>461</a>            .iter()
+<a href=#462 id=462 data-nosnippet>462</a>            .copied()
+<a href=#463 id=463 data-nosnippet>463</a>            .find(|lib| artifact.target.name == lib.target_name())
+<a href=#464 id=464 data-nosnippet>464</a>    }
+<a href=#465 id=465 data-nosnippet>465</a>}
+<a href=#466 id=466 data-nosnippet>466</a>
+<a href=#467 id=467 data-nosnippet>467</a><span class="kw">fn </span>install_sysroot(config: <span class="kw-2">&amp;</span>SysrootConfig) -&gt; anyhow::Result&lt;Utf8PathBuf&gt; {
+<a href=#468 id=468 data-nosnippet>468</a>    remove_path(<span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
+<a href=#469 id=469 data-nosnippet>469</a>    create_dir(<span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
+<a href=#470 id=470 data-nosnippet>470</a>
+<a href=#471 id=471 data-nosnippet>471</a>    <span class="kw">let </span>flux_driver = build_binary(<span class="string">"flux-driver"</span>, config.profile, config.rust_fixpoint)<span class="question-mark">?</span>;
+<a href=#472 id=472 data-nosnippet>472</a>    copy_file(<span class="kw-2">&amp;</span>flux_driver, <span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
+<a href=#473 id=473 data-nosnippet>473</a>
+<a href=#474 id=474 data-nosnippet>474</a>    <span class="kw">let </span>cargo_flux = build_binary(<span class="string">"cargo-flux"</span>, config.profile, config.rust_fixpoint)<span class="question-mark">?</span>;
+<a href=#475 id=475 data-nosnippet>475</a>
+<a href=#476 id=476 data-nosnippet>476</a>    <span class="kw">if </span>config.build_libs.force {
+<a href=#477 id=477 data-nosnippet>477</a>        Command::new(<span class="kw-2">&amp;</span>cargo_flux)
+<a href=#478 id=478 data-nosnippet>478</a>            .args([<span class="string">"flux"</span>, <span class="string">"clean"</span>])
+<a href=#479 id=479 data-nosnippet>479</a>            .env(FLUX_SYSROOT, <span class="kw-2">&amp;</span>config.dst)
+<a href=#480 id=480 data-nosnippet>480</a>            .run()<span class="question-mark">?</span>;
+<a href=#481 id=481 data-nosnippet>481</a>    }
+<a href=#482 id=482 data-nosnippet>482</a>    <span class="kw">let </span>artifacts = Command::new(<span class="kw-2">&amp;</span>cargo_flux)
+<a href=#483 id=483 data-nosnippet>483</a>        .args([<span class="string">"flux"</span>, <span class="string">"build"</span>])
+<a href=#484 id=484 data-nosnippet>484</a>        .args(
+<a href=#485 id=485 data-nosnippet>485</a>            config
+<a href=#486 id=486 data-nosnippet>486</a>                .build_libs
+<a href=#487 id=487 data-nosnippet>487</a>                .libs
+<a href=#488 id=488 data-nosnippet>488</a>                .iter()
+<a href=#489 id=489 data-nosnippet>489</a>                .flat_map(|lib| [<span class="string">"-p"</span>, lib.package_name()]),
+<a href=#490 id=490 data-nosnippet>490</a>        )
+<a href=#491 id=491 data-nosnippet>491</a>        .env(FLUX_SYSROOT, <span class="kw-2">&amp;</span>config.dst)
+<a href=#492 id=492 data-nosnippet>492</a>        .run_with_cargo_metadata()<span class="question-mark">?</span>;
+<a href=#493 id=493 data-nosnippet>493</a>    <span class="kw">let </span>manifest = copy_artifacts(<span class="kw-2">&amp;</span>artifacts, <span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
+<a href=#494 id=494 data-nosnippet>494</a>    write_sysroot_toml(<span class="kw-2">&amp;</span>manifest, <span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
+<a href=#495 id=495 data-nosnippet>495</a>    <span class="prelude-val">Ok</span>(flux_driver)
+<a href=#496 id=496 data-nosnippet>496</a>}
+<a href=#497 id=497 data-nosnippet>497</a>
+<a href=#498 id=498 data-nosnippet>498</a><span class="kw">fn </span>copy_artifacts(artifacts: <span class="kw-2">&amp;</span>[Artifact], sysroot: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;SysrootManifest&gt; {
+<a href=#499 id=499 data-nosnippet>499</a>    <span class="kw">let </span><span class="kw-2">mut </span>manifest = SysrootManifest::default();
+<a href=#500 id=500 data-nosnippet>500</a>    <span class="kw">for </span>artifact <span class="kw">in </span>artifacts {
+<a href=#501 id=501 data-nosnippet>501</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(lib) = FluxLib::from_artifact(artifact) <span class="kw">else </span>{ <span class="kw">continue </span>};
+<a href=#502 id=502 data-nosnippet>502</a>
+<a href=#503 id=503 data-nosnippet>503</a>        <span class="kw">let </span>entry = manifest
+<a href=#504 id=504 data-nosnippet>504</a>            .crates
+<a href=#505 id=505 data-nosnippet>505</a>            .entry(lib.target_name().to_string())
+<a href=#506 id=506 data-nosnippet>506</a>            .or_default();
+<a href=#507 id=507 data-nosnippet>507</a>        entry.extern_spec = lib.is_std_extern_spec();
+<a href=#508 id=508 data-nosnippet>508</a>
+<a href=#509 id=509 data-nosnippet>509</a>        <span class="kw">for </span>filename <span class="kw">in </span><span class="kw-2">&amp;</span>artifact.filenames {
+<a href=#510 id=510 data-nosnippet>510</a>            copy_artifact(artifact, filename, sysroot, entry)<span class="question-mark">?</span>;
+<a href=#511 id=511 data-nosnippet>511</a>        }
+<a href=#512 id=512 data-nosnippet>512</a>    }
+<a href=#513 id=513 data-nosnippet>513</a>    <span class="prelude-val">Ok</span>(manifest)
+<a href=#514 id=514 data-nosnippet>514</a>}
+<a href=#515 id=515 data-nosnippet>515</a>
+<a href=#516 id=516 data-nosnippet>516</a><span class="kw">fn </span>copy_artifact(
+<a href=#517 id=517 data-nosnippet>517</a>    artifact: <span class="kw-2">&amp;</span>Artifact,
+<a href=#518 id=518 data-nosnippet>518</a>    filename: <span class="kw-2">&amp;</span>Utf8Path,
+<a href=#519 id=519 data-nosnippet>519</a>    dst: <span class="kw-2">&amp;</span>Path,
+<a href=#520 id=520 data-nosnippet>520</a>    entry: <span class="kw-2">&amp;mut </span>SysrootCrate,
+<a href=#521 id=521 data-nosnippet>521</a>) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#522 id=522 data-nosnippet>522</a>    <span class="kw">let </span>name = sysroot_file_name(artifact, filename)<span class="question-mark">?</span>;
+<a href=#523 id=523 data-nosnippet>523</a>    copy_file(filename, dst.join(<span class="kw-2">&amp;</span>name))<span class="question-mark">?</span>;
+<a href=#524 id=524 data-nosnippet>524</a>    record_artifact(entry, <span class="kw-2">&amp;</span>name);
+<a href=#525 id=525 data-nosnippet>525</a>
+<a href=#526 id=526 data-nosnippet>526</a>    <span class="kw">if </span>filename.extension() == <span class="prelude-val">Some</span>(<span class="string">"rmeta"</span>) {
+<a href=#527 id=527 data-nosnippet>527</a>        <span class="comment">// Flux finds its own metadata by swapping the extension on the resolved `.rmeta` path,
+<a href=#528 id=528 data-nosnippet>528</a>        // so the two must travel together.
+<a href=#529 id=529 data-nosnippet>529</a>        </span><span class="kw">let </span>fluxmeta = filename.with_extension(<span class="string">"fluxmeta"</span>);
+<a href=#530 id=530 data-nosnippet>530</a>        <span class="kw">if </span>fluxmeta.exists() {
+<a href=#531 id=531 data-nosnippet>531</a>            <span class="kw">let </span>name = sysroot_file_name(artifact, <span class="kw-2">&amp;</span>fluxmeta)<span class="question-mark">?</span>;
+<a href=#532 id=532 data-nosnippet>532</a>            copy_file(<span class="kw-2">&amp;</span>fluxmeta, dst.join(<span class="kw-2">&amp;</span>name))<span class="question-mark">?</span>;
+<a href=#533 id=533 data-nosnippet>533</a>            record_artifact(entry, <span class="kw-2">&amp;</span>name);
+<a href=#534 id=534 data-nosnippet>534</a>        }
+<a href=#535 id=535 data-nosnippet>535</a>    }
+<a href=#536 id=536 data-nosnippet>536</a>    <span class="prelude-val">Ok</span>(())
+<a href=#537 id=537 data-nosnippet>537</a>}
+<a href=#538 id=538 data-nosnippet>538</a>
+<a href=#539 id=539 data-nosnippet>539</a><span class="kw">fn </span>record_artifact(entry: <span class="kw-2">&amp;mut </span>SysrootCrate, name: <span class="kw-2">&amp;</span>str) {
+<a href=#540 id=540 data-nosnippet>540</a>    <span class="kw">let </span>slot = <span class="kw">match </span>Utf8Path::new(name).extension() {
+<a href=#541 id=541 data-nosnippet>541</a>        <span class="prelude-val">Some</span>(<span class="string">"rlib"</span>) =&gt; <span class="kw-2">&amp;mut </span>entry.rlib,
+<a href=#542 id=542 data-nosnippet>542</a>        <span class="prelude-val">Some</span>(<span class="string">"rmeta"</span>) =&gt; <span class="kw-2">&amp;mut </span>entry.rmeta,
+<a href=#543 id=543 data-nosnippet>543</a>        <span class="prelude-val">Some</span>(<span class="string">"fluxmeta"</span>) =&gt; <span class="kw-2">&amp;mut </span>entry.fluxmeta,
+<a href=#544 id=544 data-nosnippet>544</a>        <span class="comment">// Proc macros are always built for the host. Anything else cargo reports, like `.pdb`
+<a href=#545 id=545 data-nosnippet>545</a>        // debug symbols on Windows, is not a crate.
+<a href=#546 id=546 data-nosnippet>546</a>        </span><span class="prelude-val">Some</span>(extension) <span class="kw">if </span>extension == env::consts::DLL_EXTENSION =&gt; <span class="kw-2">&amp;mut </span>entry.dylib,
+<a href=#547 id=547 data-nosnippet>547</a>        <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
+<a href=#548 id=548 data-nosnippet>548</a>    };
+<a href=#549 id=549 data-nosnippet>549</a>    <span class="kw-2">*</span>slot = <span class="prelude-val">Some</span>(name.to_string());
+<a href=#550 id=550 data-nosnippet>550</a>}
+<a href=#551 id=551 data-nosnippet>551</a>
+<a href=#552 id=552 data-nosnippet>552</a><span class="doccomment">/// Name an artifact gets inside the sysroot.
+<a href=#553 id=553 data-nosnippet>553</a>///
+<a href=#554 id=554 data-nosnippet>554</a>/// Cargo reports an uplifted, hash-free `.rlib` for these crates but a hashed `.rmeta`, and rustc
+<a href=#555 id=555 data-nosnippet>555</a>/// pairs the two by the infix between `lib&lt;crate&gt;` and the extension, so we cannot reuse cargo's
+<a href=#556 id=556 data-nosnippet>556</a>/// names. Naming by crate keeps the pairing intact.
+<a href=#557 id=557 data-nosnippet>557</a></span><span class="kw">fn </span>sysroot_file_name(artifact: <span class="kw-2">&amp;</span>Artifact, filename: <span class="kw-2">&amp;</span>Utf8Path) -&gt; anyhow::Result&lt;String&gt; {
+<a href=#558 id=558 data-nosnippet>558</a>    <span class="kw">let </span>krate = <span class="kw-2">&amp;</span>artifact.target.name;
+<a href=#559 id=559 data-nosnippet>559</a>    <span class="kw">let </span>name = filename
+<a href=#560 id=560 data-nosnippet>560</a>        .file_name()
+<a href=#561 id=561 data-nosnippet>561</a>        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"artifact `{filename}` has no file name"</span>))<span class="question-mark">?</span>;
+<a href=#562 id=562 data-nosnippet>562</a>    <span class="kw">let </span>extension = filename
+<a href=#563 id=563 data-nosnippet>563</a>        .extension()
+<a href=#564 id=564 data-nosnippet>564</a>        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"artifact `{filename}` has no extension"</span>))<span class="question-mark">?</span>;
+<a href=#565 id=565 data-nosnippet>565</a>    <span class="kw">match </span>extension {
+<a href=#566 id=566 data-nosnippet>566</a>        <span class="comment">// rustc hardcodes the `lib` prefix for its own formats on every target.
+<a href=#567 id=567 data-nosnippet>567</a>        </span><span class="string">"rlib" </span>| <span class="string">"rmeta" </span>| <span class="string">"fluxmeta" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="macro">format!</span>(<span class="string">"lib{krate}.{extension}"</span>)),
+<a href=#568 id=568 data-nosnippet>568</a>        <span class="comment">// A dylib's prefix is target-dependent (empty on Windows), so recover it from the name
+<a href=#569 id=569 data-nosnippet>569</a>        // cargo produced.
+<a href=#570 id=570 data-nosnippet>570</a>        </span><span class="kw">_ </span>=&gt; {
+<a href=#571 id=571 data-nosnippet>571</a>            <span class="kw">let </span>prefix = name
+<a href=#572 id=572 data-nosnippet>572</a>                .find(krate.as_str())
+<a href=#573 id=573 data-nosnippet>573</a>                .map(|idx| <span class="kw-2">&amp;</span>name[..idx])
+<a href=#574 id=574 data-nosnippet>574</a>                .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"artifact `{name}` does not mention crate `{krate}`"</span>))<span class="question-mark">?</span>;
+<a href=#575 id=575 data-nosnippet>575</a>            <span class="prelude-val">Ok</span>(<span class="macro">format!</span>(<span class="string">"{prefix}{krate}.{extension}"</span>))
+<a href=#576 id=576 data-nosnippet>576</a>        }
+<a href=#577 id=577 data-nosnippet>577</a>    }
+<a href=#578 id=578 data-nosnippet>578</a>}
+<a href=#579 id=579 data-nosnippet>579</a>
+<a href=#580 id=580 data-nosnippet>580</a><span class="kw">fn </span>write_sysroot_toml(manifest: <span class="kw-2">&amp;</span>SysrootManifest, sysroot: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#581 id=581 data-nosnippet>581</a>    <span class="kw">if </span>manifest.crates.is_empty() {
+<a href=#582 id=582 data-nosnippet>582</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+<a href=#583 id=583 data-nosnippet>583</a>    }
+<a href=#584 id=584 data-nosnippet>584</a>    <span class="kw">let </span>content = toml::to_string(manifest)<span class="question-mark">?</span>;
+<a href=#585 id=585 data-nosnippet>585</a>    <span class="kw">let </span>path = sysroot.join(SYSROOT_MANIFEST);
+<a href=#586 id=586 data-nosnippet>586</a>    <span class="macro">eprintln!</span>(<span class="string">"$ write {}"</span>, path.display());
+<a href=#587 id=587 data-nosnippet>587</a>    fs::write(<span class="kw-2">&amp;</span>path, <span class="kw-2">&amp;</span>content).map_err(|e| <span class="macro">anyhow!</span>(<span class="string">"failed to write `{}`: {e}"</span>, path.display()))
+<a href=#588 id=588 data-nosnippet>588</a>}
+<a href=#589 id=589 data-nosnippet>589</a>
+<a href=#590 id=590 data-nosnippet>590</a><span class="kw">impl </span>Install {
+<a href=#591 id=591 data-nosnippet>591</a>    <span class="kw">fn </span>profile(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Profile {
+<a href=#592 id=592 data-nosnippet>592</a>        <span class="self">self</span>.profile.unwrap_or(Profile::Release)
+<a href=#593 id=593 data-nosnippet>593</a>    }
+<a href=#594 id=594 data-nosnippet>594</a>}
+<a href=#595 id=595 data-nosnippet>595</a>
+<a href=#596 id=596 data-nosnippet>596</a><span class="kw">fn </span>local_sysroot_dir() -&gt; anyhow::Result&lt;PathBuf&gt; {
+<a href=#597 id=597 data-nosnippet>597</a>    <span class="prelude-val">Ok</span>(Path::new(<span class="macro">file!</span>())
+<a href=#598 id=598 data-nosnippet>598</a>        .canonicalize()<span class="question-mark">?
+<a href=#599 id=599 data-nosnippet>599</a>        </span>.ancestors()
+<a href=#600 id=600 data-nosnippet>600</a>        .nth(<span class="number">3</span>)
+<a href=#601 id=601 data-nosnippet>601</a>        .unwrap()
+<a href=#602 id=602 data-nosnippet>602</a>        .join(<span class="string">"sysroot"</span>))
+<a href=#603 id=603 data-nosnippet>603</a>}
+<a href=#604 id=604 data-nosnippet>604</a>
+<a href=#605 id=605 data-nosnippet>605</a><span class="kw">fn </span>check_status(st: ExitStatus) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#606 id=606 data-nosnippet>606</a>    <span class="kw">if </span>st.success() {
+<a href=#607 id=607 data-nosnippet>607</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+<a href=#608 id=608 data-nosnippet>608</a>    }
+<a href=#609 id=609 data-nosnippet>609</a>    <span class="kw">let </span>err = <span class="kw">match </span>st.code() {
+<a href=#610 id=610 data-nosnippet>610</a>        <span class="prelude-val">Some</span>(code) =&gt; <span class="macro">anyhow!</span>(<span class="string">"command exited with non-zero code: {code}"</span>),
+<a href=#611 id=611 data-nosnippet>611</a>        <span class="attr">#[cfg(unix)]
+<a href=#612 id=612 data-nosnippet>612</a>        </span><span class="prelude-val">None </span>=&gt; {
+<a href=#613 id=613 data-nosnippet>613</a>            <span class="kw">use </span>std::os::unix::process::ExitStatusExt;
+<a href=#614 id=614 data-nosnippet>614</a>            <span class="kw">match </span>st.signal() {
+<a href=#615 id=615 data-nosnippet>615</a>                <span class="prelude-val">Some</span>(sig) =&gt; <span class="macro">anyhow!</span>(<span class="string">"command was terminated by a signal: {sig}"</span>),
+<a href=#616 id=616 data-nosnippet>616</a>                <span class="prelude-val">None </span>=&gt; <span class="macro">anyhow!</span>(<span class="string">"command was terminated by a signal"</span>),
+<a href=#617 id=617 data-nosnippet>617</a>            }
+<a href=#618 id=618 data-nosnippet>618</a>        }
+<a href=#619 id=619 data-nosnippet>619</a>        <span class="attr">#[cfg(not(unix))]
+<a href=#620 id=620 data-nosnippet>620</a>        </span><span class="prelude-val">None </span>=&gt; <span class="macro">anyhow!</span>(<span class="string">"command was terminated by a signal"</span>),
+<a href=#621 id=621 data-nosnippet>621</a>    };
+<a href=#622 id=622 data-nosnippet>622</a>    <span class="prelude-val">Err</span>(err)
+<a href=#623 id=623 data-nosnippet>623</a>}
+<a href=#624 id=624 data-nosnippet>624</a>
+<a href=#625 id=625 data-nosnippet>625</a><span class="kw">fn </span>display_command(cmd: <span class="kw-2">&amp;</span>Command) {
+<a href=#626 id=626 data-nosnippet>626</a>    <span class="kw">for </span>var <span class="kw">in </span>cmd.get_envs() {
+<a href=#627 id=627 data-nosnippet>627</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = var.<span class="number">1 </span>{
+<a href=#628 id=628 data-nosnippet>628</a>            <span class="macro">eprintln!</span>(<span class="string">"$ export {}={}"</span>, var.<span class="number">0</span>.display(), val.display());
+<a href=#629 id=629 data-nosnippet>629</a>        }
+<a href=#630 id=630 data-nosnippet>630</a>    }
+<a href=#631 id=631 data-nosnippet>631</a>
+<a href=#632 id=632 data-nosnippet>632</a>    <span class="kw">let </span>prog = cmd.get_program();
+<a href=#633 id=633 data-nosnippet>633</a>    <span class="macro">eprint!</span>(<span class="string">"$ {}"</span>, prog.display());
+<a href=#634 id=634 data-nosnippet>634</a>    <span class="kw">for </span>arg <span class="kw">in </span>cmd.get_args() {
+<a href=#635 id=635 data-nosnippet>635</a>        <span class="macro">eprint!</span>(<span class="string">" {}"</span>, arg.display());
+<a href=#636 id=636 data-nosnippet>636</a>    }
+<a href=#637 id=637 data-nosnippet>637</a>    <span class="macro">eprintln!</span>();
+<a href=#638 id=638 data-nosnippet>638</a>}
+<a href=#639 id=639 data-nosnippet>639</a>
+<a href=#640 id=640 data-nosnippet>640</a><span class="kw">fn </span>copy_file&lt;S: AsRef&lt;Path&gt;, D: AsRef&lt;Path&gt;&gt;(src: S, dst: D) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#641 id=641 data-nosnippet>641</a>    <span class="kw">let </span>src = src.as_ref();
+<a href=#642 id=642 data-nosnippet>642</a>    <span class="kw">let </span>dst = dst.as_ref();
+<a href=#643 id=643 data-nosnippet>643</a>    <span class="macro">eprintln!</span>(<span class="string">"$ cp {} {}"</span>, src.display(), dst.display());
+<a href=#644 id=644 data-nosnippet>644</a>
+<a href=#645 id=645 data-nosnippet>645</a>    <span class="kw">let </span><span class="kw-2">mut </span>_tmp;
+<a href=#646 id=646 data-nosnippet>646</a>    <span class="kw">let </span><span class="kw-2">mut </span>dst = dst;
+<a href=#647 id=647 data-nosnippet>647</a>    <span class="kw">if </span>dst.is_dir() {
+<a href=#648 id=648 data-nosnippet>648</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(file_name) = src.file_name() {
+<a href=#649 id=649 data-nosnippet>649</a>            _tmp = dst.join(file_name);
+<a href=#650 id=650 data-nosnippet>650</a>            dst = <span class="kw-2">&amp;</span>_tmp;
+<a href=#651 id=651 data-nosnippet>651</a>        }
+<a href=#652 id=652 data-nosnippet>652</a>    }
+<a href=#653 id=653 data-nosnippet>653</a>    std::fs::copy(src, dst).map_err(|err| {
+<a href=#654 id=654 data-nosnippet>654</a>        <span class="macro">anyhow!</span>(<span class="string">"failed to copy `{}` to `{}`: {err}"</span>, src.display(), dst.display())
+<a href=#655 id=655 data-nosnippet>655</a>    })<span class="question-mark">?</span>;
+<a href=#656 id=656 data-nosnippet>656</a>
+<a href=#657 id=657 data-nosnippet>657</a>    <span class="prelude-val">Ok</span>(())
+<a href=#658 id=658 data-nosnippet>658</a>}
+<a href=#659 id=659 data-nosnippet>659</a>
+<a href=#660 id=660 data-nosnippet>660</a><span class="kw">trait </span>CommandExt {
+<a href=#661 id=661 data-nosnippet>661</a>    <span class="kw">fn </span>run(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;()&gt;;
+<a href=#662 id=662 data-nosnippet>662</a>    <span class="kw">fn </span>run_with_cargo_metadata(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;Vec&lt;Artifact&gt;&gt;;
+<a href=#663 id=663 data-nosnippet>663</a>    <span class="doccomment">/// Add `args` if `cond` is true.
+<a href=#664 id=664 data-nosnippet>664</a>    </span><span class="kw">fn </span>args_if&lt;I, S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cond: bool, args: I) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self
+<a href=#665 id=665 data-nosnippet>665</a>    </span><span class="kw">where
+<a href=#666 id=666 data-nosnippet>666</a>        </span>I: IntoIterator&lt;Item = S&gt;,
+<a href=#667 id=667 data-nosnippet>667</a>        S: AsRef&lt;OsStr&gt;;
+<a href=#668 id=668 data-nosnippet>668</a>    <span class="doccomment">/// If `opt` is `Some`, add the arguments computed by `f` from its value.
+<a href=#669 id=669 data-nosnippet>669</a>    </span><span class="kw">fn </span>args_if_some&lt;T, I, S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opt: <span class="prelude-ty">Option</span>&lt;T&gt;, f: <span class="kw">impl </span>FnOnce(T) -&gt; I) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self
+<a href=#670 id=670 data-nosnippet>670</a>    </span><span class="kw">where
+<a href=#671 id=671 data-nosnippet>671</a>        </span>I: IntoIterator&lt;Item = S&gt;,
+<a href=#672 id=672 data-nosnippet>672</a>        S: AsRef&lt;OsStr&gt;;
+<a href=#673 id=673 data-nosnippet>673</a>}
+<a href=#674 id=674 data-nosnippet>674</a>
+<a href=#675 id=675 data-nosnippet>675</a><span class="kw">impl </span>CommandExt <span class="kw">for </span>Command {
+<a href=#676 id=676 data-nosnippet>676</a>    <span class="kw">fn </span>args_if&lt;I, S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cond: bool, args: I) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self
+<a href=#677 id=677 data-nosnippet>677</a>    </span><span class="kw">where
+<a href=#678 id=678 data-nosnippet>678</a>        </span>I: IntoIterator&lt;Item = S&gt;,
+<a href=#679 id=679 data-nosnippet>679</a>        S: AsRef&lt;OsStr&gt;,
+<a href=#680 id=680 data-nosnippet>680</a>    {
+<a href=#681 id=681 data-nosnippet>681</a>        <span class="kw">if </span>cond {
+<a href=#682 id=682 data-nosnippet>682</a>            <span class="self">self</span>.args(args);
+<a href=#683 id=683 data-nosnippet>683</a>        }
+<a href=#684 id=684 data-nosnippet>684</a>        <span class="self">self
+<a href=#685 id=685 data-nosnippet>685</a>    </span>}
+<a href=#686 id=686 data-nosnippet>686</a>
+<a href=#687 id=687 data-nosnippet>687</a>    <span class="kw">fn </span>args_if_some&lt;T, I, S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opt: <span class="prelude-ty">Option</span>&lt;T&gt;, f: <span class="kw">impl </span>FnOnce(T) -&gt; I) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self
+<a href=#688 id=688 data-nosnippet>688</a>    </span><span class="kw">where
+<a href=#689 id=689 data-nosnippet>689</a>        </span>I: IntoIterator&lt;Item = S&gt;,
+<a href=#690 id=690 data-nosnippet>690</a>        S: AsRef&lt;OsStr&gt;,
+<a href=#691 id=691 data-nosnippet>691</a>    {
+<a href=#692 id=692 data-nosnippet>692</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = opt {
+<a href=#693 id=693 data-nosnippet>693</a>            <span class="self">self</span>.args(f(val));
+<a href=#694 id=694 data-nosnippet>694</a>        }
+<a href=#695 id=695 data-nosnippet>695</a>        <span class="self">self
+<a href=#696 id=696 data-nosnippet>696</a>    </span>}
+<a href=#697 id=697 data-nosnippet>697</a>
+<a href=#698 id=698 data-nosnippet>698</a>    <span class="kw">fn </span>run(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#699 id=699 data-nosnippet>699</a>        display_command(<span class="self">self</span>);
+<a href=#700 id=700 data-nosnippet>700</a>        <span class="kw">let </span><span class="kw-2">mut </span>child = <span class="self">self</span>.spawn()<span class="question-mark">?</span>;
+<a href=#701 id=701 data-nosnippet>701</a>        check_status(child.wait()<span class="question-mark">?</span>)
+<a href=#702 id=702 data-nosnippet>702</a>    }
+<a href=#703 id=703 data-nosnippet>703</a>
+<a href=#704 id=704 data-nosnippet>704</a>    <span class="kw">fn </span>run_with_cargo_metadata(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;Vec&lt;Artifact&gt;&gt; {
+<a href=#705 id=705 data-nosnippet>705</a>        <span class="self">self</span>.arg(<span class="string">"--message-format=json-render-diagnostics"</span>)
+<a href=#706 id=706 data-nosnippet>706</a>            .stdout(std::process::Stdio::piped());
+<a href=#707 id=707 data-nosnippet>707</a>
+<a href=#708 id=708 data-nosnippet>708</a>        display_command(<span class="self">self</span>);
+<a href=#709 id=709 data-nosnippet>709</a>
+<a href=#710 id=710 data-nosnippet>710</a>        <span class="kw">let </span><span class="kw-2">mut </span>child = <span class="self">self</span>.spawn()<span class="question-mark">?</span>;
+<a href=#711 id=711 data-nosnippet>711</a>
+<a href=#712 id=712 data-nosnippet>712</a>        <span class="kw">let </span><span class="kw-2">mut </span>artifacts = <span class="macro">vec!</span>[];
+<a href=#713 id=713 data-nosnippet>713</a>        <span class="kw">let </span>reader = std::io::BufReader::new(child.stdout.take().unwrap());
+<a href=#714 id=714 data-nosnippet>714</a>        <span class="kw">for </span>message <span class="kw">in </span>cargo_metadata::Message::parse_stream(reader) {
+<a href=#715 id=715 data-nosnippet>715</a>            <span class="kw">match </span>message.unwrap() {
+<a href=#716 id=716 data-nosnippet>716</a>                Message::CompilerMessage(msg) =&gt; {
+<a href=#717 id=717 data-nosnippet>717</a>                    <span class="macro">println!</span>(<span class="string">"{msg}"</span>);
+<a href=#718 id=718 data-nosnippet>718</a>                }
+<a href=#719 id=719 data-nosnippet>719</a>                Message::CompilerArtifact(artifact) =&gt; {
+<a href=#720 id=720 data-nosnippet>720</a>                    artifacts.push(artifact);
+<a href=#721 id=721 data-nosnippet>721</a>                }
+<a href=#722 id=722 data-nosnippet>722</a>                <span class="kw">_ </span>=&gt; (),
+<a href=#723 id=723 data-nosnippet>723</a>            }
+<a href=#724 id=724 data-nosnippet>724</a>        }
+<a href=#725 id=725 data-nosnippet>725</a>
+<a href=#726 id=726 data-nosnippet>726</a>        check_status(child.wait()<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+<a href=#727 id=727 data-nosnippet>727</a>
+<a href=#728 id=728 data-nosnippet>728</a>        <span class="prelude-val">Ok</span>(artifacts)
+<a href=#729 id=729 data-nosnippet>729</a>    }
+<a href=#730 id=730 data-nosnippet>730</a>}
+<a href=#731 id=731 data-nosnippet>731</a>
+<a href=#732 id=732 data-nosnippet>732</a><span class="kw">fn </span>remove_path(path: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#733 id=733 data-nosnippet>733</a>    <span class="kw">match </span>path.metadata() {
+<a href=#734 id=734 data-nosnippet>734</a>        <span class="prelude-val">Ok</span>(meta) =&gt; {
+<a href=#735 id=735 data-nosnippet>735</a>            <span class="kw">if </span>meta.is_dir() { remove_dir_all(path) } <span class="kw">else </span>{ fs::remove_file(path) }
+<a href=#736 id=736 data-nosnippet>736</a>                .map_err(|err| <span class="macro">anyhow!</span>(<span class="string">"failed to remove path `{}`: {err}"</span>, path.display()))
+<a href=#737 id=737 data-nosnippet>737</a>        }
+<a href=#738 id=738 data-nosnippet>738</a>        <span class="prelude-val">Err</span>(err) <span class="kw">if </span>err.kind() == io::ErrorKind::NotFound =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#739 id=739 data-nosnippet>739</a>        <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"failed to remove path `{}`: {err}"</span>, path.display())),
+<a href=#740 id=740 data-nosnippet>740</a>    }
+<a href=#741 id=741 data-nosnippet>741</a>}
+<a href=#742 id=742 data-nosnippet>742</a>
+<a href=#743 id=743 data-nosnippet>743</a><span class="attr">#[cfg(not(windows))]
+<a href=#744 id=744 data-nosnippet>744</a></span><span class="kw">fn </span>remove_dir_all(path: <span class="kw-2">&amp;</span>Path) -&gt; io::Result&lt;()&gt; {
+<a href=#745 id=745 data-nosnippet>745</a>    std::fs::remove_dir_all(path)
+<a href=#746 id=746 data-nosnippet>746</a>}
+<a href=#747 id=747 data-nosnippet>747</a>
+<a href=#748 id=748 data-nosnippet>748</a><span class="comment">// Copied from xshell
+<a href=#749 id=749 data-nosnippet>749</a></span><span class="attr">#[cfg(windows)]
+<a href=#750 id=750 data-nosnippet>750</a></span><span class="kw">fn </span>remove_dir_all(path: <span class="kw-2">&amp;</span>Path) -&gt; io::Result&lt;()&gt; {
+<a href=#751 id=751 data-nosnippet>751</a>    <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">99 </span>{
+<a href=#752 id=752 data-nosnippet>752</a>        <span class="kw">if </span>fs::remove_dir_all(path).is_ok() {
+<a href=#753 id=753 data-nosnippet>753</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+<a href=#754 id=754 data-nosnippet>754</a>        }
+<a href=#755 id=755 data-nosnippet>755</a>        std::thread::sleep(std::time::Duration::from_millis(<span class="number">10</span>))
+<a href=#756 id=756 data-nosnippet>756</a>    }
+<a href=#757 id=757 data-nosnippet>757</a>    fs::remove_dir_all(path)
+<a href=#758 id=758 data-nosnippet>758</a>}
+<a href=#759 id=759 data-nosnippet>759</a>
+<a href=#760 id=760 data-nosnippet>760</a><span class="kw">fn </span>create_dir(path: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#761 id=761 data-nosnippet>761</a>    <span class="kw">match </span>fs::create_dir_all(path) {
+<a href=#762 id=762 data-nosnippet>762</a>        <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#763 id=763 data-nosnippet>763</a>        <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"failed to create directory `{}`: {err}"</span>, path.display())),
+<a href=#764 id=764 data-nosnippet>764</a>    }
+<a href=#765 id=765 data-nosnippet>765</a>}
 </code></pre></div></section></main></body></html>

@@ -3997,7 +3997,9 @@ fn test00() {
 <h2 id="checking-overflows"><a class="header" href="#checking-overflows">Checking Overflows</a></h2>
 <p>You can switch on overflow checking</p>
 <ul>
-<li><em>globally</em> <a href="http://localhost:3000/guide/run.html?highlight=cache#flux-flags">with a flag</a> or</li>
+<li><em>globally</em> <a href="install.html#flux-flags">with a flag</a> or with
+<a href="../reference/manifest.html#check-overflow"><code>check-overflow</code></a> in the <code>[package.metadata.flux]</code>
+table, or</li>
 <li><em>locally</em> with an attribute as shown below</li>
 </ul>
 <pre><code class="language-rust noplayground">const MAX: u32 = u32::MAX;
@@ -4596,7 +4598,7 @@ bitwise operators <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>
 <a href="#checking-overflows">checking overflows</a>, it can be set</p>
 <ul>
 <li><em>globally</em> <a href="install.html#flux-flags">with a flag</a>, e.g. <code>-Fuif-ops="*,/"</code>, or with
-<code>uif_ops = "*,/"</code> in the <code>[package.metadata.flux]</code> table (or <code>flux.toml</code>), or</li>
+<a href="../reference/manifest.html#uif-ops"><code>uif-ops = "*,/"</code></a> in the <code>[package.metadata.flux]</code> table, or</li>
 <li><em>locally</em> with an attribute on a function, <code>impl</code>, module or crate, e.g.
 <code>#[flux::opts(uif_ops = "*,/")]</code>, as shown below</li>
 </ul>
@@ -4673,7 +4675,7 @@ pub fn add_one(x: i32) -&gt; i32 {
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../guide/develop.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../reference/manifest.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -4687,7 +4689,7 @@ pub fn add_one(x: i32) -&gt; i32 {
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../guide/develop.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../reference/manifest.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

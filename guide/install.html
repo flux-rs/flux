@@ -194,7 +194,18 @@ If you are using <code>rustup</code>, no special action is needed as it should i
 </code></pre>
 <p>This will install two binaries <code>flux</code> and <code>cargo-flux</code> in your cargo home. These two binaries should be used
 respectively to run Flux on either a single file or on a project using cargo. The installation process will
-also copy some files to <code>$HOME/.flux</code>.</p>
+also copy the Flux sysroot (the driver and precompiled libraries) to <code>$HOME/.flux/sysroot</code>.</p>
+<h2 id="flux-home"><a class="header" href="#flux-home">Flux Home</a></h2>
+<p>The Flux home is the directory <code>$HOME/.flux</code>. Its location can be changed by setting the
+<code>FLUX_HOME</code> environment variable. It contains:</p>
+<ul>
+<li><code>config.toml</code> — Your personal <a href="../reference/config.html">configuration</a>, which applies to every
+invocation of <code>cargo flux</code>. It is never modified by Flux.</li>
+<li><code>sysroot/</code> — The Flux sysroot, i.e., <code>flux-driver</code> and the precompiled Flux libraries. It is
+managed by <code>cargo xtask install</code> and <code>cargo xtask uninstall</code>, which replace or remove the whole
+directory, so it is safe to delete. Use the <code>FLUX_SYSROOT</code> environment variable to use a sysroot
+in a different location.</li>
+</ul>
 <h2 id="running-on-a-package-cargo-flux"><a class="header" href="#running-on-a-package-cargo-flux">Running on a package: <code>cargo-flux</code></a></h2>
 <p>The most common way to use Flux is to run it on a Cargo package.
 This allows you to check an entire crate in one command, <code>cargo flux</code>.</p>
@@ -295,6 +306,13 @@ hassle you should never execute it directly. Instead, use <code>flux</code> or <
 </code></pre>
 <p><strong>Note:</strong> Make sure to edit the paths in the above snippet to point to the correct locations on your machine.</p>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<p>A package is configured in two places:</p>
+<ul>
+<li>The <code>[package.metadata.flux]</code> table in <code>Cargo.toml</code> describes properties of the crate, i.e.,
+<em>what</em> is verified. See <a href="../reference/manifest.html">The Manifest Format</a>.</li>
+<li><code>.flux/config.toml</code> files control <em>how</em> <code>cargo flux</code> runs, e.g., caching, timeouts or extra
+output. See <a href="../reference/config.html">Configuration</a>.</li>
+</ul>
 <h3 id="flux-flags"><a class="header" href="#flux-flags">Flux Flags</a></h3>
 <p>The <code>flux</code> binary accepts configuration flags in the format <code>-Fname=value</code>. For boolean flags, the
 <code>value</code> can be one of <code>y</code>, <code>yes</code>, <code>on</code>, <code>true</code>, <code>n</code>, <code>no</code>, <code>off</code>, <code>false</code>. Alternatively, the <code>value</code>
@@ -303,28 +321,12 @@ qualifier scraping:</p>
 <pre><code class="language-console">flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
 </code></pre>
 <p>For all available flags, see <a href="https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html">https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html</a></p>
-<h3 id="cargo-projects"><a class="header" href="#cargo-projects">Cargo Projects</a></h3>
-<p>When working with a Cargo project, some of the <a href="#Flux-Flags">flags</a> can be configured in the
-<code>[package.metadata.flux]</code> table in <code>Cargo.toml</code>. For example, to enable query caching and set
-<code>cvc5</code> as the solver:</p>
-<pre><code class="language-toml"># Cargo.toml
-[package.metadata.flux]
-enabled = true
-cache = true
-solver = "cvc5"
-</code></pre>
-<p>Additionally, <code>cargo flux</code> searches for a configuration file called <code>flux.toml</code> with the same format
-as the metadata table. The content of <code>flux.toml</code> takes precedence and it's merged with the
-content of the <code>metadata</code> table. Note that the content of <code>flux.toml</code> will override the <code>metadata</code>
-for all crates, including dependencies. This behavior is likely to change in the future as we figure
-out what configurations make sense to have per package and which should only affect the current execution
-of <code>cargo flux</code>.</p>
-<p>You can see the format of the <code>metadata</code> in <a href="https://flux-rs.github.io/flux/doc/flux_bin/struct.FluxMetadata.html">https://flux-rs.github.io/flux/doc/flux_bin/struct.FluxMetadata.html</a>.</p>
-<h3 id="fluxflags-environment-variable"><a class="header" href="#fluxflags-environment-variable"><code>FLUXFLAGS</code> Environment Variable</a></h3>
-<p>When running <code>cargo flux</code>, flags defined in <code>FLUXFLAGS</code> will be passed to all <code>flux</code> invocations,
-for example, to print timing information for all crates checked by Flux:</p>
+<p>When running <code>cargo flux</code>, flags defined in the <code>FLUXFLAGS</code> environment variable are passed to all
+packages checked by Flux, for example, to print timing information:</p>
 <pre><code class="language-console">FLUXFLAGS="-Ftimings" cargo flux
 </code></pre>
+<p>See <a href="../reference/config.html#how-flags-are-combined">how flags are combined</a> for how these flags
+interact with the manifest and the configuration files.</p>
 <h3 id="verbose-flag"><a class="header" href="#verbose-flag">Verbose Flag</a></h3>
 <p>One particularly useful flag is</p>
 <pre><code class="language-console">FLUXFLAGS="-Fflux-verbose" cargo flux

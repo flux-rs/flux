@@ -1,0 +1,365 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>The Manifest Format - The Flux Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../flux_theme/flux.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Flux Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="the-manifest-format"><a class="header" href="#the-manifest-format">The Manifest Format</a></h1>
+<p>Flux is configured for a package in the <code>[package.metadata.flux]</code> table of its <code>Cargo.toml</code>.
+Cargo itself ignores this table. <code>cargo flux</code> reads it for every package in the dependency graph,
+so a verified dependency is checked with the settings of its own manifest.</p>
+<p>The table describes properties of the crate: <em>what</em> is verified and under which semantics.
+Settings that control <em>how</em> <code>cargo flux</code> runs, e.g., caching or timeouts, live in
+<a href="config.html"><code>.flux/config.toml</code></a> instead.</p>
+<pre><code class="language-toml">[package.metadata.flux]
+enabled = true
+include = ["src/verified/**"]
+check-overflow = "strict"
+no-panic = true
+allow-uninterpreted-cast = false
+allow-raw-deref = "none"
+lean = "off"
+solver = "cvc5"
+scrape-quals = true
+uif-ops = "*,/"
+
+[package.metadata.flux.trusted]
+default = false
+files = ["src/ffi/**"]
+
+[package.metadata.flux.trusted-impl]
+files = ["src/impls/**"]
+
+[package.metadata.flux.ignore]
+default = false
+</code></pre>
+<p>The keys of the table are described below. Keys use kebab-case. Unknown keys are an error.</p>
+<h2 id="enabled"><a class="header" href="#enabled"><code>enabled</code></a></h2>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+</ul>
+<p>Flux only checks a package if <code>enabled</code> is <code>true</code>. Other packages are compiled as usual.</p>
+<h2 id="include"><a class="header" href="#include"><code>include</code></a></h2>
+<ul>
+<li>Type: array of <a href="#patterns">patterns</a></li>
+<li>Default: all files</li>
+<li>Flag: <code>-Finclude</code></li>
+</ul>
+<p>If present, only items in files matching one of the patterns are checked. The <code>--only-check</code>
+option of <code>cargo flux</code> replaces these patterns for the packages it targets. See also
+<a href="../guide/specifications.html#include-patterns">Include Patterns</a>.</p>
+<h2 id="check-overflow"><a class="header" href="#check-overflow"><code>check-overflow</code></a></h2>
+<ul>
+<li>Type: string (<code>none</code>, <code>lazy</code>, <code>strict-under</code> or <code>strict</code>)</li>
+<li>Default: <code>none</code></li>
+<li>Flag: <code>-Fcheck-overflow</code></li>
+</ul>
+<p>How arithmetic overflow and underflow are checked. See
+<a href="../guide/specifications.html#checking-overflows">Checking Overflows</a>.</p>
+<h2 id="no-panic"><a class="header" href="#no-panic"><code>no-panic</code></a></h2>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fno-panic</code></li>
+</ul>
+<p>If <code>true</code>, every function is implicitly labeled with <code>no_panic</code>, so the only way a function can
+panic is by calling an external function without this attribute.</p>
+<h2 id="allow-uninterpreted-cast"><a class="header" href="#allow-uninterpreted-cast"><code>allow-uninterpreted-cast</code></a></h2>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fallow-uninterpreted-cast</code></li>
+</ul>
+<p>Allow uninterpreted casts between sorts. See
+<a href="../guide/specifications.html#casting-sorts">Casting Sorts</a>.</p>
+<h2 id="allow-raw-deref"><a class="header" href="#allow-raw-deref"><code>allow-raw-deref</code></a></h2>
+<ul>
+<li>Type: string (<code>none</code> or <code>ok</code>)</li>
+<li>Default: <code>none</code></li>
+<li>Flag: <code>-Fallow-raw-deref</code></li>
+</ul>
+<p>Whether raw pointer dereferences are allowed during refinement checking.</p>
+<h2 id="lean"><a class="header" href="#lean"><code>lean</code></a></h2>
+<ul>
+<li>Type: string (<code>off</code>, <code>emit</code> or <code>check</code>)</li>
+<li>Default: <code>off</code></li>
+<li>Flag: <code>-Flean</code></li>
+</ul>
+<p>With <code>emit</code>, Flux emits Lean definitions and verification conditions for items proven externally.
+With <code>check</code>, it also checks them.</p>
+<h2 id="solver"><a class="header" href="#solver"><code>solver</code></a></h2>
+<ul>
+<li>Type: string (<code>z3</code> or <code>cvc5</code>)</li>
+<li>Default: <code>z3</code></li>
+<li>Flag: <code>-Fsolver</code></li>
+</ul>
+<p>The SMT solver used to verify the crate.</p>
+<h2 id="scrape-quals"><a class="header" href="#scrape-quals"><code>scrape-quals</code></a></h2>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fscrape-quals</code></li>
+</ul>
+<p>Let fixpoint scrape qualifiers from the constraints. See
+<a href="../guide/specifications.html#scraping-qualifiers">Scraping Qualifiers</a>.</p>
+<h2 id="uif-ops"><a class="header" href="#uif-ops"><code>uif-ops</code></a></h2>
+<ul>
+<li>Type: string (a comma separated list of operators)</li>
+<li>Default: none</li>
+<li>Flag: <code>-Fuif-ops</code></li>
+</ul>
+<p>Binary operators encoded as uninterpreted functions in the constraints. See
+<a href="../guide/specifications.html#uninterpreted-operators">Uninterpreted Operators</a>.</p>
+<h2 id="the-trusted-table"><a class="header" href="#the-trusted-table">The <code>trusted</code> table</a></h2>
+<pre><code class="language-toml">[package.metadata.flux.trusted]
+default = false
+files = ["src/ffi/**"]
+</code></pre>
+<ul>
+<li><code>default</code> (boolean, default <code>false</code>, flag <code>-Ftrusted</code>): if <code>true</code>, all code is trusted by default.
+Items can be untrusted with <code>#[trusted(no)]</code>.</li>
+<li><code>files</code> (array of <a href="#patterns">patterns</a>, flag <code>-Finclude-trusted</code>): only consider items in files
+matching one of the patterns as trusted.</li>
+</ul>
+<p>See <a href="../guide/specifications.html#ignored-and-trusted-code">Ignored and trusted code</a>.</p>
+<h2 id="the-trusted-impl-table"><a class="header" href="#the-trusted-impl-table">The <code>trusted-impl</code> table</a></h2>
+<pre><code class="language-toml">[package.metadata.flux.trusted-impl]
+files = ["src/impls/**"]
+</code></pre>
+<ul>
+<li><code>files</code> (array of <a href="#patterns">patterns</a>, flag <code>-Finclude-trusted-impl</code>): only consider items in
+files matching one of the patterns as <code>trusted_impl</code>.</li>
+</ul>
+<h2 id="the-ignore-table"><a class="header" href="#the-ignore-table">The <code>ignore</code> table</a></h2>
+<pre><code class="language-toml">[package.metadata.flux.ignore]
+default = false
+</code></pre>
+<ul>
+<li><code>default</code> (boolean, default <code>false</code>, flag <code>-Fignore</code>): if <code>true</code>, all code is ignored by default.
+Items can be unignored with <code>#[ignore(no)]</code>.</li>
+</ul>
+<h2 id="patterns"><a class="header" href="#patterns">Patterns</a></h2>
+<p><code>include</code>, <code>trusted.files</code> and <code>trusted-impl.files</code> take patterns of the following forms:</p>
+<ul>
+<li><code>glob:&lt;pattern&gt;</code> or a bare <code>&lt;pattern&gt;</code>: match files by glob, e.g., <code>src/ascii/*.rs</code>.</li>
+<li><code>def:&lt;name&gt;</code>: match items whose name contains <code>&lt;name&gt;</code>.</li>
+<li><code>span:&lt;file&gt;:&lt;line&gt;:&lt;col&gt;</code>: match the item at a source location.</li>
+</ul>
+<p>File paths are relative to the directory containing <code>Cargo.toml</code>.</p>
+<h2 id="overriding-a-property-for-a-single-run"><a class="header" href="#overriding-a-property-for-a-single-run">Overriding a property for a single run</a></h2>
+<p>Crate properties cannot be set in <code>.flux/config.toml</code>. To try a different setting without editing
+the manifest, pass the corresponding flag, e.g.,</p>
+<pre><code class="language-console">FLUXFLAGS="-Fsolver=z3" cargo flux
+</code></pre>
+<p>See <a href="config.html#how-flags-are-combined">how flags are combined</a>.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../guide/specifications.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../reference/config.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../guide/specifications.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../reference/config.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

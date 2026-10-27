@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["LOCATED","LOCATION_FIELD","VALUE_FIELD"],"enum":["ConfigValue"],"fn":["line_column"],"struct":["ConfigError","ListAccess","Located","Location","TableAccess"]};

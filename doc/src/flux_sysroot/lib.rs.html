@@ -74,12 +74,12 @@
 <a href=#74 id=74 data-nosnippet>74</a><span class="doccomment">/// Name of the environment variable used to override the Flux sysroot location.
 <a href=#75 id=75 data-nosnippet>75</a>///
 <a href=#76 id=76 data-nosnippet>76</a>/// The sysroot is a directory containing `flux-driver` and precompiled Flux libraries. When unset,
-<a href=#77 id=77 data-nosnippet>77</a>/// the default is `~/.flux` (managed by `cargo x install`). Set this variable to redirect
+<a href=#77 id=77 data-nosnippet>77</a>/// the default is `$FLUX_HOME/sysroot` (managed by `cargo x install`). Set this variable to redirect
 <a href=#78 id=78 data-nosnippet>78</a>/// `flux` and `cargo-flux` to a different location, e.g., a custom or non-default install path.
 <a href=#79 id=79 data-nosnippet>79</a>///
 <a href=#80 id=80 data-nosnippet>80</a>/// During development, `cargo x build-sysroot` populates `&lt;workspace-root&gt;/sysroot/`. The test
 <a href=#81 id=81 data-nosnippet>81</a>/// runner (`cargo x test`) automatically sets `FLUX_SYSROOT` to that directory so tests use the
-<a href=#82 id=82 data-nosnippet>82</a>/// locally built artifacts instead of `~/.flux`.
+<a href=#82 id=82 data-nosnippet>82</a>/// locally built artifacts instead of the installed ones.
 <a href=#83 id=83 data-nosnippet>83</a></span><span class="kw">pub const </span>FLUX_SYSROOT: <span class="kw-2">&amp;</span>str = <span class="string">"FLUX_SYSROOT"</span>;
 <a href=#84 id=84 data-nosnippet>84</a>
 <a href=#85 id=85 data-nosnippet>85</a><span class="doccomment">/// Returns the path to the active Flux sysroot.
@@ -92,10 +92,27 @@
 <a href=#92 id=92 data-nosnippet>92</a>    env::var_os(FLUX_SYSROOT).map_or_else(default_flux_sysroot_dir, PathBuf::from)
 <a href=#93 id=93 data-nosnippet>93</a>}
 <a href=#94 id=94 data-nosnippet>94</a>
-<a href=#95 id=95 data-nosnippet>95</a><span class="doccomment">/// Returns `~/.flux`, the default Flux sysroot when [`FLUX_SYSROOT`] is not set.
-<a href=#96 id=96 data-nosnippet>96</a></span><span class="kw">pub fn </span>default_flux_sysroot_dir() -&gt; PathBuf {
-<a href=#97 id=97 data-nosnippet>97</a>    home::home_dir()
-<a href=#98 id=98 data-nosnippet>98</a>        .expect(<span class="string">"Couldn't find home directory"</span>)
-<a href=#99 id=99 data-nosnippet>99</a>        .join(<span class="string">".flux"</span>)
-<a href=#100 id=100 data-nosnippet>100</a>}
+<a href=#95 id=95 data-nosnippet>95</a><span class="doccomment">/// Environment variable overriding the Flux home directory.
+<a href=#96 id=96 data-nosnippet>96</a>///
+<a href=#97 id=97 data-nosnippet>97</a>/// Like `CARGO_HOME` for cargo, the Flux home holds the user-level configuration file
+<a href=#98 id=98 data-nosnippet>98</a>/// (`config.toml`) and the default installation of the sysroot (`sysroot/`). When unset, the
+<a href=#99 id=99 data-nosnippet>99</a>/// default is `~/.flux`.
+<a href=#100 id=100 data-nosnippet>100</a></span><span class="kw">pub const </span>FLUX_HOME: <span class="kw-2">&amp;</span>str = <span class="string">"FLUX_HOME"</span>;
+<a href=#101 id=101 data-nosnippet>101</a>
+<a href=#102 id=102 data-nosnippet>102</a><span class="doccomment">/// Returns the Flux home directory, i.e., [`FLUX_HOME`] or `~/.flux` if not set.
+<a href=#103 id=103 data-nosnippet>103</a></span><span class="kw">pub fn </span>flux_home_dir() -&gt; PathBuf {
+<a href=#104 id=104 data-nosnippet>104</a>    env::var_os(FLUX_HOME).map_or_else(
+<a href=#105 id=105 data-nosnippet>105</a>        || {
+<a href=#106 id=106 data-nosnippet>106</a>            home::home_dir()
+<a href=#107 id=107 data-nosnippet>107</a>                .expect(<span class="string">"Couldn't find home directory"</span>)
+<a href=#108 id=108 data-nosnippet>108</a>                .join(<span class="string">".flux"</span>)
+<a href=#109 id=109 data-nosnippet>109</a>        },
+<a href=#110 id=110 data-nosnippet>110</a>        PathBuf::from,
+<a href=#111 id=111 data-nosnippet>111</a>    )
+<a href=#112 id=112 data-nosnippet>112</a>}
+<a href=#113 id=113 data-nosnippet>113</a>
+<a href=#114 id=114 data-nosnippet>114</a><span class="doccomment">/// Returns `$FLUX_HOME/sysroot`, the default Flux sysroot when [`FLUX_SYSROOT`] is not set.
+<a href=#115 id=115 data-nosnippet>115</a></span><span class="kw">pub fn </span>default_flux_sysroot_dir() -&gt; PathBuf {
+<a href=#116 id=116 data-nosnippet>116</a>    flux_home_dir().join(<span class="string">"sysroot"</span>)
+<a href=#117 id=117 data-nosnippet>117</a>}
 </code></pre></div></section></main></body></html>
