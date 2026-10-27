@@ -6,7 +6,7 @@ so a verified dependency is checked with the settings of its own manifest.
 
 The table describes properties of the crate: _what_ is verified and under which semantics.
 Settings that control _how_ `cargo flux` runs, e.g., caching or timeouts, live in
-[`.flux/config.toml`](config.md) instead. The two never share a key.
+[`.flux/config.toml`](config.md) instead.
 
 ```toml
 [package.metadata.flux]

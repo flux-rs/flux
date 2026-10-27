@@ -294,28 +294,27 @@ impl FluxConfig {
         version: &str,
         is_workspace_member: bool,
     ) -> anyhow::Result<PackageConfig> {
-        let mut matching = self
+        let matching: Vec<_> = self
             .packages
             .iter()
-            .filter(|(spec, _)| spec_matches(spec, name, version));
-        let named = matching.next();
-        if let Some((other, _)) = matching.next() {
+            .filter(|(spec, _)| spec_matches(spec, name, version))
+            .collect();
+        if matching.len() >= 2 {
             bail!(
                 "multiple `[package]` tables in `.flux/config.toml` match package `{name}`: `{}` and \
-                 `{other}`",
-                named.unwrap().0
+                 `{}`",
+                matching[0].0,
+                matching[1].0
             );
         }
+        let named = matching.first().map(|(_, package)| *package);
         let all_non_members =
             if is_workspace_member { None } else { self.packages.get(ALL_NON_MEMBERS) };
 
         // Overrides in increasing order of precedence. Settings are merged field by field.
         let mut settings: Vec<ConfigValue> = self.settings.iter().cloned().collect();
         let mut fluxflags = vec![];
-        for package in [all_non_members, named.map(|(_, package)| package)]
-            .into_iter()
-            .flatten()
-        {
+        for package in [all_non_members, named].into_iter().flatten() {
             settings.push(package.settings.clone());
             if let Some(flags) = &package.fluxflags {
                 fluxflags = flags.clone();

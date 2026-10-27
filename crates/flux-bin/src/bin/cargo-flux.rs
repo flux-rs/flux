@@ -127,8 +127,7 @@ incremental = false
 rustflags = [{:?}]
                         "#,
                     package.id,
-                    // Like cargo's own flags before rustflags, the flags `cargo flux` sets itself
-                    // come first, so any of them can be overridden.
+                    // flags `cargo-flux` sets come first, so any of them can be overridden.
                     ["-Fverify=on", "-Ffull-compilation=on", sysroot_flag.as_str()]
                         .into_iter()
                         .chain(
