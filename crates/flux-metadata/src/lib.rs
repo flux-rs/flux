@@ -45,7 +45,6 @@ use rustc_hir::{
 };
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
-use rustc_serialize::ContextOrd;
 use rustc_session::config::OutFileName;
 use rustc_span::{
     SourceFile, Span, StableSourceFileId,
@@ -59,7 +58,7 @@ const METADATA_HEADER: &[u8] = &[b'f', b'l', b'u', b'x', 0, 0, 0, METADATA_VERSI
 
 #[derive(Default)]
 pub struct CStore<'tcx> {
-    local_tables: UnordMap<CrateNum, Tables<'tcx, DefIndexKey>>,
+    local_tables: UnordMap<CrateNum, Tables<'tcx, DefIndex>>,
     extern_tables: Tables<'tcx, DefId>,
 }
 
@@ -90,29 +89,10 @@ impl EncodedSourceFileId {
 pub struct Footer {
     file_index_to_stable_id: FxHashMap<SourceFileIndex, EncodedSourceFileId>,
     syntax_contexts: FxHashMap<u32, AbsoluteBytePos>,
-    expn_data: FxHashMap<ExpnKey, AbsoluteBytePos>,
+    expn_data: FxHashMap<(StableCrateId, u32), AbsoluteBytePos>,
 }
-
-// Flux metadata is not encoded deterministically (i.e., `DETERMINISTIC_HASH_MAP_ENCODE` is false),
-// so the `ContextOrd` impls below never need to provide a stable comparator.
-
 #[derive(Encodable, Decodable, Eq, PartialEq, Hash, Clone, Copy, Debug)]
 struct SourceFileIndex(u32);
-
-impl<E> ContextOrd<E> for SourceFileIndex {}
-
-/// Identifies an expansion by the stable id of its crate and its crate-local index.
-#[derive(Encodable, Decodable, Eq, PartialEq, Hash, Clone, Copy, Debug)]
-struct ExpnKey(StableCrateId, u32);
-
-impl<E> ContextOrd<E> for ExpnKey {}
-
-/// Wrapper around [`DefIndex`] used to key the local tables. We need a local type to be able to
-/// implement [`ContextOrd`].
-#[derive(Encodable, Decodable, Eq, PartialEq, Hash, Clone, Copy, Debug)]
-struct DefIndexKey(DefIndex);
-
-impl<E> ContextOrd<E> for DefIndexKey {}
 
 #[derive(Encodable, Decodable, Clone, Copy)]
 pub struct AbsoluteBytePos(u64);
@@ -129,7 +109,7 @@ impl AbsoluteBytePos {
 
 #[derive(Default, TyEncodable, TyDecodable)]
 pub struct CrateMetadata<'tcx> {
-    local_tables: Tables<'tcx, DefIndexKey>,
+    local_tables: Tables<'tcx, DefIndex>,
     extern_tables: Tables<'tcx, DefId>,
 }
 
@@ -143,14 +123,14 @@ trait Key {
 }
 
 impl Key for DefId {
-    type KeyIndex = DefIndexKey;
+    type KeyIndex = DefIndex;
 
     fn crate_num(self) -> CrateNum {
         self.krate
     }
 
     fn to_index(self) -> Self::KeyIndex {
-        DefIndexKey(self.index)
+        self.index
     }
 
     fn name(self, tcx: TyCtxt) -> String {
@@ -159,14 +139,14 @@ impl Key for DefId {
 }
 
 impl Key for FluxDefId {
-    type KeyIndex = FluxId<DefIndexKey>;
+    type KeyIndex = FluxId<DefIndex>;
 
     fn crate_num(self) -> CrateNum {
         self.parent().krate
     }
 
     fn to_index(self) -> Self::KeyIndex {
-        self.index().map_parent(DefIndexKey)
+        self.index()
     }
 
     fn name(self, tcx: TyCtxt) -> String {
@@ -446,26 +426,24 @@ impl<'tcx> CrateMetadata<'tcx> {
     }
 }
 
-fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, DefIndexKey>) {
+fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, DefIndex>) {
     tables.spec_funcs = genv.spec_funcs(LOCAL_CRATE);
 
     encode_flux_module_children(genv, tables);
     for (def_id, item) in genv.fhir_iter_flux_items() {
         match item {
             fhir::FluxItem::Func(spec_func) => {
-                tables.func_sort.insert(
-                    def_id.local_def_index().map_parent(DefIndexKey),
-                    genv.func_sort(def_id),
-                );
+                tables
+                    .func_sort
+                    .insert(def_id.local_def_index(), genv.func_sort(def_id));
                 tables
                     .func_span
-                    .insert(def_id.local_def_index().map_parent(DefIndexKey), spec_func.ident_span);
+                    .insert(def_id.local_def_index(), spec_func.ident_span);
             }
             fhir::FluxItem::SortDecl(_sort_decl) => {
-                tables.sort_decl_param_count.insert(
-                    def_id.local_def_index().map_parent(DefIndexKey),
-                    genv.sort_decl_param_count(def_id),
-                );
+                tables
+                    .sort_decl_param_count
+                    .insert(def_id.local_def_index(), genv.sort_decl_param_count(def_id));
             }
             fhir::FluxItem::PrimOpProp(_)
             | fhir::FluxItem::Axiom(_)
@@ -476,7 +454,7 @@ fn encode_flux_defs<'tcx>(genv: GlobalEnv<'_, 'tcx>, tables: &mut Tables<'tcx, D
 
 fn encode_flux_module_children<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
-    tables: &mut Tables<'tcx, DefIndexKey>,
+    tables: &mut Tables<'tcx, DefIndex>,
 ) {
     genv.tcx().hir_for_each_module(|module| {
         let module = module.to_local_def_id();
@@ -484,7 +462,7 @@ fn encode_flux_module_children<'tcx>(
         if !children.is_empty() {
             tables
                 .flux_module_children
-                .insert(DefIndexKey(module.local_def_index), children.to_vec());
+                .insert(module.local_def_index, children.to_vec());
         }
     });
 }

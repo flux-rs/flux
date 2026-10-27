@@ -1,7 +1,6 @@
 use flux_common::bug;
 use rustc_hir::def_id::{CrateNum, DefId, DefIndex, LocalDefId};
 use rustc_macros::{Decodable, Encodable};
-use rustc_serialize::ContextOrd;
 use rustc_span::Symbol;
 
 /// An id for a Flux-specific item that doesn't have a corresponding Rust item and thus, we cannot
@@ -29,9 +28,6 @@ pub struct FluxId<Id> {
     name: Symbol,
 }
 
-// Flux metadata is not encoded deterministically, so a stable comparator is never needed.
-impl<Id, E> ContextOrd<E> for FluxId<Id> {}
-
 pub type FluxDefId = FluxId<DefId>;
 pub type FluxLocalDefId = FluxId<LocalDefId>;
 
@@ -46,12 +42,6 @@ impl<Id> FluxId<Id> {
 
     pub fn name(self) -> Symbol {
         self.name
-    }
-
-    /// Changes the representation of the parent id. The function must map the parent to an
-    /// equivalent id for the same item, so that the existence invariant is preserved.
-    pub fn map_parent<T>(self, f: impl FnOnce(Id) -> T) -> FluxId<T> {
-        FluxId { parent: f(self.parent), name: self.name }
     }
 }
 
