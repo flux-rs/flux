@@ -133,7 +133,7 @@ pub struct CompileOpts {
     #[command(flatten)]
     flux_flags: FluxFlags,
 
-    /// Only check items matching PATTERN (overrides include patterns from cargo.toml or flux.toml).
+    /// Only check items matching PATTERN (overrides include patterns from Cargo.toml).
     ///
     /// Supported patterns:
     ///   def:<name>              — match items whose name contains <name>

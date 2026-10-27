@@ -1067,7 +1067,9 @@ To see how `flux` handles `for i in 0..n` style loops:
 
 You can switch on overflow checking
 
-- _globally_ [with a flag](http://localhost:3000/guide/run.html?highlight=cache#flux-flags) or
+- _globally_ [with a flag](install.md#flux-flags) or with
+  [`check-overflow`](../reference/manifest.md#check-overflow) in the `[package.metadata.flux]`
+  table, or
 - _locally_ with an attribute as shown below
 
 ```rust,noplayground
@@ -1226,7 +1228,7 @@ bitwise operators `+`, `-`, `*`, `/`, `%`, `&`, `|`, `^`, `<<`, or `>>`. Like
 [checking overflows](#checking-overflows), it can be set
 
 - _globally_ [with a flag](install.md#flux-flags), e.g. `-Fuif-ops="*,/"`, or with
-  `uif_ops = "*,/"` in the `[package.metadata.flux]` table (or `flux.toml`), or
+  [`uif-ops = "*,/"`](../reference/manifest.md#uif-ops) in the `[package.metadata.flux]` table, or
 - _locally_ with an attribute on a function, `impl`, module or crate, e.g.
   `#[flux::opts(uif_ops = "*,/")]`, as shown below
 

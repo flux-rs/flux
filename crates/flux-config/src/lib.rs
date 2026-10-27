@@ -70,7 +70,7 @@ pub fn lean() -> LeanMode {
     FLAGS.lean
 }
 
-pub fn cache_path() -> Option<&'static Path> {
+pub fn cache_dir() -> Option<&'static Path> {
     FLAGS.cache.as_deref()
 }
 

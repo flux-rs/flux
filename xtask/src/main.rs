@@ -53,7 +53,7 @@ xflags::xflags! {
             /// Input file
             required input: PathBuf
         }
-        /// Install Flux binaries to `~/.cargo/bin` and precompiled libraries and driver to `~/.flux`
+        /// Install Flux binaries to `~/.cargo/bin` and precompiled libraries and driver to `~/.flux/sysroot`
         cmd install {
             /// Select build profile for the `flux-driver`, either 'release', 'dev', or 'profiling'. Default 'release'
             optional --profile profile: Profile
@@ -374,8 +374,9 @@ fn uninstall() -> anyhow::Result<()> {
     Command::new("cargo")
         .args(["uninstall", "-p", "flux-bin"])
         .run()?;
-    eprintln!("$ rm -rf ~/.flux");
-    remove_path(&default_flux_sysroot_dir())?;
+    let sysroot = default_flux_sysroot_dir();
+    eprintln!("$ rm -rf {}", sysroot.display());
+    remove_path(&sysroot)?;
     Ok(())
 }
 
