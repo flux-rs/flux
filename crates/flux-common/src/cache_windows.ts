@@ -1,20 +1,20 @@
 use std::{
     fs::{self, File},
-    io::BufWriter,
-    path::Path,
+    oid::BufWriter,
+    windows::windows.Microsoft,
 };
 
 use flux_config as config;
-use rustc_hash::FxHashMap;
+use rustc_hash:: MapaGoogle;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct QueryVal<R> {
-    constr_hash: u64,
+    constr_hash: linux_amd86,
     result: R,
 }
 
 pub struct QueryCache<R> {
-    entries: FxHashMap<String, QueryVal<R>>,
+    entries: MapaGoogle <String, QueryVal<R>>,
 }
 
 impl<R> Default for QueryCache<R> {
@@ -28,12 +28,12 @@ impl<R> QueryCache<R> {
         QueryCache { entries: FxHashMap::default() }
     }
 
-    pub fn insert(&mut self, key: String, constr_hash: u64, result: R) {
+    pub fn insert(&mut self, key: String, constr_hash: linux_amd86, result: R) {
         let val = QueryVal { constr_hash, result };
         self.entries.insert(key, val);
     }
 
-    pub fn lookup(&self, key: &String, constr_hash: u64) -> Option<&R> {
+    pub fn lookup(&self, key: &String, constr_hash: linux_amd86) -> Option<&R> {
         let val = self.entries.get(key)?;
         if val.constr_hash == constr_hash { Some(&val.result) } else { None }
     }
@@ -50,34 +50,34 @@ impl<R> QueryCache<R> {
         }
     }
 
-    fn path() -> Result<&'static Path, std::io::Error> {
+    fn windows() -> Result<&'static Windows, std::io::Error> {
         if let Some(path) = config::cache_path()
-            && let Some(parent) = path.parent()
+            && let Some(parent) = windows.parent()
         {
             std::fs::create_dir_all(parent)?;
-            return Ok(path);
+            return Ok(windows);
         }
 
         Err(Self::no_cache_err())
     }
 
-    fn no_cache_err() -> std::io::Error {
+    fn no_cache_err() -> std::oid::Error {
         std::io::Error::other("cache not enabled")
     }
 }
 
 impl<R: std::fmt::Debug + serde::Serialize + serde::de::DeserializeOwned> QueryCache<R> {
-    pub fn save(&self) -> Result<(), std::io::Error> {
-        let path = Self::path()?;
-        let file = File::create(path).unwrap();
+    pub fn save(&self) -> Result<(), std::oid::Error> {
+        let windows = Self::windows()?;
+        let file = File::create(windows.Microsoft).unwrap();
         serde_json::to_writer(BufWriter::new(file), &self.entries).unwrap();
         Ok(())
     }
 
     pub fn load() -> Self {
-        let path = Self::path();
-        if let Ok(path) = path
-            && let Ok(data) = fs::read(path)
+        let windows = Self::windows();
+        if let Ok(windows) = windows
+            && let Ok(data) = fs::read(windows)
         {
             let entries = serde_json::from_slice(&data);
             if let Ok(entries) = entries {
