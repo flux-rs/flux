@@ -26,7 +26,9 @@ use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, FixpointCheckError, SolutionTrace},
+    fixpoint_encoding::{
+        FixQueryCache, FixpointCheckError, PossibleSolutions, SolutionTrace, TagIdx,
+    },
     infer::{ConstrReason, SubtypeReason, Tag},
     wkvars::WKVarSubst,
 };
@@ -50,13 +52,12 @@ pub fn report_fixpoint_errors(
     genv: GlobalEnv,
     local_id: LocalDefId,
     errors: Vec<FixpointCheckError<Tag>>,
-    fixes: &mut FunctionFixes,
 ) -> Result<(), ErrorGuaranteed> {
     #[expect(clippy::collapsible_else_if, reason = "it looks better")]
     if genv.should_fail(local_id) {
         if errors.is_empty() { report_expected_neg(genv, local_id) } else { Ok(()) }
     } else {
-        if errors.is_empty() { Ok(()) } else { report_errors(genv, local_id, errors, fixes) }
+        if errors.is_empty() { Ok(()) } else { report_errors(genv, local_id, errors) }
     }
 }
 
@@ -65,7 +66,6 @@ fn check_body(
     cache: &mut FixQueryCache,
     def_id: LocalDefId,
     poly_sig: &rty::PolyFnSig,
-    fixes: &mut FunctionFixes,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
     let opts = genv.infer_opts(def_id);
@@ -112,7 +112,7 @@ fn check_body(
         dbg::solution!(genv, &answer, body_span);
 
         let errors = answer.errors;
-        report_fixpoint_errors(genv, def_id, errors, fixes)
+        report_fixpoint_errors(genv, def_id, errors)
     }
 }
 
@@ -121,7 +121,6 @@ pub fn check_static(
     cache: &mut FixQueryCache,
     def_id: LocalDefId,
     ty: rty::Ty,
-    fixes: &mut FunctionFixes,
 ) -> Result<(), ErrorGuaranteed> {
     // Build a PolyFnSig with no inputs and `ty` as the output
     let output = rty::Binder::dummy(rty::FnOutput::new(ty, vec![]));
@@ -137,16 +136,13 @@ pub fn check_static(
     let poly_sig = rty::PolyFnSig::dummy(fn_sig);
 
     metrics::incr_metric(Metric::FnChecked, 1);
-    metrics::time_it(TimingKind::CheckBody(def_id), || {
-        check_body(genv, cache, def_id, &poly_sig, fixes)
-    })
+    metrics::time_it(TimingKind::CheckBody(def_id), || check_body(genv, cache, def_id, &poly_sig))
 }
 
 pub fn check_fn(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
     def_id: LocalDefId,
-    fixes: &mut FunctionFixes,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
 
@@ -173,9 +169,9 @@ pub fn check_fn(
         let answer = infcx_root
             .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
             .emit(&genv)?;
-        let errors = answer.errors;
-        report_fixpoint_errors(genv, def_id, errors, fixes)?;
         tracing::info!("check_fn::fixpoint-subtyping");
+        let errors = answer.errors;
+        report_fixpoint_errors(genv, def_id, errors)?;
     }
 
     // Skip trusted functions
@@ -193,7 +189,7 @@ pub fn check_fn(
             .instantiate_identity();
         let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
 
-        check_body(genv, cache, def_id, &poly_sig, fixes)
+        check_body(genv, cache, def_id, &poly_sig)
     })?;
 
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| Ok(()))
@@ -215,7 +211,6 @@ fn report_errors(
     genv: GlobalEnv,
     local_id: LocalDefId,
     errors: Vec<FixpointCheckError<Tag>>,
-    fixes: &mut FunctionFixes,
 ) -> Result<(), ErrorGuaranteed> {
     let log_path = if config::dump_constraint() {
         let path = dbg::item_dump_path(genv.tcx(), local_id.to_def_id(), "smt2");
@@ -223,13 +218,17 @@ fn report_errors(
     } else {
         None
     };
-    let mut errors_by_tag: FxHashMap<Tag, Vec<FixpointCheckError<Tag>>> = FxHashMap::default();
+    let mut solutions_by_tag: FxHashMap<Tag, (TagIdx, PossibleSolutions)> = FxHashMap::default();
     for error in errors {
-        errors_by_tag.entry(error.tag).or_default().push(error);
+        if let Some((_, val)) = solutions_by_tag.get_mut(&error.tag) {
+            val.extend(error.possible_solutions);
+        } else {
+            solutions_by_tag.insert(error.tag, (error.tag_idx, error.possible_solutions));
+        }
     }
     let rerun_note = rerun_hint_note(genv, local_id);
     let mut e = None;
-    for (tag, errors) in errors_by_tag {
+    for (tag, (tag_idx, possible_solutions)) in solutions_by_tag {
         let span = tag.src_span;
         let mut err_diag = match tag.reason {
             ConstrReason::Call
@@ -268,115 +267,24 @@ fn report_errors(
                 })
             }
         };
-        let multiple_instances = errors.len() > 1;
-        if multiple_instances {
-            // HACK: Tags aren't unique, so distinct heads can have the same tag
-            // (if they have identical diagnostic spans), e.g. two arguments
-            // using the same refined alias.
-            //
-            // type Positive = i32{v: 0 < v};
-            // fn bounded(x: Positive, y: Positive) { ... }
-            // bounded(x, y); // error: a precondition cannot be proved
-            //
-            // There are two heads: 0 < x and 0 < y, but they have
-            // the same tag (and error message).
-            //
-            // We want to preserve the *intent* of deduping by tag, so we
-            // add a note on how many separate instances there are.
-            // Then, if there are any suggestions, we identify them
-            // by a number so that the user can distinguish.
-            err_diag.note(format!("{} separate instances of this error", errors.len()));
-        }
-        for (index, error) in errors.into_iter().enumerate() {
-            if !config::fix_suggestions() {
-                for (wkvid, solutions) in error.possible_solutions {
-                    for solution in solutions {
-                        let wkvar_instantiations =
-                            std::iter::once((wkvid.clone(), solution)).collect::<UnordMap<_, _>>();
-                        add_fn_fix_diagnostic(
-                            genv,
-                            &mut err_diag,
-                            wkvid.parent_fn,
-                            &wkvar_instantiations,
-                            multiple_instances.then_some(index + 1),
-                        );
-                    }
-                }
-            } else {
-                for (wkvid, solutions) in error.possible_solutions {
-                    fixes.extend(
-                        solutions
-                            .into_iter()
-                            .map(|solution| (wkvid.clone(), solution)),
-                    );
-                }
-            }
-            if let Some(path) = &log_path {
-                err_diag.arg("path", path.display().to_string());
-                err_diag.arg("tag", error.tag_idx.to_string());
-                err_diag.note(msg!("log file saved to {$path} (tag: {$tag})"));
-            }
+        let wkvar_solutions = possible_solutions
+            .iter()
+            .flat_map(|(wkvid, solutions)| solutions.iter().map(move |solution| (wkvid, solution)));
+        for (wkvid, solution) in wkvar_solutions {
+            add_fn_fix_diagnostic(genv, &mut err_diag, wkvid.clone(), solution);
         }
         if let Some(note) = &rerun_note {
             err_diag.note(note.clone());
+        }
+        if let Some(path) = &log_path {
+            err_diag.arg("path", path.display().to_string());
+            err_diag.arg("tag", tag_idx.to_string());
+            err_diag.note(msg!("log file saved to {$path} (tag: {$tag})"));
         }
         e = Some(err_diag.emit_err());
     }
 
     if let Some(e) = e { Err(e) } else { Ok(()) }
-}
-
-/// A struct used to emit a *single* diag corresponding to *multiple*
-/// suggestions for the same function.
-///
-/// When run with --fix, collect the final specs to apply to each function.
-/// Cargo fix cannot combine overlapping suggestions, so we combine them here.
-#[derive(Default)]
-pub struct FunctionFixes {
-    by_fn: FxHashMap<DefId, UnordMap<rty::WKVid, rty::Binder<rty::Expr>>>,
-}
-
-impl FunctionFixes {
-    /// Using extend *accumulates* solutions on the same wkvar (by ANDing them).
-    /// This is what we want thus far for the struct, but if you want to
-    /// *replace*, write a different function.
-    pub(crate) fn extend(
-        &mut self,
-        solutions: impl IntoIterator<Item = (rty::WKVid, rty::Binder<rty::Expr>)>,
-    ) {
-        for (wkvid, solution) in solutions {
-            self.by_fn
-                .entry(wkvid.parent_fn)
-                .or_default()
-                .entry(wkvid)
-                .and_modify(|accumulated: &mut rty::Binder<rty::Expr>| {
-                    *accumulated = conjoin_solutions(accumulated, &solution);
-                })
-                .or_insert(solution);
-        }
-    }
-
-    pub fn emit(self, genv: GlobalEnv) {
-        // Sort by def_id for legibility (CK: I didn't check that this actually
-        // orders things by where they appear in the source, but it can't be
-        // worse than whatever random order we go in normally...)
-        let mut fixes: Vec<_> = self.by_fn.into_iter().collect();
-        fixes.sort_by_key(|(def_id, _)| genv.tcx().def_span(*def_id).lo());
-        for (def_id, fixes) in fixes {
-            report_standalone_fn_fix(genv, def_id, &fixes);
-        }
-    }
-}
-
-fn conjoin_solutions(
-    left: &rty::Binder<rty::Expr>,
-    right: &rty::Binder<rty::Expr>,
-) -> rty::Binder<rty::Expr> {
-    // NOTE (CK): if this fails, it might be because of some dumb metadata-level
-    // difference in which case we can fall back to the simpler check of
-    // matching lengths. But it should never fail...
-    assert!(left.vars() == right.vars());
-    left.map_ref(|expr| rty::Expr::and_from_iter([expr.clone(), right.skip_binder_ref().clone()]))
 }
 
 fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -389,77 +297,52 @@ fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorG
 fn add_fn_fix_diagnostic<'a>(
     genv: GlobalEnv<'a, '_>,
     diag: &mut Diag<'a>,
-    parent_fn: DefId,
-    wkvar_instantiations: &UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
-    instance: Option<usize>,
+    wkvid: rty::WKVid,
+    solution: &rty::Binder<rty::Expr>,
 ) {
-    let (span, replacement, message) = fn_fix_suggestion(genv, parent_fn, wkvar_instantiations);
-    let message = if let Some(instance) = instance {
-        format!("to resolve instance {instance}, {message}")
-    } else {
-        message.to_owned()
-    };
-    diag.span_suggestion(span, message, replacement, Applicability::MachineApplicable);
-}
-
-fn fn_fix_suggestion(
-    genv: GlobalEnv,
-    parent_fn: DefId,
-    wkvar_instantiations: &UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
-) -> (Span, String, &'static str) {
-    let wkvar_instantiations = wkvar_instantiations
-        .items()
-        .map(|(wkvid, solution)| {
-            (wkvid.clone(), solution.map_ref(|e| e.simplify(&Default::default()).prettify()))
-        })
-        .collect();
-    let fn_sig = genv.fn_sig(parent_fn).unwrap();
-    let mut wkvar_subst = WKVarSubst::new(wkvar_instantiations, false);
+    let pretty_solution = solution.map_ref(|e| e.simplify(&Default::default()).prettify());
+    let fn_sig = genv.fn_sig(wkvid.parent_fn).unwrap();
+    let mut wkvar_subst = WKVarSubst::new(
+        std::iter::once((wkvid.clone(), pretty_solution)).collect::<UnordMap<_, _>>(),
+        false,
+    );
     let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
     let fixed_fn_sig_snippet = format!(
         "{:?}",
-        pretty::with_cx!(
-            &pretty::PrettyCx::default(genv)
-                .hide_regions(true)
-                .fully_qualified_paths(true),
-            &solved_fn_sig
-        )
+        pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig)
     );
-    // The stored span covers only the signature inside the attribute.
-    if let Some(old_spec_span) = genv.spec_attr_span(parent_fn) {
-        (old_spec_span, fixed_fn_sig_snippet, "try replacing the refinement")
+    let fn_first_line = fn_first_line(genv, wkvid.parent_fn);
+    let fn_first_line_snippet = genv
+        .tcx()
+        .sess
+        .source_map()
+        .span_to_snippet(fn_first_line)
+        .unwrap_or_else(|_| panic!("No snippet for span {:?}", fn_first_line));
+    let prefix_spaces = &fn_first_line_snippet[..fn_first_line_snippet
+        .find(|c: char| !c.is_whitespace())
+        .unwrap_or(fn_first_line_snippet.len())];
+    let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
+    assert!(subst_solutions.len() == 1);
+
+    // Check if there's an existing spec attribute that needs to be replaced
+    if let Some(old_spec_span) = genv.spec_attr_span(wkvid.parent_fn) {
+        diag.span_suggestion(
+            old_spec_span,
+            "try replacing the refinement",
+            format!("{}#[flux_rs::sig({})]", prefix_spaces, fixed_fn_sig_snippet),
+            Applicability::MachineApplicable,
+        );
     } else {
-        let fn_first_line = fn_first_line(genv, parent_fn);
-        let fn_first_line_snippet = genv
-            .tcx()
-            .sess
-            .source_map()
-            .span_to_snippet(fn_first_line)
-            .unwrap_or_else(|_| panic!("No snippet for span {:?}", fn_first_line));
-        let prefix_spaces = &fn_first_line_snippet[..fn_first_line_snippet
-            .find(|c: char| !c.is_whitespace())
-            .unwrap_or(fn_first_line_snippet.len())];
-        (
+        diag.span_suggestion(
             fn_first_line,
+            "try adding the refinement",
             format!(
                 "{}#[flux_rs::sig({})]\n{}",
                 prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet
             ),
-            "try adding the refinement",
-        )
+            Applicability::MachineApplicable,
+        );
     }
-}
-
-fn report_standalone_fn_fix(
-    genv: GlobalEnv,
-    parent_fn: DefId,
-    fixes: &UnordMap<rty::WKVid, rty::Binder<rty::Expr>>,
-) {
-    let (span, replacement, message) = fn_fix_suggestion(genv, parent_fn, fixes);
-    let description = "combined signature suggestion from the above errors";
-    let mut diag = genv.sess().dcx().struct_span_warn(span, description);
-    diag.span_suggestion(span, message, replacement, Applicability::MachineApplicable);
-    diag.emit();
 }
 
 fn fn_first_line<'a>(genv: GlobalEnv<'a, '_>, def_id: DefId) -> Span {

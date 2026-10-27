@@ -5,6 +5,10 @@
 
 #[cfg(feature = "nightly")]
 extern crate rustc_data_structures;
+// Link rustc-private dependencies through the driver dylib in unit tests.
+#[cfg(all(test, feature = "nightly"))]
+#[allow(unused_extern_crates)]
+extern crate rustc_driver;
 #[cfg(feature = "nightly")]
 extern crate rustc_macros;
 #[cfg(feature = "nightly")]

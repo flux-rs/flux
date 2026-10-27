@@ -1472,22 +1472,6 @@ pub(crate) fn parse_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<
 
 fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> ParseResult<Expr> {
     let mut lhs = unary_expr(cx, allow_struct)?;
-    // This is used to check for an *unparenthesized* chain such as
-    //
-    // x < y < z
-    //
-    // which we do not want to allow parsing. Our logic for rejecting this
-    // before also ignored parenthesization, so even if we had
-    //
-    // (x < y) < z
-    //
-    // the parse would fail (assuming that the comparison to z is NOT a type
-    // error, although it should probably be) because we would look at the
-    // *parsed* LHS, x < y, which now no longer knows about its syntax's parens.
-    //
-    // Now we track the previous precedence *instead of* trusting the parsed AST
-    // to tell us information about whether it's involved in the chain.
-    let mut previous_precedence = None;
     loop {
         let lo = cx.lo();
         let Some((op, ntokens)) = cx.peek_binop() else { break };
@@ -1500,16 +1484,15 @@ fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> Par
             Associativity::Right => precedence,
             Associativity::Left => precedence.next(),
             Associativity::None => {
-                // Check if we're in a chain of non-associative operators with
-                // the same precedence
-                if previous_precedence == Some(precedence) {
+                if let ExprKind::BinaryOp(op, ..) = &lhs.kind
+                    && Precedence::of_binop(op) == precedence
+                {
                     return Err(cx.cannot_be_chained(lo, cx.hi()));
                 }
                 precedence.next()
             }
         };
         let rhs = parse_binops(cx, next, allow_struct)?;
-        previous_precedence = Some(precedence);
         let span = lhs.span.to(rhs.span);
         lhs = Expr {
             kind: ExprKind::BinaryOp(op, Box::new([lhs, rhs])),

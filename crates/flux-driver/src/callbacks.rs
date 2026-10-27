@@ -140,8 +140,6 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             .iter_local_def_id()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
-        std::mem::take(&mut ck.fixes).emit(genv);
-
         if config::lean().is_check() || config::lean().is_emit() {
             lean_encoding::finalize(genv)
                 .unwrap_or_else(|err| bug!("error running lean-check {err:?}"));
@@ -226,12 +224,11 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     cache: FixQueryCache,
-    fixes: refineck::FunctionFixes,
 }
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        Self { genv, cache: QueryCache::load(), fixes: Default::default() }
+        Self { genv, cache: QueryCache::load() }
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -282,7 +279,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             DefKind::Fn | DefKind::AssocFn => {
                 let Some(local_id) = def_id.as_local() else { return Ok(()) };
                 if is_fn_with_body {
-                    refineck::check_fn(genv, &mut self.cache, local_id, &mut self.fixes)?;
+                    refineck::check_fn(genv, &mut self.cache, local_id)?;
                 }
             }
             DefKind::Enum => {
@@ -319,7 +316,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                     // A static without a spec is checked against the default refinement of its
                     // type, e.g., to check the field specs of a struct in the initializer.
                     let ty = genv.static_info(def_id).emit(&genv)?;
-                    refineck::check_static(genv, &mut self.cache, local_id, ty, &mut self.fixes)?;
+                    refineck::check_static(genv, &mut self.cache, local_id, ty)?;
                 }
             }
             _ => (),
