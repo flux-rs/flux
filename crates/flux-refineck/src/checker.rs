@@ -29,6 +29,7 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{
     self, ToRustc,
+    lowering::Lower,
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
         ConstOperand, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK,
@@ -545,14 +546,75 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn check_assign_ty(
         &mut self,
-        infcx: &mut InferCtxt,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         place: &Place,
         ty: Ty,
         span: Span,
     ) -> InferResult {
+        self.check_raw_ptr_derefs(infcx, env, place, span)?;
         let ty = infcx.hoister(true).hoist(&ty);
         env.assign(&mut infcx.at(span), place, ty)
+    }
+
+    /// When a Place hasn't been handled by special casing for &raw (*ptr) etc,
+    /// and it is being written to or read from, we need to ensure all raw pointers
+    /// that get dereferenced are valid and aligned.
+    /// e.g. **p means *p is valid / aligned, as well as **p.
+    fn check_raw_ptr_derefs(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        env: &mut TypeEnv,
+        place: &Place,
+        span: Span,
+    ) -> InferResult {
+        if !infcx.check_raw_deref {
+            return Ok(());
+        }
+        let genv = self.genv;
+        for (i, idx) in env.raw_ptr_derefs(infcx, place, span)? {
+            let val_place = Place::new(place.local, place.projection[..=i].to_vec());
+            let ty = env.lookup_rust_ty(genv, &val_place)?;
+            let ctor = self.default_refiner.refine_ty_or_base(&ty)?.expect_base();
+            let pred = self.raw_ptr_deref_pred(infcx, ctor, &idx);
+            infcx.at(span).check_pred(pred, ConstrReason::Predicate);
+        }
+        Ok(())
+    }
+
+    /// Returns a predicate that corresponds to valid(p, size_of_underlying) &&
+    /// aligned(p, align_of_underlying). This should be exactly the same as the
+    /// conjunction of the `valid` and `aligned_to` functions in the extern spec of core,
+    /// except that a null pointer is never valid for a raw deref. This is different
+    /// from std::ptr::read/write, which allow for null pointers to ZSTs to be deref'd.
+    fn raw_ptr_deref_pred(
+        &self,
+        infcx: &InferCtxt<'_, 'genv, 'tcx>,
+        ctor: SubsetTyCtor,
+        idx: &Expr,
+    ) -> Expr {
+        let genv = self.genv;
+        let tcx = genv.tcx();
+        let param_env = tcx.param_env(self.checker_id.root_id());
+        let typing_env = infcx.region_infcx.typing_env(param_env);
+        let pointee_ty = ctor.to_ty();
+        let base = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
+        let addr = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
+        let size = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
+        // We can't prove anything about unsized types yet
+        if !pointee_ty.to_rustc(tcx).is_sized(tcx, typing_env) {
+            return Expr::ff();
+        }
+        let (size_of_expr, align_of_expr) = size_align_of(genv, &ctor, None);
+        let valid = Expr::and_from_iter([
+            Expr::gt(&addr, Expr::zero()),
+            Expr::ge(&addr, &base),
+            Expr::le(&size_of_expr, &size),
+            Expr::ge(&size, Expr::zero()),
+        ]);
+        let aligned =
+            Expr::eq(Expr::binary_op(BinOp::Mod(Sort::Int), &addr, align_of_expr), Expr::zero());
+        Expr::and(valid, aligned)
     }
 
     fn check_statement(
@@ -699,6 +761,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let ret = infcx.unpack_at_name(name, &ret);
                 infcx.assume_invariants(&ret);
 
+                self.check_raw_ptr_derefs(infcx, env, destination, terminator_span)
+                    .with_span(terminator_span)?;
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
                     .with_span(terminator_span)?;
 
@@ -1337,10 +1401,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(Ty::array(arr_ty, c.clone()))
             }
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
+                self.check_raw_ptr_derefs(infcx, env, place, stmt_span)
+                    .with_span(stmt_span)?;
                 env.borrow(&mut infcx.at(stmt_span), *r, Mutability::Mut, place)
                     .with_span(stmt_span)
             }
             Rvalue::Ref(r, BorrowKind::Shared | BorrowKind::Fake(..), place) => {
+                self.check_raw_ptr_derefs(infcx, env, place, stmt_span)
+                    .with_span(stmt_span)?;
                 env.borrow(&mut infcx.at(stmt_span), *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
@@ -1365,7 +1433,21 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let pack = place
                     .min_pack(genv, &self.body.local_decls)
                     .with_span(stmt_span)?;
-                raw_ptr_with_size(genv, kind, ctor, infcx, self.checker_id.root_id(), pack)
+                if let Some(idx) = env
+                    .place_directly_derefs_raw_ptr(infcx, place, stmt_span)
+                    .with_span(stmt_span)?
+                {
+                    Ok(Ty::indexed(BaseTy::RawPtr(ctor.to_ty(), kind.to_mutbl_lossy()), idx))
+                } else if env
+                    .place_derefs_raw_ptr(infcx, place, stmt_span)
+                    .with_span(stmt_span)?
+                {
+                    let bty = BaseTy::RawPtr(ctor.to_ty(), kind.to_mutbl_lossy());
+                    let indexed = Ty::indexed(bty, Expr::nu());
+                    Ok(Ty::exists(Binder::bind_with_sort(indexed, Sort::RawPtr)))
+                } else {
+                    raw_ptr_with_size(genv, kind, ctor, infcx, self.checker_id.root_id(), pack)
+                }
             }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
@@ -1388,6 +1470,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)
             }
             Rvalue::Discriminant(place) => {
+                self.check_raw_ptr_derefs(infcx, env, place, stmt_span)
+                    .with_span(stmt_span)?;
                 let ty = env
                     .lookup_place(&mut infcx.at(stmt_span), place)
                     .with_span(stmt_span)?;
@@ -1758,8 +1842,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         operand: &Operand<'tcx>,
     ) -> InferResult<Ty> {
         let ty = match operand {
-            Operand::Copy(p) => env.lookup_place(&mut infcx.at(span), p)?,
-            Operand::Move(p) => env.move_place(&mut infcx.at(span), p)?,
+            Operand::Copy(p) => {
+                self.check_raw_ptr_derefs(infcx, env, p, span)?;
+                env.lookup_place(&mut infcx.at(span), p)?
+            }
+            Operand::Move(p) => {
+                self.check_raw_ptr_derefs(infcx, env, p, span)?;
+                env.move_place(&mut infcx.at(span), p)?
+            }
             Operand::Constant(c) => self.check_constant(infcx, c)?,
         };
         Ok(infcx.hoister(true).hoist(&ty))
@@ -1878,12 +1968,27 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Scalar::Int(scalar_int) => Ok(self.check_scalar_int(scalar_int, ty)),
             Scalar::Ptr(ptr, _) => {
                 let alloc_id = ptr.provenance.alloc_id();
-                if let GlobalAlloc::Static(def_id) = self.genv.tcx().global_alloc(alloc_id)
-                    && !self.genv.tcx().is_mutable_static(def_id)
-                // TODO: mutable statics!
-                {
-                    let ty = self.genv.static_info(def_id)?;
-                    Ok(Some(Ty::mk_ref(ReErased, ty, Mutability::Not)))
+                if let GlobalAlloc::Static(def_id) = self.genv.tcx().global_alloc(alloc_id) {
+                    if !self.genv.tcx().is_mutable_static(def_id) {
+                        let ty = self.genv.static_info(def_id)?;
+                        Ok(Some(Ty::mk_ref(ReErased, ty, Mutability::Not)))
+                    } else if let rustc_middle::ty::RawPtr(pointee, mutbl) = ty.kind() {
+                        let pointee_ty = pointee
+                            .lower(self.genv.tcx())
+                            .map_err(|err| QueryErr::unsupported(def_id, err.into_err()))?;
+                        // Static muts are always valid and aligned
+                        let ctor = self
+                            .default_refiner
+                            .refine_ty_or_base(&pointee_ty)?
+                            .expect_base();
+                        let ptr_bty = BaseTy::RawPtr(ctor.to_ty(), *mutbl);
+                        // Static muts are also always sized. Note that we don't need to
+                        // compute packedness here, since this can't be a pointer to a field
+                        let pred = sized_raw_ptr_pred(self.genv, &ctor, &Expr::nu(), None);
+                        Ok(Some(Ty::exists_with_constr(ptr_bty, pred)))
+                    } else {
+                        Err(query_bug!("static mut is not a raw pointer"))
+                    }
                 } else {
                     Ok(None)
                 }
@@ -2013,51 +2118,68 @@ fn raw_ptr_with_size<'genv, 'tcx>(
 
     let has_sized = pointee_ty.to_rustc(tcx).is_sized(tcx, typing_env);
     let nu = Expr::nu();
-    let base = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
-    let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
-    let size = Expr::field_proj(nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
 
     // For slices and other fat pointer types, we don't know the alignment and size
     // and so must drop those assertions.
     if !has_sized {
-        let pred = Expr::and(Expr::eq(base, &addr), Expr::ne(&addr, Expr::zero()));
+        let base = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
+        let addr = Expr::field_proj(&nu, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
+        let pred = Expr::and(Expr::eq(base, &addr), Expr::gt(&addr, Expr::zero()));
 
         let ty = Ty::exists_with_constr(bty, pred);
         return Ok(ty);
     }
 
-    let sized_id = tcx.require_lang_item(LangItem::Sized, DUMMY_SP);
-    let args = rty::List::from_arr([GenericArg::Base(ctor)]);
-    let size_of_expr = Expr::alias(
+    let ty = Ty::exists_with_constr(bty, sized_raw_ptr_pred(genv, &ctor, &nu, pack));
+    Ok(ty)
+}
+
+fn size_align_of<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
+    ctor: &SubsetTyCtor,
+    pack: Option<u64>,
+) -> (Expr, Expr) {
+    let sized_id = genv.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
+    let args = rty::List::from_arr([GenericArg::Base(ctor.clone())]);
+    let size_of = Expr::alias(
         AliasReft {
             assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::size_of),
             args: args.clone(),
         },
         rty::List::empty(),
     );
-
-    let mut align_of_expr = Expr::alias(
+    let mut align_of = Expr::alias(
         AliasReft { assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::align_of), args },
         rty::List::empty(),
     );
-
     // When the ref is part of a packed struct, we want to take the minimum of its
     // alignment and the packedness of the enclosing struct, see the example in:
     // https://doc.rust-lang.org/reference/type-layout.html#r-layout.repr.align-packed
     if let Some(pack) = pack {
         let pack = Expr::constant(Constant::from(pack));
-        align_of_expr = Expr::ite(Expr::le(&pack, &align_of_expr), pack, align_of_expr);
+        align_of = Expr::ite(Expr::le(&pack, &align_of), pack, align_of);
     }
+    (size_of, align_of)
+}
 
-    let pred = Expr::and_from_iter([
+/// Assumes the underlying type has the sized trait, and returns a predicate about a pointer to it
+/// aligning the raw pointer indices to its size and alignment
+fn sized_raw_ptr_pred<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
+    ctor: &SubsetTyCtor,
+    idx: &Expr,
+    pack: Option<u64>,
+) -> Expr {
+    let base = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Base });
+    let addr = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Addr });
+    let size = Expr::field_proj(idx, rty::FieldProj::RawPtr { field: rty::RawPtrField::Size });
+    let (size_of_expr, align_of_expr) = size_align_of(genv, ctor, pack);
+    Expr::and_from_iter([
         Expr::eq(base, &addr),
-        Expr::ne(&addr, Expr::zero()),
+        Expr::gt(&addr, Expr::zero()),
         Expr::eq(size, size_of_expr),
         Expr::eq(Expr::binary_op(BinOp::Mod(Sort::Int), addr, align_of_expr), Expr::zero()),
-    ]);
-
-    let ty = Ty::exists_with_constr(bty, pred);
-    Ok(ty)
+    ])
 }
 
 fn instantiate_args_for_fun_call(

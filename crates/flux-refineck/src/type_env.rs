@@ -118,6 +118,43 @@ impl<'a> TypeEnv<'a> {
         Ok(result.ty)
     }
 
+    pub(crate) fn raw_ptr_derefs<'genv, 'tcx>(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        place: &Place,
+        span: Span,
+    ) -> InferResult<Vec<(usize, Expr)>> {
+        self.bindings.raw_ptr_derefs(infcx, place, span)
+    }
+
+    /// If a Place is of the form: *p or *(s.p), return the index of the pointer.
+    /// Note that this does not match (*p).f, where p points to a struct.
+    /// Doubly note that taking the addr of (*p).f doesn't actually do any loads,
+    /// but since we don't necessarily know where .f is, we can't return a proper
+    /// pointer to it. Code will have to be rewritten to take the address of p,
+    /// then use .add() with the field's offset.
+    pub(crate) fn place_directly_derefs_raw_ptr<'genv, 'tcx>(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        place: &Place,
+        span: Span,
+    ) -> InferResult<Option<Expr>> {
+        self.bindings
+            .place_directly_derefs_raw_ptr(infcx, place, span)
+    }
+
+    /// If a Place has a raw pointer dereference anywhere inside of it.
+    /// For example, (*p).f has one. This may not be immediately able to be
+    /// turned back into a pointer with &raw.
+    pub(crate) fn place_derefs_raw_ptr<'genv, 'tcx>(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        place: &Place,
+        span: Span,
+    ) -> InferResult<bool> {
+        self.bindings.place_derefs_raw_ptr(infcx, place, span)
+    }
+
     pub(crate) fn get(&self, path: &Path) -> Ty {
         self.bindings.get(path)
     }

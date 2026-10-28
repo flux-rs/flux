@@ -1139,6 +1139,7 @@ impl AttrMap {
         try_read_setting!(self, allow_uninterpreted_cast, bool, infer_opts);
         try_read_setting!(self, check_overflow, OverflowMode, infer_opts);
         try_read_setting!(self, allow_raw_deref, RawDerefMode, infer_opts);
+        try_read_setting!(self, check_raw_deref, bool, infer_opts);
         try_read_setting!(self, scrape_quals, bool, infer_opts);
         try_read_setting!(self, solver, SmtSolver, infer_opts);
         try_read_setting!(self, uif_ops, UifOps, infer_opts);
