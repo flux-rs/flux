@@ -507,11 +507,11 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
-        self.cursor.check_pred(pred, tag);
+        self.cursor.check_pred(self.genv, pred, tag);
     }
 
     pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
-        self.cursor.assume_pred(pred);
+        self.cursor.assume_pred(self.genv, pred);
     }
 
     pub fn unpack(&mut self, ty: &Ty) -> Ty {
@@ -542,7 +542,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
-        self.cursor.check_impl(pred1, pred2, tag);
+        self.cursor.check_impl(self.genv, pred1, pred2, tag);
     }
 }
 

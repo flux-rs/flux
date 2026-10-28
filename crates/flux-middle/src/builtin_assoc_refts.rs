@@ -3,8 +3,10 @@ use std::sync::OnceLock;
 use flux_arc_interner::List;
 use flux_common::bug;
 use flux_syntax::symbols::sym;
+use rustc_abi::Align;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::{attrs::lang_items::LangItem, def_id::DefId};
+use rustc_middle::ty::IntTy;
 use rustc_span::{DUMMY_SP, Symbol};
 
 use crate::{
@@ -120,6 +122,31 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                     .map(|reft| reft.def_id())
             })
             .unwrap_or_else(|| bug!("missing builtin assoc reft `{name}` for `{def_id:?}`"))
+    }
+
+    // These invariants come from:
+    // https://doc.rust-lang.org/stable/reference/type-layout.html#size-and-alignment
+    pub fn sized_facts(self, args: rty::GenericArgs) -> rty::Expr {
+        let sized_id = self.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
+        let assoc_reft = |name| {
+            let assoc_id = self.require_builtin_assoc_reft(sized_id, name);
+            rty::Expr::alias(AliasReft { assoc_id, args: args.clone() }, List::empty())
+        };
+        let size = assoc_reft(sym::size_of);
+        let align = assoc_reft(sym::align_of);
+
+        let pow2 = rty::Expr::or_from_iter((0..=Align::MAX.bytes().ilog2()).map(|i| {
+            rty::Expr::eq(align.clone(), rty::Expr::constant(rty::Constant::from(1u64 << i)))
+        }));
+        rty::Expr::and_from_iter([
+            pow2,
+            rty::Expr::ge(size.clone(), rty::Expr::zero()),
+            rty::Expr::le(size.clone(), rty::Expr::int_max(IntTy::Isize)),
+            rty::Expr::eq(
+                rty::Expr::binary_op(rty::BinOp::Mod(rty::Sort::Int), size, align),
+                rty::Expr::zero(),
+            ),
+        ])
     }
 
     pub fn builtin_assoc_reft_body(
