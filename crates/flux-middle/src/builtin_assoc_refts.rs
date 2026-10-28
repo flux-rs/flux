@@ -127,11 +127,14 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 
     /// These invariants come from:
     /// https://doc.rust-lang.org/stable/reference/type-layout.html#size-and-alignment
-    pub fn sized_facts(self, args: rty::GenericArgs) -> rty::Expr {
-        let sized_id = self.tcx().require_lang_item(LangItem::Sized, DUMMY_SP);
+    pub fn sized_facts(self, alias_reft: &AliasReft) -> Option<rty::Expr> {
+        let sized_id = alias_reft.assoc_id.parent();
+        if !self.tcx().is_lang_item(sized_id, LangItem::Sized) {
+            return None;
+        }
         let assoc_reft = |name| {
             let assoc_id = self.require_builtin_assoc_reft(sized_id, name);
-            rty::Expr::alias(AliasReft { assoc_id, args: args.clone() }, List::empty())
+            rty::Expr::alias(AliasReft { assoc_id, args: alias_reft.args.clone() }, List::empty())
         };
         let size = assoc_reft(sym::size_of);
         let align = assoc_reft(sym::align_of);
@@ -139,7 +142,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         let pow2 = rty::Expr::or_from_iter((0..=Align::MAX.bytes().ilog2()).map(|i| {
             rty::Expr::eq(align.clone(), rty::Expr::constant(rty::Constant::from(1u64 << i)))
         }));
-        rty::Expr::and_from_iter([
+        Some(rty::Expr::and_from_iter([
             pow2,
             rty::Expr::ge(size.clone(), rty::Expr::zero()),
             rty::Expr::le(size.clone(), rty::Expr::int_max(IntTy::Isize)),
@@ -147,7 +150,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 rty::Expr::binary_op(rty::BinOp::Mod(rty::Sort::Int), size, align),
                 rty::Expr::zero(),
             ),
-        ])
+        ]))
     }
 
     /// Returns the body of a builtin associated refinement, or `None` if it cannot be computed

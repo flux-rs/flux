@@ -1465,6 +1465,7 @@ pub(crate) struct ConstEnv<'tcx> {
     pub(crate) wkvar_map_rev: HashMap<fixpoint::Var, ConstKey<'tcx>>,
     global_var_gen: IndexGen<fixpoint::GlobalVar>,
     fun_decl_map: FunDeclMap,
+    sized_facts: Vec<fixpoint::Expr>,
 }
 
 impl<'tcx> ConstEnv<'tcx> {
@@ -1713,7 +1714,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Alias(alias_reft, args) => {
                 let sort = alias_reft.fsort(self.genv)?;
                 let func =
-                    fixpoint::Expr::Var(self.define_const_for_alias_reft(alias_reft, sort, scx));
+                    fixpoint::Expr::Var(self.define_const_for_alias_reft(alias_reft, sort, scx)?);
                 let args = args
                     .iter()
                     .map(|expr| self.expr_to_fixpoint(expr, scx))
@@ -2218,7 +2219,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         alias_reft: &rty::AliasReft,
         fsort: rty::FuncSort,
         scx: &mut SortEncodingCtxt,
-    ) -> fixpoint::Var {
+    ) -> QueryResult<fixpoint::Var> {
         let tcx = self.genv.tcx();
         let args = alias_reft
             .args
@@ -2228,7 +2229,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         // for why we erase regions.
         let args = tcx.erase_and_anonymize_regions(args);
         let key = ConstKey::Alias(alias_reft.assoc_id, args);
-        self.const_env
+        let is_new = !self.const_env.const_map.contains_key(&key);
+        let name = self
+            .const_env
             .get_or_insert(key, |global_name| {
                 let comment = Some(format!("alias reft: {alias_reft:?}"));
                 let name = fixpoint::Var::Const(global_name, None);
@@ -2236,7 +2239,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let sort = scx.func_sort_to_fixpoint(&fsort).into_sort();
                 fixpoint::ConstDecl { name, comment, sort }
             })
-            .name
+            .name;
+        if is_new && let Some(facts) = self.genv.sized_facts(alias_reft) {
+            let facts = self.expr_to_fixpoint(&facts, scx)?;
+            self.const_env.sized_facts.push(facts);
+        }
+        Ok(name)
     }
 
     /// We encode lambdas with uninterpreted constant. Two syntactically equal lambdas will be encoded
@@ -2377,6 +2385,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 | ConstKey::PrimOp(..)
                 | ConstKey::WKVar(..) => {}
             }
+        }
+        for facts in std::mem::take(&mut self.const_env.sized_facts) {
+            let bind = fixpoint::Bind {
+                name: fixpoint::Var::Underscore,
+                sort: fixpoint::Sort::Int,
+                preds: vec![fixpoint::Pred::Expr(facts)],
+            };
+            constraint = fixpoint::Constraint::ForAll(bind, Box::new(constraint));
         }
         Ok(constraint)
     }

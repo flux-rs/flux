@@ -17,7 +17,6 @@ use flux_middle::{
     },
 };
 use itertools::Itertools;
-use rustc_attr_ir::LangItem;
 use rustc_data_structures::{
     snapshot_map::SnapshotMap,
     unord::{UnordMap, UnordSet},
@@ -93,27 +92,6 @@ impl RefineTree {
     }
 }
 
-struct SizedFactsVisitor<'cursor, 'tree, 'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
-    cursor: &'cursor mut Cursor<'tree>,
-}
-
-impl TypeVisitor for SizedFactsVisitor<'_, '_, '_, '_> {
-    fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
-        if let ExprKind::Alias(alias, _) = expr.kind()
-            && self
-                .genv
-                .tcx()
-                .is_lang_item(alias.assoc_id.parent(), LangItem::Sized)
-            && !alias.args.has_escaping_bvars()
-        {
-            let facts = self.genv.sized_facts(alias.args.clone());
-            self.cursor.ptr = self.cursor.ptr.push_node(NodeKind::Assumption(facts));
-        }
-        expr.super_visit_with(self)
-    }
-}
-
 /// A cursor into the [refinement tree]. More specifically, a [`Cursor`] represents a path from the
 /// root to some internal node in a [refinement tree].
 ///
@@ -171,46 +149,28 @@ impl Cursor<'_> {
     /// Pushes an [assumption] and moves the cursor into the new node.
     ///
     /// [assumption]: NodeKind::Assumption
-    pub(crate) fn assume_pred(&mut self, genv: GlobalEnv, pred: impl Into<Expr>) {
+    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
-            self.assume_sized_facts(genv, &pred);
             self.ptr = self.ptr.push_node(NodeKind::Assumption(pred));
         }
     }
 
     /// Pushes a predicate that must be true assuming variables and predicates in the current branch
     /// of the tree (i.e., it pushes a [`NodeKind::Head`]). This methods does not advance the cursor.
-    pub(crate) fn check_pred(&mut self, genv: GlobalEnv, pred: impl Into<Expr>, tag: Tag) {
+    pub(crate) fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
-            let mut cursor = self.branch();
-            cursor.assume_sized_facts(genv, &pred);
-            cursor.ptr.push_node(NodeKind::Head(pred, tag));
+            self.ptr.push_node(NodeKind::Head(pred, tag));
         }
     }
 
     /// Convenience method to push an assumption followed by a predicate that needs to be checked.
     /// This method does not advance the cursor.
-    pub(crate) fn check_impl(
-        &mut self,
-        genv: GlobalEnv,
-        pred1: impl Into<Expr>,
-        pred2: impl Into<Expr>,
-        tag: Tag,
-    ) {
-        let (pred1, pred2) = (pred1.into(), pred2.into());
-        let mut cursor = self.branch();
-        cursor.assume_sized_facts(genv, &pred1);
-        cursor.assume_sized_facts(genv, &pred2);
-        cursor
-            .ptr
-            .push_node(NodeKind::Assumption(pred1))
-            .push_node(NodeKind::Head(pred2, tag));
-    }
-
-    fn assume_sized_facts(&mut self, genv: GlobalEnv, pred: &Expr) {
-        let _ = pred.visit_with(&mut SizedFactsVisitor { genv, cursor: self });
+    pub(crate) fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
+        self.ptr
+            .push_node(NodeKind::Assumption(pred1.into()))
+            .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
     pub(crate) fn assume_invariants(
@@ -240,7 +200,7 @@ impl Cursor<'_> {
                 {
                     for invariant in bty.invariants(self.genv, self.overflow_mode) {
                         let invariant = invariant.apply(idx);
-                        self.cursor.assume_pred(self.genv, &invariant);
+                        self.cursor.assume_pred(&invariant);
                     }
                 }
                 ty.super_visit_with(self)
