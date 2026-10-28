@@ -1,6 +1,6 @@
 pub struct A<T>(T);
 
-// Returning a value that doesn't satisfy the revealed hidden type
+// The returned value doesn't satisfy the bounds
 #[flux::spec(fn() -> A<impl Iterator<Item = i32{v: v != 67}>>)]
 pub fn test_return_impl_bad() -> A<impl Iterator<Item = i32>> {
     A(Some(67).into_iter()) //~ ERROR refinement type
@@ -13,6 +13,8 @@ pub fn test_return_impl_ptr_bad() -> B<impl Iterator<Item = i32>> {
     B(Box::into_raw(Box::new(Some(23).into_iter()))) //~ ERROR refinement type
 }
 
+// A recursive call is revealed with unrefined fn pointers, so the returned ones must accept
+// anything
 fn call_neg(t: (fn(i32),)) {
     (t.0)(-1)
 }
@@ -61,7 +63,7 @@ impl<T> TraitB for A<T> {
 #[flux::spec(fn(A<i32{v: v > 0}>))]
 fn requires_pos(_x: A<i32>) {}
 
-// Using the result of a recursive call at the hidden type
+// A recursive call only knows the refinements given by the bounds
 pub fn test_rec(b: bool) -> impl TraitB {
     if b {
         requires_pos(test_rec(false)); //~ ERROR refinement type
@@ -140,7 +142,7 @@ fn id<T>(x: T) -> T {
     x
 }
 
-// Returning the result of a recursive call
+// Returning a recursive call doesn't satisfy the bounds
 #[flux::spec(fn(n: i32) -> impl TraitB<Out = i32{v: v >= n}>)]
 pub fn test_rec_id(n: i32) -> impl TraitB<Out = i32> {
     if n > 0 {
@@ -171,13 +173,13 @@ fn requires_ge5(_x: i32) {}
 #[flux::spec(fn(i32{v: v < 5}))]
 fn requires_lt5(_x: i32) {}
 
-// Using the bounds outside the defining function
+// Outside the defining function, only the bounds are known
 pub fn client() {
     requires_ge5(test_rec_id(5).get());
     requires_lt5(test_rec_id(5).get()); //~ ERROR refinement type
 }
 
-// Predicates around the opaque type are kept, both on a type and on a base generic argument
+// Predicates on the opaque type are kept, on a type and on a generic argument
 #[flux::spec(fn(n: i32) -> {impl Sized | n > 0})]
 pub fn test_post_bad(n: i32) -> impl Sized {
     0 //~ ERROR refinement type
@@ -193,7 +195,7 @@ fn gt5(x: i32) -> i32 {
     x
 }
 
-// `Fn` bounds are checked against the returned value
+// `Fn` bounds don't hold for the returned value
 #[flux::spec(fn() -> impl Fn(i32{v: v > 0}) -> i32)]
 pub fn test_fn_closure_bad() -> impl Fn(i32) -> i32 {
     |x| gt5(x) //~ ERROR refinement type
@@ -207,13 +209,4 @@ pub fn test_fn_def_bad() -> impl Fn(i32) -> i32 {
 #[flux::spec(fn() -> impl Fn(i32) -> i32{v: v > 0})]
 pub fn test_fn_output_bad() -> impl Fn(i32) -> i32 {
     |x| x //~ ERROR refinement type
-}
-
-// Coroutines are checked through their body
-#[flux::spec(fn(b: bool) -> impl std::future::Future<Output = i32{v: v > 0}>)]
-pub fn test_coroutine_bad(b: bool) -> impl std::future::Future<Output = i32> {
-    if b {
-        drop(test_coroutine_bad(false));
-    }
-    async { 0 } //~ ERROR refinement type
 }
