@@ -7,7 +7,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
+    Axiom, BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, FunSort, Identifier, KVarDecl, Qualifier, Sort, SortCtor, Task, Types,
     constraint::{Pred, Quantifier, WKVar},
 };
@@ -63,6 +63,11 @@ pub(crate) fn fmt_task<T: Types>(
         writeln!(f, "{fun_decl}")?;
     }
 
+    // Axioms go after the constants and functions they talk about.
+    for axiom in &task.axioms {
+        writeln!(f, "{axiom}")?;
+    }
+
     for kvar in &task.kvars {
         writeln!(f, "{kvar}")?;
     }
@@ -93,10 +98,10 @@ impl<T: Types> fmt::Display for KVarDecl<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(var ${} ({})) ;; {}",
+            "(var ${} ({}) :self {})",
             self.kvid.display(),
             self.sorts.iter().format(" "),
-            self.comment
+            self.self_args,
         )
     }
 }
@@ -410,6 +415,28 @@ impl<T: Types> fmt::Display for Qualifier<T> {
             }),
             self.body
         )
+    }
+}
+
+impl<T: Types> fmt::Display for Axiom<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.args.is_empty() {
+            return write!(f, "(axiom {})", self.body);
+        }
+        let args = self
+            .args
+            .iter()
+            .format_with(" ", |(name, sort), f| f(&format_args!("({} {sort})", name.display())));
+        if self.patterns.is_empty() {
+            write!(f, "(axiom (forall ({args}) {}))", self.body)
+        } else {
+            write!(
+                f,
+                "(axiom (forall ({args}) (! {} :pattern ({}))))",
+                self.body,
+                self.patterns.iter().format(" ")
+            )
+        }
     }
 }
 

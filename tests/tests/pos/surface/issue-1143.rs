@@ -1,5 +1,3 @@
-#![feature(never_type)]
-
 pub trait Foo {
     fn foo(_b: !);
 }

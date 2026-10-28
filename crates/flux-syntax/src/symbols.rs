@@ -4,8 +4,6 @@ use rustc_span::{Symbol, edition::Edition};
 symbols! {
     Keywords {
         Bitvec: "bitvec",
-        Exists: "exists",
-        Forall: "forall",
         Hrn: "hrn",
         Hdl: "hdl",
         Requires: "requires",
@@ -16,8 +14,8 @@ symbols! {
         Strg: "strg",
         Trusted: "trusted",
         Reft: "reft",
-        Invariant: "invariant",
         RefinedBy: "refined_by",
+        Axiom: "axiom",
     }
 
     Symbols {
@@ -46,6 +44,11 @@ pub mod kw {
     // Update this in tandem with `is_flux_reserved`
     pub const Opaque: Symbol = rustc_span::symbol::sym::opaque;
     pub const Local: Symbol = rustc_span::symbol::sym::local;
+    pub const Exists: Symbol = rustc_span::symbol::sym::exists;
+    pub const Forall: Symbol = rustc_span::symbol::sym::forall;
+
+    // Predefined symbols in rustc that are Flux keywords but are not reserved.
+    pub const Invariant: Symbol = rustc_span::symbol::sym::invariant;
 }
 
 pub mod sym {
@@ -64,5 +67,9 @@ pub fn is_reserved(sym: Symbol, edition: Edition) -> bool {
 
 // Update in tandem with predefined non-keyword symbols in `kw`
 fn is_flux_reserved(sym: Symbol) -> bool {
-    (kw::Bitvec <= sym && sym <= kw::Strg) || sym == kw::Opaque || sym == kw::Local
+    (kw::Bitvec <= sym && sym <= kw::Strg)
+        || sym == kw::Opaque
+        || sym == kw::Local
+        || sym == kw::Exists
+        || sym == kw::Forall
 }

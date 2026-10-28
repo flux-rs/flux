@@ -4,7 +4,9 @@ use clap::{ArgMatches, Args, Command, FromArgMatches, parser::ValueSource};
 pub use toml::Value;
 use tracing::Level;
 
-use crate::{IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver};
+use crate::{
+    IncludePattern, LeanMode, OverflowMode, PointerWidth, RawDerefMode, SmtSolver, UifOps,
+};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
@@ -57,8 +59,8 @@ pub struct Flags {
         default_value = "64"
     )]
     pub pointer_width: PointerWidth,
-    /// If present, switches on query caching and saves the cache in the provided path
-    #[arg(long = flux_arg!("cache"), value_name = "PATH")]
+    /// If present, switches on query caching and saves the cache in the provided directory.
+    #[arg(long = flux_arg!("cache"), value_name = "DIR")]
     pub cache: Option<PathBuf>,
     /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`].
     #[arg(
@@ -97,6 +99,10 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub scrape_quals: bool,
+    /// Timeout in seconds for each fixpoint query. If a query doesn't finish in time, fixpoint is
+    /// killed and an error is reported for the item being checked. Disabled by default.
+    #[arg(long = flux_arg!("fixpoint-timeout"), value_name = "SECONDS")]
+    pub fixpoint_timeout: Option<u64>,
     /// Enables uninterpreted casts.
     #[arg(
         long = flux_arg!("allow-uninterpreted-cast"),
@@ -104,14 +110,6 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub allow_uninterpreted_cast: bool,
-    /// Translates _monomorphic_ `defs` functions into SMT `define-fun` instead of inlining them
-    /// away inside `flux`.
-    #[arg(
-        long = flux_arg!("smt-define-fun"),
-        num_args = 0..=1,
-        default_missing_value = "true"
-    )]
-    pub smt_define_fun: bool,
     /// If `strict` checks for over and underflow on arithmetic integer operations,
     /// If `lazy` checks for underflow and loses information if possible overflow,
     /// If `none` (default), it still checks for underflow on unsigned integer subtraction.
@@ -128,6 +126,10 @@ pub struct Flags {
         default_value = "none"
     )]
     pub allow_raw_deref: RawDerefMode,
+    /// Binary operators to encode as uninterpreted functions in the constraints, as a comma
+    /// separated list, e.g., `*,/,%`.
+    #[arg(long = flux_arg!("uif-ops"), value_name = "OPS", default_value = "")]
+    pub uif_ops: UifOps,
     /// Dump constraints generated for each function (debugging).
     #[arg(
         long = flux_arg!("dump-constraint"),
@@ -217,13 +219,14 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub flux_verbose: bool,
-    /// If `true`, all code will have suggestions disabled.
+    /// Enable the refinement suggestion engine. Items can opt out with `#[flux::no_suggestions]`.
     #[arg(
-        long = flux_arg!("no-suggestions"),
+        long = flux_arg!("suggestions"),
         num_args = 0..=1,
+        default_value_t = false,
         default_missing_value = "true"
     )]
-    pub no_suggestions_default: bool,
+    pub suggestions: bool,
     /// If `true` (the default), attach a note to each failing item with a copy-pasteable command to
     /// re-run the check on just that item. Only applies when running under `cargo flux`.
     #[arg(
@@ -253,10 +256,11 @@ impl Default for Flags {
             cache: None,
             check_overflow: OverflowMode::default(),
             allow_raw_deref: RawDerefMode::default(),
+            uif_ops: UifOps::default(),
             scrape_quals: false,
+            fixpoint_timeout: None,
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
-            smt_define_fun: false,
             annots: false,
             timings: false,
             summary: true,
@@ -269,7 +273,7 @@ impl Default for Flags {
             no_panic: false,
             std_extern_specs: false,
             flux_verbose: false,
-            no_suggestions_default: false,
+            suggestions: false,
             rerun_hint: true,
         }
     }
@@ -288,7 +292,7 @@ impl Flags {
             let Some(long) = arg.get_long() else { continue };
             match matches.get_raw(id) {
                 Some(values) => {
-                    out.extend(values.map(|v| format!("-{long}={}", v.to_string_lossy())))
+                    out.extend(values.map(|v| format!("-{long}={}", v.to_string_lossy())));
                 }
                 None => out.push(format!("-{long}")),
             }
@@ -339,10 +343,11 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "pointer-width" => parse_pointer_width(&mut flags.pointer_width, value),
             "check-overflow" => parse_overflow(&mut flags.check_overflow, value),
             "allow-raw-deref" => parse_raw_deref(&mut flags.allow_raw_deref, value),
+            "uif-ops" => parse_uif_ops(&mut flags.uif_ops, value),
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
+            "fixpoint-timeout" => parse_opt_u64(&mut flags.fixpoint_timeout, value),
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
-            "smt-define-fun" => parse_bool(&mut flags.smt_define_fun, value),
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
             "summary" => parse_bool(&mut flags.summary, value),
@@ -359,7 +364,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "no-panic" => parse_bool(&mut flags.no_panic, value),
             "std-extern-specs" => parse_bool(&mut flags.std_extern_specs, value),
             "flux-verbose" => parse_bool(&mut flags.flux_verbose, value),
-            "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
+            "suggestions" => parse_bool(&mut flags.suggestions, value),
             "rerun-hint" => parse_bool(&mut flags.rerun_hint, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
@@ -435,6 +440,16 @@ fn parse_string(slot: &mut String, v: Option<&str>) -> Result<(), &'static str> 
     }
 }
 
+fn parse_opt_u64(slot: &mut Option<u64>, v: Option<&str>) -> Result<(), &'static str> {
+    match v.and_then(|s| s.parse().ok()) {
+        Some(n) => {
+            *slot = Some(n);
+            Ok(())
+        }
+        None => Err("expected a non-negative integer"),
+    }
+}
+
 fn parse_path_buf(slot: &mut PathBuf, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
@@ -472,6 +487,16 @@ fn parse_overflow(slot: &mut OverflowMode, v: Option<&str>) -> Result<(), &'stat
             Ok(())
         }
         _ => Err(OverflowMode::ERROR),
+    }
+}
+
+fn parse_uif_ops(slot: &mut UifOps, v: Option<&str>) -> Result<(), &'static str> {
+    match v {
+        Some(s) => {
+            *slot = s.parse()?;
+            Ok(())
+        }
+        _ => Err(UifOps::ERROR),
     }
 }
 

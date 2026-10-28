@@ -143,7 +143,10 @@ where
                     fixpoint::Var::Underscore => {
                         unreachable!("Underscore should not appear in exprs")
                     }
-                    fixpoint::Var::Global(global_var, _) | fixpoint::Var::Const(global_var, _) => {
+                    fixpoint::Var::Global(_, def_id) => {
+                        Ok(rty::Expr::global_func(SpecFuncKind::Def(*def_id)))
+                    }
+                    fixpoint::Var::Const(global_var, _) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
                                 ConstKey::RustConst(def_id) => Ok(rty::Expr::const_def_id(*def_id)),
@@ -156,7 +159,7 @@ where
                                         bin_op.clone(),
                                     )))
                                 }
-                                ConstKey::Cast(_sort, _sort1) => {
+                                ConstKey::Cast(..) => {
                                     unreachable!(
                                         "Should be specially handled as the head of a function app."
                                     )
@@ -166,7 +169,7 @@ where
                                 }
                             }
                         } else {
-                            Err(FixpointParseError::NoGlobalVar(*global_var))
+                            Err(FixpointParseError::NoConst(*global_var))
                         }
                     }
                     fixpoint::Var::Local(fname) => {
@@ -231,7 +234,7 @@ where
                     } else {
                         let e1 = self.fixpoint_to_expr(&op_args[0])?;
                         let e2 = self.fixpoint_to_expr(&op_args[1])?;
-                        return Ok(rty::Expr::prim_val(bin_op, e1, e2));
+                        return Ok(rty::Expr::binary_op(bin_op, e1, e2));
                     }
                 }
                 match &**fhead {
@@ -309,8 +312,7 @@ where
                             Err(FixpointParseError::UIFRelArityMismatch(fargs.len()))
                         }
                     }
-                    fixpoint::Expr::Var(fixpoint::Var::Global(global_var, _))
-                    | fixpoint::Expr::Var(fixpoint::Var::Const(global_var, _)) => {
+                    fixpoint::Expr::Var(fixpoint::Var::Const(global_var, _)) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
                                 // NOTE: Only a few of these are meaningfully needed,
@@ -359,7 +361,7 @@ where
                                 }
                             }
                         } else {
-                            Err(FixpointParseError::NoGlobalVar(*global_var))
+                            Err(FixpointParseError::NoConst(*global_var))
                         }
                     }
                     fhead => self.fixpoint_app_to_expr(fhead, fargs),
@@ -540,7 +542,7 @@ pub enum FixpointParseError {
     TupleCtorArityMismatch(usize, usize),
     /// The number of arguments should only ever be 1 for a tuple proj
     ProjArityMismatch(usize),
-    NoGlobalVar(fixpoint::GlobalVar),
+    NoConst(fixpoint::GlobalVar),
     /// Casts should only have 1 arg
     CastArityMismatch(usize),
     PrimOpArityMismatch(usize),

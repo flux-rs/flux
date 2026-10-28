@@ -219,7 +219,7 @@ fn extern_enum_to_tokens(
 
     let dummy_struct = format_ident!("__FluxExternSpecDummy__{}", ident);
     let generics = &item_enum.generics;
-    let args = generic_params_to_args(&generics.params);
+    let args = generic_params_to_args(&generics.params, true);
 
     Ok(quote_spanned! {span=>
         #[allow(unused, dead_code, non_camel_case_types)]
@@ -242,7 +242,7 @@ fn extern_struct_to_tokens(
     let ident = item_struct.ident;
 
     let generics = &item_struct.generics;
-    let args = generic_params_to_args(&generics.params);
+    let args = generic_params_to_args(&generics.params, true);
 
     // Prepare struct
     item_struct.ident = format_ident!("__FluxExternSpecStruct__{}", ident);
@@ -562,7 +562,8 @@ impl ExternFn {
             FnCtxt::Trait { trait_ } => quote!(< Self as #trait_ > :: #ident),
             FnCtxt::Free => quote!(#ident),
         };
-        let generic_args = generic_params_to_args(&self.sig.generics.params);
+        // Lifetimes are left for inference
+        let generic_args = generic_params_to_args(&self.sig.generics.params, false);
         let fn_args = fn_params_to_args(&self.sig.inputs);
         if self.sig.unsafety.is_some() {
             self.block = Some(quote!({ unsafe { #fn_path :: <#generic_args> ( #fn_args ) } }));
@@ -766,11 +767,14 @@ impl ToTokens for GenericArgs<'_> {
 }
 
 // Cribbed from Prusti's extern_spec_rewriter
+/// If `keep_lifetimes` is false, lifetime parameters are omitted from the resulting arguments.
 fn generic_params_to_args(
     generic_params: &Punctuated<GenericParam, Token!(,)>,
+    keep_lifetimes: bool,
 ) -> Punctuated<GenericArgument, Token!(,)> {
     generic_params
         .iter()
+        .filter(|param| keep_lifetimes || !matches!(param, GenericParam::Lifetime(_)))
         .map(|param| -> GenericArgument {
             let span = param.span();
             match param {
@@ -800,8 +804,10 @@ fn generic_params_to_fields(
                 GenericParam::Lifetime(syn::LifetimeParam { lifetime, .. }) => {
                     Some(parse_quote_spanned!(span=> &#lifetime ()))
                 }
+                // Only the last field of a struct can be unsized, so wrap in `PhantomData<T>` to
+                // support unsized type parameters.
                 GenericParam::Type(syn::TypeParam { ident, .. }) => {
-                    Some(parse_quote_spanned!(span=> #ident))
+                    Some(parse_quote_spanned!(span=> ::core::marker::PhantomData<#ident>))
                 }
                 GenericParam::Const(..) => None,
             }

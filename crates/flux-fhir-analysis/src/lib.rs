@@ -1,4 +1,4 @@
-#![feature(rustc_private, never_type)]
+#![feature(rustc_private)]
 
 extern crate rustc_abi;
 extern crate rustc_ast;
@@ -17,7 +17,11 @@ mod wf;
 use std::{iter, rc::Rc};
 
 use conv::{AfterSortck, ConvPhase, struct_compat};
-use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
+use flux_common::{
+    bug, dbg,
+    iter::IterExt,
+    result::{ErrorEmitter as _, ResultExt},
+};
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
@@ -27,7 +31,7 @@ use flux_middle::{
         TraitItemKind, visit::Visitor as _,
     },
     global_env::GlobalEnv,
-    queries::{Providers, QueryResult},
+    queries::{Providers, QueryErr, QueryResult},
     query_bug,
     rty::{
         self, AssocReft, Binder, WfckResults,
@@ -48,15 +52,17 @@ use rustc_hir::{
 use rustc_span::Span;
 
 pub fn provide(providers: &mut Providers) {
-    providers.normalized_defns = normalized_defns;
+    providers.spec_funcs = spec_funcs;
     providers.func_sort = func_sort;
     providers.func_span = flux_def_ident_span;
     providers.qualifiers = qualifiers;
+    providers.axioms = axioms;
     providers.prim_rel = prim_rel;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
     providers.late_bound_refinement_params = late_bound_refinement_params;
     providers.adt_def = adt_def;
+    providers.invariants_of = invariants_of;
     providers.constant_info = constant_info;
     providers.static_info = static_info;
     providers.type_of = type_of;
@@ -98,17 +104,17 @@ fn flux_def_ident_span(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> Span {
         .ident_span
 }
 
-fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {
-    match try_normalized_defns(genv) {
-        Ok(normalized) => normalized,
+fn spec_funcs(genv: GlobalEnv) -> rty::SpecFuncs {
+    match try_spec_funcs(genv) {
+        Ok(funcs) => funcs,
         Err(err) => {
             genv.sess().abort(err);
         }
     }
 }
 
-fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGuaranteed> {
-    let mut defns = vec![];
+fn try_spec_funcs(genv: GlobalEnv) -> Result<rty::SpecFuncs, ErrorGuaranteed> {
+    let mut funcs = vec![];
 
     // Collect and emit all errors
     let mut errors = Errors::new(genv.sess());
@@ -118,12 +124,12 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
             continue;
         };
         let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
-        let Ok(defn) = cx.conv_defn(func).emit(&errors) else { continue };
-        defns.push((func.def_id, defn, func.hide));
+        let Ok(spec_func) = cx.conv_spec_func(func).emit(&errors) else { continue };
+        funcs.push((func.def_id, spec_func));
     }
     errors.to_result()?;
 
-    let defns = rty::NormalizedDefns::new(genv, &defns)
+    rty::SpecFuncs::new(funcs)
         .map_err(|cycle| {
             let span = genv
                 .fhir_spec_func_body(cycle[0])
@@ -133,9 +139,7 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
                 .span;
             errors::DefinitionCycle::new(span, cycle)
         })
-        .emit(&genv)?;
-
-    Ok(defns)
+        .emit(&genv)
 }
 
 fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
@@ -145,7 +149,27 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
             Ok(AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_qualifier(qualifier)?
-                .normalize(genv))
+                .reduce(genv))
+        })
+        .try_collect()
+}
+
+fn axioms(genv: GlobalEnv) -> QueryResult<Vec<rty::Axiom>> {
+    genv.fhir_axioms()
+        .map(|axiom| {
+            let wfckresults = wf::check_flux_item(genv, fhir::FluxItem::Axiom(axiom))?;
+            let body = AfterSortck::new(genv, &wfckresults)
+                .into_conv_ctxt()
+                .conv_axiom(axiom)?
+                .reduce(genv);
+            // The patterns are computed here, *after* reducing the body, so it is only done
+            // once (instead of once per query).
+            rty::Axiom::new(genv, axiom.def_id, body).map_err(|rty::UncoveredAxiomVar(var)| {
+                let param = &axiom.args[var.as_usize()];
+                QueryErr::Emitted(
+                    genv.emit(errors::IllFormedAxiom::new(axiom.span, param.span, param.name)),
+                )
+            })
         })
         .try_collect()
 }
@@ -157,7 +181,7 @@ fn primop_props(genv: GlobalEnv) -> QueryResult<Vec<rty::PrimOpProp>> {
             Ok(AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_primop_prop(primop_prop)?
-                .normalize(genv))
+                .reduce(genv))
         })
         .try_collect()
 }
@@ -190,13 +214,12 @@ fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> 
 
 fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
     let item = genv.fhir_expect_item(def_id.local_id())?;
-    let invariants = invariants_of(genv, item)?;
 
     let adt_def = genv.tcx().adt_def(def_id.resolved_id()).lower(genv.tcx());
 
     let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());
 
-    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, invariants, is_opaque))
+    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, is_opaque))
 }
 
 fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::ConstantInfo> {
@@ -239,28 +262,38 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
     }
 }
 
-fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::StaticInfo> {
-    let node = genv.fhir_node(def_id.local_id())?;
-    match node {
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Static(ty), .. }) => {
-            if let Some(ty) = ty {
-                let wfckresults = genv.check_wf(def_id.local_id())?;
-                let rty_ty = AfterSortck::new(genv, &wfckresults)
-                    .into_conv_ctxt()
-                    .conv_static_ty(ty)?;
-                Ok(rty::StaticInfo::Known(rty_ty))
-            } else {
-                Ok(rty::StaticInfo::Unknown)
-            }
-        }
-        _ => Ok(rty::StaticInfo::Unknown),
+/// The type of a static: its spec if it has one, or the default refinement of its rust type.
+fn static_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Ty> {
+    if let fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Static(Some(ty)), .. }) =
+        genv.fhir_node(def_id.local_id())?
+    {
+        let wfckresults = genv.check_wf(def_id.local_id())?;
+        AfterSortck::new(genv, &wfckresults)
+            .into_conv_ctxt()
+            .conv_static_ty(ty)
+    } else {
+        rty::refining::default_static_ty(genv, def_id.resolved_id())
     }
 }
 
-fn invariants_of<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    item: &fhir::Item<'genv>,
-) -> QueryResult<Vec<rty::Invariant>> {
+/// Errors are reported at the definition of the adt. If the invariants fail to convert, we
+/// continue as if the adt had no invariants. This is sound because the invariants are then
+/// neither checked (when constructing the adt) nor assumed (when using it).
+fn invariants_of(
+    genv: GlobalEnv,
+    def_id: MaybeExternId,
+) -> rty::EarlyBinder<rty::List<rty::Invariant>> {
+    let invariants = try_invariants_of(genv, def_id).unwrap_or_else(|err| {
+        if !matches!(err, QueryErr::Emitted(_)) {
+            genv.emit(err);
+        }
+        vec![]
+    });
+    rty::EarlyBinder(rty::List::from_vec(invariants))
+}
+
+fn try_invariants_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Vec<rty::Invariant>> {
+    let item = genv.fhir_expect_item(def_id.local_id())?;
     let (params, invariants) = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => (enum_def.params, enum_def.invariants),
         fhir::ItemKind::Struct(struct_def) => (struct_def.params, struct_def.invariants),
@@ -659,9 +692,8 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 .into_conv_ctxt()
                 .conv_fn_sig(def_id, fhir_fn_sig)?;
             let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-            #[cfg(feature = "suggestions")]
-            let mut fn_sig = fn_sig.hoist_input_binders();
-            #[cfg(feature = "suggestions")]
+            let mut fn_sig =
+                if config::suggestions() { fn_sig.hoist_input_binders() } else { fn_sig };
             // We aren't sure how to handle suggestions for Traits themselves
             // and ForeignItems.
             //
@@ -671,7 +703,7 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             if !genv.no_suggestions(def_id.local_id())
                 && !matches!(fhir_node, fhir::Node::TraitItem(..) | fhir::Node::ForeignItem(..))
             {
-                fn_sig = fn_sig.add_weak_kvars(genv, def_id.local_id().into())?;
+                fn_sig = fn_sig.add_weak_kvars(genv, def_id.resolved_id())?;
             }
 
             if config::dump_rty() {
@@ -720,7 +752,7 @@ mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_middle::def_id::FluxLocalDefId;
-    use rustc_span::Span;
+    use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
     #[diag("cycle in definitions", code = E0999)]
@@ -729,6 +761,25 @@ mod errors {
         #[label("{$msg}")]
         span: Span,
         msg: String,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag("ill-formed axiom", code = E0999)]
+    #[note(
+        "every variable of an axiom must occur in an application of an uninterpreted function, which is used to instantiate the axiom"
+    )]
+    pub struct IllFormedAxiom {
+        #[primary_span]
+        span: Span,
+        #[label("`{$name}` does not occur in any application (trigger pattern) of the axiom")]
+        param_span: Span,
+        name: Symbol,
+    }
+
+    impl IllFormedAxiom {
+        pub(super) fn new(span: Span, param_span: Span, name: Symbol) -> Self {
+            Self { span, param_span, name }
+        }
     }
 
     impl DefinitionCycle {

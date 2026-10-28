@@ -120,7 +120,9 @@ impl TypeFolder for &Holes {
                 .cloned()
                 .unwrap_or_else(|| bug!("unfilled sort hole {vid:?}"))
         } else {
-            sort.super_fold_with(self)
+            // Erase regions from sorts: they don't affect the sort, and a bound region filled into
+            // a hole can have an index that's only valid under the binder the sort belongs to.
+            sort.super_fold_with(self).erase_regions_including_bound()
         }
     }
 
@@ -330,6 +332,11 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.zip_ty(ty_a, ty_b)
             }
             (rty::BaseTy::FnPtr(poly_sig_a), rty::BaseTy::FnPtr(poly_sig_b)) => {
+                // Check that safety and abi of a fn-ptr in a spec (see `desugar_bare_fn`)
+                // matches the rust one, to not refine an `unsafe fn` pointer with a safe one.
+                let (sig_a, sig_b) = (poly_sig_a.skip_binder_ref(), poly_sig_b.skip_binder_ref());
+                assert_eq_or_incompatible(sig_a.safety, sig_b.safety)?;
+                assert_eq_or_incompatible(sig_a.abi, sig_b.abi)?;
                 self.zip_poly_fn_sig(poly_sig_a, poly_sig_b)
                     .map_err(|_| Mismatch::new(poly_sig_a, poly_sig_b))
             }

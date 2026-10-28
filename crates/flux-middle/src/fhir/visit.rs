@@ -2,12 +2,12 @@ use super::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
     Expr, ExprKind, FieldDef, FieldExpr, FluxItem, FnDecl, FnOutput, FnSig, ForeignItem,
     ForeignItemKind, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
-    ImplItemKind, Item, ItemKind, Lifetime, Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment,
+    ImplItemKind, Item, ItemKind, Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment,
     PolyFuncSort, PolyTraitRef, QPath, Qualifier, RefineParam, Requires, Sort, SortPath, SpecFunc,
     StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef,
     VariantRet, WhereBoundPredicate,
 };
-use crate::fhir::{PrimOpProp, QPathExpr, QuantDom, SortDecl, StructKind};
+use crate::fhir::{Axiom, PrimOpProp, QPathExpr, QuantDom, SortDecl, StructKind};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -40,6 +40,10 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_primop_prop(&mut self, prop: &PrimOpProp<'v>) {
         walk_primop_prop(self, prop);
+    }
+
+    fn visit_axiom(&mut self, axiom: &Axiom<'v>) {
+        walk_axiom(self, axiom);
     }
 
     fn visit_node(&mut self, node: &OwnerNode<'v>) {
@@ -146,8 +150,6 @@ pub trait Visitor<'v>: Sized {
         walk_generic_arg(self, arg);
     }
 
-    fn visit_lifetime(&mut self, _lft: &Lifetime) {}
-
     fn visit_ty(&mut self, ty: &Ty<'v>) {
         walk_ty(self, ty);
     }
@@ -224,6 +226,11 @@ fn walk_primop_prop<'v, V: Visitor<'v>>(vis: &mut V, prop: &PrimOpProp<'v>) {
     vis.visit_expr(&prop.body);
 }
 
+fn walk_axiom<'v, V: Visitor<'v>>(vis: &mut V, axiom: &Axiom<'v>) {
+    walk_list!(vis, visit_refine_param, axiom.args);
+    vis.visit_expr(&axiom.body);
+}
+
 fn walk_qualifier<'v, V: Visitor<'v>>(vis: &mut V, qualifier: &Qualifier<'v>) {
     walk_list!(vis, visit_refine_param, qualifier.args);
     vis.visit_expr(&qualifier.expr);
@@ -239,6 +246,9 @@ fn walk_flux_item<'v, V: Visitor<'v>>(vis: &mut V, item: &FluxItem<'v>) {
         }
         FluxItem::PrimOpProp(prop) => {
             vis.visit_primop_prop(prop);
+        }
+        FluxItem::Axiom(axiom) => {
+            vis.visit_axiom(axiom);
         }
         FluxItem::SortDecl(sort_decl) => {
             vis.visit_sort_decl(sort_decl);
@@ -294,7 +304,7 @@ pub fn walk_opaque_ty<'v, V: Visitor<'v>>(vis: &mut V, opaque_ty: &OpaqueTy<'v>)
 pub fn walk_generic_bound<'v, V: Visitor<'v>>(vis: &mut V, bound: &GenericBound<'v>) {
     match bound {
         GenericBound::Trait(trait_ref) => vis.visit_poly_trait_ref(trait_ref),
-        GenericBound::Outlives(_) => {}
+        GenericBound::Outlives => {}
     }
 }
 
@@ -432,7 +442,6 @@ pub fn walk_fn_output<'v, V: Visitor<'v>>(vis: &mut V, output: &FnOutput<'v>) {
 
 pub fn walk_generic_arg<'v, V: Visitor<'v>>(vis: &mut V, arg: &GenericArg<'v>) {
     match arg {
-        GenericArg::Lifetime(lft) => vis.visit_lifetime(lft),
         GenericArg::Type(ty) => vis.visit_ty(ty),
         GenericArg::Const(_) | GenericArg::Infer => {}
     }
@@ -453,16 +462,17 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
             vis.visit_expr(&pred);
             vis.visit_ty(ty);
         }
-        TyKind::StrgRef(lft, loc, ty) => {
-            vis.visit_lifetime(&lft);
+        TyKind::StrgRef(loc, ty) => {
             vis.visit_path_expr(loc);
             vis.visit_ty(ty);
         }
-        TyKind::Ref(lft, mty) => {
-            vis.visit_lifetime(&lft);
-            vis.visit_ty(mty.ty);
+        TyKind::Ref(ty, _) => {
+            vis.visit_ty(ty);
         }
-        TyKind::BareFn(bare_fn) => vis.visit_fn_decl(bare_fn.decl),
+        TyKind::BareFn(bare_fn) => {
+            walk_list!(vis, visit_refine_param, bare_fn.params);
+            vis.visit_fn_decl(bare_fn.decl);
+        }
         TyKind::Tuple(tys) => {
             walk_list!(vis, visit_ty, tys);
         }
@@ -472,9 +482,8 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
         TyKind::OpaqueDef(opaque_ty) => {
             vis.visit_opaque_ty(opaque_ty);
         }
-        TyKind::TraitObject(poly_traits, lft, _) => {
+        TyKind::TraitObject(poly_traits, _) => {
             walk_list!(vis, visit_poly_trait_ref, poly_traits);
-            vis.visit_lifetime(&lft);
         }
         TyKind::Never | TyKind::Infer | TyKind::Err(_) => {}
     }

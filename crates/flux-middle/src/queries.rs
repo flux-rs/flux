@@ -16,10 +16,10 @@ use flux_rustc_bridge::{
 };
 use flux_syntax::{surface, symbols::sym};
 use itertools::Itertools;
+use rustc_attr_ir::LangItem;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_errors::{DiagMessage, Diagnostic};
 use rustc_hir::{
-    attrs::lang_items::LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
@@ -35,6 +35,7 @@ use crate::{
     global_env::GlobalEnv,
     rty::{
         self, AliasReft, Expr, GenericArg,
+        fold::TypeFoldable,
         refining::{self, Refine, Refiner, refine_generic_param_def},
     },
 };
@@ -173,8 +174,9 @@ pub struct Providers {
     pub fhir_attr_map: for<'genv> fn(GlobalEnv<'genv, '_>, LocalDefId) -> fhir::AttrMap<'genv>,
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
+    pub axioms: fn(GlobalEnv) -> QueryResult<Vec<rty::Axiom>>,
     pub prim_rel: fn(GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>,
-    pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
+    pub spec_funcs: fn(GlobalEnv) -> rty::SpecFuncs,
     pub func_sort: fn(GlobalEnv, FluxId<MaybeExternId>) -> rty::PolyFuncSort,
     pub func_span: fn(GlobalEnv, FluxId<MaybeExternId>) -> Span,
     pub adt_sort_def_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtSortDef>,
@@ -182,8 +184,9 @@ pub struct Providers {
     pub late_bound_refinement_params:
         for<'genv> fn(GlobalEnv<'genv, '_>, LocalDefId) -> QueryResult<&'genv [fhir::ParamId]>,
     pub adt_def: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtDef>,
+    pub invariants_of: fn(GlobalEnv, MaybeExternId) -> rty::EarlyBinder<List<rty::Invariant>>,
     pub constant_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::ConstantInfo>,
-    pub static_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::StaticInfo>,
+    pub static_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::Ty>,
     pub type_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>>,
     pub variants_of: fn(
         GlobalEnv,
@@ -225,15 +228,17 @@ impl Default for Providers {
             desugar: |_, _| empty_query!(),
             fhir_attr_map: |_, _| empty_query!(),
             fhir_crate: |_| empty_query!(),
-            normalized_defns: |_| empty_query!(),
+            spec_funcs: |_| empty_query!(),
             func_sort: |_, _| empty_query!(),
             func_span: |_, _| empty_query!(),
             qualifiers: |_| empty_query!(),
+            axioms: |_| empty_query!(),
             prim_rel: |_| empty_query!(),
             adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
             late_bound_refinement_params: |_, _| empty_query!(),
             adt_def: |_, _| empty_query!(),
+            invariants_of: |_, _| empty_query!(),
             type_of: |_, _| empty_query!(),
             variants_of: |_, _| empty_query!(),
             fn_sig: |_, _| empty_query!(),
@@ -273,17 +278,20 @@ pub struct Queries<'genv, 'tcx> {
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
-    normalized_defns: Cache<CrateNum, Rc<rty::NormalizedDefns>>,
+    spec_funcs: Cache<CrateNum, Rc<rty::SpecFuncs>>,
+    inlined_body: Cache<FluxDefId, rty::Binder<rty::Expr>>,
     func_sort: Cache<FluxDefId, rty::PolyFuncSort>,
     func_span: Cache<FluxDefId, Span>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
+    axioms: OnceCell<QueryResult<Vec<rty::Axiom>>>,
     prim_rel: OnceCell<QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     late_bound_refinement_params: Cache<LocalDefId, QueryResult<&'genv [fhir::ParamId]>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
+    invariants_of: Cache<DefId, rty::EarlyBinder<List<rty::Invariant>>>,
     constant_info: Cache<DefId, QueryResult<rty::ConstantInfo>>,
-    static_info: Cache<DefId, QueryResult<rty::StaticInfo>>,
+    static_info: Cache<DefId, QueryResult<rty::Ty>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
@@ -320,15 +328,18 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_predicates_of: Default::default(),
             lower_type_of: Default::default(),
             lower_fn_sig: Default::default(),
-            normalized_defns: Default::default(),
+            spec_funcs: Default::default(),
+            inlined_body: Default::default(),
             func_sort: Default::default(),
             func_span: Default::default(),
             qualifiers: Default::default(),
+            axioms: Default::default(),
             prim_rel: Default::default(),
             adt_sort_def_of: Default::default(),
             check_wf: Default::default(),
             late_bound_refinement_params: Default::default(),
             adt_def: Default::default(),
+            invariants_of: Default::default(),
             constant_info: Default::default(),
             static_info: Default::default(),
             generics_of: Default::default(),
@@ -382,7 +393,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
     /// Akin to `rustc_middle::ty::TyCtxt::module_children` but for flux items (`defs!` and
     /// sort declarations) defined directly in a module.
-    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
+    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_scope` is the source of truth")]
     pub(crate) fn flux_module_children(
         &'genv self,
         genv: GlobalEnv<'genv, 'tcx>,
@@ -397,32 +408,31 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     // resolver; `fhir_crate` would create a query cycle). Modules cannot
                     // have extern specs, so `local_id()` is sound.
                     let specs = genv.collect_specs();
-                    let parent = def_id.local_id();
+                    let module = rustc_hir::HirId::make_owner(def_id.local_id());
                     let items = specs
-                        .flux_items_by_parent
-                        .get(&rustc_hir::OwnerId { def_id: parent })
+                        .flux_items_by_scope
+                        .get(&module)
                         .map_or(&[][..], Vec::as_ref);
                     genv.alloc_slice(
                         &items
                             .iter()
-                            .filter_map(|item| {
+                            .filter_map(|crate::FluxItemDecl { declarer, item }| {
+                                let declarer = declarer.to_def_id();
                                 let ident;
                                 let res = match item {
                                     surface::FluxItem::FuncDef(func) => {
                                         ident = func.name;
                                         fhir::Res::GlobalFunc(fhir::SpecFuncKind::Def(
-                                            FluxDefId::new(parent.to_def_id(), ident.name),
+                                            FluxDefId::new(declarer, ident.name),
                                         ))
                                     }
                                     surface::FluxItem::SortDecl(sort) => {
                                         ident = sort.name;
-                                        fhir::Res::UserSort(FluxDefId::new(
-                                            parent.to_def_id(),
-                                            ident.name,
-                                        ))
+                                        fhir::Res::UserSort(FluxDefId::new(declarer, ident.name))
                                     }
                                     surface::FluxItem::Qualifier(_)
                                     | surface::FluxItem::PrimOpProp(_)
+                                    | surface::FluxItem::Axiom(_)
                                     | surface::FluxItem::Use(_) => return None,
                                 };
                                 Some(fhir::FluxModChild { ident, res })
@@ -536,17 +546,26 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn normalized_defns(
-        &self,
-        genv: GlobalEnv,
-        krate: CrateNum,
-    ) -> Rc<rty::NormalizedDefns> {
-        run_with_cache(&self.normalized_defns, krate, || {
+    pub(crate) fn spec_funcs(&self, genv: GlobalEnv, krate: CrateNum) -> Rc<rty::SpecFuncs> {
+        run_with_cache(&self.spec_funcs, krate, || {
             if krate == LOCAL_CRATE {
-                Rc::new((self.providers.normalized_defns)(genv))
+                Rc::new((self.providers.spec_funcs)(genv))
             } else {
-                genv.cstore().normalized_defns(krate)
+                genv.cstore().spec_funcs(krate)
             }
+        })
+    }
+
+    pub(crate) fn inlined_body(&self, genv: GlobalEnv, did: FluxDefId) -> rty::Binder<rty::Expr> {
+        // We inline spec functions lazily (including those of external crates) in the current
+        // session, so they are inlined according to the flags of the current crate. Inlining a
+        // body recursively inlines (and caches) the bodies of the functions it calls. This
+        // terminates because `spec_funcs` rejects cycles.
+        run_with_cache(&self.inlined_body, did, || {
+            let rty::SpecFunc::Defined { body, .. } = genv.spec_func(did) else {
+                bug!("inlined body of uninterpreted function `{did:?}`")
+            };
+            body.reduce(genv)
         })
     }
 
@@ -591,6 +610,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn qualifiers(&self, genv: GlobalEnv) -> QueryResult<&[rty::Qualifier]> {
         self.qualifiers
             .get_or_init(|| (self.providers.qualifiers)(genv))
+            .as_deref()
+            .map_err(Clone::clone)
+    }
+
+    pub(crate) fn axioms(&self, genv: GlobalEnv) -> QueryResult<&[rty::Axiom]> {
+        self.axioms
+            .get_or_init(|| (self.providers.axioms)(genv))
             .as_deref()
             .map_err(Clone::clone)
     }
@@ -707,18 +733,14 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             .clone()
     }
 
-    pub(crate) fn static_info(
-        &self,
-        genv: GlobalEnv,
-        def_id: DefId,
-    ) -> QueryResult<rty::StaticInfo> {
+    pub(crate) fn static_info(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::Ty> {
         run_with_cache(&self.static_info, def_id, || {
             def_id.dispatch_query(
                 genv,
                 self,
                 |def_id| (self.providers.static_info)(genv, def_id),
                 |def_id| genv.cstore().static_info(def_id),
-                |_def_id| Ok(rty::StaticInfo::Unknown),
+                |def_id| rty::refining::default_static_ty(genv, def_id),
             )
         })
     }
@@ -793,8 +815,24 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| genv.cstore().adt_def(def_id),
                 |def_id| {
                     let adt_def = genv.tcx().adt_def(def_id).lower(genv.tcx());
-                    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, vec![], false))
+                    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, false))
                 },
+            )
+        })
+    }
+
+    pub(crate) fn invariants_of(
+        &self,
+        genv: GlobalEnv,
+        def_id: DefId,
+    ) -> rty::EarlyBinder<List<rty::Invariant>> {
+        run_with_cache(&self.invariants_of, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                self,
+                |def_id| (self.providers.invariants_of)(genv, def_id),
+                |def_id| genv.cstore().invariants_of(def_id),
+                |_| rty::EarlyBinder(List::empty()),
             )
         })
     }
@@ -1099,15 +1137,14 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     //   1. There are no weak kvars already
                     //   2. The function does NOT have a `#[no_suggestions]` annotation
                     //      in its parent. (checked below)
-                    #[cfg(feature = "suggestions")]
-                    if genv.weak_kvars_for(def_id).is_none() {
+                    if config::suggestions() && genv.weak_kvars_for(def_id).is_none() {
                         // We only will add weak kvars to specs that are
                         // available locally (also enforced in fixpoint_encoding
                         // --- this check is perhaps redundant).
                         match genv.resolve_id(def_id).as_maybe_extern() {
                             Some(maybe_extern) if !genv.no_suggestions(maybe_extern.local_id()) => {
-                                poly_sig = poly_sig
-                                    .add_weak_kvars(genv, maybe_extern.local_id().into())?;
+                                poly_sig =
+                                    poly_sig.add_weak_kvars(genv, maybe_extern.resolved_id())?;
                             }
                             _ => {}
                         }
@@ -1227,7 +1264,7 @@ impl<'a> Diagnostic<'a> for QueryErr {
         self,
         dcx: rustc_errors::DiagCtxtHandle<'a>,
         _level: rustc_errors::Level,
-    ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
+    ) -> rustc_errors::Diag<'a> {
         rustc_middle::ty::tls::with_opt(
             #[track_caller]
             |tcx| {
@@ -1303,7 +1340,7 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
         self,
         dcx: rustc_errors::DiagCtxtHandle<'a>,
         level: rustc_errors::Level,
-    ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
+    ) -> rustc_errors::Diag<'a> {
         rustc_middle::ty::tls::with_opt(
             #[track_caller]
             |tcx| {

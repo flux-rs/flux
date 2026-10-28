@@ -34,7 +34,7 @@ jobs:
 
       - name: Run tests
         run: |
-          cargo xtask test
+          cargo xtask test --fixpoint-timeout 10
 
   vtock:
     runs-on: ubuntu-latest
@@ -172,17 +172,17 @@ jobs:
         run: cargo x install
 
       - name: Copy flux binary into sysroot directory
-        run: cp ~/.cargo/bin/flux ~/.flux/flux
+        run: cp ~/.cargo/bin/flux ~/.flux/sysroot/flux
 
       - name: Stamp build with commit timestamp and toolchain info
         run: |
-          git log -1 --format='%ct' > ~/.flux/version
+          git log -1 --format='%ct' > ~/.flux/sysroot/version
           # use sed to parse toml because `tomllib` needs Python 3.11+, which ubuntu-22.04
           # doesn't ship. Assumes channel and components are each on a single line.
           sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
-            rust-toolchain.toml > ~/.flux/toolchain-channel
+            rust-toolchain.toml > ~/.flux/sysroot/toolchain-channel
           components=$(sed -n 's/^[[:space:]]*components[[:space:]]*=[[:space:]]*\[\(.*\)\].*/\1/p' rust-toolchain.toml | tr -d '",')
-          echo $components > ~/.flux/toolchain-components
+          echo $components > ~/.flux/sysroot/toolchain-components
 
       - name: Set up SSH key
         run: |
@@ -196,7 +196,7 @@ jobs:
           SHA=$(git rev-parse HEAD)
           # Destination is relative: rrsync (the forced command on the server)
           # roots it under ~/.flux-staging, so this lands in ~/.flux-staging/$SHA.
-          rsync -az --delete ~/.flux/ nlehmann@goto.ucsd.edu:$SHA/
+          rsync -az --delete ~/.flux/sysroot/ nlehmann@goto.ucsd.edu:$SHA/
 
       - name: Atomically swap sysroot on server
         run: |

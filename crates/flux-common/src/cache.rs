@@ -1,6 +1,9 @@
-use std::{fs::File, path::Path};
+use std::{
+    fs::{self, File},
+    io::BufWriter,
+    path::PathBuf,
+};
 
-use flux_config as config;
 use rustc_hash::FxHashMap;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -10,6 +13,8 @@ struct QueryVal<R> {
 }
 
 pub struct QueryCache<R> {
+    /// Where the cache is saved. `None` if caching is disabled.
+    path: Option<PathBuf>,
     entries: FxHashMap<String, QueryVal<R>>,
 }
 
@@ -21,7 +26,7 @@ impl<R> Default for QueryCache<R> {
 
 impl<R> QueryCache<R> {
     pub fn new() -> Self {
-        QueryCache { entries: FxHashMap::default() }
+        QueryCache { path: None, entries: FxHashMap::default() }
     }
 
     pub fn insert(&mut self, key: String, constr_hash: u64, result: R) {
@@ -45,41 +50,28 @@ impl<R> QueryCache<R> {
             f(&mut entry.result);
         }
     }
-
-    fn path() -> Result<&'static Path, std::io::Error> {
-        if let Some(path) = config::cache_path()
-            && let Some(parent) = path.parent()
-        {
-            std::fs::create_dir_all(parent)?;
-            return Ok(path);
-        }
-
-        Err(Self::no_cache_err())
-    }
-
-    fn no_cache_err() -> std::io::Error {
-        std::io::Error::other("cache not enabled")
-    }
 }
 
 impl<R: std::fmt::Debug + serde::Serialize + serde::de::DeserializeOwned> QueryCache<R> {
+    /// Saves the cache to the file it was loaded from, overwriting it. Does nothing if the cache
+    /// was not loaded from a file.
     pub fn save(&self) -> Result<(), std::io::Error> {
-        let path = Self::path()?;
-        let mut file = File::create(path).unwrap();
-        serde_json::to_writer(&mut file, &self.entries).unwrap();
+        let Some(path) = &self.path else { return Ok(()) };
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let file = File::create(path).unwrap();
+        serde_json::to_writer(BufWriter::new(file), &self.entries).unwrap();
         Ok(())
     }
 
-    pub fn load() -> Self {
-        let path = Self::path();
-        if let Ok(path) = path
-            && let Ok(file) = File::open(path)
-        {
-            let entries = serde_json::from_reader(file);
-            if let Ok(entries) = entries {
-                return QueryCache { entries };
-            }
-        }
-        Self::default()
+    /// Loads the cache from `path`, starting with an empty cache if the file is missing or
+    /// invalid. The cache is later saved to the same `path`.
+    pub fn load(path: PathBuf) -> Self {
+        let entries = fs::read(&path)
+            .ok()
+            .and_then(|data| serde_json::from_slice(&data).ok())
+            .unwrap_or_default();
+        QueryCache { path: Some(path), entries }
     }
 }

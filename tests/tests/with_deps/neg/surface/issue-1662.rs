@@ -1,5 +1,3 @@
-//@compile-flags: -Fsmt-define-fun=true
-
 flux_rs::defs! {
     fn valid(v: int) -> bool {
         v < u32::MAX
