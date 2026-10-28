@@ -12,8 +12,8 @@ use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
     BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind,
-    GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort,
-    SubsetTy, Ty, TyKind, TyOrBase, reduce::Reducer,
+    GenericArg, KVar, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region,
+    Sort, SubsetTy, Ty, TyKind, TyOrBase, reduce::Reducer,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -432,6 +432,24 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         self.try_fold_with(&mut Folder(f))
+    }
+
+    /// Replaces each kvar for which the closure returns `Some` with the returned expression.
+    fn replace_kvars(&self, f: impl FnMut(&KVar) -> Option<Expr>) -> Self {
+        struct Folder<F>(F);
+        impl<F: FnMut(&KVar) -> Option<Expr>> TypeFolder for Folder<F> {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::KVar(kvar) = expr.kind()
+                    && let Some(e) = (self.0)(kvar)
+                {
+                    e
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+
+        self.fold_with(&mut Folder(f))
     }
 
     /// Shift the [`BoundVar`] of all the the variables at index [`INNERMOST`] "horizontally" to the

@@ -18,8 +18,8 @@ use flux_middle::{
         TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::{
-            FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable,
-            TypeVisitable, TypeVisitor,
+            FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
+            TypeVisitor,
         },
         refining::Refiner,
     },
@@ -679,8 +679,8 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
     }
 
     /// Replaces opaque types defined by the current item with their (refined) hidden type. See
-    /// [`OpaqueRevealer`] for details. Returns obligations for the returned value when revealing
-    /// the expected return type (i.e., when `reason` is [`ConstrReason::Ret`]).
+    /// [`OpaqueRevealer`] for details. Also returns the obligations a value has to satisfy to be
+    /// returned at the revealed type.
     pub fn reveal_opaque_types<T: TypeFoldable>(
         &mut self,
         t: &T,
@@ -1424,10 +1424,11 @@ impl OpaqueRevealer<'_, '_, '_, '_, '_> {
 
         // The output of a coroutine is not part of its type, so there is nothing to pin. Instead,
         // it's checked by checking the coroutine's body when it is returned, which requires
-        // relating it to the opaque type (see `handle_opaque_type`).
+        // relating it to the opaque type (see `handle_opaque_type`). We can't reveal it there
+        // because the body would then be checked without the refinements of its captured values.
         if let BaseTy::Coroutine(..) = hidden.as_bty_skipping_binder() {
             let reveal = self.reason != ConstrReason::Ret;
-            return Ok(reveal.then(|| hidden.fold_with(&mut TopUnpinned(vec![]))));
+            return Ok(reveal.then(|| hidden.replace_kvars(|_| Some(Expr::tt()))));
         }
 
         let bounds = self.infcx.genv.item_bounds(*def_id)?.instantiate(
@@ -1458,11 +1459,9 @@ impl OpaqueRevealer<'_, '_, '_, '_, '_> {
                 self.infcx.subtyping(&assoc, &term, self.reason)?;
             }
         }
-        let hidden = hidden.fold_with(&mut TopUnpinned(pinned));
-        if self.reason == ConstrReason::Ret {
-            self.obligations
-                .extend(fn_trait_obligations(fn_trait_preds, &hidden.to_ty()));
-        }
+        let hidden = hidden.replace_kvars(|kvar| (!pinned.contains(&kvar.kvid)).then(Expr::tt));
+        self.obligations
+            .extend(fn_trait_obligations(fn_trait_preds, &hidden.to_ty()));
         Ok(Some(hidden))
     }
 }
@@ -1525,20 +1524,6 @@ fn kvids(t: &impl TypeVisitable) -> Vec<KVid> {
     let mut collector = Collector(vec![]);
     let _ = t.visit_with(&mut collector);
     collector.0
-}
-
-/// Replaces all kvars not in the list with `true`.
-struct TopUnpinned(Vec<KVid>);
-
-impl TypeFolder for TopUnpinned {
-    fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::KVar(kvar) = e.kind()
-            && !self.0.contains(&kvar.kvid)
-        {
-            return Expr::tt();
-        }
-        e.super_fold_with(self)
-    }
 }
 
 fn mk_coroutine_obligations(

@@ -901,11 +901,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env.assume_ensures(infcx, &output.ensures, span);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
 
-        // No obligations here: the callee checked them when returning the value.
-        let (ret, _) = infcx
+        let (ret, obligations) = infcx
             .at(span)
             .reveal_opaque_types(&output.ret, ConstrReason::Call)
             .with_span(span)?;
+        self.check_opaque_obligations(infcx, obligations, span)?;
 
         Ok(ResolvedCall {
             output: ret,
