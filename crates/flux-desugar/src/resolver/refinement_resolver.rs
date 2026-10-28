@@ -155,6 +155,12 @@ impl<'v, 'genv, 'tcx: 'genv, V: ScopedVisitor<'genv, 'tcx>> surface::visit::Visi
         });
     }
 
+    fn visit_axiom(&mut self, axiom: &'v surface::Axiom) {
+        self.with_scope(Scope::Explicit(&axiom.params), |this| {
+            surface::visit::walk_axiom(this, axiom);
+        });
+    }
+
     fn visit_ty_alias(&mut self, ty_alias: &'v surface::TyAlias) {
         // The generics are visited before the params are in scope.
         self.visit_generics(&ty_alias.generics);

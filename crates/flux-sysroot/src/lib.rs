@@ -74,12 +74,12 @@ pub const SYSROOT_MANIFEST: &str = "sysroot.toml";
 /// Name of the environment variable used to override the Flux sysroot location.
 ///
 /// The sysroot is a directory containing `flux-driver` and precompiled Flux libraries. When unset,
-/// the default is `~/.flux` (managed by `cargo x install`). Set this variable to redirect
+/// the default is `$FLUX_HOME/sysroot` (managed by `cargo x install`). Set this variable to redirect
 /// `flux` and `cargo-flux` to a different location, e.g., a custom or non-default install path.
 ///
 /// During development, `cargo x build-sysroot` populates `<workspace-root>/sysroot/`. The test
 /// runner (`cargo x test`) automatically sets `FLUX_SYSROOT` to that directory so tests use the
-/// locally built artifacts instead of `~/.flux`.
+/// locally built artifacts instead of the installed ones.
 pub const FLUX_SYSROOT: &str = "FLUX_SYSROOT";
 
 /// Returns the path to the active Flux sysroot.
@@ -92,9 +92,26 @@ pub fn flux_sysroot_dir() -> PathBuf {
     env::var_os(FLUX_SYSROOT).map_or_else(default_flux_sysroot_dir, PathBuf::from)
 }
 
-/// Returns `~/.flux`, the default Flux sysroot when [`FLUX_SYSROOT`] is not set.
+/// Environment variable overriding the Flux home directory.
+///
+/// Like `CARGO_HOME` for cargo, the Flux home holds the user-level configuration file
+/// (`config.toml`) and the default installation of the sysroot (`sysroot/`). When unset, the
+/// default is `~/.flux`.
+pub const FLUX_HOME: &str = "FLUX_HOME";
+
+/// Returns the Flux home directory, i.e., [`FLUX_HOME`] or `~/.flux` if not set.
+pub fn flux_home_dir() -> PathBuf {
+    env::var_os(FLUX_HOME).map_or_else(
+        || {
+            home::home_dir()
+                .expect("Couldn't find home directory")
+                .join(".flux")
+        },
+        PathBuf::from,
+    )
+}
+
+/// Returns `$FLUX_HOME/sysroot`, the default Flux sysroot when [`FLUX_SYSROOT`] is not set.
 pub fn default_flux_sysroot_dir() -> PathBuf {
-    home::home_dir()
-        .expect("Couldn't find home directory")
-        .join(".flux")
+    flux_home_dir().join("sysroot")
 }

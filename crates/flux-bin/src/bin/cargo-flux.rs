@@ -1,15 +1,15 @@
 use std::{
-    self, env,
+    self,
     io::{BufWriter, Write},
     process::{Command, exit},
 };
 
-use anyhow::anyhow;
 use cargo_metadata::{Metadata, camino::Utf8Path};
 use clap::Parser as _;
 use flux_bin::{
     FluxMetadata,
     cargo_flux_opts::{CargoFluxCommand, Cli},
+    config::FluxConfig,
     utils::{
         EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, get_rust_toolchain,
         print_version_and_exit,
@@ -31,7 +31,7 @@ fn main() {
     match run(command) {
         Ok(exit_code) => exit(exit_code),
         Err(e) => {
-            println!("Failed to run `cargo-flux`, error={e}");
+            println!("Failed to run `cargo-flux`, error={e:#}");
             exit(EXIT_ERR)
         }
     };
@@ -67,18 +67,17 @@ fn write_cargo_config(
     sysroot: &std::path::Path,
     cargo_flux_cmd: &CargoFluxCommand,
 ) -> anyhow::Result<NamedTempFile> {
-    let flux_flags: Option<Vec<String>> = if let Ok(flags) = env::var("FLUXFLAGS") {
-        Some(flags.split(" ").map(Into::into).collect())
-    } else {
-        None
-    };
-
-    let flux_toml = config::Config::builder()
-        .add_source(config::File::with_name("flux.toml").required(false))
-        .build()?;
-
-    if flux_toml.get_bool("enabled").is_ok() {
-        return Err(anyhow!("`enabled` cannot be set in `flux.toml`"));
+    let flux_config = FluxConfig::load()?;
+    let global_fluxflags = flux_config.global_fluxflags();
+    let package_versions = metadata
+        .packages
+        .iter()
+        .map(|package| (package.name.to_string(), package.version.to_string()))
+        .collect_vec();
+    for spec in flux_config.unmatched_specs(&package_versions) {
+        eprintln!(
+            "warning: `[package.\"{spec}\"]` in `.flux/config.toml` did not match any packages"
+        );
     }
     let targeted_package_ids = cargo_flux_cmd.targeted_package_ids(&metadata);
     let cli_flags = cargo_flux_cmd.rustflags();
@@ -102,17 +101,15 @@ incremental = false
         "#
         )?;
 
-        for package in metadata.packages {
-            let flux_metadata: FluxMetadata = config::Config::builder()
-                .add_source(FluxMetadataSource::new(
-                    package.manifest_path.to_string(),
-                    package.metadata,
-                ))
-                .add_source(flux_toml.clone())
-                .build()?
-                .try_deserialize()?;
+        for package in &metadata.packages {
+            let flux_metadata = FluxMetadata::from_package(package)?;
 
             if flux_metadata.enabled {
+                let package_config = flux_config.for_package(
+                    &package.name,
+                    &package.version.to_string(),
+                    metadata.workspace_members.contains(&package.id),
+                )?;
                 // For workspace members, cargo sets the workspace's root as the working dir
                 // when running flux. Paths will be relative to that, so we must normalize
                 // glob patterns to be relative to the workspace's root.
@@ -130,98 +127,33 @@ incremental = false
 rustflags = [{:?}]
                         "#,
                     package.id,
-                    flux_metadata
-                        .into_flags(
-                            &metadata.target_directory,
-                            manifest_dir_relative_to_workspace,
-                            cargo_flux_cmd
-                                .only_check()
-                                .filter(|_| targeted_package_ids.contains(&package.id))
+                    // flags `cargo-flux` sets come first, so any of them can be overridden.
+                    ["-Fverify=on", "-Ffull-compilation=on", sysroot_flag.as_str()]
+                        .into_iter()
+                        .chain(
+                            flux_metadata
+                                .into_flags(
+                                    manifest_dir_relative_to_workspace,
+                                    cargo_flux_cmd
+                                        .only_check()
+                                        .filter(|_| targeted_package_ids.contains(&package.id))
+                                )
+                                .iter()
+                                .chain(
+                                    package_config
+                                        .settings
+                                        .to_flags(&metadata.target_directory)
+                                        .iter()
+                                )
+                                .chain(package_config.fluxflags.iter())
+                                .chain(global_fluxflags.iter())
+                                .chain(cli_flags.iter())
+                                .map(String::as_str)
                         )
-                        .iter()
-                        .chain(flux_flags.iter().flatten())
-                        .chain(cli_flags.iter())
-                        .map(|s| s.as_str())
-                        .chain(["-Fverify=on", "-Ffull-compilation=on", sysroot_flag.as_str()])
                         .format(", ")
                 )?;
             }
         }
     }
     Ok(file)
-}
-
-#[derive(Clone, Debug)]
-struct FluxMetadataSource {
-    origin: String,
-    value: serde_json::Value,
-}
-
-impl FluxMetadataSource {
-    fn new(origin: String, value: serde_json::Value) -> Self {
-        Self { origin, value }
-    }
-}
-
-impl config::Source for FluxMetadataSource {
-    fn clone_into_box(&self) -> Box<dyn config::Source + Send + Sync> {
-        Box::new(self.clone())
-    }
-
-    fn collect(&self) -> Result<config::Map<String, config::Value>, config::ConfigError> {
-        if let serde_json::Value::Object(metadata) = &self.value
-            && let Some(flux_metadata) = metadata.get("flux")
-        {
-            let config_value = serde_json_to_config(flux_metadata, &self.origin)?;
-            if let config::ValueKind::Table(table) = config_value.kind {
-                Ok(table)
-            } else {
-                Err(config::ConfigError::Message("expected a table".to_string()))
-            }
-        } else {
-            Ok(Default::default())
-        }
-    }
-}
-
-fn serde_json_to_config(
-    value: &serde_json::Value,
-    origin: &String,
-) -> Result<config::Value, config::ConfigError> {
-    let kind = match value {
-        serde_json::Value::Null => config::ValueKind::Nil,
-        serde_json::Value::Bool(b) => config::ValueKind::Boolean(*b),
-        serde_json::Value::Number(number) => {
-            if let Some(n) = number.as_u128() {
-                config::ValueKind::U128(n)
-            } else if let Some(n) = number.as_i128() {
-                config::ValueKind::I128(n)
-            } else if let Some(n) = number.as_u64() {
-                config::ValueKind::U64(n)
-            } else if let Some(n) = number.as_i64() {
-                config::ValueKind::I64(n)
-            } else if let Some(n) = number.as_f64() {
-                config::ValueKind::Float(n)
-            } else {
-                return Err(config::ConfigError::Message("invalid number".to_string()));
-            }
-        }
-        serde_json::Value::String(s) => config::ValueKind::String(s.clone()),
-        serde_json::Value::Array(values) => {
-            config::ValueKind::Array(
-                values
-                    .iter()
-                    .map(|v| serde_json_to_config(v, origin))
-                    .try_collect()?,
-            )
-        }
-        serde_json::Value::Object(map) => {
-            config::ValueKind::Table(
-                map.iter()
-                    .map(|(k, v)| Ok((k.clone(), serde_json_to_config(v, origin)?)))
-                    .try_collect()?,
-            )
-        }
-    };
-    Ok(config::Value::new(Some(origin), kind))
 }

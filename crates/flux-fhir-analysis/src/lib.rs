@@ -56,6 +56,7 @@ pub fn provide(providers: &mut Providers) {
     providers.func_sort = func_sort;
     providers.func_span = flux_def_ident_span;
     providers.qualifiers = qualifiers;
+    providers.axioms = axioms;
     providers.prim_rel = prim_rel;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
@@ -149,6 +150,26 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
                 .into_conv_ctxt()
                 .conv_qualifier(qualifier)?
                 .reduce(genv))
+        })
+        .try_collect()
+}
+
+fn axioms(genv: GlobalEnv) -> QueryResult<Vec<rty::Axiom>> {
+    genv.fhir_axioms()
+        .map(|axiom| {
+            let wfckresults = wf::check_flux_item(genv, fhir::FluxItem::Axiom(axiom))?;
+            let body = AfterSortck::new(genv, &wfckresults)
+                .into_conv_ctxt()
+                .conv_axiom(axiom)?
+                .reduce(genv);
+            // The patterns are computed here, *after* reducing the body, so it is only done
+            // once (instead of once per query).
+            rty::Axiom::new(genv, axiom.def_id, body).map_err(|rty::UncoveredAxiomVar(var)| {
+                let param = &axiom.args[var.as_usize()];
+                QueryErr::Emitted(
+                    genv.emit(errors::IllFormedAxiom::new(axiom.span, param.span, param.name)),
+                )
+            })
         })
         .try_collect()
 }
@@ -671,9 +692,8 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 .into_conv_ctxt()
                 .conv_fn_sig(def_id, fhir_fn_sig)?;
             let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-            #[cfg(feature = "suggestions")]
-            let mut fn_sig = fn_sig.hoist_input_binders();
-            #[cfg(feature = "suggestions")]
+            let mut fn_sig =
+                if config::suggestions() { fn_sig.hoist_input_binders() } else { fn_sig };
             // We aren't sure how to handle suggestions for Traits themselves
             // and ForeignItems.
             //
@@ -683,7 +703,7 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             if !genv.no_suggestions(def_id.local_id())
                 && !matches!(fhir_node, fhir::Node::TraitItem(..) | fhir::Node::ForeignItem(..))
             {
-                fn_sig = fn_sig.add_weak_kvars(genv, def_id.local_id().into())?;
+                fn_sig = fn_sig.add_weak_kvars(genv, def_id.resolved_id())?;
             }
 
             if config::dump_rty() {
@@ -732,7 +752,7 @@ mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_middle::def_id::FluxLocalDefId;
-    use rustc_span::Span;
+    use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
     #[diag("cycle in definitions", code = E0999)]
@@ -741,6 +761,25 @@ mod errors {
         #[label("{$msg}")]
         span: Span,
         msg: String,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag("ill-formed axiom", code = E0999)]
+    #[note(
+        "every variable of an axiom must occur in an application of an uninterpreted function, which is used to instantiate the axiom"
+    )]
+    pub struct IllFormedAxiom {
+        #[primary_span]
+        span: Span,
+        #[label("`{$name}` does not occur in any application (trigger pattern) of the axiom")]
+        param_span: Span,
+        name: Symbol,
+    }
+
+    impl IllFormedAxiom {
+        pub(super) fn new(span: Span, param_span: Span, name: Symbol) -> Self {
+            Self { span, param_span, name }
+        }
     }
 
     impl DefinitionCycle {

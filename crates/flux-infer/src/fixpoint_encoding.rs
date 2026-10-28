@@ -47,13 +47,12 @@ use rustc_span::{DUMMY_SP, Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
-#[cfg(feature = "suggestions")]
-use crate::suggestions::{
-    find_possible_solutions, make_flat_constraint_map, subst_fixpoint_solutions,
-};
 use crate::{
-    fixpoint_encoding::fixpoint::FixpointTypes, fixpoint_qualifiers::FIXPOINT_QUALIFIERS,
-    lean_encoding::LeanEncoder, projections::structurally_normalize_expr,
+    fixpoint_encoding::fixpoint::FixpointTypes,
+    fixpoint_qualifiers::FIXPOINT_QUALIFIERS,
+    lean_encoding::LeanEncoder,
+    projections::structurally_normalize_expr,
+    suggestions::{find_possible_solutions, make_flat_constraint_map, subst_fixpoint_solutions},
 };
 
 pub mod decoding;
@@ -612,11 +611,11 @@ pub(crate) fn record_lean_task(cache: &mut FixQueryCache, key: String, hash: u64
     cache.insert(key, hash, result);
 }
 
-#[allow(unused)]
 pub(crate) struct SuggestionCtxt {
     pub(crate) flat_constraints: FxIndexMap<TagIdx, fixpoint::FlatConstraint>,
     pub(crate) const_decls: Vec<fixpoint::ConstDecl>,
     pub(crate) data_decls: Vec<fixpoint::DataDecl>,
+    pub(crate) fun_defs: Vec<fixpoint::FunDef>,
 }
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
@@ -658,6 +657,8 @@ where
             .chain(FIXPOINT_QUALIFIERS.iter().cloned())
             .collect();
 
+        let axioms = self.ecx.axioms_for(def_id, &mut self.scx)?;
+
         // Assuming values should happen after all encoding is done so we are sure we've collected
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
@@ -665,10 +666,10 @@ where
         // Track the number of constants before encoding function bodies, so we can detect any
         // new constants introduced during that step.
         let const_count_before_define_funs = self.ecx.const_env.const_map.len();
-        #[cfg(feature = "suggestions")]
-        let flat_constraint_map = make_flat_constraint_map(&constraint);
+        let flat_constraint_map =
+            config::suggestions().then(|| make_flat_constraint_map(&constraint));
 
-        // Encode function bodies after qualifiers/assumptions so any functions referenced there
+        // Encode function bodies after qualifiers/axioms/assumptions so any functions referenced there
         // are picked up as dependencies.
         let define_funs = self.ecx.define_funs(def_id, &mut self.scx)?;
 
@@ -684,8 +685,13 @@ where
         // `define-fun` bodies are included in the task.
         let constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
 
-        #[cfg(feature = "suggestions")]
-        let constants_without_inequalities = constants.clone();
+        let constants_without_inequalities = config::suggestions().then(|| {
+            constants
+                .iter()
+                .filter(|decl| !matches!(decl.name, fixpoint::Var::WKVar(..)))
+                .cloned()
+                .collect_vec()
+        });
         // The rust fixpoint implementation does not yet support polymorphic functions.
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
@@ -716,9 +722,10 @@ where
             comments: self.comments.clone(),
             constants,
             kvars,
-            define_funs,
+            define_funs: define_funs.clone(),
             constraint,
             qualifiers,
+            axioms,
             scrape_quals,
             solver,
             data_decls: data_decls.clone(),
@@ -728,14 +735,14 @@ where
             dbg::dump_item_info(self.genv.tcx(), id, "smt2", &task).unwrap();
         }
 
-        #[cfg(feature = "suggestions")]
-        let suggestion_ctx = Some(SuggestionCtxt {
-            flat_constraints: flat_constraint_map,
-            const_decls: constants_without_inequalities,
-            data_decls,
+        let suggestion_ctx = flat_constraint_map.map(|flat_constraints| {
+            SuggestionCtxt {
+                flat_constraints,
+                const_decls: constants_without_inequalities.unwrap(),
+                data_decls,
+                fun_defs: define_funs,
+            }
         });
-        #[cfg(not(feature = "suggestions"))]
-        let suggestion_ctx = None;
 
         Ok((task, suggestion_ctx))
     }
@@ -753,7 +760,7 @@ where
 
         if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
-            || cfg!(feature = "suggestions")
+            || config::suggestions()
         {
             Ok(ParsedResult {
                 status: result.status,
@@ -772,10 +779,9 @@ where
     pub(crate) fn result_to_answer(
         &mut self,
         result: ParsedResult,
-        #[allow(unused)] mut suggestion_ctx: Option<SuggestionCtxt>,
-    ) -> Answer<Tag> {
-        #[cfg(feature = "suggestions")]
-        suggestion_ctx.as_mut().map(|suggestion_ctx| {
+        mut suggestion_ctx: Option<SuggestionCtxt>,
+    ) -> QueryResult<Answer<Tag>> {
+        if let Some(suggestion_ctx) = suggestion_ctx.as_mut() {
             for constraint in suggestion_ctx.flat_constraints.values_mut() {
                 subst_fixpoint_solutions(constraint, &result.solution);
                 subst_fixpoint_solutions(constraint, &result.non_cut_solution);
@@ -784,27 +790,37 @@ where
                     .assumptions
                     .retain(|assumption| !matches!(assumption, fixpoint::Pred::KVar(..)));
             }
-        });
+        }
         let def_span = self.ecx.def_span();
+        let mut suggestion_solver = None;
         let errors = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
                 metrics::incr_metric(Metric::CsError, errors.len() as u32);
                 let tags = errors.into_iter().map(|err| err.tag).unique().collect_vec();
                 tags.into_iter()
-                    .map(|tag_idx| {
+                    .map(|tag_idx| -> QueryResult<_> {
                         let tag = self.tags[tag_idx];
-                        #[cfg(not(feature = "suggestions"))]
-                        let possible_solutions = Default::default();
-                        #[cfg(feature = "suggestions")]
                         let possible_solutions = if let Some(suggestion_ctx) = &suggestion_ctx {
-                            find_possible_solutions(self, tag_idx, &suggestion_ctx)
+                            find_possible_solutions(
+                                self,
+                                tag_idx,
+                                suggestion_ctx,
+                                &mut suggestion_solver,
+                            )
+                            .map_err(|err| {
+                                let diagnostic = self.genv.sess().dcx().struct_span_err(
+                                    def_span,
+                                    format!("failed to compute refinement suggestions: {err:?}"),
+                                );
+                                QueryErr::Emitted(diagnostic.emit_err())
+                            })?
                         } else {
                             Default::default()
                         };
-                        FixpointCheckError::new(tag, tag_idx, possible_solutions)
+                        Ok(FixpointCheckError::new(tag, tag_idx, possible_solutions))
                     })
-                    .collect_vec()
+                    .collect::<QueryResult<Vec<_>>>()?
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         };
@@ -821,7 +837,7 @@ where
             .map(|(kvid, sol)| (kvid, self.fixpoint_to_solution(&sol)))
             .collect();
 
-        Answer { errors, cut_solution, non_cut_solution }
+        Ok(Answer { errors, cut_solution, non_cut_solution })
     }
 
     fn parse_kvar_solutions(
@@ -1879,10 +1895,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e2: &rty::Expr,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
-        let uninterpreted = op.is_uninterpreted()
-            || (matches!(self.backend, Backend::Fixpoint)
-                && Self::uif_op(op).is_some_and(|uif_op| self.uif_ops.contains(uif_op)));
-        if uninterpreted {
+        if self.is_uif_bin_op(op) {
             let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
             let args = vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?];
             return Ok(fixpoint::Expr::App(Box::new(func), None, args, None));
@@ -2122,6 +2135,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 }
             })
             .name
+    }
+
+    /// Whether `op` is encoded as an uninterpreted function in this constraint
+    fn is_uif_bin_op(&self, op: &rty::BinOp) -> bool {
+        op.is_uninterpreted()
+            || (matches!(self.backend, Backend::Fixpoint)
+                && Self::uif_op(op).is_some_and(|uif_op| self.uif_ops.contains(uif_op)))
     }
 
     /// The operator (if any) that `op` corresponds to in [`UifOps`]
@@ -2372,14 +2392,25 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .try_collect()
     }
 
+    fn axioms_for(
+        &mut self,
+        def_id: MaybeExternId,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<Vec<fixpoint::Axiom>> {
+        let fun_env = FunEnv::new(self.genv, def_id);
+        self.genv
+            .axioms()?
+            .iter()
+            .map(|axiom| self.axiom_to_fixpoint(axiom, &fun_env, scx))
+            .try_collect()
+    }
+
     fn define_funs(
         &mut self,
         def_id: MaybeExternId,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<Vec<fixpoint::FunDef>> {
-        let reveals: UnordSet<FluxDefId> = self.genv.reveals_for(def_id.local_id()).collect();
-        let hides: UnordSet<FluxDefId> = self.genv.hides_for(def_id.local_id()).collect();
-        let proven_externally = self.genv.proven_externally(def_id.local_id());
+        let fun_env = FunEnv::new(self.genv, def_id);
         let mut defs = vec![];
 
         // Iterate till encoding the body of functions doesn't require any more functions to be encoded.
@@ -2387,15 +2418,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         while let Some((&did, _)) = self.const_env.fun_decl_map.get_index(idx) {
             idx += 1;
 
-            let revealed = reveals.contains(&did);
-            let hidden = hides.contains(&did);
-            let uninterpreted = match self.genv.spec_func(did) {
-                rty::SpecFunc::Uif => true,
-                rty::SpecFunc::Defined { hide, .. } => {
-                    (hide || hidden) && !revealed && proven_externally.is_none()
-                }
-            };
-            let def = if uninterpreted {
+            let def = if fun_env.is_uninterpreted(self.genv, did) {
                 self.fun_decl_to_fixpoint(did, scx)
             } else {
                 self.fun_def_to_fixpoint(did, scx)?
@@ -2481,6 +2504,78 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .map(|((name, sort), &is_wildcard)| fixpoint::QualParam { name, sort, is_wildcard })
             .collect();
         Ok(fixpoint::Qualifier { name, args, body })
+    }
+
+    /// Encodes an axiom together with its patterns, which were computed in [`rty::Axiom::new`].
+    /// The only thing we do here is drop the applications of hidden functions that are revealed
+    /// for the item being checked, and the operations that are not in its `uif_ops`, as those
+    /// are not uninterpreted in this constraint.
+    fn axiom_to_fixpoint(
+        &mut self,
+        axiom: &rty::Axiom,
+        fun_env: &FunEnv,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::Axiom> {
+        let name = axiom.def_id.name().to_string();
+        let vars = axiom.body.vars();
+        let rty::AxiomBody { expr, patterns } = axiom.body.skip_binder_ref();
+
+        self.local_var_env.push_layer_with_fresh_names(vars.len());
+        let body = self.expr_to_fixpoint(expr, scx)?;
+        // This is retroactively removing certain applications which are "interpreted"
+        // for this specific Task; this is likely to change with the `retro-hide` mechanism...
+        let mut fixpoint_patterns = vec![];
+        for pattern in patterns {
+            let uninterpreted = match pattern.kind() {
+                rty::ExprKind::App(func, ..)
+                    if let rty::ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind() =>
+                {
+                    fun_env.is_uninterpreted(self.genv, *did)
+                }
+                rty::ExprKind::BinaryOp(op, ..) => self.is_uif_bin_op(op),
+                _ => true,
+            };
+            if uninterpreted {
+                fixpoint_patterns.push(self.expr_to_fixpoint(pattern, scx)?);
+            }
+        }
+        let patterns = fixpoint_patterns;
+        let args = iter::zip(self.local_var_env.pop_layer(), vars)
+            .map(|(name, var)| (name.into(), scx.sort_to_fixpoint(var.expect_sort())))
+            .collect();
+
+        Ok(fixpoint::Axiom { name, args, body, patterns })
+    }
+}
+
+/// Determines which Flux functions are uninterpreted in the constraint generated for an item.
+struct FunEnv {
+    reveals: UnordSet<FluxDefId>,
+    /// Functions hidden for the item (with `#[hide]` on the item)
+    hides: UnordSet<FluxDefId>,
+    proven_externally: bool,
+}
+
+impl FunEnv {
+    fn new(genv: GlobalEnv, def_id: MaybeExternId) -> Self {
+        let reveals = genv.reveals_for(def_id.local_id()).collect();
+        let hides = genv.hides_for(def_id.local_id()).collect();
+        let proven_externally = genv.proven_externally(def_id.local_id()).is_some();
+        Self { reveals, hides, proven_externally }
+    }
+
+    /// A function is uninterpreted if it has no definition, or if it is hidden (either at its
+    /// definition or for the item) and it is not revealed for the item, unless the item is proven
+    /// externally.
+    fn is_uninterpreted(&self, genv: GlobalEnv, did: FluxDefId) -> bool {
+        match genv.spec_func(did) {
+            rty::SpecFunc::Uif => true,
+            rty::SpecFunc::Defined { hide, .. } => {
+                (hide || self.hides.contains(&did))
+                    && !self.reveals.contains(&did)
+                    && !self.proven_externally
+            }
+        }
     }
 }
 

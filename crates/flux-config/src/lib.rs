@@ -70,7 +70,7 @@ pub fn lean() -> LeanMode {
     FLAGS.lean
 }
 
-pub fn cache_path() -> Option<&'static Path> {
+pub fn cache_dir() -> Option<&'static Path> {
     FLAGS.cache.as_deref()
 }
 
@@ -159,8 +159,8 @@ pub fn verbose() -> bool {
     FLAGS.flux_verbose
 }
 
-pub fn no_suggestions_default() -> bool {
-    FLAGS.no_suggestions_default
+pub fn suggestions() -> bool {
+    FLAGS.suggestions
 }
 
 pub fn rerun_hint() -> bool {

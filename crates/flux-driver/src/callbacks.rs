@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
@@ -127,8 +129,9 @@ fn inject_std_extern_specs(config: &mut rustc_interface::interface::Config) {
 fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     tracing::info_span!("check_crate").in_scope(move || {
         tracing::info!("Callbacks::check_wf");
-        // Query qualifiers and spec funcs to report wf errors
+        // Query qualifiers, axioms and spec funcs to report wf errors
         let _ = genv.qualifiers().emit(&genv)?;
+        let _ = genv.axioms().emit(&genv)?;
         let _ = genv.spec_funcs(LOCAL_CRATE);
 
         let mut ck = CrateChecker::new(genv);
@@ -220,6 +223,17 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
     }
 }
 
+/// Path of the query cache for the local crate inside `dir`. A single package can
+/// contain several crates with the same name (e.g., a library and a binary), so the
+/// [`StableCrateId`] tells them apart.
+///
+/// [`StableCrateId`]: rustc_span::def_id::StableCrateId
+fn cache_file(tcx: TyCtxt, dir: &Path) -> PathBuf {
+    let crate_name = tcx.crate_name(LOCAL_CRATE);
+    let stable_crate_id = tcx.stable_crate_id(LOCAL_CRATE);
+    dir.join(format!("{crate_name}-{:016x}.json", stable_crate_id.as_u64()))
+}
+
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     cache: FixQueryCache,
@@ -227,7 +241,10 @@ struct CrateChecker<'genv, 'tcx> {
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        Self { genv, cache: QueryCache::load() }
+        let cache = config::cache_dir()
+            .map(|dir| QueryCache::load(cache_file(genv.tcx(), dir)))
+            .unwrap_or_default();
+        Self { genv, cache }
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
