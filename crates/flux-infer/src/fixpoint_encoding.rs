@@ -2386,7 +2386,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 | ConstKey::WKVar(..) => {}
             }
         }
-        for facts in std::mem::take(&mut self.const_env.sized_facts) {
+        for facts in self.const_env.sized_facts.drain(..) {
             let bind = fixpoint::Bind {
                 name: fixpoint::Var::Underscore,
                 sort: fixpoint::Sort::Int,
