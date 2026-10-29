@@ -16,7 +16,7 @@ use super::{
     UseTreeKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 use crate::surface::{
-    Axiom, FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn, UseTree,
+    Axiom, FluxItem, ImplItem, ImplItemKind, Item, PrimOpProp, SortDecl, TraitItemFn, UseTree,
 };
 
 #[macro_export]
@@ -76,7 +76,7 @@ pub trait Visitor<'v>: Sized {
         walk_trait_item(self, item);
     }
 
-    fn visit_impl_item(&mut self, item: &'v ImplItemFn) {
+    fn visit_impl_item(&mut self, item: &'v ImplItem) {
         walk_impl_item(self, item);
     }
 
@@ -327,9 +327,14 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, item: &'v TraitItemFn) {
     }
 }
 
-pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, item: &'v ImplItemFn) {
-    if let Some(fn_sig) = item.sig.as_ref() {
-        vis.visit_fn_sig(fn_sig);
+pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, item: &'v ImplItem) {
+    match &item.kind {
+        ImplItemKind::Fn(fn_sig) => {
+            if let Some(fn_sig) = fn_sig.as_ref() {
+                vis.visit_fn_sig(fn_sig);
+            }
+        }
+        ImplItemKind::Const(cst) => vis.visit_constant(cst),
     }
 }
 
