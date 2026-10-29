@@ -430,7 +430,7 @@ impl<T: Types> Sort<T> {
     }
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash, Debug, Clone)]
 pub struct FunSort<T: Types> {
     pub params: usize,
     pub inputs: Vec<Sort<T>>,
@@ -447,6 +447,10 @@ impl<T: Types> FunSort<T> {
 
     pub fn into_sort(self) -> Sort<T> {
         Sort::mk_func(self.params, self.inputs, self.output)
+    }
+
+    pub fn to_sort(&self) -> Sort<T> {
+        Sort::mk_func(self.params, self.inputs.clone(), self.output.clone())
     }
 }
 
@@ -957,6 +961,17 @@ pub struct Qualifier<T: Types> {
     pub name: String,
     pub args: Vec<QualParam<T>>,
     pub body: Expr<T>,
+}
+
+/// A fact that is asserted to the SMT solver, universally quantified over `args`.
+#[derive_where(Debug, Clone, Hash)]
+pub struct Axiom<T: Types> {
+    pub name: String,
+    pub args: Vec<(T::Var, Sort<T>)>,
+    pub body: Expr<T>,
+    /// The terms of the (multi-)pattern used by the SMT solver to instantiate the axiom, i.e.,
+    /// the axiom is instantiated when *all* of them are matched.
+    pub patterns: Vec<Expr<T>>,
 }
 
 #[derive_where(Debug, Clone, Hash)]

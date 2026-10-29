@@ -15,6 +15,7 @@ use rustc_middle::{
     mir::Location,
     ty::{GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt},
 };
+use rustc_serialize::ContextOrd;
 use serde::Serialize;
 use toposort_scc::IndexGraph;
 
@@ -31,6 +32,9 @@ pub enum NodeKey<'tcx> {
     /// Use `NodeKey::from_instance` to classify an `Instance` into a `NodeKey`.
     Mono(Instance<'tcx>),
 }
+
+// Flux metadata is not encoded deterministically, so a stable comparator is never needed.
+impl<'tcx, E> ContextOrd<E> for NodeKey<'tcx> {}
 
 impl<'tcx> NodeKey<'tcx> {
     /// Classifies an `Instance` into a `NodeKey`.

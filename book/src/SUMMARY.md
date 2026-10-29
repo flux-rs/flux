@@ -21,8 +21,14 @@
 - [Case Study: Dependent Typestates](tutorial/13-bitvectors.md)
 - [Case Study: Neural Networks](tutorial/14-neural.md)
 
-# Appendix
+# Reference
 
 - [Specifications](guide/specifications.md)
+- [The Manifest Format](reference/manifest.md)
+- [Configuration](reference/config.md)
+- [Environment Variables](reference/environment-variables.md)
+
+# Appendix
+
 - [Developer's Guide](guide/develop.md)
 - [Architecture](guide/architecture.md)

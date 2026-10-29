@@ -25,9 +25,6 @@ xflags::xflags! {
         optional --offline
         /// If true, run cargo build commands with --features rust-fixpiont
         optional --rust-fixpoint
-        /// If true, run cargo build commands with --features suggestions
-        optional --suggestions
-
         /// Run regression tests
         cmd test {
             /// Only run tests containing `filter` as a substring.
@@ -56,7 +53,7 @@ xflags::xflags! {
             /// Input file
             required input: PathBuf
         }
-        /// Install Flux binaries to `~/.cargo/bin` and precompiled libraries and driver to `~/.flux`
+        /// Install Flux binaries to `~/.cargo/bin` and precompiled libraries and driver to `~/.flux/sysroot`
         cmd install {
             /// Select build profile for the `flux-driver`, either 'release', 'dev', or 'profiling'. Default 'release'
             optional --profile profile: Profile
@@ -117,16 +114,15 @@ fn main() -> anyhow::Result<()> {
     };
 
     match cmd.subcommand {
-        XtaskCmd::Test(args) => test(args, cmd.rust_fixpoint, cmd.suggestions),
+        XtaskCmd::Test(args) => test(args, cmd.rust_fixpoint),
         XtaskCmd::LeanBench(args) => lean_bench(args, cmd.rust_fixpoint),
-        XtaskCmd::Run(args) => run(args, cmd.rust_fixpoint, cmd.suggestions),
-        XtaskCmd::Install(args) => install(&args, cmd.offline, cmd.rust_fixpoint, cmd.suggestions),
+        XtaskCmd::Run(args) => run(args, cmd.rust_fixpoint),
+        XtaskCmd::Install(args) => install(&args, cmd.offline, cmd.rust_fixpoint),
         XtaskCmd::Doc(args) => doc(args),
         XtaskCmd::BuildSysroot(_) => {
             let config = SysrootConfig {
                 profile: Profile::Dev,
                 rust_fixpoint: cmd.rust_fixpoint,
-                suggestions: cmd.suggestions,
                 dst: local_sysroot_dir()?,
                 build_libs: BuildLibs { force: true, libs: FluxLib::ALL },
             };
@@ -157,7 +153,7 @@ fn run_tests(
         .run()
 }
 
-fn test(args: Test, rust_fixpoint: bool, suggestions: bool) -> anyhow::Result<()> {
+fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
     let dst = local_sysroot_dir()?;
 
     let suites: &[Suite] = if args.suite.is_empty() { Suite::ALL } else { &args.suite };
@@ -170,7 +166,6 @@ fn test(args: Test, rust_fixpoint: bool, suggestions: bool) -> anyhow::Result<()
         let config = SysrootConfig {
             profile: Profile::Dev,
             rust_fixpoint,
-            suggestions,
             dst: dst.clone(),
             build_libs: BuildLibs { force: false, libs },
         };
@@ -186,7 +181,6 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     let config = SysrootConfig {
         profile: Profile::Dev,
         rust_fixpoint,
-        suggestions: false,
         dst: local_sysroot_dir()?,
         build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
     };
@@ -309,7 +303,7 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn run(args: Run, rust_fixpoint: bool, suggestions: bool) -> anyhow::Result<()> {
+fn run(args: Run, rust_fixpoint: bool) -> anyhow::Result<()> {
     let libs = if args.no_extern_specs { &[FluxLib::FluxRs] } else { FluxLib::ALL };
     run_inner(
         args.input,
@@ -318,7 +312,6 @@ fn run(args: Run, rust_fixpoint: bool, suggestions: bool) -> anyhow::Result<()> 
             .into_iter()
             .chain(args.opts),
         rust_fixpoint,
-        suggestions,
     )?;
     Ok(())
 }
@@ -329,7 +322,6 @@ fn expand(args: Expand) -> Result<(), anyhow::Error> {
         BuildLibs { force: false, libs: &[FluxLib::FluxRs] },
         ["-Zunpretty=expanded".to_string()],
         false,
-        false,
     )?;
     Ok(())
 }
@@ -339,12 +331,10 @@ fn run_inner(
     build_libs: BuildLibs,
     flags: impl IntoIterator<Item = String>,
     rust_fixpoint: bool,
-    suggestions: bool,
 ) -> Result<(), anyhow::Error> {
     let config = SysrootConfig {
         profile: Profile::Dev,
         rust_fixpoint,
-        suggestions,
         dst: local_sysroot_dir()?,
         build_libs,
     };
@@ -362,17 +352,11 @@ fn run_inner(
         .run()
 }
 
-fn install(
-    args: &Install,
-    offline: bool,
-    rust_fixpoint: bool,
-    suggestions: bool,
-) -> anyhow::Result<()> {
+fn install(args: &Install, offline: bool, rust_fixpoint: bool) -> anyhow::Result<()> {
     let libs = if args.no_extern_specs { &[FluxLib::FluxRs] } else { FluxLib::ALL };
     let config = SysrootConfig {
         profile: args.profile(),
         rust_fixpoint,
-        suggestions,
         dst: default_flux_sysroot_dir(),
         build_libs: BuildLibs { force: false, libs },
     };
@@ -390,8 +374,9 @@ fn uninstall() -> anyhow::Result<()> {
     Command::new("cargo")
         .args(["uninstall", "-p", "flux-bin"])
         .run()?;
-    eprintln!("$ rm -rf ~/.flux");
-    remove_path(&default_flux_sysroot_dir())?;
+    let sysroot = default_flux_sysroot_dir();
+    eprintln!("$ rm -rf {}", sysroot.display());
+    remove_path(&sysroot)?;
     Ok(())
 }
 
@@ -403,16 +388,10 @@ fn doc(_args: Doc) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build_binary(
-    bin: &str,
-    profile: Profile,
-    rust_fixpoint: bool,
-    suggestions: bool,
-) -> anyhow::Result<Utf8PathBuf> {
+fn build_binary(bin: &str, profile: Profile, rust_fixpoint: bool) -> anyhow::Result<Utf8PathBuf> {
     Command::new("cargo")
         .args(["build", "--bin", bin, "--profile", profile.as_str()])
         .args_if(rust_fixpoint, ["--features", "rust-fixpoint"])
-        .args_if(suggestions, ["--features", "suggestions"])
         .run_with_cargo_metadata()?
         .into_iter()
         .find(|artifact| artifact.target.name == bin && artifact.target.is_kind(TargetKind::Bin))
@@ -425,8 +404,6 @@ struct SysrootConfig {
     profile: Profile,
     /// Whether rust-fixpoint should be enabled to build `flux-driver`
     rust_fixpoint: bool,
-    /// Whether suggestions should be enabled to build `flux-driver`
-    suggestions: bool,
     /// Destination path for sysroot artifacts
     dst: PathBuf,
     build_libs: BuildLibs,
@@ -491,12 +468,10 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
     remove_path(&config.dst)?;
     create_dir(&config.dst)?;
 
-    let flux_driver =
-        build_binary("flux-driver", config.profile, config.rust_fixpoint, config.suggestions)?;
+    let flux_driver = build_binary("flux-driver", config.profile, config.rust_fixpoint)?;
     copy_file(&flux_driver, &config.dst)?;
 
-    let cargo_flux =
-        build_binary("cargo-flux", config.profile, config.rust_fixpoint, config.suggestions)?;
+    let cargo_flux = build_binary("cargo-flux", config.profile, config.rust_fixpoint)?;
 
     if config.build_libs.force {
         Command::new(&cargo_flux)
