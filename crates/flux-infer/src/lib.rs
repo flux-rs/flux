@@ -19,6 +19,7 @@ pub mod fn_subtyping;
 pub mod infer;
 pub mod lean_encoding;
 pub mod lean_format;
+pub mod opaque_revealer;
 pub mod projections;
 pub mod refine_tree;
 pub mod suggestions;
