@@ -286,7 +286,7 @@ fn all_nested_bodies(tcx: TyCtxt, def_id: LocalDefId) -> impl Iterator<Item = Lo
             hir::intravisit::walk_expr(self, ex);
         }
     }
-    let body = tcx.hir_body_owned_by(def_id).value;
+    let body = &tcx.hir_body_owned_by(def_id).value;
     let mut finder = ClosureFinder { tcx, closures: FxHashSet::default() };
     hir::intravisit::Visitor::visit_expr(&mut finder, body);
     finder.closures.into_iter().chain(iter::once(def_id))

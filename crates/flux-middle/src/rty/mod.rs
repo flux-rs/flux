@@ -255,7 +255,9 @@ impl Generics {
         }
     }
 
-    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<Vec<(ParamConst, Sort)>> {
+    /// Returns the const generic params (including the parent's) together with their sort and
+    /// [`DefId`].
+    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<Vec<(ParamConst, Sort, DefId)>> {
         let mut res = vec![];
         for i in 0..self.count() {
             let param = self.param_at(i, genv)?;
@@ -263,7 +265,7 @@ impl Generics {
                 && let Some(sort) = genv.sort_of_def_id(param.def_id)?
             {
                 let param_const = ParamConst { name: param.name, index: param.index };
-                res.push((param_const, sort));
+                res.push((param_const, sort, param.def_id));
             }
         }
         Ok(res)
@@ -1457,6 +1459,142 @@ pub struct PrimOpProp {
     pub body: Binder<Expr>,
 }
 
+/// An `Axiom` is a (global) fact, typically about uninterpreted functions, that is assumed to
+/// hold for all values of the variables bound in `body`.
+#[derive(TypeVisitable, TypeFoldable)]
+pub struct Axiom {
+    pub def_id: FluxLocalDefId,
+    pub body: Binder<AxiomBody>,
+}
+
+/// The variable (by its position in the axiom's binder) that does not occur in any pattern of an
+/// ill-formed axiom. See [`Axiom::new`].
+#[derive(Debug, Clone, Copy)]
+pub struct UncoveredAxiomVar(pub BoundVar);
+
+#[derive(Debug, TypeVisitable, TypeFoldable)]
+pub struct AxiomBody {
+    pub expr: Expr,
+    /// The terms used as the pattern (trigger) to instantiate the axiom: *each* application of an
+    /// uninterpreted function occurring in `expr`. See [`Axiom::new`].
+    pub patterns: List<Expr>,
+}
+
+impl Axiom {
+    /// Creates an axiom, computing its patterns from `body`, which must have already been
+    /// [reduced] so that the applications are the ones that will be sent to the solver.
+    ///
+    /// A function is considered uninterpreted if it has no body or if it is hidden. We also
+    /// include the arithmetic and bitwise operations that can be encoded as UIFs (e.g.,
+    /// `[&](x, y)` on `int`, or `x * y` under `uif_ops`), the casts that have no interpretation,
+    /// and associated refinements. (Whether a hidden function is revealed, or an operation is
+    /// uninterpreted, depends on the item being checked, so those are *candidates* that are
+    /// filtered when encoding the axiom.) Applications mentioning variables bound *inside* the body (by
+    /// a `let` or a quantifier) are skipped as they are not valid outside of their binder.
+    ///
+    /// [reduced]: fold::TypeFoldable::reduce
+    ///
+    /// Fails if some variable bound by the axiom does not occur in any of the patterns, as the
+    /// axiom could then never be instantiated.
+    pub fn new(
+        genv: GlobalEnv,
+        def_id: FluxLocalDefId,
+        body: Binder<Expr>,
+    ) -> Result<Self, UncoveredAxiomVar> {
+        use fold::{TypeSuperVisitable as _, TypeVisitable as _};
+
+        struct Collector<'genv, 'tcx> {
+            genv: GlobalEnv<'genv, 'tcx>,
+            /// Number of binders we are currently under
+            depth: usize,
+            /// Total number of binders entered so far
+            binders: usize,
+            patterns: Vec<Expr>,
+        }
+
+        impl Collector<'_, '_> {
+            fn is_uif_app(&self, expr: &Expr) -> bool {
+                match expr.kind() {
+                    ExprKind::App(func, sort_args, _) => {
+                        match func.kind() {
+                            ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
+                                matches!(
+                                    self.genv.spec_func(*did),
+                                    SpecFunc::Uif | SpecFunc::Defined { hide: true, .. }
+                                )
+                            }
+                            ExprKind::InternalFunc(InternalFuncKind::Cast) => {
+                                matches!(
+                                    &sort_args[..],
+                                    [SortArg::Sort(from), SortArg::Sort(to)]
+                                        if matches!(from.cast_kind(to), CastKind::Uninterpreted)
+                                )
+                            }
+                            _ => false,
+                        }
+                    }
+                    // An operation that *may* be encoded as a UIF, e.g., `[&](x, y)` or `x * y`
+                    ExprKind::BinaryOp(op, ..) => op.uif_sort().is_some(),
+                    ExprKind::Alias(..) => true,
+                    _ => false,
+                }
+            }
+        }
+
+        impl fold::TypeVisitor for Collector<'_, '_> {
+            fn enter_binder(&mut self, _vars: &BoundVariableKinds) {
+                self.depth += 1;
+                self.binders += 1;
+            }
+
+            fn exit_binder(&mut self) {
+                self.depth -= 1;
+            }
+
+            fn visit_expr(&mut self, expr: &Expr) -> std::ops::ControlFlow<!> {
+                let binders = self.binders;
+                expr.super_visit_with(self)?;
+                // Skip applications under a binder or containing one
+                if self.depth == 0 && self.binders == binders && self.is_uif_app(expr) {
+                    let expr = expr.erase_spans();
+                    if !self.patterns.contains(&expr) {
+                        self.patterns.push(expr);
+                    }
+                }
+                std::ops::ControlFlow::Continue(())
+            }
+        }
+
+        /// Marks the variables of the axiom's binder that occur in a pattern. Patterns never
+        /// contain binders, so the axiom's variables are exactly those at [`INNERMOST`].
+        struct CoverChecker(Vec<bool>);
+
+        impl fold::TypeVisitor for CoverChecker {
+            fn visit_expr(&mut self, expr: &Expr) -> std::ops::ControlFlow<!> {
+                if let ExprKind::Var(Var::Bound(INNERMOST, BoundReft { var, .. })) = expr.kind() {
+                    self.0[var.as_usize()] = true;
+                }
+                expr.super_visit_with(self)
+            }
+        }
+
+        let mut collector = Collector { genv, depth: 0, binders: 0, patterns: vec![] };
+        let _ = body.skip_binder_ref().visit_with(&mut collector);
+
+        // Every variable of the axiom must occur in some pattern, otherwise the solver
+        // cannot instantiate it.
+        let mut checker = CoverChecker(vec![false; body.vars().len()]);
+        let _ = collector.patterns.visit_with(&mut checker);
+        if let Some(idx) = checker.0.iter().position(|covered| !covered) {
+            return Err(UncoveredAxiomVar(BoundVar::from_usize(idx)));
+        }
+
+        let patterns = List::from_vec(collector.patterns);
+        let body = body.map(|expr| AxiomBody { expr, patterns });
+        Ok(Axiom { def_id, body })
+    }
+}
+
 #[derive(Debug, TypeVisitable, TypeFoldable)]
 pub struct PrimRel {
     pub body: Binder<Expr>,
@@ -1985,6 +2123,7 @@ impl BaseTy {
             BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_mode).to_vec(),
             BaseTy::Char => char_invariants().to_vec(),
             BaseTy::Slice(ty) => slice_invariants(genv, ty, overflow_mode),
+            BaseTy::RawPtr(..) => raw_ptr_invariants().to_vec(),
             _ => vec![],
         }
         .into_iter()
@@ -2999,6 +3138,27 @@ fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [In
     } else {
         &*DEFAULT
     }
+}
+
+fn raw_ptr_invariants() -> &'static [Invariant] {
+    fn field(field: RawPtrField) -> Expr {
+        Expr::nu().proj_and_reduce(FieldProj::RawPtr { field })
+    }
+
+    static INVARIANTS: LazyLock<[Invariant; 4]> = LazyLock::new(|| {
+        let base = field(RawPtrField::Base);
+        let addr = field(RawPtrField::Addr);
+        let size = field(RawPtrField::Size);
+        let max = Expr::uint_max(UintTy::Usize);
+        [
+            Expr::ge(base, Expr::zero()),
+            Expr::ge(&addr, Expr::zero()),
+            Expr::le(&addr, &max),
+            Expr::le(addr + size, max),
+        ]
+        .map(|pred| Invariant { pred: Binder::bind_with_sort(pred, Sort::RawPtr) })
+    });
+    &*INVARIANTS
 }
 
 fn char_invariants() -> &'static [Invariant] {

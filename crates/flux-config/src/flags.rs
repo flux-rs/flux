@@ -59,8 +59,8 @@ pub struct Flags {
         default_value = "64"
     )]
     pub pointer_width: PointerWidth,
-    /// If present, switches on query caching and saves the cache in the provided path
-    #[arg(long = flux_arg!("cache"), value_name = "PATH")]
+    /// If present, switches on query caching and saves the cache in the provided directory.
+    #[arg(long = flux_arg!("cache"), value_name = "DIR")]
     pub cache: Option<PathBuf>,
     /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`].
     #[arg(
@@ -219,13 +219,14 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub flux_verbose: bool,
-    /// If `true`, all code will have suggestions disabled.
+    /// Enable the refinement suggestion engine. Items can opt out with `#[flux::no_suggestions]`.
     #[arg(
-        long = flux_arg!("no-suggestions"),
+        long = flux_arg!("suggestions"),
         num_args = 0..=1,
+        default_value_t = false,
         default_missing_value = "true"
     )]
-    pub no_suggestions_default: bool,
+    pub suggestions: bool,
     /// If `true` (the default), attach a note to each failing item with a copy-pasteable command to
     /// re-run the check on just that item. Only applies when running under `cargo flux`.
     #[arg(
@@ -272,7 +273,7 @@ impl Default for Flags {
             no_panic: false,
             std_extern_specs: false,
             flux_verbose: false,
-            no_suggestions_default: false,
+            suggestions: false,
             rerun_hint: true,
         }
     }
@@ -291,7 +292,7 @@ impl Flags {
             let Some(long) = arg.get_long() else { continue };
             match matches.get_raw(id) {
                 Some(values) => {
-                    out.extend(values.map(|v| format!("-{long}={}", v.to_string_lossy())))
+                    out.extend(values.map(|v| format!("-{long}={}", v.to_string_lossy())));
                 }
                 None => out.push(format!("-{long}")),
             }
@@ -363,7 +364,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "no-panic" => parse_bool(&mut flags.no_panic, value),
             "std-extern-specs" => parse_bool(&mut flags.std_extern_specs, value),
             "flux-verbose" => parse_bool(&mut flags.flux_verbose, value),
-            "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
+            "suggestions" => parse_bool(&mut flags.suggestions, value),
             "rerun-hint" => parse_bool(&mut flags.rerun_hint, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
