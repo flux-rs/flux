@@ -517,6 +517,18 @@ pub fn refine_bound_variables(vars: &[ty::BoundVariableKind]) -> List<rty::Bound
 
 impl rty::PolyFnSig {
     pub fn add_weak_kvars(self, genv: GlobalEnv, def_id: DefId) -> QueryResult<Self> {
+        let (sig, map) = self.with_weak_kvars(genv, def_id, false)?;
+        genv.feed_weak_kvars(def_id, map);
+        Ok(sig)
+    }
+
+    /// Build weak kvars without modifying the suggestion query state.
+    pub fn with_weak_kvars(
+        self,
+        genv: GlobalEnv,
+        def_id: DefId,
+        diagnostic: bool,
+    ) -> QueryResult<(Self, WeakKvarMap)> {
         let refinement_generics = genv.refinement_generics_of(def_id)?;
         let early_param_sorts: FxHashMap<Symbol, rty::Sort> = refinement_generics
             .0
@@ -537,7 +549,8 @@ impl rty::PolyFnSig {
             })
             .collect_vec();
         let late_vars = make_vars_and_sorts_from_bound_vars(self.vars());
-        Ok(self.map(|fn_sig| {
+        let mut map = WeakKvarMap::default();
+        let sig = self.map(|fn_sig| {
             let mut params = late_vars.into_iter().chain(early_vars).collect_vec();
             let mut wkvar_inserter = WeakKVarInserter {
                 wkvar_map: WeakKvarMap::default(),
@@ -545,6 +558,7 @@ impl rty::PolyFnSig {
                 kvid: rty::KVid::from(0_usize),
                 existential_params: Vec::new(),
                 params: params.clone(),
+                diagnostic,
             };
             let requires_wkvar = make_weak_kvar(
                 &mut wkvar_inserter.wkvar_map,
@@ -552,6 +566,7 @@ impl rty::PolyFnSig {
                 &mut wkvar_inserter.kvid,
                 Vec::new(),
                 params.clone(),
+                diagnostic,
             );
             let inputs = fn_sig
                 .inputs
@@ -562,13 +577,14 @@ impl rty::PolyFnSig {
             let output_binder_params = make_vars_and_sorts_from_bound_vars(fn_sig.output.vars());
             params.extend(output_binder_params);
             wkvar_inserter.params = params.clone();
-            let ensures = if !fn_sig.output.vars().is_empty()
+            let ensures = if (diagnostic || !fn_sig.output.vars().is_empty())
                 && let Some(ensures_wkvar) = make_weak_kvar(
                     &mut wkvar_inserter.wkvar_map,
                     def_id,
                     &mut wkvar_inserter.kvid,
                     make_vars_and_sorts_from_bound_vars(fn_sig.output.vars()),
                     params.clone(),
+                    diagnostic,
                 ) {
                 fn_sig
                     .output
@@ -581,10 +597,25 @@ impl rty::PolyFnSig {
             } else {
                 fn_sig.output.skip_binder_ref().ensures.clone()
             };
-            let output = fn_sig
-                .output
-                .map(|output| rty::FnOutput { ret: wkvar_inserter.fold_ty(&output.ret), ensures });
-            genv.feed_weak_kvars(def_id, wkvar_inserter.wkvar_map);
+            let output = fn_sig.output.map(|output| {
+                let ensures = if diagnostic {
+                    ensures
+                        .iter()
+                        .map(|ensure| {
+                            match ensure {
+                                rty::Ensures::Type(path, ty) => {
+                                    rty::Ensures::Type(path.clone(), wkvar_inserter.fold_ty(ty))
+                                }
+                                _ => ensure.clone(),
+                            }
+                        })
+                        .collect()
+                } else {
+                    ensures
+                };
+                rty::FnOutput { ret: wkvar_inserter.fold_ty(&output.ret), ensures }
+            });
+            map = wkvar_inserter.wkvar_map;
 
             rty::FnSig {
                 abi: fn_sig.abi,
@@ -605,11 +636,13 @@ impl rty::PolyFnSig {
                 lifted: fn_sig.lifted,
                 no_panic: fn_sig.no_panic,
             }
-        }))
+        });
+        Ok((sig, map))
     }
 }
 
 struct WeakKVarInserter {
+    diagnostic: bool,
     wkvar_map: WeakKvarMap,
     def_id: DefId,
     kvid: rty::KVid,
@@ -662,6 +695,7 @@ impl TypeFolder for WeakKVarInserter {
                     &mut self.kvid,
                     exist_params.clone(),
                     params,
+                    self.diagnostic,
                 );
                 // Now we add the params for future weak kvars.
                 self.existential_params.push(exist_params);
@@ -716,6 +750,7 @@ impl TypeFolder for WeakKVarInserter {
                                     &mut self.kvid,
                                     exist_params.clone(),
                                     params,
+                                    self.diagnostic,
                                 );
                                 // Now we add the params for future weak kvars.
                                 self.existential_params.push(exist_params);
@@ -818,8 +853,9 @@ fn make_weak_kvar(
     kvid: &mut rty::KVid,
     self_args: Vec<(rty::Var, rty::Sort)>,
     params: Vec<(rty::Var, rty::Sort)>,
+    allow_empty: bool,
 ) -> Option<rty::WKVar> {
-    if self_args.is_empty() && params.is_empty() {
+    if !allow_empty && self_args.is_empty() && params.is_empty() {
         return None;
     }
     let num_self_args = self_args.len();

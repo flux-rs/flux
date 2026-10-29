@@ -154,6 +154,9 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub dump_rty: bool,
+    /// Log function signature skeletons and their weak-kvar instantiations.
+    #[arg(long = flux_arg!("dump-vc-skeleton"), num_args = 0..=1, default_missing_value = "true")]
+    pub dump_vc_skeleton: bool,
     /// Optimistically keeps running flux even after errors are found to get as many errors as possible.
     #[arg(
         long = flux_arg!("catch-bugs"),
@@ -248,6 +251,7 @@ impl Default for Flags {
             dump_checker_trace: None,
             dump_fhir: false,
             dump_rty: false,
+            dump_vc_skeleton: false,
             catch_bugs: false,
             pointer_width: PointerWidth::default(),
             include: None,
@@ -339,6 +343,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "dump-checker-trace" => parse_opt_level(&mut flags.dump_checker_trace, value),
             "dump-fhir" => parse_bool(&mut flags.dump_fhir, value),
             "dump-rty" => parse_bool(&mut flags.dump_rty, value),
+            "dump-vc-skeleton" => parse_bool(&mut flags.dump_vc_skeleton, value),
             "catch-bugs" => parse_bool(&mut flags.catch_bugs, value),
             "pointer-width" => parse_pointer_width(&mut flags.pointer_width, value),
             "check-overflow" => parse_overflow(&mut flags.check_overflow, value),

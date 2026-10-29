@@ -14,6 +14,7 @@ pub mod refining;
 pub mod region_matching;
 mod spec_func;
 pub mod subst;
+pub(crate) mod vc_skeleton;
 use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};

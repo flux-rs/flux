@@ -38,6 +38,10 @@ pub fn dump_rty() -> bool {
     FLAGS.dump_rty
 }
 
+pub fn dump_vc_skeleton() -> bool {
+    FLAGS.dump_vc_skeleton
+}
+
 pub fn pointer_width() -> PointerWidth {
     FLAGS.pointer_width
 }
