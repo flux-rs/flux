@@ -53,6 +53,97 @@ pub struct RefineTree {
 }
 
 impl RefineTree {
+    /// Capture provenance before simplification/encoding can discard marker-only
+    /// heads. Erase markers immediately afterward so they cannot affect solving.
+    pub(crate) fn log_vc_wkvars(
+        &mut self,
+        genv: GlobalEnv,
+        def_id: rustc_hir::def_id::DefId,
+        kind: flux_middle::FixpointQueryKind,
+    ) {
+        use std::{collections::BTreeMap, fs::OpenOptions, io::Write};
+
+        use flux_middle::rty::vc_skeleton::{erase_tracking, is_tracking};
+        struct Collect<'a, 'genv, 'tcx> {
+            entries: &'a mut BTreeMap<String, (bool, bool)>,
+            head: bool,
+            genv: GlobalEnv<'genv, 'tcx>,
+        }
+        impl TypeVisitor for Collect<'_, '_, '_> {
+            type BreakTy = ();
+            fn visit_expr(&mut self, e: &Expr) -> ControlFlow<()> {
+                if let ExprKind::WKVar(w) = e.kind()
+                    && is_tracking(w)
+                {
+                    let id = w.wkvid.id.as_u32() & !(1 << 31);
+                    let key =
+                        format!("{}::wk{id}", self.genv.tcx().def_path_str(w.wkvid.parent_fn));
+                    let role = self.entries.entry(key).or_default();
+                    if self.head {
+                        role.0 = true;
+                    } else {
+                        role.1 = true;
+                    }
+                }
+                e.super_visit_with(self)
+            }
+        }
+        fn walk(node: &mut Node, genv: GlobalEnv, entries: &mut BTreeMap<String, (bool, bool)>) {
+            let head = matches!(node.kind, NodeKind::Head(..));
+            match &mut node.kind {
+                NodeKind::Head(p, _) | NodeKind::Assumption(p) => {
+                    let _ = p.visit_with(&mut Collect { entries, head, genv });
+                    *p = erase_tracking(p);
+                }
+                NodeKind::Root(_, ps) => {
+                    for p in ps {
+                        let _ = p.visit_with(&mut Collect { entries, head: false, genv });
+                        *p = erase_tracking(p);
+                    }
+                }
+                _ => {}
+            }
+            for child in &node.children {
+                walk(&mut child.borrow_mut(), genv, entries);
+            }
+        }
+        let mut entries = BTreeMap::new();
+        walk(&mut self.root.borrow_mut(), genv, &mut entries);
+        let roles = entries
+            .into_iter()
+            .map(|(key, (head, body))| {
+                (
+                    key,
+                    if head && body {
+                        "both"
+                    } else if head {
+                        "head"
+                    } else {
+                        "body"
+                    },
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let statuses = roles
+            .keys()
+            .map(|key| (key.clone(), flux_middle::rty::vc_skeleton::tracking_status(key)))
+            .collect::<BTreeMap<_, _>>();
+        let record = serde_json::json!({"schema_version":1,"task_key":kind.task_key(genv.tcx(),def_id),"function":genv.tcx().def_path_str(def_id),"phase":"generated_before_simplification","wkvars":roles,"wkvar_status":statuses});
+        let write = || -> std::io::Result<()> {
+            std::fs::create_dir_all(flux_config::log_dir())?;
+            let path = flux_config::log_dir().join(format!(
+                "{}-vc-wkvars.jsonl",
+                genv.tcx().crate_name(rustc_hir::def_id::LOCAL_CRATE)
+            ));
+            let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+            serde_json::to_writer(&mut file, &record)?;
+            writeln!(file)
+        };
+        if let Err(error) = write() {
+            eprintln!("could not log VC wkvars: {error}");
+        }
+    }
+
     pub(crate) fn new(params: Vec<(Var, Sort)>, assumptions: Vec<Expr>) -> RefineTree {
         let root = Node {
             kind: NodeKind::Root(params, assumptions),

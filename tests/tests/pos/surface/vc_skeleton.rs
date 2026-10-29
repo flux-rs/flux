@@ -11,3 +11,8 @@ fn postcondition(_: i32) {}
 
 #[flux::sig(fn(x: i32) requires (forall i in 0 .. 4 { i + x >= x }))]
 fn quantified(_: i32) {}
+
+#[flux::sig(fn(x: i32) -> i32[x + 2])]
+fn caller(x: i32) -> i32 {
+    successor(successor(x))
+}

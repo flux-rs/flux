@@ -1100,7 +1100,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
         run_with_cache(&self.fn_sig, def_id, || {
-            let result = def_id.dispatch_query(
+            let mut result = def_id.dispatch_query(
                 genv,
                 self,
                 |def_id| (self.providers.fn_sig)(genv, def_id),
@@ -1154,9 +1154,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             );
             if config::dump_vc_skeleton()
                 && def_id.is_local()
-                && let Ok(sig) = &result
+                && let Ok(sig) = &mut result
             {
-                rty::vc_skeleton::log(genv, def_id, sig.skip_binder_ref());
+                *sig = rty::EarlyBinder(rty::vc_skeleton::log_and_track(
+                    genv,
+                    def_id,
+                    sig.skip_binder_ref(),
+                ));
             }
             result
         })

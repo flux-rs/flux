@@ -10,6 +10,19 @@ use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::def_id::DefId;
 use serde_json::json;
 
+static TRACKING_STATUS: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::BTreeMap<String, String>>,
+> = std::sync::LazyLock::new(Default::default);
+
+pub fn tracking_status(wkvid: &str) -> String {
+    TRACKING_STATUS
+        .lock()
+        .unwrap()
+        .get(wkvid)
+        .cloned()
+        .unwrap_or_else(|| "missing_signature_record".into())
+}
+
 use super::{
     fold::{TypeFolder, TypeSuperFoldable},
     refining::{Refine, Refiner},
@@ -300,12 +313,155 @@ impl TypeFolder for EraseRegions {
     }
 }
 
-pub(crate) fn log(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) {
+/// Tracking IDs use a disjoint namespace from suggestion wkvars and carry no
+/// arguments: only their provenance matters, and they are erased before solving.
+pub fn is_tracking(w: &WKVar) -> bool {
+    w.wkvid.id.as_u32() >= (1 << 31)
+}
+
+pub fn erase_tracking<T: TypeFoldable>(value: &T) -> T {
+    struct Erase;
+    impl TypeFolder for Erase {
+        fn fold_ty(&mut self, ty: &Ty) -> Ty {
+            let ty = ty.super_fold_with(self);
+            if let TyKind::Constr(p, t) = ty.kind()
+                && p.is_trivially_true()
+            {
+                t.clone()
+            } else {
+                ty
+            }
+        }
+        fn fold_expr(&mut self, e: &Expr) -> Expr {
+            if let ExprKind::WKVar(w) = e.kind()
+                && is_tracking(w)
+            {
+                Expr::tt()
+            } else {
+                e.super_fold_with(self)
+            }
+        }
+    }
+    value.fold_with(&mut Erase)
+}
+
+/// A structural address ignores existential/constraint wrappers and indices.
+/// Those are precisely the parts that annotations can change.
+#[derive(Default)]
+struct Sites {
+    next: usize,
+    site: String,
+    slots: Vec<(u32, String)>,
+    inject: FxHashMap<String, Vec<u32>>,
+    inserted: Vec<u32>,
+    def_id: Option<DefId>,
+    shape: Vec<String>,
+}
+impl Sites {
+    fn markers(&mut self, site: &str) -> Vec<Expr> {
+        self.inject
+            .get(site)
+            .into_iter()
+            .flatten()
+            .map(|id| {
+                self.inserted.push(*id);
+                Expr::wkvar(WKVar {
+                    wkvid: WKVid::new(self.def_id.unwrap(), KVid::from_u32(*id | (1 << 31))),
+                    self_args: 0,
+                    args: List::empty(),
+                })
+            })
+            .collect()
+    }
+}
+impl TypeFolder for Sites {
+    fn fold_ty(&mut self, ty: &Ty) -> Ty {
+        let parent = self.site.clone();
+        self.site = format!("type:{}", self.next);
+        let site = self.site.clone();
+        let structural = !matches!(ty.kind(), TyKind::Exists(_) | TyKind::Constr(..));
+        if structural {
+            self.shape.push(match ty.kind() {
+                TyKind::Indexed(bty, _) => {
+                    match bty {
+                        BaseTy::Adt(def, _) => format!("adt:{:?}", def.did()),
+                        BaseTy::Ref(_, _, m) => format!("ref:{m:?}"),
+                        BaseTy::Tuple(ts) => format!("tuple:{}", ts.len()),
+                        BaseTy::Slice(_) => "slice".into(),
+                        _ => format!("{:?}", std::mem::discriminant(bty)),
+                    }
+                }
+                TyKind::StrgRef(..) => "strg".into(),
+                _ => format!("{:?}", std::mem::discriminant(ty.kind())),
+            });
+            self.next += 1;
+        }
+        let ty = ty.super_fold_with(self);
+        let ty = if structural {
+            self.markers(&site)
+                .into_iter()
+                .fold(ty, |ty, p| Ty::constr(p, ty))
+        } else {
+            ty
+        };
+        self.site = parent;
+        ty
+    }
+    fn fold_subset_ty(&mut self, ty: &SubsetTy) -> SubsetTy {
+        let parent = self.site.clone();
+        self.site = format!("base:{}", self.next);
+        self.next += 1;
+        self.shape.push("base".into());
+        let site = self.site.clone();
+        let mut ty = ty.super_fold_with(self);
+        for marker in self.markers(&site) {
+            ty = ty.strengthen(marker);
+        }
+        self.site = parent;
+        ty
+    }
+    fn fold_expr(&mut self, e: &Expr) -> Expr {
+        if let ExprKind::WKVar(w) = e.kind() {
+            self.slots.push((w.wkvid.id.as_u32(), self.site.clone()));
+        }
+        // Do not count types in expressions as signature type positions.
+        e.clone()
+    }
+}
+
+fn sites(sig: &PolyFnSig) -> Sites {
+    let mut folder = Sites::default();
+    let body = sig.skip_binder_ref();
+    for p in &body.requires {
+        folder.site = "requires".into();
+        folder.fold_expr(p);
+    }
+    for input in &body.inputs {
+        folder.fold_ty(input);
+    }
+    folder.fold_ty(&body.output.skip_binder_ref().ret);
+    for e in &body.output.skip_binder_ref().ensures {
+        match e {
+            Ensures::Pred(p) => {
+                folder.site = "ensures".into();
+                folder.fold_expr(p);
+            }
+            Ensures::Type(_, ty) => {
+                folder.fold_ty(ty);
+            }
+        }
+    }
+    folder
+}
+
+pub(crate) fn log_and_track(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) -> PolyFnSig {
     let pretty = |sig: &PolyFnSig| {
         format!("{:?}", crate::pretty::with_cx!(&PrettyCx::default(genv), &EarlyBinder(sig)))
     };
     let annotated = sig.fold_with(&mut Strip);
     let mut record = json!({"schema_version": 1, "function": genv.tcx().def_path_str(def_id), "annotated": pretty(&annotated)});
+    let mut tracking_sites = vec![];
+    let mut skeleton_shape = vec![];
     let result = (|| -> Result<(), String> {
         let raw = genv
             .lower_fn_sig(def_id)
@@ -322,6 +478,9 @@ pub(crate) fn log(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) {
             .with_weak_kvars(genv, def_id, true)
             .map_err(|e| format!("wkvars: {e:?}"))?;
         let skeleton = skeleton.fold_with(&mut EraseRegions);
+        let addresses = sites(&skeleton);
+        tracking_sites = addresses.slots;
+        skeleton_shape = addresses.shape;
         let text = pretty(&skeleton);
         let mut hash = DefaultHasher::new();
         text.hash(&mut hash);
@@ -435,6 +594,118 @@ pub(crate) fn log(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) {
     if let Err(reason) = result {
         record["reason"] = reason.into();
     }
+    // Add provenance to the annotated signature, preserving its predicates,
+    // indices, binders, regions, and existing suggestion wkvars.
+    let mut folder = Sites { def_id: Some(def_id), ..Sites::default() };
+    for (id, site) in &tracking_sites {
+        folder.inject.entry(site.clone()).or_default().push(*id);
+    }
+    let tracked = sig.clone().map(|mut body| {
+        let mut requires = body.requires.to_vec();
+        requires.extend(folder.markers("requires"));
+        body.requires = requires.into();
+        body.inputs = body.inputs.iter().map(|ty| folder.fold_ty(ty)).collect();
+        body.output = body.output.map(|mut out| {
+            out.ret = folder.fold_ty(&out.ret);
+            let mut ensures = out
+                .ensures
+                .iter()
+                .map(|e| {
+                    match e {
+                        Ensures::Type(p, t) => Ensures::Type(p.clone(), folder.fold_ty(t)),
+                        _ => e.clone(),
+                    }
+                })
+                .collect::<Vec<_>>();
+            ensures.extend(folder.markers("ensures").into_iter().map(Ensures::Pred));
+            out.ensures = ensures.into();
+            out
+        });
+        body
+    });
+    let mut inserted = folder.inserted.clone();
+    inserted.sort();
+    let mut expected = tracking_sites.iter().map(|(id, _)| *id).collect::<Vec<_>>();
+    expected.sort();
+    let complete = inserted == expected && folder.shape == skeleton_shape;
+    record["tracking_alignment"] = json!({"complete":complete,"slots":tracking_sites.iter().map(|(id,site)| json!({"wkvid":format!("{}::wk{}",genv.tcx().def_path_str(def_id),id),"site":site,"inserted":inserted.contains(id),"matching_status":record["status"]})).collect::<Vec<_>>()});
+    // Type-site numbering is only a candidate alignment. Require matching and
+    // complete coverage, and verify that erasure preserves the original type.
+    struct Clean;
+    impl TypeFolder for Clean {
+        fn fold_ty(&mut self, ty: &Ty) -> Ty {
+            let ty = ty.super_fold_with(self);
+            if let TyKind::Constr(p, t) = ty.kind()
+                && p.is_trivially_true()
+            {
+                t.clone()
+            } else {
+                ty
+            }
+        }
+    }
+    let clean_sig = |sig: &PolyFnSig| {
+        sig.fold_with(&mut Clean).map(|mut body| {
+            body.requires = body
+                .requires
+                .iter()
+                .filter(|p| !p.is_trivially_true())
+                .cloned()
+                .collect();
+            body.output = body.output.map(|mut out| {
+                out.ensures = out
+                    .ensures
+                    .iter()
+                    .filter(|e| !matches!(e,Ensures::Pred(p) if p.is_trivially_true()))
+                    .cloned()
+                    .collect();
+                out
+            });
+            body
+        })
+    };
+    let erasure_equal = clean_sig(&erase_tracking(&tracked)) == clean_sig(sig);
+    record["tracking_alignment"]["erasure_equal"] = erasure_equal.into();
+    record["tracking_alignment"]["emitted"] = (complete && erasure_equal).into();
+    record["tracking_alignment"]["usable"] =
+        (complete && erasure_equal && record["status"] == "matched").into();
+    if record["status"] != "matched" {
+        record["unmatched_wkvids"] = tracking_sites
+            .iter()
+            .map(|(id, _)| format!("{}::wk{id}", genv.tcx().def_path_str(def_id)))
+            .collect::<Vec<_>>()
+            .into();
+    }
+    record["wkvar_map"] = record
+        .get("instantiations")
+        .and_then(|v| v.as_array())
+        .map(|entries| {
+            entries
+                .iter()
+                .map(|entry| {
+                    (
+                        format!("{}::wk{}", genv.tcx().def_path_str(def_id), entry["id"]),
+                        entry["solution"].clone(),
+                    )
+                })
+                .collect::<serde_json::Map<_, _>>()
+        })
+        .unwrap_or_default()
+        .into();
+    for (id, _) in &tracking_sites {
+        let key = format!("{}::wk{id}", genv.tcx().def_path_str(def_id));
+        if record["wkvar_map"].get(&key).is_none() {
+            record["wkvar_map"][&key] = serde_json::Value::Null;
+        }
+        let status = if record["status"] != "matched" {
+            "skeleton_matching_failed"
+        } else if !complete || !erasure_equal {
+            "alignment_failed"
+        } else {
+            "aligned"
+        };
+        TRACKING_STATUS.lock().unwrap().insert(key, status.into());
+    }
     let write = || -> std::io::Result<()> {
         std::fs::create_dir_all(flux_config::log_dir())?;
         let path = flux_config::log_dir().join(format!(
@@ -448,4 +719,7 @@ pub(crate) fn log(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) {
     if let Err(error) = write() {
         eprintln!("could not log VC skeleton: {error}");
     }
+    // Never propagate guessed addresses or a signature that fails the erasure
+    // sanity check. The signature record still lists every unavailable slot.
+    if complete && erasure_equal { tracked } else { sig.clone() }
 }

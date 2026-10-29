@@ -284,6 +284,10 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         refine_tree.replace_evars(&evars).unwrap();
 
+        if config::dump_vc_skeleton() {
+            refine_tree.log_vc_wkvars(self.genv, def_id.resolved_id(), kind);
+        }
+
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
         }
