@@ -105,8 +105,8 @@ impl Matcher {
         if a.inputs.len() != b.inputs.len() {
             return Err("input count".into());
         }
-        if a.abi != b.abi || a.safety != b.safety || a.no_panic != b.no_panic {
-            return Err("ABI, safety, or no-panic predicate differs".into());
+        if a.abi != b.abi || a.safety != b.safety {
+            return Err("ABI or safety differs".into());
         }
         for p in &a.requires {
             self.pred(p, true);
@@ -392,6 +392,12 @@ pub(crate) fn log(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) {
                 }
             }
             if !found {
+                // TODO: as_mut_slice needs an outer anchor n for an index x kept
+                // existential inside &mut. Skeleton hoisting should retain x and
+                // introduce forall n, letting W(x,n) be true or x == n; actually
+                // hoisting x would incorrectly freeze an otherwise mutable index.
+                // collect_rvec also needs abstract/alias-sort indices passed to
+                // diagnostic wkvars (the solver-facing suggestion filter skips them).
                 return Err(format!("no in-scope wkvar for {pred:?}"));
             }
         }
