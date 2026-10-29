@@ -27,8 +27,8 @@ use rustc_span::{
 };
 
 use crate::{
-    AbsoluteBytePos, CrateMetadata, EncodedSourceFileId, Footer, METADATA_HEADER, SYMBOL_OFFSET,
-    SYMBOL_PREDEFINED, SYMBOL_STR, SourceFileIndex, TAG_FULL_SPAN, TAG_PARTIAL_SPAN,
+    AbsoluteBytePos, CrateMetadata, EncodedSourceFileId, ExpnKey, Footer, METADATA_HEADER,
+    SYMBOL_OFFSET, SYMBOL_PREDEFINED, SYMBOL_STR, SourceFileIndex, TAG_FULL_SPAN, TAG_PARTIAL_SPAN,
 };
 
 struct DecodeContext<'a, 'tcx> {
@@ -37,7 +37,7 @@ struct DecodeContext<'a, 'tcx> {
     file_index_to_file: FxHashMap<SourceFileIndex, Arc<SourceFile>>,
     file_index_to_stable_id: FxHashMap<SourceFileIndex, EncodedSourceFileId>,
     syntax_contexts: &'a FxHashMap<u32, AbsoluteBytePos>,
-    expn_data: FxHashMap<(StableCrateId, u32), AbsoluteBytePos>,
+    expn_data: FxHashMap<ExpnKey, AbsoluteBytePos>,
     hygiene_context: &'a HygieneDecodeContext,
 }
 
@@ -195,7 +195,7 @@ impl SpanDecoder for DecodeContext<'_, '_> {
         let index = u32::decode(self);
 
         rustc_span::hygiene::decode_expn_id(cnum, index, |_| {
-            let pos = self.expn_data.get(&(stable_id, index)).unwrap();
+            let pos = self.expn_data.get(&ExpnKey(stable_id, index)).unwrap();
             self.with_position(pos.to_usize(), |decoder| {
                 let data = rustc_span::ExpnData::decode(decoder);
                 let hash = rustc_span::ExpnHash::decode(decoder);

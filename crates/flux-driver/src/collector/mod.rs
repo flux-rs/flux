@@ -7,6 +7,7 @@ use std::{collections::HashMap, iter};
 use annot_stats::Stats;
 use extern_specs::ExternSpecCollector;
 use flux_common::{
+    bug,
     iter::IterExt,
     result::{ErrorCollector, ResultExt},
     tracked_span_assert_eq,
@@ -15,7 +16,7 @@ use flux_config::{
     self as config, OverflowMode, PartialInferOpts, RawDerefMode, SmtSolver, UifOps,
 };
 use flux_errors::{Errors, FluxSession};
-use flux_middle::Specs;
+use flux_middle::{FluxItemDecl, Specs};
 use flux_syntax::{
     ParseResult, ParseSess,
     surface::{self, NodeId, Trusted},
@@ -153,12 +154,18 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::Trait { .. } => self.collect_trait(owner_id, attrs)?,
             ItemKind::Const(.., rhs) => {
                 // The flux-rs macro puts defs as an outer attribute on a `const _: () = { }`. We
-                // consider these defs to be defined in the parent of the const.
+                // consider these defs to be in scope in the module or block containing the const,
+                // and declared by the const, which gives them their identity.
                 self.specs
-                    .flux_items_by_parent
-                    .entry(self.tcx.hir_get_parent_item(item.hir_id()))
+                    .flux_items_by_scope
+                    .entry(self.enclosing_scope(item.hir_id()))
                     .or_default()
-                    .extend(attrs.items());
+                    .extend(
+                        attrs
+                            .items()
+                            .into_iter()
+                            .map(|item| FluxItemDecl { declarer: owner_id, item }),
+                    );
 
                 if attrs.extern_spec()
                     && let hir::ConstItemRhs::Body(body_id) = rhs
@@ -248,12 +255,29 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         Ok(())
     }
 
+    /// The scope an item is declared in: the block containing it, or its module if it's a module
+    /// item. The parent of an item in a block is the [`hir::Stmt`] holding it, whose parent is the
+    /// block.
+    fn enclosing_scope(&self, item_id: hir::HirId) -> hir::HirId {
+        let parent = self.tcx.parent_hir_id(item_id);
+        match self.tcx.hir_node(parent) {
+            hir::Node::Stmt(_) => self.tcx.parent_hir_id(parent),
+            hir::Node::Item(Item { kind: ItemKind::Mod(..), .. }) | hir::Node::Crate(_) => parent,
+            node => bug!("unexpected parent of item: {node:?}"),
+        }
+    }
+
     fn collect_mod(&mut self, module_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         self.specs
-            .flux_items_by_parent
-            .entry(module_id)
+            .flux_items_by_scope
+            .entry(hir::HirId::make_owner(module_id.def_id))
             .or_default()
-            .extend(attrs.items());
+            .extend(
+                attrs
+                    .items()
+                    .into_iter()
+                    .map(|item| FluxItemDecl { declarer: module_id, item }),
+            );
 
         if attrs.has_attrs() {
             let node_id = self.next_node_id();

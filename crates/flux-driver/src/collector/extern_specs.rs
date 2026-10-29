@@ -526,17 +526,18 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     ) -> Result {
         let tcx = self.tcx();
 
-        // Get the self type from the external impl
+        // Get the self type from the external impl, in terms of the local impl's generics
+        let local_args = ty::GenericArgs::identity_for_item(tcx, local_impl_id);
         let extern_self_ty = tcx
             .type_of(extern_impl_id)
-            .instantiate_identity()
+            .instantiate(tcx, local_args)
             .skip_norm_wip();
 
         // Compare self types. `local_self_ty` is the user-written self type from the extern
         // spec's trait_ref (not the `__FluxExternImplStruct` wrapper that the macro retargets
-        // the impl onto). After `check_generics` has verified param names and indices match,
-        // raw Ty equality is sound for the cases we want to catch (concrete type mismatches
-        // like `Range<usize>` vs `Range<A>`).
+        // the impl onto). After `check_generics` has verified the params match, raw Ty equality
+        // is sound for the cases we want to catch (concrete type mismatches like `Range<usize>`
+        // vs `Range<A>`).
         if local_self_ty != extern_self_ty {
             // Emit on the user's impl block (compiletest matches `//~ ERROR` against the
             // primary span line). The dummy `__FluxExternImplStruct` wrapper's self_ty has
@@ -627,7 +628,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 }
 
 fn cmp_generic_param_def(a: &ty::GenericParamDef, b: &ty::GenericParamDef) -> bool {
-    if a.name != b.name {
+    if a.name != b.name && !b.is_anonymous_lifetime() {
         return false;
     }
     if a.index != b.index {

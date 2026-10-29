@@ -35,7 +35,6 @@ bumpalo = "3.17.0"
 bitflags = "2.9.4"
 cargo_metadata = "0.23.0"
 clap = { version = "4.5", features = ["derive"] }
-config = { version = "0.15.11", features = ["toml"], default-features = false }
 dashmap = { version = "5.5.3", features = ["raw-api"] }
 derive-where = "1.2.7"
 ena = "0.14.3"

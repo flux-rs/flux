@@ -268,6 +268,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.qualifiers(self)
     }
 
+    /// Return all the (global) axioms defined in the local crate.
+    pub fn axioms(self) -> QueryResult<&'genv [rty::Axiom]> {
+        self.inner.queries.axioms(self)
+    }
+
     /// Return all the qualifiers that apply to an item, including both global and local qualifiers.
     pub fn qualifiers_for(
         self,
@@ -278,10 +283,24 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         Ok(self.qualifiers()?.iter().filter(move |qual| {
             match qual.kind {
                 QualifierKind::Global => true,
-                QualifierKind::Hint => qual.def_id.parent() == did,
+                QualifierKind::Hint => {
+                    self.flux_item_enclosing_item(qual.def_id.to_def_id()) == did.to_def_id()
+                }
                 QualifierKind::Local => names.contains(&qual.def_id),
             }
         }))
+    }
+
+    /// The item enclosing the declaration of a flux item. This is different from the
+    /// [`FluxDefId::parent`] for flux items declared with `defs!` that use the id of
+    /// the declaring `const _ = { }`.
+    fn flux_item_enclosing_item(self, def_id: FluxDefId) -> DefId {
+        let declarer = def_id.parent();
+        if self.def_kind(declarer) == DefKind::Const {
+            self.tcx().typeck_root_def_id(self.tcx().parent(declarer))
+        } else {
+            declarer
+        }
     }
 
     /// Return the list of flux function definitions that should be revelaed for item
@@ -850,7 +869,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Same behavior as [`trusted`], but for the `#[no_suggestions]` attribute.
+    /// (overridden to `true` by suggestions being globally disabled).
     pub fn no_suggestions(self, def_id: LocalDefId) -> bool {
+        if !config::suggestions() {
+            return true;
+        }
         self.traverse_parents(def_id, |did| {
             // A parent has no_suggestions, we inherit it
             if self.fhir_attr_map(did).no_suggestions() {
@@ -860,7 +883,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                 None
             }
         })
-        .unwrap_or_else(config::no_suggestions_default)
+        .unwrap_or(false)
     }
 
     /// Whether the item is a dummy item created by the extern spec macro.
@@ -970,6 +993,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn fhir_primop_props(self) -> impl Iterator<Item = &'genv fhir::PrimOpProp<'genv>> {
         self.fhir_crate().items.values().filter_map(|item| {
             if let fhir::FluxItem::PrimOpProp(prop) = item { Some(*prop) } else { None }
+        })
+    }
+
+    pub fn fhir_axioms(self) -> impl Iterator<Item = &'genv fhir::Axiom<'genv>> {
+        self.fhir_crate().items.values().filter_map(|item| {
+            if let fhir::FluxItem::Axiom(axiom) = item { Some(*axiom) } else { None }
         })
     }
 

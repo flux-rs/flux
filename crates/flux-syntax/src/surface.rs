@@ -36,6 +36,7 @@ pub enum FluxItem {
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
     PrimOpProp(PrimOpProp),
+    Axiom(Axiom),
     Use(UseTree),
 }
 
@@ -46,7 +47,19 @@ impl FluxItem {
             FluxItem::FuncDef(spec_func) => Some(spec_func.name),
             FluxItem::SortDecl(sort_decl) => Some(sort_decl.name),
             FluxItem::PrimOpProp(primop_prop) => Some(primop_prop.name),
+            FluxItem::Axiom(axiom) => Some(axiom.name),
             FluxItem::Use(_) => None,
+        }
+    }
+
+    pub fn sort_vars(&self) -> &[Ident] {
+        match self {
+            FluxItem::FuncDef(defn) => &defn.sort_vars[..],
+            FluxItem::SortDecl(sort_decl) => &sort_decl.sort_vars[..],
+            FluxItem::Qualifier(_)
+            | FluxItem::PrimOpProp(_)
+            | FluxItem::Axiom(_)
+            | FluxItem::Use(_) => &[],
         }
     }
 }
@@ -109,6 +122,19 @@ pub struct PrimOpProp {
     /// The binders for the inputs of the primop; the output sort is always `Bool`
     pub params: RefineParams,
     /// The actual definition of the property
+    pub body: Expr,
+    pub span: Span,
+}
+
+/// A (global) *axiom*, i.e., a fact (typically about uninterpreted functions) that is assumed to
+/// hold for all values of its parameters; see tests/tests/pos/surface/axiom00.rs
+#[derive(Debug)]
+pub struct Axiom {
+    /// The name of the axiom
+    pub name: Ident,
+    /// The (universally quantified) binders of the axiom
+    pub params: RefineParams,
+    /// The actual definition of the axiom, which must have sort `bool`
     pub body: Expr,
     pub span: Span,
 }
@@ -339,6 +365,16 @@ pub struct SortPath {
     pub node_id: NodeId,
 }
 
+impl SortPath {
+    pub fn span(&self) -> Span {
+        self.segments
+            .iter()
+            .map(|ident| ident.span)
+            .reduce(Span::to)
+            .unwrap_or_default()
+    }
+}
+
 #[derive(Debug)]
 pub struct Impl {
     pub generics: Option<Generics>,
@@ -531,7 +567,7 @@ impl Ty {
             is_refined: bool,
         }
         let mut vis = IsRefinedVisitor { is_refined: false };
-        impl visit::Visitor for IsRefinedVisitor {
+        impl visit::Visitor<'_> for IsRefinedVisitor {
             fn visit_ty(&mut self, ty: &Ty) {
                 match &ty.kind {
                     TyKind::Tuple(_)
@@ -960,7 +996,7 @@ impl Expr {
             vars: FxIndexSet<Ident>,
         }
 
-        impl visit::Visitor for FreeVarsVisitor {
+        impl visit::Visitor<'_> for FreeVarsVisitor {
             fn visit_expr(&mut self, expr: &Expr) {
                 match &expr.kind {
                     ExprKind::Path(path) => {

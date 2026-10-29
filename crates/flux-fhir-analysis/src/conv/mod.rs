@@ -486,6 +486,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(rty::SpecFunc::Defined { body, hide: func.hide })
     }
 
+    /// Converts the body of an axiom. Use [`rty::Axiom::new`] to build the axiom after reducing it.
+    pub(crate) fn conv_axiom(
+        &mut self,
+        axiom: &fhir::Axiom,
+    ) -> QueryResult<rty::Binder<rty::Expr>> {
+        let mut env = Env::new(&[]);
+        env.push_layer(Layer::list(self.results(), 0, axiom.args));
+        let body = self.conv_expr(&mut env, &axiom.body)?;
+        Ok(rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(self.genv())?))
+    }
+
     pub(crate) fn conv_primop_prop(
         &mut self,
         primop_prop: &fhir::PrimOpProp,
@@ -2311,7 +2322,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let espan = ESpan::new(path.span);
         let (expr, sort) = match path.res {
             fhir::Res::Param(_, id) => (env.lookup(&path).to_expr(), self.results().param_sort(id)),
-            fhir::Res::Def(DefKind::Const { .. }, def_id) => {
+            fhir::Res::Def(DefKind::Const, def_id) => {
                 self.hyperlink(path.span, tcx.def_ident_span(def_id));
                 let (expr, sort) = self.conv_const(path.span, def_id)?;
                 (expr.at(espan), sort)
@@ -2410,6 +2421,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     fn conv_primop_val(&self, op: fhir::BinOp) -> rty::BinOp {
         match op {
+            fhir::BinOp::Add => rty::BinOp::Add(rty::Sort::Int),
+            fhir::BinOp::Sub => rty::BinOp::Sub(rty::Sort::Int),
+            fhir::BinOp::Mul => rty::BinOp::Mul(rty::Sort::Int),
+            fhir::BinOp::Div => rty::BinOp::Div(rty::Sort::Int),
+            fhir::BinOp::Mod => rty::BinOp::Mod(rty::Sort::Int),
             fhir::BinOp::BitAnd => rty::BinOp::BitAnd(rty::Sort::Int),
             fhir::BinOp::BitOr => rty::BinOp::BitOr(rty::Sort::Int),
             fhir::BinOp::BitXor => rty::BinOp::BitXor(rty::Sort::Int),
