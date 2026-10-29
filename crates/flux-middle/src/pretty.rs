@@ -8,7 +8,7 @@ use rustc_data_structures::{
     fx::FxHashSet,
     unord::{UnordMap, UnordSet},
 };
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Pos, Span, Symbol};
@@ -795,7 +795,18 @@ impl Pretty for DefId {
 impl Pretty for FluxDefId {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if cx.fully_qualified_paths {
-            w!(cx, f, "{:?}::{}", self.parent(), ^self.name())
+            let mut parent = self.parent();
+            // Flux items are introduced in a `defs!` block, which under the
+            // hood expands to an annotated `const _: () = {};`. The `_` is an
+            // unnamed constant that is the parent in these items' internal ids.
+            // If we naively rendered the path, it would become
+            // `crate::foo::_::f`, which Flux cannot resolve because the
+            // constant does not introduce a namespace. So we skip it to make
+            // these paths usable in machine-applicable suggestions.
+            if cx.tcx().def_kind(parent) == DefKind::Const {
+                parent = cx.tcx().parent(parent);
+            }
+            w!(cx, f, "{:?}::{}", parent, ^self.name())
         } else {
             w!(cx, f, "{}", ^self.name())
         }

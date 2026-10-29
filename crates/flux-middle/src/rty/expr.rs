@@ -1995,19 +1995,12 @@ pub(crate) mod pretty {
                     w!(cx, f, "{:?}", lam)
                 }
                 // Flux functions have no DefId of their own, so qualify them
-                // with their parent module's full, crate-prefixed path.
+                // with their enclosing scope's full, crate-prefixed path.
                 // Printing only `did.name()` could resolve to an unrelated
                 // function with the same name.
                 ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
-                    w!(
-                        cx,
-                        f,
-                        "{}::{}",
-                        ^rustc_middle::ty::print::with_crate_prefix!(
-                            cx.tcx().def_path_str(did.parent())
-                        ),
-                        ^did.name()
-                    )
+                    let cx = PrettyCx::default(cx.cx).fully_qualified_paths(true);
+                    w!(&cx, f, "{:?}", did)
                 }
                 ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                     if let Some(name) = name_of_thy_func(*itf) {
