@@ -749,7 +749,19 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", LeanFile::Fluxlib.import(self.genv))?;
             writeln!(file, "{}", self.post_import_preamble())?;
             namespaced(&mut file, |f| {
-                writeln!(f, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })
+                let cx = &self.lean_cx();
+                writeln!(f, "def {} := sorry", WithLeanCtxt { item: sort, cx })?;
+                // Data sorts derive `Inhabited`, so any opaque sort used in their fields needs
+                // an instance too. Like the definition above, it is a stub for the user to fill.
+                let params = (0..sort.vars)
+                    .map(|i| format!(" (t{i} : Type) [Inhabited t{i}]"))
+                    .format("");
+                let args = (0..sort.vars).map(|i| format!(" t{i}")).format("");
+                writeln!(
+                    f,
+                    "instance{params} : Inhabited ({}{args}) := sorry",
+                    WithLeanCtxt { item: &sort.name, cx }
+                )
             })?;
             file.sync_all()?;
         }
