@@ -92,6 +92,24 @@ pub fn incr_metric_if(cond: bool, metric: Metric) {
 }
 
 static TIMINGS: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
+static QUERY_CHECKS: Mutex<Vec<QueryCheck>> = Mutex::new(Vec::new());
+
+/// One complete task execution path, including paths that never call Fixpoint.
+#[derive(Serialize)]
+pub struct QueryCheck {
+    pub task_key: String,
+    pub task_hash: u64,
+    pub outcome: &'static str,
+    pub fixpoint_ms: Option<f64>,
+    pub total_ms: f64,
+    pub safe: Option<bool>,
+}
+
+pub fn record_query_check(check: QueryCheck) {
+    if config::timings() {
+        QUERY_CHECKS.lock().unwrap().push(check);
+    }
+}
 
 pub enum TimingKind {
     /// Total time taken to run the complete Flux analysis on the crate
@@ -110,6 +128,7 @@ struct TimingsDump {
     functions: Vec<FuncTiming>,
     /// Per-query execution timings
     queries: Vec<QueryTiming>,
+    query_checks: Vec<QueryCheck>,
 }
 
 #[derive(Serialize)]
@@ -172,6 +191,7 @@ pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
                 .into_iter()
                 .map(|(task_key, time)| QueryTiming { task_key, time_ms: ms(time) })
                 .collect(),
+            query_checks: std::mem::take(&mut *QUERY_CHECKS.lock().unwrap()),
         },
     )
 }

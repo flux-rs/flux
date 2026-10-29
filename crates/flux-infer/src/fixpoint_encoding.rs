@@ -1009,18 +1009,40 @@ where
         cache: &mut FixQueryCache,
     ) -> Result<VerificationResult<TagIdx>, FixpointError> {
         let key = kind.task_key(genv.tcx(), def_id);
+        let started = std::time::Instant::now();
 
         let hash = task.hash_with_default();
+        let mut check = metrics::QueryCheck {
+            task_key: key.clone(),
+            task_hash: hash,
+            outcome: "fixpoint",
+            fixpoint_ms: None,
+            total_ms: 0.0,
+            safe: None,
+        };
 
         if config::is_cache_enabled()
             && let Some(result) = cache.lookup(&key, hash)
         {
             metrics::incr_metric_if(kind.is_body(), Metric::FnCached);
+            check.outcome = "exact_hit";
+            check.safe = Some(result.status.is_safe());
+            check.total_ms = started.elapsed().as_secs_f64() * 1000.0;
+            metrics::record_query_check(check);
             return Ok(result.clone());
         }
+        let fixpoint_started = std::time::Instant::now();
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
             task.run(config::fixpoint_timeout())
-        })?;
+        });
+        check.fixpoint_ms = Some(fixpoint_started.elapsed().as_secs_f64() * 1000.0);
+        check.total_ms = started.elapsed().as_secs_f64() * 1000.0;
+        check.safe = result.as_ref().ok().map(|r| r.status.is_safe());
+        if result.is_err() {
+            check.outcome = "fixpoint_error";
+        }
+        metrics::record_query_check(check);
+        let result = result?;
 
         if config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());
