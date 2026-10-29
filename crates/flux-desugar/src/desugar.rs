@@ -52,7 +52,7 @@ fn collect_generics_in_params(
         resolver_output: &'a ResolverOutput,
         found: UnordSet<DefId>,
     }
-    impl surface::visit::Visitor for ParamCollector<'_> {
+    impl surface::visit::Visitor<'_> for ParamCollector<'_> {
         fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
             if let surface::BaseSort::Path(path) = bsort {
                 let res = self.resolver_output.path_res_map[&path.node_id];
@@ -80,7 +80,7 @@ fn collect_holes(qself: &surface::Ty, path: &surface::Path) -> Vec<Span> {
     struct HoleCollector {
         holes: Vec<Span>,
     }
-    impl surface::visit::Visitor for HoleCollector {
+    impl surface::visit::Visitor<'_> for HoleCollector {
         fn visit_ty(&mut self, ty: &surface::Ty) {
             if let surface::TyKind::Hole = ty.kind {
                 self.holes.push(ty.span);
@@ -871,6 +871,13 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
                 self.allow_primop_app = false;
                 fhir::FluxItem::PrimOpProp(self.genv.alloc(primop_prop))
             }
+            surface::FluxItem::Axiom(axiom) => {
+                // Axioms can talk about the UIFs for primops, e.g., `[&](x, y)`
+                self.allow_primop_app = true;
+                let axiom = self.desugar_axiom(axiom);
+                self.allow_primop_app = false;
+                fhir::FluxItem::Axiom(self.genv.alloc(axiom))
+            }
             surface::FluxItem::SortDecl(sort_decl) => {
                 let sort_decl = self.desugar_sort_decl(sort_decl);
                 fhir::FluxItem::SortDecl(self.genv.alloc(sort_decl))
@@ -918,6 +925,15 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
             args,
             body,
             span: primop_prop.span,
+        }
+    }
+
+    fn desugar_axiom(&mut self, axiom: &surface::Axiom) -> fhir::Axiom<'genv> {
+        fhir::Axiom {
+            def_id: self.owner,
+            args: self.desugar_refine_params(&axiom.params),
+            body: self.desugar_expr(&axiom.body),
+            span: axiom.span,
         }
     }
 
