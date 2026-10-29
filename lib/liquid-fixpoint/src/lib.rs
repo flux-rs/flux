@@ -30,6 +30,7 @@ pub mod parser;
 pub mod sexp;
 mod smt_fmt;
 pub mod smt_horn;
+mod solution_validator;
 mod suggestion_solver;
 mod z3_subprocess;
 
@@ -65,7 +66,10 @@ use process_control::{ChildExt, Control};
 
 #[cfg(feature = "rust-fixpoint")]
 use crate::constraint_with_env::ConstraintWithEnv;
-pub use crate::suggestion_solver::{SuggestionSolver, SuggestionSolverError};
+pub use crate::{
+    solution_validator::ValidationOutcome,
+    suggestion_solver::{SuggestionSolver, SuggestionSolverError},
+};
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;

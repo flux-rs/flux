@@ -176,10 +176,31 @@ where
     pub fn parse_expr(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
-                if let Sexp::Atom(Atom::S(s)) = &items[0] {
+                let Some(head) = items.first() else {
+                    return Err(ParseError::err("empty expression"));
+                };
+                if let Sexp::Atom(Atom::S(s)) = head {
+                    let valid_arity = match s.as_str() {
+                        "cast" | "exists" | "forall" | "let" | "lit" => items.len() == 3,
+                        "not" | "cast_as_int" => items.len() == 2,
+                        "if" => items.len() == 4,
+                        "+" | "*" | "/" | "mod" | "=" | "!=" | "<" | "<=" | ">" | ">=" | "<=>"
+                        | "=>" => items.len() == 3,
+                        "-" => items.len() == 2 || items.len() == 3,
+                        _ => true,
+                    };
+                    if !valid_arity {
+                        return Err(ParseError::err("invalid expression arity"));
+                    }
                     match s.as_str() {
                         "cast" => self.parse_expr(&items[1]),
                         "exists" => self.parse_exists(&items[1..]),
+                        "forall" => {
+                            self.parse_exists(&items[1..]).map(|e| {
+                                let Expr::Quantifier(_, bs, body) = e else { unreachable!() };
+                                Expr::Quantifier(Quantifier::Forall, bs, body)
+                            })
+                        }
                         "let" => self.parse_let(sexp),
                         "not" => self.parse_not(sexp),
                         "or" => self.parse_or(sexp),
@@ -192,7 +213,9 @@ where
                         "<=>" => self.parse_iff(sexp),
                         "=>" => self.parse_imp(sexp),
                         "cast_as_int" => self.parse_expr(&items[1]), // some odd thing that fixpoint-hs seems to add for sets...
-                        _ if s.starts_with("is$") => self.parse_is_ctor(&s[3..], &items[1]),
+                        _ if s.starts_with("is$") && items.len() == 2 => {
+                            self.parse_is_ctor(&s[3..], &items[1])
+                        }
                         _ => self.parse_app(sexp),
                     }
                 } else {
@@ -214,12 +237,10 @@ where
                 if *i >= 0 {
                     Ok(Expr::Constant(Constant::Numeral(*i as u128)))
                 } else {
-                    Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral(-i as u128)))))
+                    Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral(i.unsigned_abs())))))
                 }
             }
-            Sexp::Atom(Atom::F(_f)) => {
-                unimplemented!("Float parsing not supported in fixpoint (see Constant::Real)")
-            }
+            Sexp::Atom(Atom::F(_f)) => Err(ParseError::err("real literal parsing is unsupported")),
         }
     }
 
@@ -334,11 +355,27 @@ where
     fn parse_app(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
+                if items.is_empty() {
+                    return Err(ParseError::err("empty application"));
+                }
+                if matches!(&items[0], Sexp::Atom(Atom::S(_))) {
+                    return Ok(Expr::App(
+                        Box::new(self.parse_expr(&items[0])?),
+                        None,
+                        items[1..]
+                            .iter()
+                            .map(|e| self.parse_expr(e))
+                            .collect::<Result<_, _>>()?,
+                        None,
+                    ));
+                }
                 let Sexp::List(inner) = &items[0] else {
                     Err(ParseError::err("Expected list for inner func"))?
                 };
-                match &inner[1] {
-                    Sexp::Atom(Atom::S(s)) if s == "apply" => {
+                match inner.get(1) {
+                    Some(Sexp::Atom(Atom::S(s)))
+                        if s == "apply" && inner.len() == 3 && items.len() == 2 =>
+                    {
                         let func_sort = self.parse_sort(&inner[2])?;
                         let func = self.parse_expr_possibly_nested(&items[1])?;
                         Ok(Expr::App(Box::new(func), None, vec![], Some(func_sort)))
@@ -416,28 +453,18 @@ where
     }
 
     fn parse_let(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
-        match sexp {
-            Sexp::List(items) => {
-                through_nested_list(&items[1], |bottom| {
-                    match bottom {
-                        Sexp::List(var_and_binding) => {
-                            match &var_and_binding[0] {
-                                Sexp::Atom(Atom::S(s)) => {
-                                    let binding =
-                                        self.parse_expr_possibly_nested(&var_and_binding[1])?;
-                                    let body = self.parse_expr_possibly_nested(&items[2])?;
-                                    let var = self.parser.var(s)?;
-                                    Ok(Expr::Let(var, Box::new([binding, body])))
-                                }
-                                _ => Err(ParseError::err("Expected variable name to be string")),
-                            }
-                        }
-                        _ => Err(ParseError::err("Expected list for var and binding")),
-                    }
-                })
-            }
-            _ => Err(ParseError::err("Expected list for let")),
+        if let Sexp::List(items) = sexp
+            && let [_, Sexp::List(bindings), body] = items.as_slice()
+            && let [Sexp::List(binding)] = bindings.as_slice()
+            && let [Sexp::Atom(Atom::S(name)), value] = binding.as_slice()
+        {
+            let value = self.parse_expr(value)?;
+            self.push_scope(std::slice::from_ref(name));
+            let body = self.parse_expr(body);
+            let mut scope = self.pop_scope().unwrap();
+            return Ok(Expr::Let(scope.swap_remove(name).unwrap(), Box::new([value, body?])));
         }
+        Err(ParseError::err("expected singleton scoped let binding"))
     }
 
     fn parse_list_sort(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
@@ -501,7 +528,7 @@ where
                 }
             }
             // Sexp::Atom(Atom::S(ref s)) => Ok(Sort::Var(s.clone())),
-            _ => panic!("Unknown sort encountered {sexp:?}"), // Err(ParseError::err(format!("Unknown sort encountered {sexp:?}"))),
+            _ => Err(ParseError::err(format!("Unknown sort encountered {sexp:?}"))),
         }
     }
 
@@ -523,7 +550,8 @@ where
 
     pub fn parse_solution(&mut self, sexp: &Sexp) -> Result<KvarSolution<T>, ParseError> {
         if let Sexp::List(items) = sexp
-            && let [_lambda, params, body] = &items[..]
+            && let [Sexp::Atom(Atom::S(lambda)), params, body] = &items[..]
+            && lambda == "lambda"
             && let Sexp::List(sexp_params) = params
         {
             let mut kvar_args = vec![];
@@ -544,11 +572,20 @@ where
                 .into_iter()
                 .map(|sexp| self.parse_sort(sexp))
                 .try_collect()?;
+            if kvar_args
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                != kvar_args.len()
+            {
+                return Err(ParseError::err("duplicate lambda parameters"));
+            }
             self.push_scope(&kvar_args);
 
-            let expr = self.parse_expr(body)?.uncurry();
+            let expr = self.parse_expr(body);
 
             let mut scope = self.pop_scope().unwrap();
+            let expr = expr?.uncurry();
             let bound = kvar_args
                 .iter()
                 .zip(sorts)
@@ -627,7 +664,8 @@ fn parse_bitvec<PT: Types>(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
         Sexp::List(items) => {
             match &items[1] {
                 Sexp::Atom(Atom::Q(lit)) if lit.starts_with("#b") => {
-                    let bitvec = u128::from_str_radix(&lit[3..], 2).expect("Invalid binary string");
+                    let bitvec = u128::from_str_radix(&lit[2..], 2)
+                        .map_err(|_| ParseError::err("Invalid binary string"))?;
                     let bvsize = size_form_bv_sort(parse_bitvec_sort(&items[2])?)?;
                     Ok(Expr::Constant(Constant::BitVec(bitvec, bvsize)))
                 }

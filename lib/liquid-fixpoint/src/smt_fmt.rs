@@ -50,6 +50,8 @@ pub(crate) enum PredicateEncoding {
     Horn,
     /// Panic on KVars and replace WKVars with true.
     Suggestions,
+    /// A concrete assignment must leave no unresolved predicates.
+    Validation,
 }
 
 #[derive(Clone, Copy)]
@@ -59,6 +61,8 @@ pub(crate) struct SmtOptions {
 }
 
 impl SmtOptions {
+    pub const VALIDATION: Self =
+        Self { functions: FunctionEncoding::FirstOrder, predicates: PredicateEncoding::Validation };
     pub const HORN: Self = Self {
         functions: FunctionEncoding::ArrayApproximation,
         predicates: PredicateEncoding::Horn,
@@ -316,6 +320,7 @@ impl<T: Types> SmtEncoder<T> {
                     PredicateEncoding::Suggestions => {
                         panic!("ordinary KVar in suggestion query")
                     }
+                    PredicateEncoding::Validation => return Err(fmt::Error),
                 }
             }
         }
@@ -336,6 +341,7 @@ impl<T: Types> SmtEncoder<T> {
             PredicateEncoding::Horn => {
                 panic!("weak KVar in Horn query")
             }
+            PredicateEncoding::Validation => Err(fmt::Error),
         }
     }
 

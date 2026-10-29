@@ -10,6 +10,45 @@ use std::{
 
 use crate::sexp::{Atom, Parser, Sexp};
 
+/// A speculative whole-task query. Unlike the interactive suggestion session,
+/// this has a wall-clock bound covering both solver execution and protocol I/O.
+pub(crate) fn check_once(
+    commands: &str,
+    budget: std::time::Duration,
+) -> io::Result<Option<SatStatus>> {
+    use process_control::{ChildExt, Control};
+
+    let mut child = Command::new("z3")
+        .args(["-smt2", "-in"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let mut stdin = child.stdin.take().expect("Z3 stdin is piped");
+    let commands = commands.to_owned();
+    // Write concurrently: a blocked pipe must not prevent enforcing the budget.
+    let writer = std::thread::spawn(move || stdin.write_all(commands.as_bytes()));
+    let output = child
+        .controlled_with_output()
+        .time_limit(budget)
+        .terminate_for_timeout()
+        .wait();
+    let written = writer
+        .join()
+        .map_err(|_| io::Error::other("Z3 writer failed"))?;
+    let Some(output) = output? else { return Ok(None) };
+    written?;
+    if !output.status.success() || !output.stderr.is_empty() {
+        return Ok(None);
+    }
+    Ok(match output.stdout.as_slice() {
+        b"unsat\n" => Some(SatStatus::Unsat),
+        b"sat\n" => Some(SatStatus::Sat),
+        b"unknown\n" => Some(SatStatus::Unknown),
+        _ => None,
+    })
+}
+
 #[derive(Debug)]
 pub(crate) enum Z3Error {
     Io(io::Error),

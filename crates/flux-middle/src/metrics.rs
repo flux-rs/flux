@@ -100,6 +100,11 @@ pub struct QueryCheck {
     pub task_key: String,
     pub task_hash: u64,
     pub outcome: &'static str,
+    pub candidate_status: Option<&'static str>,
+    pub validation_outcome: Option<liquid_fixpoint::ValidationOutcome>,
+    pub validation_reason: Option<&'static str>,
+    /// Includes candidate parsing, compatibility checks, encoding, and Z3.
+    pub validation_ms: Option<f64>,
     pub fixpoint_ms: Option<f64>,
     pub total_ms: f64,
     pub safe: Option<bool>,
