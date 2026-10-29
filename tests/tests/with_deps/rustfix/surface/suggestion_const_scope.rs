@@ -1,6 +1,7 @@
-// compile-flags: -Fsuggestions=true -Ffix-suggestions
-// check-suggestions: 1
-// suggestion: requires n < crate::types::LIMIT
+//@run-rustfix
+//@normalize-stderr-test: "(?s).*" -> ""
+//@rustfix-only-machine-applicable
+//@compile-flags: -Fsuggestions=true -Ffix-suggestions
 // The replacement must keep LIMIT resolvable from target.
 
 mod types {
@@ -19,6 +20,6 @@ mod target {
 
     #[sig(fn(usize) -> usize)]
     pub fn repro(n: usize) -> usize {
-        bounded(n) //~ ERROR refinement type error
+        bounded(n)
     }
 }

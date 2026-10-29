@@ -1,6 +1,7 @@
-// compile-flags: -Fsuggestions=true -Ffix-suggestions
-// check-suggestions: 1
-// suggestion: ensures tos: crate::rvec::RVec<u8>[{ len: old_tos.len + 1 }], pfds: crate::rvec::RVec<u8>[{ len: old_pfds.len + 1 }]
+//@run-rustfix
+//@normalize-stderr-test: "(?s).*" -> ""
+//@rustfix-only-machine-applicable
+//@compile-flags: -Fsuggestions=true -Ffix-suggestions
 // Reprinting two strong-reference postconditions must separate them with a comma.
 #[path = "../../lib/rvec.rs"]
 mod rvec;
@@ -20,6 +21,6 @@ fn needs_long(_: &RVec<u8>) {}
 fn parse_subscriptions(tos: &mut RVec<u8>, pfds: &mut RVec<u8>) {
     tos.push(0);
     pfds.push(0);
-    needs_long(tos); //~ ERROR refinement type error
-    needs_long(pfds); //~ ERROR refinement type error
+    needs_long(tos);
+    needs_long(pfds);
 }

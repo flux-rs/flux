@@ -1,0 +1,32 @@
+//@run-rustfix
+//@normalize-stderr-test: "(?s).*" -> ""
+//@rustfix-only-machine-applicable
+//@compile-flags: -Fsuggestions=true -Ffix-suggestions
+
+#[flux::sig(fn(n: usize) requires n == 2 * (n / 2) + 1)]
+fn requires_odd(n: usize) {
+    let _ = n;
+}
+
+// The suggestion must preserve `2 * (n/2)`, not print `2 * n/2`.
+// The latter parses as `(2 * n)/2`, making the precondition impossible.
+#[flux::sig(fn(usize))]
+pub fn forward(n: usize) {
+    requires_odd(n);
+}
+
+#[flux::sig(fn(usize[@n]) -> () requires n == 2 * (n / 2) + 1)]
+pub fn forward_with_correct_contract(n: usize) {
+    requires_odd(n);
+}
+
+pub fn witness() {
+    requires_odd(3);
+    forward_with_correct_contract(3);
+}
+
+// The suggested precondition must still permit this known-valid call.
+#[flux::no_suggestions]
+pub fn suggested_witness() {
+    forward(3);
+}

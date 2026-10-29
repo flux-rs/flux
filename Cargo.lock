@@ -1412,8 +1412,6 @@ dependencies = [
  "flux-dev",
  "flux-sysroot",
  "itertools 0.14.0",
- "rustfix",
- "tempfile",
 ]
 
 [[package]]

@@ -1,6 +1,7 @@
-// compile-flags: -Fsuggestions=true -Ffix-suggestions
-// check-suggestions: 1
-// suggestion: requires state == crate::State::Ready
+//@run-rustfix
+//@normalize-stderr-test: "(?s).*" -> ""
+//@rustfix-only-machine-applicable
+//@compile-flags: -Fsuggestions=true -Ffix-suggestions
 // Enum constructors must use variant names, not numeric variant indices.
 
 #[flux::reflect]
@@ -15,10 +16,10 @@ fn needs_ready(state: State) {}
 
 #[flux::sig(fn(State))]
 pub fn repro(state: State) {
-    needs_ready(state); //~ ERROR refinement type error
+    needs_ready(state);
 }
 
-#[cfg(flux_test_suggestions_applied)]
+#[flux::no_suggestions]
 pub fn suggested_witness() {
     repro(State::Ready);
 }

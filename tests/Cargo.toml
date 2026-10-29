@@ -14,8 +14,6 @@ flux-sysroot.workspace = true
 
 [dev-dependencies]
 itertools.workspace = true
-rustfix = "0.8"
-tempfile.workspace = true
 
 compiletest_rs = { version = "0.11", features = ["tmp"] }
 

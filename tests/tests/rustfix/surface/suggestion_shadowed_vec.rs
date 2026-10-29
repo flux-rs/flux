@@ -1,6 +1,7 @@
-// compile-flags: -Fsuggestions=true -Ffix-suggestions
-// check-suggestions: 1
-// suggestion: ::vec::Vec<u32>
+//@run-rustfix
+//@normalize-stderr-test: "(?s).*" -> ""
+//@rustfix-only-machine-applicable
+//@compile-flags: -Fsuggestions=true -Ffix-suggestions
 // The replacement must not resolve Vec to shadow::Vec.
 #![flux::opts(check_overflow = "strict")]
 
@@ -14,6 +15,6 @@ mod target {
     #[flux::sig(fn(std::vec::Vec<u32>, u32) -> u32)]
     pub fn checked(xs: std::vec::Vec<u32>, n: u32) -> u32 {
         let _ = xs;
-        n + 1 //~ ERROR arithmetic operation may overflow
+        n + 1
     }
 }

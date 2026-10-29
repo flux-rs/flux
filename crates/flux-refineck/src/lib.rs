@@ -229,6 +229,10 @@ fn report_errors(
     }
     let rerun_note = rerun_hint_note(genv, local_id);
     let mut e = None;
+    // It seems that the error order may be a little unstable which mucks with our tests,
+    // so this is an attempt at making it more stable
+    let mut errors_by_tag: Vec<_> = errors_by_tag.into_iter().collect();
+    errors_by_tag.sort_by_key(|(tag, _)| (tag.src_span.lo(), tag.src_span.hi()));
     for (tag, errors) in errors_by_tag {
         let span = tag.src_span;
         let mut err_diag = match tag.reason {
