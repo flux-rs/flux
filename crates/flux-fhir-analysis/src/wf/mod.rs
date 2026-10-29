@@ -374,6 +374,9 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
             fhir::FluxItem::PrimOpProp(prim_op_prop) => {
                 cx.conv_primop_prop(prim_op_prop)?;
             }
+            fhir::FluxItem::Axiom(axiom) => {
+                cx.conv_axiom(axiom)?;
+            }
             fhir::FluxItem::SortDecl(_sort_decl) => {}
         }
         Ok(())
@@ -391,7 +394,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
         }
 
         for ty in fn_decl.inputs {
-            if let fhir::TyKind::StrgRef(_, loc, _) = ty.kind
+            if let fhir::TyKind::StrgRef(loc, _) = ty.kind
                 && let (_, id) = loc.res.expect_param()
                 && !output_locs.contains(&id)
             {
@@ -437,6 +440,10 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             return;
         }
         self.check_expr(&primop_prop.body, &rty::Sort::Bool);
+    }
+
+    fn visit_axiom(&mut self, axiom: &fhir::Axiom<'genv>) {
+        self.check_expr(&axiom.body, &rty::Sort::Bool);
     }
 
     fn visit_func(&mut self, func: &fhir::SpecFunc<'genv>) {
@@ -521,7 +528,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
                 self.check_expr(idx, &expected);
                 self.visit_bty(bty);
             }
-            fhir::TyKind::StrgRef(_, loc, ty) => {
+            fhir::TyKind::StrgRef(loc, ty) => {
                 self.infcx.check_loc(loc).collect_err(&mut self.errors);
                 self.visit_ty(ty);
             }

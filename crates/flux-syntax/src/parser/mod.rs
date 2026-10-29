@@ -17,7 +17,7 @@ use crate::{
     surface::{
         self, Async,
         Attr::{self},
-        BareFnTy, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
+        Axiom, BareFnTy, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, DetachedInherentImpl, DetachedItem, DetachedItemKind, DetachedSpecs,
         DetachedTrait, DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath,
         ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg,
@@ -165,6 +165,7 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<FluxItem>>
 ///              | ⟨qualifier⟩
 ///              | ⟨sort_decl⟩
 ///              | ⟨primop_prop⟩
+///              | ⟨axiom⟩
 ///              | ⟨use_item⟩
 /// ```
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
@@ -180,6 +181,8 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
         parse_sort_decl(cx).map(FluxItem::SortDecl)
     } else if lookahead.peek(kw::Property) {
         parse_primop_property(cx).map(FluxItem::PrimOpProp)
+    } else if lookahead.peek(kw::Axiom) {
+        parse_axiom(cx).map(FluxItem::Axiom)
     } else if lookahead.peek(kw::Use) {
         parse_use_item(cx).map(FluxItem::Use)
     } else {
@@ -602,6 +605,19 @@ fn parse_primop_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
     let hi = cx.hi();
 
     Ok(PrimOpProp { name, op, params, body, span: cx.mk_span(lo, hi) })
+}
+
+/// ```text
+/// ⟨axiom⟩ := axiom ⟨ident⟩ ( ⟨refine_param⟩,* ) ⟨block⟩
+/// ```
+fn parse_axiom(cx: &mut ParseCtxt) -> ParseResult<Axiom> {
+    let lo = cx.lo();
+    cx.expect(kw::Axiom)?;
+    let name = parse_ident(cx)?;
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
+    let body = parse_block(cx)?;
+    let hi = cx.hi();
+    Ok(Axiom { name, params, body, span: cx.mk_span(lo, hi) })
 }
 
 /// ```text
@@ -1038,7 +1054,7 @@ fn parse_reft(cx: &mut ParseCtxt) -> ParseResult<Reft> {
 ///       | * mut ⟨ { ⟨ident⟩ : ⟨expr⟩ } ⟩? ⟨ty⟩
 ///       | [ ⟨ty⟩ ; ⟨const_arg⟩ ]
 ///       | impl ⟨path⟩
-///       | fn ( ⟨ty⟩,* ) ⟨fn_ret⟩
+///       | unsafe? ⟨extern ⟨string⟩?⟩? fn ( ⟨ty⟩,* ) ⟨fn_ret⟩
 ///       | ⟨bty⟩
 ///       | ⟨bty⟩ [ ⟨refine_arg⟩,* ]
 ///       | ⟨bty⟩ { ⟨ident⟩ : ⟨block_expr⟩ }
@@ -1114,12 +1130,37 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
     } else if lookahead.advance_if(kw::Impl) {
         // impl ⟨bounds⟩
         TyKind::ImplTrait(cx.next_node_id(), parse_generic_bounds(cx)?)
-    } else if lookahead.advance_if(kw::Fn) {
-        // fn ( ⟨ty⟩,* ) ⟨fn_ret⟩
+    } else if lookahead.peek(kw::Fn) || lookahead.peek(kw::Unsafe) || lookahead.peek(kw::Extern) {
+        // unsafe? ⟨extern ⟨string⟩?⟩? fn ( ⟨ty⟩,* ) ⟨fn_ret⟩
+        let safety =
+            if cx.advance_if(kw::Unsafe) { surface::Safety::Unsafe } else { surface::Safety::Safe };
+        let abi = if cx.peek(kw::Extern) {
+            let extern_lo = cx.lo();
+            cx.advance();
+            if let Token { kind: token::Literal(Lit { kind: LitKind::Str, symbol, .. }), lo, hi } =
+                cx.at(0)
+            {
+                cx.advance();
+                Some(Ident { name: symbol, span: cx.mk_span(lo, hi) })
+            } else {
+                // `extern fn` is `extern "C" fn`
+                Some(Ident { name: sym::C, span: cx.mk_span(extern_lo, cx.hi()) })
+            }
+        } else {
+            None
+        };
+        cx.expect(kw::Fn)?;
         let inputs = parens(cx, Comma, parse_type)?;
         let output = parse_fn_ret(cx)?;
         let span = cx.mk_span(lo, cx.hi());
-        TyKind::BareFn(Box::new(BareFnTy { inputs, output, node_id: cx.next_node_id(), span }))
+        TyKind::BareFn(Box::new(BareFnTy {
+            safety,
+            abi,
+            inputs,
+            output,
+            node_id: cx.next_node_id(),
+            span,
+        }))
     } else if lookahead.peek(NonReserved) {
         // ⟨path⟩ ...
         let path = parse_path(cx)?;
