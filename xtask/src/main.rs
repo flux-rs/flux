@@ -11,12 +11,12 @@ use std::{
 
 use anyhow::anyhow;
 use cargo_metadata::{
-    Artifact, Message, TargetKind,
     camino::{Utf8Path, Utf8PathBuf},
+    Artifact, Message, TargetKind,
 };
 use flux_dev::Suite;
 use flux_sysroot::{
-    FLUX_SYSROOT, SYSROOT_MANIFEST, SysrootCrate, SysrootManifest, default_flux_sysroot_dir,
+    default_flux_sysroot_dir, SysrootCrate, SysrootManifest, FLUX_SYSROOT, SYSROOT_MANIFEST,
 };
 
 xflags::xflags! {
