@@ -48,6 +48,13 @@ impl Suite {
             Suite::WithDeps => ["tests", "with_deps", "neg"].iter().collect(),
         }
     }
+
+    pub fn rustfix_tests(self) -> PathBuf {
+        match self {
+            Suite::Basic => ["tests", "rustfix"].iter().collect(),
+            Suite::WithDeps => ["tests", "with_deps", "rustfix"].iter().collect(),
+        }
+    }
 }
 
 impl FromStr for Suite {

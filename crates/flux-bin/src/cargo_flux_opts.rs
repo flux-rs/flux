@@ -114,6 +114,10 @@ impl CargoFluxCommand {
             CargoFluxCommand::Clean(_) => vec![],
         }
     }
+
+    pub fn fix(&self) -> bool {
+        matches!(self, CargoFluxCommand::Check(CompileOpts { fix: true, .. }))
+    }
 }
 
 #[derive(clap::Args)]

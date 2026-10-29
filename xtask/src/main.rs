@@ -27,6 +27,8 @@ xflags::xflags! {
         optional --rust-fixpoint
         /// Run regression tests
         cmd test {
+            /// Generate expected UI diagnostics (.stderr) and rustfix (.fixed) output.
+            optional --bless
             /// Only run tests containing `filter` as a substring.
             optional filter: String
             /// Run only the named suite(s). May be repeated. If omitted, all suites run.
@@ -140,9 +142,11 @@ fn run_tests(
     suite: &str,
     filter: Option<&str>,
     fixpoint_timeout: Option<u64>,
+    bless: bool,
 ) -> anyhow::Result<()> {
     Command::new("cargo")
         .args(["test", "-p", "tests", "--"])
+        .args(bless.then_some("--bless"))
         .args(["--flux-driver", flux_driver.as_str()])
         .args(["--sysroot".as_ref(), sysroot.as_os_str()])
         .args(["--suite", suite])
@@ -170,7 +174,14 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
             build_libs: BuildLibs { force: false, libs },
         };
         let flux_driver = install_sysroot(&config)?;
-        run_tests(&flux_driver, &dst, suite.name(), args.filter.as_deref(), args.fixpoint_timeout)?;
+        run_tests(
+            &flux_driver,
+            &dst,
+            suite.name(),
+            args.filter.as_deref(),
+            args.fixpoint_timeout,
+            args.bless,
+        )?;
     }
     Ok(())
 }

@@ -10,6 +10,8 @@ use itertools::Itertools;
 
 #[derive(Debug)]
 struct Args {
+    /// Update expected UI diagnostics and rustfix output.
+    bless: bool,
     filters: Vec<String>,
     flux_driver: PathBuf,
     sysroot: PathBuf,
@@ -21,6 +23,7 @@ struct Args {
 
 impl Args {
     fn parse() -> Args {
+        let bless = env::args().any(|arg| arg == "--bless");
         let mut filters = vec![];
         let mut sysroot = None;
         let mut flux_driver = None;
@@ -71,6 +74,7 @@ impl Args {
             panic!("option '--suite' must be provided");
         };
         Args {
+            bless,
             filters,
             flux_driver: PathBuf::from(flux_driver),
             sysroot: PathBuf::from(sysroot),
@@ -82,8 +86,12 @@ impl Args {
 
 fn test_runner(_: &[&()]) {
     let args = Args::parse();
-    let mut config =
-        Config { rustc_path: args.flux_driver, filters: args.filters, ..Config::default() };
+    let mut config = Config {
+        bless: args.bless,
+        rustc_path: args.flux_driver,
+        filters: args.filters,
+        ..Config::default()
+    };
 
     let mut flags = default_flags(&args.sysroot, SysrootManifest::extern_args(&args.sysroot));
 
@@ -114,6 +122,13 @@ fn test_runner(_: &[&()]) {
     let path = args.suite.neg_tests();
     if path.exists() {
         config.mode = Mode::CompileFail;
+        config.src_base = path;
+        compiletest_rs::run_tests(&config);
+    }
+
+    let path = args.suite.rustfix_tests();
+    if path.exists() {
+        config.mode = Mode::Ui;
         config.src_base = path;
         compiletest_rs::run_tests(&config);
     }
