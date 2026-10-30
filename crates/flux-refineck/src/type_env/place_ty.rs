@@ -887,6 +887,13 @@ fn fold(
             let deref_ty = fold(bindings, infcx, deref_ty, is_strg)?;
             Ok(Ty::mk_ref(*re, deref_ty, *mutbl))
         }
+        // With `allow_raw_deref`, the pointee of a raw pointer may be unfolded (see `Unfolder`). A
+        // raw pointer doesn't own its pointee and there are no strong updates through it, so we fold
+        // it weakly (as behind a shared reference), restoring the type it had before unfolding.
+        TyKind::Indexed(BaseTy::RawPtr(deref_ty, mutbl), idx) => {
+            let deref_ty = fold(bindings, infcx, deref_ty, false)?;
+            Ok(Ty::indexed(BaseTy::RawPtr(deref_ty, *mutbl), idx.clone()))
+        }
         TyKind::Downcast(adt, args, ty_, variant_idx, fields) => {
             if is_strg {
                 let variant_sig = infcx
