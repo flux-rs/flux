@@ -458,8 +458,26 @@ pub(crate) fn log_and_track(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) -> 
     let pretty = |sig: &PolyFnSig| {
         format!("{:?}", crate::pretty::with_cx!(&PrettyCx::default(genv), &EarlyBinder(sig)))
     };
-    let annotated = sig.fold_with(&mut Strip);
-    let mut record = json!({"schema_version": 1, "function": genv.tcx().def_path_str(def_id), "annotated": pretty(&annotated)});
+    let mut record = json!({"schema_version": 1, "function": genv.tcx().def_path_str(def_id), "annotated": pretty(&sig.fold_with(&mut Strip))});
+    // Matching and marker placement must see the same strong-reference/ensures
+    // structure. Preserve annotations and suggestion wkvars in the emitted sig;
+    // only the diagnostic matcher strips them. Auto-strong is idempotent once
+    // the mutable inputs have become strong references.
+    let lifted = sig.skip_binder_ref().lifted;
+    let prepared = auto_strong(
+        genv,
+        def_id,
+        sig.clone().map(|mut body| {
+            body.lifted = true;
+            body
+        }),
+    )
+    .hoist_input_binders()
+    .map(|mut body| {
+        body.lifted = lifted;
+        body
+    });
+    let annotated = prepared.fold_with(&mut Strip);
     let mut tracking_sites = vec![];
     let mut skeleton_shape = vec![];
     let result = (|| -> Result<(), String> {
@@ -486,16 +504,6 @@ pub(crate) fn log_and_track(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) -> 
         text.hash(&mut hash);
         record["skeleton"] = text.into();
         record["skeleton_fingerprint"] = format!("{:016x}", hash.finish()).into();
-        // Apply the same existing auto-strong transformation to lifted annotations.
-        let annotated = auto_strong(
-            genv,
-            def_id,
-            annotated.clone().map(|mut sig| {
-                sig.lifted = true;
-                sig
-            }),
-        )
-        .hoist_input_binders();
         let mut matcher = Matcher {
             next: 0,
             bindings: FxHashMap::default(),
@@ -592,6 +600,10 @@ pub(crate) fn log_and_track(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) -> 
     })();
     record["status"] = if result.is_ok() { "matched" } else { "failed" }.into();
     if let Err(reason) = result {
+        eprintln!(
+            "warning: VC skeleton analysis unavailable for {}: {reason}; affected VC diffs must be excluded",
+            genv.tcx().def_path_str(def_id)
+        );
         record["reason"] = reason.into();
     }
     // Add provenance to the annotated signature, preserving its predicates,
@@ -600,7 +612,7 @@ pub(crate) fn log_and_track(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) -> 
     for (id, site) in &tracking_sites {
         folder.inject.entry(site.clone()).or_default().push(*id);
     }
-    let tracked = sig.clone().map(|mut body| {
+    let tracked = prepared.clone().map(|mut body| {
         let mut requires = body.requires.to_vec();
         requires.extend(folder.markers("requires"));
         body.requires = requires.into();
@@ -633,6 +645,11 @@ pub(crate) fn log_and_track(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) -> 
     // complete coverage, and verify that erasure preserves the original type.
     struct Clean;
     impl TypeFolder for Clean {
+        fn fold_expr(&mut self, e: &Expr) -> Expr {
+            // SubsetTy::strengthen adds p && marker. Erasure leaves p && true;
+            // compare normalized expressions, ignoring nonsemantic metadata.
+            e.erase_metadata().simplify(&Default::default())
+        }
         fn fold_ty(&mut self, ty: &Ty) -> Ty {
             let ty = ty.super_fold_with(self);
             if let TyKind::Constr(p, t) = ty.kind()
@@ -664,7 +681,14 @@ pub(crate) fn log_and_track(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) -> 
             body
         })
     };
-    let erasure_equal = clean_sig(&erase_tracking(&tracked)) == clean_sig(sig);
+    let erasure_equal = clean_sig(&erase_tracking(&tracked)) == clean_sig(&prepared);
+    if !complete || !erasure_equal {
+        record["tracking_alignment"]["skeleton_shape"] = json!(skeleton_shape);
+        record["tracking_alignment"]["annotated_shape"] = json!(folder.shape);
+        record["tracking_alignment"]["original"] = pretty(&clean_sig(&prepared)).into();
+        record["tracking_alignment"]["erased"] =
+            pretty(&clean_sig(&erase_tracking(&tracked))).into();
+    }
     record["tracking_alignment"]["erasure_equal"] = erasure_equal.into();
     record["tracking_alignment"]["emitted"] = (complete && erasure_equal).into();
     record["tracking_alignment"]["usable"] =
