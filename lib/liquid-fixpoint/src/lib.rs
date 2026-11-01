@@ -223,6 +223,50 @@ pub struct Task<T: Types> {
     pub solver: SmtSolver,
 }
 
+#[cfg(test)]
+mod canonical_hash_tests {
+    use super::*;
+    use crate::parser::StringTypes;
+
+    fn task(constraint: Constraint<StringTypes>) -> Task<StringTypes> {
+        Task {
+            comments: vec![],
+            constants: vec![],
+            data_decls: vec![],
+            define_funs: vec![],
+            kvars: vec![],
+            constraint,
+            qualifiers: vec![],
+            axioms: vec![],
+            scrape_quals: false,
+            solver: SmtSolver::Z3,
+        }
+    }
+
+    fn assume(
+        preds: Vec<Pred<StringTypes>>,
+        body: Constraint<StringTypes>,
+    ) -> Constraint<StringTypes> {
+        Constraint::ForAll(Bind { name: "_".into(), sort: Sort::Int, preds }, Box::new(body))
+    }
+
+    #[test]
+    fn normalizes_grouped_assumptions_but_preserves_predicates() {
+        let p = Expr::Var("p".into());
+        let q = Expr::Var("q".into());
+        let head = || Constraint::Pred(Pred::Expr(Expr::Var("head".into())), None);
+        let nested = task(assume(
+            vec![Pred::Expr(p.clone())],
+            assume(vec![Pred::Expr(q.clone()), Pred::TRUE], head()),
+        ));
+        let grouped = task(assume(vec![Pred::Expr(Expr::And(vec![q, p]))], head()));
+        assert_ne!(nested.hash_with_default(), grouped.hash_with_default());
+        assert_eq!(nested.canonical_hash(|v| v == "_"), grouped.canonical_hash(|v| v == "_"));
+        let different = task(assume(vec![Pred::Expr(Expr::Var("other".into()))], head()));
+        assert_ne!(nested.canonical_hash(|v| v == "_"), different.canonical_hash(|v| v == "_"));
+    }
+}
+
 #[derive(Clone, Copy, Hash)]
 pub enum SmtSolver {
     Z3,
@@ -374,6 +418,42 @@ impl<T: Types> Task<T> {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
         hasher.finish()
+    }
+
+    /// Diagnostic only: normalize Horn-clause assumption grouping and ordering.
+    /// Preserves all identifier identities (including any embedded DefIds).
+    /// This is not a cache key or a proof of semantic equivalence.
+    pub fn canonical_hash(&self, is_underscore: impl Copy + Fn(&T::Var) -> bool) -> u64 {
+        fn digest(value: &impl Hash) -> u64 {
+            let mut hasher = DefaultHasher::new();
+            value.hash(&mut hasher);
+            hasher.finish()
+        }
+        let mut clauses = vec![];
+        for clause in self.constraint.flatten(is_underscore) {
+            let mut assumptions = clause
+                .assumptions
+                .iter()
+                .filter(|p| !p.is_trivially_true())
+                .map(digest)
+                .collect::<Vec<_>>();
+            assumptions.sort_unstable();
+            assumptions.dedup();
+            clauses.push(digest(&(clause.binders, assumptions, clause.head)));
+        }
+        clauses.sort_unstable();
+        clauses.dedup();
+        digest(&(
+            &self.constants,
+            &self.data_decls,
+            &self.define_funs,
+            &self.kvars,
+            clauses,
+            &self.qualifiers,
+            &self.axioms,
+            self.scrape_quals,
+            self.solver,
+        ))
     }
 
     /// Runs the task. The timeout is ignored by the rust implementation.

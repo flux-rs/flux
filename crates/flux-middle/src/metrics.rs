@@ -99,6 +99,8 @@ static QUERY_CHECKS: Mutex<Vec<QueryCheck>> = Mutex::new(Vec::new());
 pub struct QueryCheck {
     pub task_key: String,
     pub task_hash: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canonical_task_hash: Option<u64>,
     pub outcome: &'static str,
     pub fixpoint_ms: Option<f64>,
     pub total_ms: f64,

@@ -1015,6 +1015,8 @@ where
         let mut check = metrics::QueryCheck {
             task_key: key.clone(),
             task_hash: hash,
+            canonical_task_hash: config::dump_vc_skeleton()
+                .then(|| task.canonical_hash(|v| matches!(v, fixpoint::Var::Underscore))),
             outcome: "fixpoint",
             fixpoint_ms: None,
             total_ms: 0.0,
