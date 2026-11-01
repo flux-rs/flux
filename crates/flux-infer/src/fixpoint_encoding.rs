@@ -1465,7 +1465,7 @@ pub(crate) struct ConstEnv<'tcx> {
     pub(crate) wkvar_map_rev: HashMap<fixpoint::Var, ConstKey<'tcx>>,
     global_var_gen: IndexGen<fixpoint::GlobalVar>,
     fun_decl_map: FunDeclMap,
-    sized_facts: Vec<fixpoint::Expr>,
+    sized_facts: FxIndexSet<fixpoint::Expr>,
 }
 
 impl<'tcx> ConstEnv<'tcx> {
@@ -2242,7 +2242,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name;
         if is_new && let Some(facts) = self.genv.sized_facts(alias_reft) {
             let facts = self.expr_to_fixpoint(&facts, scx)?;
-            self.const_env.sized_facts.push(facts);
+            self.const_env.sized_facts.insert(facts);
         }
         Ok(name)
     }
