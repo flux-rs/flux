@@ -284,9 +284,11 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         refine_tree.replace_evars(&evars).unwrap();
 
-        if config::dump_vc_skeleton() {
-            refine_tree.log_vc_wkvars(self.genv, def_id.resolved_id(), kind);
-        }
+        let reuse_roles = if config::dump_vc_skeleton() {
+            refine_tree.log_vc_wkvars(self.genv, def_id.resolved_id(), kind)
+        } else {
+            Default::default()
+        };
 
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
@@ -305,6 +307,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         let mut fcx =
             FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint, self.opts.uif_ops);
+        fcx.reuse_roles = reuse_roles;
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
 
         // skip checking trivial constraints
@@ -312,6 +315,9 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         metrics::incr_metric(Metric::CsTotal, count as u32);
         if count == 0 {
             metrics::incr_metric_if(kind.is_body(), Metric::FnTrivial);
+            if config::vc_reuse_experiments() {
+                fcx.log_trivial_reuse_query(def_id.resolved_id(), kind);
+            }
             return Ok(Answer::trivial());
         }
 

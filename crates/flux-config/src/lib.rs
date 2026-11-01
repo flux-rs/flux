@@ -39,7 +39,26 @@ pub fn dump_rty() -> bool {
 }
 
 pub fn dump_vc_skeleton() -> bool {
-    FLAGS.dump_vc_skeleton
+    FLAGS.dump_vc_skeleton || FLAGS.vc_reuse_experiments
+}
+
+pub fn vc_reuse_experiments() -> bool {
+    FLAGS.vc_reuse_experiments
+}
+
+pub fn vc_reuse_state() -> PathBuf {
+    FLAGS
+        .vc_reuse_state
+        .clone()
+        .unwrap_or_else(|| log_dir().join("vc-reuse-state"))
+}
+
+pub fn vc_reuse_budget() -> Duration {
+    Duration::from_millis(FLAGS.vc_reuse_budget_ms.unwrap_or(500))
+}
+
+pub fn vc_reuse_force_fresh() -> bool {
+    FLAGS.vc_reuse_experiments && FLAGS.vc_reuse_force_fresh
 }
 
 pub fn pointer_width() -> PointerWidth {

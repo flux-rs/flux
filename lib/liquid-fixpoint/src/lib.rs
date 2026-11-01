@@ -30,6 +30,7 @@ pub mod parser;
 pub mod sexp;
 mod smt_fmt;
 pub mod smt_horn;
+pub mod solution_validator;
 mod suggestion_solver;
 mod z3_subprocess;
 

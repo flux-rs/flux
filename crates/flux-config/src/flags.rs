@@ -157,6 +157,18 @@ pub struct Flags {
     /// Log function signature skeletons and their weak-kvar instantiations.
     #[arg(long = flux_arg!("dump-vc-skeleton"), num_args = 0..=1, default_missing_value = "true")]
     pub dump_vc_skeleton: bool,
+    /// Run diagnostic VC reuse checks, followed by fresh ordinary Fixpoint solving.
+    #[arg(long = flux_arg!("vc-reuse-experiments"), num_args = 0..=1, default_missing_value = "true")]
+    pub vc_reuse_experiments: bool,
+    /// Persistent diagnostic state directory, shared across successive checks.
+    #[arg(long = flux_arg!("vc-reuse-state"), value_name = "PATH")]
+    pub vc_reuse_state: Option<PathBuf>,
+    /// Wall-clock budget in milliseconds per diagnostic solver experiment.
+    #[arg(long = flux_arg!("vc-reuse-budget-ms"), value_name = "MS")]
+    pub vc_reuse_budget_ms: Option<u64>,
+    /// Bypass exact cache hits to measure fresh Fixpoint reference time.
+    #[arg(long = flux_arg!("vc-reuse-force-fresh"), num_args = 0..=1, default_missing_value = "true")]
+    pub vc_reuse_force_fresh: bool,
     /// Optimistically keeps running flux even after errors are found to get as many errors as possible.
     #[arg(
         long = flux_arg!("catch-bugs"),
@@ -252,6 +264,10 @@ impl Default for Flags {
             dump_fhir: false,
             dump_rty: false,
             dump_vc_skeleton: false,
+            vc_reuse_experiments: false,
+            vc_reuse_state: None,
+            vc_reuse_budget_ms: None,
+            vc_reuse_force_fresh: false,
             catch_bugs: false,
             pointer_width: PointerWidth::default(),
             include: None,
@@ -344,6 +360,10 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "dump-fhir" => parse_bool(&mut flags.dump_fhir, value),
             "dump-rty" => parse_bool(&mut flags.dump_rty, value),
             "dump-vc-skeleton" => parse_bool(&mut flags.dump_vc_skeleton, value),
+            "vc-reuse-experiments" => parse_bool(&mut flags.vc_reuse_experiments, value),
+            "vc-reuse-state" => parse_opt_path_buf(&mut flags.vc_reuse_state, value),
+            "vc-reuse-budget-ms" => parse_opt_u64(&mut flags.vc_reuse_budget_ms, value),
+            "vc-reuse-force-fresh" => parse_bool(&mut flags.vc_reuse_force_fresh, value),
             "catch-bugs" => parse_bool(&mut flags.catch_bugs, value),
             "pointer-width" => parse_pointer_width(&mut flags.pointer_width, value),
             "check-overflow" => parse_overflow(&mut flags.check_overflow, value),

@@ -56,6 +56,7 @@ use crate::{
 };
 
 pub mod decoding;
+mod reuse_experiments;
 
 pub mod fixpoint {
     use std::fmt;
@@ -562,6 +563,7 @@ pub enum Backend {
 }
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
+    pub(crate) reuse_roles: std::collections::BTreeMap<String, String>,
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
     kvars: KVarGen,
@@ -630,6 +632,7 @@ where
         uif_ops: UifOps,
     ) -> Self {
         Self {
+            reuse_roles: Default::default(),
             comments: vec![],
             kvars,
             scx: SortEncodingCtxt::default(),
@@ -754,7 +757,8 @@ where
         kind: FixpointQueryKind,
         task: &fixpoint::Task,
     ) -> QueryResult<ParsedResult> {
-        let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache)
+        let result = self
+            .run_task_with_cache(task, def_id.resolved_id(), kind, cache)
             .map_err(|err| errors::FixpointErr { span: self.ecx.def_span(), err })
             .emit(&self.genv)?;
 
@@ -851,13 +855,17 @@ where
     }
 
     fn parse_kvar_solution(&mut self, expr: &str) -> FixpointSolution {
-        // 1. convert str -> sexp
-        let mut sexp_parser = Parser::new(expr);
-        let sexp = match sexp_parser.parse() {
-            Ok(sexp) => sexp,
-            Err(err) => {
-                tracked_span_bug!("cannot parse sexp: {expr:?}: {err:?}");
-            }
+        self.try_parse_kvar_solution(expr).unwrap_or_else(|err| {
+            tracked_span_bug!("failed to parse solution {expr:?}: {err:?}");
+        })
+    }
+
+    fn try_parse_kvar_solution(&mut self, expr: &str) -> Result<FixpointSolution, ParseError> {
+        let sexps = Parser::new(expr)
+            .parse_all()
+            .map_err(ParseError::SexpParseError)?;
+        let [sexp] = sexps.as_slice() else {
+            return Err(ParseError::err("expected exactly one solution lambda"));
         };
         let mut fun_decl_map = HashMap::new();
         for (def_id, var) in &self.ecx.const_env.fun_decl_map {
@@ -874,13 +882,11 @@ where
         }
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
         let mut sexp_ctx =
-            SexpParseCtxt::new(&mut self.ecx.local_var_env, &fun_decl_map, &const_decl_map)
+            SexpParseCtxt::new(&mut self.ecx.local_var_env, &fun_decl_map, &const_decl_map, sexp)
                 .into_wrapper();
-        let mut sol = sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
-            tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
-        });
+        let mut sol = sexp_ctx.parse_solution(sexp)?;
         parse_wkvars(&mut sol.1);
-        sol
+        Ok(sol)
     }
 
     fn is_assumed_constant(&self, const_decl: &fixpoint::ConstDecl) -> bool {
@@ -1002,13 +1008,13 @@ where
     }
 
     fn run_task_with_cache(
-        genv: GlobalEnv,
+        &mut self,
         task: &fixpoint::Task,
         def_id: DefId,
         kind: FixpointQueryKind,
         cache: &mut FixQueryCache,
     ) -> Result<VerificationResult<TagIdx>, FixpointError> {
-        let key = kind.task_key(genv.tcx(), def_id);
+        let key = kind.task_key(self.genv.tcx(), def_id);
         let started = std::time::Instant::now();
 
         let hash = task.hash_with_default();
@@ -1023,21 +1029,37 @@ where
             safe: None,
         };
 
-        if config::is_cache_enabled()
+        if !config::vc_reuse_force_fresh()
+            && config::is_cache_enabled()
             && let Some(result) = cache.lookup(&key, hash)
         {
             metrics::incr_metric_if(kind.is_body(), Metric::FnCached);
             check.outcome = "exact_hit";
             check.safe = Some(result.status.is_safe());
+            if config::vc_reuse_experiments() {
+                let run = self.start_reuse_experiments(task, def_id, kind, false);
+                self.finish_reuse_experiments(run, task, Some(result), None, "exact_hit");
+            }
             check.total_ms = started.elapsed().as_secs_f64() * 1000.0;
             metrics::record_query_check(check);
             return Ok(result.clone());
         }
+        let experiments = config::vc_reuse_experiments()
+            .then(|| self.start_reuse_experiments(task, def_id, kind, true));
         let fixpoint_started = std::time::Instant::now();
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
             task.run(config::fixpoint_timeout())
         });
         check.fixpoint_ms = Some(fixpoint_started.elapsed().as_secs_f64() * 1000.0);
+        if let Some(experiments) = experiments {
+            self.finish_reuse_experiments(
+                experiments,
+                task,
+                result.as_ref().ok(),
+                check.fixpoint_ms,
+                "fixpoint",
+            );
+        }
         check.total_ms = started.elapsed().as_secs_f64() * 1000.0;
         check.safe = result.as_ref().ok().map(|r| r.status.is_safe());
         if result.is_err() {
@@ -2713,6 +2735,7 @@ struct SexpParseCtxt<'a> {
     local_var_env: &'a mut LocalVarEnv,
     fun_decl_map: &'a HashMap<usize, FluxDefId>,
     const_decl_map: &'a HashMap<usize, DefId>,
+    reserved_locals: FxIndexSet<fixpoint::Var>,
 }
 
 impl<'a> SexpParseCtxt<'a> {
@@ -2720,18 +2743,37 @@ impl<'a> SexpParseCtxt<'a> {
         local_var_env: &'a mut LocalVarEnv,
         fun_decl_map: &'a HashMap<usize, FluxDefId>,
         const_decl_map: &'a HashMap<usize, DefId>,
+        sexp: &liquid_fixpoint::sexp::Sexp,
     ) -> Self {
-        Self { local_var_env, fun_decl_map, const_decl_map }
+        let mut reserved_locals = FxIndexSet::default();
+        let mut pending = vec![sexp];
+        while let Some(sexp) = pending.pop() {
+            match sexp {
+                liquid_fixpoint::sexp::Sexp::Atom(liquid_fixpoint::sexp::Atom::S(name)) => {
+                    if let Some(var) = parse_local_var(name) {
+                        reserved_locals.insert(var);
+                    }
+                }
+                liquid_fixpoint::sexp::Sexp::List(items) => pending.extend(items),
+                _ => {}
+            }
+        }
+        Self { local_var_env, fun_decl_map, const_decl_map, reserved_locals }
     }
 }
 
 impl FromSexp<FixpointTypes> for SexpParseCtxt<'_> {
     fn fresh_var(&mut self) -> fixpoint::Var {
-        fixpoint::Var::Local(self.local_var_env.fresh_name())
+        loop {
+            let var = fixpoint::Var::Local(self.local_var_env.fresh_name());
+            if !self.reserved_locals.contains(&var) {
+                return var;
+            }
+        }
     }
 
     fn kvar(&self, name: &str) -> Result<rty::KVid, ParseError> {
-        bug!("TODO: SexpParse: kvar: {name}")
+        Err(ParseError::err(format!("unsupported kvar: {name}")))
     }
 
     fn string(&self, s: &str) -> Result<fixpoint::SymStr, ParseError> {

@@ -60,7 +60,7 @@ impl RefineTree {
         genv: GlobalEnv,
         def_id: rustc_hir::def_id::DefId,
         kind: flux_middle::FixpointQueryKind,
-    ) {
+    ) -> std::collections::BTreeMap<String, String> {
         use std::{collections::BTreeMap, fs::OpenOptions, io::Write};
 
         use flux_middle::rty::vc_skeleton::{erase_tracking, is_tracking};
@@ -142,6 +142,7 @@ impl RefineTree {
         if let Err(error) = write() {
             eprintln!("could not log VC wkvars: {error}");
         }
+        roles.into_iter().map(|(k, v)| (k, v.to_string())).collect()
     }
 
     pub(crate) fn new(params: Vec<(Var, Sort)>, assumptions: Vec<Expr>) -> RefineTree {

@@ -14,6 +14,14 @@ static TRACKING_STATUS: std::sync::LazyLock<
     std::sync::Mutex<std::collections::BTreeMap<String, String>>,
 > = std::sync::LazyLock::new(Default::default);
 
+thread_local! {
+    static EXPERIMENT_SLOTS: std::cell::RefCell<FxHashMap<String, (String, Binder<Expr>)>> = Default::default();
+}
+
+pub fn experiment_slot(key: &str) -> Option<(String, Binder<Expr>)> {
+    EXPERIMENT_SLOTS.with(|slots| slots.borrow().get(key).cloned())
+}
+
 pub fn tracking_status(wkvid: &str) -> String {
     TRACKING_STATUS
         .lock()
@@ -574,6 +582,24 @@ pub(crate) fn log_and_track(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) -> 
             let sorts = &info[&slot.wkvid.id.as_u32()].sorts;
             let body = Expr::and_from_iter(solutions.remove(&slot.wkvid).unwrap_or_default());
             let solution = Binder::bind_with_sorts(body, sorts);
+            if flux_config::vc_reuse_experiments() {
+                EXPERIMENT_SLOTS.with(|slots| {
+                    slots.borrow_mut().insert(
+                        format!(
+                            "{}::wk{}",
+                            genv.tcx().def_path_str(def_id),
+                            slot.wkvid.id.as_u32()
+                        ),
+                        (
+                            record["skeleton_fingerprint"]
+                                .as_str()
+                                .unwrap_or_default()
+                                .into(),
+                            solution.clone(),
+                        ),
+                    );
+                });
+            }
             entries.push(json!({
                 "id": slot.wkvid.id.as_u32(),
                 "self_args": slot.self_args,
