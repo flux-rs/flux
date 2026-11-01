@@ -24,8 +24,8 @@ use rustc_span::{Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArgs, GenericArgsExt as _,
-    IntTy, Sort, UintTy,
+    BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArg, GenericArgs,
+    GenericArgsExt as _, IntTy, Sort, UintTy,
 };
 use crate::{
     big_int::BigInt,
@@ -94,6 +94,16 @@ pub struct AliasReft {
 impl AliasReft {
     pub fn self_ty(&self) -> SubsetTyCtor {
         self.args[0].expect_base().clone()
+    }
+
+    pub fn with_self_ty(&self, self_ty: SubsetTyCtor) -> Self {
+        Self {
+            assoc_id: self.assoc_id,
+            args: [GenericArg::Base(self_ty)]
+                .into_iter()
+                .chain(self.args.iter().skip(1).cloned())
+                .collect(),
+        }
     }
 
     pub fn to_rustc_trait_ref<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
