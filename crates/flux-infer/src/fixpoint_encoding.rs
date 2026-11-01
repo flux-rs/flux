@@ -2220,15 +2220,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         fsort: rty::FuncSort,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Var> {
-        let tcx = self.genv.tcx();
-        let args = alias_reft
-            .args
-            .to_rustc(tcx)
-            .truncate_to(tcx, tcx.generics_of(alias_reft.assoc_id.parent()));
-        // See <https://github.com/flux-rs/flux/issues/1510#issuecomment-3953871782> as an example
-        // for why we erase regions.
-        let args = tcx.erase_and_anonymize_regions(args);
-        let key = ConstKey::Alias(alias_reft.assoc_id, args);
+        let key = self.alias_const_key(alias_reft);
         let is_new = !self.const_env.const_map.contains_key(&key);
         let name = self
             .const_env
@@ -2240,11 +2232,35 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::ConstDecl { name, comment, sort }
             })
             .name;
-        if is_new && let Some(facts) = self.genv.sized_facts(alias_reft) {
+        if !is_new {
+            return Ok(name);
+        }
+        if let Some(facts) = self.genv.sized_facts(alias_reft) {
             let facts = self.expr_to_fixpoint(&facts, scx)?;
             self.const_env.sized_facts.insert(facts);
         }
+        if let Some((other, fact)) = self.genv.size_align_fact(alias_reft)
+            && self
+                .const_env
+                .const_map
+                .contains_key(&self.alias_const_key(&other))
+        {
+            let fact = self.expr_to_fixpoint(&fact, scx)?;
+            self.const_env.sized_facts.insert(fact);
+        }
         Ok(name)
+    }
+
+    fn alias_const_key(&self, alias_reft: &rty::AliasReft) -> ConstKey<'tcx> {
+        let tcx = self.genv.tcx();
+        let args = alias_reft
+            .args
+            .to_rustc(tcx)
+            .truncate_to(tcx, tcx.generics_of(alias_reft.assoc_id.parent()));
+        // See <https://github.com/flux-rs/flux/issues/1510#issuecomment-3953871782> as an example
+        // for why we erase regions.
+        let args = tcx.erase_and_anonymize_regions(args);
+        ConstKey::Alias(alias_reft.assoc_id, args)
     }
 
     /// We encode lambdas with uninterpreted constant. Two syntactically equal lambdas will be encoded
