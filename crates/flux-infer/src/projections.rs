@@ -15,6 +15,7 @@ use flux_middle::{
     },
 };
 use flux_rustc_bridge::{ToRustc, lowering::Lower};
+use flux_syntax::symbols::sym;
 use itertools::{Itertools, izip};
 use rustc_attr_ir::LangItem;
 use rustc_hir::def_id::DefId;
@@ -868,6 +869,7 @@ fn normalize_alias_reft<'tcx>(
         }
         Some(ImplSource::Builtin(BuiltinImplSource::Misc | BuiltinImplSource::Trivial, _))
             if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::Sized)
+                && matches!(alias_reft.assoc_id.name(), sym::size_of | sym::align_of)
                 && let Some(field_ty) = transparent_real_ty(
                     genv,
                     def_id,
