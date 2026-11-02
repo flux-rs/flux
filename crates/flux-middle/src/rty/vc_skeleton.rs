@@ -582,7 +582,7 @@ pub(crate) fn log_and_track(genv: GlobalEnv, def_id: DefId, sig: &PolyFnSig) -> 
             let sorts = &info[&slot.wkvid.id.as_u32()].sorts;
             let body = Expr::and_from_iter(solutions.remove(&slot.wkvid).unwrap_or_default());
             let solution = Binder::bind_with_sorts(body, sorts);
-            if flux_config::vc_reuse_experiments() {
+            if flux_config::dump_vc_skeleton() {
                 EXPERIMENT_SLOTS.with(|slots| {
                     slots.borrow_mut().insert(
                         format!(

@@ -89,23 +89,45 @@ impl RefineTree {
             }
         }
         fn walk(node: &mut Node, genv: GlobalEnv, entries: &mut BTreeMap<String, (bool, bool)>) {
+            let mut local = BTreeMap::new();
             let head = matches!(node.kind, NodeKind::Head(..));
             match &mut node.kind {
                 NodeKind::Head(p, _) | NodeKind::Assumption(p) => {
-                    let _ = p.visit_with(&mut Collect { entries, head, genv });
+                    let _ = p.visit_with(&mut Collect { entries: &mut local, head, genv });
                     *p = erase_tracking(p);
                 }
                 NodeKind::Root(_, ps) => {
                     for p in ps {
-                        let _ = p.visit_with(&mut Collect { entries, head: false, genv });
+                        let _ =
+                            p.visit_with(&mut Collect { entries: &mut local, head: false, genv });
                         *p = erase_tracking(p);
                     }
                 }
                 _ => {}
             }
+            node.wkvar_dependencies = local.keys().cloned().collect();
+            for (key, (head, body)) in local {
+                let role = entries.entry(key).or_default();
+                role.0 |= head;
+                role.1 |= body;
+            }
             for child in &node.children {
                 walk(&mut child.borrow_mut(), genv, entries);
             }
+            // Marker-only obligations can be siblings of the real obligation.
+            // Retain their scope conservatively when simplification drops them.
+            node.head_scope_dependencies = node
+                .children
+                .iter()
+                .flat_map(|child| {
+                    let child = child.borrow();
+                    if matches!(&child.kind, NodeKind::Head(p, _) if p.is_trivially_true()) {
+                        child.wkvar_dependencies.clone()
+                    } else {
+                        vec![]
+                    }
+                })
+                .collect();
         }
         let mut entries = BTreeMap::new();
         walk(&mut self.root.borrow_mut(), genv, &mut entries);
@@ -151,6 +173,8 @@ impl RefineTree {
             nbindings: 0,
             parent: None,
             children: vec![],
+            wkvar_dependencies: vec![],
+            head_scope_dependencies: vec![],
         };
         let root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
@@ -381,6 +405,9 @@ struct Node {
     nbindings: usize,
     parent: Option<WeakNodePtr>,
     children: Vec<NodePtr>,
+    /// Observational provenance captured before tracking markers are erased.
+    wkvar_dependencies: Vec<String>,
+    head_scope_dependencies: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -398,6 +425,8 @@ impl NodePtr {
             nbindings: self.next_name_idx(),
             parent: Some(NodePtr::downgrade(self)),
             children: vec![],
+            wkvar_dependencies: vec![],
+            head_scope_dependencies: vec![],
         };
         let node = NodePtr(Rc::new(RefCell::new(node)));
         self.borrow_mut().children.push(NodePtr::clone(&node));
@@ -564,6 +593,24 @@ impl Node {
     }
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {
+        let depth = cx.head_body_dependencies.len();
+        let head_depth = cx.head_scope_dependencies.len();
+        cx.head_scope_dependencies
+            .extend(self.head_scope_dependencies.iter().cloned());
+        if !matches!(self.kind, NodeKind::Head(..)) {
+            cx.head_body_dependencies
+                .extend(self.wkvar_dependencies.iter().cloned());
+        }
+        let result = self.to_fixpoint_inner(cx);
+        cx.head_body_dependencies.truncate(depth);
+        cx.head_scope_dependencies.truncate(head_depth);
+        result
+    }
+
+    fn to_fixpoint_inner(
+        &self,
+        cx: &mut FixpointCtxt<Tag>,
+    ) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
             NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc, _) => {
                 children_to_fixpoint(cx, &self.children)?
@@ -625,6 +672,11 @@ impl Node {
                 })?
             }
             NodeKind::Assumption(pred) => {
+                // Erased diagnostic markers must not introduce dummy true
+                // binders that are absent when tracking is disabled.
+                if pred.is_trivially_true() && !self.wkvar_dependencies.is_empty() {
+                    return children_to_fixpoint(cx, &self.children);
+                }
                 let preds = cx.assumptions_to_fixpoint([pred])?;
                 let Some(cstr) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
@@ -639,7 +691,11 @@ impl Node {
                 ))
             }
             NodeKind::Head(pred, tag) => {
-                Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span))?)
+                let cstr = cx.head_to_fixpoint(pred, |span| tag.with_dst(span))?;
+                if flux_config::dump_vc_skeleton() {
+                    cx.record_encoded_heads(&cstr, &self.wkvar_dependencies);
+                }
+                Some(cstr)
             }
             NodeKind::True => None,
         };

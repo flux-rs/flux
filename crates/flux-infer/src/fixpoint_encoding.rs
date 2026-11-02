@@ -563,6 +563,9 @@ pub enum Backend {
 }
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
+    pub(crate) head_body_dependencies: Vec<String>,
+    pub(crate) head_scope_dependencies: Vec<String>,
+    pub(crate) numbered_head_dependencies: Vec<serde_json::Value>,
     pub(crate) reuse_roles: std::collections::BTreeMap<String, String>,
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
@@ -632,6 +635,9 @@ where
         uif_ops: UifOps,
     ) -> Self {
         Self {
+            head_body_dependencies: vec![],
+            head_scope_dependencies: vec![],
+            numbered_head_dependencies: vec![],
             reuse_roles: Default::default(),
             comments: vec![],
             kvars,
@@ -1007,6 +1013,70 @@ where
         .map_err(|err| query_bug!("could not encode constraint: {err:?}"))
     }
 
+    /// Enumerate exactly as ConstraintFormatter: empty conjunctions emit one
+    /// true head, predicate-internal conjunctions remain a single occurrence.
+    pub(crate) fn record_encoded_heads(&mut self, cstr: &fixpoint::Constraint, head: &[String]) {
+        match cstr {
+            fixpoint::Constraint::Conj(cs) if !cs.is_empty() => {
+                for c in cs {
+                    self.record_encoded_heads(c, head);
+                }
+            }
+            fixpoint::Constraint::ForAll(_, c) => self.record_encoded_heads(c, head),
+            _ => {
+                let mut dependencies = std::collections::BTreeMap::new();
+                // A head can simplify to true using any preceding assumption.
+                // Preserve preceding head-marker dependencies conservatively
+                // rather than claiming proof-support precision.
+                for key in &self.head_body_dependencies {
+                    dependencies.insert(key.clone(), "body");
+                }
+                for key in head.iter().chain(&self.head_scope_dependencies) {
+                    let role = if dependencies.contains_key(key) { "both" } else { "head" };
+                    dependencies.insert(key.clone(), role);
+                }
+                self.numbered_head_dependencies.push(serde_json::json!({
+                    "origin": self.numbered_head_dependencies.len(), "wkvars": dependencies,
+                }));
+            }
+        }
+    }
+
+    fn log_numbered_heads(&self, task: &fixpoint::Task, key: &str) {
+        use std::{fs::OpenOptions, io::Write};
+
+        use flux_middle::rty::vc_skeleton::{experiment_slot, tracking_status};
+
+        let slots = self.numbered_head_dependencies.iter()
+            .flat_map(|h| h["wkvars"].as_object().unwrap().keys())
+            .map(|key| {
+                let value = experiment_slot(key).map(|(fingerprint, expr)| serde_json::json!({
+                    "skeleton_fingerprint": fingerprint,
+                    "expr": format!("{:?}", flux_middle::pretty::with_cx!(&PrettyCx::default(self.genv), &expr)),
+                    "status": tracking_status(key),
+                })).unwrap_or_else(|| serde_json::json!({"status": "missing_signature_record"}));
+                (key.clone(), value)
+            }).collect::<std::collections::BTreeMap<_, _>>();
+        let record = serde_json::json!({
+            "schema_version": 1, "task_key": key, "task_hash": task.hash_with_default(),
+            "crate": self.genv.tcx().crate_name(rustc_hir::def_id::LOCAL_CRATE).to_string(),
+            "input": task.to_string(), "heads": self.numbered_head_dependencies, "slots": slots,
+            "coverage": "conservative generated-marker dependencies retained through simplification; omitted signature markers remain unknown",
+        });
+        let write = || -> std::io::Result<()> {
+            let path = config::log_dir().join(format!(
+                "{}-head-provenance.jsonl",
+                self.genv.tcx().crate_name(rustc_hir::def_id::LOCAL_CRATE)
+            ));
+            let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+            serde_json::to_writer(&mut file, &record)?;
+            writeln!(file)
+        };
+        if let Err(error) = write() {
+            eprintln!("could not log numbered head provenance: {error}");
+        }
+    }
+
     fn run_task_with_cache(
         &mut self,
         task: &fixpoint::Task,
@@ -1015,6 +1085,9 @@ where
         cache: &mut FixQueryCache,
     ) -> Result<VerificationResult<TagIdx>, FixpointError> {
         let key = kind.task_key(self.genv.tcx(), def_id);
+        if config::dump_vc_skeleton() {
+            self.log_numbered_heads(task, &key);
+        }
         let started = std::time::Instant::now();
 
         let hash = task.hash_with_default();
