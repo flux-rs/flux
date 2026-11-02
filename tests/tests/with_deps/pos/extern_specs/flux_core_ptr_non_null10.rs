@@ -53,3 +53,12 @@ pub fn test_roundtrip_dyn(r: &dyn Shape) -> u32 {
     let nn = NonNull::from_ref(r);
     unsafe { nn.as_ref() }.area()
 }
+
+// Memory allocated for a `T` can be viewed as a `MaybeUninit<T>`, which has the same layout
+// (bumpalo's `Emplace::as_uninit`). As in `test_as_ref_generic`, `T::size_of() >= 0` has to be
+// assumed.
+#[flux::spec(fn (nn: NonNull<std::mem::MaybeUninit<T>>[@base, @addr, @size, @_meta]) -> &std::mem::MaybeUninit<T>
+    requires addr >= base && size >= T::size_of() && addr % T::align_of() == 0 && T::size_of() >= 0)]
+pub fn test_as_ref_maybe_uninit<T>(nn: NonNull<std::mem::MaybeUninit<T>>) -> &'static std::mem::MaybeUninit<T> {
+    unsafe { nn.as_ref() }
+}

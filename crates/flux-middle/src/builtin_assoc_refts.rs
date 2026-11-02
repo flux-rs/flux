@@ -7,6 +7,10 @@
 //! so the body of each associated refinement is computed from the structure of the `Self` type
 //! alone, without going through trait selection. When the type is not concrete enough to do so,
 //! each associated refinement says what to do instead, see [`Fallback`].
+//!
+//! The layout refinements (`size_of`, `align_of`, `size_of_val`, `align_of_val`) of a
+//! `repr(transparent)` type are those of its only non-1-ZST field, even when the layout itself is
+//! not known, e.g., `<MaybeUninit<T> as Sized>::size_of()` normalizes to `<T as Sized>::size_of()`.
 
 use flux_arc_interner::List;
 use flux_common::bug;
@@ -223,14 +227,58 @@ impl<'tcx> BodyCx<'_, 'tcx> {
         ty: rustc_ty::Ty<'tcx>,
         refine_args: RefineArgs,
     ) -> QueryResult<Expr> {
+        let args = self.trait_args(self.tcx().require_lang_item(trait_, DUMMY_SP), ty)?;
+        Ok(self.genv.builtin_alias(trait_, name, args, refine_args))
+    }
+
+    /// The (refined) generic args of the builtin trait `trait_id` with `ty` as `Self`.
+    fn trait_args(&self, trait_id: DefId, ty: rustc_ty::Ty<'tcx>) -> QueryResult<GenericArgs> {
         let tcx = self.tcx();
-        let trait_id = tcx.require_lang_item(trait_, DUMMY_SP);
         let args = tcx
             .mk_args(&[ty.into()])
             .lower(tcx)
             .map_err(|reason| query_bug!(trait_id, "{reason:?}"))?;
-        let args = self.refiner.refine_generic_args(trait_id, &args)?;
-        Ok(self.genv.builtin_alias(trait_, name, args, refine_args))
+        self.refiner.refine_generic_args(trait_id, &args)
+    }
+
+    /// A `repr(transparent)` type has the same layout as its only non-1-ZST field, so a layout
+    /// refinement of the type is the same refinement of that field. Returns `alias_reft` with its
+    /// `Self` type replaced by that field, applied to `refine_args`, or `None` if the `Self` type is
+    /// not `repr(transparent)`.
+    fn transparent_alias(
+        &self,
+        alias_reft: &AliasReft,
+        refine_args: RefineArgs,
+    ) -> QueryResult<Option<Expr>> {
+        let Some(field_ty) = self.transparent_field_ty(self.self_ty(alias_reft)) else {
+            return Ok(None);
+        };
+        let args = self.trait_args(alias_reft.assoc_id.parent(), field_ty)?;
+        Ok(Some(Expr::alias(AliasReft { assoc_id: alias_reft.assoc_id, args }, refine_args)))
+    }
+
+    /// The type of the only field of a `repr(transparent)` type that is not a 1-ZST (e.g.,
+    /// `PhantomData`). A field whose layout is unknown (e.g., of type `T`) counts as non-1-ZST,
+    /// as it does when rustc checks the `repr(transparent)`, so there is at most one.
+    fn transparent_field_ty(&self, ty: rustc_ty::Ty<'tcx>) -> Option<rustc_ty::Ty<'tcx>> {
+        let rustc_ty::Adt(adt_def, args) = ty.kind() else { return None };
+        if !adt_def.repr().transparent() {
+            return None;
+        }
+        let tcx = self.tcx();
+        let mut fields = adt_def
+            .all_fields()
+            .map(|field| {
+                tcx.try_normalize_erasing_regions(self.typing_env, field.ty(tcx, args))
+                    .ok()
+            })
+            .filter(|field_ty| {
+                !field_ty
+                    .and_then(|field_ty| self.layout(field_ty))
+                    .is_some_and(|layout| layout.is_1zst())
+            });
+        let field_ty = fields.next()??;
+        fields.next().is_none().then_some(field_ty)
     }
 
     fn layout(
@@ -257,25 +305,29 @@ fn fn_once_no_panic(_: &BodyCx, alias_reft: &AliasReft) -> QueryResult<Option<Ex
     Ok(Some(body))
 }
 
+/// The size from the layout, or for a `repr(transparent)` type whose layout depends on generic
+/// parameters, the size of its field.
 fn sized_size_of(cx: &BodyCx, alias_reft: &AliasReft) -> QueryResult<Option<Expr>> {
-    let size = cx
-        .layout(cx.self_ty(alias_reft))
-        .map(|layout| layout.size.bytes());
-    Ok(size.map(int))
+    match cx.layout(cx.self_ty(alias_reft)) {
+        Some(layout) => Ok(Some(int(layout.size.bytes()))),
+        None => cx.transparent_alias(alias_reft, List::empty()),
+    }
 }
 
+/// Same as [`sized_size_of`] for the alignment.
 fn sized_align_of(cx: &BodyCx, alias_reft: &AliasReft) -> QueryResult<Option<Expr>> {
-    let align = cx
-        .layout(cx.self_ty(alias_reft))
-        .map(|layout| layout.align.abi.bytes());
-    Ok(align.map(int))
+    match cx.layout(cx.self_ty(alias_reft)) {
+        Some(layout) => Ok(Some(int(layout.align.abi.bytes()))),
+        None => cx.transparent_alias(alias_reft, List::empty()),
+    }
 }
 
 /// - sized types ignore the metadata: `Sized::size_of()`,
 /// - `[E]`: `meta * E::size_of()`,
 /// - `str`: `meta`,
 /// - a struct or tuple whose tail is a slice or `str`:
-///   `round_up(offset_of_tail + Tail::size_of_val(meta), align)`.
+///   `round_up(offset_of_tail + Tail::size_of_val(meta), align)`,
+/// - other `repr(transparent)` types: the `size_of_val(meta)` of their field.
 ///
 /// Anything else (`dyn Trait`, a type parameter `T: ?Sized`, extern types, ...) is opaque.
 fn meta_sized_size_of_val(cx: &BodyCx, alias_reft: &AliasReft) -> QueryResult<Option<Expr>> {
@@ -293,7 +345,9 @@ fn meta_sized_size_of_val(cx: &BodyCx, alias_reft: &AliasReft) -> QueryResult<Op
         }
         rustc_ty::Str => meta,
         rustc_ty::Adt(..) | rustc_ty::Tuple(..) => {
-            let Some(layout) = dst_layout(cx, self_ty) else { return Ok(None) };
+            let Some(layout) = dst_layout(cx, self_ty) else {
+                return cx.transparent_alias(alias_reft, List::singleton(meta));
+            };
             let tail_idx = layout.fields.count() - 1;
             let offset = layout.fields.offset(tail_idx).bytes();
             let tail = layout
@@ -309,8 +363,8 @@ fn meta_sized_size_of_val(cx: &BodyCx, alias_reft: &AliasReft) -> QueryResult<Op
     Ok(Some(body))
 }
 
-/// Same cases as [`meta_sized_size_of_val`]: `Sized::align_of()`, `E::align_of()`, `1`, and the
-/// alignment of the struct, respectively.
+/// Same cases as [`meta_sized_size_of_val`]: `Sized::align_of()`, `E::align_of()`, `1`, the
+/// alignment of the struct, and the `align_of_val(meta)` of the field, respectively.
 fn meta_sized_align_of_val(cx: &BodyCx, alias_reft: &AliasReft) -> QueryResult<Option<Expr>> {
     let self_ty = cx.self_ty(alias_reft);
     if self_ty.is_sized(cx.tcx(), cx.typing_env) {
@@ -322,7 +376,9 @@ fn meta_sized_align_of_val(cx: &BodyCx, alias_reft: &AliasReft) -> QueryResult<O
         rustc_ty::Slice(elem) => cx.alias(LangItem::Sized, sym::align_of, *elem, List::empty())?,
         rustc_ty::Str => int(1),
         rustc_ty::Adt(..) | rustc_ty::Tuple(..) => {
-            let Some(layout) = dst_layout(cx, self_ty) else { return Ok(None) };
+            let Some(layout) = dst_layout(cx, self_ty) else {
+                return cx.transparent_alias(alias_reft, List::singleton(Expr::nu()));
+            };
             int(layout.align.abi.bytes())
         }
         _ => return Ok(None),
