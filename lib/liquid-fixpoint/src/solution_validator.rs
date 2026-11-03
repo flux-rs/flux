@@ -27,6 +27,7 @@ pub struct Formula {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Clause {
+    pub id: usize,
     pub fingerprint: String,
     pub concrete: bool,
     pub formula: Formula,
@@ -326,7 +327,7 @@ impl<T: Types> Task<T> {
         }
         let mut clauses = vec![];
         let mut used = HashSet::new();
-        for c in self.constraint.flatten(|v| v.display().to_string() == "_") {
+        for (id, c) in self.constraint.numbered_heads().into_iter().enumerate() {
             p.locals.clear();
             p.next = 0;
             let mut parameters = vec![];
@@ -366,6 +367,7 @@ impl<T: Types> Task<T> {
             // and binder sorts. Keep exact text to avoid trusting hash collisions.
             let fingerprint = serde_json::to_string(&(&parameters, &body)).unwrap();
             clauses.push(Clause {
+                id,
                 fingerprint,
                 concrete: c.head.is_concrete(),
                 formula: Formula { parameters, body },
@@ -600,6 +602,21 @@ mod tests {
         parser::{FromSexp, ParseError},
         sexp::Parser,
     };
+
+    #[test]
+    fn canonical_ids_include_empty_conjunction_and_predicate_conjunction() {
+        let mut task = task();
+        task.constraint = Constraint::Conj(vec![
+            Constraint::Conj(vec![]),
+            Constraint::Pred(Pred::Expr(E::And(vec![E::TRUE, E::TRUE])), None),
+            Constraint::Pred(Pred::KVar("k".into(), vec![E::int(0)]), None),
+        ]);
+        let candidate = candidate("true");
+        let prepared = task.prepare_solution_clauses(&candidate, parse).unwrap();
+        assert_eq!(prepared.clauses.iter().map(|c| c.id).collect::<Vec<_>>(), vec![0, 1, 2]);
+        assert!(prepared.clauses[0].concrete);
+        assert!(!prepared.clauses[2].concrete);
+    }
 
     struct Names(usize);
     impl FromSexp<StringTypes> for Names {

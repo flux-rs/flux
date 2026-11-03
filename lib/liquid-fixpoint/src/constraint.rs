@@ -4,7 +4,7 @@ use derive_where::derive_where;
 use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 
-use crate::{ConstDecl, ThyFunc, Types};
+use crate::{ConstDecl, Identifier, ThyFunc, Types};
 
 #[derive_where(Hash, Clone, Debug)]
 pub struct Bind<T: Types> {
@@ -22,6 +22,48 @@ pub enum Constraint<T: Types> {
 
 impl<T: Types> Constraint<T> {
     pub const TRUE: Self = Self::Pred(Pred::TRUE, None);
+
+    /// Serialized input-head order, including the true leaf for an empty Conj.
+    pub fn numbered_heads(&self) -> Vec<FlatConstraint<T>> {
+        fn go<T: Types>(
+            c: &Constraint<T>,
+            binds: &mut Vec<Bind<T>>,
+            out: &mut Vec<FlatConstraint<T>>,
+        ) {
+            match c {
+                Constraint::ForAll(b, c) => {
+                    binds.push(b.clone());
+                    go(c, binds, out);
+                    binds.pop();
+                }
+                Constraint::Conj(cs) if !cs.is_empty() => {
+                    for c in cs {
+                        go(c, binds, out);
+                    }
+                }
+                _ => {
+                    let (head, tag) = match c {
+                        Constraint::Pred(p, tag) => (p.clone(), tag.clone()),
+                        _ => (Pred::TRUE, None),
+                    };
+                    out.push(FlatConstraint {
+                        binders: binds
+                            .iter()
+                            .rev()
+                            .filter(|b| b.name.display().to_string() != "_")
+                            .map(|b| (b.name.clone(), b.sort.clone()))
+                            .collect(),
+                        assumptions: binds.iter().flat_map(|b| b.preds.iter().cloned()).collect(),
+                        head,
+                        tag,
+                    });
+                }
+            }
+        }
+        let mut out = vec![];
+        go(self, &mut vec![], &mut out);
+        out
+    }
 
     pub fn foralls(bindings: Vec<Bind<T>>, c: Self) -> Self {
         bindings

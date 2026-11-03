@@ -485,7 +485,11 @@ impl<T: Types> Task<T> {
         &self,
         timeout: Option<Duration>,
     ) -> Result<VerificationResult<T::Tag>, FixpointError> {
-        let mut child = Command::new("fixpoint")
+        let mut command = Command::new("fixpoint");
+        if let Some(id) = crate::diagnostic_query_id() {
+            command.env("FLUX_REPLAYS_QUERY_ID", id);
+        }
+        let mut child = command
             .arg("-q")
             .arg("--stdin")
             .arg("--sorted-solution")
@@ -523,6 +527,18 @@ impl<T: Types> Task<T> {
             }
         })
     }
+}
+
+thread_local! {
+    static DIAGNOSTIC_QUERY_ID: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+pub fn set_diagnostic_query_id(id: Option<String>) {
+    DIAGNOSTIC_QUERY_ID.with(|value| *value.borrow_mut() = id);
+}
+
+pub fn diagnostic_query_id() -> Option<String> {
+    DIAGNOSTIC_QUERY_ID.with(|value| value.borrow().clone())
 }
 
 impl<T: Types> KVarDecl<T> {

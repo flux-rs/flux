@@ -1049,6 +1049,7 @@ where
 
         let slots = self.numbered_head_dependencies.iter()
             .flat_map(|h| h["wkvars"].as_object().unwrap().keys())
+            .collect::<std::collections::BTreeSet<_>>().into_iter()
             .map(|key| {
                 let value = experiment_slot(key).map(|(fingerprint, expr)| serde_json::json!({
                     "skeleton_fingerprint": fingerprint,
@@ -1057,10 +1058,12 @@ where
                 })).unwrap_or_else(|| serde_json::json!({"status": "missing_signature_record"}));
                 (key.clone(), value)
             }).collect::<std::collections::BTreeMap<_, _>>();
+        let heads = self.query_constraint_manifest(task);
         let record = serde_json::json!({
-            "schema_version": 1, "task_key": key, "task_hash": task.hash_with_default(),
+            "schema_version": 2, "task_key": key, "task_hash": task.hash_with_default(),
+            "query_id": liquid_fixpoint::diagnostic_query_id(),
             "crate": self.genv.tcx().crate_name(rustc_hir::def_id::LOCAL_CRATE).to_string(),
-            "input": task.to_string(), "heads": self.numbered_head_dependencies, "slots": slots,
+            "input": task.to_string(), "heads": heads, "slots": slots,
             "coverage": "conservative generated-marker dependencies retained through simplification; omitted signature markers remain unknown",
         });
         let write = || -> std::io::Result<()> {
@@ -1077,6 +1080,41 @@ where
         }
     }
 
+    fn query_constraint_manifest(&self, task: &fixpoint::Task) -> Vec<serde_json::Value> {
+        use liquid_fixpoint::Identifier;
+        task.constraint
+            .numbered_heads()
+            .iter()
+            .enumerate()
+            .map(|(id, c)| {
+                let kvars = |preds: Vec<&fixpoint::Pred>| {
+                    preds
+                        .into_iter()
+                        .filter_map(|p| {
+                            if let fixpoint::Pred::KVar(k, _) = p {
+                                Some(k.display().to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<std::collections::BTreeSet<_>>()
+                };
+                let head = kvars(vec![&c.head]);
+                let body = kvars(c.assumptions.iter().collect());
+                serde_json::json!({
+                    "id": id, "origin": id,
+                    "head_kind": if c.head.is_concrete() { "concrete" } else { "kvar" },
+                    "wkvars": self.numbered_head_dependencies.get(id).map(|h| &h["wkvars"]),
+                    "wkvar_provenance_status": if self.reuse_roles.keys().all(|key|
+                        rty::vc_skeleton::tracking_status(key) == "aligned") {
+                        "available_conservative"
+                    } else { "unavailable" },
+                    "kvars": {"head": head, "body": body},
+                })
+            })
+            .collect()
+    }
+
     fn run_task_with_cache(
         &mut self,
         task: &fixpoint::Task,
@@ -1085,6 +1123,18 @@ where
         cache: &mut FixQueryCache,
     ) -> Result<VerificationResult<TagIdx>, FixpointError> {
         let key = kind.task_key(self.genv.tcx(), def_id);
+        if config::dump_vc_skeleton() || config::vc_reuse_experiments() {
+            static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            liquid_fixpoint::set_diagnostic_query_id(Some(format!(
+                "{}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos(),
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            )));
+        }
         if config::dump_vc_skeleton() {
             self.log_numbered_heads(task, &key);
         }

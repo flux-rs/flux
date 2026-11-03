@@ -29,6 +29,8 @@ struct Observation {
     result: Option<VerificationResult<TagIdx>>,
     prepared: Option<Prepared>,
     clause_results: Vec<String>,
+    #[serde(default)]
+    query_id: Option<String>,
 }
 pub(super) struct ExperimentRun {
     state_path: PathBuf,
@@ -83,11 +85,16 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
             result: None,
             prepared: None,
             clause_results: vec![],
+            query_id: None,
         };
-        let record = json!({"schema_version":1,"crate":crate_name,"task_key":key,"change_category":"not_evaluated","coverage":coverage,"experiments":[],"reference":{"path":"trivial","safe":true,"fixpoint_ms":null,"cached_equivalent":true},"disagreements":[],"shared_preparation_ms":start.elapsed().as_secs_f64()*1000.0});
+        let record = json!({"schema_version":2,"crate":crate_name,"task_key":key,"change_category":"not_evaluated","coverage":coverage,"instantiations":observation.slots,"constraints":[],"skeleton_status":"trivial_no_serialized_task","experiments":[],"reference":{"path":"trivial","safe":true,"fixpoint_ms":null,"cached_equivalent":true},"disagreements":[],"shared_preparation_ms":start.elapsed().as_secs_f64()*1000.0});
         let write = || -> Result<(), Box<dyn std::error::Error>> {
             fs::create_dir_all(config::vc_reuse_state())?;
-            fs::write(path, serde_json::to_vec(&observation)?)?;
+            // A trivial event has no assignment. Preserve a usable earlier
+            // candidate across it rather than replacing that state with None.
+            if !path.exists() {
+                fs::write(path, serde_json::to_vec(&observation)?)?;
+            }
             fs::create_dir_all(config::log_dir())?;
             let mut file = fs::OpenOptions::new()
                 .create(true)
@@ -222,9 +229,9 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
             if coverage.is_empty()
                 && p.coverage.is_empty()
                 && slots.keys().eq(p.slots.keys())
-                && slots.iter().all(|(k, s)| {
-                    p.slots[k].fingerprint == s.fingerprint && p.slots[k].role == s.role
-                })
+                && slots
+                    .iter()
+                    .all(|(k, s)| p.slots[k].fingerprint == s.fingerprint)
             {
                 let mut head = false;
                 let mut body = false;
@@ -258,16 +265,54 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
         }
         let shared_ms = start.elapsed().as_secs_f64() * 1000.0;
         let mut experiments = vec![];
+        let mut comparisons = vec![];
         if let Some(p) = &previous
             && evaluate
         {
+            for (id, current) in &slots {
+                let Some(old) = p.slots.get(id) else { continue };
+                if old.fingerprint != current.fingerprint
+                    || old.formula.parameters != current.formula.parameters
+                {
+                    comparisons.push(
+                        json!({"wkvar":id,"outcome":"unavailable","reason":"slot_alignment"}),
+                    );
+                    continue;
+                }
+                if old.formula.body == current.formula.body {
+                    comparisons.push(json!({"wkvar":id,"outcome":"equal","total_ms":0.0}));
+                    continue;
+                }
+                for (direction, lhs, rhs) in [
+                    ("old_implies_new", &old.formula.body, &current.formula.body),
+                    ("new_implies_old", &current.formula.body, &old.formula.body),
+                ] {
+                    let mut measurement = timed(direction, || {
+                        let formula = Formula {
+                            parameters: current.formula.parameters.clone(),
+                            body: format!("(=> {lhs} {rhs})"),
+                        };
+                        let statuses = check_formulas("", &[formula], config::vc_reuse_budget())?;
+                        Ok(json!({"outcome":statuses[0]}))
+                    });
+                    measurement["wkvar"] = json!(id);
+                    comparisons.push(measurement);
+                }
+            }
             if category == "unchanged" {
                 experiments.push(timed("unchanged", || Ok(json!({"outcome":match p.safe {Some(true)=>"predict_pass",Some(false)=>"predict_fail",None=>"unavailable"}}))));
             }
             let candidate = p.result.as_ref();
+            let preparation_start = Instant::now();
+            let prepared = candidate
+                .ok_or_else(|| "missing_candidate".to_string())
+                .and_then(|c| {
+                    task.prepare_solution_clauses(c, |s| self.try_parse_kvar_solution(s))
+                });
+            let candidate_preparation_ms = preparation_start.elapsed().as_secs_f64() * 1000.0;
             if category == "heads_only" {
-                experiments.push(self.head_experiment("heads_all", task, candidate, p, false));
-                experiments.push(self.head_experiment("heads_selective", task, candidate, p, true));
+                experiments.push(self.head_experiment("heads_all", &prepared, p, false));
+                experiments.push(self.head_experiment("heads_selective", &prepared, p, true));
             }
             if matches!(category, "bodies_only" | "both") {
                 let strengthening = || -> Result<Value, String> {
@@ -300,21 +345,15 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
                 let strength_ms = strength["total_ms"].as_f64().unwrap_or_default();
                 experiments.push(strength);
                 if stronger && p.safe.is_some() {
-                    let mut heads = self.head_experiment(
-                        "strengthened_bodies_heads_all",
-                        task,
-                        candidate,
-                        p,
-                        false,
-                    );
+                    let mut heads =
+                        self.head_experiment("strengthened_bodies_heads_all", &prepared, p, false);
                     heads["prerequisite_ms"] = strength_ms.into();
                     experiments.push(heads);
                     // Exact passing-clause matching is conservative: changed bodies
                     // won't match; they are checked instead of guessing alignment.
                     let mut selective = self.head_experiment(
                         "strengthened_bodies_heads_selective",
-                        task,
-                        candidate,
+                        &prepared,
                         p,
                         true,
                     );
@@ -347,29 +386,47 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
                 }
             }
             experiments.push(timed("whole_vc", || {
-                let c = candidate.ok_or("missing_candidate")?;
-                let prepared = task.prepare_solution_clauses(c, |s| self.try_parse_kvar_solution(s))?;
+                let prepared = prepared.as_ref().map_err(Clone::clone)?;
                 let formulas = prepared.clauses.iter().map(|c| c.formula.clone()).collect::<Vec<_>>();
                 let statuses = check_formulas(&prepared.declarations, &formulas, config::vc_reuse_budget())?;
-                Ok(json!({"outcome":outcome(&statuses),"clauses_checked":formulas.len(),"results":statuses}))
+                let checks = prepared.clauses.iter().zip(&statuses).map(|(c, status)| json!({"id":c.id,"outcome":status})).collect::<Vec<_>>();
+                Ok(json!({"outcome":outcome(&statuses),"clauses_checked":formulas.len(),"checks":checks,"results":statuses}))
             }));
+            for experiment in &mut experiments {
+                if matches!(
+                    experiment["name"].as_str(),
+                    Some(
+                        "whole_vc"
+                            | "heads_all"
+                            | "heads_selective"
+                            | "strengthened_bodies_heads_all"
+                            | "strengthened_bodies_heads_selective"
+                    )
+                ) {
+                    experiment["candidate_preparation_ms"] = json!(candidate_preparation_ms);
+                }
+            }
         }
         let record = json!({"schema_version":1,"crate":crate_name,"task_key":key,"task_hash":task.hash_with_default(),"previous_task_hash":previous.as_ref().map(|p|p.hash),"previous_safe":previous.as_ref().and_then(|p|p.safe),"change_category":category,"changed_slots":changed,"coverage":coverage,"state_issue":state_issue,"shared_preparation_ms":shared_ms,"assumptions":"signature-only edits; current marker coverage and role semantics","experiments":experiments});
+        let mut record = record;
+        record["schema_version"] = json!(2);
+        record["query_id"] = json!(liquid_fixpoint::diagnostic_query_id());
+        record["previous_query_id"] = json!(previous.as_ref().and_then(|p| p.query_id.as_ref()));
+        record["instantiation_comparisons"] = json!(comparisons);
+        record["constraints"] = json!(self.query_constraint_manifest(task));
+        record["instantiations"] = json!(slots);
         ExperimentRun { state_path, record, slots, coverage }
     }
 
     fn head_experiment(
         &mut self,
         name: &str,
-        task: &fixpoint::Task,
-        candidate: Option<&VerificationResult<TagIdx>>,
+        prepared: &Result<Prepared, String>,
         previous: &Observation,
         selective: bool,
     ) -> Value {
         timed(name, || {
-            let candidate = candidate.ok_or("missing_candidate")?;
-            let prepared =
-                task.prepare_solution_clauses(candidate, |s| self.try_parse_kvar_solution(s))?;
+            let prepared = prepared.as_ref().map_err(Clone::clone)?;
             let passing = if selective
                 && previous
                     .prepared
@@ -390,6 +447,8 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
                 BTreeSet::new()
             };
             let mut skipped = 0;
+            let mut skipped_ids = vec![];
+            let mut checked_ids = vec![];
             let formulas = prepared
                 .clauses
                 .iter()
@@ -397,8 +456,10 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
                 .filter(|c| {
                     if passing.contains(c.fingerprint.as_str()) {
                         skipped += 1;
+                        skipped_ids.push(c.id);
                         false
                     } else {
+                        checked_ids.push(c.id);
                         true
                     }
                 })
@@ -407,7 +468,7 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
             let statuses =
                 check_formulas(&prepared.declarations, &formulas, config::vc_reuse_budget())?;
             Ok(
-                json!({"outcome":outcome(&statuses),"clauses_checked":formulas.len(),"clauses_skipped":skipped,"results":statuses}),
+                json!({"outcome":outcome(&statuses),"clauses_checked":formulas.len(),"clauses_skipped":skipped,"checked_ids":checked_ids,"skipped_ids":skipped_ids,"skip_reason":"previous_passing_exact_instantiated_clause","checks":checked_ids.iter().zip(&statuses).map(|(id,s)|json!({"id":id,"outcome":s})).collect::<Vec<_>>(),"results":statuses}),
             )
         })
     }
@@ -452,7 +513,22 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
             }
         }
         run.record["reference"] = json!({"path":reference_path,"safe":safe,"fixpoint_ms":fixpoint_ms,"cached_equivalent":reference_path=="exact_hit"});
+        run.record["returned_assignments"] = json!(result);
         run.record["disagreements"] = json!(disagreements);
+        // An exact hit has no new solver evidence. Keep the saved candidate and
+        // its passing clauses rather than repeating the expensive validation.
+        let saved_evidence = fs::read(&run.state_path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Observation>(&bytes).ok())
+            .is_some_and(|p| p.hash == task.hash_with_default() && p.prepared.is_some());
+        if reference_path == "exact_hit" && saved_evidence {
+            run.record["fresh_evidence_ms"] = json!(0.0);
+            run.record["fresh_evidence_reason"] = json!("exact_hit_retained_previous_state");
+            if let Err(e) = self.write_reuse_record(&run.record) {
+                eprintln!("VC reuse diagnostic output failed: {e}");
+            }
+            return;
+        }
         let evidence_start = Instant::now();
         let prepared_result =
             result.map(|r| task.prepare_solution_clauses(r, |s| self.try_parse_kvar_solution(s)));
@@ -462,6 +538,9 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
             .cloned();
         let prepared = prepared_result.and_then(Result::ok);
         let clause_results = match prepared.as_ref().map(|p| {
+            if safe == Some(true) {
+                return Ok(vec!["valid".to_string(); p.clauses.len()]);
+            }
             check_formulas(
                 &p.declarations,
                 &p.clauses
@@ -480,6 +559,13 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
         };
         run.record["fresh_evidence_ms"] = (evidence_start.elapsed().as_secs_f64() * 1000.0).into();
         run.record["fresh_evidence_results"] = json!(clause_results);
+        run.record["fresh_evidence_checks"] = json!(prepared.as_ref().map(|p| {
+            p.clauses
+                .iter()
+                .zip(&clause_results)
+                .map(|(c, s)| json!({"id":c.id,"outcome":s}))
+                .collect::<Vec<_>>()
+        }));
         run.record["fresh_evidence_reason"] = json!(evidence_reason);
         run.record["budget_ms"] = json!(config::vc_reuse_budget().as_millis());
         let observation = Observation {
@@ -492,14 +578,17 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
             result: result.cloned(),
             prepared,
             clause_results,
+            query_id: liquid_fixpoint::diagnostic_query_id(),
         };
         let write = || -> Result<(), Box<dyn std::error::Error>> {
             fs::create_dir_all(config::vc_reuse_state())?;
             let tmp = run
                 .state_path
                 .with_extension(format!("{}.tmp", std::process::id()));
-            fs::write(&tmp, serde_json::to_vec(&observation)?)?;
-            fs::rename(tmp, &run.state_path)?;
+            if observation.prepared.is_some() || !run.state_path.exists() {
+                fs::write(&tmp, serde_json::to_vec(&observation)?)?;
+                fs::rename(tmp, &run.state_path)?;
+            }
             fs::create_dir_all(config::log_dir())?;
             let path = config::log_dir().join(format!(
                 "{}-vc-reuse-experiments.jsonl",
@@ -516,5 +605,19 @@ impl<Tag: Hash + Eq + Copy> FixpointCtxt<'_, '_, Tag> {
         if let Err(e) = write() {
             eprintln!("VC reuse diagnostic output failed: {e}");
         }
+    }
+
+    fn write_reuse_record(&self, record: &Value) -> std::io::Result<()> {
+        fs::create_dir_all(config::log_dir())?;
+        let path = config::log_dir().join(format!(
+            "{}-vc-reuse-experiments.jsonl",
+            self.genv.tcx().crate_name(rustc_hir::def_id::LOCAL_CRATE)
+        ));
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?;
+        serde_json::to_writer(&mut file, record)?;
+        writeln!(file)
     }
 }
