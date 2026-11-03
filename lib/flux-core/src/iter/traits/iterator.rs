@@ -43,6 +43,18 @@ trait Iterator {
         Self: Sized,
         F: FnMut(Self::Item) -> B;
 
+    #[spec(fn(Self[@s]) -> Cloned<Self>[s])]
+    fn cloned<'a, T>(self) -> Cloned<Self>
+    where
+        T: 'a + Clone,
+        Self: Sized + Iterator<Item = &'a T>;
+
+    #[spec(fn(Self[@s]) -> Copied<Self>[s])]
+    fn copied<'a, T>(self) -> Copied<Self>
+    where
+        T: 'a + Copy,
+        Self: Sized + Iterator<Item = &'a T>;
+
     #[spec(fn(Self[@s], n: usize) -> Skip<Self>[max(0, <Self as Iterator>::size(s) - n)])]
     fn skip(self, n: usize) -> Skip<Self>
     where
