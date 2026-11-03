@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["IteratorSpec_2f7ddb1a76ae0703"]};
+window.SIDEBAR_ITEMS = {"struct":["IteratorSpec_66339038beb7680c"]};
