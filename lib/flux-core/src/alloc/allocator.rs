@@ -14,9 +14,12 @@
     }
 
     // A block returned by the allocator: it fits `l`, and as a `NonNull<[u8]>` its length (the
-    // pointer metadata) is `l.size`, consistent with tracking the block as exactly `l.size` bytes.
+    // pointer metadata) is at least `l.size`. The allocator may hand back more than was asked
+    // for and reports the actual size as the length, so `p.meta == l.size` would be unsound.
+    // The length is not tied to `p.size`, which still tracks only the `l.size` bytes we know
+    // about; to view the block as a slice, rebuild it with `l.size` as the length.
     fn allocated_block(p: NonNull, l: Layout) -> bool {
-        layout_fits(p, l) && p.meta == l.size
+        layout_fits(p, l) && p.meta >= l.size
     }
 })]
 

@@ -30,6 +30,24 @@ pub fn test_allocate_overaligned<A: Allocator>(a: &A) {
     }
 }
 
+// The allocator may hand back a larger block than requested, reporting its actual size as the
+// slice length, so the length is not known to be exactly the requested size.
+#[flux::spec(fn(&A) -> Option<usize[16]>)]
+pub fn test_allocate_len_exact<A: Allocator>(a: &A) -> Option<usize> {
+    let layout = Layout::from_size_align(16, 8).unwrap();
+    let block = a.allocate(layout).ok()?;
+    Some(block.len()) //~ ERROR refinement type
+}
+
+// Only the requested `layout.size()` bytes are tracked, so the whole returned slice, whose
+// length may exceed them, cannot be viewed as a slice.
+pub fn test_allocate_as_ref_whole_block<A: Allocator>(a: &A) {
+    let layout = Layout::from_size_align(16, 8).unwrap();
+    if let Ok(block) = a.allocate(layout) {
+        let _bytes: &[u8] = unsafe { block.as_ref() }; //~ ERROR refinement type
+    }
+}
+
 // `allocate_zeroed` carries the same guarantees as `allocate`, and no more.
 pub fn test_allocate_zeroed_too_large<A: Allocator>(a: &A) {
     let layout = Layout::from_size_align(16, 8).unwrap();
