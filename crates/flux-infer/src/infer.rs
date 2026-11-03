@@ -19,6 +19,7 @@ use flux_middle::{
         fold::TypeFoldable,
     },
 };
+use flux_rustc_bridge::lowering::UnsupportedErr;
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
@@ -897,6 +898,12 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 self.tys(infcx, &a, ty_b)
             }
 
+            (TyKind::StrgRef(..), TyKind::Indexed(BaseTy::Ref(_, _, Mutability::Mut), _)) => {
+                let err_txt = "trying to subtype strg and mut refs; this is very likely because \
+                    an extern spec expects a strg and a mut has been provided!";
+                let err = UnsupportedErr { descr: err_txt.to_string(), span: Some(self.span) };
+                Err(QueryErr::unsupported(infcx.def_id, err))?
+            }
             (TyKind::Ptr(PtrKind::Mut(_), path_a), TyKind::StrgRef(_, path_b, ty_b)) => {
                 // We should technically remove `path1` from `env`, but we are assuming that functions
                 // always give back ownership of the location so `path1` is going to be overwritten
