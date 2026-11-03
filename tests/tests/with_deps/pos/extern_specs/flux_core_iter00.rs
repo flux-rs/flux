@@ -17,6 +17,28 @@ pub fn test_position_safe_index(xs: &[i32]) {
     }
 }
 
+// --- cloned ---
+
+#[flux_rs::spec(fn(target: &mut [i32][@len], xs: &[i32]{n: n <= len}))]
+pub fn test_cloned_loop(target: &mut [i32], xs: &[i32]) {
+    let mut i = 0;
+    for x in xs.iter().cloned() {
+        target[i] = x;
+        i += 1;
+    }
+}
+
+// --- copied ---
+
+#[flux_rs::spec(fn(target: &mut [i32][@len], xs: &[i32]{n: n <= len}))]
+pub fn test_copied_loop(target: &mut [i32], xs: &[i32]) {
+    let mut i = 0;
+    for x in xs.iter().copied() {
+        target[i] = x;
+        i += 1;
+    }
+}
+
 // --- take ---
 
 #[flux_rs::spec(fn(target: &mut [i32][100], iter: I))]
