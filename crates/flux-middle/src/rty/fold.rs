@@ -12,8 +12,8 @@ use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
     BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind,
-    GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort,
-    SubsetTy, Ty, TyKind, TyOrBase, reduce::Reducer,
+    GenericArg, KVar, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region,
+    Sort, SubsetTy, Ty, TyKind, TyOrBase, reduce::Reducer,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -65,6 +65,10 @@ pub trait FallibleTypeFolder: Sized {
 
     fn try_fold_subset_ty(&mut self, constr: &SubsetTy) -> Result<SubsetTy, Self::Error> {
         constr.try_super_fold_with(self)
+    }
+
+    fn try_fold_generic_arg(&mut self, arg: &GenericArg) -> Result<GenericArg, Self::Error> {
+        arg.try_super_fold_with(self)
     }
 
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, Self::Error> {
@@ -428,6 +432,24 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         self.try_fold_with(&mut Folder(f))
+    }
+
+    /// Replaces each kvar for which the closure returns `Some` with the returned expression.
+    fn replace_kvars(&self, f: impl FnMut(&KVar) -> Option<Expr>) -> Self {
+        struct Folder<F>(F);
+        impl<F: FnMut(&KVar) -> Option<Expr>> TypeFolder for Folder<F> {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::KVar(kvar) = expr.kind()
+                    && let Some(e) = (self.0)(kvar)
+                {
+                    e
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+
+        self.fold_with(&mut Folder(f))
     }
 
     /// Shift the [`BoundVar`] of all the the variables at index [`INNERMOST`] "horizontally" to the
@@ -1026,6 +1048,12 @@ impl TypeVisitable for GenericArg {
 
 impl TypeFoldable for GenericArg {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_generic_arg(self)
+    }
+}
+
+impl TypeSuperFoldable for GenericArg {
+    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let arg = match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.try_fold_with(folder)?),
             GenericArg::Base(ctor) => GenericArg::Base(ctor.try_fold_with(folder)?),

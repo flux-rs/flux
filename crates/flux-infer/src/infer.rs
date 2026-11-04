@@ -637,7 +637,7 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         a: &Ty,
         b: &Ty,
         reason: ConstrReason,
-    ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
+    ) -> InferResult<Vec<OpaqueObligation>> {
         let mut sub = Sub::new(env, reason, self.span);
         sub.tys(self.infcx, a, b)?;
         Ok(sub.obligations)
@@ -652,7 +652,7 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         a: &Ty,
         b: &Ty,
         reason: ConstrReason,
-    ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
+    ) -> InferResult<Vec<OpaqueObligation>> {
         let mut env = DummyEnv;
         let mut sub = Sub::new(&mut env, reason, self.span);
         sub.tys(self.infcx, a, b)?;
@@ -665,7 +665,7 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         a: &GenericArg,
         b: &GenericArg,
         reason: ConstrReason,
-    ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
+    ) -> InferResult<Vec<OpaqueObligation>> {
         let mut env = DummyEnv;
         let mut sub = Sub::new(&mut env, reason, self.span);
         sub.generic_args(self.infcx, variance, a, b)?;
@@ -857,10 +857,10 @@ struct Sub<'a, E> {
     env: &'a mut E,
     reason: ConstrReason,
     span: Span,
-    /// FIXME(nilehmann) This is used to store coroutine obligations generated during subtyping when
-    /// relating an opaque type. Other obligations related to relating opaque types are resolved
+    /// FIXME(nilehmann) This is used to store coroutine and `Fn*` obligations generated during
+    /// subtyping when relating an opaque type. Other obligations related to relating opaque types are resolved
     /// directly here. The implementation is really messy and we may be missing some obligations.
-    obligations: Vec<Binder<rty::CoroutineObligPredicate>>,
+    obligations: Vec<OpaqueObligation>,
 }
 
 impl<'a, E: LocEnv> Sub<'a, E> {
@@ -1313,6 +1313,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 opaque_args,
                 opaque_refine_args,
             );
+            let (bounds, fn_trait_preds) =
+                rty::Clause::split_off_fn_trait_clauses(infcx.genv, &bounds);
+            self.obligations
+                .extend(fn_trait_obligations(fn_trait_preds, &bty.to_ty()));
             for clause in &bounds {
                 if !clause.kind().vars().is_empty() {
                     Err(query_bug!("handle_opaque_types: clause with bound vars: `{clause:?}`"))?;
@@ -1341,11 +1345,11 @@ fn mk_coroutine_obligations(
     upvar_tys: &List<Ty>,
     opaque_def_id: &DefId,
     args: flux_rustc_bridge::ty::GenericArgs,
-) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
+) -> InferResult<Vec<OpaqueObligation>> {
     let bounds = genv.item_bounds(*opaque_def_id)?.skip_binder();
     for bound in &bounds {
         if let Some(proj_clause) = bound.as_projection_clause() {
-            return Ok(vec![proj_clause.map(|proj_clause| {
+            return Ok(vec![OpaqueObligation::Coroutine(proj_clause.map(|proj_clause| {
                 let output = proj_clause.term;
                 CoroutineObligPredicate {
                     def_id: *generator_did,
@@ -1354,10 +1358,30 @@ fn mk_coroutine_obligations(
                     output: output.to_ty(),
                     args,
                 }
-            })]);
+            }))]);
         }
     }
     bug!("no projection predicate")
+}
+
+/// An obligation generated when relating a value with an opaque type.
+pub enum OpaqueObligation {
+    /// Check the body of a coroutine against the opaque type's output.
+    Coroutine(Binder<CoroutineObligPredicate>),
+    /// Check that a value implements a Fn bound of an opaque type.
+    FnTrait(Binder<rty::FnTraitPredicate>),
+}
+
+/// Obligations checking that a value implements Fn bounds.
+pub(crate) fn fn_trait_obligations(
+    preds: Vec<Binder<rty::FnTraitPredicate>>,
+    self_ty: &Ty,
+) -> impl Iterator<Item = OpaqueObligation> {
+    preds.into_iter().map(move |pred| {
+        OpaqueObligation::FnTrait(
+            pred.map(|pred| rty::FnTraitPredicate { self_ty: self_ty.clone(), ..pred }),
+        )
+    })
 }
 
 #[derive(Debug)]
