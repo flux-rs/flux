@@ -24,6 +24,7 @@ use flux_attrs::*;
 #[extern_spec(core::alloc)]
 #[opaque]
 #[refined_by(size: int, align: int)]
+#[invariant(size >= 0)]
 #[invariant(align > 0 && pow2(align))]
 #[invariant(size + align - 1 <= isize::MAX)]
 struct Layout;
