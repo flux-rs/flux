@@ -28,6 +28,8 @@ pub struct FluxMetadata {
     pub no_panic: Option<bool>,
     /// Enable uninterpreted casts
     pub allow_uninterpreted_cast: Option<bool>,
+    /// Check that raw pointer dereferences are valid and aligned.
+    pub check_raw_deref: Option<bool>,
     /// Whether to allow raw pointer dereferences
     pub allow_raw_deref: Option<RawDerefMode>,
     /// Lean mode
@@ -112,6 +114,9 @@ impl FluxMetadata {
         }
         if let Some(v) = self.allow_uninterpreted_cast {
             flags.push(format!("-Fallow-uninterpreted-cast={v}"));
+        }
+        if let Some(v) = self.check_raw_deref {
+            flags.push(format!("-Fcheck-raw-deref={v}"));
         }
         if let Some(v) = self.allow_raw_deref {
             flags.push(format!("-Fallow-raw-deref={v}"));

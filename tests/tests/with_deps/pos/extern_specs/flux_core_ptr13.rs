@@ -1,3 +1,5 @@
+#![flux::opts(allow_raw_deref = "ok")]
+
 extern crate flux_core;
 
 #[repr(C, packed)]
@@ -197,4 +199,36 @@ pub fn test_read_unaligned_const_packed_union() {
     let u = PackedUnion { a: 1 };
     let x: *const i32 = std::ptr::addr_of!(u.a);
     unsafe { std::ptr::read_unaligned(x) };
+}
+
+#[repr(C, packed(1))]
+struct A {
+    a: u8,
+    b: i32,
+}
+
+static mut A: A = A { a: 0, b: 1 };
+
+pub fn test_write_unaligned_static_mut_packed1() {
+    let p: *mut A = unsafe { std::ptr::addr_of_mut!(A) };
+    let x: *mut i32 = unsafe { p.cast::<u8>().add(std::mem::offset_of!(A, b)) }.cast();
+    unsafe { std::ptr::write_unaligned(x, 4) };
+}
+
+pub fn test_write_static_mut_packed1_whole() {
+    let x: *mut A = unsafe { std::ptr::addr_of_mut!(A) };
+    unsafe { std::ptr::write(x, A { a: 0, b: 1 }) };
+}
+
+#[repr(C)]
+pub struct Pair {
+    fst: i32,
+    snd: i32,
+}
+
+#[flux::spec(fn (p: *mut[@pp] Pair) requires
+    flux_core::ptr::valid(pp, 8) && flux_core::ptr::aligned_to(pp, 4))]
+pub fn test_offset_of(p: *mut Pair) {
+    let q: *mut i32 = unsafe { p.cast::<u8>().add(std::mem::offset_of!(Pair, snd)) }.cast();
+    unsafe { q.write(1) };
 }
