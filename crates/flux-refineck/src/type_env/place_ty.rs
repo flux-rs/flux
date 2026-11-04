@@ -490,10 +490,10 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                 if !self.infcx.allow_raw_deref() {
                     let err_txt =
                         "raw pointer dereferences are not allowed without allow_raw_deref=ok";
-                    return Err(QueryErr::unsupported(
+                    Err(QueryErr::unsupported(
                         self.infcx.def_id,
                         UnsupportedErr { descr: err_txt.to_string(), span: Some(self.span) },
-                    ));
+                    ))?;
                 }
                 let deref_ty = deref_ty.try_fold_with(self)?;
                 Ty::indexed(BaseTy::RawPtr(deref_ty, *mutbl), idx)
