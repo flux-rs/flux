@@ -917,7 +917,6 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 // After unfolding, the resulting pointer is handled by the `Ptr` cases.
                 self.env.unfold_strg_ref(infcx, path_a, ty_a)?;
                 self.tys(infcx, &Ty::ptr(PtrKind::Mut(*re), path_a.clone()), b)
-
             }
             (
                 TyKind::Ptr(PtrKind::Mut(re), path),
