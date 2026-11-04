@@ -122,6 +122,12 @@ pub fn check_static(
     def_id: LocalDefId,
     ty: rty::Ty,
 ) -> Result<(), ErrorGuaranteed> {
+    // A trusted static's spec is assumed without checking its initializer.
+    if genv.trusted(def_id) {
+        metrics::incr_metric(Metric::FnTrusted, 1);
+        return Ok(());
+    }
+
     // Build a PolyFnSig with no inputs and `ty` as the output
     let output = rty::Binder::dummy(rty::FnOutput::new(ty, vec![]));
     let fn_sig = rty::FnSig::new(
