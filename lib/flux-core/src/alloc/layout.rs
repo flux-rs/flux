@@ -1,8 +1,4 @@
 #![cfg_attr(flux, flux::defs(
-    fn pow2(x: int) -> bool { pow2bv(bv_int_to_bv64(x)) }
-    fn pow2bv(x: bitvec<64>) -> bool {
-        bv_and(x, bv_sub(x, bv_int_to_bv64(1))) == bv_int_to_bv64(0)
-    }
     // For a layout to be valid, align must be a power of two and size must not overflow
     // isize when rounded up to the nearest multiple of align.
     //
@@ -20,6 +16,23 @@
 ))]
 
 use flux_attrs::*;
+
+// Slightly (maybe a little more than slightly) nasty macro that generates
+// a check for all powers of 2 from 2^0 to 2^63. Note that this generates
+// 2*2*2*2*2**..., which should just get constant folded in SMT land.
+macro_rules! pow2_defs {
+    ([$($pow:tt)*] $prev:tt;) => {
+        defs! { fn pow2(x: int) -> bool { x == 1 $(|| x == $pow)* } }
+    };
+    ([$($pow:tt)*] $prev:tt; $_exp:tt $($rest:tt)*) => {
+        pow2_defs!([$($pow)* (2 * $prev)] (2 * $prev); $($rest)*);
+    };
+}
+
+pow2_defs!([] 1;
+    1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+    32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63
+);
 
 #[extern_spec(core::alloc)]
 #[opaque]

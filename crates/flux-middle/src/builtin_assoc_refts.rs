@@ -3,9 +3,11 @@ use std::sync::OnceLock;
 use flux_arc_interner::List;
 use flux_common::bug;
 use flux_syntax::symbols::sym;
+use rustc_abi::Align;
 use rustc_attr_ir::LangItem;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::DefId;
+use rustc_middle::ty::IntTy;
 use rustc_span::{DUMMY_SP, Symbol};
 
 use crate::{
@@ -121,6 +123,57 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                     .map(|reft| reft.def_id())
             })
             .unwrap_or_else(|| bug!("missing builtin assoc reft `{name}` for `{def_id:?}`"))
+    }
+
+    /// These invariants come from:
+    /// https://doc.rust-lang.org/stable/reference/type-layout.html#size-and-alignment
+    pub fn sized_facts(self, alias_reft: &AliasReft) -> Option<rty::Expr> {
+        if !self
+            .tcx()
+            .is_lang_item(alias_reft.assoc_id.parent(), LangItem::Sized)
+        {
+            return None;
+        }
+        let this = rty::Expr::alias(alias_reft.clone(), List::empty());
+        match alias_reft.assoc_id.name() {
+            sym::size_of => {
+                Some(rty::Expr::and_from_iter([
+                    rty::Expr::ge(this.clone(), rty::Expr::zero()),
+                    rty::Expr::le(this, rty::Expr::int_max(IntTy::Isize)),
+                ]))
+            }
+            sym::align_of => {
+                Some(rty::Expr::or_from_iter((0..=Align::MAX.bytes().ilog2()).map(|i| {
+                    rty::Expr::eq(this.clone(), rty::Expr::constant(rty::Constant::from(1u64 << i)))
+                })))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn size_align_fact(self, alias_reft: &AliasReft) -> Option<(AliasReft, rty::Expr)> {
+        let sized_id = alias_reft.assoc_id.parent();
+        if !self.tcx().is_lang_item(sized_id, LangItem::Sized) {
+            return None;
+        }
+        let name = alias_reft.assoc_id.name();
+        let other_name = match name {
+            sym::size_of => sym::align_of,
+            sym::align_of => sym::size_of,
+            _ => return None,
+        };
+        let other = AliasReft {
+            assoc_id: self.require_builtin_assoc_reft(sized_id, other_name),
+            args: alias_reft.args.clone(),
+        };
+        let this = rty::Expr::alias(alias_reft.clone(), List::empty());
+        let that = rty::Expr::alias(other.clone(), List::empty());
+        let (size, align) = if name == sym::size_of { (this, that) } else { (that, this) };
+        let fact = rty::Expr::eq(
+            rty::Expr::binary_op(rty::BinOp::Mod(rty::Sort::Int), size, align),
+            rty::Expr::zero(),
+        );
+        Some((other, fact))
     }
 
     /// Returns the body of a builtin associated refinement, or `None` if it cannot be computed
