@@ -486,18 +486,16 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                     Ty::ptr(PtrKind::Box, path)
                 }
             }
-            TyKind::Indexed(BaseTy::RawPtr(deref_ty, mutbl), idx)
-                if self.infcx.allow_raw_deref() =>
-            {
+            TyKind::Indexed(BaseTy::RawPtr(deref_ty, mutbl), idx) => {
+                if !self.infcx.allow_raw_deref() {
+                    let err_txt = "raw pointer dereferences are not allowed without allow_raw_deref=ok";
+                    return Err(QueryErr::unsupported(
+                        self.infcx.def_id,
+                        UnsupportedErr { descr: err_txt.to_string(), span: Some(self.span) },
+                    ));
+                }
                 let deref_ty = deref_ty.try_fold_with(self)?;
                 Ty::indexed(BaseTy::RawPtr(deref_ty, *mutbl), idx)
-            }
-            TyKind::Indexed(BaseTy::RawPtr(..), _) => {
-                let err_txt = "raw pointer dereferences are not allowed without allow_raw_deref=ok";
-                Err(QueryErr::unsupported(
-                    self.infcx.def_id,
-                    UnsupportedErr { descr: err_txt.to_string(), span: Some(self.span) },
-                ))?
             }
             Ref!(re, ty, mutbl) => {
                 self.in_ref = self.in_ref.max(Some(*mutbl));
