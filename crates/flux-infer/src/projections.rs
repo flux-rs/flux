@@ -15,7 +15,9 @@ use flux_middle::{
     },
 };
 use flux_rustc_bridge::{ToRustc, lowering::Lower};
-use itertools::izip;
+use flux_syntax::symbols::sym;
+use itertools::{Itertools, izip};
+use rustc_attr_ir::LangItem;
 use rustc_hir::def_id::DefId;
 use rustc_infer::traits::{BuiltinImplSource, Obligation};
 use rustc_middle::{
@@ -865,6 +867,59 @@ fn normalize_alias_reft<'tcx>(
         {
             Ok((true, body.apply(refine_args)))
         }
+        Some(ImplSource::Builtin(BuiltinImplSource::Misc | BuiltinImplSource::Trivial, _))
+            if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::Sized)
+                && matches!(alias_reft.assoc_id.name(), sym::size_of | sym::align_of)
+                && let Some(field_ty) = transparent_real_ty(
+                    genv,
+                    def_id,
+                    infcx.typing_env(param_env),
+                    trait_ref.self_ty(),
+                )? =>
+        {
+            Ok((true, Expr::alias(alias_reft.with_self_ty(field_ty), refine_args.clone())))
+        }
         _ => Ok((false, Expr::alias(alias_reft.clone(), refine_args.clone()))),
     }
+}
+
+/// Repr transparent types are really represented by the type of their one field
+/// that isn't a zero sized type with alignment of one, this finds the non-ZST
+/// field and returns its type.
+fn transparent_real_ty<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
+    def_id: DefId,
+    typing_env: rustc_middle::ty::TypingEnv<'tcx>,
+    ty: rustc_middle::ty::Ty<'tcx>,
+) -> QueryResult<Option<SubsetTyCtor>> {
+    let tcx = genv.tcx();
+    let rustc_middle::ty::Adt(adt_def, args) = ty.kind() else { return Ok(None) };
+    if !adt_def.repr().transparent() {
+        return Ok(None);
+    }
+    // Repr transparent enums can't have more than one variant
+    let Ok(variant) = adt_def.variants().iter().exactly_one() else { return Ok(None) };
+    variant
+        .fields
+        .iter()
+        .map(|f| {
+            tcx.try_normalize_erasing_regions(typing_env, f.ty(tcx, args))
+                .ok()
+        })
+        .filter(|fty| {
+            !fty.is_some_and(|fty| {
+                tcx.layout_of(typing_env.as_query_input(fty))
+                    .is_ok_and(|layout| layout.is_1zst())
+            })
+        })
+        .exactly_one()
+        .ok()
+        .flatten()
+        .map(|fty| {
+            let fty = fty.lower(tcx).map_err(|err| query_bug!("{err:?}"))?;
+            Ok(Refiner::default_for_item(genv, def_id)?
+                .refine_ty_or_base(&fty)?
+                .expect_base())
+        })
+        .transpose()
 }
