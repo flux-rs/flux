@@ -597,7 +597,7 @@ fn encode_def_ids<'tcx, K: Eq + Hash + Copy>(
                     .fn_sig
                     .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::fn_sig));
             }
-            DefKind::Enum | DefKind::Struct => {
+            DefKind::Enum | DefKind::Struct | DefKind::Union => {
                 tables
                     .generics_of
                     .insert(key, genv.run_query_if_reached(def_id, GlobalEnv::generics_of));
