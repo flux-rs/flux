@@ -1,5 +1,5 @@
 //! Subprocess for interfacing with Z3. We only added enough features to support
-//! [`suggustion_solver.rs`]
+//! [`suggestion_solver.rs`]
 
 use std::{
     io::{self, BufRead, BufReader, Read as _, Write as _},

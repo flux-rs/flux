@@ -13,15 +13,14 @@ $ cargo x install --profile dev
 
 ## Regression Tests
 
-You can run the various regression tests in the `tests/pos` and `tests/neg` directories using
-`cargo xtask test`
+Run with `cargo x test [filename substring]` from the repository root.
 
 This will build the flux binary and then run it against the entire test suite.
 You can optionally pass a _filter_ to only run tests containing some substring.
 For example:
 
 ```console
-$ cargo xtask test impl_trait
+$ cargo x test impl_trait
    Compiling xtask v0.1.0 (/path/to/flux/xtask)
     Finished dev [unoptimized + debuginfo] target(s) in 0.29s
      Running `target/debug/xtask test impl_trait`
@@ -53,15 +52,65 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 207 filtered out; fi
 
 The test suite is split into two tiers based on what the test requires at compile time.
 
-**Basic tests** (`tests/pos/` and `tests/neg/`) only require `flux_attrs`, the procedural macro
+All test paths below are relative to the repository's `tests/` directory.
+
+- `tests/pos/`: positive tests (pass).
+- `tests/neg/`: negative tests (we are testing the errors emitted using `//~ ERROR`).
+- `tests/rustfix/`: tests for rustfix (currently this is only for applying suggestions).
+- `tests/with_deps/`: same as the above, with `flux_rs` and library specs available.
+- `tests/todo/`: TODO tests (excluded from testing).
+
+**Basic tests** (`tests/pos/`, `tests/neg/`, and `tests/rustfix/`) only require `flux_attrs`, the procedural macro
 crate that provides Flux's surface syntax. **Prefer writing tests here whenever possible.**
 A test belongs in the basic suite if it only uses Flux attributes directly, that is, it uses
 `flux_attrs::*` (or `#[flux::*]`) without importing `flux_rs`, `flux_core`, or `flux_alloc`.
 
-**Dependency tests** (`tests/with_deps/pos/` and `tests/with_deps/neg/`) require the full set of
+**Dependency tests** (`tests/with_deps/pos/`, `tests/with_deps/neg/`, and `tests/with_deps/rustfix/`) require the full set of
 precompiled Flux libraries (`flux_rs`, `flux_core`, `flux_alloc`). Only place a test here when it
 genuinely needs one of those libraries, for example, when testing extern specs for
 standard-library types or behaviour that relies on the `flux_rs` prelude.
+
+Use `--suite basic` or `--suite with-deps` to scope to basic tests or dependency tests, respectively.
+
+### Where to put a test
+
+There are a lot of subfolders. Most of the time you will just match the test to a feature,
+e.g. `arrays/`, `enums/`, `extern_specs/`, `fold_unfold/`, or `impl_trait/`.
+
+Use `tests/neg/error_messages/` when the test is about the error message itself.
+
+Use an existing phase subfolder (`resolver/`, `desugar/`, `wf/`, etc.) when appropriate.
+
+`surface/` is a bit of a catch-all, but is meant for surface tests.
+
+### Writing rustfix tests
+
+These tests check how `cargo flux fix` applies changes.
+
+Tests are written as:
+
+- `test-name.rs`: The test file.
+
+  To ensure that we apply the changes, add `//@run-rustfix`,
+  `//@rustfix-only-machine-applicable`, and any `//@compile-flags:`.
+- `test-name.fixed`: the exact result of applying the fixes.
+- `test-name.stderr`: the expected diagnostics from the original input, before
+  applying fixes (if omitted, treated as empty).
+  
+These tests require that Flux succeeds on the .fixed file.
+
+In many tests, we only care about applying the suggestion,
+so add `//@normalize-stderr-test: "(?s).*" -> ""` to skip diagnostic-text snapshots.
+What this does is turn stderr into the empty string—if you do this, you can then
+skip adding a `.stderr`.
+
+Tests requiring `flux_rs` or extern specs live in `tests/with_deps/rustfix/` and use
+the same conventions.
+
+#### Generating expected output
+
+You can generate the `.fixed` and `.stderr` files if your test is on behavior that
+currently works using `--bless`, e.g. `cargo x test my-test --bless`.
 
 ## Testing Flux on a File
 

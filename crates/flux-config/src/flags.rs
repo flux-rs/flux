@@ -236,6 +236,13 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub rerun_hint: bool,
+    /// Combine refinement suggestions into replacements suitable for `cargo fix`.
+    #[arg(
+        long = flux_arg!("fix-suggestions"),
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub fix_suggestions: bool,
 }
 
 impl Default for Flags {
@@ -275,6 +282,7 @@ impl Default for Flags {
             flux_verbose: false,
             suggestions: false,
             rerun_hint: true,
+            fix_suggestions: false,
         }
     }
 }
@@ -366,6 +374,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "flux-verbose" => parse_bool(&mut flags.flux_verbose, value),
             "suggestions" => parse_bool(&mut flags.suggestions, value),
             "rerun-hint" => parse_bool(&mut flags.rerun_hint, value),
+            "fix-suggestions" => parse_bool(&mut flags.fix_suggestions, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);

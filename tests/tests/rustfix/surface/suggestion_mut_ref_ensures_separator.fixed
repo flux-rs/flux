@@ -1,0 +1,22 @@
+//@run-rustfix
+//@normalize-stderr-test: "(?s).*" -> ""
+//@rustfix-only-machine-applicable
+//@compile-flags: -Fsuggestions=true -Ffix-suggestions
+// Reprinting two strong-reference postconditions must separate them with a comma.
+#[path = "../../lib/rvec.rs"]
+mod rvec;
+
+use rvec::RVec;
+
+#[flux::trusted]
+#[flux::sig(fn(&RVec<u8>{n: n > 10}))]
+fn needs_long(_: &RVec<u8>) {}
+
+#[flux::sig(fn(tos: &strg crate::rvec::RVec<u8>[@old_tos], pfds: &strg crate::rvec::RVec<u8>[@old_pfds]) -> () requires old_tos.len + 1 > 10 && old_pfds.len + 1 > 10 ensures tos: crate::rvec::RVec<u8>[{ len: old_tos.len + 1 }], pfds: crate::rvec::RVec<u8>[{ len: old_pfds.len + 1 }]
+)]
+fn parse_subscriptions(tos: &mut RVec<u8>, pfds: &mut RVec<u8>) {
+    tos.push(0);
+    pfds.push(0);
+    needs_long(tos);
+    needs_long(pfds);
+}
