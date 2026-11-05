@@ -18,7 +18,7 @@ flux_rs::defs! {
     }
 }
 
-#[flux_rs::refined_by(base:int, addr:int, size:int, cap:int)]
+#[flux_rs::refined_by(base:int, addr:int, size:int, meta:int, cap:int)]
 #[flux_rs::invariant(size == cap * T::size_of() &&
                      cap <= isize::MAX &&
                      addr == base &&
@@ -28,7 +28,7 @@ flux_rs::defs! {
                      size_align_inv(T::size_of(), T::align_of())
                      )]
 struct RawVec<T> {
-    #[flux_rs::field(NonNull<T>[base, addr, size])]
+    #[flux_rs::field(NonNull<T>[base, addr, size, meta])]
     ptr: NonNull<T>,
     #[flux_rs::field(usize[cap])]
     cap: usize,
