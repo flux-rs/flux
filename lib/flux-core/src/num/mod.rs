@@ -112,6 +112,31 @@ macro_rules! int_spec {
             #[no_panic]
             #[spec(fn(num: $T, rhs: $T) -> $T[wrap_once(num - rhs, $T::MIN, $T::MAX)])]
             fn wrapping_sub(self, rhs: $T) -> $T;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/1a2c4797ef2570bd76ca5dee34449169bc7dc457/library/core/src/num/int_macros.rs#L654-L668
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> $T[num + rhs] requires num + rhs >= $T::MIN && num + rhs <= $T::MAX)]
+            unsafe fn unchecked_add(self, rhs: $T) -> $T;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/1a2c4797ef2570bd76ca5dee34449169bc7dc457/library/core/src/num/int_macros.rs#L794-L808
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> $T[num - rhs] requires num - rhs >= $T::MIN && num - rhs <= $T::MAX)]
+            unsafe fn unchecked_sub(self, rhs: $T) -> $T;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/1a2c4797ef2570bd76ca5dee34449169bc7dc457/library/core/src/num/int_macros.rs#L934-L948
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> $T[num * rhs] requires num * rhs >= $T::MIN && num * rhs <= $T::MAX)]
+            unsafe fn unchecked_mul(self, rhs: $T) -> $T;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/1a2c4797ef2570bd76ca5dee34449169bc7dc457/library/core/src/num/int_macros.rs#L1183-L1194
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> $T[num / rhs] requires rhs != 0 && num % rhs == 0 && (num != $T::MIN || rhs != -1))]
+            unsafe fn unchecked_div_exact(self, rhs: $T) -> $T;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/1a2c4797ef2570bd76ca5dee34449169bc7dc457/library/core/src/num/int_macros.rs#L1361-L1374
+            #[no_panic]
+            #[spec(fn(num: $T) -> $T[-num] requires num != $T::MIN)]
+            unsafe fn unchecked_neg(self) -> $T;
         }
     };
 }
@@ -195,6 +220,26 @@ macro_rules! uint_spec {
             #[no_panic]
             #[spec(fn(num: $T, rhs: $T) -> $T[wrap_once(num - rhs, 0, $T::MAX)])]
             fn wrapping_sub(self, rhs: $T) -> $T;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/1a2c4797ef2570bd76ca5dee34449169bc7dc457/library/core/src/num/uint_macros.rs#L1025-L1039
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> $T[num + rhs] requires num + rhs <= $T::MAX)]
+            unsafe fn unchecked_add(self, rhs: $T) -> $T;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/1a2c4797ef2570bd76ca5dee34449169bc7dc457/library/core/src/num/uint_macros.rs#L1204-L1218
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> $T[num - rhs] requires num >= rhs)]
+            unsafe fn unchecked_sub(self, rhs: $T) -> $T;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/1a2c4797ef2570bd76ca5dee34449169bc7dc457/library/core/src/num/uint_macros.rs#L1413-L1427
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> $T[num * rhs] requires num * rhs <= $T::MAX)]
+            unsafe fn unchecked_mul(self, rhs: $T) -> $T;
+
+            /// Core impl: https://github.com/rust-lang/rust/blob/1a2c4797ef2570bd76ca5dee34449169bc7dc457/library/core/src/num/uint_macros.rs#L1615-L1626
+            #[no_panic]
+            #[spec(fn(num: $T, rhs: $T) -> $T[num / rhs] requires rhs > 0 && num % rhs == 0)]
+            unsafe fn unchecked_div_exact(self, rhs: $T) -> $T;
         }
     };
 }
