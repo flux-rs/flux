@@ -4,7 +4,7 @@ use std::ptr::NonNull;
 
 // --- add ---
 
-#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size > 8 && addr != 0 && addr % 4 == 0)]
+#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size, @_meta1]) requires addr >= base && size > 8 && addr != 0 && addr % 4 == 0)]
 pub fn test_add_ex(nn: NonNull<i32>) {
     unsafe {
         let _val0 = std::ptr::read(nn.add(0).as_ptr());
@@ -13,7 +13,7 @@ pub fn test_add_ex(nn: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size == 8 && addr != 0 && addr % 4 == 0)]
+#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size, @_meta1]) requires addr >= base && size == 8 && addr != 0 && addr % 4 == 0)]
 pub fn test_add_ix(nn: NonNull<i32>) {
     unsafe {
         let _val0 = std::ptr::read(nn.add(0).as_ptr());
@@ -22,7 +22,7 @@ pub fn test_add_ix(nn: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size > 8 && addr != 0 && addr % 4 == 0)]
+#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size, @_meta1]) requires addr >= base && size > 8 && addr != 0 && addr % 4 == 0)]
 pub fn test_add_mut_ex(nn: NonNull<i32>) {
     unsafe {
         std::ptr::write(nn.add(0).as_ptr(), 10);
@@ -31,7 +31,7 @@ pub fn test_add_mut_ex(nn: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && size == 8 && addr != 0 && addr % 4 == 0)]
+#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size, @_meta1]) requires addr >= base && size == 8 && addr != 0 && addr % 4 == 0)]
 pub fn test_add_mut_ix(nn: NonNull<i32>) {
     unsafe {
         std::ptr::write(nn.add(0).as_ptr(), 10);
@@ -43,7 +43,7 @@ pub fn test_add_mut_ix(nn: NonNull<i32>) {
 // --- offset (signed count) ---
 
 // forward offset past end: size == 4 holds only one i32; offset(2) needs 8 bytes
-#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr >= base && addr > 0 && size == 4 && addr % 4 == 0)]
+#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size, @_meta1]) requires addr >= base && addr > 0 && size == 4 && addr % 4 == 0)]
 pub fn test_offset_forward_too_far(nn: NonNull<i32>) {
     unsafe {
         let _ = nn.offset(2); //~ ERROR refinement type error
@@ -51,7 +51,7 @@ pub fn test_offset_forward_too_far(nn: NonNull<i32>) {
 }
 
 // backward offset before base: addr == base means no room behind the pointer
-#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size]) requires addr == base && size >= 4 && addr % 4 == 0)]
+#[flux::spec(fn (nn: NonNull<i32>[@base, @addr, @size, @_meta1]) requires addr == base && size >= 4 && addr % 4 == 0)]
 pub fn test_offset_backward_past_base(nn: NonNull<i32>) {
     unsafe {
         let _ = nn.offset(-1); //~ ERROR refinement type error

@@ -34,7 +34,7 @@ use crate::{
     fhir,
     global_env::GlobalEnv,
     rty::{
-        self, AliasReft, Expr, GenericArg,
+        self, GenericArg,
         fold::TypeFoldable,
         refining::{self, Refine, Refiner, refine_generic_param_def},
     },
@@ -863,9 +863,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         // `MetaSized` is a marker trait with a single `Self` type parameter. We refine it as `Type`
         // (rather than `Base`) so that a type parameter `T` of kind `Type` can flow through bounds
         // like `T: MetaSized`. This is required because `Box` is defined as `Box<T: ?Sized, ...>`
-        // which desugars to the bound `T: MetaSized`. This should be mostly fine because parameters
-        // of both kinds should be able to satisfy `MetaSized` bounds, but it will cause problems
-        // if we ever try to add associated refinements to `MetaSized` like we did for `Sized`.
+        // which desugars to the bound `T: MetaSized`. Parameters of both kinds can satisfy
+        // `MetaSized` bounds. This is also fine for `MetaSized`'s builtin associated refinements
+        // (`size_of_val`, `align_of_val`): they are normalized and encoded in terms of the
+        // unrefined (rustc) `Self` type, so whether it is refined as a `Type` or a `Base` doesn't
+        // matter.
         if genv.tcx().is_lang_item(def_id, LangItem::MetaSized) {
             let generics = genv.lower_generics_of(def_id);
             debug_assert_eq!(generics.params.len(), 1);
@@ -1120,18 +1122,16 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     if genv.is_fn_call(def_id) {
                         let fn_once_id = tcx.require_lang_item(LangItem::FnOnce, DUMMY_SP);
 
-                        let fn_once_no_panic = genv
-                            .builtin_assoc_refts(fn_once_id)
-                            .unwrap()
-                            .find(sym::no_panic)
-                            .unwrap();
-
                         let args = GenericArg::identity_for_item(genv, fn_once_id)?;
-
-                        let alias_reft = AliasReft { assoc_id: fn_once_no_panic.def_id, args };
+                        let no_panic = genv.builtin_alias(
+                            LangItem::FnOnce,
+                            sym::no_panic,
+                            args,
+                            List::empty(),
+                        );
 
                         poly_sig = poly_sig.map(|mut fn_sig| {
-                            fn_sig.no_panic = Expr::alias(alias_reft, List::empty());
+                            fn_sig.no_panic = no_panic;
                             fn_sig
                         });
                     }

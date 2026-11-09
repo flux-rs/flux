@@ -21,9 +21,9 @@ use flux_middle::{
     queries::{QueryErr, QueryResult, try_query},
     query_bug,
     rty::{
-        self, AdtDef, AliasReft, BaseTy, BinOp, Binder, Bool, Clause, Constant,
-        CoroutineObligPredicate, EarlyBinder, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg,
-        GenericArgsExt as _, Int, IntTy, Mutability, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        self, AdtDef, BaseTy, BinOp, Binder, Bool, Clause, Constant, CoroutineObligPredicate,
+        EarlyBinder, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int,
+        IntTy, Mutability, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReErased,
         Sort, SubsetTyCtor, Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::TypeFoldable,
@@ -55,7 +55,7 @@ use rustc_middle::{
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
 };
 use rustc_span::{
-    DUMMY_SP, Span, Symbol,
+    Span, Symbol,
     sym::{self},
 };
 
@@ -2099,20 +2099,11 @@ fn raw_ptr_with_size<'genv, 'tcx>(
         return Ok(ty);
     }
 
-    let sized_id = tcx.require_lang_item(LangItem::Sized, DUMMY_SP);
     let args = rty::List::from_arr([GenericArg::Base(ctor)]);
-    let size_of_expr = Expr::alias(
-        AliasReft {
-            assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::size_of),
-            args: args.clone(),
-        },
-        rty::List::empty(),
-    );
-
-    let mut align_of_expr = Expr::alias(
-        AliasReft { assoc_id: genv.require_builtin_assoc_reft(sized_id, sym::align_of), args },
-        rty::List::empty(),
-    );
+    let size_of_expr =
+        genv.builtin_alias(LangItem::Sized, sym::size_of, args.clone(), rty::List::empty());
+    let mut align_of_expr =
+        genv.builtin_alias(LangItem::Sized, sym::align_of, args, rty::List::empty());
 
     // When the ref is part of a packed struct, we want to take the minimum of its
     // alignment and the packedness of the enclosing struct, see the example in:
