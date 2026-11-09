@@ -523,7 +523,16 @@ pub struct WKVar<T: Types> {
 pub enum Expr<T: Types> {
     Constant(Constant<T>),
     Var(T::Var),
-    App(Box<Self>, Option<Vec<Sort<T>>>, Vec<Self>, Option<Sort<T>>),
+    // Sorts aren't present in the constraints and hashing is currently used as
+    // a cheap form of checking for exact constraint matches for cache hits. Now
+    // the sorts should be the same, but for consistency's sake, we drop them
+    // here... (maybe names change or something, you never know)
+    App(
+        Box<Self>,
+        #[cfg_attr(not(feature = "rust-fixpoint"), derive_where(skip(Hash)))] Option<Vec<Sort<T>>>,
+        Vec<Self>,
+        #[cfg_attr(not(feature = "rust-fixpoint"), derive_where(skip(Hash)))] Option<Sort<T>>,
+    ),
     Neg(Box<Self>),
     BinaryOp(BinOp, Box<[Self; 2]>),
     IfThenElse(Box<[Self; 3]>),
@@ -966,6 +975,10 @@ pub struct Qualifier<T: Types> {
 /// A fact that is asserted to the SMT solver, universally quantified over `args`.
 #[derive_where(Debug, Clone, Hash)]
 pub struct Axiom<T: Types> {
+    // We use hashing to determine constraint equality for caching --- we don't
+    // emit names in the constrainst, so skip them in hashing to avoid false
+    // misses.
+    #[cfg_attr(not(feature = "rust-fixpoint"), derive_where(skip(Hash)))]
     pub name: String,
     pub args: Vec<(T::Var, Sort<T>)>,
     pub body: Expr<T>,

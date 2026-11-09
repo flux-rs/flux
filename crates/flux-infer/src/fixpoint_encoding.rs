@@ -58,7 +58,11 @@ use crate::{
 pub mod decoding;
 
 pub mod fixpoint {
-    use std::fmt;
+    use std::{
+        fmt,
+        hash::{Hash, Hasher},
+        mem,
+    };
 
     use flux_middle::{
         def_id::FluxDefId,
@@ -91,7 +95,7 @@ pub mod fixpoint {
         pub struct OpaqueId {}
     }
 
-    #[derive(Hash, Copy, Clone, Debug, PartialEq, Eq)]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     pub enum Var {
         Underscore,
         Global(GlobalVar, FluxDefId),
@@ -105,6 +109,35 @@ pub mod fixpoint {
         UIFRel(BinRel),
         Param(EarlyReftParam),
         ConstGeneric(ParamConst),
+    }
+
+    impl Hash for Var {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            // Record that it's a var
+            mem::discriminant(self).hash(state);
+            match self {
+                Var::Underscore => {}
+                // Drop DefIds where we don't care about them, otherwise they
+                // muck with using hashes for equality (DefIds aren't stable
+                // across runs). Where we do care about them, at least use the
+                // name itself (which is stable across runs).
+                Var::Global(var, def_id) => (var, def_id.name().as_str()).hash(state),
+                Var::Const(var, _) => var.hash(state),
+                Var::WKVar(name, index) => (name.as_str(), index).hash(state),
+                Var::Local(var) => var.hash(state),
+                Var::DataCtor(adt, variant) => (adt, variant).hash(state),
+                Var::TupleCtor { arity } => arity.hash(state),
+                Var::TupleProj { arity, field } => (arity, field).hash(state),
+                Var::DataProj { adt_id, field } => (adt_id, field).hash(state),
+                Var::UIFRel(rel) => rel.hash(state),
+                // We technically use the param name in the cosntraint output,
+                // but we drop it because the params are uniquely identified by
+                // their index (so thus changing the name of a param would
+                // needlessly change the hash)
+                Var::Param(param) => param.index.hash(state),
+                Var::ConstGeneric(param) => param.index.hash(state),
+            }
+        }
     }
 
     impl From<GlobalVar> for Var {
@@ -173,8 +206,16 @@ pub mod fixpoint {
         }
     }
 
-    #[derive(Hash, Clone, Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct SymStr(pub Symbol);
+
+    impl Hash for SymStr {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            // Default hashing would hash the symbol's index, which is not
+            // stable across runs.
+            self.0.as_str().hash(state);
+        }
+    }
 
     #[cfg(feature = "rust-fixpoint")]
     impl FixpointFmt for SymStr {
@@ -190,8 +231,14 @@ pub mod fixpoint {
         }
     }
 
-    #[derive(Hash, Clone, Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct SymReal(pub Symbol);
+
+    impl Hash for SymReal {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            self.0.as_str().hash(state);
+        }
+    }
 
     impl FixpointFmt for SymReal {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
