@@ -929,7 +929,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 infcx.unify_exprs(&path_a.to_expr(), &path_b.to_expr());
                 self.tys(infcx, &ty_a, ty_b)
             }
-            (TyKind::StrgRef(_, path_a, ty_a), TyKind::StrgRef(_, path_b, ty_b)) => {
+            (TyKind::StrgRef(re, path_a, ty_a), _) => {
                 // We have to unfold strong references prior to a subtyping check. Normally, when
                 // checking a function body, a `StrgRef` is automatically unfolded i.e. `x:&strg T`
                 // is turned into a `x:ptr(l); l: T` where `l` is some fresh location. However, we
@@ -938,13 +938,9 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 // to the environment so that we can:
                 // (1) UPDATE the location after the call, and
                 // (2) CHECK the relevant `ensures` clauses of the super-sig.
-                // Same as the `Ptr` case above we should remove the location from the environment
-                // after unfolding to consume it, but we are assuming functions always give back
-                // ownership.
+                // After unfolding, the resulting pointer is handled by the `Ptr` cases.
                 self.env.unfold_strg_ref(infcx, path_a, ty_a)?;
-                let ty_a = self.env.get(path_a);
-                infcx.unify_exprs(&path_a.to_expr(), &path_b.to_expr());
-                self.tys(infcx, &ty_a, ty_b)
+                self.tys(infcx, &Ty::ptr(PtrKind::Mut(*re), path_a.clone()), b)
             }
             (
                 TyKind::Ptr(PtrKind::Mut(re), path),

@@ -342,7 +342,9 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
     let inputs = rty::List::empty();
     let output =
         Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
-    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, Expr::tt(), false);
+    // rustc only promotes infallible operations in fn bodies (calls only to `#[rustc_promotable]`
+    // const fns), so promoted constants cannot panic.
+    let fn_sig = rty::FnSig::new(safety, abi, requires, inputs, output, Expr::ff(), false);
     PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
 }
 
