@@ -1451,7 +1451,7 @@ pub enum HintKind {
     Local,
     /// Used only when checking the item enclosing its declaration (e.g., a qualifier declared
     /// with `invariant qualifier`)
-    Hint,
+    Enclosing,
 }
 
 /// A `PrimOpProp` is a single property for a primitive operation which
@@ -3060,7 +3060,7 @@ impl TyKind {
 ///
 /// Also subject to overflow checking, slices have len * T::size_of() <=
 /// isize::MAX (see [`std::slice::from_raw_parts`]).
-///   
+///
 /// While this holds for all slices, the above condition reduces to true for ZST
 /// slices, so we omit it. Additionally, for ZST slices, the usize::MAX upper
 /// bound is redundant, so we omit it.

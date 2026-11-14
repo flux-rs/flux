@@ -502,7 +502,7 @@ fn parse_qualifier_kind(cx: &mut ParseCtxt) -> ParseResult<HintKind> {
     if lookahead.advance_if(kw::Local) {
         Ok(HintKind::Local)
     } else if lookahead.advance_if(kw::Invariant) {
-        Ok(HintKind::Hint)
+        Ok(HintKind::Enclosing)
     } else {
         Ok(HintKind::Global)
     }
@@ -525,7 +525,7 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let expr = parse_block(cx)?;
     let hi = cx.hi();
 
-    if let HintKind::Hint = kind {
+    if let HintKind::Enclosing = kind {
         // Append the body's free variables that weren't given an explicit sort, keeping the
         // order in which they appear in the body.
         let explicit: UnordSet<_> = params.iter().map(|param| param.ident).collect();

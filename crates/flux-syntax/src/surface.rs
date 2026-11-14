@@ -97,7 +97,7 @@ pub enum HintKind {
     Local,
     /// Used only when checking the item enclosing its declaration (e.g., a qualifier declared
     /// with `invariant qualifier`)
-    Hint,
+    Enclosing,
 }
 
 /// A global function definition. It can be either an uninterpreted function or a *syntactic abstraction*,

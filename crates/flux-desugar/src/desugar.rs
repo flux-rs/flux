@@ -898,7 +898,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         match kind {
             surface::HintKind::Global => HintKind::Global,
             surface::HintKind::Local => HintKind::Local,
-            surface::HintKind::Hint => HintKind::Hint,
+            surface::HintKind::Enclosing => HintKind::Enclosing,
         }
     }
 

@@ -310,7 +310,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         match kind {
             HintKind::Global => true,
             HintKind::Local => names.contains(&hint_id),
-            HintKind::Hint => self.flux_item_enclosing_item(hint_id.to_def_id()) == did.to_def_id(),
+            HintKind::Enclosing => {
+                self.flux_item_enclosing_item(hint_id.to_def_id()) == did.to_def_id()
+            }
         }
     }
 
