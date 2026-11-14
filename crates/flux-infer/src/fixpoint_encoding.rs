@@ -2399,8 +2399,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<Vec<fixpoint::Axiom>> {
         let fun_env = FunEnv::new(self.genv, def_id);
         self.genv
-            .axioms()?
-            .iter()
+            .axioms_for(def_id.local_id())?
             .map(|axiom| self.axiom_to_fixpoint(axiom, &fun_env, scx))
             .try_collect()
     }

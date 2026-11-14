@@ -47,7 +47,7 @@ use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 use crate::{
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
     global_env::GlobalEnv,
-    rty::QualifierKind,
+    rty::{AxiomKind, QualifierKind},
 };
 
 pub enum Attr {
@@ -66,6 +66,8 @@ pub enum Attr {
 pub struct AttrMap<'fhir> {
     pub attrs: &'fhir [Attr],
     pub qualifiers: &'fhir [FluxLocalDefId],
+    /// The local axioms listed in `#[axioms(...)]`
+    pub axioms: &'fhir [FluxLocalDefId],
     /// The definitions listed in `#[reveal(...)]` together with the span where they are named.
     pub reveals: &'fhir [(FluxDefId, Span)],
     /// The definitions listed in `#[hide(...)]` together with the span where they are named.
@@ -1392,6 +1394,7 @@ pub struct Axiom<'fhir> {
     pub args: &'fhir [RefineParam<'fhir>],
     pub body: Expr<'fhir>,
     pub span: Span,
+    pub kind: AxiomKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]

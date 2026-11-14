@@ -212,6 +212,7 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
                         surface::Attr::NoPanic => Some(fhir::Attr::NoPanic),
                         surface::Attr::NoSuggestions => Some(fhir::Attr::NoSuggestions),
                         surface::Attr::Qualifiers(_)
+                        | surface::Attr::Axioms(_)
                         | surface::Attr::Reveal(_)
                         | surface::Attr::Hide(_)
                         | surface::Attr::AssumeParametric(_) => None,
@@ -221,6 +222,10 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
         ),
         qualifiers: resolver_output
             .qualifier_res_map
+            .get(&node_id)
+            .map_or(&[][..], Vec::as_slice),
+        axioms: resolver_output
+            .axiom_res_map
             .get(&node_id)
             .map_or(&[][..], Vec::as_slice),
         reveals: resolver_output

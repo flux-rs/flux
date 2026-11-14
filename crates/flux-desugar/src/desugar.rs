@@ -17,7 +17,7 @@ use flux_middle::{
     fhir::{self, FhirId, FluxOwnerId, Namespace, PartialRes, QPathExpr, Res},
     global_env::GlobalEnv,
     query_bug,
-    rty::QualifierKind,
+    rty::{AxiomKind, QualifierKind},
     try_alloc_slice,
 };
 use flux_syntax::{
@@ -934,6 +934,10 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
             args: self.desugar_refine_params(&axiom.params),
             body: self.desugar_expr(&axiom.body),
             span: axiom.span,
+            kind: match axiom.kind {
+                surface::AxiomKind::Global => AxiomKind::Global,
+                surface::AxiomKind::Local => AxiomKind::Local,
+            },
         }
     }
 

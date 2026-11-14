@@ -1465,6 +1465,15 @@ pub struct PrimOpProp {
 pub struct Axiom {
     pub def_id: FluxLocalDefId,
     pub body: Binder<AxiomBody>,
+    pub kind: AxiomKind,
+}
+
+#[derive(Debug, TypeFoldable, TypeVisitable, Copy, Clone)]
+pub enum AxiomKind {
+    /// The axiom is used when checking every function
+    Global,
+    /// The axiom is only used when checking functions that name it in `#[axioms(...)]`
+    Local,
 }
 
 /// The variable (by its position in the axiom's binder) that does not occur in any pattern of an
@@ -1499,6 +1508,7 @@ impl Axiom {
     pub fn new(
         genv: GlobalEnv,
         def_id: FluxLocalDefId,
+        kind: AxiomKind,
         body: Binder<Expr>,
     ) -> Result<Self, UncoveredAxiomVar> {
         use fold::{TypeSuperVisitable as _, TypeVisitable as _};
@@ -1591,7 +1601,7 @@ impl Axiom {
 
         let patterns = List::from_vec(collector.patterns);
         let body = body.map(|expr| AxiomBody { expr, patterns });
-        Ok(Axiom { def_id, body })
+        Ok(Axiom { def_id, body, kind })
     }
 }
 

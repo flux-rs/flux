@@ -36,7 +36,7 @@ use crate::{
     queries::{DispatchKey, Providers, Queries, QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, QualifierKind,
+        self, AxiomKind, QualifierKind,
         refining::{Refine as _, Refiner},
     },
 };
@@ -271,6 +271,21 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// Return all the (global) axioms defined in the local crate.
     pub fn axioms(self) -> QueryResult<&'genv [rty::Axiom]> {
         self.inner.queries.axioms(self)
+    }
+
+    /// Return all the axioms that apply to an item: the global ones together with the local ones
+    /// named in the item's `#[axioms(...)]` attribute.
+    pub fn axioms_for(
+        self,
+        did: LocalDefId,
+    ) -> QueryResult<impl Iterator<Item = &'genv rty::Axiom>> {
+        let names: UnordSet<_> = self.fhir_attr_map(did).axioms.iter().copied().collect();
+        Ok(self.axioms()?.iter().filter(move |axiom| {
+            match axiom.kind {
+                AxiomKind::Global => true,
+                AxiomKind::Local => names.contains(&axiom.def_id),
+            }
+        }))
     }
 
     /// Return all the qualifiers that apply to an item, including both global and local qualifiers.

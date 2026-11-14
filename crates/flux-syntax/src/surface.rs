@@ -137,6 +137,17 @@ pub struct Axiom {
     /// The actual definition of the axiom, which must have sort `bool`
     pub body: Expr,
     pub span: Span,
+    /// Whether the axiom is used when checking every function or only those that explicitly
+    /// request it with `#[axioms(...)]`
+    pub kind: AxiomKind,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum AxiomKind {
+    /// The axiom is used when checking every function
+    Global,
+    /// The axiom is only used when checking functions that name it in `#[axioms(...)]`
+    Local,
 }
 
 #[derive(Debug)]
@@ -714,6 +725,8 @@ pub enum Attr {
     ShouldFail,
     /// A `#[qualifiers(...)]` attribute
     Qualifiers(Vec<Ident>),
+    /// A `#[axioms(...)]` attribute
+    Axioms(Vec<Ident>),
     /// A `#[reveal(...)]` attribute
     Reveal(Vec<Ident>),
     /// A `#[hide(...)]` attribute

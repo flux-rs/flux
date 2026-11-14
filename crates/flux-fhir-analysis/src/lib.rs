@@ -164,12 +164,14 @@ fn axioms(genv: GlobalEnv) -> QueryResult<Vec<rty::Axiom>> {
                 .reduce(genv);
             // The patterns are computed here, *after* reducing the body, so it is only done
             // once (instead of once per query).
-            rty::Axiom::new(genv, axiom.def_id, body).map_err(|rty::UncoveredAxiomVar(var)| {
-                let param = &axiom.args[var.as_usize()];
-                QueryErr::Emitted(
-                    genv.emit(errors::IllFormedAxiom::new(axiom.span, param.span, param.name)),
-                )
-            })
+            rty::Axiom::new(genv, axiom.def_id, axiom.kind, body).map_err(
+                |rty::UncoveredAxiomVar(var)| {
+                    let param = &axiom.args[var.as_usize()];
+                    QueryErr::Emitted(
+                        genv.emit(errors::IllFormedAxiom::new(axiom.span, param.span, param.name)),
+                    )
+                },
+            )
         })
         .try_collect()
 }
