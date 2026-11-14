@@ -1439,13 +1439,18 @@ pub struct Qualifier {
     pub def_id: FluxLocalDefId,
     pub body: Binder<Expr>,
     pub wildcards: List<bool>,
-    pub kind: QualifierKind,
+    pub kind: HintKind,
 }
 
+/// Determines which functions a hint to the solver (a qualifier or an axiom) is used for
 #[derive(Debug, TypeFoldable, TypeVisitable, Copy, Clone)]
-pub enum QualifierKind {
+pub enum HintKind {
+    /// Used when checking every function in the crate
     Global,
+    /// Used only when checking functions that name it in `#[qualifiers(...)]` / `#[axioms(...)]`
     Local,
+    /// Used only when checking the item enclosing its declaration (e.g., a qualifier declared
+    /// with `invariant qualifier`)
     Hint,
 }
 
@@ -1465,15 +1470,7 @@ pub struct PrimOpProp {
 pub struct Axiom {
     pub def_id: FluxLocalDefId,
     pub body: Binder<AxiomBody>,
-    pub kind: AxiomKind,
-}
-
-#[derive(Debug, TypeFoldable, TypeVisitable, Copy, Clone)]
-pub enum AxiomKind {
-    /// The axiom is used when checking every function
-    Global,
-    /// The axiom is only used when checking functions that name it in `#[axioms(...)]`
-    Local,
+    pub kind: HintKind,
 }
 
 /// The variable (by its position in the axiom's binder) that does not occur in any pattern of an
@@ -1508,7 +1505,7 @@ impl Axiom {
     pub fn new(
         genv: GlobalEnv,
         def_id: FluxLocalDefId,
-        kind: AxiomKind,
+        kind: HintKind,
         body: Binder<Expr>,
     ) -> Result<Self, UncoveredAxiomVar> {
         use fold::{TypeSuperVisitable as _, TypeVisitable as _};

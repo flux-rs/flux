@@ -85,13 +85,18 @@ pub struct Qualifier {
     pub wildcards: Vec<bool>,
     pub expr: Expr,
     pub span: Span,
-    pub kind: QualifierKind,
+    pub kind: HintKind,
 }
 
-#[derive(Debug)]
-pub enum QualifierKind {
+/// Determines which functions a hint to the solver (a qualifier or an axiom) is used for
+#[derive(Debug, Clone, Copy)]
+pub enum HintKind {
+    /// Used when checking every function in the crate
     Global,
+    /// Used only when checking functions that name it in `#[qualifiers(...)]` / `#[axioms(...)]`
     Local,
+    /// Used only when checking the item enclosing its declaration (e.g., a qualifier declared
+    /// with `invariant qualifier`)
     Hint,
 }
 
@@ -139,15 +144,7 @@ pub struct Axiom {
     pub span: Span,
     /// Whether the axiom is used when checking every function or only those that explicitly
     /// request it with `#[axioms(...)]`
-    pub kind: AxiomKind,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum AxiomKind {
-    /// The axiom is used when checking every function
-    Global,
-    /// The axiom is only used when checking functions that name it in `#[axioms(...)]`
-    Local,
+    pub kind: HintKind,
 }
 
 #[derive(Debug)]

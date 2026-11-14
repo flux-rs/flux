@@ -47,7 +47,7 @@ use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 use crate::{
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
     global_env::GlobalEnv,
-    rty::{AxiomKind, QualifierKind},
+    rty::HintKind,
 };
 
 pub enum Attr {
@@ -163,7 +163,7 @@ pub struct Qualifier<'fhir> {
     pub args: &'fhir [RefineParam<'fhir>],
     pub wildcards: &'fhir [bool],
     pub expr: Expr<'fhir>,
-    pub kind: QualifierKind,
+    pub kind: HintKind,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1394,7 +1394,7 @@ pub struct Axiom<'fhir> {
     pub args: &'fhir [RefineParam<'fhir>],
     pub body: Expr<'fhir>,
     pub span: Span,
-    pub kind: AxiomKind,
+    pub kind: HintKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]

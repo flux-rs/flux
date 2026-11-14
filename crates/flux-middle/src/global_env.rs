@@ -36,7 +36,7 @@ use crate::{
     queries::{DispatchKey, Providers, Queries, QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AxiomKind, QualifierKind,
+        self, HintKind,
         refining::{Refine as _, Refiner},
     },
 };
@@ -280,12 +280,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         did: LocalDefId,
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Axiom>> {
         let names: UnordSet<_> = self.fhir_attr_map(did).axioms.iter().copied().collect();
-        Ok(self.axioms()?.iter().filter(move |axiom| {
-            match axiom.kind {
-                AxiomKind::Global => true,
-                AxiomKind::Local => names.contains(&axiom.def_id),
-            }
-        }))
+        Ok(self
+            .axioms()?
+            .iter()
+            .filter(move |axiom| self.hint_applies(axiom.kind, axiom.def_id, &names, did)))
     }
 
     /// Return all the qualifiers that apply to an item, including both global and local qualifiers.
@@ -293,17 +291,27 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         did: LocalDefId,
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Qualifier>> {
-        let quals = self.fhir_attr_map(did).qualifiers;
-        let names: UnordSet<_> = quals.iter().copied().collect();
-        Ok(self.qualifiers()?.iter().filter(move |qual| {
-            match qual.kind {
-                QualifierKind::Global => true,
-                QualifierKind::Hint => {
-                    self.flux_item_enclosing_item(qual.def_id.to_def_id()) == did.to_def_id()
-                }
-                QualifierKind::Local => names.contains(&qual.def_id),
-            }
-        }))
+        let names: UnordSet<_> = self.fhir_attr_map(did).qualifiers.iter().copied().collect();
+        Ok(self
+            .qualifiers()?
+            .iter()
+            .filter(move |qual| self.hint_applies(qual.kind, qual.def_id, &names, did)))
+    }
+
+    /// Whether the hint (qualifier or axiom) `hint_id` of kind `kind` should be used when checking
+    /// `did`, where `names` are the local hints requested by `did`.
+    fn hint_applies(
+        self,
+        kind: HintKind,
+        hint_id: FluxLocalDefId,
+        names: &UnordSet<FluxLocalDefId>,
+        did: LocalDefId,
+    ) -> bool {
+        match kind {
+            HintKind::Global => true,
+            HintKind::Local => names.contains(&hint_id),
+            HintKind::Hint => self.flux_item_enclosing_item(hint_id.to_def_id()) == did.to_def_id(),
+        }
     }
 
     /// The item enclosing the declaration of a flux item. This is different from the
