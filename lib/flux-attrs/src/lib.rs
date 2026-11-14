@@ -30,6 +30,11 @@ pub fn qualifiers(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
+pub fn axioms(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::axioms(attr, tokens)
+}
+
+#[proc_macro_attribute]
 pub fn reveal(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::reveal(attr, tokens)
 }
@@ -181,6 +186,7 @@ mod attr_sysroot {
         specs,
         sig,
         qualifiers,
+        axioms,
         reveal,
         hide,
         constant,
@@ -236,6 +242,7 @@ mod attr_dummy {
         specs,
         sig,
         qualifiers,
+        axioms,
         reveal,
         hide,
         invariant,

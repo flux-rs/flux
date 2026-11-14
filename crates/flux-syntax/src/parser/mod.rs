@@ -21,11 +21,11 @@ use crate::{
         ConstructorArg, DetachedInherentImpl, DetachedItem, DetachedItemKind, DetachedSpecs,
         DetachedTrait, DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath,
         ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg,
-        GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices,
-        LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, Qualifier,
-        QualifierKind, QuantKind, RefineArg, RefineParam, RefineParams, Requires, Sort, SortDecl,
-        SortPath, SpecFunc, Spread, StaticInfo, StructDef, TraitAssocReft, TraitRef, Trusted, Ty,
-        TyAlias, TyKind, UnOp, UseTree, UseTreeKind, VariantDef, VariantRet, WhereBoundPredicate,
+        GenericArgKind, GenericBounds, GenericParam, Generics, HintKind, Ident, ImplAssocReft,
+        Indices, LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, Qualifier,
+        QuantKind, RefineArg, RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath,
+        SpecFunc, Spread, StaticInfo, StructDef, TraitAssocReft, TraitRef, Trusted, Ty, TyAlias,
+        TyKind, UnOp, UseTree, UseTreeKind, VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentKind, Or, Token, TokenKind},
@@ -169,9 +169,15 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<FluxItem>>
 ///              | ⟨use_item⟩
 /// ```
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
+    // `local` can start both a qualifier and an axiom, so we need to look at the next token
+    if cx.peek2(kw::Local, kw::Axiom) {
+        return parse_axiom(cx).map(FluxItem::Axiom);
+    }
     let mut lookahead = cx.lookahead1();
     if lookahead.peek(token::Pound) || lookahead.peek(kw::Fn) {
         parse_reft_func(cx).map(FluxItem::FuncDef)
+    } else if lookahead.peek(kw::Axiom) {
+        parse_axiom(cx).map(FluxItem::Axiom)
     } else if lookahead.peek(kw::Local)
         || lookahead.peek(kw::Invariant)
         || lookahead.peek(kw::Qualifier)
@@ -181,8 +187,6 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
         parse_sort_decl(cx).map(FluxItem::SortDecl)
     } else if lookahead.peek(kw::Property) {
         parse_primop_property(cx).map(FluxItem::PrimOpProp)
-    } else if lookahead.peek(kw::Axiom) {
-        parse_axiom(cx).map(FluxItem::Axiom)
     } else if lookahead.peek(kw::Use) {
         parse_use_item(cx).map(FluxItem::Use)
     } else {
@@ -493,14 +497,14 @@ fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
 /// ⟨qualifier_kind⟩ :=  local
 ///                   |  invariant
 /// ```
-fn parse_qualifier_kind(cx: &mut ParseCtxt) -> ParseResult<QualifierKind> {
+fn parse_qualifier_kind(cx: &mut ParseCtxt) -> ParseResult<HintKind> {
     let mut lookahead = cx.lookahead1();
     if lookahead.advance_if(kw::Local) {
-        Ok(QualifierKind::Local)
+        Ok(HintKind::Local)
     } else if lookahead.advance_if(kw::Invariant) {
-        Ok(QualifierKind::Hint)
+        Ok(HintKind::Enclosing)
     } else {
-        Ok(QualifierKind::Global)
+        Ok(HintKind::Global)
     }
 }
 
@@ -521,7 +525,7 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let expr = parse_block(cx)?;
     let hi = cx.hi();
 
-    if let QualifierKind::Hint = kind {
+    if let HintKind::Enclosing = kind {
         // Append the body's free variables that weren't given an explicit sort, keeping the
         // order in which they appear in the body.
         let explicit: UnordSet<_> = params.iter().map(|param| param.ident).collect();
@@ -608,16 +612,17 @@ fn parse_primop_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
 }
 
 /// ```text
-/// ⟨axiom⟩ := axiom ⟨ident⟩ ( ⟨refine_param⟩,* ) ⟨block⟩
+/// ⟨axiom⟩ := ⟨ local ⟩? axiom ⟨ident⟩ ( ⟨refine_param⟩,* ) ⟨block⟩
 /// ```
 fn parse_axiom(cx: &mut ParseCtxt) -> ParseResult<Axiom> {
     let lo = cx.lo();
+    let kind = if cx.advance_if(kw::Local) { HintKind::Local } else { HintKind::Global };
     cx.expect(kw::Axiom)?;
     let name = parse_ident(cx)?;
     let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
     let body = parse_block(cx)?;
     let hi = cx.hi();
-    Ok(Axiom { name, params, body, span: cx.mk_span(lo, hi) })
+    Ok(Axiom { name, params, body, span: cx.mk_span(lo, hi), kind })
 }
 
 /// ```text

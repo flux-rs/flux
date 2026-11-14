@@ -639,9 +639,29 @@ Axioms are passed to the SMT solver as quantified formulas
   without a pattern.
 
 - **Axioms are global to the crate.** They are used when checking every function in the crate
-  in which they are defined, but are not (yet) exported to other crates.
+  in which they are defined, but are not (yet) exported to other crates. Use a
+  [local axiom](#local-axioms) to restrict an axiom to some functions.
 
 - Axioms require a version of `fixpoint` that supports the `axiom` declaration.
+
+### Local Axioms
+
+An axiom prefixed with `local` is _not_ used when checking every function. Instead, it is
+only used when checking the functions that explicitly request it by naming it in an
+`#[flux_rs::axioms(...)]` attribute. This is analogous to local qualifiers (`local qualifier` with `#[flux_rs::qualifiers(...)]`),
+and is useful to keep axioms (and the quantifier instantiations they trigger) out of
+the verification conditions of functions that don't need them.
+
+```text
+local axiom <name>(x1: s1, ..., xn: sn) { <expr> }
+```
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/local_axiom00.rs}}
+```
+
+Naming a global axiom in `#[axioms(...)]` is allowed and has no effect, and naming
+something that is not an axiom (e.g., a qualifier) is an error.
 
 ### Axioms about Primitive Operations
 

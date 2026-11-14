@@ -1439,14 +1439,19 @@ pub struct Qualifier {
     pub def_id: FluxLocalDefId,
     pub body: Binder<Expr>,
     pub wildcards: List<bool>,
-    pub kind: QualifierKind,
+    pub kind: HintKind,
 }
 
+/// Determines which functions a hint to the solver (a qualifier or an axiom) is used for
 #[derive(Debug, TypeFoldable, TypeVisitable, Copy, Clone)]
-pub enum QualifierKind {
+pub enum HintKind {
+    /// Used when checking every function in the crate
     Global,
+    /// Used only when checking functions that name it in `#[qualifiers(...)]` / `#[axioms(...)]`
     Local,
-    Hint,
+    /// Used only when checking the item enclosing its declaration (e.g., a qualifier declared
+    /// with `invariant qualifier`)
+    Enclosing,
 }
 
 /// A `PrimOpProp` is a single property for a primitive operation which
@@ -1465,6 +1470,7 @@ pub struct PrimOpProp {
 pub struct Axiom {
     pub def_id: FluxLocalDefId,
     pub body: Binder<AxiomBody>,
+    pub kind: HintKind,
 }
 
 /// The variable (by its position in the axiom's binder) that does not occur in any pattern of an
@@ -1499,6 +1505,7 @@ impl Axiom {
     pub fn new(
         genv: GlobalEnv,
         def_id: FluxLocalDefId,
+        kind: HintKind,
         body: Binder<Expr>,
     ) -> Result<Self, UncoveredAxiomVar> {
         use fold::{TypeSuperVisitable as _, TypeVisitable as _};
@@ -1591,7 +1598,7 @@ impl Axiom {
 
         let patterns = List::from_vec(collector.patterns);
         let body = body.map(|expr| AxiomBody { expr, patterns });
-        Ok(Axiom { def_id, body })
+        Ok(Axiom { def_id, body, kind })
     }
 }
 
@@ -3053,7 +3060,7 @@ impl TyKind {
 ///
 /// Also subject to overflow checking, slices have len * T::size_of() <=
 /// isize::MAX (see [`std::slice::from_raw_parts`]).
-///   
+///
 /// While this holds for all slices, the above condition reduces to true for ZST
 /// slices, so we omit it. Additionally, for ZST slices, the usize::MAX upper
 /// bound is redundant, so we omit it.

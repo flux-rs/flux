@@ -17,7 +17,7 @@ use flux_middle::{
     fhir::{self, FhirId, FluxOwnerId, Namespace, PartialRes, QPathExpr, Res},
     global_env::GlobalEnv,
     query_bug,
-    rty::QualifierKind,
+    rty::HintKind,
     try_alloc_slice,
 };
 use flux_syntax::{
@@ -894,16 +894,16 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         }
     }
 
-    fn desugar_qualifier_kind(qualifier: &surface::Qualifier) -> QualifierKind {
-        match qualifier.kind {
-            surface::QualifierKind::Global => QualifierKind::Global,
-            surface::QualifierKind::Local => QualifierKind::Local,
-            surface::QualifierKind::Hint => QualifierKind::Hint,
+    fn desugar_hint_kind(kind: surface::HintKind) -> HintKind {
+        match kind {
+            surface::HintKind::Global => HintKind::Global,
+            surface::HintKind::Local => HintKind::Local,
+            surface::HintKind::Enclosing => HintKind::Enclosing,
         }
     }
 
     fn desugar_qualifier(&mut self, qualifier: &surface::Qualifier) -> fhir::Qualifier<'genv> {
-        let kind = Self::desugar_qualifier_kind(qualifier);
+        let kind = Self::desugar_hint_kind(qualifier.kind);
         fhir::Qualifier {
             def_id: self.owner,
             args: self.desugar_refine_params(&qualifier.params),
@@ -934,6 +934,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
             args: self.desugar_refine_params(&axiom.params),
             body: self.desugar_expr(&axiom.body),
             span: axiom.span,
+            kind: Self::desugar_hint_kind(axiom.kind),
         }
     }
 

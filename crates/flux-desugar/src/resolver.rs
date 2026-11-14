@@ -117,6 +117,7 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     /// and primitive sorts.
     prelude: PerNS<Rib>,
     qualifiers: UnordMap<Symbol, FluxLocalDefId>,
+    axioms: UnordMap<Symbol, FluxLocalDefId>,
     primop_props: UnordMap<Symbol, FluxDefId>,
     err: Option<ErrorGuaranteed>,
     /// The most recent module we have visited. Used to check for visibility of other items from
@@ -164,6 +165,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             },
             err: None,
             qualifiers: Default::default(),
+            axioms: Default::default(),
             primop_props: Default::default(),
             current_module: CRATE_OWNER_ID,
         }
@@ -207,10 +209,16 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         }
                     }
                     surface::FluxItem::Axiom(axiom) => {
-                        let _ = definitions
-                            .define(axiom.name)
+                        let ident = axiom.name;
+                        if definitions
+                            .define(ident)
                             .emit(&self.genv)
-                            .collect_err(&mut self.err);
+                            .collect_err(&mut self.err)
+                            .is_some()
+                        {
+                            let def_id = FluxLocalDefId::new(declarer.def_id, ident.name);
+                            self.axioms.insert(ident.name, def_id);
+                        }
                     }
                     surface::FluxItem::Use(_)
                     | surface::FluxItem::FuncDef(_)
@@ -1440,6 +1448,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         for attr in attrs {
             match attr {
                 surface::Attr::Qualifiers(names) => self.resolve_qualifiers(node_id, names),
+                surface::Attr::Axioms(names) => self.resolve_axioms(node_id, names),
                 surface::Attr::Reveal(names) => {
                     let reveals = self.resolve_func_defs(names);
                     self.resolver.output.reveal_res_map.insert(node_id, reveals);
@@ -1491,6 +1500,18 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
             .output
             .qualifier_res_map
             .insert(node_id, qualifiers);
+    }
+
+    fn resolve_axioms(&mut self, node_id: surface::NodeId, axiom_names: &[Ident]) {
+        let mut axioms = Vec::with_capacity(axiom_names.len());
+        for axiom in axiom_names {
+            if let Some(def_id) = self.resolver.axioms.get(&axiom.name) {
+                axioms.push(*def_id);
+            } else {
+                self.errors.emit(errors::UnknownAxiom::new(axiom.span));
+            }
+        }
+        self.resolver.output.axiom_res_map.insert(node_id, axioms);
     }
 
     /// Resolves the names of function definitions in a `#[reveal(...)]` or `#[hide(...)]` attribute
@@ -1733,6 +1754,19 @@ mod errors {
     }
 
     impl UnknownQualifier {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag("unknown axiom", code = E0999)]
+    pub(super) struct UnknownAxiom {
+        #[primary_span]
+        span: Span,
+    }
+
+    impl UnknownAxiom {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
         }
