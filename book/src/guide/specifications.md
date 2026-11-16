@@ -648,7 +648,7 @@ Axioms are passed to the SMT solver as quantified formulas
 
 An axiom prefixed with `local` is _not_ used when checking every function. Instead, it is
 only used when checking the functions that explicitly request it by naming it in an
-`#[flux_rs::axioms(...)]` attribute. This is analogous to local qualifiers (`local qualifier` with `#[flux_rs::qualifiers(...)]`),
+`#[flux_rs::axioms(...)]` attribute. This is analogous to [local qualifiers](#local-qualifiers),
 and is useful to keep axioms (and the quantifier instantiations they trigger) out of
 the verification conditions of functions that don't need them.
 
@@ -1217,6 +1217,46 @@ A `def_id` is checked if it matches any of the patterns.
 
 ```
 cargo x run tests/tests/pos/detached/detach00.rs -- -Fdump-checker-trace -Fdump-constraint -Finclude=span:tests/tests/pos/detached/detach00.rs:13:1 -Finclude=def:id -Finclude=path/to/file.rs
+```
+
+## Local Qualifiers
+
+A `qualifier` declared in `defs!` is a hint that fixpoint uses to infer refinements (e.g., loop
+invariants), and by default it is used when checking _every_ function in the crate:
+
+```text
+qualifier <name>(x1: s1, ..., xn: sn) { <expr> }
+```
+
+A qualifier prefixed with `local` is _not_ used everywhere. Instead, it is only used when checking
+the functions that explicitly request it by naming it in a `#[flux_rs::qualifiers(...)]`
+attribute. This keeps the qualifier out of the search (and its cost) for functions that don't need
+it.
+
+```text
+local qualifier <name>(x1: s1, ..., xn: sn) { <expr> }
+```
+
+Below, `mk_pairs_with_bound` only verifies because it names `MyQ1`, which is needed to infer the
+loop invariant.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/local_qual00.rs}}
+```
+
+Naming a global qualifier in `#[qualifiers(...)]` is allowed and has no effect, and naming
+something that is not a qualifier (e.g., an axiom) is an error.
+
+Like [local axioms](#local-axioms), qualifiers are scoped like other flux definitions: a name in
+`#[qualifiers(...)]` is resolved from the module of the annotated function, so a qualifier
+declared in another module must be named with a path (e.g., `#[qualifiers(hints::Bound)]`,
+`#[qualifiers(super::Bound)]` or `#[qualifiers(crate::hints::Bound)]`) or imported with a `use`
+inside `defs!`. Two modules can declare qualifiers with the same name, and a function can use both,
+as `test_qualifiers` does below. (Global qualifiers still apply to every function in the crate,
+wherever they are declared.)
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/hint_same_name00.rs}}
 ```
 
 ## Scraping Qualifiers
