@@ -149,6 +149,18 @@ impl Expr {
             .unwrap_or_else(Expr::tt)
     }
 
+    /// Conjoins the bodies of `binders`, skipping the binders. The result is only meaningful if
+    /// all the binders bind the same sorts, so it can be re-bound with those sorts.
+    pub fn conjoin_bodies<'a>(
+        binders: impl IntoIterator<Item = &'a Binder<Expr>>,
+    ) -> Option<Binder<Expr>> {
+        let mut binders = binders.into_iter().peekable();
+        let Some(first) = binders.peek() else { return None };
+        let sorts = first.sorts();
+        let body = Expr::and_from_iter(binders.into_iter().map(|b| b.skip_binder_ref().clone()));
+        Some(Binder::bind_with_sorts(body, &sorts))
+    }
+
     pub fn or_from_iter(exprs: impl IntoIterator<Item = Expr>) -> Expr {
         exprs
             .into_iter()

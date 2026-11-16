@@ -14,7 +14,7 @@ extern crate rustc_type_ir;
 
 mod conv;
 mod wf;
-use std::{iter, rc::Rc};
+use std::rc::Rc;
 
 use conv::{AfterSortck, ConvPhase, struct_compat};
 use flux_common::{
@@ -34,7 +34,7 @@ use flux_middle::{
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AssocReft, Binder, WfckResults,
+        self, AssocReft, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refiner},
     },
@@ -164,12 +164,14 @@ fn axioms(genv: GlobalEnv) -> QueryResult<Vec<rty::Axiom>> {
                 .reduce(genv);
             // The patterns are computed here, *after* reducing the body, so it is only done
             // once (instead of once per query).
-            rty::Axiom::new(genv, axiom.def_id, body).map_err(|rty::UncoveredAxiomVar(var)| {
-                let param = &axiom.args[var.as_usize()];
-                QueryErr::Emitted(
-                    genv.emit(errors::IllFormedAxiom::new(axiom.span, param.span, param.name)),
-                )
-            })
+            rty::Axiom::new(genv, axiom.def_id, axiom.kind, body).map_err(
+                |rty::UncoveredAxiomVar(var)| {
+                    let param = &axiom.args[var.as_usize()];
+                    QueryErr::Emitted(
+                        genv.emit(errors::IllFormedAxiom::new(axiom.span, param.span, param.name)),
+                    )
+                },
+            )
         })
         .try_collect()
 }
@@ -186,30 +188,13 @@ fn primop_props(genv: GlobalEnv) -> QueryResult<Vec<rty::PrimOpProp>> {
         .try_collect()
 }
 
-fn conjoin_bind_exprs(exprs: Vec<Binder<rty::Expr>>) -> Binder<rty::Expr> {
-    let mut iter = exprs.into_iter();
-    let first = iter.next().unwrap();
-    let sorts = first.sorts();
-    let bodies = iter::once(first.skip_binder()).chain(iter.map(|expr| expr.skip_binder()));
-    let expr = rty::Expr::and_from_iter(bodies);
-    Binder::bind_with_sorts(expr, &sorts)
-}
-
 fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> {
-    let primop_props = primop_props(genv)?
+    Ok(primop_props(genv)?
         .into_iter()
-        .into_group_map_by(|primop_prop| primop_prop.op.clone());
-
-    let mut res = UnordMap::default();
-    for (op, props) in primop_props {
-        let exprs = props
-            .iter()
-            .map(|prop| prop.body.clone())
-            .collect::<Vec<_>>();
-        let body = conjoin_bind_exprs(exprs);
-        res.insert(op, rty::PrimRel { body });
-    }
-    Ok(res)
+        .into_group_map_by(|primop_prop| primop_prop.op.clone())
+        .into_iter()
+        .map(|(op, props)| (op, rty::PrimRel { props }))
+        .collect())
 }
 
 fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {

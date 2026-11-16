@@ -533,7 +533,13 @@ pub struct ResolverOutput {
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
     /// The resolved list of local qualifiers per function.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
-    pub qualifier_res_map: UnordMap<NodeId, Vec<def_id::FluxLocalDefId>>,
+    pub qualifier_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
+    /// The resolved list of local axioms per function.
+    /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
+    pub axiom_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
+    /// The resolved list of local primop properties per function.
+    /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
+    pub property_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
     /// The resolved list of local reveals per function together with the span where they are named.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
     pub reveal_res_map: UnordMap<NodeId, Vec<(def_id::FluxDefId, Span)>>,

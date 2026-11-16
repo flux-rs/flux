@@ -614,13 +614,19 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 }
             }
             ("qualifiers", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::QualNames)?
+                self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::QualNames)?
+            }
+            ("axioms", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::AxiomNames)?
+            }
+            ("properties", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::PropertyNames)?
             }
             ("reveal", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::RevealNames)?
+                self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::RevealNames)?
             }
             ("hide", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::HideNames)?
+                self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::HideNames)?
             }
             ("defs", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_flux_item, FluxAttrKind::Items)?
@@ -802,9 +808,11 @@ enum FluxAttrKind {
     ImplAssocReft(Vec<surface::ImplAssocReft>),
     RefinedBy(surface::RefineParams),
     Generics(surface::Generics),
-    QualNames(Vec<Ident>),
-    RevealNames(Vec<Ident>),
-    HideNames(Vec<Ident>),
+    QualNames(Vec<surface::ExprPath>),
+    AxiomNames(Vec<surface::ExprPath>),
+    PropertyNames(Vec<surface::ExprPath>),
+    RevealNames(Vec<surface::ExprPath>),
+    HideNames(Vec<surface::ExprPath>),
     Items(Vec<surface::FluxItem>),
     TypeAlias(Box<surface::TyAlias>),
     Field(surface::Ty),
@@ -978,6 +986,8 @@ impl FluxAttrs {
                 FluxAttrKind::TrustedDerive(trusted) => surface::Attr::TrustedDerive(trusted),
                 FluxAttrKind::ProvenExternally(span) => surface::Attr::ProvenExternally(span),
                 FluxAttrKind::QualNames(names) => surface::Attr::Qualifiers(names),
+                FluxAttrKind::AxiomNames(names) => surface::Attr::Axioms(names),
+                FluxAttrKind::PropertyNames(names) => surface::Attr::Properties(names),
                 FluxAttrKind::RevealNames(names) => surface::Attr::Reveal(names),
                 FluxAttrKind::HideNames(names) => surface::Attr::Hide(names),
                 FluxAttrKind::InferOpts(opts) => surface::Attr::InferOpts(opts),
@@ -1026,6 +1036,8 @@ impl FluxAttrKind {
             FluxAttrKind::Generics(_) => attr_name!(Generics),
             FluxAttrKind::Items(_) => attr_name!(Items),
             FluxAttrKind::QualNames(_) => attr_name!(QualNames),
+            FluxAttrKind::AxiomNames(_) => attr_name!(AxiomNames),
+            FluxAttrKind::PropertyNames(_) => attr_name!(PropertyNames),
             FluxAttrKind::RevealNames(_) => attr_name!(RevealNames),
             FluxAttrKind::HideNames(_) => attr_name!(HideNames),
             FluxAttrKind::Field(_) => attr_name!(Field),
