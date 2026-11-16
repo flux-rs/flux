@@ -304,12 +304,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         kind: HintKind,
         hint_id: FluxLocalDefId,
-        names: &UnordSet<FluxLocalDefId>,
+        names: &UnordSet<FluxDefId>,
         did: LocalDefId,
     ) -> bool {
         match kind {
             HintKind::Global => true,
-            HintKind::Local => names.contains(&hint_id),
+            HintKind::Local => names.contains(&hint_id.to_def_id()),
             HintKind::Enclosing => {
                 self.flux_item_enclosing_item(hint_id.to_def_id()) == did.to_def_id()
             }

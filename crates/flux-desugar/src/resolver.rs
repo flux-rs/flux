@@ -9,7 +9,7 @@ use flux_common::{
 use flux_errors::Errors;
 use flux_middle::{
     FluxItemDecl, ResolverOutput, Specs,
-    def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
+    def_id::{FluxDefId, MaybeExternId},
     fhir,
     fhir::{
         Namespace::{self, *},
@@ -1514,26 +1514,18 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
 
     /// Resolves paths to hints (qualifiers or axioms) using the same scoping rules as other flux
     /// items, keeping those for which `select` returns a definition and reporting `mk_err` for the
-    /// rest. Qualifiers and axioms are not exported, so the definition must be in the local crate.
-    #[allow(
-        clippy::disallowed_methods,
-        reason = "the parent of a qualifier or axiom is the module or `const _` declaring it, never an extern spec"
-    )]
+    /// rest.
     fn resolve_hints<E: for<'b> rustc_errors::Diagnostic<'b>>(
         &mut self,
         paths: &[surface::ExprPath],
         select: impl Fn(fhir::Res<surface::NodeId>) -> Option<FluxDefId>,
         mk_err: impl Fn(Span) -> E,
-    ) -> Vec<FluxLocalDefId> {
+    ) -> Vec<FluxDefId> {
         let mut def_ids = Vec::with_capacity(paths.len());
         for path in paths {
             match self.resolver.resolve_path_with_ribs(&path.segments, HintNS) {
                 Ok(partial_res) => {
-                    match partial_res
-                        .full_res()
-                        .and_then(&select)
-                        .and_then(FluxDefId::as_local)
-                    {
+                    match partial_res.full_res().and_then(&select) {
                         Some(def_id) => def_ids.push(def_id),
                         None => {
                             self.errors.emit(mk_err(path.span));

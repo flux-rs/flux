@@ -65,9 +65,9 @@ pub enum Attr {
 #[derive(Clone, Copy, Default)]
 pub struct AttrMap<'fhir> {
     pub attrs: &'fhir [Attr],
-    pub qualifiers: &'fhir [FluxLocalDefId],
+    pub qualifiers: &'fhir [FluxDefId],
     /// The local axioms listed in `#[axioms(...)]`
-    pub axioms: &'fhir [FluxLocalDefId],
+    pub axioms: &'fhir [FluxDefId],
     /// The definitions listed in `#[reveal(...)]` together with the span where they are named.
     pub reveals: &'fhir [(FluxDefId, Span)],
     /// The definitions listed in `#[hide(...)]` together with the span where they are named.
