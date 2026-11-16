@@ -68,6 +68,8 @@ pub struct AttrMap<'fhir> {
     pub qualifiers: &'fhir [FluxDefId],
     /// The local axioms listed in `#[axioms(...)]`
     pub axioms: &'fhir [FluxDefId],
+    /// The local primop properties listed in `#[properties(...)]`
+    pub properties: &'fhir [FluxDefId],
     /// The definitions listed in `#[reveal(...)]` together with the span where they are named.
     pub reveals: &'fhir [(FluxDefId, Span)],
     /// The definitions listed in `#[hide(...)]` together with the span where they are named.
@@ -763,8 +765,9 @@ pub enum Namespace {
     /// The refinement namespace includes refinement functions, theory function,
     /// refinement parameters, ...
     ReftNS,
-    /// The namespace of solver hints, i.e., qualifiers and axioms. These are only ever named in
-    /// attributes like `#[qualifiers(...)]` or `#[axioms(...)]`, so they get their own namespace
+    /// The namespace of solver hints, i.e., qualifiers, axioms and primop properties. These are only
+    /// ever named in attributes like `#[qualifiers(...)]`, `#[axioms(...)]` or `#[properties(...)]`,
+    /// so they get their own namespace
     /// to avoid clashing with refinement functions and parameters.
     HintNS,
 }
@@ -777,7 +780,7 @@ impl Namespace {
             Namespace::ValueNS => "value",
             Namespace::MacroNS => "macro",
             Namespace::ReftNS => "value",
-            Namespace::HintNS => "qualifier or axiom",
+            Namespace::HintNS => "qualifier, axiom or property",
         }
     }
 
@@ -872,6 +875,8 @@ pub enum Res<Id = ParamId> {
     Qualifier(FluxDefId),
     /// An axiom declared with `flux::defs! { ... }`
     Axiom(FluxDefId),
+    /// A primop property declared with `flux::defs! { ... }`
+    Property(FluxDefId),
     Err,
 }
 
@@ -1276,6 +1281,7 @@ impl<Id> Res<Id> {
             Res::UserSort(..) => "user-defined sort",
             Res::Qualifier(..) => "qualifier",
             Res::Axiom(..) => "axiom",
+            Res::Property(..) => "property",
             Res::Err => "unresolved item",
         }
     }
@@ -1299,7 +1305,7 @@ impl<Id> Res<Id> {
             // Sorts share the type namespace: primitive sorts live in the type prelude and
             // sort parameters in the type ribs, so they resolve through `TypeNS` alongside types.
             Res::PrimSort(..) | Res::SortParam(..) | Res::UserSort(..) => Some(Namespace::TypeNS),
-            Res::Qualifier(..) | Res::Axiom(..) => Some(Namespace::HintNS),
+            Res::Qualifier(..) | Res::Axiom(..) | Res::Property(..) => Some(Namespace::HintNS),
             Res::Err => None,
         }
     }
@@ -1324,6 +1330,7 @@ impl<Id> Res<Id> {
             Res::UserSort(def_id) => Res::UserSort(def_id),
             Res::Qualifier(def_id) => Res::Qualifier(def_id),
             Res::Axiom(def_id) => Res::Axiom(def_id),
+            Res::Property(def_id) => Res::Property(def_id),
             Res::Err => Res::Err,
         }
     }
@@ -1398,6 +1405,7 @@ pub struct SpecFunc<'fhir> {
 #[derive(Debug)]
 pub struct PrimOpProp<'fhir> {
     pub def_id: FluxLocalDefId,
+    pub kind: HintKind,
     pub op: BinOp,
     pub args: &'fhir [RefineParam<'fhir>],
     pub body: Expr<'fhir>,

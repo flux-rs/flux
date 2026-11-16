@@ -921,6 +921,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         let args = self.desugar_refine_params(&primop_prop.params);
         fhir::PrimOpProp {
             def_id: self.owner,
+            kind: Self::desugar_hint_kind(primop_prop.kind),
             op: primop_prop.op,
             args,
             body,

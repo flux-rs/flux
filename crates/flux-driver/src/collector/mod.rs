@@ -619,6 +619,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("axioms", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::AxiomNames)?
             }
+            ("properties", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::PropertyNames)?
+            }
             ("reveal", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::RevealNames)?
             }
@@ -807,6 +810,7 @@ enum FluxAttrKind {
     Generics(surface::Generics),
     QualNames(Vec<surface::ExprPath>),
     AxiomNames(Vec<surface::ExprPath>),
+    PropertyNames(Vec<surface::ExprPath>),
     RevealNames(Vec<surface::ExprPath>),
     HideNames(Vec<surface::ExprPath>),
     Items(Vec<surface::FluxItem>),
@@ -983,6 +987,7 @@ impl FluxAttrs {
                 FluxAttrKind::ProvenExternally(span) => surface::Attr::ProvenExternally(span),
                 FluxAttrKind::QualNames(names) => surface::Attr::Qualifiers(names),
                 FluxAttrKind::AxiomNames(names) => surface::Attr::Axioms(names),
+                FluxAttrKind::PropertyNames(names) => surface::Attr::Properties(names),
                 FluxAttrKind::RevealNames(names) => surface::Attr::Reveal(names),
                 FluxAttrKind::HideNames(names) => surface::Attr::Hide(names),
                 FluxAttrKind::InferOpts(opts) => surface::Attr::InferOpts(opts),
@@ -1032,6 +1037,7 @@ impl FluxAttrKind {
             FluxAttrKind::Items(_) => attr_name!(Items),
             FluxAttrKind::QualNames(_) => attr_name!(QualNames),
             FluxAttrKind::AxiomNames(_) => attr_name!(AxiomNames),
+            FluxAttrKind::PropertyNames(_) => attr_name!(PropertyNames),
             FluxAttrKind::RevealNames(_) => attr_name!(RevealNames),
             FluxAttrKind::HideNames(_) => attr_name!(HideNames),
             FluxAttrKind::Field(_) => attr_name!(Field),

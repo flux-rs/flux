@@ -438,8 +438,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                                         ident = axiom.name;
                                         fhir::Res::Axiom(FluxDefId::new(declarer, ident.name))
                                     }
-                                    surface::FluxItem::PrimOpProp(_)
-                                    | surface::FluxItem::Use(_) => return None,
+                                    surface::FluxItem::PrimOpProp(prop) => {
+                                        ident = prop.name;
+                                        fhir::Res::Property(FluxDefId::new(declarer, ident.name))
+                                    }
+                                    surface::FluxItem::Use(_) => return None,
                                 };
                                 Some(fhir::FluxModChild { ident, res })
                             })

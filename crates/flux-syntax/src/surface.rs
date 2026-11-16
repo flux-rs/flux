@@ -116,11 +116,14 @@ pub struct SpecFunc {
     pub hide: bool,
 }
 
-/// A (currently global) *primop property*; see tests/tests/pos/surface/
+/// A *primop property*; see tests/tests/pos/surface/
 #[derive(Debug)]
 pub struct PrimOpProp {
     /// The name of the property
     pub name: Ident,
+    /// Whether the property is global or `local`, i.e., only used by the functions that
+    /// request it with `#[properties(...)]`
+    pub kind: HintKind,
     /// The binop it is attached to
     pub op: BinOp,
     /// The sort _at_ which the primop is defined,
@@ -724,6 +727,8 @@ pub enum Attr {
     Qualifiers(Vec<ExprPath>),
     /// A `#[axioms(...)]` attribute
     Axioms(Vec<ExprPath>),
+    /// A `#[properties(...)]` attribute
+    Properties(Vec<ExprPath>),
     /// A `#[reveal(...)]` attribute
     Reveal(Vec<ExprPath>),
     /// A `#[hide(...)]` attribute

@@ -1152,6 +1152,22 @@ or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
 {{#include ../../../tests/tests/with_deps/pos/surface/primops00.rs}}
 ```
 
+### Local Properties
+
+Like [axioms](#local-axioms) and [qualifiers](#local-qualifiers), a property prefixed with `local`
+is _not_ used when checking every function. Instead, it is only used when checking the functions
+that request it by naming it in a `#[flux_rs::properties(...)]` attribute. Properties are resolved
+like axioms and qualifiers, so a property declared in another module is named with a path (e.g.,
+`#[properties(props::OrBy)]`) or imported with a `use` inside `defs!`.
+
+```text
+local property <name>[<op>](x, y) { <expr> }
+```
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/local_property00.rs}}
+```
+
 ## Casting Sorts
 
 You can convert refinements of different sorts -- e.g. `int` to `char` or `int` to `bool` --

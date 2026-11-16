@@ -1623,8 +1623,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Expr> {
         match internal_func {
             InternalFuncKind::Rel(op) => {
-                let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
-                    prim_rel.body.replace_bound_refts(args)
+                let did = self.def_id.map(|def_id| def_id.local_id());
+                let expr = if let Some(body) = self.genv.prim_rel_for(op, did)? {
+                    body.replace_bound_refts(args)
                 } else {
                     rty::Expr::tt()
                 };

@@ -260,8 +260,36 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.spec_funcs(self, krate)
     }
 
-    pub fn prim_rel_for(self, op: &rty::BinOp) -> QueryResult<Option<&'genv rty::PrimRel>> {
-        Ok(self.inner.queries.prim_rel(self)?.get(op))
+    /// The definition of the primitive relation for `op` when checking `did`: the conjunction of
+    /// the global properties of `op` together with the local ones named in the item's
+    /// `#[properties(...)]` attribute. If `did` is `None`, only the global properties are used.
+    /// Returns `None` if no property applies.
+    pub fn prim_rel_for(
+        self,
+        op: &rty::BinOp,
+        did: Option<LocalDefId>,
+    ) -> QueryResult<Option<rty::Binder<rty::Expr>>> {
+        let Some(prim_rel) = self.inner.queries.prim_rel(self)?.get(op) else {
+            return Ok(None);
+        };
+        let names: UnordSet<_> = did
+            .map(|did| self.fhir_attr_map(did).properties.iter().copied().collect())
+            .unwrap_or_default();
+        let mut bodies = prim_rel
+            .props
+            .iter()
+            .filter(|prop| {
+                match did {
+                    Some(did) => self.hint_applies(prop.kind, prop.def_id, &names, did),
+                    None => matches!(prop.kind, HintKind::Global),
+                }
+            })
+            .map(|prop| &prop.body)
+            .peekable();
+        let Some(first) = bodies.peek() else { return Ok(None) };
+        let vars = first.vars().clone();
+        let body = rty::Expr::and_from_iter(bodies.map(|body| body.skip_binder_ref().clone()));
+        Ok(Some(rty::Binder::bind_with_vars(body, vars)))
     }
 
     pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {
@@ -298,7 +326,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .filter(move |qual| self.hint_applies(qual.kind, qual.def_id, &names, did)))
     }
 
-    /// Whether the hint (qualifier or axiom) `hint_id` of kind `kind` should be used when checking
+    /// Whether the hint (qualifier, axiom or property) `hint_id` of kind `kind` should be used when checking
     /// `did`, where `names` are the local hints requested by `did`.
     fn hint_applies(
         self,

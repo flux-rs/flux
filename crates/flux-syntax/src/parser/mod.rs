@@ -187,9 +187,12 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<FluxItem>>
 ///              | ⟨use_item⟩
 /// ```
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
-    // `local` can start both a qualifier and an axiom, so we need to look at the next token
+    // `local` can start a qualifier, an axiom or a property, so we need to look at the next token
     if cx.peek2(kw::Local, kw::Axiom) {
         return parse_axiom(cx).map(FluxItem::Axiom);
+    }
+    if cx.peek2(kw::Local, kw::Property) {
+        return parse_primop_property(cx).map(FluxItem::PrimOpProp);
     }
     let mut lookahead = cx.lookahead1();
     if lookahead.peek(token::Pound) || lookahead.peek(kw::Fn) {
@@ -606,10 +609,11 @@ fn parse_binop(cx: &mut ParseCtxt) -> ParseResult<BinOp> {
 }
 
 /// ```text
-/// ⟨primop_prop⟩ := property ⟨ident⟩ [ ⟨bin_op⟩ ] ( ⟨refine_param⟩,* ) ⟨block⟩
+/// ⟨primop_prop⟩ := local? property ⟨ident⟩ [ ⟨bin_op⟩ ] ( ⟨refine_param⟩,* ) ⟨block⟩
 /// ```
 fn parse_primop_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
     let lo = cx.lo();
+    let kind = if cx.advance_if(kw::Local) { HintKind::Local } else { HintKind::Global };
     cx.expect(kw::Property)?;
 
     // Parse the name
@@ -626,7 +630,7 @@ fn parse_primop_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
     let body = parse_block(cx)?;
     let hi = cx.hi();
 
-    Ok(PrimOpProp { name, op, params, body, span: cx.mk_span(lo, hi) })
+    Ok(PrimOpProp { name, kind, op, params, body, span: cx.mk_span(lo, hi) })
 }
 
 /// ```text

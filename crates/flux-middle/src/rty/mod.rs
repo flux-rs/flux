@@ -1442,7 +1442,8 @@ pub struct Qualifier {
     pub kind: HintKind,
 }
 
-/// Determines which functions a hint to the solver (a qualifier or an axiom) is used for
+/// Determines which functions a hint to the solver (a qualifier, an axiom or a primop property) is
+/// used for
 #[derive(Debug, TypeFoldable, TypeVisitable, Copy, Clone)]
 pub enum HintKind {
     /// Used when checking every function in the crate
@@ -1460,6 +1461,7 @@ pub enum HintKind {
 #[derive(Debug, TypeVisitable, TypeFoldable)]
 pub struct PrimOpProp {
     pub def_id: FluxLocalDefId,
+    pub kind: HintKind,
     pub op: BinOp,
     pub body: Binder<Expr>,
 }
@@ -1602,9 +1604,12 @@ impl Axiom {
     }
 }
 
-#[derive(Debug, TypeVisitable, TypeFoldable)]
+/// All the properties of a primitive operation. The properties that apply to a function are
+/// conjoined to get the definition of the primitive relation for that operation; see
+/// [`crate::global_env::GlobalEnv::prim_rel_for`].
+#[derive(Debug)]
 pub struct PrimRel {
-    pub body: Binder<Expr>,
+    pub props: Vec<PrimOpProp>,
 }
 
 pub type TyCtor = Binder<Ty>;

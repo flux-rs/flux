@@ -116,7 +116,6 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     /// Names available everywhere: Rust builtin types plus flux's global funcs (theory funcs, `cast`)
     /// and primitive sorts.
     prelude: PerNS<Rib>,
-    primop_props: UnordMap<Symbol, FluxDefId>,
     err: Option<ErrorGuaranteed>,
     /// The most recent module we have visited. Used to check for visibility of other items from
     /// this module.
@@ -169,42 +168,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 hint_ns: Rib::new(RibKind::Misc),
             },
             err: None,
-            primop_props: Default::default(),
             current_module: CRATE_OWNER_ID,
-        }
-    }
-
-    /// Primop-props are global, so their names are checked for duplicates across the whole crate
-    /// (unlike other flux items, which are scoped to the module or block declaring them via
-    /// [`Self::define_res_in`]).
-    #[allow(
-        clippy::disallowed_methods,
-        reason = "`flux_items_by_scope` is the source of truth for `FluxDefId`"
-    )]
-    fn define_flux_global_items(&mut self) {
-        let mut definitions = DefinitionMap::default();
-        for decls in self.specs.flux_items_by_scope.values() {
-            for FluxItemDecl { declarer, item } in decls {
-                match item {
-                    surface::FluxItem::PrimOpProp(primop) => {
-                        let ident = primop.name;
-                        if definitions
-                            .define(ident)
-                            .emit(&self.genv)
-                            .collect_err(&mut self.err)
-                            .is_some()
-                        {
-                            let def_id = FluxDefId::new(declarer.to_def_id(), ident.name);
-                            self.primop_props.insert(ident.name, def_id);
-                        }
-                    }
-                    surface::FluxItem::Qualifier(_)
-                    | surface::FluxItem::Axiom(_)
-                    | surface::FluxItem::Use(_)
-                    | surface::FluxItem::FuncDef(_)
-                    | surface::FluxItem::SortDecl(_) => {}
-                };
-            }
         }
     }
 
@@ -217,8 +181,13 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let Some(decls) = self.specs.flux_items_by_scope.get(&scope) else { return };
         for FluxItemDecl { declarer, item } in decls {
             match item {
-                surface::FluxItem::PrimOpProp(_) => {
-                    // Already registered in `define_flux_global_items`.
+                surface::FluxItem::PrimOpProp(prop) => {
+                    let def_id = FluxDefId::new(declarer.to_def_id(), prop.name.name);
+                    self.define_res_in(
+                        fhir::Res::Property(def_id),
+                        HintNS,
+                        BindingSource::Explicit(prop.name),
+                    );
                 }
                 surface::FluxItem::Qualifier(qual) => {
                     let def_id = FluxDefId::new(declarer.to_def_id(), qual.name.name);
@@ -966,11 +935,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 
         self.define_items(module.item_ids);
 
-        // Flux primops are made globally available as if they were defined at the top of the crate
-        if mod_id.is_top_level_module() {
-            self.define_flux_global_items();
-        }
-        // Other items are defined in the module they are declared in.
+        // Flux items are defined in the module they are declared in.
         let scope = hir::HirId::make_owner(owner_id.def_id);
         self.define_flux_items(scope);
 
@@ -1447,6 +1412,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
             match attr {
                 surface::Attr::Qualifiers(names) => self.resolve_qualifiers(node_id, names),
                 surface::Attr::Axioms(names) => self.resolve_axioms(node_id, names),
+                surface::Attr::Properties(names) => self.resolve_properties(node_id, names),
                 surface::Attr::Reveal(names) => {
                     let reveals = self.resolve_func_defs(names);
                     self.resolver.output.reveal_res_map.insert(node_id, reveals);
@@ -1512,7 +1478,22 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         self.resolver.output.axiom_res_map.insert(node_id, axioms);
     }
 
-    /// Resolves paths to hints (qualifiers or axioms) using the same scoping rules as other flux
+    /// Resolves the paths in a `#[properties(...)]` attribute
+    fn resolve_properties(&mut self, node_id: surface::NodeId, paths: &[surface::ExprPath]) {
+        let properties = self.resolve_hints(
+            paths,
+            |res| {
+                if let fhir::Res::Property(def_id) = res { Some(def_id) } else { None }
+            },
+            errors::UnknownProperty::new,
+        );
+        self.resolver
+            .output
+            .property_res_map
+            .insert(node_id, properties);
+    }
+
+    /// Resolves paths to hints (qualifiers, axioms or properties) using the same scoping rules as other flux
     /// items, keeping those for which `select` returns a definition and reporting `mk_err` for the
     /// rest.
     fn resolve_hints<E: for<'b> rustc_errors::Diagnostic<'b>>(
@@ -1792,6 +1773,19 @@ mod errors {
     }
 
     impl UnknownAxiom {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag("unknown property", code = E0999)]
+    pub(super) struct UnknownProperty {
+        #[primary_span]
+        span: Span,
+    }
+
+    impl UnknownProperty {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
         }
