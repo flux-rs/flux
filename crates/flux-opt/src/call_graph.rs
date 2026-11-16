@@ -158,7 +158,10 @@ fn callees_in_body<'tcx>(
                         let callee_args = callee_args.no_bound_vars().unwrap();
                         match Instance::try_resolve(tcx, typing_env, *callee_def_id, callee_args) {
                             Ok(Some(instance)) => {
-                                CallSiteKind::Resolved { callee: NodeKey::from_instance(instance) }
+                                CallSiteKind::Resolved {
+                                    callee: NodeKey::from_instance(instance),
+                                    args: callee_args,
+                                }
                             }
                             _ => CallSiteKind::Unresolved { def_id: *callee_def_id },
                         }

@@ -268,6 +268,17 @@ dependents (leaves first). Each node has the following fields:
 | `span` | `object`   | Source location (`file`, `start_line`, `start_col`, `end_line`, `end_col`) |
 | `deps` | `number[]` | UIDs of the nodes this node depends on            |
 
+Nodes in `call_graph.json` also have a `calls` field, an array with one entry per distinct call
+(callee and generic args) the function makes to another local function:
+
+| Field    | Type       | Description                                                  |
+|----------|------------|--------------------------------------------------------------|
+| `callee` | `number`   | UID of the called node                                       |
+| `args`   | `string[]` | The type and const args passed at the call site (e.g. `["u8", "3"]`); lifetimes are omitted |
+
+For a call to a trait method, `args` are the args of the trait method (e.g. `Self`), and `callee`
+is the impl method the call resolved to.
+
 Usage:
 
 ```
