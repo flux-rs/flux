@@ -275,12 +275,18 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
 
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, D::Error> {
         match ty.kind() {
-            TyKind::Param(param_ty) => self.delegate.ty_for_param(*param_ty),
+            TyKind::Param(param_ty) => {
+                Ok(self
+                    .delegate
+                    .ty_for_param(*param_ty)?
+                    .shift_in_escaping(self.current_index.as_u32()))
+            }
             TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
                 let idx = idx.try_fold_with(self)?;
                 Ok(self
                     .delegate
                     .ctor_for_param(*param_ty)?
+                    .shift_in_escaping(self.current_index.as_u32())
                     .replace_bound_reft(&idx)
                     .to_ty())
             }
@@ -295,6 +301,7 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
             Ok(self
                 .delegate
                 .ctor_for_param(*param_ty)?
+                .shift_in_escaping(self.current_index.as_u32())
                 .replace_bound_reft(&idx)
                 .strengthen(pred))
         } else {

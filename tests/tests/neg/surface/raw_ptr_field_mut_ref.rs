@@ -1,0 +1,14 @@
+struct Mickey {
+    vec: Vec<i32>,
+}
+
+pub struct BytesMut {
+    data: *mut Mickey,
+}
+
+pub fn test(bytes: BytesMut) {
+    let foo = bytes.data as *mut Mickey;
+    unsafe {
+        let _ = &mut (*foo).vec; //~ ERROR unsupported
+    }
+}
