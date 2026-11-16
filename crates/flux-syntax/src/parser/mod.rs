@@ -154,6 +154,24 @@ pub(crate) fn parse_ident_list(cx: &mut ParseCtxt) -> ParseResult<Vec<Ident>> {
 }
 
 /// ```text
+/// ⟨path_list⟩ := ⟨path⟩,*
+/// ⟨path⟩      := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩*
+/// ```
+pub(crate) fn parse_path_list(cx: &mut ParseCtxt) -> ParseResult<Vec<ExprPath>> {
+    punctuated_until(cx, Comma, token::Eof, parse_simple_path)
+}
+
+fn parse_simple_path(cx: &mut ParseCtxt) -> ParseResult<ExprPath> {
+    let lo = cx.lo();
+    let mut segments = vec![parse_expr_path_segment(cx)?];
+    while cx.advance_if(token::PathSep) {
+        segments.push(parse_expr_path_segment(cx)?);
+    }
+    let hi = cx.hi();
+    Ok(ExprPath { segments, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
+}
+
+/// ```text
 /// ⟨flux_items⟩ := ⟨flux_item⟩*
 /// ```
 pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<FluxItem>> {

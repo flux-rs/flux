@@ -763,6 +763,10 @@ pub enum Namespace {
     /// The refinement namespace includes refinement functions, theory function,
     /// refinement parameters, ...
     ReftNS,
+    /// The namespace of solver hints, i.e., qualifiers and axioms. These are only ever named in
+    /// attributes like `#[qualifiers(...)]` or `#[axioms(...)]`, so they get their own namespace
+    /// to avoid clashing with refinement functions and parameters.
+    HintNS,
 }
 
 impl Namespace {
@@ -773,6 +777,7 @@ impl Namespace {
             Namespace::ValueNS => "value",
             Namespace::MacroNS => "macro",
             Namespace::ReftNS => "value",
+            Namespace::HintNS => "qualifier or axiom",
         }
     }
 
@@ -782,7 +787,7 @@ impl Namespace {
             Namespace::TypeNS => Some(rustc_hir::def::Namespace::TypeNS),
             Namespace::ValueNS => Some(rustc_hir::def::Namespace::ValueNS),
             Namespace::MacroNS => Some(rustc_hir::def::Namespace::MacroNS),
-            Namespace::ReftNS => None,
+            Namespace::ReftNS | Namespace::HintNS => None,
         }
     }
 }
@@ -805,6 +810,7 @@ pub struct PerNS<T> {
     pub value_ns: T,
     pub macro_ns: T,
     pub flux_fn_ns: T,
+    pub hint_ns: T,
 }
 
 impl<T> std::ops::Index<Namespace> for PerNS<T> {
@@ -816,6 +822,7 @@ impl<T> std::ops::Index<Namespace> for PerNS<T> {
             Namespace::ValueNS => &self.value_ns,
             Namespace::MacroNS => &self.macro_ns,
             Namespace::ReftNS => &self.flux_fn_ns,
+            Namespace::HintNS => &self.hint_ns,
         }
     }
 }
@@ -827,6 +834,7 @@ impl<T> std::ops::IndexMut<Namespace> for PerNS<T> {
             Namespace::ValueNS => &mut self.value_ns,
             Namespace::MacroNS => &mut self.macro_ns,
             Namespace::ReftNS => &mut self.flux_fn_ns,
+            Namespace::HintNS => &mut self.hint_ns,
         }
     }
 }
@@ -860,6 +868,10 @@ pub enum Res<Id = ParamId> {
     SortParam(usize),
     /// A user declared sort.
     UserSort(FluxDefId),
+    /// A qualifier declared with `flux::defs! { ... }`
+    Qualifier(FluxDefId),
+    /// An axiom declared with `flux::defs! { ... }`
+    Axiom(FluxDefId),
     Err,
 }
 
@@ -1262,6 +1274,8 @@ impl<Id> Res<Id> {
             Res::PrimSort(..) => "primitive sort",
             Res::SortParam(..) => "sort parameter",
             Res::UserSort(..) => "user-defined sort",
+            Res::Qualifier(..) => "qualifier",
+            Res::Axiom(..) => "axiom",
             Res::Err => "unresolved item",
         }
     }
@@ -1285,6 +1299,7 @@ impl<Id> Res<Id> {
             // Sorts share the type namespace: primitive sorts live in the type prelude and
             // sort parameters in the type ribs, so they resolve through `TypeNS` alongside types.
             Res::PrimSort(..) | Res::SortParam(..) | Res::UserSort(..) => Some(Namespace::TypeNS),
+            Res::Qualifier(..) | Res::Axiom(..) => Some(Namespace::HintNS),
             Res::Err => None,
         }
     }
@@ -1307,6 +1322,8 @@ impl<Id> Res<Id> {
             Res::PrimSort(prim_sort) => Res::PrimSort(prim_sort),
             Res::SortParam(n) => Res::SortParam(n),
             Res::UserSort(def_id) => Res::UserSort(def_id),
+            Res::Qualifier(def_id) => Res::Qualifier(def_id),
+            Res::Axiom(def_id) => Res::Axiom(def_id),
             Res::Err => Res::Err,
         }
     }

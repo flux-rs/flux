@@ -663,6 +663,17 @@ local axiom <name>(x1: s1, ..., xn: sn) { <expr> }
 Naming a global axiom in `#[axioms(...)]` is allowed and has no effect, and naming
 something that is not an axiom (e.g., a qualifier) is an error.
 
+Axioms and qualifiers are scoped like other flux definitions: a name in `#[axioms(...)]` or
+`#[qualifiers(...)]` is resolved from the module of the annotated function, so an axiom declared
+in another module must be named with a path (e.g., `#[axioms(hints::FPos)]` or
+`#[axioms(super::FPos)]`) or imported with a `use` inside `defs!`. Two modules can declare axioms
+or qualifiers with the same name. (Global axioms and qualifiers still apply to every function in
+the crate, wherever they are declared.)
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/local_hint_paths00.rs}}
+```
+
 ### Axioms about Primitive Operations
 
 Axioms can also talk about the uninterpreted functions that `flux` uses for bit-level
@@ -703,6 +714,14 @@ Inlined definitions (i.e., polymorphic ones) cannot be hidden.
 
 ```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/hide00.rs}}
+```
+
+The names in `#[reveal(...)]` and `#[hide(...)]` are resolved like any other use of a function
+definition, so a definition from another module can be named with a path, e.g.,
+`#[reveal(defs::foo)]`, `#[reveal(super::foo)]` or `#[reveal(crate::defs::foo)]`.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/reveal_paths00.rs}}
 ```
 
 ## Type Holes

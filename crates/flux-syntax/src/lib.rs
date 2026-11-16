@@ -77,6 +77,14 @@ impl ParseSess {
         parser::parse_ident_list(&mut self.cx(tokens, span))
     }
 
+    pub fn parse_path_list(
+        &mut self,
+        tokens: &TokenStream,
+        span: Span,
+    ) -> ParseResult<Vec<surface::ExprPath>> {
+        parser::parse_path_list(&mut self.cx(tokens, span))
+    }
+
     pub fn parse_flux_item(
         &mut self,
         tokens: &TokenStream,

@@ -430,9 +430,15 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                                         ident = sort.name;
                                         fhir::Res::UserSort(FluxDefId::new(declarer, ident.name))
                                     }
-                                    surface::FluxItem::Qualifier(_)
-                                    | surface::FluxItem::PrimOpProp(_)
-                                    | surface::FluxItem::Axiom(_)
+                                    surface::FluxItem::Qualifier(qual) => {
+                                        ident = qual.name;
+                                        fhir::Res::Qualifier(FluxDefId::new(declarer, ident.name))
+                                    }
+                                    surface::FluxItem::Axiom(axiom) => {
+                                        ident = axiom.name;
+                                        fhir::Res::Axiom(FluxDefId::new(declarer, ident.name))
+                                    }
+                                    surface::FluxItem::PrimOpProp(_)
                                     | surface::FluxItem::Use(_) => return None,
                                 };
                                 Some(fhir::FluxModChild { ident, res })

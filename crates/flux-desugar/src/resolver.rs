@@ -116,8 +116,6 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     /// Names available everywhere: Rust builtin types plus flux's global funcs (theory funcs, `cast`)
     /// and primitive sorts.
     prelude: PerNS<Rib>,
-    qualifiers: UnordMap<Symbol, FluxLocalDefId>,
-    axioms: UnordMap<Symbol, FluxLocalDefId>,
     primop_props: UnordMap<Symbol, FluxDefId>,
     err: Option<ErrorGuaranteed>,
     /// The most recent module we have visited. Used to check for visibility of other items from
@@ -155,25 +153,30 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             genv,
             output: ResolverOutput::default(),
             specs,
-            ribs: PerNS { type_ns: vec![], value_ns: vec![], macro_ns: vec![], flux_fn_ns: vec![] },
+            ribs: PerNS {
+                type_ns: vec![],
+                value_ns: vec![],
+                macro_ns: vec![],
+                flux_fn_ns: vec![],
+                hint_ns: vec![],
+            },
             crates: mk_crate_mapping(genv.tcx()),
             prelude: PerNS {
                 type_ns: builtin_types_rib(),
                 value_ns: Rib::new(RibKind::Misc),
                 macro_ns: Rib::new(RibKind::Misc),
                 flux_fn_ns: theory_funcs_rib(),
+                hint_ns: Rib::new(RibKind::Misc),
             },
             err: None,
-            qualifiers: Default::default(),
-            axioms: Default::default(),
             primop_props: Default::default(),
             current_module: CRATE_OWNER_ID,
         }
     }
 
-    /// Qualifiers and primop-props are global, so their names are checked for duplicates across
-    /// the whole crate (unlike other flux items, which are scoped to the module or block declaring
-    /// them via [`Self::define_res_in`]).
+    /// Primop-props are global, so their names are checked for duplicates across the whole crate
+    /// (unlike other flux items, which are scoped to the module or block declaring them via
+    /// [`Self::define_res_in`]).
     #[allow(
         clippy::disallowed_methods,
         reason = "`flux_items_by_scope` is the source of truth for `FluxDefId`"
@@ -182,20 +185,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let mut definitions = DefinitionMap::default();
         for decls in self.specs.flux_items_by_scope.values() {
             for FluxItemDecl { declarer, item } in decls {
-                // We are putting qualifiers, primops and axioms in the same namespace.
                 match item {
-                    surface::FluxItem::Qualifier(qual) => {
-                        let ident = qual.name;
-                        if definitions
-                            .define(ident)
-                            .emit(&self.genv)
-                            .collect_err(&mut self.err)
-                            .is_some()
-                        {
-                            let def_id = FluxLocalDefId::new(declarer.def_id, ident.name);
-                            self.qualifiers.insert(ident.name, def_id);
-                        }
-                    }
                     surface::FluxItem::PrimOpProp(primop) => {
                         let ident = primop.name;
                         if definitions
@@ -208,19 +198,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                             self.primop_props.insert(ident.name, def_id);
                         }
                     }
-                    surface::FluxItem::Axiom(axiom) => {
-                        let ident = axiom.name;
-                        if definitions
-                            .define(ident)
-                            .emit(&self.genv)
-                            .collect_err(&mut self.err)
-                            .is_some()
-                        {
-                            let def_id = FluxLocalDefId::new(declarer.def_id, ident.name);
-                            self.axioms.insert(ident.name, def_id);
-                        }
-                    }
-                    surface::FluxItem::Use(_)
+                    surface::FluxItem::Qualifier(_)
+                    | surface::FluxItem::Axiom(_)
+                    | surface::FluxItem::Use(_)
                     | surface::FluxItem::FuncDef(_)
                     | surface::FluxItem::SortDecl(_) => {}
                 };
@@ -237,10 +217,24 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let Some(decls) = self.specs.flux_items_by_scope.get(&scope) else { return };
         for FluxItemDecl { declarer, item } in decls {
             match item {
-                surface::FluxItem::Qualifier(_)
-                | surface::FluxItem::PrimOpProp(_)
-                | surface::FluxItem::Axiom(_) => {
-                    // Already registered in `define_global_qualifiers_and_primop_props`.
+                surface::FluxItem::PrimOpProp(_) => {
+                    // Already registered in `define_flux_global_items`.
+                }
+                surface::FluxItem::Qualifier(qual) => {
+                    let def_id = FluxDefId::new(declarer.to_def_id(), qual.name.name);
+                    self.define_res_in(
+                        fhir::Res::Qualifier(def_id),
+                        HintNS,
+                        BindingSource::Explicit(qual.name),
+                    );
+                }
+                surface::FluxItem::Axiom(axiom) => {
+                    let def_id = FluxDefId::new(declarer.to_def_id(), axiom.name.name);
+                    self.define_res_in(
+                        fhir::Res::Axiom(def_id),
+                        HintNS,
+                        BindingSource::Explicit(axiom.name),
+                    );
                 }
                 surface::FluxItem::FuncDef(defn) => {
                     let def_id = FluxDefId::new(declarer.to_def_id(), defn.name.name);
@@ -395,14 +389,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_flux_items(&mut self, scope: hir::HirId) {
         let Some(decls) = self.specs.flux_items_by_scope.get(&scope) else { return };
-        for ns in [TypeNS, ValueNS, ReftNS] {
+        for ns in [TypeNS, ValueNS, ReftNS, HintNS] {
             self.push_rib(ns, RibKind::Item);
         }
         for FluxItemDecl { item, .. } in decls {
             self.resolve_flux_item(item, MaybeExternId::Local(scope.owner))
                 .collect_err(&mut self.err);
         }
-        for ns in [TypeNS, ValueNS, ReftNS] {
+        for ns in [TypeNS, ValueNS, ReftNS, HintNS] {
             self.pop_rib(ns);
         }
     }
@@ -584,7 +578,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 // of them is an error even if the others resolve. Keeping only the first means one
                 // import is one error.
                 let mut error = None;
-                for ns in [TypeNS, ValueNS, ReftNS] {
+                for ns in [TypeNS, ValueNS, ReftNS, HintNS] {
                     let res = if let Some(module_id) = resolved_module_id {
                         let module = Module::new(ModuleKind::Mod, module_id);
                         self.resolve_ident_in_module(module, last.ident(), ns)
@@ -968,10 +962,11 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Module);
         self.push_rib(ValueNS, RibKind::Module);
         self.push_rib(ReftNS, RibKind::Module);
+        self.push_rib(HintNS, RibKind::Module);
 
         self.define_items(module.item_ids);
 
-        // Flux primops and wualifiers are made globally available as if they were defined at the top of the crate
+        // Flux primops are made globally available as if they were defined at the top of the crate
         if mod_id.is_top_level_module() {
             self.define_flux_global_items();
         }
@@ -982,6 +977,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.resolve_flux_items(scope);
         hir::intravisit::walk_mod(self, module);
 
+        self.pop_rib(HintNS);
         self.pop_rib(ReftNS);
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
@@ -992,6 +988,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Misc);
         self.push_rib(ValueNS, RibKind::Misc);
         self.push_rib(ReftNS, RibKind::Misc);
+        self.push_rib(HintNS, RibKind::Misc);
 
         let item_ids = block.stmts.iter().filter_map(|stmt| {
             if let hir::StmtKind::Item(item_id) = &stmt.kind { Some(item_id) } else { None }
@@ -1002,6 +999,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.resolve_flux_items(block.hir_id);
         hir::intravisit::walk_block(self, block);
 
+        self.pop_rib(HintNS);
         self.pop_rib(ReftNS);
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
@@ -1487,52 +1485,87 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
             .insert(node_id, params);
     }
 
-    fn resolve_qualifiers(&mut self, node_id: surface::NodeId, qual_names: &[Ident]) {
-        let mut qualifiers = Vec::with_capacity(qual_names.len());
-        for qual in qual_names {
-            if let Some(def_id) = self.resolver.qualifiers.get(&qual.name) {
-                qualifiers.push(*def_id);
-            } else {
-                self.errors.emit(errors::UnknownQualifier::new(qual.span));
-            }
-        }
+    /// Resolves the paths in a `#[qualifiers(...)]` attribute
+    fn resolve_qualifiers(&mut self, node_id: surface::NodeId, paths: &[surface::ExprPath]) {
+        let qualifiers = self.resolve_hints(
+            paths,
+            |res| {
+                if let fhir::Res::Qualifier(def_id) = res { Some(def_id) } else { None }
+            },
+            errors::UnknownQualifier::new,
+        );
         self.resolver
             .output
             .qualifier_res_map
             .insert(node_id, qualifiers);
     }
 
-    fn resolve_axioms(&mut self, node_id: surface::NodeId, axiom_names: &[Ident]) {
-        let mut axioms = Vec::with_capacity(axiom_names.len());
-        for axiom in axiom_names {
-            if let Some(def_id) = self.resolver.axioms.get(&axiom.name) {
-                axioms.push(*def_id);
-            } else {
-                self.errors.emit(errors::UnknownAxiom::new(axiom.span));
-            }
-        }
+    /// Resolves the paths in a `#[axioms(...)]` attribute
+    fn resolve_axioms(&mut self, node_id: surface::NodeId, paths: &[surface::ExprPath]) {
+        let axioms = self.resolve_hints(
+            paths,
+            |res| {
+                if let fhir::Res::Axiom(def_id) = res { Some(def_id) } else { None }
+            },
+            errors::UnknownAxiom::new,
+        );
         self.resolver.output.axiom_res_map.insert(node_id, axioms);
     }
 
-    /// Resolves the names of function definitions in a `#[reveal(...)]` or `#[hide(...)]` attribute
-    fn resolve_func_defs(&mut self, names: &[Ident]) -> Vec<(FluxDefId, Span)> {
-        let mut def_ids = Vec::with_capacity(names.len());
-        for name in names {
-            match self.resolver.resolve_ident_with_ribs(*name, ReftNS) {
-                Ok(fhir::Res::GlobalFunc(kind)) => {
-                    if let Some(def_id) = kind.def_id() {
-                        def_ids.push((def_id, name.span));
-                    } else {
-                        self.errors
-                            .emit(errors::UnknownFuncDefinition::new(name.span));
+    /// Resolves paths to hints (qualifiers or axioms) using the same scoping rules as other flux
+    /// items, keeping those for which `select` returns a definition and reporting `mk_err` for the
+    /// rest. Qualifiers and axioms are not exported, so the definition must be in the local crate.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the parent of a qualifier or axiom is the module or `const _` declaring it, never an extern spec"
+    )]
+    fn resolve_hints<E: for<'b> rustc_errors::Diagnostic<'b>>(
+        &mut self,
+        paths: &[surface::ExprPath],
+        select: impl Fn(fhir::Res<surface::NodeId>) -> Option<FluxDefId>,
+        mk_err: impl Fn(Span) -> E,
+    ) -> Vec<FluxLocalDefId> {
+        let mut def_ids = Vec::with_capacity(paths.len());
+        for path in paths {
+            match self.resolver.resolve_path_with_ribs(&path.segments, HintNS) {
+                Ok(partial_res) => {
+                    match partial_res
+                        .full_res()
+                        .and_then(&select)
+                        .and_then(FluxDefId::as_local)
+                    {
+                        Some(def_id) => def_ids.push(def_id),
+                        None => {
+                            self.errors.emit(mk_err(path.span));
+                        }
                     }
                 }
-                Ok(_) => {
-                    self.errors
-                        .emit(errors::UnknownFuncDefinition::new(name.span));
+                Err(err) => {
+                    err.emit(&self.errors, || mk_err(path.span));
+                }
+            }
+        }
+        def_ids
+    }
+
+    /// Resolves the paths to function definitions in a `#[reveal(...)]` or `#[hide(...)]` attribute
+    fn resolve_func_defs(&mut self, paths: &[surface::ExprPath]) -> Vec<(FluxDefId, Span)> {
+        let mut def_ids = Vec::with_capacity(paths.len());
+        for path in paths {
+            match self.resolver.resolve_path_with_ribs(&path.segments, ReftNS) {
+                Ok(partial_res) => {
+                    match partial_res.full_res() {
+                        Some(fhir::Res::GlobalFunc(kind)) if let Some(def_id) = kind.def_id() => {
+                            def_ids.push((def_id, path.span));
+                        }
+                        _ => {
+                            self.errors
+                                .emit(errors::UnknownFuncDefinition::new(path.span));
+                        }
+                    }
                 }
                 Err(err) => {
-                    err.emit(&self.errors, || errors::UnknownFuncDefinition::new(name.span));
+                    err.emit(&self.errors, || errors::UnknownFuncDefinition::new(path.span));
                 }
             }
         }

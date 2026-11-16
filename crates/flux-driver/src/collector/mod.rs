@@ -614,16 +614,16 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 }
             }
             ("qualifiers", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::QualNames)?
+                self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::QualNames)?
             }
             ("axioms", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::AxiomNames)?
+                self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::AxiomNames)?
             }
             ("reveal", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::RevealNames)?
+                self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::RevealNames)?
             }
             ("hide", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::HideNames)?
+                self.parse(dargs, ParseSess::parse_path_list, FluxAttrKind::HideNames)?
             }
             ("defs", rustc_attr_ir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_flux_item, FluxAttrKind::Items)?
@@ -805,10 +805,10 @@ enum FluxAttrKind {
     ImplAssocReft(Vec<surface::ImplAssocReft>),
     RefinedBy(surface::RefineParams),
     Generics(surface::Generics),
-    QualNames(Vec<Ident>),
-    AxiomNames(Vec<Ident>),
-    RevealNames(Vec<Ident>),
-    HideNames(Vec<Ident>),
+    QualNames(Vec<surface::ExprPath>),
+    AxiomNames(Vec<surface::ExprPath>),
+    RevealNames(Vec<surface::ExprPath>),
+    HideNames(Vec<surface::ExprPath>),
     Items(Vec<surface::FluxItem>),
     TypeAlias(Box<surface::TyAlias>),
     Field(surface::Ty),

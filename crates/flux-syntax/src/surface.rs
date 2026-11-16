@@ -721,13 +721,13 @@ pub enum Attr {
     /// A `#[should_fail]` attribute
     ShouldFail,
     /// A `#[qualifiers(...)]` attribute
-    Qualifiers(Vec<Ident>),
+    Qualifiers(Vec<ExprPath>),
     /// A `#[axioms(...)]` attribute
-    Axioms(Vec<Ident>),
+    Axioms(Vec<ExprPath>),
     /// A `#[reveal(...)]` attribute
-    Reveal(Vec<Ident>),
+    Reveal(Vec<ExprPath>),
     /// A `#[hide(...)]` attribute
-    Hide(Vec<Ident>),
+    Hide(Vec<ExprPath>),
     /// A `#[opts(...)]` attribute
     InferOpts(PartialInferOpts),
     /// A `#[no_panic]` attribute
