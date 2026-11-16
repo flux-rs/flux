@@ -275,7 +275,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let names: UnordSet<_> = did
             .map(|did| self.fhir_attr_map(did).properties.iter().copied().collect())
             .unwrap_or_default();
-        let mut bodies = prim_rel
+        let bodies = prim_rel
             .props
             .iter()
             .filter(|prop| {
@@ -284,12 +284,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                     None => matches!(prop.kind, HintKind::Global),
                 }
             })
-            .map(|prop| &prop.body)
-            .peekable();
-        let Some(first) = bodies.peek() else { return Ok(None) };
-        let sorts = first.sorts();
-        let body = rty::Expr::and_from_iter(bodies.map(|body| body.skip_binder_ref().clone()));
-        Ok(Some(rty::Binder::bind_with_sorts(body, &sorts)))
+            .map(|prop| &prop.body);
+        Ok(rty::Expr::conjoin_bodies(bodies))
     }
 
     pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {
