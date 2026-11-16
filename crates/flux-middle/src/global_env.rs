@@ -287,9 +287,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|prop| &prop.body)
             .peekable();
         let Some(first) = bodies.peek() else { return Ok(None) };
-        let vars = first.vars().clone();
+        let sorts = first.sorts();
         let body = rty::Expr::and_from_iter(bodies.map(|body| body.skip_binder_ref().clone()));
-        Ok(Some(rty::Binder::bind_with_vars(body, vars)))
+        Ok(Some(rty::Binder::bind_with_sorts(body, &sorts)))
     }
 
     pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {
