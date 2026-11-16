@@ -6245,12 +6245,165 @@ without a pattern.</p>
 </li>
 <li>
 <p><strong>Axioms are global to the crate.</strong> They are used when checking every function in the crate
-in which they are defined, but are not (yet) exported to other crates.</p>
+in which they are defined, but are not (yet) exported to other crates. Use a
+<a href="guide/specifications.html#local-axioms">local axiom</a> to restrict an axiom to some functions.</p>
 </li>
 <li>
 <p>Axioms require a version of <code>fixpoint</code> that supports the <code>axiom</code> declaration.</p>
 </li>
 </ul>
+<h3 id="local-axioms"><a class="header" href="#local-axioms">Local Axioms</a></h3>
+<p>An axiom prefixed with <code>local</code> is <em>not</em> used when checking every function. Instead, it is
+only used when checking the functions that explicitly request it by naming it in an
+<code>#[flux_rs::axioms(...)]</code> attribute. This is analogous to <a href="guide/specifications.html#local-qualifiers">local qualifiers</a>,
+and is useful to keep axioms (and the quantifier instantiations they trigger) out of
+the verification conditions of functions that don't need them.</p>
+<pre><code class="language-text">local axiom &lt;name&gt;(x1: s1, ..., xn: sn) { &lt;expr&gt; }
+</code></pre>
+<pre><code class="language-rust noplayground">// Test that a `local axiom` is used when checking a function that requests it with `#[axioms(...)]`
+
+use flux_attrs::*;
+
+defs! {
+    fn modc(x: int, c: int) -&gt; int;
+
+    local axiom ModPeriodic(x: int, y: int, c: int) {
+        (c &gt; 0 &amp;&amp; y == x - c) =&gt; modc(y, c) == modc(x, c)
+    }
+}
+
+#[spec(fn(bool[true]))]
+fn assert(_b: bool) {}
+
+#[trusted]
+#[spec(fn(x: i32, c: i32) -&gt; i32{v: v == modc(x, c)})]
+fn modc(x: i32, c: i32) -&gt; i32 {
+    x.rem_euclid(c)
+}
+
+#[axioms(ModPeriodic)]
+#[spec(fn(x: i32, c: i32{c &gt; 0}))]
+pub fn test(x: i32, c: i32) {
+    let y = x - c;
+    let z = y - c;
+    let a = modc(x, c);
+    let _b = modc(y, c);
+    let d = modc(z, c);
+    assert(a == d);
+}</code></pre>
+<p>Naming a global axiom in <code>#[axioms(...)]</code> is allowed and has no effect, and naming
+something that is not an axiom (e.g., a qualifier) is an error.</p>
+<p>Axioms and qualifiers are scoped like other flux definitions: a name in <code>#[axioms(...)]</code> or
+<code>#[qualifiers(...)]</code> is resolved from the module of the annotated function, so an axiom declared
+in another module must be named with a path (e.g., <code>#[axioms(hints::FPos)]</code> or
+<code>#[axioms(super::FPos)]</code>) or imported with a <code>use</code> inside <code>defs!</code>. Two modules can declare axioms
+or qualifiers with the same name. (Global axioms and qualifiers still apply to every function in
+the crate, wherever they are declared.)</p>
+<pre><code class="language-rust noplayground">// Test that local qualifiers and axioms are resolved like other flux definitions: they are scoped
+// to the module declaring them and can be named by a path or imported with `use`.
+
+use flux_attrs::*;
+
+#[spec(fn(bool[true]))]
+fn assert(_b: bool) {}
+
+pub mod hints {
+    use flux_attrs::*;
+
+    defs! {
+        fn f(x: int) -&gt; int;
+
+        local axiom FPos(x: int) { f(x) &gt; 0 }
+
+        local qualifier Bound(x: int, y: int, z: int) { x + y &lt;= z + 10 }
+    }
+
+    #[trusted]
+    #[spec(fn(x: i32) -&gt; i32[f(x)])]
+    pub fn f(x: i32) -&gt; i32 {
+        x
+    }
+
+    // In the declaring module the bare name resolves
+    #[axioms(FPos)]
+    pub fn test_bare(x: i32) {
+        super::assert(f(x) &gt; 0);
+    }
+
+    pub mod nested {
+        use flux_attrs::*;
+
+        // `super::` paths work too
+        #[axioms(super::FPos)]
+        pub fn test_super(x: i32) {
+            crate::assert(super::f(x) &gt; 0);
+        }
+    }
+}
+
+// A qualified path
+#[axioms(hints::FPos)]
+pub fn test_path(x: i32) {
+    assert(hints::f(x) &gt; 0);
+}
+
+// An absolute path
+#[axioms(crate::hints::FPos)]
+pub fn test_crate_path(x: i32) {
+    assert(hints::f(x) &gt; 0);
+}
+
+mod imported {
+    use flux_attrs::*;
+
+    defs! {
+        use crate::hints::FPos;
+    }
+
+    // An import with flux's `use`
+    #[axioms(FPos)]
+    pub fn test_use(x: i32) {
+        crate::assert(crate::hints::f(x) &gt; 0);
+    }
+}
+
+// Two modules can declare local axioms with the same name
+mod a {
+    use flux_attrs::*;
+
+    defs! {
+        fn g(x: int) -&gt; int;
+
+        local axiom GPos(x: int) { g(x) &gt; 0 }
+    }
+
+    #[trusted]
+    #[spec(fn(x: i32) -&gt; i32[g(x)])]
+    pub fn g(x: i32) -&gt; i32 {
+        x
+    }
+}
+
+mod b {
+    use flux_attrs::*;
+
+    defs! {
+        fn g(x: int) -&gt; int;
+
+        local axiom GPos(x: int) { g(x) &gt; 0 }
+    }
+
+    #[trusted]
+    #[spec(fn(x: i32) -&gt; i32[g(x)])]
+    pub fn g(x: i32) -&gt; i32 {
+        x
+    }
+}
+
+#[axioms(a::GPos, b::GPos)]
+pub fn test_same_name(x: i32) {
+    assert(a::g(x) &gt; 0 &amp;&amp; b::g(x) &gt; 0);
+}</code></pre>
 <h3 id="axioms-about-primitive-operations"><a class="header" href="#axioms-about-primitive-operations">Axioms about Primitive Operations</a></h3>
 <p>Axioms can also talk about the uninterpreted functions that <code>flux</code> uses for bit-level
 operations on integers, using the same <code>[op](x, y)</code> syntax as in
@@ -6349,6 +6502,65 @@ pub fn use_foo(n: i32) {
 #[flux::sig(fn (xs: &amp;[i32{v: foo(v, 7)}][100]) -&gt; i32{v : foo(v, 7)})]
 pub fn bar(xs: &amp;[i32]) -&gt; i32 {
     xs[0] // `foo` as uninterpreted works fine
+}</code></pre>
+<p>The names in <code>#[reveal(...)]</code> and <code>#[hide(...)]</code> are resolved like any other use of a function
+definition, so a definition from another module can be named with a path, e.g.,
+<code>#[reveal(defs::foo)]</code>, <code>#[reveal(super::foo)]</code> or <code>#[reveal(crate::defs::foo)]</code>.</p>
+<pre><code class="language-rust noplayground">// Test that `#[reveal(...)]` and `#[hide(...)]` accept paths to function definitions
+
+pub mod defs {
+    use flux_attrs::*;
+
+    defs! {
+        #[hide]
+        fn mod33(n: int) -&gt; int {
+            n % 33
+        }
+
+        #[hide]
+        fn foo(n: int, k: int) -&gt; bool {
+            mod33(n) == k
+        }
+
+        fn bar(n: int) -&gt; bool {
+            n &gt; 0
+        }
+    }
+
+    #[spec(fn(a: i32) requires foo(a, 7))]
+    pub fn assert_foo(_a: i32) {}
+
+    #[spec(fn(a: i32) requires bar(a))]
+    pub fn assert_bar(_a: i32) {}
+
+    pub mod nested {
+        #[flux_attrs::reveal(super::foo, super::mod33)]
+        pub fn use_foo_super(n: i32) {
+            if n == 40 {
+                super::assert_foo(n)
+            }
+        }
+    }
+}
+
+#[flux::reveal(defs::foo, defs::mod33)]
+pub fn use_foo(n: i32) {
+    if n == 40 {
+        defs::assert_foo(n)
+    }
+}
+
+#[flux::reveal(crate::defs::foo, crate::defs::mod33)]
+pub fn use_foo_crate(n: i32) {
+    if n == 40 {
+        defs::assert_foo(n)
+    }
+}
+
+#[flux::hide(defs::bar)]
+#[flux::sig(fn(xs: &amp;[i32{v: defs::bar(v)}][100]))]
+pub fn hide_bar(xs: &amp;[i32]) {
+    defs::assert_bar(xs[0]) // `bar` as uninterpreted works fine
 }</code></pre>
 <h2 id="type-holes"><a class="header" href="#type-holes">Type Holes</a></h2>
 <p>You can (sometimes!) use <code>_</code> in the <code>flux</code> signatures to omit the Rust components, e.g.</p>
@@ -8319,6 +8531,88 @@ pub fn test7(b: bool) -&gt; usize {
     let m = if b { n &amp; 7 } else { 6 };
     m
 }</code></pre>
+<h3 id="local-properties"><a class="header" href="#local-properties">Local Properties</a></h3>
+<p>Like <a href="guide/specifications.html#local-axioms">axioms</a> and <a href="guide/specifications.html#local-qualifiers">qualifiers</a>, a property prefixed with <code>local</code>
+is <em>not</em> used when checking every function. Instead, it is only used when checking the functions
+that request it by naming it in a <code>#[flux_rs::properties(...)]</code> attribute. Properties are resolved
+like axioms and qualifiers, so a property declared in another module is named with a path (e.g.,
+<code>#[properties(props::OrBy)]</code>) or imported with a <code>use</code> inside <code>defs!</code>.</p>
+<pre><code class="language-text">local property &lt;name&gt;[&lt;op&gt;](x, y) { &lt;expr&gt; }
+</code></pre>
+<pre><code class="language-rust noplayground">// Test that a `local property` is used when checking the functions that name it in
+// `#[properties(...)]`, and that properties are resolved like other flux definitions
+
+use flux_attrs::*;
+
+#[spec(fn(bool[true]))]
+fn assert(_b: bool) {}
+
+defs! {
+    // A global property is used everywhere
+    property ShiftRightByFour[&gt;&gt;](x, y) {
+        16 * [&gt;&gt;](x, 4) == x
+    }
+
+    local property ShiftByTwo[&lt;&lt;](x, y) {
+        [&lt;&lt;](x, 2) == 4*x
+    }
+
+    local property MaskBy[&amp;](x, y) {
+        [&amp;](x, y) &lt;= y
+    }
+}
+
+pub fn test_global(x: u32) {
+    let y = x &gt;&gt; 4;
+    assert(16 * y == x);
+}
+
+#[properties(ShiftByTwo)]
+#[spec(fn (x: u32) -&gt; u32[16*x])]
+pub fn test_local(x: u32) -&gt; u32 {
+    let x = x &lt;&lt; 2;
+    let x = x &lt;&lt; 2;
+    x
+}
+
+#[properties(ShiftByTwo, MaskBy)]
+#[spec(fn (x: u32, y: u32) -&gt; u32{v: v &lt;= y})]
+pub fn test_two(x: u32, y: u32) -&gt; u32 {
+    let _z = x &lt;&lt; 2;
+    x &amp; y
+}
+
+pub mod props {
+    use flux_attrs::*;
+
+    defs! {
+        local property OrBy[|](x, y) {
+            x &lt;= [|](x, y)
+        }
+    }
+}
+
+// A qualified path
+#[properties(props::OrBy)]
+#[spec(fn (x: u32, y: u32) -&gt; u32{v: x &lt;= v})]
+pub fn test_path(x: u32, y: u32) -&gt; u32 {
+    x | y
+}
+
+mod imported {
+    use flux_attrs::*;
+
+    defs! {
+        use crate::props::OrBy;
+    }
+
+    // An import with flux's `use`
+    #[properties(OrBy)]
+    #[spec(fn (x: u32, y: u32) -&gt; u32{v: x &lt;= v})]
+    pub fn test_use(x: u32, y: u32) -&gt; u32 {
+        x | y
+    }
+}</code></pre>
 <h2 id="casting-sorts"><a class="header" href="#casting-sorts">Casting Sorts</a></h2>
 <p>You can convert refinements of different sorts -- e.g. <code>int</code> to <code>char</code> or <code>int</code> to <code>bool</code> --
 using the <code>cast</code> internal function.</p>
@@ -8603,6 +8897,130 @@ const _: () = ();</code></pre>
 A <code>def_id</code> is checked if it matches any of the patterns.</p>
 <pre><code>cargo x run tests/tests/pos/detached/detach00.rs -- -Fdump-checker-trace -Fdump-constraint -Finclude=span:tests/tests/pos/detached/detach00.rs:13:1 -Finclude=def:id -Finclude=path/to/file.rs
 </code></pre>
+<h2 id="local-qualifiers"><a class="header" href="#local-qualifiers">Local Qualifiers</a></h2>
+<p>A <code>qualifier</code> declared in <code>defs!</code> is a hint that fixpoint uses to infer refinements (e.g., loop
+invariants), and by default it is used when checking <em>every</em> function in the crate:</p>
+<pre><code class="language-text">qualifier &lt;name&gt;(x1: s1, ..., xn: sn) { &lt;expr&gt; }
+</code></pre>
+<p>A qualifier prefixed with <code>local</code> is <em>not</em> used everywhere. Instead, it is only used when checking
+the functions that explicitly request it by naming it in a <code>#[flux_rs::qualifiers(...)]</code>
+attribute. This keeps the qualifier out of the search (and its cost) for functions that don't need
+it.</p>
+<pre><code class="language-text">local qualifier &lt;name&gt;(x1: s1, ..., xn: sn) { &lt;expr&gt; }
+</code></pre>
+<p>Below, <code>mk_pairs_with_bound</code> only verifies because it names <code>MyQ1</code>, which is needed to infer the
+loop invariant.</p>
+<pre><code class="language-rust noplayground">#![flux::defs {
+    local qualifier MyQ1(x: int, y: int, z: int) { x + y &lt;= z + 10 }
+}]
+
+#[path = "../../lib/rvec.rs"]
+pub mod rvec;
+
+use rvec::RVec;
+
+#[flux::refined_by(x: int, y:int)]
+pub struct Pair {
+    #[flux::field(i32[x])]
+    pub x: i32,
+    #[flux::field(i32[y])]
+    pub y: i32,
+}
+
+#[flux::qualifiers(MyQ1)]
+#[flux::sig(fn (a: i32) -&gt; RVec&lt;Pair{v : v.x + v.y &lt;= a + 10 }&gt;)]
+pub fn mk_pairs_with_bound(a: i32) -&gt; RVec&lt;Pair&gt; {
+    let mut i = 0;
+    let mut res = RVec::new();
+    while i &lt; a {
+        let p = Pair { x: i + 10, y: a - i };
+        res.push(p);
+        i += 1;
+    }
+    return res;
+}</code></pre>
+<p>Naming a global qualifier in <code>#[qualifiers(...)]</code> is allowed and has no effect, and naming
+something that is not a qualifier (e.g., an axiom) is an error.</p>
+<p>Like <a href="guide/specifications.html#local-axioms">local axioms</a>, qualifiers are scoped like other flux definitions: a name in
+<code>#[qualifiers(...)]</code> is resolved from the module of the annotated function, so a qualifier
+declared in another module must be named with a path (e.g., <code>#[qualifiers(hints::Bound)]</code>,
+<code>#[qualifiers(super::Bound)]</code> or <code>#[qualifiers(crate::hints::Bound)]</code>) or imported with a <code>use</code>
+inside <code>defs!</code>. Two modules can declare qualifiers with the same name, and a function can use both,
+as <code>test_qualifiers</code> does below. (Global qualifiers still apply to every function in the crate,
+wherever they are declared.)</p>
+<pre><code class="language-rust noplayground">// Test that qualifiers and axioms with the same name declared in different modules don't
+// interfere with each other when they are used in the same constraint
+
+#[path = "../../lib/rvec.rs"]
+pub mod rvec;
+
+use flux_attrs::*;
+use rvec::RVec;
+
+#[spec(fn(bool[true]))]
+fn assert(_b: bool) {}
+
+#[refined_by(x: int, y: int)]
+pub struct Pair {
+    #[field(i32[x])]
+    pub x: i32,
+    #[field(i32[y])]
+    pub y: i32,
+}
+
+mod a {
+    use flux_attrs::*;
+
+    defs! {
+        fn g(x: int) -&gt; int;
+
+        local qualifier Q(x: int, y: int, z: int) { x + y &lt;= z + 10 }
+
+        local axiom GPos(x: int) { g(x) &gt; 0 }
+    }
+
+    #[trusted]
+    #[spec(fn(x: i32) -&gt; i32[g(x)])]
+    pub fn g(x: i32) -&gt; i32 {
+        x
+    }
+}
+
+mod b {
+    use flux_attrs::*;
+
+    defs! {
+        fn g(x: int) -&gt; int;
+
+        local qualifier Q(x: int, y: int, z: int) { x + y &gt;= z - 10 }
+
+        local axiom GPos(x: int) { g(x) &gt; 0 }
+    }
+
+    #[trusted]
+    #[spec(fn(x: i32) -&gt; i32[g(x)])]
+    pub fn g(x: i32) -&gt; i32 {
+        x
+    }
+}
+
+#[axioms(a::GPos, b::GPos)]
+pub fn test_axioms(x: i32) {
+    assert(a::g(x) &gt; 0 &amp;&amp; b::g(x) &gt; 0);
+}
+
+#[qualifiers(a::Q, b::Q)]
+#[spec(fn (a: i32) -&gt; RVec&lt;Pair{v : v.x + v.y &lt;= a + 10 &amp;&amp; v.x + v.y &gt;= a - 10}&gt;)]
+pub fn test_qualifiers(a: i32) -&gt; RVec&lt;Pair&gt; {
+    let mut i = 0;
+    let mut res = RVec::new();
+    while i &lt; a {
+        let p = Pair { x: i + 10, y: a - i };
+        res.push(p);
+        i += 1;
+    }
+    return res;
+}</code></pre>
 <h2 id="scraping-qualifiers"><a class="header" href="#scraping-qualifiers">Scraping Qualifiers</a></h2>
 <p>Sometimes it is useful to tell fixpoint to automatically "scrape" qualifiers from constraints etc. to synthesize
 solutions for constraints.</p>
