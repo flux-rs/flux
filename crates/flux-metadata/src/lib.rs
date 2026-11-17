@@ -27,9 +27,9 @@ use derive_where::derive_where;
 use flux_errors::FluxSession;
 use flux_middle::{
     PanicSpec,
-    call_graph::NodeKey,
     cstore::{CrateStore, OptResult},
     def_id::{FluxDefId, FluxId},
+    dep_graph::NodeKey,
     fhir,
     global_env::GlobalEnv,
     queries::QueryResult,
