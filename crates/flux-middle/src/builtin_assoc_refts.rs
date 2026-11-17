@@ -141,7 +141,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
             let layout = tcx.layout_of(typing_env.as_query_input(self_ty)).ok()?;
             let body = match alias_reft.assoc_id.name() {
                 sym::size_of => rty::Expr::constant(rty::Constant::from(layout.size.bytes())),
-                sym::align_of => rty::Expr::constant(rty::Constant::from(layout.align.abi.bytes())),
+                sym::align_of => rty::Expr::constant(rty::Constant::from(layout.align.bytes())),
                 _ => bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id),
             };
             Some(rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int))
