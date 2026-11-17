@@ -7,7 +7,7 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
-    queries::QueryResult,
+    queries::{QueryErr, QueryResult},
     rty::{
         AdtDef, BaseTy, Binder, BoundReftKind, BoundVariableKinds, EarlyBinder, Expr, ExprKind,
         FIRST_VARIANT, GenericArg, GenericArgsExt, List, Loc, Mutability, Name, Path, PtrKind, Ref,
@@ -19,7 +19,10 @@ use flux_middle::{
         },
     },
 };
-use flux_rustc_bridge::mir::{FieldIdx, Place, PlaceElem};
+use flux_rustc_bridge::{
+    lowering::UnsupportedErr,
+    mir::{FieldIdx, Place, PlaceElem},
+};
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hir::def_id::DefId;
@@ -490,9 +493,15 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                     Ty::ptr(PtrKind::Box, path)
                 }
             }
-            TyKind::Indexed(BaseTy::RawPtr(deref_ty, mutbl), idx)
-                if self.infcx.allow_raw_deref() =>
-            {
+            TyKind::Indexed(BaseTy::RawPtr(deref_ty, mutbl), idx) => {
+                if !self.infcx.allow_raw_deref() {
+                    let err_txt =
+                        "raw pointer dereferences are not allowed without allow_raw_deref=ok";
+                    Err(QueryErr::unsupported(
+                        self.infcx.def_id,
+                        UnsupportedErr { descr: err_txt.to_string(), span: Some(self.span) },
+                    ))?;
+                }
                 let deref_ty = deref_ty.try_fold_with(self)?;
                 Ty::indexed(BaseTy::RawPtr(deref_ty, *mutbl), idx)
             }
