@@ -71,5 +71,5 @@ pub fn dump_type_graph(tcx: TyCtxt<'_>, dir: &Path) -> io::Result<()> {
         })
         .collect();
 
-    dump_dep_graph_json(tcx, dir, "type_graph.json", &local_adts, &adj, None)
+    dump_dep_graph_json(tcx, dir, "type_graph.json", &local_adts, &adj)
 }

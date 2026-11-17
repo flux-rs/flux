@@ -16,10 +16,7 @@ use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::{
     mir::Location,
-    ty::{
-        GenericArgKind, GenericArgs, GenericArgsRef, Instance, InstanceKind, TyCtxt,
-        TypeVisitableExt,
-    },
+    ty::{GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt},
 };
 use rustc_serialize::ContextOrd;
 use serde::Serialize;
@@ -102,14 +99,7 @@ pub struct CallSite<'tcx> {
 pub enum CallSiteKind<'tcx> {
     /// `Call` terminator that resolved to a concrete callee node (a source item or a
     /// monomorphization).
-    Resolved {
-        callee: NodeKey<'tcx>,
-        /// The generic args passed at the call site, i.e., the args of the callee's `FnDef` type
-        /// (with regions erased and the caller's args substituted in). These are the args *before*
-        /// resolution, so for a call to a trait method they are the args of the trait method, not
-        /// of the impl method that `callee` resolved to.
-        args: GenericArgsRef<'tcx>,
-    },
+    Resolved { callee: NodeKey<'tcx> },
     /// Synthetic edge from an `Assert` terminator with a reachable unwind path —
     /// represents the implicit call to `core::panicking::panic`.
     SynthesizedPanic,
@@ -143,22 +133,11 @@ impl<'tcx> Node<'tcx> {
         }
     }
 
-    /// The callee nodes of this node's resolved call sites together with the generic args passed
-    /// at each call site (skipping unresolved/dynamic ones).
-    pub fn resolved_calls(&self) -> impl Iterator<Item = (NodeKey<'tcx>, GenericArgsRef<'tcx>)> {
-        self.call_sites().iter().filter_map(|site| {
-            match site.kind {
-                CallSiteKind::Resolved { callee, args } => Some((callee, args)),
-                _ => None,
-            }
-        })
-    }
-
     /// The callee nodes of this node's resolved call sites (skipping unresolved/dynamic ones).
     pub fn resolved_callees(&self) -> impl Iterator<Item = NodeKey<'tcx>> {
         self.call_sites().iter().filter_map(|site| {
             match site.kind {
-                CallSiteKind::Resolved { callee, .. } => Some(callee),
+                CallSiteKind::Resolved { callee } => Some(callee),
                 _ => None,
             }
         })
@@ -188,7 +167,7 @@ impl<'tcx> CallGraph<'tcx> {
         let node = self.nodes.get(&NodeKey::Item(caller))?;
         node.call_sites().iter().find_map(|site| {
             match site.kind {
-                CallSiteKind::Resolved { callee, .. } if site.location == location => Some(callee),
+                CallSiteKind::Resolved { callee } if site.location == location => Some(callee),
                 _ => None,
             }
         })
@@ -217,7 +196,7 @@ impl<'tcx> fmt::Display for Node<'tcx> {
 impl<'tcx> fmt::Display for CallSiteKind<'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CallSiteKind::Resolved { callee, .. } => write!(f, "-> {callee}"),
+            CallSiteKind::Resolved { callee } => write!(f, "-> {callee}"),
             CallSiteKind::SynthesizedPanic => write!(f, "-> panic"),
             CallSiteKind::Unresolved { def_id: method } => write!(f, "-> trait {method:?}"),
             CallSiteKind::DynamicDispatch => write!(f, "-> <dynamic>"),
@@ -246,34 +225,16 @@ pub struct JsonNode {
     pub path: String,
     pub span: SpanTrace,
     pub deps: Vec<usize>,
-    /// Only for the call graph: the calls made by this node, one per distinct callee and generic
-    /// args. Omitted for the type graph.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub calls: Option<Vec<JsonCall>>,
 }
-
-/// A call to a local function, with the generic args passed at the call site.
-#[derive(Serialize, PartialEq, Eq, PartialOrd, Ord)]
-pub struct JsonCall {
-    /// UID of the callee node
-    pub callee: usize,
-    /// The type and const args passed at the call site (lifetimes are erased, so they are omitted)
-    pub args: Vec<String>,
-}
-
-/// The calls made by a node, as pairs of the callee's index and the (printed) generic args
-pub type NodeCalls = Vec<(usize, Vec<String>)>;
 
 /// Topologically sort `def_ids` by `adj` (deps before dependents) and emit as JSON to `file_name`
-/// inside `dir`. If `calls` is given, `calls[i]` are the calls made by `def_ids[i]` as pairs of the
-/// callee's index in `def_ids` and the (printed) generic args.
+/// inside `dir`.
 pub fn dump_dep_graph_json(
     tcx: TyCtxt<'_>,
     dir: &Path,
     file_name: &str,
     def_ids: &[DefId],
     adj: &[Vec<usize>],
-    calls: Option<&[NodeCalls]>,
 ) -> io::Result<()> {
     let mut graph = IndexGraph::from_adjacency_list(adj);
     graph.transpose();
@@ -292,21 +253,11 @@ pub fn dump_dep_graph_json(
         .map(|(uid, &orig_idx)| {
             let def_id = def_ids[orig_idx];
             let dep_uids: Vec<usize> = adj[orig_idx].iter().map(|&j| uid_of[j]).collect();
-            let calls = calls.map(|calls| {
-                let mut calls: Vec<JsonCall> = calls[orig_idx]
-                    .iter()
-                    .map(|(j, args)| JsonCall { callee: uid_of[*j], args: args.clone() })
-                    .collect();
-                calls.sort();
-                calls.dedup();
-                calls
-            });
             JsonNode {
                 uid,
                 path: tcx.def_path_str(def_id),
                 span: SpanTrace::new(tcx, tcx.def_span(def_id)),
                 deps: dep_uids,
-                calls,
             }
         })
         .collect();
@@ -324,8 +275,7 @@ impl<'tcx> CallGraph<'tcx> {
     pub fn dump_json(&self, tcx: TyCtxt<'tcx>, dir: &Path) -> io::Result<()> {
         // The JSON has a single node per local function: the generic item and all its
         // monomorphizations (which are separate nodes in the graph) are merged into one node,
-        // identified by their common `DefId`. The generic args at each call site tell apart the
-        // instantiations being called.
+        // identified by their common `DefId`.
         let def_ids: FxIndexSet<DefId> = self
             .nodes
             .keys()
@@ -336,36 +286,19 @@ impl<'tcx> CallGraph<'tcx> {
             if key.is_local_item() { def_ids.get_index_of(&key.def_id()) } else { None }
         };
 
-        // The calls from each local function to other local functions, as (callee index, printed
-        // args), collected from the bodies of the generic item and all its monomorphizations.
-        let mut calls: Vec<NodeCalls> = vec![vec![]; def_ids.len()];
+        // The local callees of each local function, collected from the bodies of the generic
+        // item and all its monomorphizations.
+        let mut adj: Vec<Vec<usize>> = vec![vec![]; def_ids.len()];
         for (key, node) in &self.nodes {
             let Some(caller_idx) = idx_of(key) else { continue };
-            calls[caller_idx].extend(
-                node.resolved_calls()
-                    .filter_map(|(callee, args)| Some((idx_of(&callee)?, print_args(args)))),
-            );
+            adj[caller_idx].extend(node.resolved_callees().filter_map(|callee| idx_of(&callee)));
+        }
+        for deps in &mut adj {
+            deps.sort_unstable();
+            deps.dedup();
         }
         let def_ids: Vec<DefId> = def_ids.into_iter().collect();
 
-        let adj: Vec<Vec<usize>> = calls
-            .iter()
-            .map(|calls| {
-                let mut deps: Vec<usize> = calls.iter().map(|(idx, _)| *idx).collect();
-                deps.sort_unstable();
-                deps.dedup();
-                deps
-            })
-            .collect();
-
-        dump_dep_graph_json(tcx, dir, "call_graph.json", &def_ids, &adj, Some(&calls))
+        dump_dep_graph_json(tcx, dir, "call_graph.json", &def_ids, &adj)
     }
-}
-
-/// Prints the type and const args in `args`, skipping lifetimes (which are erased in the call graph)
-fn print_args(args: GenericArgsRef) -> Vec<String> {
-    args.iter()
-        .filter(|arg| !matches!(arg.kind(), GenericArgKind::Lifetime(_)))
-        .map(|arg| arg.to_string())
-        .collect()
 }

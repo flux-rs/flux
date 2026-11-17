@@ -44,7 +44,7 @@ pub fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
 
     let graph = CallGraph::new(nodes);
 
-    if config::dump_call_graph() {
+    if config::dump_dep_graph() {
         if let Err(e) = graph.dump_json(genv.tcx(), config::log_dir()) {
             tracing::warn!("failed to dump call graph: {e}");
         }
@@ -158,10 +158,7 @@ fn callees_in_body<'tcx>(
                         let callee_args = callee_args.no_bound_vars().unwrap();
                         match Instance::try_resolve(tcx, typing_env, *callee_def_id, callee_args) {
                             Ok(Some(instance)) => {
-                                CallSiteKind::Resolved {
-                                    callee: NodeKey::from_instance(instance),
-                                    args: callee_args,
-                                }
+                                CallSiteKind::Resolved { callee: NodeKey::from_instance(instance) }
                             }
                             _ => CallSiteKind::Unresolved { def_id: *callee_def_id },
                         }
