@@ -653,7 +653,7 @@ impl GenericArg {
 }
 
 impl<'tcx> ToRustc<'tcx> for GenericArgs {
-    type T = rustc_middle::ty::GenericArgsRef<'tcx>;
+    type T = rustc_middle::ty::GenericArgs<'tcx>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         tcx.mk_args_from_iter(self.iter().map(|arg| arg.to_rustc(tcx)))

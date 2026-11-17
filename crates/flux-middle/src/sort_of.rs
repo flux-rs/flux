@@ -37,7 +37,7 @@ impl GlobalEnv<'_, '_> {
             ty::TyKind::Adt(adt_def, args) => {
                 let mut sort_args = vec![];
                 let sort_def = self.adt_sort_def_of(adt_def.did())?;
-                for arg in sort_def.filter_generic_args(args) {
+                for arg in sort_def.filter_generic_args(args.as_slice()) {
                     let Some(sort) = self.sort_of_rust_ty(def_id, arg.expect_ty())? else {
                         return Ok(None);
                     };

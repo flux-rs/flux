@@ -2686,7 +2686,7 @@ impl GenericArgs {
     }
 
     // We can't implement [`ToRustc`] because of coherence so we add it here
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArgsRef<'tcx> {
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArgs<'tcx> {
         tcx.mk_args_from_iter(self.iter().map(|arg| arg.to_rustc(tcx)))
     }
 

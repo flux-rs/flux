@@ -96,7 +96,7 @@ fn trait_ref_impl_id<'tcx>(
     selcx: &mut SelectionContext<'_, 'tcx>,
     param_env: ParamEnv<'tcx>,
     trait_ref: rustc_ty::TraitRef<'tcx>,
-) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
+) -> Option<(DefId, rustc_middle::ty::GenericArgs<'tcx>)> {
     let trait_ref = tcx.erase_and_anonymize_regions(trait_ref);
     let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     let impl_source = selcx.select(&obligation).ok()??;
@@ -110,7 +110,7 @@ pub fn resolve_trait_ref_impl_id<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: DefId,
     trait_ref: rustc_ty::TraitRef<'tcx>,
-) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
+) -> Option<(DefId, rustc_middle::ty::GenericArgs<'tcx>)> {
     let param_env = tcx.param_env(def_id);
     let infcx = tcx
         .infer_ctxt()
@@ -124,8 +124,8 @@ pub fn resolve_call_query<'tcx>(
     selcx: &mut SelectionContext<'_, 'tcx>,
     param_env: ParamEnv<'tcx>,
     callee_id: DefId,
-    args: rustc_middle::ty::GenericArgsRef<'tcx>,
-) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
+    args: rustc_middle::ty::GenericArgs<'tcx>,
+) -> Option<(DefId, rustc_middle::ty::GenericArgs<'tcx>)> {
     let trait_id = tcx.trait_of_assoc(callee_id)?;
     let trait_ref = rustc_ty::TraitRef::from_assoc(tcx, trait_id, args);
     let (impl_def_id, impl_args) = trait_ref_impl_id(tcx, selcx, param_env, trait_ref)?;
@@ -473,7 +473,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
     fn resolve_call(
         &mut self,
         callee_id: DefId,
-        args: rustc_middle::ty::GenericArgsRef<'tcx>,
+        args: rustc_middle::ty::GenericArgs<'tcx>,
     ) -> Result<(DefId, CallArgs<'tcx>), UnsupportedReason> {
         let (resolved_id, resolved_args) =
             resolve_call_query(self.tcx, &mut self.selcx, self.param_env, callee_id, args)
@@ -1005,7 +1005,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::ExistentialPredicate<'tcx> {
     }
 }
 
-impl<'tcx> Lower<'tcx> for rustc_middle::ty::GenericArgsRef<'tcx> {
+impl<'tcx> Lower<'tcx> for rustc_middle::ty::GenericArgs<'tcx> {
     type R = Result<GenericArgs, UnsupportedReason>;
 
     fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
