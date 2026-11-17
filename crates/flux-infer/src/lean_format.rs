@@ -822,7 +822,7 @@ static IMPL_RE: LazyLock<regex::Regex> =
     std::sync::LazyLock::new(|| regex::Regex::new(r"\{impl#(\d+)\}").unwrap());
 
 fn is_reserved(name: &str) -> bool {
-    matches!(name, "end" | "def")
+    matches!(name, "end" | "def" | "meta")
 }
 
 fn sanitize_name(name: &str) -> String {

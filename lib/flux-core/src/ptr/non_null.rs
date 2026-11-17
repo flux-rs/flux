@@ -24,11 +24,19 @@
     }
 })]
 
+// Unused to rustc — `MetaSized` appears only in `spec` attributes.
+#[cfg(flux)]
+#[allow(unused_imports)]
+use core::marker::MetaSized;
+
 use flux_attrs::*;
 
 #[extern_spec(core::ptr)]
-#[refined_by(base: int, addr: int, size: int)]
-#[invariant(base >= 0 && addr > 0 && addr <= usize::MAX && addr + size <= usize::MAX)]
+// `meta` is the pointer metadata (see `MetaSized::size_of_val`): the length for slices and `str`,
+// the vtable pointer for `dyn Trait`, and an unused placeholder for thin pointers. All of these are
+// non-negative.
+#[refined_by(base: int, addr: int, size: int, meta: int)]
+#[invariant(base >= 0 && addr > 0 && addr <= usize::MAX && addr + size <= usize::MAX && meta >= 0)]
 struct NonNull<T>;
 
 #[extern_spec(core::ptr)]
@@ -39,62 +47,70 @@ impl<T: Sized> NonNull<T> {
 }
 
 #[extern_spec(core::ptr)]
-impl<T> NonNull<T> {
+impl<T: ?Sized> NonNull<T> {
     /// Need to enforce that the pointer value is non-null, because as the name suggests, this function does not check.
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L234
-    #[spec(fn(*mut[@p] T) -> NonNull<T>[p.base, p.addr, p.size] requires p.addr != 0)]
+    #[spec(fn(*mut[@p] T) -> NonNull<T>{v: v.base == p.base && v.addr == p.addr && v.size == p.size}
+        requires p.addr != 0)]
     unsafe fn new_unchecked(ptr: *mut T) -> Self;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L270
-    #[spec(fn(*mut[@p] T) -> Option<NonNull<T>[p.base, p.addr, p.size]>[p.addr != 0])]
+    #[spec(fn(*mut[@p] T)
+        -> Option<NonNull<T>{v: v.base == p.base && v.addr == p.addr && v.size == p.size}>[p.addr != 0])]
     fn new(ptr: *mut T) -> Option<NonNull<T>>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L402
-    #[spec(fn(NonNull<T>[@base, @addr, @size]) -> *mut[base, addr, size] T)]
+    #[spec(fn(NonNull<T>[@base, @addr, @size, @_meta]) -> *mut[base, addr, size] T)]
     fn as_ptr(self) -> *mut T;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/4b7e3a76d8df78960dc7c65cad43f5da1dac8ade/library/core/src/ptr/non_null.rs#L512
-    #[spec(fn(NonNull<T>[@base, @addr, @size]) -> NonNull<U>[base, addr, size])]
+    #[spec(fn(NonNull<T>[@base, @addr, @size, @meta]) -> NonNull<U>[base, addr, size, meta])]
     fn cast<U>(self) -> NonNull<U>;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L652
-    #[spec(fn(NonNull<T>[@base, @addr, @size], count: usize)
-        -> NonNull<T>[base, addr + count * T::size_of(), size - count * T::size_of()]
+    #[spec(fn(NonNull<T>[@base, @addr, @size, @meta], count: usize)
+        -> NonNull<T>[base, addr + count * T::size_of(), size - count * T::size_of(), meta]
             requires count * T::size_of() == 0 || (nn_in_bounds(base, addr, size) && count * T::size_of() <= size))]
-    unsafe fn add(self, count: usize) -> Self;
+    unsafe fn add(self, count: usize) -> Self
+    where
+        T: Sized;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L729
-    #[spec(fn(NonNull<T>[@base, @addr, @size], count: usize)
-        -> NonNull<T>[base, addr - count * T::size_of(), size + count * T::size_of()]
+    #[spec(fn(NonNull<T>[@base, @addr, @size, @meta], count: usize)
+        -> NonNull<T>[base, addr - count * T::size_of(), size + count * T::size_of(), meta]
             requires count * T::size_of() == 0 || (nn_in_bounds(base, addr, size) && count * T::size_of() <= addr - base && addr - count * T::size_of() != 0))]
-    unsafe fn sub(self, count: usize) -> Self;
+    unsafe fn sub(self, count: usize) -> Self
+    where
+        T: Sized;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L576
-    #[spec(fn(NonNull<T>[@base, @addr, @size], count: isize)
-        -> NonNull<T>[base, addr + count * T::size_of(), size - count * T::size_of()]
+    #[spec(fn(NonNull<T>[@base, @addr, @size, @meta], count: isize)
+        -> NonNull<T>[base, addr + count * T::size_of(), size - count * T::size_of(), meta]
             requires count * T::size_of() == 0 || (nn_in_bounds(base, addr, size) && count * T::size_of() <= size && addr + count * T::size_of() >= base && addr + count * T::size_of() != 0))]
-    unsafe fn offset(self, count: isize) -> Self;
+    unsafe fn offset(self, count: isize) -> Self
+    where
+        T: Sized;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L678
-    #[spec(fn(NonNull<T>[@base, @addr, @size], count: usize)
-        -> NonNull<T>[base, addr + count, size - count]
+    #[spec(fn(NonNull<T>[@base, @addr, @size, @meta], count: usize)
+        -> NonNull<T>[base, addr + count, size - count, meta]
             requires count == 0 || (nn_in_bounds(base, addr, size) && count <= size))]
     unsafe fn byte_add(self, count: usize) -> Self;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L760
-    #[spec(fn(NonNull<T>[@base, @addr, @size], count: usize)
-        -> NonNull<T>[base, addr - count, size + count]
+    #[spec(fn(NonNull<T>[@base, @addr, @size, @meta], count: usize)
+        -> NonNull<T>[base, addr - count, size + count, meta]
             requires count == 0 || (nn_in_bounds(base, addr, size) && count <= addr - base && addr - count != 0))]
     unsafe fn byte_sub(self, count: usize) -> Self;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L602
-    #[spec(fn(NonNull<T>[@base, @addr, @size], count: isize)
-        -> NonNull<T>[base, addr + count, size - count]
+    #[spec(fn(NonNull<T>[@base, @addr, @size, @meta], count: isize)
+        -> NonNull<T>[base, addr + count, size - count, meta]
             requires count == 0 || (nn_in_bounds(base, addr, size) && count <= size && addr + count >= base && addr + count != 0))]
     unsafe fn byte_offset(self, count: isize) -> Self;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L858
-    #[spec(fn(NonNull<T>[@sbase, @saddr, @ssize], origin: NonNull<T>[@obase, @oaddr, @osize]) -> isize[(saddr - oaddr) / T::size_of()]
+    #[spec(fn(NonNull<T>[@sbase, @saddr, @ssize, @_smeta], origin: NonNull<T>[@obase, @oaddr, @osize, @_ometa]) -> isize[(saddr - oaddr) / T::size_of()]
         requires sbase == obase &&
                  nn_in_bounds(sbase, saddr, ssize) &&
                  nn_in_bounds(obase, oaddr, osize) &&
@@ -105,7 +121,7 @@ impl<T> NonNull<T> {
         T: Sized;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L949
-    #[spec(fn(NonNull<T>[@sbase, @saddr, @ssize], subtracted: NonNull<T>[@obase, @oaddr, @osize]) -> usize[(saddr - oaddr) / T::size_of()]
+    #[spec(fn(NonNull<T>[@sbase, @saddr, @ssize, @_smeta], subtracted: NonNull<T>[@obase, @oaddr, @osize, @_ometa]) -> usize[(saddr - oaddr) / T::size_of()]
         requires sbase == obase &&
                  nn_in_bounds(sbase, saddr, ssize) &&
                  nn_in_bounds(obase, oaddr, osize) &&
@@ -117,18 +133,51 @@ impl<T> NonNull<T> {
         T: Sized;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L986
-    #[spec(fn(NonNull<T>[@base, @addr, @size]) -> T
+    #[spec(fn(NonNull<T>[@base, @addr, @size, @_meta]) -> T
         requires nn_valid(base, addr, size, T::size_of()) && nn_aligned_to(addr, T::align_of()))]
     unsafe fn read(self) -> T
     where
         T: Sized;
 
     /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/ptr/non_null.rs#L1141
-    #[spec(fn(NonNull<T>[@base, @addr, @size], val: T)
+    #[spec(fn(NonNull<T>[@base, @addr, @size, @_meta], val: T)
         requires nn_valid(base, addr, size, T::size_of()) && nn_aligned_to(addr, T::align_of()))]
     unsafe fn write(self, val: T)
     where
         T: Sized;
+
+    /// Docs: https://doc.rust-lang.org/core/ptr/struct.NonNull.html#method.as_ref
+    /// Safety: the pointer must be convertible to a reference, see
+    /// https://doc.rust-lang.org/std/ptr/index.html#pointer-to-reference-conversion
+    /// The size and alignment of the pointee are computed from the pointer metadata, so this also
+    /// works for unsized types. We need the qualified `<T as MetaSized>` form because the bounds
+    /// are resolved against core's `impl<T: PointeeSized>`.
+    #[spec(fn(&NonNull<T>[@base, @addr, @size, @meta]) -> &T
+        requires nn_valid(base, addr, size, <T as MetaSized>::size_of_val(meta))
+              && nn_aligned_to(addr, <T as MetaSized>::align_of_val(meta)))]
+    unsafe fn as_ref<'a>(&self) -> &'a T;
+
+    /// Docs: https://doc.rust-lang.org/core/ptr/struct.NonNull.html#method.as_mut
+    /// Safety: same as `as_ref`.
+    #[spec(fn(&mut NonNull<T>[@base, @addr, @size, @meta]) -> &mut T
+        requires nn_valid(base, addr, size, <T as MetaSized>::size_of_val(meta))
+              && nn_aligned_to(addr, <T as MetaSized>::align_of_val(meta)))]
+    unsafe fn as_mut<'a>(&mut self) -> &'a mut T;
+
+    /// Docs: https://doc.rust-lang.org/core/ptr/struct.NonNull.html#method.from_ref
+    /// A pointer derived from a reference only covers the referenced value (as for raw pointers
+    /// created from references in the checker), so its allocation is exactly `size_of_val` bytes.
+    #[spec(fn(&T) -> NonNull<T>{p: p.base == p.addr
+        && p.size == <T as MetaSized>::size_of_val(p.meta) && p.size >= 0
+        && nn_aligned_to(p.addr, <T as MetaSized>::align_of_val(p.meta))})]
+    fn from_ref(r: &T) -> Self;
+
+    /// Docs: https://doc.rust-lang.org/core/ptr/struct.NonNull.html#method.from_mut
+    /// See `from_ref`.
+    #[spec(fn(&mut T) -> NonNull<T>{p: p.base == p.addr
+        && p.size == <T as MetaSized>::size_of_val(p.meta) && p.size >= 0
+        && nn_aligned_to(p.addr, <T as MetaSized>::align_of_val(p.meta))})]
+    fn from_mut(r: &mut T) -> Self;
 }
 
 #[extern_spec(core::ptr)]
@@ -141,9 +190,14 @@ impl<T> NonNull<[T]> {
     /// with — see `test_allocate_then_deallocate_narrowed_slice` in
     /// `tests/with_deps/neg/extern_specs/flux_core_alloc01.rs`.
     #[no_panic]
-    #[spec(fn(data: NonNull<T>[@base, @addr, @size], len: usize) -> NonNull<[T]>[base, addr, size]
+    #[spec(fn(data: NonNull<T>[@base, @addr, @size, @_meta], len: usize) -> NonNull<[T]>[base, addr, size, len]
         requires nn_valid(base, addr, size, len * T::size_of()) && nn_aligned_to(addr, T::align_of()))]
     fn slice_from_raw_parts(data: NonNull<T>, len: usize) -> Self;
+
+    /// Docs: https://doc.rust-lang.org/core/ptr/struct.NonNull.html#method.len-1
+    /// The length of a slice pointer is its metadata.
+    #[spec(fn(NonNull<[T]>[@_base, @_addr, @_size, @meta]) -> usize[meta])]
+    fn len(self) -> usize;
 }
 
 #[extern_spec(core::ptr)]

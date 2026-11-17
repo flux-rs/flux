@@ -6,7 +6,7 @@ use std::ptr::NonNull;
 
 // different allocations: sbase != obase violates same-allocation requirement.
 // Alignment is constrained so only the base check fails.
-#[flux::spec(fn (p: NonNull<i32>[@sbase, @saddr, @ssize], q: NonNull<i32>[@obase, @oaddr, @osize])
+#[flux::spec(fn (p: NonNull<i32>[@sbase, @saddr, @ssize, @_meta1], q: NonNull<i32>[@obase, @oaddr, @osize, @_meta2])
     requires saddr >= sbase && ssize >= 0 && oaddr >= obase && osize >= 0 && obase != sbase && (saddr - oaddr) % 4 == 0)]
 pub fn test_offset_from_diff_base(p: NonNull<i32>, q: NonNull<i32>) {
     unsafe {
@@ -15,7 +15,7 @@ pub fn test_offset_from_diff_base(p: NonNull<i32>, q: NonNull<i32>) {
 }
 
 // non-element-aligned distance: q is 1 byte ahead of p, but T = i32 requires a multiple of 4
-#[flux::spec(fn (p: NonNull<i32>[@sbase, @saddr, @ssize], q: NonNull<i32>[@obase, @oaddr, @osize])
+#[flux::spec(fn (p: NonNull<i32>[@sbase, @saddr, @ssize, @_meta1], q: NonNull<i32>[@obase, @oaddr, @osize, @_meta2])
     requires sbase == obase && saddr >= sbase && ssize >= 0 && oaddr == saddr + 1 && osize >= 0)]
 pub fn test_offset_from_unaligned(p: NonNull<i32>, q: NonNull<i32>) {
     unsafe {
@@ -24,7 +24,7 @@ pub fn test_offset_from_unaligned(p: NonNull<i32>, q: NonNull<i32>) {
 }
 
 // ZST: size_of::<()>() == 0, violating T::size_of() > 0
-#[flux::spec(fn (p: NonNull<()>[@sbase, @saddr, @ssize], q: NonNull<()>[@obase, @oaddr, @osize])
+#[flux::spec(fn (p: NonNull<()>[@sbase, @saddr, @ssize, @_meta1], q: NonNull<()>[@obase, @oaddr, @osize, @_meta2])
     requires sbase == obase && saddr >= sbase && ssize >= 0 && oaddr == saddr && osize == ssize)]
 pub fn test_offset_from_zst(p: NonNull<()>, q: NonNull<()>) {
     unsafe {
@@ -36,7 +36,7 @@ pub fn test_offset_from_zst(p: NonNull<()>, q: NonNull<()>) {
 
 // origin is ahead of self: violates saddr >= oaddr.
 // oaddr = saddr + 4 ensures (saddr - oaddr) % 4 == 0 in SMT-lib.
-#[flux::spec(fn (p: NonNull<i32>[@sbase, @saddr, @ssize], q: NonNull<i32>[@obase, @oaddr, @osize])
+#[flux::spec(fn (p: NonNull<i32>[@sbase, @saddr, @ssize, @_meta1], q: NonNull<i32>[@obase, @oaddr, @osize, @_meta2])
     requires sbase == obase && saddr >= sbase && ssize >= 0 && oaddr == saddr + 4 && osize >= 0)]
 pub fn test_offset_from_unsigned_reversed(p: NonNull<i32>, q: NonNull<i32>) {
     unsafe {

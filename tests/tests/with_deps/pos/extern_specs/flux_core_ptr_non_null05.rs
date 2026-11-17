@@ -4,12 +4,12 @@ use std::ptr::NonNull;
 
 // --- cast ---
 
-#[flux::spec(fn(nn: NonNull<T>[@base, @addr, @size]) -> NonNull<U>[base, addr, size])]
+#[flux::spec(fn(nn: NonNull<T>[@base, @addr, @size, @meta]) -> NonNull<U>[base, addr, size, meta])]
 pub fn test_cast_preserves_indices<T, U>(nn: NonNull<T>) -> NonNull<U> {
     nn.cast::<U>()
 }
 
-#[flux::spec(fn(nn: NonNull<i32>[@base, @addr, @size])
+#[flux::spec(fn(nn: NonNull<i32>[@base, @addr, @size, @_meta1])
     requires addr >= base && addr > 0 && size >= 4 && addr % 4 == 0)]
 pub fn test_cast_narrow_read(nn: NonNull<i32>) {
     let bytes = nn.cast::<u8>();
@@ -18,7 +18,7 @@ pub fn test_cast_narrow_read(nn: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn(nn: NonNull<i32>[@base, @addr, @size])
+#[flux::spec(fn(nn: NonNull<i32>[@base, @addr, @size, @_meta1])
     requires addr >= base && addr > 0 && size >= 8 && addr % 8 == 0)]
 pub fn test_cast_widen_read(nn: NonNull<i32>) {
     let wide = nn.cast::<i64>();
@@ -27,7 +27,7 @@ pub fn test_cast_widen_read(nn: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn(nn: NonNull<i32>[@base, @addr, @size])
+#[flux::spec(fn(nn: NonNull<i32>[@base, @addr, @size, @_meta1])
     requires addr >= base && addr > 0 && size >= 4 && addr % 4 == 0)]
 pub fn test_cast_byte_add_write(nn: NonNull<i32>) {
     let bytes = nn.cast::<u8>();
@@ -36,7 +36,7 @@ pub fn test_cast_byte_add_write(nn: NonNull<i32>) {
     }
 }
 
-#[flux::spec(fn(nn: NonNull<i32>[@base, @addr, @size])
+#[flux::spec(fn(nn: NonNull<i32>[@base, @addr, @size, @_meta1])
     requires addr >= base && addr > 0 && size >= 4 && addr % 4 == 0)]
 pub fn test_cast_round_trip(nn: NonNull<i32>) {
     let bytes = nn.cast::<u8>();
