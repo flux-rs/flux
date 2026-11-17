@@ -153,7 +153,7 @@ pub struct Terminator<'tcx> {
 
 #[derive(Debug)]
 pub struct CallArgs<'tcx> {
-    pub orig: rustc_middle::ty::GenericArgsRef<'tcx>,
+    pub orig: rustc_middle::ty::GenericArgs<'tcx>,
     pub lowered: List<GenericArg>,
 }
 

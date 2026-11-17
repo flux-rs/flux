@@ -548,7 +548,7 @@ type ConstMap<'tcx> = FxIndexMap<ConstKey<'tcx>, fixpoint::ConstDecl>;
 #[derive(Eq, Hash, PartialEq, Clone)]
 pub(crate) enum ConstKey<'tcx> {
     RustConst(DefId),
-    Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
+    Alias(FluxDefId, rustc_middle::ty::GenericArgs<'tcx>),
     Lambda(Lambda),
     PrimOp(rty::BinOp),
     Cast(rty::Sort, rty::Sort),
