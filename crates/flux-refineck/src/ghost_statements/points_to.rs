@@ -401,16 +401,10 @@ impl CollectPointerToBorrows<'_> {
             self.before_state.push((*place_idx, value));
         }
     }
-}
 
-impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a, 'tcx>> for CollectPointerToBorrows<'_> {
-    fn visit_after_primary_statement_effect(
-        &mut self,
-        state: &State,
-        _statement: &mir::Statement<'tcx>,
-        location: mir::Location,
-    ) {
-        let point = Point::BeforeLocation(location);
+    /// Emits a `PtrToRef` at `point` for every tracked place that went from a known path to `⊤`
+    /// since the last time `before_state` was updated, and updates `before_state` to `state`.
+    fn collect_at(&mut self, state: &State, point: Point) {
         for (place_idx, old_value) in &mut self.before_state {
             let new_value = state.get_idx(*place_idx, self.map);
             if let (FlatSet::Elem(_), FlatSet::Top) = (&old_value, &new_value) {
@@ -423,6 +417,30 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a, 'tcx>> for CollectPoint
             }
             *old_value = new_value;
         }
+    }
+}
+
+impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a, 'tcx>> for CollectPointerToBorrows<'_> {
+    /// The folds at a terminator's location are applied as its *early* effect. Collect the
+    /// pointers they invalidate here, so they get a `PtrToRef` at the terminator's location (ahead
+    /// of the folds, see `GhostStatements::prepend`). Otherwise they would only be noticed on the
+    /// outgoing edges, and a terminator without successors, i.e., `return`, has none.
+    fn visit_after_early_terminator_effect(
+        &mut self,
+        state: &State,
+        _terminator: &mir::Terminator<'tcx>,
+        location: mir::Location,
+    ) {
+        self.collect_at(state, Point::BeforeLocation(location));
+    }
+
+    fn visit_after_primary_statement_effect(
+        &mut self,
+        state: &State,
+        _statement: &mir::Statement<'tcx>,
+        location: mir::Location,
+    ) {
+        self.collect_at(state, Point::BeforeLocation(location));
     }
 
     fn visit_after_primary_terminator_effect(
