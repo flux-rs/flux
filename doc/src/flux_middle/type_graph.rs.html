@@ -7,7 +7,7 @@
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>rustc_hir::{def::DefKind, def_id::DefId};
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>rustc_middle::ty::{<span class="self">self</span>, TyCtxt};
 <a href=#9 id=9 data-nosnippet>9</a>
-<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::call_graph::dump_dep_graph_json;
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::dep_graph::dump_dep_graph_json;
 <a href=#11 id=11 data-nosnippet>11</a>
 <a href=#12 id=12 data-nosnippet>12</a><span class="doccomment">/// Collect DefIds of all ADTs (struct/enum) referenced in `ty`, recursively.
 <a href=#13 id=13 data-nosnippet>13</a></span><span class="kw">fn </span>collect_adt_refs&lt;<span class="lifetime">'tcx</span>&gt;(ty: ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;, out: <span class="kw-2">&amp;mut </span>Vec&lt;DefId&gt;) {

@@ -29,9 +29,9 @@
 <a href=#29 id=29 data-nosnippet>29</a>
 <a href=#30 id=30 data-nosnippet>30</a><span class="kw">use crate</span>::{
 <a href=#31 id=31 data-nosnippet>31</a>    PanicReason, PanicSpec,
-<a href=#32 id=32 data-nosnippet>32</a>    call_graph::NodeKey,
-<a href=#33 id=33 data-nosnippet>33</a>    cstore::CrateStoreDyn,
-<a href=#34 id=34 data-nosnippet>34</a>    def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
+<a href=#32 id=32 data-nosnippet>32</a>    cstore::CrateStoreDyn,
+<a href=#33 id=33 data-nosnippet>33</a>    def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
+<a href=#34 id=34 data-nosnippet>34</a>    dep_graph::NodeKey,
 <a href=#35 id=35 data-nosnippet>35</a>    fhir::{<span class="self">self</span>, VariantIdx},
 <a href=#36 id=36 data-nosnippet>36</a>    queries::{DispatchKey, Providers, Queries, QueryErr, QueryResult},
 <a href=#37 id=37 data-nosnippet>37</a>    query_bug,
@@ -203,7 +203,7 @@
 <a href=#203 id=203 data-nosnippet>203</a>        }
 <a href=#204 id=204 data-nosnippet>204</a>    }
 <a href=#205 id=205 data-nosnippet>205</a>
-<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">pub fn </span>call_graph(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span><span class="kw">crate</span>::call_graph::CallGraph&lt;<span class="lifetime">'tcx</span>&gt; {
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">pub fn </span>call_graph(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span><span class="kw">crate</span>::dep_graph::CallGraph&lt;<span class="lifetime">'tcx</span>&gt; {
 <a href=#207 id=207 data-nosnippet>207</a>        <span class="self">self</span>.inner.queries.call_graph(<span class="self">self</span>)
 <a href=#208 id=208 data-nosnippet>208</a>    }
 <a href=#209 id=209 data-nosnippet>209</a>

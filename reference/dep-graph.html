@@ -158,6 +158,35 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="dependency-graphs"><a class="header" href="#dependency-graphs">Dependency Graphs</a></h1>
+<p>The <code>-Fdump-dep-graph</code> flag makes <code>flux</code> generate two dependency graphs for the local crate
+or file being checked:</p>
+<ul>
+<li><code>log/call_graph.json</code> — the <strong>function call graph</strong>: each node is a local function, and its
+<code>deps</code> are the other local functions it calls.</li>
+<li><code>log/type_graph.json</code> — the <strong>type dependency graph</strong>: each node is a local struct or enum,
+and its <code>deps</code> are the other local types referenced in its field definitions.</li>
+</ul>
+<p>Both files are JSON arrays of nodes, topologically sorted so that dependencies appear before
+dependents (leaves first). Each node has the following fields:</p>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>uid</code></td><td><code>number</code></td><td>Unique integer id (matches the array index)</td></tr>
+<tr><td><code>path</code></td><td><code>string</code></td><td>The definition's path (e.g. <code>my_crate::foo::bar</code>)</td></tr>
+<tr><td><code>span</code></td><td><code>object</code></td><td>Source location (<code>file</code>, <code>start_line</code>, <code>start_col</code>, <code>end_line</code>, <code>end_col</code>)</td></tr>
+<tr><td><code>deps</code></td><td><code>number[]</code></td><td>UIDs of the nodes this node depends on</td></tr>
+</tbody></table>
+</div>
+<p><code>call_graph.json</code> has a single node per local function: a generic function and all the
+instantiations at which it is called are merged into one node.</p>
+<p>Usage:</p>
+<pre><code>cargo xtask run path/to/file.rs -- -Fdump-dep-graph
+</code></pre>
+<p>or</p>
+<pre><code>FLUXFLAGS="-Fdump-dep-graph" cargo flux check
+</code></pre>
+<p>or, in a <code>.flux/config.toml</code> file (see <a href="config.html#debugdump-dep-graph"><code>debug.dump-dep-graph</code></a>):</p>
+<pre><code class="language-toml">[debug]
+dump-dep-graph = true
+</code></pre>
 
                     </main>
 
