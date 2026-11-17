@@ -45,7 +45,7 @@ pub fn build_call_graph<'tcx>(genv: GlobalEnv<'_, 'tcx>) -> CallGraph<'tcx> {
     let graph = CallGraph::new(nodes);
 
     if config::dump_dep_graph() {
-        if let Err(e) = graph.dump_json(genv.tcx(), config::log_dir()) {
+        if let Err(e) = graph.dump_dep_graph_json(genv.tcx(), config::log_dir()) {
             tracing::warn!("failed to dump call graph: {e}");
         }
         if let Err(e) = flux_middle::type_graph::dump_type_graph(genv.tcx(), config::log_dir()) {

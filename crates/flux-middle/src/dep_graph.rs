@@ -272,7 +272,7 @@ pub fn dump_dep_graph_json(
 impl<'tcx> CallGraph<'tcx> {
     /// Dump the local portion of the call graph as a JSON array, topologically sorted so that
     /// callees appear before callers (leaves first).
-    pub fn dump_json(&self, tcx: TyCtxt<'tcx>, dir: &Path) -> io::Result<()> {
+    pub fn dump_dep_graph_json(&self, tcx: TyCtxt<'tcx>, dir: &Path) -> io::Result<()> {
         // The JSON has a single node per local function: the generic item and all its
         // monomorphizations (which are separate nodes in the graph) are merged into one node,
         // identified by their common `DefId`.
