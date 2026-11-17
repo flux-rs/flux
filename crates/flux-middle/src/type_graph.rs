@@ -7,7 +7,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::{self, TyCtxt};
 
-use crate::call_graph::dump_dep_graph_json;
+use crate::dep_graph::dump_dep_graph_json;
 
 /// Collect DefIds of all ADTs (struct/enum) referenced in `ty`, recursively.
 fn collect_adt_refs<'tcx>(ty: ty::Ty<'tcx>, out: &mut Vec<DefId>) {

@@ -29,8 +29,8 @@ use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
     PanicSpec,
-    call_graph::{CallGraph, NodeKey},
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
+    dep_graph::{CallGraph, NodeKey},
     fhir,
     global_env::GlobalEnv,
     rty::{
