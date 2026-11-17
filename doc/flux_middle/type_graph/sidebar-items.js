@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["collect_adt_refs","dump_type_graph"]};

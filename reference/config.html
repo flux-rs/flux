@@ -211,6 +211,7 @@ dump-constraint = false        # dump the fixpoint constraints
 dump-fhir = false              # dump the fhir of each item
 dump-rty = false               # dump the rty of each item
 dump-checker-trace = "info"    # dump the checker's trace at this level
+dump-dep-graph = false         # dump the call and type dependency graphs as JSON
 catch-bugs = false             # keep running after internal errors
 
 [package."*"]                  # overrides for packages that are not workspace members
@@ -383,6 +384,15 @@ is reported for the item being checked.</p>
 <li>Flag: <code>-Fdump-checker-trace</code></li>
 </ul>
 <p>Dump the checker's trace at the given level.</p>
+<h4 id="debugdump-dep-graph"><a class="header" href="#debugdump-dep-graph"><code>debug.dump-dep-graph</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fdump-dep-graph</code></li>
+</ul>
+<p>Dump the function call graph and the type dependency graph of the local crate as JSON
+(<code>call_graph.json</code> and <code>type_graph.json</code> in the log directory). See
+<a href="dep-graph.html">Dependency Graphs</a> for the format.</p>
 <h4 id="debugcatch-bugs"><a class="header" href="#debugcatch-bugs"><code>debug.catch-bugs</code></a></h4>
 <ul>
 <li>Type: boolean</li>

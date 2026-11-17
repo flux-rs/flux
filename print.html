@@ -7997,6 +7997,7 @@ fn goofy(n: i32) {
 
 #[flux_rs::sig(fn (n:i32{n == 99}))]
 fn mickey(n: i32) {
+    goofy(n);
     for i in 0..n {
         assert(0 &lt;= i);
         assert(i &lt; n);
@@ -9449,6 +9450,7 @@ dump-constraint = false        # dump the fixpoint constraints
 dump-fhir = false              # dump the fhir of each item
 dump-rty = false               # dump the rty of each item
 dump-checker-trace = "info"    # dump the checker's trace at this level
+dump-dep-graph = false         # dump the call and type dependency graphs as JSON
 catch-bugs = false             # keep running after internal errors
 
 [package."*"]                  # overrides for packages that are not workspace members
@@ -9621,6 +9623,15 @@ is reported for the item being checked.</p>
 <li>Flag: <code>-Fdump-checker-trace</code></li>
 </ul>
 <p>Dump the checker's trace at the given level.</p>
+<h4 id="debugdump-dep-graph"><a class="header" href="#debugdump-dep-graph"><code>debug.dump-dep-graph</code></a></h4>
+<ul>
+<li>Type: boolean</li>
+<li>Default: <code>false</code></li>
+<li>Flag: <code>-Fdump-dep-graph</code></li>
+</ul>
+<p>Dump the function call graph and the type dependency graph of the local crate as JSON
+(<code>call_graph.json</code> and <code>type_graph.json</code> in the log directory). See
+<a href="reference/dep-graph.html">Dependency Graphs</a> for the format.</p>
 <h4 id="debugcatch-bugs"><a class="header" href="#debugcatch-bugs"><code>debug.catch-bugs</code></a></h4>
 <ul>
 <li>Type: boolean</li>
@@ -9668,6 +9679,7 @@ even if <code>RUSTC</code> is already set.</li>
 </ul>
 <p><code>FLUX_CARGO</code> and <code>FLUX_BUILD_SYSROOT</code> are also set. They are used internally by the driver and
 should not be set manually.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="dependency-graphs"><a class="header" href="#dependency-graphs">Dependency Graphs</a></h1>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
 <h2 id="backtraces"><a class="header" href="#backtraces">Backtraces</a></h2>
 <p>You can use the usual <code>RUST_BACKTRACE=1</code> environment variable to enable backtraces.

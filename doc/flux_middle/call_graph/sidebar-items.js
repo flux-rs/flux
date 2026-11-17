@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["CallSiteKind","Node","NodeKey"],"struct":["CallGraph","CallSite"]};
+window.SIDEBAR_ITEMS = {"enum":["CallSiteKind","Node","NodeKey"],"fn":["dump_dep_graph_json"],"struct":["CallGraph","CallSite","JsonNode"]};
