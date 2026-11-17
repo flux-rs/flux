@@ -192,6 +192,9 @@ impl LeanFmt for DataDecl {
                 writeln!(f)?;
             }
         }
+        // Needed so the sort can instantiate another sort's `[Inhabited t]` parameter,
+        // e.g. `Outer (Inner Int)`.
+        writeln!(f, "  deriving Inhabited")?;
         Ok(())
     }
 }

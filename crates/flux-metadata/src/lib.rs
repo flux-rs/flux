@@ -27,9 +27,9 @@ use derive_where::derive_where;
 use flux_errors::FluxSession;
 use flux_middle::{
     PanicSpec,
-    call_graph::NodeKey,
     cstore::{CrateStore, OptResult},
     def_id::{FluxDefId, FluxId},
+    dep_graph::NodeKey,
     fhir,
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -480,11 +480,22 @@ fn encode_flux_module_children<'tcx>(
 ) {
     genv.tcx().hir_for_each_module(|module| {
         let module = module.to_local_def_id();
-        let children = genv.flux_module_children(module.to_def_id());
+        // Qualifiers, axioms and properties are not exported, so other crates cannot name them.
+        let children = genv
+            .flux_module_children(module.to_def_id())
+            .iter()
+            .filter(|child| {
+                !matches!(
+                    child.res,
+                    fhir::Res::Qualifier(_) | fhir::Res::Axiom(_) | fhir::Res::Property(_)
+                )
+            })
+            .copied()
+            .collect::<Vec<_>>();
         if !children.is_empty() {
             tables
                 .flux_module_children
-                .insert(DefIndexKey(module.local_def_index), children.to_vec());
+                .insert(DefIndexKey(module.local_def_index), children);
         }
     });
 }

@@ -146,6 +146,8 @@ pub struct Debug {
     pub dump_fhir: Option<bool>,
     pub dump_rty: Option<bool>,
     pub dump_checker_trace: Option<TraceLevel>,
+    /// Dump the call and type dependency graphs as JSON (`-Fdump-dep-graph`).
+    pub dump_dep_graph: Option<bool>,
     pub catch_bugs: Option<bool>,
 }
 
@@ -229,6 +231,9 @@ impl Settings {
         }
         if let Some(v) = self.debug.dump_checker_trace {
             flags.push(format!("-Fdump-checker-trace={}", v.as_str()));
+        }
+        if let Some(v) = self.debug.dump_dep_graph {
+            flags.push(format!("-Fdump-dep-graph={v}"));
         }
         if let Some(v) = self.debug.catch_bugs {
             flags.push(format!("-Fcatch-bugs={v}"));

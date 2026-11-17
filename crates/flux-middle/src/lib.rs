@@ -24,9 +24,9 @@ extern crate self as flux_middle;
 
 pub mod big_int;
 mod builtin_assoc_refts;
-pub mod call_graph;
 pub mod cstore;
 pub mod def_id;
+pub mod dep_graph;
 pub mod fhir;
 pub mod global_env;
 pub mod metrics;
@@ -34,6 +34,7 @@ pub mod pretty;
 pub mod queries;
 pub mod rty;
 mod sort_of;
+pub mod type_graph;
 
 use std::sync::LazyLock;
 
@@ -533,7 +534,13 @@ pub struct ResolverOutput {
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
     /// The resolved list of local qualifiers per function.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
-    pub qualifier_res_map: UnordMap<NodeId, Vec<def_id::FluxLocalDefId>>,
+    pub qualifier_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
+    /// The resolved list of local axioms per function.
+    /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
+    pub axiom_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
+    /// The resolved list of local primop properties per function.
+    /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
+    pub property_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
     /// The resolved list of local reveals per function together with the span where they are named.
     /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
     pub reveal_res_map: UnordMap<NodeId, Vec<(def_id::FluxDefId, Span)>>,

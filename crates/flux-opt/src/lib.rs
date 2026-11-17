@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 
 use flux_middle::{
     PanicReason, PanicSpec,
-    call_graph::{CallSiteKind, Node, NodeKey},
+    dep_graph::{CallSiteKind, Node, NodeKey},
     global_env::GlobalEnv,
     queries::Providers,
 };

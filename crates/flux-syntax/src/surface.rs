@@ -85,14 +85,19 @@ pub struct Qualifier {
     pub wildcards: Vec<bool>,
     pub expr: Expr,
     pub span: Span,
-    pub kind: QualifierKind,
+    pub kind: HintKind,
 }
 
-#[derive(Debug)]
-pub enum QualifierKind {
+/// Determines which functions a hint to the solver (a qualifier or an axiom) is used for
+#[derive(Debug, Clone, Copy)]
+pub enum HintKind {
+    /// Used when checking every function in the crate
     Global,
+    /// Used only when checking functions that name it in `#[qualifiers(...)]` / `#[axioms(...)]`
     Local,
-    Hint,
+    /// Used only when checking the item enclosing its declaration (e.g., a qualifier declared
+    /// with `invariant qualifier`)
+    Enclosing,
 }
 
 /// A global function definition. It can be either an uninterpreted function or a *syntactic abstraction*,
@@ -111,11 +116,14 @@ pub struct SpecFunc {
     pub hide: bool,
 }
 
-/// A (currently global) *primop property*; see tests/tests/pos/surface/
+/// A *primop property*; see tests/tests/pos/surface/
 #[derive(Debug)]
 pub struct PrimOpProp {
     /// The name of the property
     pub name: Ident,
+    /// Whether the property is global or `local`, i.e., only used by the functions that
+    /// request it with `#[properties(...)]`
+    pub kind: HintKind,
     /// The binop it is attached to
     pub op: BinOp,
     /// The sort _at_ which the primop is defined,
@@ -137,6 +145,9 @@ pub struct Axiom {
     /// The actual definition of the axiom, which must have sort `bool`
     pub body: Expr,
     pub span: Span,
+    /// Whether the axiom is used when checking every function or only those that explicitly
+    /// request it with `#[axioms(...)]`
+    pub kind: HintKind,
 }
 
 #[derive(Debug)]
@@ -718,11 +729,15 @@ pub enum Attr {
     /// A `#[should_fail]` attribute
     ShouldFail,
     /// A `#[qualifiers(...)]` attribute
-    Qualifiers(Vec<Ident>),
+    Qualifiers(Vec<ExprPath>),
+    /// A `#[axioms(...)]` attribute
+    Axioms(Vec<ExprPath>),
+    /// A `#[properties(...)]` attribute
+    Properties(Vec<ExprPath>),
     /// A `#[reveal(...)]` attribute
-    Reveal(Vec<Ident>),
+    Reveal(Vec<ExprPath>),
     /// A `#[hide(...)]` attribute
-    Hide(Vec<Ident>),
+    Hide(Vec<ExprPath>),
     /// A `#[opts(...)]` attribute
     InferOpts(PartialInferOpts),
     /// A `#[no_panic]` attribute

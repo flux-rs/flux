@@ -519,7 +519,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 )
             }
         };
-        Ok(rty::PrimOpProp { def_id: primop_prop.def_id, op, body })
+        Ok(rty::PrimOpProp { def_id: primop_prop.def_id, kind: primop_prop.kind, op, body })
     }
 }
 
@@ -1818,6 +1818,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             | fhir::Res::PrimSort(..)
             | fhir::Res::SortParam(..)
             | fhir::Res::UserSort(..)
+            | fhir::Res::Qualifier(..)
+            | fhir::Res::Axiom(..)
+            | fhir::Res::Property(..)
             | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
             }

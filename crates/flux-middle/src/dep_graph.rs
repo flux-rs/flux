@@ -5,9 +5,13 @@
 //! (no-panic inference) and `flux-refineck` (the checker, which recovers the resolved callee at a
 //! call site by location).
 
-use std::fmt;
+use std::{fmt, fs, io, path::Path};
 
-use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
+use flux_common::dbg::SpanTrace;
+use rustc_data_structures::{
+    fx::{FxIndexMap, FxIndexSet},
+    unord::UnordMap,
+};
 use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::{
@@ -15,6 +19,8 @@ use rustc_middle::{
     ty::{GenericArgs, Instance, InstanceKind, TyCtxt, TypeVisitableExt},
 };
 use rustc_serialize::ContextOrd;
+use serde::Serialize;
+use toposort_scc::IndexGraph;
 
 /// Identity of a call-graph node. Distinguishes an item *as defined in source* from a
 /// *monomorphization* synthesized while building the graph.
@@ -210,5 +216,89 @@ impl<'tcx> fmt::Display for CallGraph<'tcx> {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Serialize)]
+pub struct JsonNode {
+    pub uid: usize,
+    pub path: String,
+    pub span: SpanTrace,
+    pub deps: Vec<usize>,
+}
+
+/// Topologically sort `def_ids` by `adj` (deps before dependents) and emit as JSON to `file_name`
+/// inside `dir`.
+pub fn dump_dep_graph_json(
+    tcx: TyCtxt<'_>,
+    dir: &Path,
+    file_name: &str,
+    def_ids: &[DefId],
+    adj: &[Vec<usize>],
+) -> io::Result<()> {
+    let mut graph = IndexGraph::from_adjacency_list(adj);
+    graph.transpose();
+    let topo_order = graph
+        .toposort_or_scc()
+        .unwrap_or_else(|sccs| sccs.into_iter().flatten().collect());
+
+    let mut uid_of: Vec<usize> = vec![0; def_ids.len()];
+    for (uid, &orig_idx) in topo_order.iter().enumerate() {
+        uid_of[orig_idx] = uid;
+    }
+
+    let json_nodes: Vec<JsonNode> = topo_order
+        .iter()
+        .enumerate()
+        .map(|(uid, &orig_idx)| {
+            let def_id = def_ids[orig_idx];
+            let dep_uids: Vec<usize> = adj[orig_idx].iter().map(|&j| uid_of[j]).collect();
+            JsonNode {
+                uid,
+                path: tcx.def_path_str(def_id),
+                span: SpanTrace::new(tcx, tcx.def_span(def_id)),
+                deps: dep_uids,
+            }
+        })
+        .collect();
+
+    fs::create_dir_all(dir)?;
+    let path = dir.join(file_name);
+    let file = fs::File::create(path)?;
+    serde_json::to_writer_pretty(file, &json_nodes)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+}
+
+impl<'tcx> CallGraph<'tcx> {
+    /// Dump the local portion of the call graph as a JSON array, topologically sorted so that
+    /// callees appear before callers (leaves first).
+    pub fn dump_dep_graph_json(&self, tcx: TyCtxt<'tcx>, dir: &Path) -> io::Result<()> {
+        // The JSON has a single node per local function: the generic item and all its
+        // monomorphizations (which are separate nodes in the graph) are merged into one node,
+        // identified by their common `DefId`.
+        let def_ids: FxIndexSet<DefId> = self
+            .nodes
+            .keys()
+            .filter(|key| key.is_local_item())
+            .map(|key| key.def_id())
+            .collect();
+        let idx_of = |key: &NodeKey<'tcx>| {
+            if key.is_local_item() { def_ids.get_index_of(&key.def_id()) } else { None }
+        };
+
+        // The local callees of each local function, collected from the bodies of the generic
+        // item and all its monomorphizations.
+        let mut adj: Vec<Vec<usize>> = vec![vec![]; def_ids.len()];
+        for (key, node) in &self.nodes {
+            let Some(caller_idx) = idx_of(key) else { continue };
+            adj[caller_idx].extend(node.resolved_callees().filter_map(|callee| idx_of(&callee)));
+        }
+        for deps in &mut adj {
+            deps.sort_unstable();
+            deps.dedup();
+        }
+        let def_ids: Vec<DefId> = def_ids.into_iter().collect();
+
+        dump_dep_graph_json(tcx, dir, "call_graph.json", &def_ids, &adj)
     }
 }

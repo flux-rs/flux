@@ -639,9 +639,40 @@ Axioms are passed to the SMT solver as quantified formulas
   without a pattern.
 
 - **Axioms are global to the crate.** They are used when checking every function in the crate
-  in which they are defined, but are not (yet) exported to other crates.
+  in which they are defined, but are not (yet) exported to other crates. Use a
+  [local axiom](#local-axioms) to restrict an axiom to some functions.
 
 - Axioms require a version of `fixpoint` that supports the `axiom` declaration.
+
+### Local Axioms
+
+An axiom prefixed with `local` is _not_ used when checking every function. Instead, it is
+only used when checking the functions that explicitly request it by naming it in an
+`#[flux_rs::axioms(...)]` attribute. This is analogous to [local qualifiers](#local-qualifiers),
+and is useful to keep axioms (and the quantifier instantiations they trigger) out of
+the verification conditions of functions that don't need them.
+
+```text
+local axiom <name>(x1: s1, ..., xn: sn) { <expr> }
+```
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/local_axiom00.rs}}
+```
+
+Naming a global axiom in `#[axioms(...)]` is allowed and has no effect, and naming
+something that is not an axiom (e.g., a qualifier) is an error.
+
+Axioms and qualifiers are scoped like other flux definitions: a name in `#[axioms(...)]` or
+`#[qualifiers(...)]` is resolved from the module of the annotated function, so an axiom declared
+in another module must be named with a path (e.g., `#[axioms(hints::FPos)]` or
+`#[axioms(super::FPos)]`) or imported with a `use` inside `defs!`. Two modules can declare axioms
+or qualifiers with the same name. (Global axioms and qualifiers still apply to every function in
+the crate, wherever they are declared.)
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/local_hint_paths00.rs}}
+```
 
 ### Axioms about Primitive Operations
 
@@ -683,6 +714,14 @@ Inlined definitions (i.e., polymorphic ones) cannot be hidden.
 
 ```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/hide00.rs}}
+```
+
+The names in `#[reveal(...)]` and `#[hide(...)]` are resolved like any other use of a function
+definition, so a definition from another module can be named with a path, e.g.,
+`#[reveal(defs::foo)]`, `#[reveal(super::foo)]` or `#[reveal(crate::defs::foo)]`.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/reveal_paths00.rs}}
 ```
 
 ## Type Holes
@@ -1113,6 +1152,22 @@ or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
 {{#include ../../../tests/tests/with_deps/pos/surface/primops00.rs}}
 ```
 
+### Local Properties
+
+Like [axioms](#local-axioms) and [qualifiers](#local-qualifiers), a property prefixed with `local`
+is _not_ used when checking every function. Instead, it is only used when checking the functions
+that request it by naming it in a `#[flux_rs::properties(...)]` attribute. Properties are resolved
+like axioms and qualifiers, so a property declared in another module is named with a path (e.g.,
+`#[properties(props::OrBy)]`) or imported with a `use` inside `defs!`.
+
+```text
+local property <name>[<op>](x, y) { <expr> }
+```
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/local_property00.rs}}
+```
+
 ## Casting Sorts
 
 You can convert refinements of different sorts -- e.g. `int` to `char` or `int` to `bool` --
@@ -1178,6 +1233,46 @@ A `def_id` is checked if it matches any of the patterns.
 
 ```
 cargo x run tests/tests/pos/detached/detach00.rs -- -Fdump-checker-trace -Fdump-constraint -Finclude=span:tests/tests/pos/detached/detach00.rs:13:1 -Finclude=def:id -Finclude=path/to/file.rs
+```
+
+## Local Qualifiers
+
+A `qualifier` declared in `defs!` is a hint that fixpoint uses to infer refinements (e.g., loop
+invariants), and by default it is used when checking _every_ function in the crate:
+
+```text
+qualifier <name>(x1: s1, ..., xn: sn) { <expr> }
+```
+
+A qualifier prefixed with `local` is _not_ used everywhere. Instead, it is only used when checking
+the functions that explicitly request it by naming it in a `#[flux_rs::qualifiers(...)]`
+attribute. This keeps the qualifier out of the search (and its cost) for functions that don't need
+it.
+
+```text
+local qualifier <name>(x1: s1, ..., xn: sn) { <expr> }
+```
+
+Below, `mk_pairs_with_bound` only verifies because it names `MyQ1`, which is needed to infer the
+loop invariant.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/local_qual00.rs}}
+```
+
+Naming a global qualifier in `#[qualifiers(...)]` is allowed and has no effect, and naming
+something that is not a qualifier (e.g., an axiom) is an error.
+
+Like [local axioms](#local-axioms), qualifiers are scoped like other flux definitions: a name in
+`#[qualifiers(...)]` is resolved from the module of the annotated function, so a qualifier
+declared in another module must be named with a path (e.g., `#[qualifiers(hints::Bound)]`,
+`#[qualifiers(super::Bound)]` or `#[qualifiers(crate::hints::Bound)]`) or imported with a `use`
+inside `defs!`. Two modules can declare qualifiers with the same name, and a function can use both,
+as `test_qualifiers` does below. (Global qualifiers still apply to every function in the crate,
+wherever they are declared.)
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/hint_same_name00.rs}}
 ```
 
 ## Scraping Qualifiers

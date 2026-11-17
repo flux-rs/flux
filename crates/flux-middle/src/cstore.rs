@@ -4,7 +4,7 @@ use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::def_id::CrateNum;
 use rustc_span::{Span, def_id::DefId};
 
-use crate::{PanicSpec, call_graph::NodeKey, def_id::FluxDefId, fhir, queries::QueryResult, rty};
+use crate::{PanicSpec, def_id::FluxDefId, dep_graph::NodeKey, fhir, queries::QueryResult, rty};
 
 pub type OptResult<T> = Option<QueryResult<T>>;
 

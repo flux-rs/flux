@@ -29,14 +29,14 @@ use tempfile::TempDir;
 
 use crate::{
     PanicReason, PanicSpec,
-    call_graph::NodeKey,
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
+    dep_graph::NodeKey,
     fhir::{self, VariantIdx},
     queries::{DispatchKey, Providers, Queries, QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, QualifierKind,
+        self, HintKind,
         refining::{Refine as _, Refiner},
     },
 };
@@ -203,7 +203,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn call_graph(self) -> &'genv crate::call_graph::CallGraph<'tcx> {
+    pub fn call_graph(self) -> &'genv crate::dep_graph::CallGraph<'tcx> {
         self.inner.queries.call_graph(self)
     }
 
@@ -260,8 +260,32 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.spec_funcs(self, krate)
     }
 
-    pub fn prim_rel_for(self, op: &rty::BinOp) -> QueryResult<Option<&'genv rty::PrimRel>> {
-        Ok(self.inner.queries.prim_rel(self)?.get(op))
+    /// The definition of the primitive relation for `op` when checking `did`: the conjunction of
+    /// the global properties of `op` together with the local ones named in the item's
+    /// `#[properties(...)]` attribute. If `did` is `None`, only the global properties are used.
+    /// Returns `None` if no property applies.
+    pub fn prim_rel_for(
+        self,
+        op: &rty::BinOp,
+        did: Option<LocalDefId>,
+    ) -> QueryResult<Option<rty::Binder<rty::Expr>>> {
+        let Some(prim_rel) = self.inner.queries.prim_rel(self)?.get(op) else {
+            return Ok(None);
+        };
+        let names: UnordSet<_> = did
+            .map(|did| self.fhir_attr_map(did).properties.iter().copied().collect())
+            .unwrap_or_default();
+        let bodies = prim_rel
+            .props
+            .iter()
+            .filter(|prop| {
+                match did {
+                    Some(did) => self.hint_applies(prop.kind, prop.def_id, &names, did),
+                    None => matches!(prop.kind, HintKind::Global),
+                }
+            })
+            .map(|prop| &prop.body);
+        Ok(rty::Expr::conjoin_bodies(bodies))
     }
 
     pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {
@@ -273,22 +297,47 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.axioms(self)
     }
 
+    /// Return all the axioms that apply to an item: the global ones together with the local ones
+    /// named in the item's `#[axioms(...)]` attribute.
+    pub fn axioms_for(
+        self,
+        did: LocalDefId,
+    ) -> QueryResult<impl Iterator<Item = &'genv rty::Axiom>> {
+        let names: UnordSet<_> = self.fhir_attr_map(did).axioms.iter().copied().collect();
+        Ok(self
+            .axioms()?
+            .iter()
+            .filter(move |axiom| self.hint_applies(axiom.kind, axiom.def_id, &names, did)))
+    }
+
     /// Return all the qualifiers that apply to an item, including both global and local qualifiers.
     pub fn qualifiers_for(
         self,
         did: LocalDefId,
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Qualifier>> {
-        let quals = self.fhir_attr_map(did).qualifiers;
-        let names: UnordSet<_> = quals.iter().copied().collect();
-        Ok(self.qualifiers()?.iter().filter(move |qual| {
-            match qual.kind {
-                QualifierKind::Global => true,
-                QualifierKind::Hint => {
-                    self.flux_item_enclosing_item(qual.def_id.to_def_id()) == did.to_def_id()
-                }
-                QualifierKind::Local => names.contains(&qual.def_id),
+        let names: UnordSet<_> = self.fhir_attr_map(did).qualifiers.iter().copied().collect();
+        Ok(self
+            .qualifiers()?
+            .iter()
+            .filter(move |qual| self.hint_applies(qual.kind, qual.def_id, &names, did)))
+    }
+
+    /// Whether the hint (qualifier, axiom or property) `hint_id` of kind `kind` should be used when checking
+    /// `did`, where `names` are the local hints requested by `did`.
+    fn hint_applies(
+        self,
+        kind: HintKind,
+        hint_id: FluxLocalDefId,
+        names: &UnordSet<FluxDefId>,
+        did: LocalDefId,
+    ) -> bool {
+        match kind {
+            HintKind::Global => true,
+            HintKind::Local => names.contains(&hint_id.to_def_id()),
+            HintKind::Enclosing => {
+                self.flux_item_enclosing_item(hint_id.to_def_id()) == did.to_def_id()
             }
-        }))
+        }
     }
 
     /// The item enclosing the declaration of a flux item. This is different from the
