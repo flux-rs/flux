@@ -1,6 +1,6 @@
 use flux_config as config;
 use flux_middle::{
-    call_graph::{CallGraph, CallSite, CallSiteKind, Node, NodeKey},
+    dep_graph::{CallGraph, CallSite, CallSiteKind, Node, NodeKey},
     global_env::GlobalEnv,
 };
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordSet};

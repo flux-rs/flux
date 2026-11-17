@@ -29,9 +29,9 @@ use tempfile::TempDir;
 
 use crate::{
     PanicReason, PanicSpec,
-    call_graph::NodeKey,
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
+    dep_graph::NodeKey,
     fhir::{self, VariantIdx},
     queries::{DispatchKey, Providers, Queries, QueryErr, QueryResult},
     query_bug,
@@ -203,7 +203,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn call_graph(self) -> &'genv crate::call_graph::CallGraph<'tcx> {
+    pub fn call_graph(self) -> &'genv crate::dep_graph::CallGraph<'tcx> {
         self.inner.queries.call_graph(self)
     }
 
