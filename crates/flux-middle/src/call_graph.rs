@@ -8,7 +8,10 @@
 use std::{fmt, fs, io, path::Path};
 
 use flux_common::dbg::SpanTrace;
-use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
+use rustc_data_structures::{
+    fx::{FxIndexMap, FxIndexSet},
+    unord::UnordMap,
+};
 use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::{
@@ -319,38 +322,31 @@ impl<'tcx> CallGraph<'tcx> {
     /// Dump the local portion of the call graph as a JSON array, topologically sorted so that
     /// callees appear before callers (leaves first).
     pub fn dump_json(&self, tcx: TyCtxt<'tcx>, dir: &Path) -> io::Result<()> {
-        let local_keys: Vec<NodeKey<'tcx>> = self
+        // The JSON has a single node per local function: the generic item and all its
+        // monomorphizations (which are separate nodes in the graph) are merged into one node,
+        // identified by their common `DefId`. The generic args at each call site tell apart the
+        // instantiations being called.
+        let def_ids: FxIndexSet<DefId> = self
             .nodes
             .keys()
-            .copied()
-            .filter(|k| k.is_local_item())
+            .filter(|key| key.is_local_item())
+            .map(|key| key.def_id())
             .collect();
+        let idx_of = |key: &NodeKey<'tcx>| {
+            if key.is_local_item() { def_ids.get_index_of(&key.def_id()) } else { None }
+        };
 
-        let key_to_idx: UnordMap<NodeKey<'tcx>, usize> = local_keys
-            .iter()
-            .enumerate()
-            .map(|(i, &k)| (k, i))
-            .collect();
-
-        let def_ids: Vec<DefId> = local_keys.iter().map(|k| k.def_id()).collect();
-
-        // The calls from each local node to other local nodes, as (callee index, printed args)
-        let calls: Vec<NodeCalls> = local_keys
-            .iter()
-            .map(|key| {
-                self.nodes
-                    .get(key)
-                    .map(|node| {
-                        node.resolved_calls()
-                            .filter_map(|(callee, args)| {
-                                let idx = key_to_idx.get(&callee).copied()?;
-                                Some((idx, print_args(args)))
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            })
-            .collect();
+        // The calls from each local function to other local functions, as (callee index, printed
+        // args), collected from the bodies of the generic item and all its monomorphizations.
+        let mut calls: Vec<NodeCalls> = vec![vec![]; def_ids.len()];
+        for (key, node) in &self.nodes {
+            let Some(caller_idx) = idx_of(key) else { continue };
+            calls[caller_idx].extend(
+                node.resolved_calls()
+                    .filter_map(|(callee, args)| Some((idx_of(&callee)?, print_args(args)))),
+            );
+        }
+        let def_ids: Vec<DefId> = def_ids.into_iter().collect();
 
         let adj: Vec<Vec<usize>> = calls
             .iter()

@@ -268,6 +268,9 @@ dependents (leaves first). Each node has the following fields:
 | `span` | `object`   | Source location (`file`, `start_line`, `start_col`, `end_line`, `end_col`) |
 | `deps` | `number[]` | UIDs of the nodes this node depends on            |
 
+`call_graph.json` has a single node per local function: a generic function and all the
+instantiations at which it is called are merged into one node.
+
 Nodes in `call_graph.json` also have a `calls` field, an array with one entry per distinct call
 (callee and generic args) the function makes to another local function:
 
