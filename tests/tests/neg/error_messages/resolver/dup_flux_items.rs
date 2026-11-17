@@ -9,7 +9,7 @@ defs! {
 
     opaque sort Bag; //~ ERROR name `Bag` is defined multiple times
 
-    // Qualifiers are checked in a separate, crate-global namespace, so this doesn't clash
+    // Qualifiers and axioms share a namespace that is separate from funcs, so this doesn't clash
     // with `foo` above.
     qualifier foo(x: int) {
         x > 0
@@ -18,10 +18,12 @@ defs! {
     qualifier foo(x: int) { //~ ERROR name `foo` is defined multiple times
         x > 0
     }
+
+    axiom foo(x: int) { x == x } //~ ERROR name `foo` is defined multiple times
 }
 
-// Qualifiers (and primop-props) are global: `bar` clashes across module boundaries too, unlike
-// funcs/sorts which are scoped per-module.
+// Qualifiers and axioms are scoped to the module declaring them (like funcs and sorts), so `bar`
+// doesn't clash across module boundaries.
 mod mod_a {
     use flux_attrs::*;
 
@@ -36,7 +38,7 @@ mod mod_b {
     use flux_attrs::*;
 
     defs! {
-        qualifier bar(x: int) { //~ ERROR name `bar` is defined multiple times
+        qualifier bar(x: int) {
             x > 0
         }
     }

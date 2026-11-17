@@ -1623,8 +1623,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Expr> {
         match internal_func {
             InternalFuncKind::Rel(op) => {
-                let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
-                    prim_rel.body.replace_bound_refts(args)
+                let did = self.def_id.map(|def_id| def_id.local_id());
+                let expr = if let Some(body) = self.genv.prim_rel_for(op, did)? {
+                    body.replace_bound_refts(args)
                 } else {
                     rty::Expr::tt()
                 };
@@ -2399,8 +2400,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<Vec<fixpoint::Axiom>> {
         let fun_env = FunEnv::new(self.genv, def_id);
         self.genv
-            .axioms()?
-            .iter()
+            .axioms_for(def_id.local_id())?
             .map(|axiom| self.axiom_to_fixpoint(axiom, &fun_env, scx))
             .try_collect()
     }
