@@ -34,6 +34,7 @@ pub mod pretty;
 pub mod queries;
 pub mod rty;
 mod sort_of;
+pub mod type_graph;
 
 use std::sync::LazyLock;
 

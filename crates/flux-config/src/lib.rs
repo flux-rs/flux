@@ -26,6 +26,10 @@ pub fn dump_checker_trace() -> Option<Level> {
     FLAGS.dump_checker_trace
 }
 
+pub fn dump_dep_graph() -> bool {
+    FLAGS.dump_dep_graph
+}
+
 pub fn dump_constraint() -> bool {
     FLAGS.dump_constraint
 }

@@ -27,6 +27,7 @@
 - [The Manifest Format](reference/manifest.md)
 - [Configuration](reference/config.md)
 - [Environment Variables](reference/environment-variables.md)
+- [Dependency Graphs](reference/dep-graph.md)
 
 # Appendix
 
