@@ -34,6 +34,11 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
   const single = view.kind === "block";
   const ref = useRef<HTMLDivElement>(null);
   const hover = useMemo(ptrHoverHandlers, []);
+  const ptrhover = useStore(s => s.ui.ptrhover);
+  // turned off while a pointer is hovered: clear its highlight and arrow
+  useEffect(() => {
+    if (!ptrhover) hover.onMouseLeave();
+  }, [ptrhover]);
 
   // a new view starts at the top
   useEffect(() => {
@@ -78,7 +83,7 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
 
   const solOpen = collapsed.includes("sol-open");
   return (
-    <div id="view" ref={ref} {...hover}>
+    <div id="view" ref={ref} {...(ptrhover ? hover : {})}>
       {single && (
         <div className="nav">
           <a className="crumb" onClick={() => go({ kind: "graph", bbs: [] })}>{fn.id}</a>

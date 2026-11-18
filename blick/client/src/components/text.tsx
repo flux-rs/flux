@@ -201,37 +201,118 @@ export function commaList(nodes: ReactNode[]): ReactNode[] {
 }
 
 /**
- * Hovering a pointer highlights the place it points to in the same environment line. If that
- * exact place is not there (it is hidden, or gone), the closest enclosing place is marked as
- * partial. Done on the DOM: it is a transient hover effect over many small spans.
+ * Hovering a pointer's path (`a0` in `ptr(mut, a0)`) highlights the place it points to in the same
+ * environment line, with an arrow to it; hovering a place does the same for every pointer to it. A
+ * pointer whose exact place is not there (it is hidden, or gone) points to the closest enclosing
+ * place, marked as partial. Done on the DOM: it is a transient hover effect over many small spans.
  */
 export function ptrHoverHandlers() {
-  let ptrEl: Element | null = null, targetEl: Element | null = null;
-  const setPtr = (ptr: Element | null) => {
-    if (ptr === ptrEl) return;
-    targetEl?.classList.remove("ptarget", "partial");
-    ptrEl?.classList.remove("active");
-    ptrEl = ptr;
-    targetEl = null;
-    if (!ptr) return;
-    ptr.classList.add("active");
-    const line = ptr.closest(".ctx");
-    let path = (ptr as HTMLElement).dataset.target ?? "", exact = true;
-    while (line && path) {
-      const el = line.querySelector(`.hv[data-path="${CSS.escape(path)}"]`);
-      if (el) {
-        targetEl = el;
-        el.classList.add("ptarget");
-        if (!exact) el.classList.add("partial");
-        return;
-      }
-      const dot = path.lastIndexOf(".");
-      path = dot < 0 ? "" : path.slice(0, dot);
-      exact = false;
+  let hovered: Element | null = null; // the hovered pointer or place
+  let undo: (() => void)[] = [];
+  const clear = () => {
+    for (const u of undo) u();
+    undo = [];
+  };
+  const show = (line: Element, links: [Element, Target][]) => {
+    for (const [ptr, t] of links) {
+      ptr.classList.add("active");
+      const arrow = drawArrow(line, ptr.querySelector(".ppath") ?? ptr, t.el, !t.exact);
+      undo.push(() => {
+        ptr.classList.remove("active");
+        arrow.remove();
+      });
+    }
+    // a target is partial only if no pointer to it is exact
+    for (const el of new Set(links.map(([, t]) => t.el))) {
+      el.classList.add("ptarget");
+      if (!links.some(([, t]) => t.el === el && t.exact)) el.classList.add("partial");
+      undo.push(() => el.classList.remove("ptarget", "partial"));
     }
   };
-  return {
-    onMouseOver: (e: React.MouseEvent) => setPtr((e.target as Element).closest?.(".ctx .ptr") ?? null),
-    onMouseLeave: () => setPtr(null),
+  const onMouseOver = (e: React.MouseEvent) => {
+    const at = e.target as Element;
+    const line = at.closest?.(".ctx");
+    // a pointer's path (`a0` in `ptr(mut, a0)`), or else the innermost place under the mouse that
+    // some pointer points to
+    let next: Element | null = null, links: [Element, Target][] = [];
+    const ptr = line && at.closest(".ctx .ptr .ppath")?.closest(".ptr");
+    if (ptr) {
+      const t = ptrTarget(line, ptr);
+      next = ptr;
+      links = t ? [[ptr, t]] : [];
+    } else if (line) {
+      const ptrs = [...line.querySelectorAll(".ptr")].map(p => [p, ptrTarget(line, p)] as const);
+      for (let el = at.closest(".hv"); el && line.contains(el); el = el.parentElement?.closest(".hv") ?? null) {
+        links = ptrs.filter((x): x is [Element, Target] => x[1]?.el === el);
+        if (links.length) {
+          next = el;
+          break;
+        }
+      }
+    }
+    if (next === hovered) return;
+    clear();
+    hovered = next;
+    if (line) show(line, links);
   };
+  return {
+    onMouseOver,
+    onMouseLeave: () => {
+      clear();
+      hovered = null;
+    },
+  };
+}
+
+interface Target {
+  el: Element;
+  /** false: the pointer's exact place is not there, `el` is the closest enclosing one */
+  exact: boolean;
+}
+
+/** The place in `line` that pointer `ptr` points to. */
+function ptrTarget(line: Element, ptr: Element): Target | null {
+  let path = (ptr as HTMLElement).dataset.target ?? "", exact = true;
+  while (path) {
+    const el = line.querySelector(`.hv[data-path="${CSS.escape(path)}"]`);
+    if (el) return { el, exact };
+    const dot = path.lastIndexOf(".");
+    path = dot < 0 ? "" : path.slice(0, dot);
+    exact = false;
+  }
+  return null;
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+
+/**
+ * A dashed arrow, in `line`, from the pointer `from` to its target `to`: a curve arcing above the
+ * text from the middle of the pointer's path to the start of the target (the target may be a whole
+ * binding; its start is where its name is). Dashed more sparsely when the target is only partial.
+ * An element wrapped over several rows has a box per row: the first one is where it starts.
+ */
+function drawArrow(line: Element, from: Element, to: Element, partial: boolean): SVGSVGElement {
+  const first = (e: Element) => e.getClientRects()[0] ?? e.getBoundingClientRect();
+  const l = line.getBoundingClientRect(), a = first(from), b = first(to);
+  const x1 = a.left + a.width / 2 - l.left, y1 = a.top - l.top - 2;
+  const x2 = b.left + Math.min(b.width / 2, 14) - l.left, y2 = b.top - l.top - 3;
+  const lift = Math.min(28, Math.max(12, Math.abs(x2 - x1) * 0.2));
+  const cy = Math.min(y1, y2) - lift;
+  // control points pulled in from the ends, so the curve (and the head, which follows it) leaves
+  // and arrives at an angle, not vertically
+  const dx = (x2 - x1) * 0.12;
+  // The line stops where the head starts, and the head, anchored at its base, ends at the target:
+  // the end moves back by the head's length along the curve's final direction (from the last
+  // control point). The head is 5 stroke widths long (`markerWidth`), at the 1.5px of style.css.
+  const HEAD = 5 * 1.5;
+  const ux = dx, uy = y2 - cy, n = Math.hypot(ux, uy) || 1;
+  const ex = x2 - (HEAD * ux) / n, ey = y2 - (HEAD * uy) / n;
+  const svg = document.createElementNS(SVG, "svg");
+  svg.setAttribute("class", "parrow");
+  svg.innerHTML = `
+    <defs><marker id="parrow-head" viewBox="0 0 8 8" refX="0" refY="4" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 z" /></marker></defs>
+    <path d="M${x1},${y1} C${x1 + dx},${cy} ${x2 - dx},${cy} ${ex},${ey}" stroke-dasharray="${partial ? "2 4" : "4 3"}" marker-end="url(#parrow-head)" />`;
+  line.appendChild(svg);
+  return svg;
 }

@@ -1,6 +1,6 @@
 /* Layout: a three-pane workbench (program | trace | functions). Chrome is set in a sans UI face,
    everything that comes from MIR or the checker in mono. Every color token is defined once, as
-   `light-dark(<light>, <dark>)`; the theme toggle forces one side through `color-scheme`. */
+   `light-dark(<light>, <dark>)`; the theme switcher forces one side through `color-scheme`. */
 :root {
   color-scheme: light dark;
   --bg: light-dark(#f5f6f9, #0f1218);
@@ -89,7 +89,8 @@ label.chk input { accent-color: var(--accent); margin: 0; }
 header { display: flex; gap: 12px; align-items: center; padding: 0 14px; min-height: 46px; background: var(--sunken); box-shadow: inset 0 -1px 0 var(--line); flex: none; }
 header > * { flex: none; }
 header h1 { font-size: 14px; margin: 0; font-weight: 650; letter-spacing: -.01em; display: flex; align-items: baseline; gap: 8px; }
-#theme { width: 32px; padding: 4px 0; text-align: center; }
+#theme { padding: 1px; }
+#theme button { padding: 3px 6px; line-height: 0; }
 .iconbtn { width: 30px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); border-color: transparent; background: transparent; }
 .iconbtn:hover { color: var(--fg); background: var(--hover); }
 .iconbtn .pnl { fill: transparent; }
@@ -314,7 +315,11 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-st
 .lname { color: var(--muted); }
 /* a hoverable pointer; while hovered, its path and the place it points to are outlined (dashed
    when only an enclosing place is in the env) */
-.ctx .ptr { cursor: help; }
+.ctx { position: relative; cursor: default; }  /* an arrow, not a text cursor; the text is still selectable */
+/* the arrow from a hovered pointer to its target, drawn over the line (see `drawArrow`) */
+.ctx .parrow { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 1; }
+.ctx .parrow > path { fill: none; stroke: var(--ptr); stroke-width: 1.5; stroke-linecap: round; }
+.ctx .parrow marker path { fill: var(--ptr); }
 .ctx .ptr.active .ppath { outline: 1.5px solid var(--ptr); outline-offset: 1px; background: var(--ptr-bg); border-radius: 3px; }
 .ctx .hv.ptarget { outline: 1.5px solid var(--ptr); outline-offset: 1px; background: var(--ptr-bg); }
 .ctx .hv.ptarget.partial { outline-style: dashed; background: none; }

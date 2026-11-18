@@ -67,6 +67,8 @@ export interface Ui {
   hideinert: boolean;
   hidelt: boolean;
   localnames: boolean;
+  /** hovering a pointer highlights its target and draws an arrow to it */
+  ptrhover: boolean;
   srcOpen: boolean;
   /** the editor's font size, in px */
   editorFontSize: number;
@@ -113,7 +115,7 @@ function newProgram(id: number, others: Program[]): Program {
 export const useStore = create<State>()(
   persist(
     (): State => ({
-      ui: { theme: null, hideinert: true, hidelt: false, localnames: true, srcOpen: true, editorFontSize: EDITOR_FONT_SIZE, vim: false },
+      ui: { theme: null, hideinert: true, hidelt: false, localnames: true, ptrhover: true, srcOpen: true, editorFontSize: EDITOR_FONT_SIZE, vim: false },
       programs: [newProgram(1, [])],
       active: 1,
       nextId: 2,

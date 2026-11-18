@@ -1,8 +1,9 @@
 // The header doubles as the tab bar: each program tab owns the whole interface below it.
 
+import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { useState } from "react";
 import { activate, addProgram, closeProgram, isDirty, renameProgram, setUi, useStore } from "../store";
-import { MOD, PaneIcon } from "./icons";
+import { MOD, MonitorIcon, MoonIcon, PaneIcon, SunIcon } from "./icons";
 
 export function Header({ onTogglePane }: { onTogglePane: () => void }) {
   const programs = useStore(s => s.programs);
@@ -60,13 +61,12 @@ export function Header({ onTogglePane }: { onTogglePane: () => void }) {
         })}
         <button id="padd" aria-label="New program" title="New program" onClick={addProgram}>+</button>
       </div>
-      <button id="theme" title="Switch between light and dark"
-        onClick={() => {
-          const dark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-          setUi({ theme: dark ? "light" : "dark" });
-        }}>
-        ◐
-      </button>
+      <ToggleGroup.Root type="single" id="theme" className="tabs" aria-label="Theme" value={theme ?? "system"}
+        onValueChange={v => v && setUi({ theme: v === "system" ? null : (v as "light" | "dark") })}>
+        <ToggleGroup.Item value="light" title="Light" aria-label="Light theme"><SunIcon /></ToggleGroup.Item>
+        <ToggleGroup.Item value="dark" title="Dark" aria-label="Dark theme"><MoonIcon /></ToggleGroup.Item>
+        <ToggleGroup.Item value="system" title="Follow the system" aria-label="Follow the system's theme"><MonitorIcon /></ToggleGroup.Item>
+      </ToggleGroup.Root>
     </header>
   );
 }

@@ -27,12 +27,13 @@ export function Toolbar({ fn, mode, kind }: { fn: Fn; mode: Mode; kind: ViewKind
       <Check k="hideinert" label="Hide inert" title="Hide StorageLive, StorageDead and Nop" checked={ui.hideinert} />
       <Check k="hidelt" label="Hide lifetimes" title="Hide region variables and lifetimes, e.g. &'?3 mut T and ptr(mut['?7], s)" checked={ui.hidelt} />
       <Check k="localnames" label="Show names" title="Show locals by their source variable name, e.g. e instead of _1" checked={ui.localnames} />
+      <Check k="ptrhover" label="Pointer targets" title="Hovering a pointer, e.g. ptr(mut, a0), highlights the place it points to and draws an arrow to it" checked={ui.ptrhover} />
       <Locations fn={fn} />
     </div>
   );
 }
 
-function Check({ k, label, title, checked }: { k: "hideinert" | "hidelt" | "localnames"; label: string; title: string; checked: boolean }) {
+function Check({ k, label, title, checked }: { k: "hideinert" | "hidelt" | "localnames" | "ptrhover"; label: string; title: string; checked: boolean }) {
   return (
     <label className="chk" title={title}>
       <input type="checkbox" checked={checked} onChange={e => setUi({ [k]: e.target.checked })} /> {label}
