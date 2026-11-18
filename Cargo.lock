@@ -196,7 +196,6 @@ dependencies = [
  "axum",
  "clap",
  "notify",
- "regex",
  "serde",
  "serde_json",
  "tempfile",

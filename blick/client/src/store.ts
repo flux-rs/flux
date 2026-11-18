@@ -1,10 +1,11 @@
-// Application state. Each program tab has its own source, flags, last run (trace and diagnostics)
+// Application state. Each program tab has its own source, flags, last run (trace and output)
 // and view state. Sources, flags, view state and display options persist in the browser; traces
 // stay in memory only, so after a reload a tab shows "not run yet" until it is run again.
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { runOverSocket } from "./api";
+import { plain } from "./components/Ansi";
 import { parseTrace, type Fn, type Mode, type Trace } from "./trace/model";
 
 export type ViewKind = "graph" | "all" | "block";
@@ -42,8 +43,6 @@ export interface Run {
   status: RunStatus;
   statusText: string;
   statusErr: boolean;
-  diag: string;
-  diagErr: boolean;
   /** set when Flux ran but wrote no trace */
   noTrace: boolean;
   buildLog: string[];
@@ -55,7 +54,13 @@ export interface Ui {
   hidelt: boolean;
   localnames: boolean;
   srcOpen: boolean;
+  /** the editor's font size, in px */
+  editorFontSize: number;
+  /** vim keybindings in the editor */
+  vim: boolean;
 }
+
+export const EDITOR_FONT_SIZE = 14;
 
 interface State {
   ui: Ui;
@@ -74,7 +79,7 @@ interface State {
 const emptyView = (): ViewState => ({ fnId: null, mode: null, kind: "graph", bbs: [] });
 const emptyRun = (): Run => ({
   data: null, ranSource: null, ranFlags: null, status: "none", statusText: "", statusErr: false,
-  diag: "", diagErr: false, noTrace: false, buildLog: [],
+  noTrace: false, buildLog: [],
 });
 
 function derivedName(source: string, others: Program[]): string {
@@ -91,7 +96,7 @@ function newProgram(id: number, others: Program[]): Program {
 export const useStore = create<State>()(
   persist(
     (): State => ({
-      ui: { theme: null, hideinert: true, hidelt: false, localnames: true, srcOpen: true },
+      ui: { theme: null, hideinert: true, hidelt: false, localnames: true, srcOpen: true, editorFontSize: EDITOR_FONT_SIZE, vim: false },
       programs: [newProgram(1, [])],
       active: 1,
       nextId: 2,
@@ -104,6 +109,11 @@ export const useStore = create<State>()(
     {
       name: "blick",
       partialize: s => ({ ui: s.ui, programs: s.programs, active: s.active, nextId: s.nextId }),
+      // options added since the state was saved get their defaults
+      merge: (persisted, current) => {
+        const p = persisted as Partial<State>;
+        return { ...current, ...p, ui: { ...current.ui, ...p.ui } };
+      },
     },
   ),
 );
@@ -147,6 +157,12 @@ function updateRun(id: number, f: (r: Run) => Partial<Run>) {
 
 export function setUi(patch: Partial<Ui>) {
   set(s => ({ ui: { ...s.ui, ...patch } }));
+}
+
+/** Zooms the editor's font in or out by `step` px, or back to the default size (`step` null). */
+export function zoomEditor(step: number | null) {
+  const size = get().ui.editorFontSize;
+  setUi({ editorFontSize: step === null ? EDITOR_FONT_SIZE : Math.min(32, Math.max(8, Math.round(size + step))) });
 }
 
 export function activate(id: number) {
@@ -274,7 +290,7 @@ export async function runFlux() {
     const lines = pending;
     pending = [];
     // the latest line doubles as the status while the run is going ("Compiling flux-refineck ...")
-    const last = [...lines].reverse().find(l => !l.startsWith("$ "));
+    const last = lines.map(plain).reverse().find(l => !l.startsWith("$ "));
     updateRun(id, r => ({ buildLog: [...r.buildLog, ...lines], ...(last !== undefined ? { statusText: last.trim().slice(0, 160) } : {}) }));
   };
 
@@ -285,25 +301,16 @@ export async function runFlux() {
     });
     cancelAnimationFrame(frame);
     flush();
-    const hasErr = !out.ok || /^error/m.test(out.stderr || "");
     const when = out.elapsed != null ? ` in ${out.elapsed}s` : "";
-    let statusText: string, statusErr: boolean;
-    if (out.stage !== "flux") {
-      statusText = out.stage === "build" ? "Building Flux failed (see the build output)" : `${out.stage} failed`;
-      statusErr = true;
-    } else if (out.exit === null) {
-      statusText = `timed out${when}`;
-      statusErr = true;
-    } else {
-      statusText = out.ok ? `ok${when}` : `flux exited with ${out.exit}${when}`;
-      statusErr = !out.ok;
-    }
+    const statusText = out.ok ? `ok${when}`
+      : out.elapsed == null ? "Run failed (see the output)"
+      : out.exit === null ? `timed out${when}`
+      : `cargo x run exited with ${out.exit}${when} (see the output)`;
     updateRun(id, () => ({
-      diag: out.stderr || "(no output)", diagErr: hasErr, status: hasErr ? "err" : "ok", ranSource: source, ranFlags: flags,
-      statusText, statusErr,
+      status: out.ok ? "ok" : "err", statusText, statusErr: !out.ok, ranSource: source, ranFlags: flags,
       // Keep the view state when re-running: it is restored if the function still exists.
       data: out.trace ? parseTrace(out.trace) : null,
-      noTrace: !out.trace && out.stage === "flux",
+      noTrace: !out.trace,
     }));
     // statement ids may name other statements in the new trace
     if (get().active === id) set({ selRow: null });

@@ -31,29 +31,22 @@ pub enum ServerMsg {
 }
 
 #[derive(Serialize, TS)]
-#[serde(rename_all = "lowercase")]
-pub enum Stage {
-    /// The request was malformed.
-    Request,
-    /// Building Flux failed.
-    Build,
-    /// Flux ran on the program.
-    Flux,
-}
-
-#[derive(Serialize, TS)]
 pub struct RunResult {
     /// Whether `cargo x run` exited successfully.
     pub ok: bool,
-    /// The exit code; `None` on timeout.
+    /// The exit code; `None` if there is none (a timeout, or the run did not start).
     pub exit: Option<i32>,
-    pub stage: Stage,
-    /// The diagnostics.
-    pub stderr: String,
     /// The checker trace (`log/checker`); empty if Flux did not write one.
     pub trace: String,
     /// Seconds the run took.
     pub elapsed: Option<f64>,
+}
+
+impl RunResult {
+    /// A run that failed before `cargo x run` could finish; the reason goes in the output.
+    pub fn failed() -> Self {
+        RunResult { ok: false, exit: None, trace: String::new(), elapsed: None }
+    }
 }
 
 /// Writes the TypeScript types of the messages into `dir`, leaving files whose contents did not
@@ -64,7 +57,6 @@ pub fn write_bindings(dir: &Path) -> anyhow::Result<()> {
     write_binding::<Info>(dir, &cfg)?;
     write_binding::<RunRequest>(dir, &cfg)?;
     write_binding::<ServerMsg>(dir, &cfg)?;
-    write_binding::<Stage>(dir, &cfg)?;
     write_binding::<RunResult>(dir, &cfg)?;
     Ok(())
 }

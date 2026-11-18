@@ -1,35 +1,25 @@
 //! Running Flux on a program: `cargo x run <file> -- -Fdump-checker-trace=debug` from the
 //! repository root, so Flux and its sysroot are rebuilt when needed, exactly as on the command
-//! line. It produces the trace and the diagnostics.
+//! line. Its output is streamed as it is printed; Flux writes the trace to a file.
 
 use std::{
     io::{BufRead, BufReader},
     path::Path,
     process::Stdio,
-    sync::LazyLock,
     time::{Duration, Instant},
 };
 
-use regex::Regex;
 use tokio::{
     process::Command,
     sync::{Mutex, mpsc::UnboundedSender},
 };
 
-use crate::protocol::{RunResult, Stage};
+use crate::protocol::RunResult;
 
 /// The program's file name, as shown in the output instead of its temporary path.
 const SRC_NAME: &str = "input.rs";
 /// Generous, because a run may first rebuild Flux and its sysroot.
 const TIMEOUT: Duration = Duration::from_secs(900);
-/// cargo's progress lines (`Compiling ...`, `Finished ...`), which would bury Flux's diagnostics.
-/// Color escapes, which Flux prints even with `--color=never`.
-static ANSI_ESCAPE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\x1b\[[0-9;]*m").unwrap());
-static CARGO_PROGRESS: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\s*(Compiling|Checking|Finished|Running|Blocking|Fresh|Updating|Downloaded?|Locking|Adding)\b")
-        .unwrap()
-});
-
 /// `cargo x run` copies the sysroot, and concurrent runs clash doing that: one run at a time.
 static RUN_LOCK: Mutex<()> = Mutex::const_new(());
 
@@ -74,16 +64,12 @@ pub async fn run(
         "run".into(),
         src_str.clone(),
         "--".into(),
-        "--color=never".into(),
+        "--color=always".into(),
         "-Fdump-checker-trace=debug".into(),
         format!("-Flog-dir={}", log_dir.display()),
     ];
     args.extend(extra_flags.iter().cloned());
-    let shown = |s: &str| {
-        ANSI_ESCAPE
-            .replace_all(&s.replace(&src_str, SRC_NAME), "")
-            .into_owned()
-    };
+    let shown = |s: &str| s.replace(&src_str, SRC_NAME);
     let _ = lines.send(shown(&format!("$ cargo {}", args.join(" "))));
 
     let start = Instant::now();
@@ -96,7 +82,7 @@ pub async fn run(
             .stdin(Stdio::null())
             .stdout(writer.try_clone()?)
             .stderr(writer)
-            .env("CARGO_TERM_COLOR", "never")
+            .env("CARGO_TERM_COLOR", "always")
             .kill_on_drop(true);
         for (k, _) in std::env::vars_os() {
             if let Some(k) = k.to_str()
@@ -122,11 +108,9 @@ pub async fn run(
         }
     });
 
-    let mut collected = Vec::new();
     let finished = tokio::time::timeout(TIMEOUT, async {
         while let Some(line) = rx.recv().await {
             let _ = lines.send(shown(&line));
-            collected.push(line);
         }
         child.wait().await
     })
@@ -135,7 +119,7 @@ pub async fn run(
         Ok(status) => Some(status?.code().unwrap_or(-1)),
         Err(_) => {
             let _ = child.kill().await;
-            collected.push(format!("[timed out after {}s]", TIMEOUT.as_secs()));
+            let _ = lines.send(format!("[timed out after {}s]", TIMEOUT.as_secs()));
             None
         }
     };
@@ -143,42 +127,5 @@ pub async fn run(
     let trace = std::fs::read(log_dir.join("checker"))
         .map(|b| String::from_utf8_lossy(&b).into_owned())
         .unwrap_or_default();
-
-    // xtask echoes each command it runs as `$ ...`; the last one is Flux on the program. Show only
-    // what that printed, unless the run never got there (a build error), then show everything.
-    let mut flux_runs = collected
-        .iter()
-        .enumerate()
-        .filter(|(_, l)| l.starts_with("$ ") && l.contains("flux-driver") && !l.contains("cargo "))
-        .map(|(i, _)| i);
-    let (stage, out): (Stage, Vec<&str>) = match flux_runs.next_back() {
-        Some(i) => {
-            (
-                Stage::Flux,
-                collected[i + 1..]
-                    .iter()
-                    .map(String::as_str)
-                    .filter(|l| !l.starts_with("Error: command exited with"))
-                    .collect(),
-            )
-        }
-        None => {
-            (
-                if matches!(code, Some(c) if c != 0) { Stage::Build } else { Stage::Flux },
-                collected
-                    .iter()
-                    .map(String::as_str)
-                    .filter(|l| !CARGO_PROGRESS.is_match(l))
-                    .collect(),
-            )
-        }
-    };
-    Ok(RunResult {
-        ok: code == Some(0),
-        exit: code,
-        stage,
-        stderr: shown(out.join("\n").trim_matches('\n')),
-        trace,
-        elapsed: Some(elapsed),
-    })
+    Ok(RunResult { ok: code == Some(0), exit: code, trace, elapsed: Some(elapsed) })
 }

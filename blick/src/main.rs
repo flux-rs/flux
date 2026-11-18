@@ -39,7 +39,7 @@ use axum::{
 };
 use clap::Parser;
 use notify::{RecursiveMode, Watcher};
-use protocol::{Info, RunRequest, RunResult, ServerMsg, Stage};
+use protocol::{Info, RunRequest, RunResult, ServerMsg};
 use tokio::{
     process::{Child, Command},
     sync::broadcast,
@@ -138,9 +138,7 @@ fn install_client_deps(client: &Path) -> anyhow::Result<()> {
         .status()
         .map_err(|err| {
             if err.kind() == std::io::ErrorKind::NotFound {
-                anyhow::anyhow!(
-                    "npm not found: blick needs Node.js and npm (https://nodejs.org)"
-                )
+                anyhow::anyhow!("npm not found: blick needs Node.js and npm (https://nodejs.org)")
             } else {
                 anyhow::anyhow!("running npm: {err}")
             }
@@ -228,15 +226,8 @@ async fn handle_run(mut socket: WebSocket, app: App) {
     let req = match req {
         Ok(req) => req,
         Err(err) => {
-            let result = RunResult {
-                ok: false,
-                exit: None,
-                stage: Stage::Request,
-                stderr: err,
-                trace: String::new(),
-                elapsed: None,
-            };
-            send(&mut socket, &ServerMsg::Done(result)).await;
+            send(&mut socket, &ServerMsg::Line { text: format!("blick: {err}") }).await;
+            send(&mut socket, &ServerMsg::Done(RunResult::failed())).await;
             let _ = socket.send(Message::Close(None)).await;
             return;
         }
@@ -261,16 +252,13 @@ async fn handle_run(mut socket: WebSocket, app: App) {
             return;
         }
     }
-    let result = result.unwrap_or_else(|err| {
-        RunResult {
-            ok: false,
-            exit: None,
-            stage: Stage::Flux,
-            stderr: format!("blick: {err:#}"),
-            trace: String::new(),
-            elapsed: None,
+    let result = match result {
+        Ok(result) => result,
+        Err(err) => {
+            send(&mut socket, &ServerMsg::Line { text: format!("blick: {err:#}") }).await;
+            RunResult::failed()
         }
-    });
+    };
     send(&mut socket, &ServerMsg::Done(result)).await;
     let _ = socket.send(Message::Close(None)).await;
 }

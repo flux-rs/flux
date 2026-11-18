@@ -121,9 +121,16 @@ main { flex: 1; display: flex; min-height: 0; }
 .maingroup { flex: 1; min-width: 0; }
 /* the drag handles: the program pane's right edge, and the lines between the editor and the
    output panels */
-.hsplit { width: 1px; background: var(--line); }
-.vsplit { height: 1px; background: var(--line); }
-.hsplit:hover, .hsplit[data-separator="active"], .vsplit:hover, .vsplit[data-separator="active"] { background: var(--accent); box-shadow: 0 0 0 2px light-dark(rgba(58, 80, 200, .35), rgba(138, 156, 255, .35)); }
+/* A 1px line; on hover and while dragging, a 3px accent line centered on it, above the panels on
+   both sides (it is wider than the separator, so it must be stacked over its neighbors). */
+.hsplit, .vsplit { position: relative; z-index: 10; background: var(--line); }
+.hsplit { width: 1px; }
+.vsplit { height: 1px; }
+.hsplit::after, .vsplit::after { content: ""; position: absolute; pointer-events: none; }
+.hsplit::after { top: 0; bottom: 0; left: -1px; width: 3px; }
+.vsplit::after { left: 0; right: 0; top: -1px; height: 3px; }
+.hsplit:hover::after, .hsplit[data-separator="active"]::after,
+.vsplit:hover::after, .vsplit[data-separator="active"]::after { background: var(--accent); }
 .tracearea { display: flex; height: 100%; min-width: 0; }
 #side { width: 230px; flex: none; border-left: 1px solid var(--line); display: flex; flex-direction: column; background: var(--panel); }
 #side .sidehd { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
@@ -154,11 +161,20 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-st
 #srcpane #runstatus.err { color: var(--blocked); }
 #srcpane #runstatus.ok { color: var(--ok); }
 .outgroup { flex: 1; min-height: 0; }
-#srcwrap { height: 100%; background: var(--bg); }
+.edwrap { height: 100%; display: flex; flex-direction: column; }
+#srcwrap { flex: 1; min-height: 0; background: var(--bg); }
+/* editor settings under the editor */
+.edbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 8px; border-top: 1px solid var(--line); font-size: 11px; }
+.edbar .tabs { padding: 1px; }
+.edbar .tabs button { padding: 0 7px; font-size: 11px; line-height: 18px; font-family: var(--mono); }
+/* vim's mode and command line, at the bottom of the editor */
+#srcwrap .cm-panels { background: var(--sunken); color: var(--fg); border-color: var(--line); font-family: var(--mono); }
+#srcwrap .cm-fat-cursor { background: var(--accent) !important; color: var(--accent-fg) !important; }
+#srcwrap:not(:focus-within) .cm-fat-cursor { background: none !important; outline: 1px solid var(--accent); }
 /* the source lines of the selected statement */
 #srcwrap .cm-srcmark { background: var(--src-mark); box-shadow: inset 2px 0 0 var(--accent); }
-/* The output panels under the editor: build output (the live output of `cargo x run`) and
-   diagnostics. A collapsed panel shows only its header. */
+/* The output panel under the editor: the live output of `cargo x run`. Collapsed, it shows only
+   its header. */
 .outpanel { height: 100%; display: flex; flex-direction: column; }
 .outpanel .summary { all: unset; box-sizing: border-box; display: block; width: 100%; flex: none; padding: 6px 10px; cursor: pointer; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; user-select: none; }
 .outpanel .summary::before { content: "▸"; display: inline-block; width: 12px; }
@@ -168,6 +184,15 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-st
 #buildcount { font-weight: 400; letter-spacing: 0; text-transform: none; font-family: var(--mono); }
 .outpanel pre { flex: 1; min-height: 0; margin: 0; padding: 4px 12px 10px; overflow: auto; font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap; word-break: break-word; }
 .outpanel pre.buildtext { color: var(--muted); }
+/* ANSI colors in the output (see Ansi.tsx), mapped to the theme */
+.outpanel pre .ansi-red-fg, .outpanel pre .ansi-bright-red-fg { color: var(--blocked); }
+.outpanel pre .ansi-green-fg, .outpanel pre .ansi-bright-green-fg { color: var(--ok); }
+.outpanel pre .ansi-yellow-fg, .outpanel pre .ansi-bright-yellow-fg { color: var(--hl-life); }
+.outpanel pre .ansi-blue-fg, .outpanel pre .ansi-bright-blue-fg { color: var(--accent); }
+.outpanel pre .ansi-magenta-fg, .outpanel pre .ansi-bright-magenta-fg { color: var(--hl-mac); }
+.outpanel pre .ansi-cyan-fg, .outpanel pre .ansi-bright-cyan-fg { color: var(--hl-ty); }
+.outpanel pre .ansi-white-fg, .outpanel pre .ansi-bright-white-fg,
+.outpanel pre .ansi-black-fg, .outpanel pre .ansi-bright-black-fg { color: var(--fg); }
 
 /* ---- locations dropdown ---- */
 .ddmenu { z-index: 20; min-width: 160px; max-height: 60vh; overflow: auto; background: var(--panel); color: var(--fg); border: 1px solid var(--line-strong); border-radius: 8px; padding: 4px 0; box-shadow: var(--shadow); font-family: var(--ui); font-size: 13px; line-height: 1.45; }

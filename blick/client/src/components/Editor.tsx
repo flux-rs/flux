@@ -4,11 +4,12 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { rust } from "@codemirror/lang-rust";
 import { bracketMatching, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from "@codemirror/language";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
-import { EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
+import { Compartment, EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, drawSelection, EditorView, keymap, lineNumbers, placeholder } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
+import { vim } from "@replit/codemirror-vim";
 import { useEffect, useRef } from "react";
-import { runFlux, setSource } from "../store";
+import { runFlux, setSource, zoomEditor } from "../store";
 import { MOD } from "./icons";
 
 export interface LineRange {
@@ -64,10 +65,16 @@ const markField = StateField.define<DecorationSet>({
   provide: f => EditorView.decorations.from(f),
 });
 
-function newState(doc: string): EditorState {
+// Vim keybindings, switched on and off at runtime. Each program's editor state has the compartment.
+const vimMode = new Compartment();
+const vimExt = (on: boolean) => (on ? vim({ status: true }) : []);
+
+function newState(doc: string, vimOn: boolean): EditorState {
   return EditorState.create({
     doc,
     extensions: [
+      // first, so vim sees the keys before the other keymaps
+      vimMode.of(vimExt(vimOn)),
       lineNumbers(),
       history(),
       drawSelection(),
@@ -81,7 +88,14 @@ function newState(doc: string): EditorState {
       theme,
       markField,
       placeholder(`Paste a Rust program here and press ${MOD}+Enter.`),
-      Prec.highest(keymap.of([{ key: "Mod-Enter", run: () => (runFlux(), true) }])),
+      Prec.highest(keymap.of([
+        { key: "Mod-Enter", run: () => (runFlux(), true) },
+        // zoom, as in VS Code (instead of the browser's page zoom while the editor has focus)
+        { key: "Mod-=", run: () => (zoomEditor(1), true) },
+        { key: "Mod-+", run: () => (zoomEditor(1), true) },
+        { key: "Mod--", run: () => (zoomEditor(-1), true) },
+        { key: "Mod-0", run: () => (zoomEditor(null), true) },
+      ])),
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
       EditorView.updateListener.of(u => {
         if (u.docChanged) setSource(u.state.doc.toString());
@@ -99,9 +113,11 @@ interface Props {
   mark: LineRange | null;
   /** identifies what the mark was set for: the mark is scrolled into view when it changes */
   markFor: string | null;
+  vim: boolean;
+  fontSize: number;
 }
 
-export function Editor({ progId, source, mark, markFor }: Props) {
+export function Editor({ progId, source, mark, markFor, vim: vimOn, fontSize }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const shownId = useRef<number | null>(null);
@@ -123,10 +139,20 @@ export function Editor({ progId, source, mark, markFor }: Props) {
     if (shownId.current === progId) return;
     if (shownId.current !== null) states.set(shownId.current, v.state);
     let st = states.get(progId);
-    if (!st || st.doc.toString() !== source) st = newState(source);
+    if (!st || st.doc.toString() !== source) st = newState(source, vimOn);
     v.setState(st);
     shownId.current = progId;
   }, [progId]);
+
+  // after switching programs too: the program's state may have been saved with the other setting
+  useEffect(() => {
+    view.current!.dispatch({ effects: vimMode.reconfigure(vimExt(vimOn)) });
+  }, [vimOn, progId]);
+
+  // the font size is the `--code-size` of the host; the editor measures its lines again
+  useEffect(() => {
+    view.current!.requestMeasure();
+  }, [fontSize]);
 
   useEffect(() => {
     const v = view.current!;
@@ -137,5 +163,5 @@ export function Editor({ progId, source, mark, markFor }: Props) {
     v.dispatch({ effects });
   }, [mark?.start, mark?.end, markFor, progId]);
 
-  return <div id="srcwrap" ref={host} />;
+  return <div id="srcwrap" ref={host} style={{ "--code-size": `${fontSize}px` } as React.CSSProperties} />;
 }

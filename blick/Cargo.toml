@@ -10,7 +10,6 @@ edition.workspace = true
 anyhow.workspace = true
 axum = { version = "0.8.9", features = ["ws"] }
 clap.workspace = true
-regex.workspace = true
 notify = "8.2.2"
 serde.workspace = true
 serde_json.workspace = true

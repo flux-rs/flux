@@ -78,8 +78,8 @@ function TraceArea() {
       <div id="view">
         {run.noTrace ? (
           <p className="empty">
-            <strong>No checker trace.</strong> Flux stopped before the refinement checker ran; the diagnostics under the
-            program say why.
+            <strong>No checker trace.</strong> The run stopped before the refinement checker ran; the output under the
+            program says why.
           </p>
         ) : (
           <p className="empty">

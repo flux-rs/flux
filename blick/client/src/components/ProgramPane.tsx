@@ -1,9 +1,10 @@
-// The program pane: the run bar, the editor, and the output of the last run (build output and
-// diagnostics) in resizable, collapsible panels.
+// The program pane: the run bar, the editor, and the output of the last run (the output of
+// `cargo x run`) in a resizable, collapsible panel.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Group, Panel, type PanelImperativeHandle, Separator, useDefaultLayout, usePanelRef } from "react-resizable-panels";
-import { curProgram, curRun, resolveView, runFlux, setFlags, useStore } from "../store";
+import { curProgram, curRun, EDITOR_FONT_SIZE, resolveView, runFlux, setFlags, setUi, useStore, zoomEditor } from "../store";
+import { AnsiPre } from "./Ansi";
 import { Editor, type LineRange } from "./Editor";
 import { MOD } from "./icons";
 
@@ -16,8 +17,9 @@ export function ProgramPane() {
   const running = useStore(s => s.running);
   const serverInfo = useStore(s => s.serverInfo);
   const selRow = useStore(s => s.selRow);
+  const vimOn = useStore(s => s.ui.vim);
+  const fontSize = useStore(s => s.ui.editorFontSize);
   const buildRef = usePanelRef();
-  const diagRef = usePanelRef();
   const layout = useDefaultLayout({ id: "blick:output", storage: localStorage });
 
   // The source lines of the selected statement, if it has a span in the program (spans into other
@@ -33,19 +35,12 @@ export function ProgramPane() {
     }
   }
 
-  // Switching tabs shows the diagnostics if the last run had errors.
-  useEffect(() => {
-    const p = diagRef.current;
-    if (run.diagErr) p?.expand();
-    else p?.collapse();
-  }, [prog.id]);
-  // A run shows its output while it goes, and its diagnostics when it failed.
+  // A run shows its output while it goes.
   const lastStatus = useRef(run.status);
   useEffect(() => {
     if (run.status === lastStatus.current) return;
     lastStatus.current = run.status;
     if (run.status === "running") buildRef.current?.expand();
-    else if (run.diagErr) diagRef.current?.expand();
   }, [run.status, prog.id]);
 
   const status = run.statusText || serverInfo;
@@ -62,17 +57,32 @@ export function ProgramPane() {
       </div>
       <Group orientation="vertical" id="blick:output" {...layout} className="outgroup">
         <Panel id="editor" minSize={120}>
-          <Editor progId={prog.id} source={prog.source} mark={mark} markFor={selRow} />
+          <div className="edwrap">
+            <Editor progId={prog.id} source={prog.source} mark={mark} markFor={selRow} vim={vimOn} fontSize={fontSize} />
+            <EditorBar vim={vimOn} fontSize={fontSize} />
+          </div>
         </Panel>
         <Separator className="vsplit" />
-        <OutputPanel id="build" panelRef={buildRef} title={<>Build output {run.buildLog.length > 0 && <span id="buildcount">({run.buildLog.length} lines)</span>}</>}>
+        <OutputPanel id="build" panelRef={buildRef} err={run.status === "err"} title={<>Build output {run.buildLog.length > 0 && <span id="buildcount">({run.buildLog.length} lines)</span>}</>}>
           <BuildLog lines={run.buildLog} />
         </OutputPanel>
-        <Separator className="vsplit" />
-        <OutputPanel id="diag" panelRef={diagRef} title="Diagnostics" err={run.diagErr}>
-          <pre>{run.diag}</pre>
-        </OutputPanel>
       </Group>
+    </div>
+  );
+}
+
+/** Editor settings, in a status bar under the editor (as in VS Code). */
+function EditorBar({ vim, fontSize }: { vim: boolean; fontSize: number }) {
+  return (
+    <div className="edbar">
+      <label className="chk" title="Vim keybindings in the editor">
+        <input type="checkbox" checked={vim} onChange={e => setUi({ vim: e.target.checked })} /> Vim
+      </label>
+      <span className="tabs zoom" role="group" aria-label="Editor font size">
+        <button title={`Smaller font (${MOD}+-)`} aria-label="Smaller font" onClick={() => zoomEditor(-1)}>−</button>
+        <button title={`Reset to ${EDITOR_FONT_SIZE}px (${MOD}+0)`} onClick={() => zoomEditor(null)}>{fontSize}px</button>
+        <button title={`Larger font (${MOD}+=)`} aria-label="Larger font" onClick={() => zoomEditor(1)}>+</button>
+      </span>
     </div>
   );
 }
@@ -108,12 +118,10 @@ function BuildLog({ lines }: { lines: string[] }) {
     if (pre && atEnd.current) pre.scrollTop = pre.scrollHeight;
   }, [lines]);
   return (
-    <pre ref={ref} className="buildtext"
+    <AnsiPre ref={ref} className="buildtext" text={lines.join("\n")}
       onScroll={e => {
         const p = e.currentTarget;
         atEnd.current = p.scrollTop + p.clientHeight >= p.scrollHeight - 4;
-      }}>
-      {lines.join("\n")}
-    </pre>
+      }} />
   );
 }
