@@ -1,0 +1,313 @@
+/* Layout: a three-pane workbench (program | trace | functions). Chrome is set in a sans UI face,
+   everything that comes from MIR or the checker in mono. Every color token is defined once, as
+   `light-dark(<light>, <dark>)`; the theme toggle forces one side through `color-scheme`. */
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#f5f6f9, #0f1218);
+  --panel: light-dark(#ffffff, #161a22);
+  --sunken: light-dark(#eceef3, #1b2029);
+  --fg: light-dark(#1a1e29, #e3e7ef);
+  --muted: light-dark(#5b6375, #98a1b3);
+  --faint: light-dark(#959cad, #626b7d);
+  --line: light-dark(#dde1e9, #262c38);
+  --line-strong: light-dark(#c7ccd8, #353d4c);
+  --hover: light-dark(#eef1f7, #1d2230);
+  --sel: light-dark(#e2e8fb, #233059);
+  --accent: light-dark(#3a50c8, #8a9cff);
+  --accent-fg: light-dark(#ffffff, #0f1218);
+  --edge: light-dark(#8790a3, #6c7486);
+  --mir: light-dark(#2b3fae, #93a8ff);
+  --goto: light-dark(#6d43d9, #b39cff);
+  --ptr: light-dark(#c026d3, #f472b6);
+  --ok: light-dark(#15803d, #4ade80);
+  --rcx: light-dark(#6a7385, #8892a5);
+  --env: light-dark(#262b38, #d3d8e2);
+  --chg-bg: light-dark(#fde9a6, #57471a);
+  --add-bg: light-dark(#cdeed8, #1c4a30);
+  --gone-bg: light-dark(#fbd3d3, #5a2427);
+  --blocked: light-dark(#d4460d, #ff8a5c);
+  --shadow: 0 1px 2px light-dark(rgba(20, 28, 50, .06), rgba(0, 0, 0, .3)), 0 4px 14px light-dark(rgba(20, 28, 50, .06), rgba(0, 0, 0, .25));
+  --hl-kw: light-dark(#7c3aed, #c4a5ff);
+  --hl-ty: light-dark(#0f7b6c, #5fd4c4);
+  --hl-str: light-dark(#a75a0c, #e9b872);
+  --hl-num: light-dark(#c2410c, #f59e6b);
+  --hl-com: light-dark(#8a93a6, #6b7488);
+  --hl-meta: light-dark(#3a50c8, #8a9cff);
+  --hl-fn: light-dark(#0b5cad, #7cc0ff);
+  --hl-mac: light-dark(#b0237a, #f07cc0);
+  --hl-life: light-dark(#a16207, #e8c069);
+  /* translucent, because they are painted over or under text */
+  --sel-src: light-dark(rgba(58, 80, 200, .22), rgba(138, 156, 255, .28));    /* editor selection */
+  --src-mark: light-dark(rgba(58, 80, 200, .11), rgba(138, 156, 255, .15));   /* source lines of the selected statement */
+  --ptr-bg: light-dark(rgba(192, 38, 211, .10), rgba(244, 114, 182, .16));    /* a hovered pointer's target */
+  --stmt-bg: light-dark(rgba(58, 80, 200, .065), rgba(138, 156, 255, .09));   /* band behind MIR statements */
+  --ghost-bg: light-dark(rgba(110, 122, 175, .05), rgba(175, 185, 235, .04)); /* band behind ghost statements */
+  --ui: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", "DejaVu Sans", Arial, sans-serif;
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+  --code-size: 12.5px;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body, #root { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--fg); font: 13px/1.45 var(--ui); }
+#root { display: flex; flex-direction: column; }
+/* Programming ligatures would draw `->`, `>=` and `==>` as arrow glyphs; show the characters.
+   (Rules below set fonts with longhands: the `font` shorthand would turn ligatures back on.) */
+body, input, textarea, button, svg text, .cm-editor { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ---- controls ---- */
+button, input[type=text] {
+  font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 6px;
+  padding: 4px 10px; line-height: 18px;
+}
+button { cursor: pointer; transition: background .12s, border-color .12s; }
+button:hover { background: var(--hover); }
+button:disabled { opacity: .55; cursor: progress; }
+button.on { background: var(--sel); border-color: var(--accent); color: var(--fg); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+button.primary:hover { filter: brightness(1.08); background: var(--accent); }
+input[type=text] { background: var(--bg); }
+input[type=text]::placeholder { color: var(--faint); }
+input[type=text]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--sel); }
+label.chk { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
+label.chk input { accent-color: var(--accent); margin: 0; }
+
+/* segmented control: a group of buttons that share one border */
+.tabs { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--sunken); padding: 2px; gap: 2px; }
+.tabs button { border: 0; background: transparent; border-radius: 5px; padding: 3px 10px; color: var(--muted); }
+.tabs button:hover { background: var(--hover); color: var(--fg); }
+.tabs button[data-state="on"] { background: var(--panel); color: var(--fg); font-weight: 600; box-shadow: 0 1px 2px rgba(20, 28, 50, .12); }
+
+/* ---- header ---- */
+/* The header doubles as the tab bar: each program tab owns the whole interface below it. Its
+   bottom line is an inset shadow, painted under the tabs, so the active tab can cover it. */
+header { display: flex; gap: 12px; align-items: center; padding: 0 14px; min-height: 46px; background: var(--sunken); box-shadow: inset 0 -1px 0 var(--line); flex: none; }
+header > * { flex: none; }
+header h1 { font-size: 14px; margin: 0; font-weight: 650; letter-spacing: -.01em; display: flex; align-items: baseline; gap: 8px; }
+header h1 .tag { font: 600 10px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); background: var(--sel); padding: 3px 6px; border-radius: 4px; }
+#theme { width: 32px; padding: 4px 0; text-align: center; }
+.iconbtn { width: 30px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); border-color: transparent; background: transparent; }
+.iconbtn:hover { color: var(--fg); background: var(--hover); }
+.iconbtn .pnl { fill: transparent; }
+.iconbtn[aria-expanded="true"] { color: var(--fg); }
+.iconbtn[aria-expanded="true"] .pnl { fill: currentColor; opacity: .35; }
+
+/* program tabs */
+#ptabs { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; align-items: flex-end; gap: 2px; padding: 8px 4px 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.ptab { flex: none; display: flex; align-items: center; gap: 6px; padding: 5px 4px 6px 12px; border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0; cursor: pointer; font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; max-width: 190px; user-select: none; }
+.ptab:hover { color: var(--fg); background: var(--hover); }
+.ptab.on { background: var(--panel); border-color: var(--line); color: var(--fg); }
+.ptab .pname { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ptab .dirty { color: var(--muted); margin-left: -4px; }
+.ptab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: none; }
+.ptab .dot.st-ok { background: var(--ok); }
+.ptab .dot.st-err { background: var(--blocked); }
+.ptab .dot.st-running { background: var(--accent); animation: pulse 1s ease-in-out infinite alternate; }
+@keyframes pulse { from { opacity: 1; } to { opacity: .3; } }
+.ptab .pclose { border: 0; background: transparent; padding: 0 4px; line-height: 16px; font-size: 14px; color: var(--faint); visibility: hidden; border-radius: 4px; }
+.ptab:hover .pclose, .ptab.on .pclose { visibility: visible; }
+.ptab .pclose:hover { color: var(--fg); background: var(--line); }
+.ptab input.rename { font: inherit; width: 130px; padding: 0 4px; line-height: 16px; border-radius: 4px; }
+#padd { border: 0; background: transparent; padding: 2px 9px 5px; color: var(--muted); font-size: 15px; line-height: 18px; flex: none; }
+#padd:hover { color: var(--fg); background: var(--hover); }
+
+/* ---- panes ---- */
+main { flex: 1; display: flex; min-height: 0; }
+.maingroup { flex: 1; min-width: 0; }
+/* the drag handles: the program pane's right edge, and the lines between the editor and the
+   output panels */
+.hsplit { width: 1px; background: var(--line); }
+.vsplit { height: 1px; background: var(--line); }
+.hsplit:hover, .hsplit[data-separator="active"], .vsplit:hover, .vsplit[data-separator="active"] { background: var(--accent); box-shadow: 0 0 0 2px light-dark(rgba(58, 80, 200, .35), rgba(138, 156, 255, .35)); }
+.tracearea { display: flex; height: 100%; min-width: 0; }
+#side { width: 230px; flex: none; border-left: 1px solid var(--line); display: flex; flex-direction: column; background: var(--panel); }
+#side .sidehd { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+#side .sidehd #fncount { font-family: var(--mono); letter-spacing: 0; text-transform: none; font-weight: 400; color: var(--faint); }
+#side input { margin: 4px 10px 8px; }
+#fnlist { overflow: auto; flex: 1; padding: 0 6px 10px; }
+.fn { padding: 4px 8px; margin: 1px 0; border-radius: 5px; cursor: pointer; font-family: var(--mono); font-size: 12px; display: flex; justify-content: space-between; gap: 6px; color: var(--env); }
+.fn > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fn:hover { background: var(--hover); }
+.fn.sel { background: var(--sel); color: var(--fg); font-weight: 600; }
+.fn .err { color: var(--blocked); font-family: var(--ui); font-size: 11px; font-weight: 600; }
+#content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#toolbar { display: flex; gap: 10px; align-items: center; padding: 7px 14px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+#toolbar .divider { width: 1px; align-self: stretch; background: var(--line); margin: 2px 2px; }
+#view { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px 60px; }
+
+/* empty state */
+.empty { margin: 32px auto; max-width: 560px; color: var(--muted); line-height: 1.55; }
+.empty strong { color: var(--fg); }
+kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--fg); background: var(--panel); }
+
+/* ---- program pane ---- */
+#srcpane { height: 100%; display: flex; flex-direction: column; background: var(--panel); }
+#prog { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#srcpane .srcbar { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+#srcpane #flags { flex: 1; min-width: 100px; font-family: var(--mono); font-size: 12px; }
+#srcpane #runstatus { color: var(--muted); font-size: 12px; width: 100%; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#srcpane #runstatus.err { color: var(--blocked); }
+#srcpane #runstatus.ok { color: var(--ok); }
+.outgroup { flex: 1; min-height: 0; }
+#srcwrap { height: 100%; background: var(--bg); }
+/* the source lines of the selected statement */
+#srcwrap .cm-srcmark { background: var(--src-mark); box-shadow: inset 2px 0 0 var(--accent); }
+/* The output panels under the editor: build output (the live output of `cargo x run`) and
+   diagnostics. A collapsed panel shows only its header. */
+.outpanel { height: 100%; display: flex; flex-direction: column; }
+.outpanel .summary { all: unset; box-sizing: border-box; display: block; width: 100%; flex: none; padding: 6px 10px; cursor: pointer; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; user-select: none; }
+.outpanel .summary::before { content: "▸"; display: inline-block; width: 12px; }
+.outpanel.open .summary::before { content: "▾"; }
+.outpanel .summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.outpanel.has-err .summary { color: var(--blocked); }
+#buildcount { font-weight: 400; letter-spacing: 0; text-transform: none; font-family: var(--mono); }
+.outpanel pre { flex: 1; min-height: 0; margin: 0; padding: 4px 12px 10px; overflow: auto; font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap; word-break: break-word; }
+.outpanel pre.buildtext { color: var(--muted); }
+
+/* ---- locations dropdown ---- */
+.ddmenu { z-index: 20; min-width: 160px; max-height: 60vh; overflow: auto; background: var(--panel); color: var(--fg); border: 1px solid var(--line-strong); border-radius: 8px; padding: 4px 0; box-shadow: var(--shadow); font-family: var(--ui); font-size: 13px; line-height: 1.45; }
+.ddmenu .dditem { display: flex; gap: 8px; align-items: center; padding: 3px 12px; font-family: var(--mono); font-size: 12px; cursor: pointer; white-space: nowrap; outline: none; }
+.ddmenu .dditem[data-highlighted] { background: var(--hover); }
+.ddmenu .ddcheck { width: 12px; color: var(--accent); }
+.ddmenu .ddact { display: flex; gap: 6px; padding: 4px 8px 6px; margin-bottom: 3px; border-bottom: 1px solid var(--line); }
+.ddmenu .ddact button { font-size: 11px; padding: 1px 8px; }
+.ddmenu .empty { margin: 0; padding: 2px 12px; color: var(--muted); }
+
+/* ---- breadcrumb / navigation above the graph and the block view ---- */
+.nav { display: flex; gap: 8px 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
+.nav a, .bblink { color: var(--accent); cursor: pointer; text-decoration: none; font-family: var(--mono); }
+.nav a:hover, .bblink:hover { text-decoration: underline; }
+.nav .crumb { font-family: var(--ui); }
+.nav .slash { color: var(--faint); }
+.nav .navbbs { display: contents; }
+.nav .cur { font-weight: 700; font-size: 14px; font-family: var(--mono); color: var(--fg); }
+.nav .pill { font-size: 10px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 999px; padding: 1px 7px; }
+.nav .dim { color: var(--muted); }
+.nav .hint { margin-left: auto; }
+
+/* ---- graph ---- */
+#view.graphview { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+#view.graphview > .nav { padding: 12px 16px 0; margin-bottom: 4px; }
+#view.graphview .react-flow { flex: 1; min-height: 0; }
+.react-flow {
+  --xy-background-color: var(--bg);
+  --xy-edge-stroke: var(--edge);
+  --xy-edge-stroke-width: 1.4;
+  --xy-edge-label-background-color: var(--bg);
+  --xy-edge-label-color: var(--muted);
+  --xy-controls-button-background-color: var(--panel);
+  --xy-controls-button-background-color-hover: var(--hover);
+  --xy-controls-button-color: var(--fg);
+  --xy-controls-button-color-hover: var(--fg);
+  --xy-controls-button-border-color: var(--line);
+  --xy-controls-box-shadow: var(--shadow);
+  --xy-attribution-background-color: transparent;
+}
+.react-flow__edge.aux .react-flow__edge-path { stroke-dasharray: 5 4; }
+.react-flow__edge.back .react-flow__edge-path { stroke: var(--goto); }
+.react-flow__edge-text { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
+/* the global button style would squash the controls' icons */
+.react-flow__controls-button { padding: 0; border-radius: 0; line-height: normal; }
+.react-flow__attribution { opacity: .6; }
+/* the node itself (custom type: React Flow adds no box of its own) */
+.gnode { background: var(--panel); border: 1px solid var(--line-strong); border-radius: 6px; font-family: var(--mono); font-size: 12px; line-height: 16px; color: var(--fg); min-width: 90px; max-width: 640px; cursor: grab; }
+.gnode:hover { border-color: var(--accent); }
+.gnode.ghost { border-style: dashed; background: var(--bg); cursor: default; }
+.gnode.selected { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent); }
+.react-flow__node.dragging .gnode { border-color: var(--accent); cursor: grabbing; }
+.gnode .ghd { display: flex; gap: 8px; align-items: baseline; padding: 2px 8px; background: var(--sunken); border-radius: 5px 5px 0 0; white-space: nowrap; }
+.gnode.selected .ghd { background: var(--sel); }
+.gnode .ghd .title { font-weight: 700; }
+.gnode .ghd .sub { color: var(--muted); font-size: 11px; }
+.gnode .glines { padding: 4px 8px; }
+.gnode .gline { display: flex; white-space: pre; }
+.gnode .gline .c-stmt { color: var(--mir); }
+.gnode .gicon { width: 18px; flex: none; color: var(--muted); opacity: .55; line-height: 0; padding-top: 1px; }
+.gnode .gedge { border-top: 1px dashed var(--line-strong); }
+.gnode .gedge .ehdr { padding: 2px 8px 0; color: var(--muted); font-family: var(--ui); font-size: 11px; font-style: italic; white-space: nowrap; }
+.gnode .gedge .glines { padding-left: 26px; }
+.gnode .react-flow__handle { opacity: 0; min-width: 0; min-height: 0; width: 1px; height: 1px; border: 0; }
+.selbar { display: flex; gap: 8px; align-items: center; padding: 6px 6px 6px 12px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: var(--shadow); }
+.selbar .selcount { color: var(--muted); font-size: 12px; margin-right: 4px; }
+
+/* ---- block sections (block view: open blocks side by side; all-blocks view) ---- */
+.cols { display: grid; grid-template-columns: repeat(var(--ncols, 1), minmax(min(420px, 100%), 1fr)); gap: 12px; align-items: start; }
+.col { min-width: 0; }
+@media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.sec { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; background: var(--panel); overflow: hidden; }
+.sec > .hd { display: flex; gap: 10px; align-items: baseline; padding: 6px 12px; user-select: none; font-family: var(--mono); font-size: 12px; background: var(--sunken); }
+.sec > .hd.click { cursor: pointer; }
+.sec > .hd.click:hover { background: var(--hover); }
+.sec > .hd .tw { width: 12px; color: var(--muted); }
+.sec > .hd .bb { font-weight: 700; }
+.sec > .hd .meta { color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sec > .hd .bbclose { margin-left: auto; border: 0; background: transparent; padding: 0 6px; font-size: 15px; line-height: 16px; color: var(--muted); border-radius: 4px; }
+.sec > .hd .bbclose:hover { color: var(--fg); background: var(--line); }
+.sec .bd { border-top: 1px solid var(--line); padding: 6px 0 8px; font-family: var(--mono); font-size: var(--code-size); }
+
+/* statement rows. Left gutter: fold toggle (4px), ghost icon (24px); the text starts at 46px.
+   A band behind each statement (::before) spans the row; hover and selection color the band. */
+.row { display: flex; gap: 12px; padding: 2px 12px 2px 46px; align-items: baseline; position: relative; cursor: pointer; z-index: 0; }
+.row::before { content: ""; position: absolute; inset: 1px 0; background: var(--stmt-bg); z-index: -1; pointer-events: none; }
+.row:hover::before { background: var(--hover); }
+.row.sel::before { background: var(--sel); box-shadow: inset 2px 0 0 var(--accent); }
+.row.ghost::before { background: var(--ghost-bg); }
+.row.folded::before { display: none; }
+.row.sel { background: var(--sel); box-shadow: inset 2px 0 0 var(--accent); }
+.row .gl { position: absolute; left: 24px; top: 3px; line-height: 0; color: var(--muted); opacity: .55; user-select: none; }
+.gbody { fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; }
+.geye { fill: currentColor; }
+.row .tx { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; font-weight: 600; }
+.row .tg { position: absolute; left: 4px; top: 2px; width: 15px; line-height: 18px; color: var(--muted); cursor: pointer; visibility: hidden; text-align: center; border-radius: 3px; }
+.row:hover .tg, .row.folded .tg { visibility: visible; }
+.row .tg:hover { background: var(--line); color: var(--fg); }
+/* the toggle is a CSS triangle: pointing down (expanded) or right (folded) */
+.row .tg::before { content: ""; display: inline-block; vertical-align: middle; border-style: solid; border-color: transparent; }
+.row:not(.folded) .tg::before { border-width: 6px 4.5px 0 4.5px; border-top-color: currentColor; }
+.row.folded .tg::before { border-width: 3.5px 0 3.5px 5px; border-left-color: currentColor; }
+.row.folded { align-items: center; min-height: 9px; padding: 0 0 0 22px; }
+.row.folded .tg { line-height: 9px; top: 0; }
+.row.folded .fl { flex: 1; border-top: 1px dashed var(--muted); }
+.row .sp { color: var(--faint); font-size: 11px; white-space: nowrap; font-weight: 400; }
+.row.noend .tx::after { content: "   no end event (check failed here?)"; color: var(--blocked); font-weight: 400; font-family: var(--ui); font-size: 11px; }
+.c-stmt { color: var(--mir); }
+
+/* context (rcx / env) between statements: indented under a hairline so it reads as the state
+   between the statement above and the one below */
+.ctx { margin-left: 50px; padding: 0 12px 2px 10px; border-left: 1px solid var(--line); white-space: pre-wrap; word-break: break-word; }
+.ctx.rcx { color: var(--rcx); font-size: 12px; }
+.ctx.env { color: var(--env); }
+.ctx .chg { background: var(--chg-bg); border-radius: 3px; }
+.ctx .add, .ctx .new { background: var(--add-bg); border-radius: 3px; }
+.ctx .gone { background: var(--gone-bg); border-radius: 3px; }
+.ctx .op { color: var(--goto); font-weight: 700; }
+.ctx .hv { border-radius: 3px; padding: 3px 0; }
+.lname { color: var(--muted); }
+/* a hoverable pointer; while hovered, its path and the place it points to are outlined (dashed
+   when only an enclosing place is in the env) */
+.ctx .ptr { cursor: help; }
+.ctx .ptr.active .ppath { outline: 1.5px solid var(--ptr); outline-offset: 1px; background: var(--ptr-bg); border-radius: 3px; }
+.ctx .hv.ptarget { outline: 1.5px solid var(--ptr); outline-offset: 1px; background: var(--ptr-bg); }
+.ctx .hv.ptarget.partial { outline-style: dashed; background: none; }
+.rule { border-top: 1px solid var(--line); margin: 4px 12px; }
+.edge { margin: 6px 12px 2px; color: var(--muted); font-size: 11px; font-family: var(--ui); display: flex; gap: 8px; align-items: center; }
+.edge::before, .edge::after { content: ""; flex: 1; border-top: 1px dashed var(--line-strong); }
+.edge::before { flex: 0 0 12px; }
+.edgegrp { margin-left: 26px; border-left: 2px solid var(--line-strong); }
+.blk { color: var(--blocked); font-weight: 700; }
+.kv { cursor: help; }  /* plain text; the tooltip shows the kvar's solution */
+.hint { color: var(--muted); font-size: 11px; font-family: var(--ui); }
+.solution { font-family: var(--mono); font-size: 12px; padding: 4px 12px; }
+.solution div { padding: 3px 0; border-bottom: 1px solid var(--line); white-space: pre-wrap; word-break: break-word; }
+.solution div:last-child { border-bottom: 0; }
+
+@media (max-width: 760px) {
+  #side { display: none; }
+  .row .sp { display: none; }
+  .nav .hint { margin-left: 0; }
+}
