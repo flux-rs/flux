@@ -66,6 +66,11 @@ xflags::xflags! {
         cmd build-sysroot { }
         /// Build the documentation
         cmd doc { }
+        /// Start blick, which runs Flux on programs and shows its checker trace in the browser
+        cmd blick {
+            /// The port to listen on (on 127.0.0.1). Default 8765
+            optional --port port: u16
+        }
     }
 }
 
@@ -131,6 +136,7 @@ fn main() -> anyhow::Result<()> {
         }
         XtaskCmd::Uninstall(_) => uninstall(),
         XtaskCmd::Expand(args) => expand(args),
+        XtaskCmd::Blick(args) => blick(&args, cmd.offline),
     }
 }
 
@@ -386,6 +392,15 @@ fn doc(_args: Doc) -> anyhow::Result<()> {
         .env("RUSTDOCFLAGS", "-Zunstable-options --enable-index-page")
         .run()?;
     Ok(())
+}
+
+fn blick(args: &Blick, offline: bool) -> anyhow::Result<()> {
+    Command::new("cargo")
+        .args(["run", "--package", "blick"])
+        .args_if(offline, ["--offline"])
+        .arg("--")
+        .args_if_some(args.port, |port| ["--port".to_string(), port.to_string()])
+        .run()
 }
 
 fn build_binary(bin: &str, profile: Profile, rust_fixpoint: bool) -> anyhow::Result<Utf8PathBuf> {

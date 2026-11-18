@@ -11,8 +11,10 @@ Run Flux on programs and watch its refinement checker work, in the browser.
 ## Running
 
 ```
-cargo run -p blick [-- --port 8765]
+cargo xtask blick [--port 8765]
 ```
+
+(or `cargo run -p blick [-- --port 8765]`)
 
 Then open http://127.0.0.1:8765. It needs Node.js and npm: on startup it installs the client's
 packages when they are missing or out of date (`npm ci`) and runs `vite build --watch` on the

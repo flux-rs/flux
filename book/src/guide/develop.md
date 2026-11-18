@@ -178,6 +178,16 @@ FLUX_DUMP_CHECKER_TRACE=1 FLUX_CHECK_DEF=mickey cargo flux
 python3  path/to/flux/tools/logreader.py
 ```
 
+## Exploring the Checker Trace in the Browser
+
+```
+cargo x blick
+```
+
+Then open <http://127.0.0.1:8765>, paste a program and run Flux on it. Blick shows the
+control-flow graph of each function and the environments the checker computes at every
+statement. It needs Node.js and npm. See `blick/README.md` for details.
+
 ## Debugging Extern Specs
 
 To see the expanded code of an `extern_spec` macro, you can do
