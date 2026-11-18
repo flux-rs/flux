@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
-import { curProgram, go, setSelRow, toggleCollapsed, toggleFold, useStore, type ViewState } from "../store";
+import { curProgram, go, setHoverRow, setSelRow, toggleCollapsed, toggleFold, useStore, type ViewState } from "../store";
 import { buildCfg } from "../trace/cfg";
 import { type Fn, type Item, isGhost, isInert, type Mode, type Section, type SecItem, type Sep } from "../trace/model";
 import { envBindings, matchClose, rcxFacts } from "../trace/text";
@@ -39,6 +39,8 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
   useEffect(() => {
     ref.current?.scrollTo(0, 0);
   }, [fn.id, view.kind, view.bbs.join(",")]);
+  // rows that go away with the view get no `mouseleave`
+  useEffect(() => () => setHoverRow(null), [fn.id, mode.name, view.kind, view.bbs.join(",")]);
 
   useHotkeys("escape", () => go({ kind: "graph", bbs: [] }));
   // move the row selection down / up
@@ -284,6 +286,8 @@ function renderItem(c: BodyCtx, p: Printer, s: Section, it: Item) {
   if (selected && it.t !== "goto" && post) p.preLine(post.env);
   p.push(
     <div key={p.key} className={cls.join(" ")} data-id={id}
+      onMouseEnter={() => setHoverRow(id)}
+      onMouseLeave={() => setHoverRow(null)}
       onClick={() => {
         if (getSelection()?.toString()) return; // allow copying text
         setSelRow(selected ? null : id);

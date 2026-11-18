@@ -17,17 +17,19 @@ export function ProgramPane() {
   const running = useStore(s => s.running);
   const serverInfo = useStore(s => s.serverInfo);
   const selRow = useStore(s => s.selRow);
+  const hoverRow = useStore(s => s.hoverRow);
   const vimOn = useStore(s => s.ui.vim);
   const fontSize = useStore(s => s.ui.editorFontSize);
   const buildRef = usePanelRef();
   const layout = useDefaultLayout({ id: "blick:output", storage: localStorage });
 
-  // The source lines of the selected statement, if it has a span in the program (spans into other
-  // files, e.g. the standard library, are not shown).
+  // The source lines of the hovered statement, or else of the selected one, if it has a span in the
+  // program (spans into other files, e.g. the standard library, are not shown).
   let mark: LineRange | null = null;
+  const markRow = hoverRow ?? selRow;
   const tv = resolveView(run.data, prog.view);
-  if (tv && selRow) {
-    const [si, ii] = selRow.split(":").map(Number);
+  if (tv && markRow) {
+    const [si, ii] = markRow.split(":").map(Number);
     const it = tv.mode.sections.find(s => s.idx === si)?.items.find(it => it.i === ii);
     const loc = it && it.t === "stmt" ? it.loc : null;
     if (loc && (!loc.file || /(^|[/\\])input\.rs$/.test(loc.file))) {
@@ -58,7 +60,7 @@ export function ProgramPane() {
       <Group orientation="vertical" id="blick:output" {...layout} className="outgroup">
         <Panel id="editor" minSize={120}>
           <div className="edwrap">
-            <Editor progId={prog.id} source={prog.source} mark={mark} markFor={selRow} vim={vimOn} fontSize={fontSize} />
+            <Editor progId={prog.id} source={prog.source} mark={mark} markFor={markRow} vim={vimOn} fontSize={fontSize} />
             <EditorBar vim={vimOn} fontSize={fontSize} />
           </div>
         </Panel>

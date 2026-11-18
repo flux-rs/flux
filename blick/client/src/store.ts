@@ -86,6 +86,8 @@ interface State {
   serverInfo: string;
   /** the selected statement row: "<section idx>:<item i>" */
   selRow: string | null;
+  /** the statement row under the pointer, same format as `selRow` */
+  hoverRow: string | null;
 }
 
 const emptyView = (): ViewState => ({ fnId: null, mode: null, kind: "graph", bbs: [] });
@@ -119,6 +121,7 @@ export const useStore = create<State>()(
       running: false,
       serverInfo: "",
       selRow: null,
+      hoverRow: null,
     }),
     {
       name: "blick",
@@ -259,6 +262,10 @@ export function setGraphState(key: string, f: (g: GraphState) => GraphState) {
 
 export function setSelRow(selRow: string | null) {
   set({ selRow });
+}
+
+export function setHoverRow(hoverRow: string | null) {
+  set({ hoverRow });
 }
 
 /** Folds the statements `keys`, or unfolds them if they are all folded. */

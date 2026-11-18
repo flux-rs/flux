@@ -1,4 +1,4 @@
-// The program editor (CodeMirror), with the source lines of the selected statement marked.
+// The program editor (CodeMirror), with the source lines of the hovered or selected statement marked.
 
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { rust } from "@codemirror/lang-rust";
@@ -42,7 +42,7 @@ const theme = EditorView.theme({
   ".cm-selectionMatch": { background: "var(--sel)" },
 });
 
-// The marked lines: the source lines of the selected statement.
+// The marked lines: the source lines of the hovered or selected statement.
 const setMark = StateEffect.define<LineRange | null>();
 const markField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
