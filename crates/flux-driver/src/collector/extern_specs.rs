@@ -300,7 +300,11 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             let node_id = self.inner.next_node_id();
             self.inner.insert_trait_item(
                 item.owner_id,
-                surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
+                surface::TraitItem {
+                    attrs: attrs.into_attr_vec(),
+                    kind: surface::TraitItemKind::Fn(sig),
+                    node_id,
+                },
             )?;
             if let Some(span) = attr_span {
                 self.inner

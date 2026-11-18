@@ -194,10 +194,16 @@ pub enum ItemKind {
     Mod,
 }
 
-pub struct TraitItemFn {
+pub struct TraitItem {
     pub attrs: Vec<Attr>,
-    pub sig: Option<FnSig>,
+    pub kind: TraitItemKind,
     pub node_id: NodeId,
+}
+
+pub enum TraitItemKind {
+    Fn(Option<FnSig>),
+    /// A `#[flux::constant]` annotation on a trait constant, giving the value of its default.
+    Const(ConstantInfo),
 }
 
 pub struct ImplItem {

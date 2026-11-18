@@ -301,7 +301,9 @@ pub struct TraitItem<'fhir> {
 #[derive(Debug)]
 pub enum TraitItemKind<'fhir> {
     Fn(FnSig<'fhir>),
-    Const,
+    /// The expression is the refinement value of the constant's default given by a
+    /// `#[flux::constant]` annotation, if any.
+    Const(Option<Expr<'fhir>>),
     Type,
 }
 

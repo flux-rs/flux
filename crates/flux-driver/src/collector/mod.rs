@@ -200,12 +200,28 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             let node_id = self.next_node_id();
             self.insert_trait_item(
                 owner_id,
-                surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
+                surface::TraitItem {
+                    attrs: attrs.into_attr_vec(),
+                    kind: surface::TraitItemKind::Fn(sig),
+                    node_id,
+                },
             )?;
             if let Some(span) = attr_span {
                 self.specs
                     .set_spec_attr_span(owner_id.def_id.to_def_id(), span);
             }
+        } else if let rustc_hir::TraitItemKind::Const(..) = trait_item.kind
+            && let Some(constant) = attrs.constant()
+        {
+            let node_id = self.next_node_id();
+            self.insert_trait_item(
+                owner_id,
+                surface::TraitItem {
+                    attrs: attrs.into_attr_vec(),
+                    kind: surface::TraitItemKind::Const(constant),
+                    node_id,
+                },
+            )?;
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         Ok(())
@@ -773,7 +789,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
     }
 
-    fn insert_trait_item(&mut self, owner_id: OwnerId, item: surface::TraitItemFn) -> Result {
+    fn insert_trait_item(&mut self, owner_id: OwnerId, item: surface::TraitItem) -> Result {
         match self.specs.insert_trait_item(owner_id, item) {
             Some(_) => Err(self.err_multiple_specs(owner_id.to_def_id())),
             None => Ok(()),

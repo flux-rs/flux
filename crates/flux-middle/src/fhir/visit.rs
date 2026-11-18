@@ -351,7 +351,11 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, trait_item: &TraitItem<'
     match &trait_item.kind {
         TraitItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
         TraitItemKind::Type => {}
-        TraitItemKind::Const => {}
+        TraitItemKind::Const(expr) => {
+            if let Some(expr) = expr {
+                vis.visit_expr(expr);
+            }
+        }
     }
 }
 

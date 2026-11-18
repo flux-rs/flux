@@ -407,7 +407,7 @@ pub struct FluxItemDecl {
 #[derive(Default)]
 pub struct Specs {
     items: UnordMap<OwnerId, surface::Item>,
-    trait_items: UnordMap<OwnerId, surface::TraitItemFn>,
+    trait_items: UnordMap<OwnerId, surface::TraitItem>,
     impl_items: UnordMap<OwnerId, surface::ImplItem>,
     /// Flux items grouped by the scope they are declared in. This is the [`HirId`] of a module or
     /// block containing the `const _ = {}` a `defs!` expands to.
@@ -470,15 +470,15 @@ impl Specs {
         None
     }
 
-    pub fn get_trait_item(&self, owner_id: OwnerId) -> Option<&surface::TraitItemFn> {
+    pub fn get_trait_item(&self, owner_id: OwnerId) -> Option<&surface::TraitItem> {
         self.trait_items.get(&owner_id)
     }
 
     pub fn insert_trait_item(
         &mut self,
         owner_id: OwnerId,
-        trait_item: surface::TraitItemFn,
-    ) -> Option<surface::TraitItemFn> {
+        trait_item: surface::TraitItem,
+    ) -> Option<surface::TraitItem> {
         if let Some(old) = self.trait_items.insert(owner_id, trait_item) {
             return Some(old);
         }

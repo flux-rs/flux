@@ -215,21 +215,18 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Option<r
     };
     let tcx = genv.tcx();
     match node {
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(Some(expr)), .. }) => {
-            // If the constant has a `#[consant(expr)]` annotation we use that
-            let owner = def_id.map(|def_id| rustc_hir::OwnerId { def_id });
-            let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
-            let expr = AfterSortck::new(genv, &wfckresults)
-                .into_conv_ctxt()
-                .conv_constant_expr(expr)?;
-            Ok(Some(rty::ConstantInfo { sort, value: Some(rty::EarlyBinder(expr)) }))
-        }
-        fhir::Node::ImplItem(fhir::ImplItem {
+        // If the constant has a `#[constant(expr)]` annotation we use that. The value may mention
+        // the generics of the item the constant is declared in (the impl or the trait, including
+        // `Self`), so we bind it under them and let normalization instantiate it.
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(Some(expr)), .. })
+        | fhir::Node::ImplItem(fhir::ImplItem {
             kind: fhir::ImplItemKind::Const(Some(expr)),
             ..
+        })
+        | fhir::Node::TraitItem(fhir::TraitItem {
+            kind: fhir::TraitItemKind::Const(Some(expr)),
+            ..
         }) => {
-            // The value may mention the generics of the impl, so we bind it under
-            // them and let normalization instantiate it at the impl's arguments.
             let owner = def_id.map(|def_id| rustc_hir::OwnerId { def_id });
             let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
             let expr = AfterSortck::new(genv, &wfckresults)
@@ -257,8 +254,10 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<Option<r
                 Ok(Some(rty::ConstantInfo { sort, value: None }))
             }
         }
-        fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. }) => {
-            // The value depends on the impl, so  is resolved, if possible, during normalization.
+        fhir::Node::TraitItem(fhir::TraitItem {
+            kind: fhir::TraitItemKind::Const(None), ..
+        }) => {
+            // The value depends on the impl, so it is resolved, if possible, during normalization.
             Ok(Some(rty::ConstantInfo { sort, value: None }))
         }
         _ => Err(query_bug!(def_id.local_id(), "expected const item"))?,

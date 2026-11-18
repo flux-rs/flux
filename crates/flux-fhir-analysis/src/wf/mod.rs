@@ -333,7 +333,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_generic_predicates(def_id, &trait_item.generics)?;
                     }
                     fhir::TraitItemKind::Type => {}
-                    fhir::TraitItemKind::Const => {}
+                    fhir::TraitItemKind::Const(..) => {}
                 }
             }
             fhir::OwnerNode::ImplItem(impl_item) => {

@@ -826,9 +826,9 @@ pub fn structurally_normalize_expr<'tcx>(
 }
 
 /// Normalizes a constant declared in a trait, mirroring [`normalize_alias_reft`]: we use the
-/// trait solver to find the impl and take the value of the constant defined there, if we know
-/// one. Falls back to const evaluation, which resolves through the impl itself and so also
-/// covers a constant the impl inherits from the trait's default.
+/// trait solver to find the impl and take the value of the constant defined there (or of the
+/// trait's default, if the impl doesn't override it), if we know one. Falls back to const
+/// evaluation, which resolves through the impl itself.
 fn normalize_assoc_const<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     def_id: DefId,
@@ -847,24 +847,35 @@ fn normalize_assoc_const<'tcx>(
 
     // 1. Find the impl and use the value of the constant defined there. This is the path a
     //    `#[flux::constant]` annotation on the impl's constant flows through, so it takes
-    //    precedence over const evaluation below.
+    //    precedence over const evaluation below. If the impl doesn't define the constant, it
+    //    inherits the trait's default, so we use the value of the trait's constant itself
+    //    (`assoc_id`, which always names the constant as declared in the trait), e.g., from a
+    //    `#[flux::constant]` annotation on the default. If the impl does define the constant
+    //    but we know no value for it, we never fall back to the trait's default.
     let mut selcx = SelectionContext::new(infcx);
     let trait_ref = rustc_middle::ty::TraitRef::new_from_args(tcx, trait_id, rustc_args);
     let trait_pred = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     if let Ok(Some(ImplSource::UserDefined(impl_data))) = selcx.select(&trait_pred) {
         let impl_def_id = impl_data.impl_def_id;
-        if let Some(impl_item) = tcx.impl_item_implementor_ids(impl_def_id).get(&assoc_id)
-            && let Some(info) = genv.constant_info(*impl_item)?
+        if let Some(impl_item) = tcx.impl_item_implementor_ids(impl_def_id).get(&assoc_id) {
+            if let Some(info) = genv.constant_info(*impl_item)?
+                && let Some(value) = info.value
+            {
+                let impl_args = Refiner::default_for_item(genv, def_id)?.refine_generic_args(
+                    impl_def_id,
+                    &impl_data
+                        .args
+                        .lower(tcx)
+                        .map_err(|reason| query_bug!("{reason:?}"))?,
+                )?;
+                return Ok((true, value.instantiate(tcx, &impl_args, &[])));
+            }
+        } else if let Some(info) = genv.constant_info(assoc_id)?
             && let Some(value) = info.value
         {
-            let impl_args = Refiner::default_for_item(genv, def_id)?.refine_generic_args(
-                impl_def_id,
-                &impl_data
-                    .args
-                    .lower(tcx)
-                    .map_err(|reason| query_bug!("{reason:?}"))?,
-            )?;
-            return Ok((true, value.instantiate(tcx, &impl_args, &[])));
+            // The impl does not override the constant, so it inherits the trait's default. Its
+            // value is bound over the generics of the trait, which are exactly `args`.
+            return Ok((true, value.instantiate(tcx, args, &[])));
         }
     }
 
