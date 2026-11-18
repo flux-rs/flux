@@ -3,11 +3,11 @@
 
 import {
   ControlButton, Controls, type Edge, Handle, MarkerType, type Node, type NodeProps, Panel, Position, ReactFlow,
-  ReactFlowProvider, useNodesInitialized, useNodesState, useReactFlow, type Viewport,
+  ReactFlowProvider, useNodesInitialized, useNodesState, useReactFlow,
 } from "@xyflow/react";
 import { memo, useContext, useEffect, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
-import { go } from "../store";
+import { curProgram, go, setGraphState, useStore } from "../store";
 import { buildCfg, type Cfg, type CfgNode, layoutCfg, type Positions } from "../trace/cfg";
 import { type Fn, type Item, isGhost, isInert, type Mode, type Sep } from "../trace/model";
 import { GhostIcon, MOD } from "./icons";
@@ -29,16 +29,10 @@ type BlockData = {
 };
 type BlockNode = Node<BlockData, "block">;
 
-// Per mode, kept while the page lives: the automatic layout (per display options, since they
-// change the node sizes), the positions of the nodes the user dragged, and the viewport.
+// The automatic layout of each mode, per display options (they change the node sizes), kept while
+// the page lives. What the user did to the graph (nodes dragged, pan and zoom) is in the store and
+// persists.
 const layouts = new WeakMap<Mode, Map<string, Positions>>();
-const drags = new WeakMap<Mode, Map<string, { x: number; y: number }>>();
-const viewports = new WeakMap<Mode, Viewport>();
-const dragsOf = (mode: Mode) => {
-  let d = drags.get(mode);
-  if (!d) drags.set(mode, (d = new Map()));
-  return d;
-};
 
 interface Props {
   fn: Fn;
@@ -97,10 +91,17 @@ const edgeLabelText = (how: Sep["how"], target: string | null) =>
   : how === "enter" ? `edge to ${target}`
   : "edge to exit block (inlined) or unknown";
 
-function Graph({ mode, hideinert, cfg, optsKey }: Props & { cfg: Cfg; optsKey: string }) {
+function Graph({ fn, mode, hideinert, cfg, optsKey }: Props & { cfg: Cfg; optsKey: string }) {
   const { fitView, setViewport } = useReactFlow();
   const cached = layouts.get(mode)?.get(optsKey);
-  const drag = dragsOf(mode);
+  const graphKey = `${fn.id}|${mode.name}`;
+  // Read once (the graph keeps its own node positions while it is shown), and copied: `drag` is
+  // updated in place, then saved.
+  const [saved] = useState(() => {
+    const g = curProgram(useStore.getState()).graphs[graphKey];
+    return { drag: { ...g?.drag }, viewport: g?.viewport };
+  });
+  const drag = saved.drag;
 
   const initial = useMemo(() => {
     const nodes: BlockNode[] = [];
@@ -109,7 +110,7 @@ function Graph({ mode, hideinert, cfg, optsKey }: Props & { cfg: Cfg; optsKey: s
       const outs = n.succs.filter(e => cfg.nodes.has(e.to));
       const data = { ...nodeContent(n, hideinert), nOut: outs.length };
       nodes.push({
-        id: n.bb, type: "block", data, position: drag.get(n.bb) ?? cached?.get(n.bb) ?? { x: 0, y: 0 },
+        id: n.bb, type: "block", data, position: drag[n.bb] ?? cached?.get(n.bb) ?? { x: 0, y: 0 },
         selectable: data.visited, connectable: false,
         // not shown until laid out
         style: cached ? undefined : { visibility: "hidden" },
@@ -142,9 +143,9 @@ function Graph({ mode, hideinert, cfg, optsKey }: Props & { cfg: Cfg; optsKey: s
       if (cancelled) return;
       if (!layouts.has(mode)) layouts.set(mode, new Map());
       layouts.get(mode)!.set(optsKey, pos);
-      setNodes(ns => ns.map(n => ({ ...n, position: drag.get(n.id) ?? pos.get(n.id) ?? n.position, style: undefined })));
+      setNodes(ns => ns.map(n => ({ ...n, position: drag[n.id] ?? pos.get(n.id) ?? n.position, style: undefined })));
       setReady(true);
-      const vp = viewports.get(mode);
+      const vp = saved.viewport;
       requestAnimationFrame(() => (vp ? setViewport(vp) : fitView({ maxZoom: 1, padding: 0.05 })));
     });
     return () => {
@@ -171,12 +172,12 @@ function Graph({ mode, hideinert, cfg, optsKey }: Props & { cfg: Cfg; optsKey: s
   useHotkeys("enter", openSelection, { preventDefault: true }, [selected.join(",")]);
 
   const resetLayout = () => {
-    drag.clear();
+    for (const bb of Object.keys(drag)) delete drag[bb];
+    setGraphState(graphKey, g => ({ ...g, drag: {} }));
     const pos = layouts.get(mode)?.get(optsKey);
     if (pos) setNodes(ns => ns.map(n => ({ ...n, position: pos.get(n.id) ?? n.position })));
   };
 
-  const initialViewport = viewports.get(mode);
   return (
     <ReactFlow<BlockNode>
       nodes={nodes}
@@ -184,9 +185,12 @@ function Graph({ mode, hideinert, cfg, optsKey }: Props & { cfg: Cfg; optsKey: s
       onNodesChange={onNodesChange}
       nodeTypes={nodeTypes}
       onNodeDoubleClick={(_, n) => n.data.visited && go({ kind: "block", bbs: [n.id] })}
-      onNodeDragStop={(_, __, moved) => moved.forEach(n => drag.set(n.id, n.position))}
-      onMoveEnd={(_, vp) => viewports.set(mode, vp)}
-      defaultViewport={initialViewport}
+      onNodeDragStop={(_, __, moved) => {
+        for (const n of moved) drag[n.id] = n.position;
+        setGraphState(graphKey, g => ({ ...g, drag: { ...drag } }));
+      }}
+      onMoveEnd={(_, viewport) => setGraphState(graphKey, g => ({ ...g, viewport }))}
+      defaultViewport={saved.viewport}
       nodesConnectable={false}
       edgesFocusable={false}
       deleteKeyCode={null}

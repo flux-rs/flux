@@ -18,7 +18,7 @@ export function Header({ onTogglePane }: { onTogglePane: () => void }) {
       <button className="iconbtn" aria-expanded={srcOpen} aria-label={paneLabel} title={paneLabel} onClick={onTogglePane}>
         <PaneIcon />
       </button>
-      <h1>Blick <span className="tag">flux</span></h1>
+      <h1>Blick</h1>
       <div id="ptabs" role="tablist" aria-label="Programs">
         {programs.map(p => {
           const r = runs[p.id];

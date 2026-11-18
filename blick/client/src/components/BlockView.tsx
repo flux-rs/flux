@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
-import { go, setSelRow, toggleCollapsed, toggleFold, useStore, type ViewState } from "../store";
+import { curProgram, go, setSelRow, toggleCollapsed, toggleFold, useStore, type ViewState } from "../store";
 import { buildCfg } from "../trace/cfg";
 import { type Fn, type Item, isGhost, isInert, type Mode, type Section, type SecItem, type Sep } from "../trace/model";
 import { envBindings, matchClose, rcxFacts } from "../trace/text";
@@ -24,7 +24,7 @@ export function edgeLabel(sep: Sep, target: ReactNode): ReactNode {
 }
 
 export function BlockView({ fn, mode, view, hideinert }: Props) {
-  const collapsed = useStore(s => s.collapsed);
+  const collapsed = useStore(s => curProgram(s).collapsed);
   const selRow = useStore(s => s.selRow);
   const folded = useStore(s => s.programs.find(p => p.id === s.active)?.folded);
   const hiddenList = useStore(s => s.programs.find(p => p.id === s.active)?.hidden[fn.id]);

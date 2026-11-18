@@ -1,11 +1,12 @@
 // Application state. Each program tab has its own source, flags, last run (trace and output)
-// and view state. Sources, flags, view state and display options persist in the browser; traces
-// stay in memory only, so after a reload a tab shows "not run yet" until it is run again.
+// and view state. Everything but the transient state (the selected row, a run in progress)
+// persists in the browser: the last runs in IndexedDB (see persist.ts), the rest in localStorage.
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { runOverSocket } from "./api";
 import { plain } from "./components/Ansi";
+import { deleteRun, loadRun, saveRun } from "./persist";
 import { parseTrace, type Fn, type Mode, type Trace } from "./trace/model";
 
 export type ViewKind = "graph" | "all" | "block";
@@ -31,13 +32,26 @@ export interface Program {
   folded: string[];
   /** fn id -> locations hidden from the environments */
   hidden: Record<string, string[]>;
+  /** collapsed sections in the all-blocks view (section idx), plus "sol-open" */
+  collapsed: string[];
+  /** "fn|mode" -> the graph's state */
+  graphs: Record<string, GraphState>;
+}
+
+/** What the user did to a graph: the nodes they dragged, and where they panned and zoomed to. */
+export interface GraphState {
+  drag: Record<string, { x: number; y: number }>;
+  viewport?: { x: number; y: number; zoom: number };
 }
 
 export type RunStatus = "none" | "running" | "ok" | "err";
 
-/** The last run of a program (in memory only). */
+/** The last run of a program. */
 export interface Run {
+  /** the trace, parsed from `trace` */
   data: Trace | null;
+  /** the trace as Flux wrote it */
+  trace: string;
   ranSource: string | null;
   ranFlags: string | null;
   status: RunStatus;
@@ -70,15 +84,13 @@ interface State {
   runs: Record<number, Run>;
   running: boolean;
   serverInfo: string;
-  /** collapsed sections in the all-blocks view (section idx), plus "sol-open" */
-  collapsed: string[];
   /** the selected statement row: "<section idx>:<item i>" */
   selRow: string | null;
 }
 
 const emptyView = (): ViewState => ({ fnId: null, mode: null, kind: "graph", bbs: [] });
 const emptyRun = (): Run => ({
-  data: null, ranSource: null, ranFlags: null, status: "none", statusText: "", statusErr: false,
+  data: null, trace: "", ranSource: null, ranFlags: null, status: "none", statusText: "", statusErr: false,
   noTrace: false, buildLog: [],
 });
 
@@ -90,7 +102,10 @@ function derivedName(source: string, others: Program[]): string {
 }
 
 function newProgram(id: number, others: Program[]): Program {
-  return { id, name: derivedName("", others), nameSet: false, source: "", flags: "", view: emptyView(), folded: [], hidden: {} };
+  return {
+    id, name: derivedName("", others), nameSet: false, source: "", flags: "", view: emptyView(), folded: [], hidden: {},
+    collapsed: [], graphs: {},
+  };
 }
 
 export const useStore = create<State>()(
@@ -103,7 +118,6 @@ export const useStore = create<State>()(
       runs: {},
       running: false,
       serverInfo: "",
-      collapsed: [],
       selRow: null,
     }),
     {
@@ -112,7 +126,8 @@ export const useStore = create<State>()(
       // options added since the state was saved get their defaults
       merge: (persisted, current) => {
         const p = persisted as Partial<State>;
-        return { ...current, ...p, ui: { ...current.ui, ...p.ui } };
+        const programs = p.programs?.map(q => ({ ...newProgram(q.id, []), ...q }));
+        return { ...current, ...p, ui: { ...current.ui, ...p.ui }, ...(programs ? { programs } : {}) };
       },
     },
   ),
@@ -167,13 +182,13 @@ export function zoomEditor(step: number | null) {
 
 export function activate(id: number) {
   if (get().active === id) return;
-  set({ active: id, selRow: null, collapsed: [] });
+  set({ active: id, selRow: null });
 }
 
 export function addProgram() {
   set(s => {
     const p = newProgram(s.nextId, s.programs);
-    return { programs: [...s.programs, p], nextId: s.nextId + 1, active: p.id, selRow: null, collapsed: [] };
+    return { programs: [...s.programs, p], nextId: s.nextId + 1, active: p.id, selRow: null };
   });
 }
 
@@ -189,7 +204,8 @@ export function closeProgram(id: number) {
   const runs = { ...s.runs };
   delete runs[id];
   const active = id === s.active ? programs[Math.min(i, programs.length - 1)].id : s.active;
-  set({ programs, runs, nextId, active, ...(active !== s.active ? { selRow: null, collapsed: [] } : {}) });
+  set({ programs, runs, nextId, active, ...(active !== s.active ? { selRow: null } : {}) });
+  deleteRun(id);
 }
 
 export function renameProgram(id: number, name: string) {
@@ -221,18 +237,24 @@ export function go(patch: Partial<ViewState>) {
 
 export function selectFn(fnId: string) {
   go({ fnId, kind: "graph", bbs: [] });
-  set({ collapsed: [] });
+  updateProgram(get().active, () => ({ collapsed: [] }));
 }
 
 /** Switches mode, staying on the open blocks that exist in the other mode (see `resolveView`). */
 export function selectMode(mode: string) {
   const p = curProgram(get());
-  updateProgram(p.id, q => ({ view: { ...q.view, mode } }));
-  set({ collapsed: [] });
+  updateProgram(p.id, q => ({ view: { ...q.view, mode }, collapsed: [] }));
 }
 
 export function toggleCollapsed(key: string) {
-  set(s => ({ collapsed: s.collapsed.includes(key) ? s.collapsed.filter(k => k !== key) : [...s.collapsed, key] }));
+  updateProgram(get().active, p => ({
+    collapsed: p.collapsed.includes(key) ? p.collapsed.filter(k => k !== key) : [...p.collapsed, key],
+  }));
+}
+
+/** Updates the state of the active program's graph of "fn|mode" `key`. */
+export function setGraphState(key: string, f: (g: GraphState) => GraphState) {
+  updateProgram(get().active, p => ({ graphs: { ...p.graphs, [key]: f(p.graphs[key] ?? { drag: {} }) } }));
 }
 
 export function setSelRow(selRow: string | null) {
@@ -310,9 +332,12 @@ export async function runFlux() {
       status: out.ok ? "ok" : "err", statusText, statusErr: !out.ok, ranSource: source, ranFlags: flags,
       // Keep the view state when re-running: it is restored if the function still exists.
       data: out.trace ? parseTrace(out.trace) : null,
+      trace: out.trace,
       noTrace: !out.trace,
     }));
-    // statement ids may name other statements in the new trace
+    // The new trace has new graphs (and nodes of other sizes). Statement ids may name other
+    // statements in it.
+    updateProgram(id, () => ({ graphs: {} }));
     if (get().active === id) set({ selRow: null });
   } catch (e) {
     cancelAnimationFrame(frame);
@@ -320,5 +345,20 @@ export async function runFlux() {
     updateRun(id, () => ({ status: "err", statusText: `Request failed: ${e instanceof Error ? e.message : e}`, statusErr: true }));
   } finally {
     set({ running: false });
+    const r = get().runs[id];
+    if (r && get().programs.some(q => q.id === id)) {
+      const { data: _, ...saved } = r;
+      saveRun(id, saved);
+    }
   }
+}
+
+/** Loads the saved last runs of the programs (at startup). */
+export async function loadRuns() {
+  await Promise.all(get().programs.map(async p => {
+    const saved = await loadRun(p.id);
+    // a run started in the meantime wins
+    if (!saved || get().runs[p.id]) return;
+    updateRun(p.id, () => ({ ...saved, status: saved.status === "running" ? "none" : saved.status, data: saved.trace ? parseTrace(saved.trace) : null }));
+  }));
 }
