@@ -530,7 +530,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let attrs: Vec<_> = attrs
             .iter()
             .filter_map(|attr| {
-                if let Attribute::Unparsed(attr_item) = &attr {
+                if let Attribute::Tool(attr_item) = &attr {
                     match &attr_item.path.segments[..] {
                         [first, ..] => {
                             let ident = first.as_str();
