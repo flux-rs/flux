@@ -303,7 +303,7 @@ function renderItem(c: BodyCtx, p: Printer, s: Section, it: Item) {
         </span>
       )}
       <span className="tx c-stmt"><Rich text={it.text} /></span>
-      <span className="sp">{it.t === "stmt" ? it.span : ""}</span>
+      <span className="sp">{it.t !== "goto" ? it.span : ""}</span>
     </div>,
   );
 

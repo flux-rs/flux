@@ -27,6 +27,8 @@ export interface Term {
   t: "term";
   kind: "term";
   text: string;
+  span: string;
+  loc: SrcLoc | null;
 }
 export interface Goto {
   t: "goto";
@@ -209,7 +211,10 @@ function feed(m: ModeBuilder, ev: string, f: Fields) {
       closeItem(m, it => it.text === f.stmt, f);
       break;
     case "terminator_start": {
-      const it: Item = { t: "term", kind: "term", text: f.terminator, before: f, after: null, i: 0 };
+      const it: Item = {
+        t: "term", kind: "term", text: f.terminator, span: shortSpan(f.terminator_span),
+        loc: srcLoc(f.terminator_span_json), before: f, after: null, i: 0,
+      };
       items.push(it);
       m.cur.term = it;
       m.stack.push(it);

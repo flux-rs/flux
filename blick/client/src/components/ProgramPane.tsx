@@ -23,7 +23,7 @@ export function ProgramPane() {
   const buildRef = usePanelRef();
   const layout = useDefaultLayout({ id: "blick:output", storage: localStorage });
 
-  // The source lines of the hovered statement, or else of the selected one, if it has a span in the
+  // The source lines of the hovered row (statement or terminator), or else of the selected one, if it has a span in the
   // program (spans into other files, e.g. the standard library, are not shown).
   let mark: LineRange | null = null;
   const markRow = hoverRow ?? selRow;
@@ -31,7 +31,7 @@ export function ProgramPane() {
   if (tv && markRow) {
     const [si, ii] = markRow.split(":").map(Number);
     const it = tv.mode.sections.find(s => s.idx === si)?.items.find(it => it.i === ii);
-    const loc = it && it.t === "stmt" ? it.loc : null;
+    const loc = it && it.t !== "sep" && it.t !== "goto" ? it.loc : null;
     if (loc && (!loc.file || /(^|[/\\])input\.rs$/.test(loc.file))) {
       mark = { start: loc.start_line, end: Math.max(loc.start_line, loc.end_line) };
     }

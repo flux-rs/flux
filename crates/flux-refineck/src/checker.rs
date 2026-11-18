@@ -526,7 +526,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             )?;
 
             bug::track_span(span, || {
-                dbg::terminator!("start", terminator, infcx, env);
+                dbg::terminator!("start", terminator, &infcx, &env, span, &self);
 
                 let successors = self.check_terminator(
                     &mut infcx,
@@ -535,7 +535,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     location,
                     last_stmt_span,
                 )?;
-                dbg::terminator!("end", terminator, infcx, env);
+                dbg::terminator!("end", terminator, &infcx, &env, span, &self);
 
                 self.markers[bb] = Some(infcx.marker());
                 let term_span = last_stmt_span.unwrap_or(span);

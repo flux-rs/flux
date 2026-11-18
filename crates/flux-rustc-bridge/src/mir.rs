@@ -586,18 +586,54 @@ impl fmt::Debug for Statement<'_> {
     }
 }
 
+/// The callee as rustc prints it in MIR: the function as written at the call site, with its generic
+/// arguments (`Vec::<i32>::push`), or the called function pointer.
 impl fmt::Debug for CallKind<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CallKind::FnDef { resolved_id, resolved_args, .. } => {
-                let fname = rustc_middle::ty::tls::with(|tcx| tcx.def_path_str(*resolved_id));
-                write!(f, "call {fname}")?;
-                if !resolved_args.lowered.is_empty() {
-                    write!(f, "<{:?}>", resolved_args.lowered.iter().format(", "))?;
-                }
-                Ok(())
+            CallKind::FnDef { def_id, generic_args, .. } => {
+                let fname = rustc_middle::ty::tls::with(|tcx| {
+                    tcx.def_path_str_with_args(*def_id, tcx.lift(generic_args.orig))
+                });
+                write!(f, "{fname}")
             }
-            CallKind::FnPtr { fn_sig, operand } => write!(f, "FnPtr[{operand:?}]({fn_sig:?})"),
+            CallKind::FnPtr { operand, .. } => write!(f, "{operand:?}"),
+        }
+    }
+}
+
+/// The outgoing edges of a terminator, as rustc prints them (see its `TerminatorKind::fmt`): the
+/// successors, labeled, with a cleanup block as the `unwind` successor and any other unwind action
+/// after them (`unwind continue`, ...): `-> [return: bb1, unwind: bb2]`, `-> [return: bb1, unwind
+/// continue]`. A single successor and nothing else is printed unlabeled: `-> bb2`.
+fn fmt_edges(
+    f: &mut fmt::Formatter<'_>,
+    succs: &[(&str, BasicBlock)],
+    unwind: UnwindAction,
+) -> fmt::Result {
+    let mut succs = succs.to_vec();
+    let action = match unwind {
+        UnwindAction::Cleanup(bb) => {
+            succs.push(("unwind", bb));
+            None
+        }
+        UnwindAction::Continue => Some("continue".to_string()),
+        UnwindAction::Unreachable => Some("unreachable".to_string()),
+        UnwindAction::Terminate(reason) => Some(format!("terminate({})", reason.as_short_str())),
+    };
+    match (&succs[..], action) {
+        ([], None) => Ok(()),
+        ([], Some(a)) => write!(f, " -> unwind {a}"),
+        ([(_, bb)], None) => write!(f, " -> {bb:?}"),
+        (succs, a) => {
+            let succs = succs
+                .iter()
+                .format_with(", ", |(l, bb), f| f(&format_args!("{l}: {bb:?}")));
+            write!(f, " -> [{succs}")?;
+            if let Some(a) = a {
+                write!(f, ", unwind {a}")?;
+            }
+            write!(f, "]")
         }
     }
 }
@@ -608,12 +644,9 @@ impl fmt::Debug for Terminator<'_> {
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Unreachable => write!(f, "unreachable"),
             TerminatorKind::Call { kind, args, destination, target, unwind, .. } => {
-                write!(
-                    f,
-                    "{destination:?} = call {kind:?}({args:?}) -> [return: {target}, unwind: {unwind:?}]",
-                    args = args.iter().format(", "),
-                    target = opt_bb_to_str(*target),
-                )
+                write!(f, "{destination:?} = {kind:?}({:?})", args.iter().format(", "))?;
+                let ret = target.map(|bb| ("return", bb));
+                fmt_edges(f, ret.as_slice(), *unwind)
             }
             TerminatorKind::SwitchInt { discr, targets } => {
                 write!(
@@ -795,14 +828,11 @@ impl fmt::Debug for Operand<'_> {
         match self {
             Self::Copy(place) => write!(f, "copy {place:?}"),
             Self::Move(place) => write!(f, "move {place:?}"),
-            Self::Constant(c) => write!(f, "{:?}", c.const_),
+            // like rustc: function items are printed by name, without `const`
+            Self::Constant(c) if matches!(c.const_.ty().kind(), rustc_middle::ty::FnDef(..)) => {
+                write!(f, "{}", c.const_)
+            }
+            Self::Constant(c) => write!(f, "const {}", c.const_),
         }
-    }
-}
-
-fn opt_bb_to_str(bb: Option<BasicBlock>) -> String {
-    match bb {
-        Some(bb) => format!("{bb:?}"),
-        None => "None".to_string(),
     }
 }
