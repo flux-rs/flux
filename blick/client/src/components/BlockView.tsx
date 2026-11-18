@@ -8,7 +8,7 @@ import { buildCfg } from "../trace/cfg";
 import { type Fn, type Item, isGhost, isInert, type Mode, type Section, type SecItem, type Sep } from "../trace/model";
 import { envBindings, matchClose, rcxFacts } from "../trace/text";
 import { GhostIcon } from "./icons";
-import { BindingView, commaList, ptrHoverHandlers, Rich } from "./text";
+import { BindingView, commaList, localHoverHandlers, ptrHoverHandlers, Rich } from "./text";
 
 interface Props {
   fn: Fn;
@@ -34,11 +34,14 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
   const single = view.kind === "block";
   const ref = useRef<HTMLDivElement>(null);
   const hover = useMemo(ptrHoverHandlers, []);
+  const lhover = useMemo(() => localHoverHandlers(ref), []);
   const ptrhover = useStore(s => s.ui.ptrhover);
-  // turned off while a pointer is hovered: clear its highlight and arrow
+  const lochover = useStore(s => s.ui.lochover);
+  // turned off while hovering: clear the highlights (and arrows)
   useEffect(() => {
     if (!ptrhover) hover.onMouseLeave();
-  }, [ptrhover]);
+    if (!lochover) lhover.onMouseLeave();
+  }, [ptrhover, lochover]);
 
   // a new view starts at the top
   useEffect(() => {
@@ -83,7 +86,15 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
 
   const solOpen = collapsed.includes("sol-open");
   return (
-    <div id="view" ref={ref} {...(ptrhover ? hover : {})}>
+    <div id="view" ref={ref}
+      onMouseOver={e => {
+        if (ptrhover) hover.onMouseOver(e);
+        if (lochover) lhover.onMouseOver(e);
+      }}
+      onMouseLeave={() => {
+        hover.onMouseLeave();
+        lhover.onMouseLeave();
+      }}>
       {single && (
         <div className="nav">
           <a className="crumb" onClick={() => go({ kind: "graph", bbs: [] })}>{fn.id}</a>
@@ -307,7 +318,7 @@ function renderItem(c: BodyCtx, p: Printer, s: Section, it: Item) {
           <svg viewBox="0 0 16 16" width="15" height="15" aria-label="ghost statement"><GhostIcon /></svg>
         </span>
       )}
-      <span className="tx c-stmt"><Rich text={it.text} /></span>
+      <span className="tx c-stmt"><Rich locals text={it.text} /></span>
       <span className="sp">{it.t !== "goto" ? it.span : ""}</span>
     </div>,
   );

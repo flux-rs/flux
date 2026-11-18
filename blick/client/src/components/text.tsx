@@ -1,7 +1,7 @@
 // Rendering the checker's printed text: lifetimes and local names, kvars, types with their
 // fields as hoverable places, and pointers.
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, Fragment, useContext, type ReactNode } from "react";
 import type { Fn } from "../trace/model";
 import { type Binding, findTopOpen, matchClose, splitTop, topIndexOf } from "../trace/text";
 
@@ -47,31 +47,47 @@ function isShared(fn: Fn, name: string): boolean {
 }
 const localName = (local: string, o: TextOpts) => (o.localnames ? o.fn.names.get(local) : undefined);
 
+const LOCAL_RE = /(?<![\w$])_\d+(?![\w$])/g;
+
 export function withNames(s: string, o: TextOpts): string {
   if (!o.localnames || !o.fn.names.size) return s;
-  return s.replace(/(?<![\w$])_\d+(?![\w$])/g, l => {
+  return s.replace(LOCAL_RE, l => {
     const n = localName(l, o);
     return n && !isShared(o.fn, n) ? n : l;
   });
 }
 
+/** A binding's local, by its source name if it has one. Tagged with the local (see `localHoverHandlers`). */
 export function Local({ local }: { local: string }) {
   const o = useOpts();
   const n = localName(local, o);
-  if (!n) return <>{local}</>;
+  if (!n) return <span className="lv" data-local={local}>{local}</span>;
   return (
-    <>
+    <span className="lv" data-local={local}>
       <span className="lvar" title={local}>{n}</span>
       {isShared(o.fn, n) && <> <span className="lname">({local})</span></>}
-    </>
+    </span>
   );
 }
 
-/** Text with kvars ($k3) decorated with their solution and blocked markers (†). */
-export function Rich({ text }: { text: string | null | undefined }) {
+/**
+ * Text with kvars ($k3) decorated with their solution and blocked markers (†). With `locals`,
+ * every local is in its own span tagged with it, so its occurrences can be highlighted together.
+ */
+export function Rich({ text, locals = false }: { text: string | null | undefined; locals?: boolean }) {
   const o = useOpts();
   if (text == null) return null;
-  return <>{decorate(shown(text, o), o)}</>;
+  if (!locals) return <>{decorate(shown(text, o), o)}</>;
+  const out: ReactNode[] = [];
+  let last = 0;
+  const plain = (end: number) => <Fragment key={`t${last}`}>{decorate(shown(text.slice(last, end), o), o)}</Fragment>;
+  for (const m of text.matchAll(LOCAL_RE)) {
+    out.push(plain(m.index));
+    out.push(<span key={`l${m.index}`} className="lv" data-local={m[0]}>{withNames(m[0], o)}</span>);
+    last = m.index + m[0].length;
+  }
+  out.push(plain(text.length));
+  return <>{out}</>;
 }
 
 function decorate(s: string, o: TextOpts): ReactNode[] {
@@ -315,4 +331,25 @@ function drawArrow(line: Element, from: Element, to: Element, partial: boolean):
     <path d="M${x1},${y1} C${x1 + dx},${cy} ${x2 - dx},${cy} ${ex},${ey}" stroke-dasharray="${partial ? "2 4" : "4 3"}" marker-end="url(#parrow-head)" />`;
   line.appendChild(svg);
   return svg;
+}
+
+/**
+ * Hovering a local in a statement or terminator highlights every occurrence of it in the view:
+ * in statements, terminators and environment bindings. Done on the DOM, like `ptrHoverHandlers`.
+ */
+export function localHoverHandlers(view: React.RefObject<HTMLElement | null>) {
+  let local: string | null = null;
+  const set = (next: string | null) => {
+    if (next === local) return;
+    for (const el of view.current?.querySelectorAll(".lv.lhl") ?? []) el.classList.remove("lhl");
+    local = next;
+    if (next) for (const el of view.current?.querySelectorAll(`.lv[data-local="${CSS.escape(next)}"]`) ?? []) el.classList.add("lhl");
+  };
+  return {
+    onMouseOver: (e: React.MouseEvent) => {
+      const lv = (e.target as Element).closest?.(".row .lv") as HTMLElement | null;
+      set(lv?.dataset.local ?? null);
+    },
+    onMouseLeave: () => set(null),
+  };
 }
