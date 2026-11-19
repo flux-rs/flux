@@ -1,0 +1,22 @@
+[package]
+name = "blick"
+version = "0.1.0"
+description = "Run Flux on programs and explore its checker trace in the browser"
+publish = false
+
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum = { version = "0.8.9", features = ["ws"] }
+clap.workspace = true
+notify = "8.2.2"
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "process", "sync", "time", "signal", "fs", "io-util"] }
+tower-http = { version = "0.7.1", features = ["fs", "set-header"] }
+ts-rs = "12.0.1"
+
+[lints]
+workspace = true

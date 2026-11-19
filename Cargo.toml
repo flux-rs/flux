@@ -1,6 +1,6 @@
 [workspace]
 default-members = ["crates/*", "xtask"]
-members = ["crates/*", "flux-dev", "lib/*", "tests", "xtask"]
+members = ["blick", "crates/*", "flux-dev", "lib/*", "tests", "xtask"]
 resolver = "2"
 
 [workspace.package]

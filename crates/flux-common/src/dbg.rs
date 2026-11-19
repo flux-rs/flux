@@ -169,8 +169,19 @@ pub use crate::_call as call;
 
 #[macro_export]
 macro_rules! _terminator{
-    ($pos:literal, $terminator:expr, $rcx:expr, $env:expr) => {{
-        tracing::debug!(event = concat!("terminator_", $pos), terminator = ?$terminator, rcx = ?$rcx, env = ?$env)
+    ($pos:literal, $terminator:expr, $infcx:expr, $env:expr, $span:expr, $checker:expr) => {{
+        if config::dump_checker_trace_info() {
+          let rcx = $infcx.cursor();
+          let ck = $checker;
+          let genv = ck.genv;
+          let local_names = &ck.body.local_names;
+          let local_decls = &ck.body.local_decls;
+          let mut cx = PrettyCx::default(genv).show_kvar_args();
+          let rcx_json = RefineCtxtTrace::new(&mut cx, rcx);
+          let env_json = TypeEnvTrace::new(genv, local_names, local_decls, cx, $env);
+          let span_json = SpanTrace::new(genv.tcx(), $span);
+          tracing::info!(event = concat!("terminator_", $pos), terminator = ?$terminator, terminator_span = ?$span, rcx = ?rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json, terminator_span_json = ?span_json)
+        }
     }};
 }
 pub use crate::_terminator as terminator;
