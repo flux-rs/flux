@@ -1,5 +1,6 @@
 // Talking to the blick server (see `src/main.rs` in the crate).
 
+import type { FileList } from "./bindings/FileList";
 import type { Info } from "./bindings/Info";
 import type { RunRequest } from "./bindings/RunRequest";
 import type { RunResult } from "./bindings/RunResult";
@@ -10,6 +11,21 @@ const wsUrl = (path: string) => `${location.protocol === "https:" ? "wss" : "ws"
 export async function fetchInfo(): Promise<Info> {
   const r = await fetch("/api/info");
   return r.json();
+}
+
+async function ok(r: Response): Promise<Response> {
+  if (!r.ok) throw new Error((await r.text()) || `${r.status} ${r.statusText}`);
+  return r;
+}
+
+/** The programs the page can open: the `.rs` files of the folder blick was started with. */
+export async function fetchFiles(): Promise<FileList> {
+  return (await ok(await fetch("/api/files"))).json();
+}
+
+/** The contents of `path`, relative to the folder of `fetchFiles`. */
+export async function fetchFile(path: string): Promise<string> {
+  return (await ok(await fetch(`/api/file/${path.split("/").map(encodeURIComponent).join("/")}`))).text();
 }
 
 /**

@@ -29,6 +29,8 @@ export interface Program {
   /** the user named the tab; otherwise it is named after the program's first function */
   nameSet: boolean;
   source: string;
+  /** the file the program was opened from, relative to the server's folder of programs */
+  path?: string;
   flags: string;
   view: ViewState;
   /** "fn|mode|section:item": statements the user collapsed */
@@ -81,6 +83,8 @@ export interface Ui {
   editorFontSize: number;
   /** vim keybindings in the editor */
   vim: boolean;
+  /** the folder the open dialog was last in, relative to the server's folder of programs */
+  openDir: string;
 }
 
 export const EDITOR_FONT_SIZE = 14;
@@ -93,6 +97,12 @@ interface State {
   runs: Record<number, Run>;
   running: boolean;
   serverInfo: string;
+  /** the server's folder of programs, if it has one (then the page can open them) */
+  filesDir: string | null;
+  /** whether the dialog to open a program is open */
+  opening: boolean;
+  /** the programs opened last, most recent first */
+  recent: string[];
   /** the selected statement row: "<section idx>:<item i>" */
   selRow: string | null;
   /** the statement row under the pointer, same format as `selRow` */
@@ -122,19 +132,22 @@ function newProgram(id: number, others: Program[]): Program {
 export const useStore = create<State>()(
   persist(
     (): State => ({
-      ui: { theme: null, hideinert: true, hidelt: false, localnames: true, ptrhover: true, lochover: true, srcOpen: true, editorFontSize: EDITOR_FONT_SIZE, vim: false },
+      ui: { theme: null, hideinert: true, hidelt: false, localnames: true, ptrhover: true, lochover: true, srcOpen: true, editorFontSize: EDITOR_FONT_SIZE, vim: false, openDir: "" },
       programs: [newProgram(1, [])],
       active: 1,
       nextId: 2,
       runs: {},
       running: false,
       serverInfo: "",
+      filesDir: null,
+      opening: false,
+      recent: [],
       selRow: null,
       hoverRow: null,
     }),
     {
       name: "blick",
-      partialize: s => ({ ui: s.ui, programs: s.programs, active: s.active, nextId: s.nextId }),
+      partialize: s => ({ ui: s.ui, programs: s.programs, active: s.active, nextId: s.nextId, recent: s.recent }),
       // options added since the state was saved get their defaults
       merge: (persisted, current) => {
         const p = persisted as Partial<State>;
@@ -323,8 +336,39 @@ export function setHidden(fnId: string, locs: string[]) {
   updateProgram(get().active, p => ({ hidden: { ...p.hidden, [fnId]: locs } }));
 }
 
-export function setServerInfo(serverInfo: string) {
-  set({ serverInfo });
+export function setServerInfo(serverInfo: string, filesDir: string | null = null) {
+  set({ serverInfo, filesDir });
+}
+
+export function setOpening(opening: boolean) {
+  set({ opening });
+}
+
+const MAX_RECENT = 10;
+
+/**
+ * Opens the program `source` read from `path`: in the tab already showing that file, if it was not
+ * edited since; else in the active tab, if it is empty and was never run; else in a new tab.
+ */
+export function openProgram(path: string, source: string) {
+  const s = get();
+  const recent = [path, ...s.recent.filter(p => p !== path)].slice(0, MAX_RECENT);
+  const name = path.slice(path.lastIndexOf("/") + 1).replace(/\.rs$/, "");
+  const same = s.programs.find(p => p.path === path && p.source === source);
+  if (same) {
+    set({ recent, active: same.id, selRow: null });
+    return;
+  }
+  const cur = curProgram(s);
+  if (!cur.source.trim() && !s.runs[cur.id]) {
+    updateProgram(cur.id, () => ({ source, path, name, nameSet: true }));
+    set({ recent, selRow: null });
+    return;
+  }
+  set(t => {
+    const p = { ...newProgram(t.nextId, t.programs), source, path, name, nameSet: true };
+    return { programs: [...t.programs, p], nextId: t.nextId + 1, active: p.id, recent, selRow: null };
+  });
 }
 
 // ---- running Flux ----

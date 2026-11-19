@@ -356,3 +356,59 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line-st
   .row .sp { display: none; }
   .nav .hint { margin-left: 0; }
 }
+
+/* ---- open dialog ---- */
+/* A Quick Open style picker: one field, the folder or the matches under it, and a preview. */
+#openbtn { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+#openbtn:hover { color: var(--fg); }
+#opendlg { width: min(1100px, calc(100vw - 32px)); height: min(640px, calc(100vh - 96px)); margin: 8vh auto auto; padding: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel); color: var(--fg); box-shadow: var(--shadow); overflow: hidden; }
+#opendlg[open] { display: flex; }
+#opendlg::backdrop { background: light-dark(rgba(20, 28, 50, .28), rgba(0, 0, 0, .5)); }
+.odmain { flex: 0 0 46%; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+.odcrumbs { display: flex; flex-wrap: wrap; align-items: center; padding: 10px 12px 2px; font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.odcrumbs button { border: 0; background: transparent; padding: 1px 4px; border-radius: 4px; color: inherit; font-family: inherit; }
+.odcrumbs button:hover { color: var(--fg); background: var(--hover); }
+.odcrumbs span:last-child button { color: var(--fg); font-weight: 600; }
+.odsep { color: var(--faint); }
+.odmain [cmdk-input] { margin: 6px 12px 8px; font-family: var(--mono); font-size: 14px; padding: 6px 10px; }
+.odmain [cmdk-list] { flex: 1; overflow: auto; padding: 0 6px 6px; }
+.odmain [cmdk-group-heading] { padding: 8px 8px 3px; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); }
+.opt { display: flex; align-items: center; gap: 8px; padding: 3px 8px; border-radius: 5px; cursor: pointer; font-family: var(--mono); font-size: 13px; white-space: nowrap; color: var(--env); }
+.opt[data-selected="true"] { background: var(--sel); color: var(--fg); }
+.opt .odicon { flex: none; color: var(--faint); }
+.opt[data-selected="true"] .odicon { color: var(--accent); }
+.odname { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; }
+.oddir { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--faint); font-size: 12px; direction: rtl; text-align: left; }
+.odcount { margin-left: auto; padding-left: 8px; color: var(--faint); font-size: 12px; }
+.opt mark { background: transparent; color: var(--accent); font-weight: 700; }
+.odnone { padding: 12px; color: var(--muted); }
+.odfoot { display: flex; justify-content: space-between; gap: 10px; padding: 6px 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); background: var(--sunken); }
+.odfoot .err { color: var(--blocked); }
+.odkeys { white-space: nowrap; }
+.odkeys kbd { margin-left: 3px; font-size: 11px; }
+.odpreview { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+.odpath { padding: 10px 14px 8px; font-family: var(--mono); font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.odsrc { flex: 1; margin: 0; overflow: auto; padding: 8px 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; color: var(--env); }
+.odsrc > div { padding: 0 14px 0 0; white-space: pre; }
+.odsrc .ln { display: inline-block; width: 4ch; margin-right: 12px; text-align: right; color: var(--faint); user-select: none; }
+.odmore { padding-left: 14px; color: var(--faint); }
+.odfolder p { margin: 10px 14px 4px; color: var(--muted); }
+.odfolder ul { list-style: none; margin: 0; padding: 4px 14px; font-family: var(--mono); font-size: 13px; color: var(--env); }
+.odfolder li { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.odfolder li .odicon { color: var(--faint); }
+.odfolder .odcount { margin-left: 4px; }
+@media (max-width: 760px) {
+  .odpreview { display: none; }
+  .odmain { flex: 1; border-right: 0; }
+}
+
+/* ---- Rust syntax highlighting (highlight.ts), in the editor and the open dialog's preview ---- */
+.hl-kw { color: var(--hl-kw); }
+.hl-ty { color: var(--hl-ty); }
+.hl-str { color: var(--hl-str); }
+.hl-num { color: var(--hl-num); }
+.hl-com { color: var(--hl-com); font-style: italic; }
+.hl-meta { color: var(--hl-meta); }
+.hl-fn { color: var(--hl-fn); }
+.hl-mac { color: var(--hl-mac); }
+.hl-life { color: var(--hl-life); }

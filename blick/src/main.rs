@@ -1,13 +1,16 @@
 //! Serves Blick and runs Flux on programs pasted into it.
 //!
-//!     cargo run -p blick [-- --port 8765]
+//!     cargo run -p blick [-- --port 8765] [DIR]
 //!
 //! Then open http://127.0.0.1:8765. On startup, blick installs the client's npm packages
 //! when they are missing or out of date (`npm ci`), and starts `vite build --watch` on the client,
 //! which rebuilds `client/dist` whenever a source file changes. The page reloads after each
 //! rebuild. It needs Node.js and npm.
 //!
-//! - `GET /api/info`: `{command, repo}`, shown in the page's status line.
+//! - `GET /api/info`: `{command, repo, dir}`, shown in the page's status line.
+//! - `GET /api/files`: `{root, files}`, the `.rs` files under `DIR` (relative paths), which the
+//!   page lets the user open; 404 when blick was started without one.
+//! - `GET /api/file/<relative path>`: the contents of one of them.
 //! - `GET /api/run-ws` (WebSocket): the page sends `{source, flags}`; the server streams every
 //!   output line as `{"type": "line", "text": ...}` while `cargo x run` works, then sends
 //!   `{"type": "done", ...result}` and closes. See `run.rs`.
@@ -16,6 +19,7 @@
 //!
 //! The server compiles whatever it is sent, so it only listens on localhost.
 
+mod files;
 mod protocol;
 mod run;
 
@@ -33,13 +37,13 @@ use axum::{
         State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    http::{HeaderValue, header},
-    response::Response,
+    http::{HeaderValue, StatusCode, header},
+    response::{IntoResponse, Response},
     routing::get,
 };
 use clap::Parser;
 use notify::{RecursiveMode, Watcher};
-use protocol::{Info, RunRequest, RunResult, ServerMsg};
+use protocol::{FileList, Info, RunRequest, RunResult, ServerMsg};
 use tokio::{
     process::{Child, Command},
     sync::broadcast,
@@ -52,11 +56,15 @@ struct Args {
     /// The port to listen on (on 127.0.0.1).
     #[arg(long, default_value_t = 8765)]
     port: u16,
+    /// A folder of programs to open in the page, e.g. Flux's regression tests (`tests/tests`).
+    dir: Option<PathBuf>,
 }
 
 #[derive(Clone)]
 struct App {
     repo: PathBuf,
+    /// The folder of programs the page can open, canonical.
+    dir: Option<PathBuf>,
     /// Fires after the client was rebuilt.
     reload: broadcast::Sender<()>,
 }
@@ -66,6 +74,13 @@ const CRATE_DIR: &str = env!("CARGO_MANIFEST_DIR");
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+    let dir = args
+        .dir
+        .map(|dir| {
+            dir.canonicalize()
+                .with_context(|| format!("cannot open {}", dir.display()))
+        })
+        .transpose()?;
     let crate_dir = Path::new(CRATE_DIR);
     let repo = crate_dir.parent().unwrap().to_path_buf();
     let client = crate_dir.join("client");
@@ -85,10 +100,17 @@ async fn main() -> anyhow::Result<()> {
         _ = tokio::time::sleep(Duration::from_secs(60)) => {}
     }
 
-    let app = App { repo, reload };
-    let router = Router::new()
+    // `ServeDir` rejects paths that leave the folder
+    let read_file = dir.as_ref().map(ServeDir::new);
+    let app = App { repo, dir, reload };
+    let mut router = Router::new()
         .route("/api/info", get(info))
-        .route("/api/run-ws", get(run_ws))
+        .route("/api/files", get(list_files))
+        .route("/api/run-ws", get(run_ws));
+    if let Some(read_file) = read_file {
+        router = router.nest_service("/api/file", read_file);
+    }
+    let router = router
         .route("/api/reload", get(reload_ws))
         .fallback_service(ServeDir::new(&dist))
         .layer(SetResponseHeaderLayer::overriding(
@@ -186,7 +208,26 @@ fn watch_dist(dist: &Path, reload: broadcast::Sender<()>) -> anyhow::Result<impl
 }
 
 async fn info(State(app): State<App>) -> Json<Info> {
-    Json(Info { command: "cargo x run".into(), repo: app.repo.display().to_string() })
+    Json(Info {
+        command: "cargo x run".into(),
+        repo: app.repo.display().to_string(),
+        dir: app.dir.map(|dir| dir.display().to_string()),
+    })
+}
+
+async fn list_files(State(app): State<App>) -> Response {
+    let Some(dir) = app.dir else {
+        return (StatusCode::NOT_FOUND, "blick was started without a folder of programs")
+            .into_response();
+    };
+    let root = dir.display().to_string();
+    match tokio::task::spawn_blocking(move || files::list(&dir)).await {
+        Ok(Ok(files)) => Json(FileList { root, files }).into_response(),
+        Ok(Err(err)) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("listing {root}: {err}")).into_response()
+        }
+        Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
+    }
 }
 
 async fn reload_ws(State(app): State<App>, ws: WebSocketUpgrade) -> Response {

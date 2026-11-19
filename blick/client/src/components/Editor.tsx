@@ -2,13 +2,13 @@
 
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { rust } from "@codemirror/lang-rust";
-import { bracketMatching, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from "@codemirror/language";
+import { bracketMatching, indentOnInput, indentUnit, syntaxHighlighting } from "@codemirror/language";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, drawSelection, EditorView, keymap, lineNumbers, placeholder } from "@codemirror/view";
-import { tags as t } from "@lezer/highlight";
 import { vim } from "@replit/codemirror-vim";
 import { useEffect, useRef } from "react";
+import { highlighter } from "../highlight";
 import { runFlux, setSource, zoomEditor } from "../store";
 import { MOD } from "./icons";
 
@@ -16,18 +16,6 @@ export interface LineRange {
   start: number;
   end: number;
 }
-
-const highlight = HighlightStyle.define([
-  { tag: [t.keyword, t.controlKeyword, t.modifier, t.self, t.bool, t.definitionKeyword, t.moduleKeyword], color: "var(--hl-kw)" },
-  { tag: [t.typeName, t.className, t.namespace], color: "var(--hl-ty)" },
-  { tag: [t.string, t.character, t.special(t.string)], color: "var(--hl-str)" },
-  { tag: [t.number, t.integer, t.float], color: "var(--hl-num)" },
-  { tag: [t.comment, t.lineComment, t.blockComment], color: "var(--hl-com)", fontStyle: "italic" },
-  { tag: [t.meta, t.attributeName, t.processingInstruction], color: "var(--hl-meta)" },
-  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: "var(--hl-fn)" },
-  { tag: t.macroName, color: "var(--hl-mac)" },
-  { tag: [t.labelName, t.special(t.variableName)], color: "var(--hl-life)" },
-]);
 
 const theme = EditorView.theme({
   "&": { height: "100%", background: "var(--bg)", color: "var(--fg)", fontSize: "var(--code-size)" },
@@ -84,7 +72,7 @@ function newState(doc: string, vimOn: boolean): EditorState {
       indentUnit.of("    "),
       EditorState.tabSize.of(4),
       rust(),
-      syntaxHighlighting(highlight),
+      syntaxHighlighting(highlighter),
       theme,
       markField,
       // keep Grammarly out: it attaches to the editor, turns the browser's spellcheck back on and
@@ -151,6 +139,14 @@ export function Editor({ progId, source, mark, markFor, vim: vimOn, fontSize }: 
     v.setState(st);
     shownId.current = progId;
   }, [progId]);
+
+  // A source set from outside the editor (a file opened into this tab) replaces the text, as an
+  // edit that can be undone. The editor's own edits come back here equal to its text.
+  useEffect(() => {
+    const v = view.current!;
+    if (shownId.current !== progId || v.state.doc.toString() === source) return;
+    v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: source } });
+  }, [source, progId]);
 
   // after switching programs too: the program's state may have been saved with the other setting
   useEffect(() => {

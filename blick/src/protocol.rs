@@ -11,6 +11,17 @@ use ts_rs::{Config, TS};
 pub struct Info {
     pub command: String,
     pub repo: String,
+    /// The folder of programs the page can open (see `GET /api/files`), if blick was given one.
+    pub dir: Option<String>,
+}
+
+/// `GET /api/files`: the programs the page can open.
+#[derive(Serialize, TS)]
+pub struct FileList {
+    /// The folder they are in, absolute.
+    pub root: String,
+    /// `/`-separated paths relative to `root`, sorted.
+    pub files: Vec<String>,
 }
 
 /// The first (and only) message the page sends on `/api/run-ws`.
@@ -57,6 +68,7 @@ pub fn write_bindings(dir: &Path) -> anyhow::Result<()> {
     fs::create_dir_all(dir)?;
     let cfg = Config::new();
     write_binding::<Info>(dir, &cfg)?;
+    write_binding::<FileList>(dir, &cfg)?;
     write_binding::<RunRequest>(dir, &cfg)?;
     write_binding::<ServerMsg>(dir, &cfg)?;
     write_binding::<RunResult>(dir, &cfg)?;

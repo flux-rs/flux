@@ -14,7 +14,11 @@ Run Flux on programs and watch its refinement checker work, in the browser.
 cargo xtask blick [--port 8765]
 ```
 
-(or `cargo run -p blick [-- --port 8765]`)
+(or `cargo run -p blick [-- --port 8765] [DIR]`)
+
+Given a folder, the page can open the `.rs` files in it (**Open**, or Ctrl+P): browse its folders, or
+type to fuzzy-search every file under the current folder. `cargo xtask blick` passes Flux's
+regression tests (`tests/tests`).
 
 Then open http://127.0.0.1:8765. It needs Node.js and npm: on startup it installs the client's
 packages when they are missing or out of date (`npm ci`) and runs `vite build --watch` on the
