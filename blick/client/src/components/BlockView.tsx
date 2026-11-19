@@ -361,7 +361,7 @@ function renderItem(c: BodyCtx, p: Printer, s: Section, it: Item) {
     const f = it.before!;
     if (c.mode.name === "refine") {
       p.context(f);
-      p.push(<div key={p.key} className="ctx env"><span className="op">==&gt;</span> <BbEnv s={f.bb_env} hidden={c.hidden} /></div>);
+      p.push(<div key={p.key} className="ctx env"><span className="op">==&gt;</span>{"\n"}<BbEnv s={f.bb_env} hidden={c.hidden} /></div>);
     } else {
       p.push(<div key={p.key} className="ctx env"><BbEnv s={f.bb_env} hidden={c.hidden} /></div>);
       p.push(<div key={p.key} className="ctx env"><span className="op">⊓</span></div>);
