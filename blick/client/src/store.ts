@@ -341,6 +341,9 @@ export async function runFlux() {
       : out.elapsed == null ? "Run failed (see the output)"
       : out.exit === null ? `timed out${when}`
       : `cargo x run exited with ${out.exit}${when} (see the output)`;
+    // The new trace has new graphs (and nodes of other sizes): their state is cleared before the
+    // trace is set, so the graph view, remounted for it, never reads the old run's state.
+    updateProgram(id, () => ({ graphs: {} }));
     updateRun(id, () => ({
       status: out.ok ? "ok" : "err", statusText, statusErr: !out.ok, ranSource: source, ranFlags: flags,
       // Keep the view state when re-running: it is restored if the function still exists.
@@ -349,9 +352,7 @@ export async function runFlux() {
       mir: out.mir,
       noTrace: !out.trace,
     }));
-    // The new trace has new graphs (and nodes of other sizes). Statement ids may name other
-    // statements in it.
-    updateProgram(id, () => ({ graphs: {} }));
+    // Statement ids may name other statements in the new trace.
     if (get().active === id) set({ selRow: null });
   } catch (e) {
     cancelAnimationFrame(frame);

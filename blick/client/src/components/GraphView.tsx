@@ -34,6 +34,16 @@ type BlockNode = Node<BlockData, "block">;
 // persists.
 const layouts = new WeakMap<Mode, Map<string, Positions>>();
 
+// An id per mode object. Each run parses a new trace, so a re-run (or another tab) gets new ids
+// even when it has a function and mode of the same names.
+let nextModeId = 0;
+const modeIds = new WeakMap<Mode, number>();
+function modeId(mode: Mode): number {
+  let id = modeIds.get(mode);
+  if (id === undefined) modeIds.set(mode, (id = nextModeId++));
+  return id;
+}
+
 interface Props {
   fn: Fn;
   mode: Mode;
@@ -57,8 +67,9 @@ export function GraphView(props: Props) {
           side by side. Esc or a click on empty space clears. Drag to move.
         </span>
       </div>
-      {/* Remounted when the node sizes may change, so the nodes are measured and laid out again. */}
-      <ReactFlowProvider key={`${fn.id}|${mode.name}|${optsKey}`}>
+      {/* Remounted for another mode (of a new run, too) or when the node sizes may change, so the
+          nodes are built, measured and laid out again and the graph's state is read from the store. */}
+      <ReactFlowProvider key={`${modeId(mode)}|${optsKey}`}>
         <Graph {...props} cfg={cfg} optsKey={optsKey} />
       </ReactFlowProvider>
     </div>

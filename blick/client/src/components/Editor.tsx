@@ -87,6 +87,14 @@ function newState(doc: string, vimOn: boolean): EditorState {
       syntaxHighlighting(highlight),
       theme,
       markField,
+      // keep Grammarly out: it attaches to the editor, turns the browser's spellcheck back on and
+      // underlines keywords like `fn` and `mut`
+      EditorView.contentAttributes.of({
+        spellcheck: "false",
+        "data-gramm": "false",
+        "data-gramm_editor": "false",
+        "data-enable-grammarly": "false",
+      }),
       placeholder(`Paste a Rust program here and press ${MOD}+Enter.`),
       Prec.highest(keymap.of([
         { key: "Mod-Enter", run: () => (runFlux(), true) },
