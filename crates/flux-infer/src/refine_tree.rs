@@ -770,19 +770,10 @@ mod pretty {
         }
     }
 
-    /// `[bindings = a0: int, reftgenerics = N: int]`, each part only if it is not empty.
+    /// `[reftgenerics = N: int, bindings = a0: int]`, each part only if it is not empty.
     impl Pretty for Scope {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let mut parts = vec![];
-            if !self.bindings.is_empty() {
-                let bindings = self
-                    .bindings
-                    .iter_enumerated()
-                    .format_with(", ", |(name, sort), f| {
-                        f(&format_args_cx!(cx, "{:?}: {:?}", ^name, sort))
-                    });
-                parts.push(format!("bindings = {bindings}"));
-            }
             if !self.params.is_empty() {
                 let params = self
                     .params
@@ -791,6 +782,15 @@ mod pretty {
                         f(&format_args_cx!(cx, "{:?}: {:?}", ^param_const, sort))
                     });
                 parts.push(format!("reftgenerics = {params}"));
+            }
+            if !self.bindings.is_empty() {
+                let bindings = self
+                    .bindings
+                    .iter_enumerated()
+                    .format_with(", ", |(name, sort), f| {
+                        f(&format_args_cx!(cx, "{:?}: {:?}", ^name, sort))
+                    });
+                parts.push(format!("bindings = {bindings}"));
             }
             write!(f, "[{}]", parts.join(", "))
         }

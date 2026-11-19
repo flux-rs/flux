@@ -2228,7 +2228,7 @@ impl Mode for ShapeMode {
             }
         };
 
-        dbg::shape_goto_exit!(target, bb_envs[&ck.checker_id].get(&target));
+        dbg::shape_goto_exit!(target, &bb_envs[&ck.checker_id][&target]);
         Ok(modified)
     }
 
