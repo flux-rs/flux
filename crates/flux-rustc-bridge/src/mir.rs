@@ -674,7 +674,8 @@ impl fmt::Debug for Terminator<'_> {
                 write!(f, "falseEdge -> [real: {real_target:?}, imaginary: {imaginary_target:?}]")
             }
             TerminatorKind::FalseUnwind { real_target, unwind } => {
-                write!(f, "falseUnwind -> [real: {real_target:?}, cleanup: {unwind:?}]")
+                write!(f, "falseUnwind")?;
+                fmt_edges(f, &[("real", *real_target)], *unwind)
             }
             TerminatorKind::UnwindResume => write!(f, "resume"),
             TerminatorKind::CoroutineDrop => write!(f, "generator_drop"),
