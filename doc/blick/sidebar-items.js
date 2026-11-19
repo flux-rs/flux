@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["CRATE_DIR"],"fn":["handle_run","info","install_client_deps","main","reload_ws","run_ws","send","shutdown_signal","start_vite","watch_dist"],"mod":["protocol","run"],"struct":["App","Args"]};
+window.SIDEBAR_ITEMS = {"constant":["CRATE_DIR"],"fn":["handle_run","info","install_client_deps","list_files","main","reload_ws","run_ws","send","shutdown_signal","start_vite","watch_dist"],"mod":["files","protocol","run"],"struct":["App","Args"]};

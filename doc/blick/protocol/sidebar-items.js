@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ServerMsg"],"fn":["write_binding","write_bindings"],"struct":["Info","RunRequest","RunResult"]};
+window.SIDEBAR_ITEMS = {"enum":["ServerMsg"],"fn":["write_binding","write_bindings"],"struct":["FileList","Info","RunRequest","RunResult"]};
