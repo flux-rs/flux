@@ -261,6 +261,9 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line-st
 /* ---- block sections (block view: open blocks side by side; all-blocks view) ---- */
 .cols { display: grid; grid-template-columns: repeat(var(--ncols, 1), minmax(min(420px, 100%), 1fr)); gap: 12px; align-items: start; }
 .col { min-width: 0; }
+/* the visit tabs of an open block, in its header: compact, so the header keeps its height */
+.sec > .hd .tabs.visits { align-self: center; padding: 1px; font-family: var(--ui); }
+.sec > .hd .tabs.visits button { padding: 0 8px; font-size: 12px; line-height: 18px; }
 @media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 .sec { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; background: var(--panel); overflow: hidden; }
 .sec > .hd { display: flex; gap: 10px; align-items: baseline; padding: 6px 12px; user-select: none; font-family: var(--mono); font-size: 13px; background: var(--sunken); }

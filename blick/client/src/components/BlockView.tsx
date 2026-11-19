@@ -1,10 +1,10 @@
 // The block views: the open blocks side by side ("block"), or every block of the mode ("all"),
 // each statement followed by the environment after it.
 
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import * as ToggleGroup from "@radix-ui/react-toggle-group";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { curProgram, go, setHoverRow, setSelRow, toggleCollapsed, toggleFold, useStore, type ViewState } from "../store";
-import { buildCfg } from "../trace/cfg";
 import { type Fn, type Item, isGhost, isInert, type Mode, type Section, type SecItem, type Sep } from "../trace/model";
 import { envBindings, matchClose, rcxFacts } from "../trace/text";
 import { ChevronIcon, GhostIcon } from "./icons";
@@ -30,10 +30,12 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
   const hiddenList = useStore(s => s.programs.find(p => p.id === s.active)?.hidden[fn.id]);
   const foldedSet = useMemo(() => new Set(folded), [folded]);
   const hidden = useMemo(() => new Set(hiddenList), [hiddenList]);
-  const cfg = buildCfg(mode);
   const single = view.kind === "block";
   const ref = useRef<HTMLDivElement>(null);
   const hover = useMemo(ptrHoverHandlers, []);
+  // the visit shown of each open block that was visited more than once, by "fn|mode|bb"; the last
+  // visit by default
+  const [visits, setVisits] = useState<Record<string, number>>({});
   const lhover = useMemo(() => localHoverHandlers(ref), []);
   const ptrhover = useStore(s => s.ui.ptrhover);
   const lochover = useStore(s => s.ui.lochover);
@@ -63,7 +65,8 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
 
   const ctx: BodyCtx = { fn, mode, hideinert, selRow, folded: foldedSet, hidden };
 
-  const section = (s: Section) => {
+  /** A block's section; `visitTabs`, in its header, picks which visit of the block is shown. */
+  const section = (s: Section, visitTabs?: ReactNode) => {
     const isCollapsed = !single && collapsed.includes(String(s.idx));
     const closable = single && view.bbs.length > 1;
     return (
@@ -71,7 +74,9 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
         <div className={single ? "hd" : "hd click"} onClick={single ? undefined : () => toggleCollapsed(String(s.idx))}>
           {!single && <span className="tw"><ChevronIcon open={!isCollapsed} /></span>}
           <span className="bb">{s.bb}</span>
-          {(s.visit > 1 || (single && cfg.nodes.get(s.bb)!.secs.length > 1)) && <span className="hint">visit {s.visit}</span>}
+          {/* in the open blocks, the visit is picked with tabs */}
+          {!single && s.visit > 1 && <span className="hint">visit {s.visit}</span>}
+          {visitTabs}
           {closable && (
             <button className="bbclose" aria-label={`Close ${s.bb}`} title={`Close ${s.bb}`}
               onClick={() => go({ kind: "block", bbs: view.bbs.filter(b => b !== s.bb) })}>
@@ -146,13 +151,23 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
         </div>
       )}
       {single ? (
-        // one column per open block, each with all visits of that block
+        // one column per open block, with one of its visits, picked with tabs above it
         <div className="cols" style={{ "--ncols": view.bbs.length } as React.CSSProperties}>
-          {view.bbs.map(bb => (
-            <div className="col" key={bb}>
-              {mode.sections.filter(s => s.bb === bb).map(section)}
-            </div>
-          ))}
+          {view.bbs.map(bb => {
+            const secs = mode.sections.filter(s => s.bb === bb);
+            const key = `${fn.id}|${mode.name}|${bb}`;
+            const pick = Math.min(visits[key] ?? secs.length - 1, secs.length - 1);
+            return (
+              <div className="col" key={bb}>
+                {secs[pick] && section(secs[pick], secs.length > 1 && (
+                  <ToggleGroup.Root type="single" className="tabs visits" aria-label={`Visits of ${bb}`} value={String(pick)}
+                    onValueChange={v => v && setVisits(vs => ({ ...vs, [key]: +v }))}>
+                    {secs.map((s, i) => <ToggleGroup.Item key={s.idx} value={String(i)}>visit {s.visit}</ToggleGroup.Item>)}
+                  </ToggleGroup.Root>
+                ))}
+              </div>
+            );
+          })}
         </div>
       ) : (
         mode.sections.map(section)
